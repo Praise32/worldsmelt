@@ -1,0 +1,36 @@
+# Build C/C++
+bin/
+build/
+out/
+*.exe
+*.o
+*.obj
+*.dll
+*.a
+*.lib
+*.pdb
+
+# Contenuti generati e log
+generated/
+logs/
+
+# Modelli e cache locali
+models/
+cache/
+node_modules/
+
+# Segreti e configurazioni locali
+.env
+.env.*
+!.env.example
+
+# File degli editor e del sistema operativo
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Il grafo viene rigenerato localmente da codebase-memory-mcp.
+.codebase-memory/
