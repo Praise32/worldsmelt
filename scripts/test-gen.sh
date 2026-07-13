@@ -50,4 +50,23 @@ if "$GBNF" tools/melting-gen/run.gbnf "$TMP/g/broken.json" | grep -q "is valid";
   echo "FALLITO: la grammatica ha accettato uno slot inesistente"; exit 1
 fi
 
+echo "-- corpus JSON rotti: normalizzati senza crash, manifest completo --"
+for f in tests/melting-gen/bad/*.json; do
+  "$GEN" --from-json "$f" --seed 7 --out "$TMP/bad"
+  grep -q "^floor5.item3.script=" "$TMP/bad/current_run.txt" || { echo "FALLITO su $f"; exit 1; }
+done
+
+echo "-- normalizzazioni puntuali --"
+"$GEN" --from-json tests/melting-gen/bad/wrong-op-pair.json --seed 7 --out "$TMP/n1"
+grep -q "^floor1.item1.script=on_fire:burst,2,1.2,homing$" "$TMP/n1/current_run.txt"
+"$GEN" --from-json tests/melting-gen/bad/out-of-range.json --seed 7 --out "$TMP/n2"
+grep -q "^floor1.item1.script=on_fire:burst,6,1.2,split|on_hit:heal,60,2,vamp$" "$TMP/n2/current_run.txt"
+
+echo "-- JSON non parsabile -> exit 4 --"
+set +e
+"$GEN" --from-json tests/melting-gen/unparseable.txt --seed 7 --out "$TMP/x"
+rc=$?
+set -e
+[ "$rc" -eq 4 ]
+
 echo "TEST-GEN: OK"

@@ -1,0 +1,1 @@
+{"floors":[{"theme":42,"style":null,"boss":"","bg":"rosso","floor":"#12345","wall":"#gg0000","accent":true,"accent2":"#123456","enemy":"#abcdef","bossColor":[],"items":[{"name":"   ","slot":"head","traits":["fuoco","split","split"],"color":"nero","script":"non-un-array"}]}]}

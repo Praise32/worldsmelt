@@ -1,5 +1,6 @@
 #include "melting_gen.h"
 
+#include "cJSON.h"
 #include "llama.h"
 
 #include <stdio.h>
@@ -12,6 +13,7 @@ typedef struct GenArgs {
     int emitLlmJson;
     unsigned int seed;
     const char *outDir;
+    const char *fromJson;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -20,6 +22,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->emitLlmJson = 0;
     args->seed = (unsigned int)time(NULL);
     args->outDir = "generated";
+    args->fromJson = NULL;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -33,6 +36,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--emit-llm-json") == 0) args->emitLlmJson = 1;
         else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) args->seed = (unsigned int)strtoul(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
+        else if (strcmp(argv[i], "--from-json") == 0 && i + 1 < argc) args->fromJson = argv[++i];
         else
         {
             fprintf(stderr, "melting-gen: opzione sconosciuta: %s\n", argv[i]);
@@ -71,6 +75,25 @@ int main(int argc, char **argv)
         return 3;
     }
     GenProgressWrite(args.outDir, "avvio", 0, "melting-gen avviato");
+
+    if (args.fromJson)
+    {
+        char *text = GenReadFile(args.fromJson);
+        cJSON *root = text ? cJSON_Parse(text) : NULL;
+        free(text);
+        if (!root)
+        {
+            fprintf(stderr, "melting-gen: JSON non parsabile: %s\n", args.fromJson);
+            GenProgressWrite(args.outDir, "errore", 100, "JSON non parsabile");
+            return 4;
+        }
+        GenRun run;
+        GenProgressWrite(args.outDir, "valido", 60, "valido e normalizzo il JSON");
+        GenNormalizeRun(root, args.seed, &run);
+        cJSON_Delete(root);
+        snprintf(run.source, sizeof(run.source), "from-json");
+        return WriteOutputs(&run, &args);
+    }
 
     if (!args.fallback)
     {
