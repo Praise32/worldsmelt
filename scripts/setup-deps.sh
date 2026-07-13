@@ -27,4 +27,22 @@ if [ ! -f deps/raylib/build/raylib/libraylib.a ]; then
   cmake --build deps/raylib/build -j"$(nproc)"
 fi
 
+LLAMA_TAG="b9979"
+if [ ! -f deps/llama.cpp/build/src/libllama.a ]; then
+  echo "== llama.cpp $LLAMA_TAG (statica, backend Vulkan) =="
+  [ -d deps/llama.cpp ] || git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp.git deps/llama.cpp
+  cmake -S deps/llama.cpp -B deps/llama.cpp/build -DCMAKE_BUILD_TYPE=Release \
+    -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_BUILD_TESTS=ON \
+    -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_APP=OFF \
+    -DLLAMA_BUILD_SERVER=OFF -DLLAMA_CURL=OFF
+  # -j4 e non $(nproc): con 12 job paralleli GCC 15 va in internal compiler error
+  # su llama-sampler.cpp per pressione di memoria (15 GiB di RAM su questa macchina).
+  cmake --build deps/llama.cpp/build -j4
+  # test-gbnf-validator non fa parte del target 'all': va chiesto esplicitamente.
+  cmake --build deps/llama.cpp/build --target test-gbnf-validator -j4
+fi
+
+echo "== Verifica Vulkan =="
+vulkaninfo --summary | head -25 || echo "ATTENZIONE: vulkaninfo fallito, controlla i driver"
+
 echo "Dipendenze pronte."
