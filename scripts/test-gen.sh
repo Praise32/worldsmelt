@@ -59,6 +59,53 @@ for n in 1 2 3 4 5; do
   fi
 done
 
+
+# Fase 3b (design doc, docs/superpowers/specs/2026-07-13-pools-rarity-design.md
+# sezioni 1-3): ogni oggetto porta una rarita', il boss la tira SEMPRE da una
+# tabella raro/leggendario (mai comune/non-comune), tesoro/negozio danno la
+# mista. Round-trip attraverso il manifest di testo, per ciascuno dei 5 piani
+# (stessa run --seed 12345 di sopra, $TMP/a).
+echo "-- fase 3b: rarity round-trips attraverso il manifest (uno dei 4 livelli per ogni item, boss sempre raro/leggendario) --"
+RARITY_RE='^(common|uncommon|rare|legendary)$'
+for n in 1 2 3 4 5; do
+  for i in 1 2 3; do
+    line=$(grep "^floor${n}.item${i}.rarity=" "$TMP/a/current_run.txt" || true)
+    [ -n "$line" ] || { echo "FALLITO: floor${n}.item${i}.rarity mancante"; exit 1; }
+    value="${line#*=}"
+    echo "$value" | grep -Eq "$RARITY_RE" || {
+      echo "FALLITO: floor${n}.item${i}.rarity=$value non e' uno dei 4 livelli"; exit 1; }
+  done
+  bline=$(grep "^floor${n}.bossItem.rarity=" "$TMP/a/current_run.txt" || true)
+  [ -n "$bline" ] || { echo "FALLITO: floor${n}.bossItem.rarity mancante"; exit 1; }
+  bvalue="${bline#*=}"
+  if [ "$bvalue" != "rare" ] && [ "$bvalue" != "legendary" ]; then
+    echo "FALLITO: floor${n}.bossItem.rarity=$bvalue (atteso rare o legendary: il boss non delude mai)"; exit 1
+  fi
+done
+
+# Su piu' semi (non solo 12345): il boss e' SEMPRE raro/leggendario, mai
+# comune/non-comune, e gli oggetti attivi mostrano una MISTA di rarita' (non
+# tutti sullo stesso livello) -- la prova che la tabella di pesi tesoro/
+# negozio (55/30/12/3) e quella del boss (0/0/70/30) girano per davvero.
+echo "-- fase 3b: il boss e' sempre raro/leggendario su piu' semi, gli attivi mostrano una mista --"
+ACTIVE_RARITIES_SEEN=""
+for seed in 1 2 3 7 42 100 31337; do
+  "$GEN" --fallback --seed "$seed" --out "$TMP/rarity-$seed"
+  manifest="$TMP/rarity-$seed/current_run.txt"
+  bosses=$(grep '^floor[0-9]\.bossItem\.rarity=' "$manifest" | sed 's/.*=//' | sort -u)
+  for b in $bosses; do
+    if [ "$b" != "rare" ] && [ "$b" != "legendary" ]; then
+      echo "FALLITO: seed=$seed ha un bossItem.rarity=$b (atteso sempre rare/legendary)"; exit 1
+    fi
+  done
+  ACTIVE_RARITIES_SEEN="$ACTIVE_RARITIES_SEEN $(grep '^floor[0-9]\.item[0-9]\.rarity=' "$manifest" | sed 's/.*=//')"
+done
+distinctActive=$(echo "$ACTIVE_RARITIES_SEEN" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l)
+if [ "$distinctActive" -lt 2 ]; then
+  echo "FALLITO: gli oggetti attivi tesoro/negozio mostrano un solo livello di rarita' su 7 semi (atteso una mista)"; exit 1
+fi
+echo "   rarita' distinte viste negli oggetti attivi su 7 semi: $distinctActive/4"
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

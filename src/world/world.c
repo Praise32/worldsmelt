@@ -2,6 +2,7 @@
 
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "gameplay/item_traits.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -182,7 +183,12 @@ void WorldSpawnRoomContents(Game *game)
     else if (room->kind == ROOM_SHOP && !room->rewardTaken)
     {
         FloorContent *fc = &game->content.floors[game->floor - 1];
-        EntitiesAddItemPickup(game, (Vector2){ ROOM_X + ROOM_W*0.5f - 130.0f, ROOM_Y + ROOM_H*0.5f }, fc->items[GameRngRange(&game->rng, 0, 2)], 8);
+        /* Fase 3b (design doc, sezione 4): il costo in monete scala con la
+           rarita' dell'oggetto pescato (ItemShopCostForRarity,
+           src/gameplay/item_traits.c), non piu' un letterale fisso "8". */
+        int shopItemIndex = GameRngRange(&game->rng, 0, 2);
+        Item shopItem = fc->items[shopItemIndex];
+        EntitiesAddItemPickup(game, (Vector2){ ROOM_X + ROOM_W*0.5f - 130.0f, ROOM_Y + ROOM_H*0.5f }, shopItem, ItemShopCostForRarity(shopItem.rarity));
         EntitiesAddPickup(game, PICKUP_HEART, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f }, 1, 3);
         EntitiesAddPickup(game, PICKUP_KEY, (Vector2){ ROOM_X + ROOM_W*0.5f + 100.0f, ROOM_Y + ROOM_H*0.5f }, 1, 4);
         EntitiesAddPickup(game, PICKUP_BOMB, (Vector2){ ROOM_X + ROOM_W*0.5f + 180.0f, ROOM_Y + ROOM_H*0.5f }, 1, 3);

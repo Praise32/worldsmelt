@@ -208,3 +208,67 @@ const GenTraitRule *GenTraitRuleFor(const char *trait)
     }
     return NULL;
 }
+
+/* ============================================================
+   Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+   sezioni 1-3). Tavole dichiarative -- MODIFICA QUI per bilanciare/espandere.
+   ============================================================ */
+
+/* Ordine canonico: deve restare sincronizzato a mano con l'enum Rarity in
+   core/game_types.h (RARITY_COMMON=0 .. RARITY_LEGENDARY=3) e con
+   RarityFromText in src/content/run_content.c, che traduce questi stessi
+   quattro testi nel verso opposto lato gioco. */
+const char *GEN_RARITIES[4] = { "common", "uncommon", "rare", "legendary" };
+
+/* Pesi di drop per pool (design sezione 3): un intero per cella, MODIFICA
+   QUI per ribilanciare la frequenza -- non serve che sommino a 100, solo
+   proporzioni fra loro (GenRollRarity sotto normalizza sul totale della
+   riga). Tesoro/negozio pescano dalla prima riga (mista, common piu'
+   frequente), il boss SEMPRE dalla seconda (zero peso su comune/non-comune:
+   "il boss da' sempre roba buona", mai un premio deludente). */
+static const int GEN_RARITY_WEIGHTS_TREASURE_SHOP[4] = { 55, 30, 12, 3 };
+static const int GEN_RARITY_WEIGHTS_BOSS[4]          = {  0,  0, 70, 30 };
+
+/* Frasi di intensita' per il prompt Lua per-oggetto (design sezione 2:
+   "la rarita' entra nel prompt come intensita'"), in italiano -- MODIFICA
+   QUI per cambiare quanto il prompt spinge verso numeri piccoli o grandi.
+   Stesso ordine di GEN_RARITIES sopra. Iniettate da gen_lua.c
+   (BuildLuaPrompt) al posto del placeholder {ITEM_RARITY} nei template
+   prompts/lua_user.txt e prompts/lua_statup_user.txt.
+
+   VOLUTAMENTE brevi (poche parole, non frasi): il prompt Lua di un oggetto
+   e' gia' vicino al tetto n_ctx=4096 della sessione (lua_system.txt, il
+   cheat-sheet condiviso, e' gia' lungo da solo, vedi GEN_LLM_SESSION_N_CTX
+   in gen_llm.c) -- una frase intera qui per ognuno dei 20 oggetti di una
+   run ha fatto sforare il budget e mandato in fallback OGNI oggetto
+   (trovato girando davvero MODEL=...7b... make test-llm durante lo
+   sviluppo di questa fase, vedi il report di fase). */
+const char *GEN_RARITY_PROMPT_HINTS[4] = {
+    "comune (numeri piccoli)",
+    "non comune (numeri moderati)",
+    "raro (numeri alti)",
+    "leggendario (numeri grandi)",
+};
+
+int GenRollRarity(unsigned int *rng, int isBoss)
+{
+    const int *w = isBoss ? GEN_RARITY_WEIGHTS_BOSS : GEN_RARITY_WEIGHTS_TREASURE_SHOP;
+    int total = w[0] + w[1] + w[2] + w[3];
+    int roll = GenRngRange(rng, 0, total - 1);
+    int acc = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        acc += w[i];
+        if (roll < acc) return i;
+    }
+    return 3;   /* difesa: mai raggiunto se i pesi sommano davvero a 'total' */
+}
+
+int GenRarityIndexFromText(const char *text)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (text && strcmp(GEN_RARITIES[i], text) == 0) return i;
+    }
+    return -1;
+}

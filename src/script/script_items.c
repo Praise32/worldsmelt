@@ -259,30 +259,61 @@ static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc)
    oggetto) -- resta cosi', la sandbox non perde liberta'. Il budget
    per-oggetto e' la promessa di equilibrio specifica dei BOSS REWARD, non
    una restrizione nuova sull'intera libreria di oggetti attivi gia'
-   esistente. */
-#define SCRIPT_ITEMS_ITEM_DELTA_FRACTION 0.25f
+   esistente.
 
-static float ScriptItemsClampItemDeltaField(float post, float pre, float base)
+   MODIFICA QUI per ribilanciare (fase 3b, design doc, sezione 2): la
+   frazione non e' piu' un'unica costante, e' una tavola indicizzata per
+   Rarity (core/game_types.h). Un oggetto piu' raro puo' spostare una
+   statistica di piu': comune 15%, non-comune 25% (la stessa cifra di prima
+   di questa fase: e' il punto di riferimento "invariato" usato anche sotto
+   per scalare il ripiego C), raro 40%, leggendario 60%. Il tetto GLOBALE
+   (ScriptItemsClampStats) resta INVARIATO e gira SEMPRE dopo questo,
+   qualunque sia la rarita': con base=8 (damage) il tetto per-oggetto piu'
+   largo (leggendario, 60%) sposta al massimo 4.8 a botta, quindi anche
+   cinque oggetti leggendari consecutivi (il massimo possibile: un solo
+   bossItem per piano, 5 piani) restano a 8+5*4.8=32, ben dentro la banda
+   assoluta [0.5,200] -- vedi src/tests/script_items_tests.c, test M/N, che
+   verificano questi numeri per davvero. */
+static const float SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION[4] = {
+    0.15f,   /* RARITY_COMMON */
+    0.25f,   /* RARITY_UNCOMMON -- invariata rispetto al vecchio tetto flat */
+    0.40f,   /* RARITY_RARE */
+    0.60f,   /* RARITY_LEGENDARY */
+};
+
+/* Difesa in profondita': una Rarity fuori range (non dovrebbe mai succedere,
+   l'enum ha solo 4 valori e RarityFromText/GenNormalizeRun ricadono sempre
+   su RARITY_COMMON per un testo sconosciuto) ricade sul tetto piu' stretto,
+   mai sul piu' largo -- un dato corrotto deve rendere un oggetto PIU'
+   debole, mai piu' forte del previsto. */
+static float ScriptItemsRarityFraction(Rarity rarity)
 {
-    float cap = fabsf(base)*SCRIPT_ITEMS_ITEM_DELTA_FRACTION;
+    if (rarity < RARITY_COMMON || rarity > RARITY_LEGENDARY) return SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION[RARITY_COMMON];
+    return SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION[rarity];
+}
+
+static float ScriptItemsClampItemDeltaField(float post, float pre, float base, float fraction)
+{
+    float cap = fabsf(base)*fraction;
     float delta = GameMathClampFloat(post - pre, -cap, cap);
     return pre + delta;
 }
 
-/* Applica il tetto per-oggetto a TUTTE le statistiche che 'post' porta
-   rispetto a 'pre' (i valori subito prima di chiamare on_evaluate per
-   QUESTO oggetto), scrivendo il risultato clampato in 'post' stesso. Il
-   tetto globale (ScriptItemsClampStats) va comunque richiamato DOPO questa
-   funzione dal chiamante: sono due reti distinte, non una alternativa
-   all'altra. */
-static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptItemsStatsAccum *pre, const Player *p)
+/* Applica il tetto per-oggetto SCALATO PER RARITA' a TUTTE le statistiche
+   che 'post' porta rispetto a 'pre' (i valori subito prima di chiamare
+   on_evaluate per QUESTO oggetto), scrivendo il risultato clampato in
+   'post' stesso. Il tetto globale (ScriptItemsClampStats) va comunque
+   richiamato DOPO questa funzione dal chiamante: sono due reti distinte,
+   non una alternativa all'altra. */
+static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptItemsStatsAccum *pre, const Player *p, Rarity rarity)
 {
-    post->damage     = ScriptItemsClampItemDeltaField(post->damage,     pre->damage,     p->baseDamage);
-    post->fireDelay  = ScriptItemsClampItemDeltaField(post->fireDelay,  pre->fireDelay,  p->baseFireDelay);
-    post->shotSpeed  = ScriptItemsClampItemDeltaField(post->shotSpeed,  pre->shotSpeed,  p->baseShotSpeed);
-    post->shotRadius = ScriptItemsClampItemDeltaField(post->shotRadius, pre->shotRadius, p->baseShotRadius);
-    post->speed      = ScriptItemsClampItemDeltaField(post->speed,      pre->speed,      p->baseSpeed);
-    post->maxHp      = ScriptItemsClampItemDeltaField(post->maxHp,      pre->maxHp,      (float)p->baseMaxHp);
+    float fraction = ScriptItemsRarityFraction(rarity);
+    post->damage     = ScriptItemsClampItemDeltaField(post->damage,     pre->damage,     p->baseDamage,     fraction);
+    post->fireDelay  = ScriptItemsClampItemDeltaField(post->fireDelay,  pre->fireDelay,  p->baseFireDelay,  fraction);
+    post->shotSpeed  = ScriptItemsClampItemDeltaField(post->shotSpeed,  pre->shotSpeed,  p->baseShotSpeed,  fraction);
+    post->shotRadius = ScriptItemsClampItemDeltaField(post->shotRadius, pre->shotRadius, p->baseShotRadius, fraction);
+    post->speed      = ScriptItemsClampItemDeltaField(post->speed,      pre->speed,      p->baseSpeed,      fraction);
+    post->maxHp      = ScriptItemsClampItemDeltaField(post->maxHp,      pre->maxHp,      (float)p->baseMaxHp, fraction);
 }
 
 /* Ripiego fisso e sicuro (fase 3, task brief: "so a boss reward is never a
@@ -291,25 +322,33 @@ static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptI
    ScriptItemsRecomputeStats sotto) prende comunque UN bonus, piccolo ma
    reale, deciso qui in C e scelto in base al suo trait (lo stesso trait che
    nel manifest serve solo da "etichetta", vedi tools/melting-gen/gen_fallback.c
-   FallbackBossItem): niente RNG, stesso trait -> sempre lo stesso bonus,
-   cosi' il ripiego resta prevedibile e testabile quanto il resto del
-   sistema delle cache. Passa comunque per ScriptItemsClampItemDelta subito
-   dopo (vedi il chiamante), quindi anche questi valori "piccoli a mano"
-   restano sotto lo stesso tetto per-oggetto di un on_evaluate scritto da un
-   modello. Ordine di priorita' identico a ItemFirstTraitName
+   FallbackBossItem): niente RNG, stesso trait -> sempre lo stesso bonus di
+   base, cosi' il ripiego resta prevedibile e testabile quanto il resto del
+   sistema delle cache.
+
+   Fase 3b (design doc, sezione 2: "il ripiego 'mai un buco' rispetta la
+   rarita' dell'oggetto"): il bonus di base viene scalato dalla STESSA
+   tavola di frazioni usata dal tetto sopra, relativa alla frazione
+   NON-COMUNE (0.25, il valore storico "invariato" di questa fase): un
+   oggetto comune prende un bonus piu' piccolo (0.15/0.25=60%), uno raro o
+   leggendario uno piu' grande (160%/240%). Passa comunque per
+   ScriptItemsClampItemDelta subito dopo (vedi il chiamante) con lo stesso
+   tetto per-rarita', quindi anche uno scalato resta dentro il budget del
+   suo livello. Ordine di priorita' identico a ItemFirstTraitName
    (src/gameplay/item_traits.c): un solo trait guida un solo bonus. */
-static void ScriptItemsApplyStatUpFallback(ScriptItemsStatsAccum *acc, const Item *item)
+static void ScriptItemsApplyStatUpFallback(ScriptItemsStatsAccum *acc, const Item *item, Rarity rarity)
 {
-    if (item->traits & TRAIT_VAMP)         { acc->maxHp     += 1.0f;  return; }
-    if (item->traits & TRAIT_GIANT)        { acc->damage    += 1.5f;  return; }
-    if (item->traits & TRAIT_RAPID)        { acc->fireDelay -= 0.03f; return; }
-    if (item->traits & TRAIT_PIERCE)       { acc->damage    += 1.0f;  return; }
-    if (item->traits & TRAIT_HOMING)       { acc->shotSpeed += 60.0f; return; }
-    if (item->traits & TRAIT_BOUNCE)       { acc->shotSpeed += 60.0f; return; }
-    if (item->traits & TRAIT_EXPLODE)      { acc->shotRadius += 1.0f; return; }
-    if (item->traits & TRAIT_SPLIT)        { acc->shotRadius += 1.0f; return; }
-    if (item->traits & TRAIT_SLOW)         { acc->speed      += 20.0f; return; }
-    acc->maxHp += 1.0f;   /* nessun trait riconosciuto: un cuore extra, sempre sicuro */
+    float scale = ScriptItemsRarityFraction(rarity)/SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION[RARITY_UNCOMMON];
+    if (item->traits & TRAIT_VAMP)         { acc->maxHp     += 1.0f*scale;  return; }
+    if (item->traits & TRAIT_GIANT)        { acc->damage    += 1.5f*scale;  return; }
+    if (item->traits & TRAIT_RAPID)        { acc->fireDelay -= 0.03f*scale; return; }
+    if (item->traits & TRAIT_PIERCE)       { acc->damage    += 1.0f*scale;  return; }
+    if (item->traits & TRAIT_HOMING)       { acc->shotSpeed += 60.0f*scale; return; }
+    if (item->traits & TRAIT_BOUNCE)       { acc->shotSpeed += 60.0f*scale; return; }
+    if (item->traits & TRAIT_EXPLODE)      { acc->shotRadius += 1.0f*scale; return; }
+    if (item->traits & TRAIT_SPLIT)        { acc->shotRadius += 1.0f*scale; return; }
+    if (item->traits & TRAIT_SLOW)         { acc->speed      += 20.0f*scale; return; }
+    acc->maxHp += 1.0f*scale;   /* nessun trait riconosciuto: un cuore extra, sempre sicuro */
 }
 
 /* La stessa matematica che prima viveva UNA TANTUM (al pickup) in
@@ -417,7 +456,7 @@ void ScriptItemsRecomputeStats(Game *game)
             ScriptItemsStatsAccum pre = acc;
             if (ScriptItemsCallEvaluate(rt, &acc))
             {
-                if (isStatUp) ScriptItemsClampItemDelta(&acc, &pre, p);
+                if (isStatUp) ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
                 ranLuaEval = true;
             }
             ScriptItemsClampStats(&acc);   /* di nuovo: anche dopo un fallimento, per sicurezza in profondita' */
@@ -433,8 +472,8 @@ void ScriptItemsRecomputeStats(Game *game)
         if (!ranLuaEval && isStatUp)
         {
             ScriptItemsStatsAccum pre = acc;
-            ScriptItemsApplyStatUpFallback(&acc, item);
-            ScriptItemsClampItemDelta(&acc, &pre, p);
+            ScriptItemsApplyStatUpFallback(&acc, item, item->rarity);
+            ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
             ScriptItemsClampStats(&acc);
         }
     }

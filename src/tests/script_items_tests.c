@@ -12,6 +12,7 @@
 #include "tests/game_tests.h"
 
 #include "game/game_internal.h"
+#include "gameplay/item_traits.h"
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
 
@@ -306,10 +307,13 @@ static bool TestRecomputeIdempotent(void)
    ============================================================ */
 
 /* Test I: on_evaluate ambizioso (+1000 danno) -> clampato al budget
-   per-oggetto (SCRIPT_ITEMS_ITEM_DELTA_FRACTION=0.25 di baseDamage in
-   src/script/script_items.c), MAI ai 1000 richiesti. E' il test esplicito
-   del task brief: "feed a script bumping damage by +1000, assert the
-   player's damage lands at the per-item cap, not 1000". */
+   per-oggetto, MAI ai 1000 richiesti. E' il test esplicito del task brief:
+   "feed a script bumping damage by +1000, assert the player's damage lands
+   at the per-item cap, not 1000". Rarita' esplicita RARITY_UNCOMMON: e' la
+   riga della tavola SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION (src/script/
+   script_items.c) rimasta 0.25, lo stesso valore del vecchio tetto flat
+   pre-fase-3b, cosi' questo test isola "il tetto per-oggetto esiste ed e'
+   rispettato" dalla scalatura per rarita' (quella e' il test M sotto). */
 static const char *GREEDY_DAMAGE_LUA =
     "function on_evaluate(stats)\n"
     "  stats.damage = stats.damage + 1000\n"
@@ -322,19 +326,133 @@ static bool TestStatUpClampedToPerItemCap(void)
     Item item = { 0 };
     item.active = true;
     item.kind = ITEM_STATUP;
+    item.rarity = RARITY_UNCOMMON;
     item.slot = SLOT_HAT;
     snprintf(item.name, sizeof(item.name), "Nucleo Ingordo");
     snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
     TestAddItem(&game, item);
 
-    float perItemCap = base*0.25f;   /* deve combaciare con SCRIPT_ITEMS_ITEM_DELTA_FRACTION */
+    float perItemCap = base*0.25f;   /* deve combaciare con la riga RARITY_UNCOMMON della tavola */
     float expected = base + perItemCap;
     float got = game.player.damage;
     bool ok = fabsf(got - expected) < 1e-3f;
-    printf("  [I] on_evaluate chiede +1000 danno -> damage=%.4f (atteso %.4f = base %.1f + tetto per-oggetto %.2f, MAI base+1000)\n",
+    printf("  [I] on_evaluate chiede +1000 danno (non comune) -> damage=%.4f (atteso %.4f = base %.1f + tetto per-oggetto %.2f, MAI base+1000)\n",
            got, expected, base, perItemCap);
     ScriptItemsShutdown(&game);
     if (!ok) printf("      FALLITO: il tetto di potenza per-oggetto (fase 3) non ha limitato uno script avido\n");
+    return ok;
+}
+
+/* Test M (fase 3b, design doc sezione 2 + il task brief: "a LEGENDARY
+   stat-up pushing +1000 damage lands higher than a COMMON one pushing
+   +1000, proving the per-rarity cap differs"): stesso script avido di
+   sopra, due Game separati, un oggetto COMUNE e uno LEGGENDARIO. Numeri
+   concreti (base=8, tavola in src/script/script_items.c): comune ->
+   8 + 0.15*8 = 9.2, leggendario -> 8 + 0.60*8 = 12.8. Entrambi ben dentro
+   la banda globale [SCRIPT_ITEMS_DAMAGE_MIN, SCRIPT_ITEMS_DAMAGE_MAX] =
+   [0.5, 200]. */
+static bool TestRarityCapDiffersFromCommonToLegendary(void)
+{
+    Game commonGame = MakeBaseGame(5001u);
+    float base = commonGame.player.baseDamage;
+    Item commonItem = { 0 };
+    commonItem.active = true;
+    commonItem.kind = ITEM_STATUP;
+    commonItem.rarity = RARITY_COMMON;
+    commonItem.slot = SLOT_HAT;
+    snprintf(commonItem.name, sizeof(commonItem.name), "Nucleo Comune");
+    snprintf(commonItem.luaSource, sizeof(commonItem.luaSource), "%s", GREEDY_DAMAGE_LUA);
+    TestAddItem(&commonGame, commonItem);
+    float commonDamage = commonGame.player.damage;
+    float expectedCommon = base + base*0.15f;
+
+    Game legendaryGame = MakeBaseGame(5002u);
+    Item legendaryItem = { 0 };
+    legendaryItem.active = true;
+    legendaryItem.kind = ITEM_STATUP;
+    legendaryItem.rarity = RARITY_LEGENDARY;
+    legendaryItem.slot = SLOT_HAT;
+    snprintf(legendaryItem.name, sizeof(legendaryItem.name), "Nucleo Leggendario");
+    snprintf(legendaryItem.luaSource, sizeof(legendaryItem.luaSource), "%s", GREEDY_DAMAGE_LUA);
+    TestAddItem(&legendaryGame, legendaryItem);
+    float legendaryDamage = legendaryGame.player.damage;
+    float expectedLegendary = base + base*0.60f;
+
+    bool commonOk = fabsf(commonDamage - expectedCommon) < 1e-3f;
+    bool legendaryOk = fabsf(legendaryDamage - expectedLegendary) < 1e-3f;
+    bool legendaryHigher = legendaryDamage > commonDamage;
+    bool bothInBand = commonDamage >= 0.5f && commonDamage <= 200.0f && legendaryDamage >= 0.5f && legendaryDamage <= 200.0f;
+
+    printf("  [M] on_evaluate chiede +1000 danno -> comune=%.4f (atteso %.4f), leggendario=%.4f (atteso %.4f); leggendario>comune=%s, entrambi in banda [0.5,200]=%s\n",
+           commonDamage, expectedCommon, legendaryDamage, expectedLegendary,
+           legendaryHigher ? "si" : "NO", bothInBand ? "si" : "NO");
+
+    ScriptItemsShutdown(&commonGame);
+    ScriptItemsShutdown(&legendaryGame);
+    bool ok = commonOk && legendaryOk && legendaryHigher && bothInBand;
+    if (!ok) printf("      FALLITO: il tetto per-oggetto deve scalare per rarita' (comune < leggendario), entrambi dentro banda\n");
+    return ok;
+}
+
+/* Test N (fase 3b, design doc sezione 2 + il task brief: "five legendaries
+   stacked keep the player inside the band, not unplayable"): cinque
+   oggetti stat-up LEGGENDARI, ciascuno con lo stesso script avido
+   (+1000 danno). Il tetto per-oggetto e' relativo a player.baseDamage
+   (FISSO, non al valore corrente prima di questo oggetto, vedi il
+   commento su ScriptItemsClampItemDelta): lo spostamento massimo per
+   oggetto resta 0.60*8=4.8 anche per il quinto oggetto, quindi il danno
+   atteso e' ESATTAMENTE 8 + 5*4.8 = 32.0 -- ben dentro la banda globale
+   [0.5,200] (16% del tetto assoluto): il giocatore resta giocabile, mai
+   rotto, anche col massimo storico possibile di oggetti stat-up (un
+   bossItem per piano, 5 piani). */
+static bool TestFiveLegendariesStayInBand(void)
+{
+    Game game = MakeBaseGame(5005u);
+    float base = game.player.baseDamage;
+    for (int i = 0; i < 5; i++)
+    {
+        Item item = { 0 };
+        item.active = true;
+        item.kind = ITEM_STATUP;
+        item.rarity = RARITY_LEGENDARY;
+        item.slot = SLOT_HAT;
+        snprintf(item.name, sizeof(item.name), "Nucleo Leggendario %d", i + 1);
+        snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
+        TestAddItem(&game, item);
+    }
+    float expected = base + 5.0f*(base*0.60f);
+    float got = game.player.damage;
+    bool matchesExpected = fabsf(got - expected) < 1e-2f;
+    bool inBand = got >= 0.5f && got <= 200.0f;
+    printf("  [N] cinque oggetti stat-up leggendari (+1000 danno ciascuno) -> damage=%.4f (atteso %.4f = base %.1f + 5 x tetto 4.8), dentro banda [0.5,200]: %s\n",
+           got, expected, base, inBand ? "si" : "NO");
+    ScriptItemsShutdown(&game);
+    bool ok = matchesExpected && inBand;
+    if (!ok) printf("      FALLITO: cinque leggendari devono restare dentro la banda globale (mai ingiocabile)\n");
+    return ok;
+}
+
+/* Test O (fase 3b, design doc sezione 4: "il costo del negozio scala con
+   la rarita': un leggendario costa piu' monete di un comune"). Non
+   esercita world.c/combat.c (nessun Game/stanza necessari: e' una tavola
+   pura, src/gameplay/item_traits.c), ma vive qui insieme al resto della
+   suite di bilanciamento della rarita' (task brief, sezione 5: "extend
+   scripts/test-gen.sh AND the --script-items-test suite"). Verifica sia
+   l'ordine stretto (comune < non-comune < raro < leggendario) sia il
+   valore storico invariato per il comune (8, lo stesso letterale hardcoded
+   prima di questa fase in world.c). */
+static bool TestShopCostScalesWithRarity(void)
+{
+    int common = ItemShopCostForRarity(RARITY_COMMON);
+    int uncommon = ItemShopCostForRarity(RARITY_UNCOMMON);
+    int rare = ItemShopCostForRarity(RARITY_RARE);
+    int legendary = ItemShopCostForRarity(RARITY_LEGENDARY);
+    printf("  [O] costo negozio per rarita': comune=%d non-comune=%d raro=%d leggendario=%d\n",
+           common, uncommon, rare, legendary);
+    bool strictlyIncreasing = common < uncommon && uncommon < rare && rare < legendary;
+    bool commonUnchanged = common == 8;
+    bool ok = strictlyIncreasing && commonUnchanged;
+    if (!ok) printf("      FALLITO: il costo deve crescere strettamente con la rarita', comune deve restare 8\n");
     return ok;
 }
 
@@ -723,6 +841,9 @@ bool ScriptItemsSelfTest(void)
         { "J (stat-up: ripiego C quando non c'e' Lua, mai un dud)", TestStatUpFallbackWhenNoLua },
         { "K (stat-up: due oggetti si compongono, rimozione senza deriva)", TestStatUpComposeAndRecompute },
         { "L (stat-up: NaN da on_evaluate resta clampato, mai NaN/INT_MIN)", TestStatUpNaNPoisonClamped },
+        { "M (rarita': il tetto per-oggetto scala, leggendario > comune, entrambi in banda)", TestRarityCapDiffersFromCommonToLegendary },
+        { "N (rarita': cinque leggendari impilati restano dentro la banda globale)", TestFiveLegendariesStayInBand },
+        { "O (rarita': il costo del negozio cresce con la rarita')", TestShopCostScalesWithRarity },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

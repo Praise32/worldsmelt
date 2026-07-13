@@ -304,6 +304,14 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
                oggetti di items[] sono SEMPRE attivi, deciso qui in C, mai dal
                modello (vedi il commento su GenItem.kind in melting_gen.h). */
             snprintf(item->kind, sizeof(item->kind), "active");
+            /* Rarita' (fase 3b): stesso trattamento di "kind" sopra, e per lo
+               stesso motivo -- il pool (quindi la rarita') e' una decisione
+               di design/bilanciamento, non creativita' del modello: non fa
+               parte della grammatica JSON, si prende SEMPRE dal fallback
+               procedurale (gia' tirato dalla tabella di pesi tesoro/negozio
+               in GenFallbackRun, che GenNormalizeRun richiama sempre come
+               'fb' qui sopra), mai dal JSON grezzo. */
+            snprintf(item->rarity, sizeof(item->rarity), "%s", fbItem->rarity);
         }
 
         /* Oggetto stat-up del piano (fase 3): non fa parte della grammatica

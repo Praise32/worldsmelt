@@ -111,6 +111,26 @@ typedef enum ItemKind {
     ITEM_STATUP
 } ItemKind;
 
+/* Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md
+   sezioni 1-3): determina SIA la potenza (il tetto per-oggetto scalato per
+   rarita', vedi src/script/script_items.c, SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION)
+   SIA la frequenza di drop (le tabelle di peso per pool, vedi
+   tools/melting-gen/gen_util.c lato generatore e src/content/run_content.c
+   lato gioco). Niente campo "pool" a parte: il pool di un oggetto e' gia'
+   la sua POSIZIONE (items[0..2] = tesoro/negozio, bossItem = boss, vedi
+   FloorContent sotto), esattamente come "kind" gia' non ha bisogno di un
+   campo aggiuntivo per sapere se e' un oggetto del piano o la ricompensa
+   del boss. RARITY_COMMON vale 0 di proposito, stesso motivo di ITEM_ACTIVE
+   sopra: un Item azzerato con "{0}" o un manifest senza una riga
+   "rarity=" (vecchio, scritto prima di questa fase) restano comuni, mai una
+   rarita' piu' alta per sbaglio (vedi RarityFromText in run_content.c). */
+typedef enum Rarity {
+    RARITY_COMMON,
+    RARITY_UNCOMMON,
+    RARITY_RARE,
+    RARITY_LEGENDARY
+} Rarity;
+
 typedef enum GamePhase {
     PHASE_PLAY,
     PHASE_GAME_OVER,
@@ -184,6 +204,7 @@ typedef struct Item {
     ItemSlot slot;
     unsigned int traits;
     ItemKind kind;   /* ITEM_ACTIVE di default (vedi il commento sopra): mai stat-up senza che qualcuno lo imposti esplicitamente */
+    Rarity rarity;   /* RARITY_COMMON di default (vedi il commento sopra): letta dal renderer (fase 3b VISIVA, task parallelo) per il colore del bordo, e da script_items.c/world.c per il tetto di potenza/costo negozio */
     Color color;
     int shape;
     char script[SCRIPT_TEXT_LEN];

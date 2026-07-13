@@ -19,6 +19,13 @@ static void FallbackBossItem(unsigned int *rng, GenItem *item, int h, int floorI
     snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(rng, 0, 5)]);
     snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
     item->traitCount = 1;
+    /* Rarita' (fase 3b, design doc sezione 3): pool BOSS, isBoss=1 ->
+       GEN_RARITY_WEIGHTS_BOSS (0/0/70/30 in gen_util.c) -- sempre raro o
+       leggendario, mai comune/non-comune: "il boss da' sempre roba buona".
+       NUOVO punto di consumo RNG rispetto alle fasi precedenti (motivo per
+       cui il golden file di regressione e' stato rigenerato, vedi
+       scripts/test-gen.sh). */
+    snprintf(item->rarity, sizeof(item->rarity), "%s", GEN_RARITIES[GenRollRarity(rng, 1)]);
     GenHsvToHex((h + 260 + floorIdx*37)%360, 0.70, 0.95, item->color);
     snprintf(item->kind, sizeof(item->kind), "statup");
     item->opCount = 0;
@@ -78,6 +85,11 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
             snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(&rng, 0, 5)]);
             snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
             item->traitCount = 1;
+            /* Rarita' (fase 3b, design doc sezione 3): pool tesoro/negozio,
+               isBoss=0 -> GEN_RARITY_WEIGHTS_TREASURE_SHOP (55/30/12/3 in
+               gen_util.c), la mista. NUOVO punto di consumo RNG rispetto
+               alle fasi precedenti (golden file rigenerato di conseguenza). */
+            snprintf(item->rarity, sizeof(item->rarity), "%s", GEN_RARITIES[GenRollRarity(&rng, 0)]);
             GenHsvToHex((h + 80 + j*53)%360, 0.75, 0.92, item->color);
             snprintf(item->kind, sizeof(item->kind), "active");
             FallbackScriptForTrait(trait, &rng, item);

@@ -145,6 +145,7 @@ static int WriteManifest(const GenRun *run, const char *outDir)
             fprintf(f, "floor%d.item%d.traits=%s\n", n, i + 1, text);
             fprintf(f, "floor%d.item%d.color=%s\n", n, i + 1, item->color);
             fprintf(f, "floor%d.item%d.kind=%s\n", n, i + 1, item->kind);
+            fprintf(f, "floor%d.item%d.rarity=%s\n", n, i + 1, item->rarity);
             ScriptToText(item, text, sizeof(text));
             fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
             /* La riga .lua= si scrive QUI (testo), il FILE che referenzia si
@@ -170,6 +171,7 @@ static int WriteManifest(const GenRun *run, const char *outDir)
         fprintf(f, "floor%d.bossItem.traits=%s\n", n, bossText);
         fprintf(f, "floor%d.bossItem.color=%s\n", n, boss->color);
         fprintf(f, "floor%d.bossItem.kind=%s\n", n, boss->kind);
+        fprintf(f, "floor%d.bossItem.rarity=%s\n", n, boss->rarity);
         if (boss->lua[0] != '\0')
         {
             fprintf(f, "floor%d.bossItem.lua=generated/scripts/floor%d_bossItem.lua\n", n, n);

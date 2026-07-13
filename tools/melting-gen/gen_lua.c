@@ -409,14 +409,24 @@ static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, cons
         used += (size_t)n;
     }
 
+    /* Rarita' come intensita' (fase 3b design doc, sezione 2): l'indice
+       torna -1 solo se item->rarity contiene un testo sconosciuto (non
+       dovrebbe mai succedere, e' sempre GenRollRarity/GenNormalizeRun a
+       scriverlo), in quel caso si ricade sulla frase COMUNE -- un prompt
+       che spinge verso numeri piccoli e' l'errore piu' sicuro da fare. */
+    int rarityIdx = GenRarityIndexFromText(item->rarity);
+    const char *rarityHint = GEN_RARITY_PROMPT_HINTS[rarityIdx >= 0 ? rarityIdx : 0];
+
     char *step1 = GenReplaceAll(userTpl, "{ITEM_NAME}", item->name);
     free(userTpl);
     char *step2 = step1 ? GenReplaceAll(step1, "{ITEM_SLOT}", item->slot) : NULL;
     free(step1);
     char *step3 = step2 ? GenReplaceAll(step2, "{ITEM_TRAITS}", traitsText) : NULL;
     free(step2);
-    char *userFinal = step3 ? GenReplaceAll(step3, "{FLOOR_THEME}", floorTheme) : NULL;
+    char *step4 = step3 ? GenReplaceAll(step3, "{FLOOR_THEME}", floorTheme) : NULL;
     free(step3);
+    char *userFinal = step4 ? GenReplaceAll(step4, "{ITEM_RARITY}", rarityHint) : NULL;
+    free(step4);
     if (!userFinal) { free(sys); return NULL; }
 
     if (prevError && prevError[0])

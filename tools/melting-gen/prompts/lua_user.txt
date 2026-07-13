@@ -2,5 +2,6 @@ Oggetto ATTIVO (tesoro/negozio): {ITEM_NAME}
 Slot: {ITEM_SLOT}
 Trait: {ITEM_TRAITS}
 Tema del piano: {FLOOR_THEME}
+Rarita': {ITEM_RARITY} — scala SOLO i numeri (mai la complessita': un solo effetto comunque), entro i limiti del cheat-sheet.
 
 Scrivi lo script Lua di questo oggetto: definisci ESATTAMENTE una fra on_fire/on_hit/on_tick con UN comportamento concreto, coerente col nome e col tema del piano — parti da un archetipo della tavolozza del cheat-sheet sopra (rimbalzo, colpo omingante, spinta al colpo, famiglio periodico, perforazione) o un'idea altrettanto semplice. NON definire on_evaluate: e' riservato agli oggetti STAT-UP (un'altra categoria, non questo), e un oggetto attivo che si limita a cambiare un numero non e' un oggetto valido qui.

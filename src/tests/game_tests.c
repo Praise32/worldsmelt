@@ -109,7 +109,13 @@ bool GameManifestTest(Game *game)
         if (!boss->name[0]) return false;
         if (boss->kind != ITEM_STATUP) return false;
         if (boss->script[0] != '\0') return false;
-        if (!ManifestLuaLoads(game, boss)) return false;
+        /* Fase 3b: il bossItem di un manifest GENERATO (non un vecchio
+           manifest senza la riga "rarity=") e' sempre raro o leggendario
+           (vedi GEN_RARITY_WEIGHTS_BOSS in tools/melting-gen/gen_util.c: zero
+           peso su comune/non-comune). Prova il round-trip manifest->Item.rarity
+           per davvero, non solo il testo grezzo (quello lo copre
+           scripts/test-gen.sh via grep sul manifest). */
+        if (boss->rarity != RARITY_RARE && boss->rarity != RARITY_LEGENDARY) return false;
     }
     /* GameManifestTest verificava solo il contenuto testuale del manifest, mai
        game->atlasLoaded: una regressione nello scrittore del BMP (Important 2)

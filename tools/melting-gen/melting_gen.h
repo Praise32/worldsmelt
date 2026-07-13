@@ -60,6 +60,14 @@ typedef struct GenItem {
     int traitCount;     /* 1..2 */
     char color[8];      /* "#rrggbb" */
     char kind[8];        /* uno dei GEN_KINDS */
+    /* Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md):
+     * uno dei GEN_RARITIES sotto. Stesso trattamento testuale di 'kind' e
+     * per lo stesso motivo: mai scritta dal modello (non fa parte della
+     * grammatica JSON, run.gbnf), sempre tirata in C da una tabella di pesi
+     * PER POOL (GenRollRarity in gen_util.c) -- items[] tira dalla tabella
+     * tesoro/negozio, bossItem SEMPRE dalla tabella boss (mai comune/non-
+     * comune, vedi FallbackBossItem in gen_fallback.c). */
+    char rarity[12];
     GenScriptOp ops[GEN_MAX_OPS];
     int opCount;        /* 1..3; sempre 0 per un oggetto stat-up (nessun comportamento mini-VM, vedi bossItem) */
     char lua[GEN_LUA_LEN];
@@ -136,6 +144,28 @@ extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
 extern const char *GEN_KINDS[2];   /* "active", "statup": vedi il commento su GenItem.kind sopra */
 const GenTraitRule *GenTraitRuleFor(const char *trait);   /* NULL se sconosciuto */
+
+/* Rarita' (fase 3b design doc, sezioni 1-3): MODIFICA QUI (gen_util.c) per
+ * ribilanciare/espandere. GEN_RARITIES e' l'ordine canonico (indice 0..3 =
+ * comune..leggendario, stesso ordine dell'enum Rarity in core/game_types.h,
+ * vedi RarityFromText in run_content.c che deve restare sincronizzato a
+ * mano). GEN_RARITY_PROMPT_HINTS e' la frase di intensita' (in italiano) che
+ * gen_lua.c inietta nel prompt per-oggetto: un comune chiede numeri piccoli,
+ * un leggendario numeri grandi, MAI un secondo effetto (vedi i prompt in
+ * tools/melting-gen/prompts/). */
+extern const char *GEN_RARITIES[4];
+extern const char *GEN_RARITY_PROMPT_HINTS[4];
+/* Tira una rarita' pesata (design sezione 3): isBoss=0 pesca dalla tabella
+ * tesoro/negozio (55/30/12/3), isBoss!=0 dalla tabella boss (0/0/70/30,
+ * SEMPRE raro o leggendario). Ritorna un indice 0..3 in GEN_RARITIES
+ * (Rarity-compatibile, ma qui e' un int semplice: GenItem tiene solo il
+ * testo, vedi il commento su GenItem.rarity in melting_gen.h). Stesso
+ * algoritmo RNG di GenRngRange sopra: deterministico, stesso seed -> stessa
+ * rarita' (vedi scripts/test-gen.sh). */
+int GenRollRarity(unsigned int *rng, int isBoss);
+/* Indice 0..3 in GEN_RARITIES per il testo dato, -1 se sconosciuto (usato da
+ * gen_lua.c per scegliere la frase giusta in GEN_RARITY_PROMPT_HINTS). */
+int GenRarityIndexFromText(const char *text);
 
 /* gen_fallback.c */
 void GenFallbackRun(GenRun *run, unsigned int seed);
