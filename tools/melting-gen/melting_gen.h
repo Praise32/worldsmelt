@@ -253,4 +253,56 @@ int GenLlmComplete(GenLlmSession *sess, const char *prompt, const char *grammarT
  * su fallimento (file mancanti). */
 char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed);
 
+/* ============================================================
+ * Riuso del prefisso condiviso nella KV cache (fase 3b step B1, misurato:
+ * ~9.6s di ogni ~10-11s per oggetto Lua sono il RIPROCESSAMENTO del
+ * cheat-sheet di sistema (~3700 token, quasi il n_ctx=4096 della sessione),
+ * identico per i 20 oggetti di una run, e GenLlmComplete lo rifaceva da capo
+ * ad ogni chiamata (llama_memory_clear in testa). Le tre funzioni sotto
+ * spezzano quel lavoro: il prefisso si decodifica UNA SOLA VOLTA
+ * (GenLlmPrefixPrime), ogni oggetto decodifica SOLO il suo pezzetto
+ * (GenLlmCompleteFromPrefix) a partire da li', e si riavvolge la cache
+ * (GenLlmRewindToPrefix) prima del prossimo. Solo per il percorso Lua
+ * (gen_lua.c): il percorso JSON (grammatica GBNF, un solo prompt a run)
+ * resta su GenLlmComplete sopra, invariato. Verificato (non solo assunto)
+ * che questo produca la STESSA tokenizzazione e la STESSA sequenza di token
+ * generati del prompt combinato di prima: vedi il commento sopra
+ * GenLlmPrefixPrime nel .c. */
+
+/* Decodifica 'prefixPrompt' (il prefisso ChatML condiviso: system+cheat-
+ * sheet+"<|im_start|>user\n", vedi gen_lua.c BuildLuaPrefix) UNA VOLTA sola
+ * nella KV cache della sessione (azzera prima la cache, come faceva
+ * GenLlmComplete: e' comunque l'inizio di una conversazione nuova). Scrive
+ * in '*nPrefixOut' quanti token occupa (>0) -- il chiamante lo tiene per
+ * tutta la fase Lua e lo passa, invariato, a GenLlmCompleteFromPrefix e
+ * GenLlmRewindToPrefix per ciascuno dei 20 oggetti. Ritorna 0 su successo,
+ * -1 su errore (gia' loggato: file/tokenizzazione, o prefisso che da solo
+ * supera n_ctx). */
+int GenLlmPrefixPrime(GenLlmSession *sess, const char *prefixPrompt, int *nPrefixOut);
+
+/* Come GenLlmComplete, ma NON azzera la cache KV: assume che
+ * GenLlmPrefixPrime l'abbia gia' riempita con 'nPrefix' token di prefisso
+ * condiviso (posizioni 0..nPrefix-1) e decodifica SOLO 'suffix' (la scheda
+ * per-oggetto + "<|im_end|>\n<|im_start|>assistant\n", vedi gen_lua.c
+ * BuildLuaSuffix) a partire dalla posizione nPrefix, poi campiona come
+ * GenLlmComplete (stesso sampler chain: penalita'+temp+dist, MAI una
+ * grammatica -- il percorso Lua non ne usa, spec sezione 6, quindi qui non
+ * c'e' parametro grammarText). 'suffix' e' tokenizzato con add_special=false
+ * (e' la continuazione della stessa sequenza del prefisso, non l'inizio: mai
+ * un secondo BOS). Il chiamante DEVE richiamare GenLlmRewindToPrefix dopo
+ * (successo o fallimento non importa), altrimenti il prossimo oggetto
+ * troverebbe la cache allungata di questo tentativo invece del solo
+ * prefisso. Stesso significato di ritorno/uscita di GenLlmComplete. */
+int GenLlmCompleteFromPrefix(GenLlmSession *sess, int nPrefix, const char *suffix,
+                              int nPredict, float temp, unsigned int seed,
+                              const char *outDir, const char *progressPhase, int progressBase, int progressSpan,
+                              char *out, size_t outCap, int *tokensOut);
+
+/* Rimuove dalla KV cache tutto cio' che segue la posizione 'nPrefix'
+ * (llama_memory_seq_rm su tutta la sequenza 0, [nPrefix, inf)): dopo la
+ * chiamata la sessione e' di nuovo nello stato "solo prefisso condiviso",
+ * pronta per il prossimo GenLlmCompleteFromPrefix. No-op se nPrefix <= 0 o
+ * la sessione non e' valida. */
+void GenLlmRewindToPrefix(GenLlmSession *sess, int nPrefix);
+
 #endif

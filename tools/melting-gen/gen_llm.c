@@ -100,6 +100,77 @@ void GenLlmSessionClose(GenLlmSession *sess)
     free(sess);
 }
 
+/* Corpo del ciclo campiona-un-token condiviso da GenLlmComplete e
+   GenLlmCompleteFromPrefix (fase 3b step B1): l'unica differenza fra le due
+   chiamate e' COSA c'e' gia' nella KV cache e quale batch va decodificato
+   PER PRIMO (l'intero prompt in un caso, solo il suffisso nell'altro) -- da
+   quel primo llama_decode() in poi il ciclo campiona-token-per-token e' lo
+   stesso, quindi vive qui una volta sola invece che duplicato. 'batch' e'
+   gia' pronto per il PRIMO llama_decode() (chi chiama l'ha costruito con
+   llama_batch_get_one sui token del prompt/suffisso); 'nDecodedFirst' e' solo
+   per il log (quanti token nuovi quel primo giro ha davvero decodificato:
+   n_prompt intero per GenLlmComplete, solo n_suffix per
+   GenLlmCompleteFromPrefix, visto che il prefisso in quel caso e' gia' in
+   cache da prima e non viene ridecodificato). */
+static int GenLlmSampleLoop(GenLlmSession *sess, struct llama_sampler *smpl, struct llama_batch batch,
+                             int nDecodedFirst, int nPredict,
+                             const char *outDir, const char *progressPhase, int progressBase, int progressSpan,
+                             char *out, size_t outCap, int *tokensOut)
+{
+    int rc = 0;
+    size_t used = 0;
+    int generated = 0;
+    llama_token newToken = 0;
+    /* Strumentazione (step B1, diagnosi tempi di caricamento): il PRIMO giro
+       del ciclo sotto e' quello che decodifica il prompt/suffisso passato in
+       'batch' (il "riprocessamento del prefisso condiviso" indagato dal task
+       brief, quando e' GenLlmComplete a chiamare con l'intero prompt); i
+       giri successivi decodificano un token alla volta (la generazione vera
+       e propria). tPromptDone segna la fine di quel primo giro, cosi' il log
+       qui sotto separa i due costi invece di dare un unico tempo totale che
+       li confonde. */
+    double tCallStart = GenNowSeconds();
+    double tPromptDone = -1.0;
+    while (generated < nPredict)
+    {
+        if (llama_decode(sess->ctx, batch) != 0)
+        {
+            GenLogLine("llm: llama_decode fallita al token %d", generated);
+            rc = -1;
+            break;
+        }
+        if (tPromptDone < 0.0) tPromptDone = GenNowSeconds();
+        newToken = llama_sampler_sample(smpl, sess->ctx, -1);
+        if (llama_vocab_is_eog(sess->vocab, newToken)) break;
+        char piece[128];
+        int n = llama_token_to_piece(sess->vocab, newToken, piece, sizeof(piece), 0, true);
+        if (n < 0 || used + (size_t)n + 1 >= outCap)
+        {
+            rc = -1;
+            break;
+        }
+        memcpy(out + used, piece, (size_t)n);
+        used += (size_t)n;
+        out[used] = '\0';
+        generated++;
+        if (outDir && progressPhase && generated%16 == 0)
+        {
+            int pct = progressBase + (int)((double)progressSpan*generated/nPredict);
+            char msg[112];
+            snprintf(msg, sizeof(msg), "%s (%d token)", progressPhase, generated);
+            GenProgressWrite(outDir, progressPhase, pct > progressBase + progressSpan ? progressBase + progressSpan : pct, msg);
+        }
+        batch = llama_batch_get_one(&newToken, 1);
+    }
+    if (tokensOut) *tokensOut = generated;
+    double tEnd = GenNowSeconds();
+    double promptSecs = (tPromptDone >= 0.0) ? tPromptDone - tCallStart : tEnd - tCallStart;
+    double genSecs = (tPromptDone >= 0.0) ? tEnd - tPromptDone : 0.0;
+    GenLogLine("llm: completamento fase=%s prompt=%d token generati=%d token -- prompt %.2fs, generazione %.2fs (totale %.2fs)",
+               progressPhase ? progressPhase : "?", nDecodedFirst, generated, promptSecs, genSecs, tEnd - tCallStart);
+    return rc;
+}
+
 int GenLlmComplete(GenLlmSession *sess, const char *prompt, const char *grammarText,
                     int nPredict, float temp, unsigned int seed,
                     const char *outDir, const char *progressPhase, int progressBase, int progressSpan,
@@ -156,44 +227,123 @@ int GenLlmComplete(GenLlmSession *sess, const char *prompt, const char *grammarT
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(seed));
 
     if (outDir && progressPhase) GenProgressWrite(outDir, progressPhase, progressBase, progressPhase);
-    int rc = 0;
-    size_t used = 0;
-    int generated = 0;
     struct llama_batch batch = llama_batch_get_one(tokens, n_prompt);
-    llama_token newToken = 0;
-    while (generated < nPredict)
-    {
-        if (llama_decode(sess->ctx, batch) != 0)
-        {
-            GenLogLine("llm: llama_decode fallita al token %d", generated);
-            rc = -1;
-            break;
-        }
-        newToken = llama_sampler_sample(smpl, sess->ctx, -1);
-        if (llama_vocab_is_eog(sess->vocab, newToken)) break;
-        char piece[128];
-        int n = llama_token_to_piece(sess->vocab, newToken, piece, sizeof(piece), 0, true);
-        if (n < 0 || used + (size_t)n + 1 >= outCap)
-        {
-            rc = -1;
-            break;
-        }
-        memcpy(out + used, piece, (size_t)n);
-        used += (size_t)n;
-        out[used] = '\0';
-        generated++;
-        if (outDir && progressPhase && generated%16 == 0)
-        {
-            int pct = progressBase + (int)((double)progressSpan*generated/nPredict);
-            char msg[112];
-            snprintf(msg, sizeof(msg), "%s (%d token)", progressPhase, generated);
-            GenProgressWrite(outDir, progressPhase, pct > progressBase + progressSpan ? progressBase + progressSpan : pct, msg);
-        }
-        batch = llama_batch_get_one(&newToken, 1);
-    }
-    if (tokensOut) *tokensOut = generated;
+    int rc = GenLlmSampleLoop(sess, smpl, batch, n_prompt, nPredict,
+                               outDir, progressPhase, progressBase, progressSpan,
+                               out, outCap, tokensOut);
 
     llama_sampler_free(smpl);
     free(tokens);
     return rc;
+}
+
+int GenLlmPrefixPrime(GenLlmSession *sess, const char *prefixPrompt, int *nPrefixOut)
+{
+    if (nPrefixOut) *nPrefixOut = 0;
+    if (!sess || !sess->ctx || !prefixPrompt) return -1;
+
+    /* Stesso azzeramento di GenLlmComplete: e' comunque l'inizio di una
+       conversazione nuova (la prima delle 20 di questa fase Lua). Da qui in
+       poi pero' NESSUNA chiamata successiva (GenLlmCompleteFromPrefix)
+       azzera piu' la cache: e' proprio il punto, vedi il commento sopra
+       GenLlmCompleteFromPrefix piu' sotto. */
+    llama_memory_clear(llama_get_memory(sess->ctx), true);
+
+    int n_prefix = -llama_tokenize(sess->vocab, prefixPrompt, (int32_t)strlen(prefixPrompt), NULL, 0, true, true);
+    if (n_prefix <= 0) return -1;
+    if ((uint32_t)n_prefix >= llama_n_ctx(sess->ctx))
+    {
+        GenLogLine("llm: prefisso Lua condiviso (%d token) supera da solo n_ctx della sessione (%u)",
+                   n_prefix, llama_n_ctx(sess->ctx));
+        return -1;
+    }
+    llama_token *tokens = malloc(sizeof(llama_token)*(size_t)n_prefix);
+    if (!tokens) return -1;
+    if (llama_tokenize(sess->vocab, prefixPrompt, (int32_t)strlen(prefixPrompt), tokens, n_prefix, true, true) < 0)
+    {
+        free(tokens);
+        return -1;
+    }
+
+    double t0 = GenNowSeconds();
+    struct llama_batch batch = llama_batch_get_one(tokens, n_prefix);
+    int rc = llama_decode(sess->ctx, batch);
+    free(tokens);
+    if (rc != 0)
+    {
+        GenLogLine("llm: decodifica del prefisso Lua condiviso fallita (%d token)", n_prefix);
+        return -1;
+    }
+    GenLogLine("llm: prefisso Lua condiviso decodificato una volta sola: %d token in %.2fs (riusato per ogni oggetto, vedi GenLlmCompleteFromPrefix)",
+               n_prefix, GenNowSeconds() - t0);
+    if (nPrefixOut) *nPrefixOut = n_prefix;
+    return 0;
+}
+
+int GenLlmCompleteFromPrefix(GenLlmSession *sess, int nPrefix, const char *suffix,
+                              int nPredict, float temp, unsigned int seed,
+                              const char *outDir, const char *progressPhase, int progressBase, int progressSpan,
+                              char *out, size_t outCap, int *tokensOut)
+{
+    out[0] = '\0';
+    if (tokensOut) *tokensOut = 0;
+    if (!sess || !sess->ctx || !suffix || nPrefix <= 0) return -1;
+
+    /* NIENTE llama_memory_clear qui (a differenza di GenLlmComplete): la KV
+       cache contiene gia' 'nPrefix' token dal GenLlmPrefixPrime iniziale (o
+       dal GenLlmRewindToPrefix dell'oggetto precedente, che riporta la
+       sessione esattamente allo stesso stato). add_special=false perche'
+       'suffix' e' la CONTINUAZIONE di quella sequenza, non l'inizio: un
+       secondo BOS qui produrrebbe una tokenizzazione diversa da quella che
+       llama_tokenize(prefisso+suffix, add_special=true) avrebbe dato tutta
+       insieme (verificato con test-tokenizer-0 sul vocabolario di
+       Qwen2.5-Coder: tokenize(prefisso, add_special=true) ++
+       tokenize(suffix, add_special=false) == tokenize(prefisso+suffix,
+       add_special=true), token per token, sul prompt Lua vero). */
+    int n_suffix = -llama_tokenize(sess->vocab, suffix, (int32_t)strlen(suffix), NULL, 0, false, true);
+    if (n_suffix <= 0) return -1;
+    if ((uint32_t)nPrefix + (uint32_t)n_suffix + (uint32_t)nPredict > llama_n_ctx(sess->ctx))
+    {
+        GenLogLine("llm: prefisso+suffix+nPredict (%d+%d+%d) supera n_ctx della sessione (%u)",
+                   nPrefix, n_suffix, nPredict, llama_n_ctx(sess->ctx));
+        return -1;
+    }
+    llama_token *tokens = malloc(sizeof(llama_token)*(size_t)n_suffix);
+    if (!tokens) return -1;
+    if (llama_tokenize(sess->vocab, suffix, (int32_t)strlen(suffix), tokens, n_suffix, false, true) < 0)
+    {
+        free(tokens);
+        return -1;
+    }
+
+    /* Stesso sampler chain di GenLlmComplete sul percorso Lua: MAI una
+       grammatica (spec sezione 6, script Lua troppo vari per un GBNF
+       utile), penalita'+temp+dist. Nuovo ad ogni chiamata, come prima: la
+       penalita' sulle ripetizioni deve vedere solo i token di QUESTO
+       tentativo, mai quelli di un oggetto precedente. */
+    struct llama_sampler *smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+        GEN_PENALTY_LAST_N, GEN_PENALTY_REPEAT, 0.0f, 0.0f));
+    llama_sampler_chain_add(smpl, llama_sampler_init_temp(temp));
+    llama_sampler_chain_add(smpl, llama_sampler_init_dist(seed));
+
+    if (outDir && progressPhase) GenProgressWrite(outDir, progressPhase, progressBase, progressPhase);
+    struct llama_batch batch = llama_batch_get_one(tokens, n_suffix);
+    int rc = GenLlmSampleLoop(sess, smpl, batch, n_suffix, nPredict,
+                               outDir, progressPhase, progressBase, progressSpan,
+                               out, outCap, tokensOut);
+
+    llama_sampler_free(smpl);
+    free(tokens);
+    return rc;
+}
+
+void GenLlmRewindToPrefix(GenLlmSession *sess, int nPrefix)
+{
+    if (!sess || !sess->ctx || nPrefix <= 0) return;
+    /* Rimuove dalla sequenza 0 tutto cio' che sta dalla posizione nPrefix in
+       poi (p1=-1 = "fino a infinito", vedi llama.h): riporta la KV cache
+       esattamente allo stato appena dopo GenLlmPrefixPrime, pronta per il
+       prossimo oggetto. */
+    llama_memory_seq_rm(llama_get_memory(sess->ctx), 0, nPrefix, -1);
 }

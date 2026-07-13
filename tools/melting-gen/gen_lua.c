@@ -391,15 +391,21 @@ static void ExtractLuaCode(const char *raw, char *out, size_t outCap)
    (lua_system.txt) resta condiviso, perche' l'API della sandbox e le
    funzioni proibite sono le stesse per ogni oggetto, attivo o stat-up (vedi
    la vision doc sezione 2). E' il TASK che cambia (un solo effetto semplice
-   contro un ricalcolo di 1-2 statistiche), non le regole della sandbox. */
-static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, const GenItem *item, bool isStatUp, const char *prevError)
+   contro un ricalcolo di 1-2 statistiche), non le regole della sandbox.
+
+   Estratta da BuildLuaPrompt/BuildLuaSuffix sotto (fase 3b step B1): SOLO la
+   parte utente sostituita (placeholder + eventuale errore di retry), SENZA
+   alcun wrapping ChatML -- helper condiviso dalle due viste dello stesso
+   identico testo (il prompt combinato per il guard byte-budget, il solo
+   suffisso per il percorso KV-riusato), per non doverle tenere sincronizzate
+   a mano. Buffer malloc, NULL su file mancante o fallimento di
+   sostituzione. */
+static char *BuildLuaUserFinal(const char *promptsDir, const char *floorTheme, const GenItem *item, bool isStatUp, const char *prevError)
 {
     char path[512];
-    snprintf(path, sizeof(path), "%s/lua_system.txt", promptsDir);
-    char *sys = GenReadFile(path);
     snprintf(path, sizeof(path), "%s/%s", promptsDir, isStatUp ? "lua_statup_user.txt" : "lua_user.txt");
     char *userTpl = GenReadFile(path);
-    if (!sys || !userTpl) { free(sys); free(userTpl); return NULL; }
+    if (!userTpl) return NULL;
 
     char traitsText[64];
     traitsText[0] = '\0';
@@ -429,7 +435,7 @@ static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, cons
     free(step3);
     char *userFinal = step4 ? GenReplaceAll(step4, "{ITEM_RARITY}", rarityHint) : NULL;
     free(step4);
-    if (!userFinal) { free(sys); return NULL; }
+    if (!userFinal) return NULL;
 
     if (prevError && prevError[0])
     {
@@ -446,11 +452,75 @@ static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, cons
             userFinal = withRetry;
         }
     }
+    return userFinal;
+}
+
+/* Prompt ChatML combinato (prefisso+suffisso in un solo pezzo): usato oggi
+   SOLO da GenLuaPromptBudgetCheck sotto (il guard "quanto puo' pesare al
+   massimo il prompt Lua", che deve misurare la stessa cosa che il modello
+   vede per davvero). Il percorso di generazione vero (GenLuaGenerateOneItem)
+   NON lo chiama piu' (fase 3b step B1): usa BuildLuaPrefix + BuildLuaSuffix
+   sotto, cosi' il prefisso (system+cheat-sheet, condiviso da tutti e 20 gli
+   oggetti) si puo' decodificare una volta sola nella KV cache invece che ad
+   ogni chiamata. Le tre funzioni condividono BuildLuaUserFinal sopra: questa
+   resta l'esatta concatenazione byte-per-byte di BuildLuaPrefix(promptsDir)
+   e BuildLuaSuffix(...) con gli stessi argomenti (GenChatMlWrap produce
+   "<|im_start|>system\n%s<|im_end|>\n<|im_start|>user\n%s<|im_end|>\n<|im_start|>assistant\n",
+   esattamente il prefisso seguito dal suffisso), quindi il guard byte-budget
+   resta valido senza modifiche. */
+static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, const GenItem *item, bool isStatUp, const char *prevError)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/lua_system.txt", promptsDir);
+    char *sys = GenReadFile(path);
+    if (!sys) return NULL;
+
+    char *userFinal = BuildLuaUserFinal(promptsDir, floorTheme, item, isStatUp, prevError);
+    if (!userFinal) { free(sys); return NULL; }
 
     char *prompt = GenChatMlWrap(sys, userFinal);
     free(sys);
     free(userFinal);
     return prompt;
+}
+
+/* Prefisso ChatML condiviso da OGNI oggetto Lua della run (fase 3b step B1):
+   "<|im_start|>system\n{lua_system.txt}<|im_end|>\n<|im_start|>user\n" --
+   SOLO il cheat-sheet di sistema, mai un template utente (quello e'
+   per-oggetto, vedi BuildLuaSuffix sotto). Uguale per i 20 oggetti di una
+   run (lua_system.txt non ha placeholder), quindi GenLuaGenerateForRun lo
+   costruisce e lo decodifica (GenLlmPrefixPrime) UNA volta sola, non per
+   ogni oggetto. Buffer malloc, NULL su file mancante. */
+static char *BuildLuaPrefix(const char *promptsDir)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/lua_system.txt", promptsDir);
+    char *sys = GenReadFile(path);
+    if (!sys) return NULL;
+
+    size_t cap = strlen(sys) + 48;
+    char *prefix = malloc(cap);
+    if (prefix) snprintf(prefix, cap, "<|im_start|>system\n%s<|im_end|>\n<|im_start|>user\n", sys);
+    free(sys);
+    return prefix;
+}
+
+/* Suffisso ChatML per-oggetto (fase 3b step B1): "{scheda dell'oggetto,
+   BuildLuaUserFinal sopra}<|im_end|>\n<|im_start|>assistant\n" -- la parte
+   che GenLlmCompleteFromPrefix decodifica a partire dalla posizione nPrefix
+   gia' in cache (vedi GenLuaGenerateOneItem). Buffer malloc, NULL su file
+   mancante o fallimento di sostituzione (stessi motivi di BuildLuaUserFinal,
+   che fa il lavoro vero qui sotto). */
+static char *BuildLuaSuffix(const char *promptsDir, const char *floorTheme, const GenItem *item, bool isStatUp, const char *prevError)
+{
+    char *userFinal = BuildLuaUserFinal(promptsDir, floorTheme, item, isStatUp, prevError);
+    if (!userFinal) return NULL;
+
+    size_t cap = strlen(userFinal) + 32;
+    char *suffix = malloc(cap);
+    if (suffix) snprintf(suffix, cap, "%s<|im_end|>\n<|im_start|>assistant\n", userFinal);
+    free(userFinal);
+    return suffix;
 }
 
 /* Vedi gen_lua.h per la spiegazione completa (perche' esiste, il bug reale
@@ -520,9 +590,23 @@ bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
    stat-up): prima viveva inline dentro il doppio for di GenLuaGenerateForRun,
    estratto qui perche' ora va eseguito 4 volte per piano (3 attivi + il
    bossItem) invece di 3, con solo il template utente/il gate statUpOnly che
-   cambiano fra le due categorie (vedi BuildLuaPrompt/GenLuaValidate sopra). */
+   cambiano fra le due categorie (vedi BuildLuaPrompt/GenLuaValidate sopra).
+
+   'nPrefix' (fase 3b step B1): il prefisso ChatML condiviso (system+cheat-
+   sheet) e' gia' stato decodificato UNA volta nella KV cache da
+   GenLuaGenerateForRun (GenLlmPrefixPrime) prima di chiamare questa funzione
+   per il primo oggetto. Qui si costruisce e decodifica SOLO il suffisso
+   per-oggetto (BuildLuaSuffix + GenLlmCompleteFromPrefix, invece di
+   BuildLuaPrompt + GenLlmComplete: quest'ultima coppia ridecodificherebbe da
+   capo anche il prefisso, esattamente il costo che questa fase vuole
+   evitare) e si riavvolge la cache (GenLlmRewindToPrefix) dopo OGNI
+   tentativo -- successo, fallimento di validazione o fallimento di
+   decodifica non importa: il prossimo tentativo (retry con l'errore
+   rimandato indietro) o il prossimo oggetto deve sempre ripartire dallo
+   stesso identico prefisso, mai da quello allungato dal tentativo appena
+   fatto. */
 static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, const char *outDir,
-                                   double deadline, unsigned int runSeed, const char *floorTheme,
+                                   double deadline, int nPrefix, unsigned int runSeed, const char *floorTheme,
                                    GenItem *item, bool isStatUp, int itemNum, int totalItems, GenLuaStats *stats)
 {
     item->lua[0] = '\0';
@@ -547,8 +631,8 @@ static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, c
     {
         if (GenNowSeconds() >= deadline) break;
 
-        char *prompt = BuildLuaPrompt(promptsDir, floorTheme, item, isStatUp, attempt > 0 ? err : NULL);
-        if (!prompt)
+        char *suffix = BuildLuaSuffix(promptsDir, floorTheme, item, isStatUp, attempt > 0 ? err : NULL);
+        if (!suffix)
         {
             snprintf(err, sizeof(err), "prompt Lua non costruibile (file mancanti in %s?)", promptsDir);
             break;
@@ -560,10 +644,14 @@ static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, c
 
         char raw[4096];
         unsigned int callSeed = runSeed + (unsigned int)(itemNum*131u + (unsigned int)attempt*17u + 1u);
-        int rc = GenLlmComplete(sess, prompt, NULL, GEN_LUA_N_PREDICT, GEN_LUA_TEMP, callSeed,
-                                 outDir, "lua", 92 + (6*itemNum)/totalItems, 1,
-                                 raw, sizeof(raw), NULL);
-        free(prompt);
+        int rc = GenLlmCompleteFromPrefix(sess, nPrefix, suffix, GEN_LUA_N_PREDICT, GEN_LUA_TEMP, callSeed,
+                                           outDir, "lua", 92 + (6*itemNum)/totalItems, 1,
+                                           raw, sizeof(raw), NULL);
+        free(suffix);
+        /* Riavvolgi SEMPRE, prima di guardare rc: il prossimo tentativo (o
+           il prossimo oggetto) deve ripartire dal solo prefisso condiviso
+           indipendentemente da come e' andato questo. */
+        GenLlmRewindToPrefix(sess, nPrefix);
         if (rc != 0)
         {
             snprintf(err, sizeof(err), "generazione fallita (decodifica o token troncati)");
@@ -614,19 +702,42 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
     memset(stats, 0, sizeof(*stats));
     if (!sess) return;
 
-    int itemNum = 0;
     const int totalItems = GEN_FLOORS*(GEN_ITEMS + 1);   /* +1: il bossItem stat-up di ogni piano (fase 3) */
+
+    /* Fase 3b step B1: il prefisso ChatML condiviso (system+cheat-sheet,
+       ~3700 token, quasi il n_ctx=4096 della sessione) si decodifica QUI,
+       UNA volta sola per l'intera run, invece che dentro ogni tentativo di
+       ogni oggetto (era la causa misurata di ~9.6s dei circa 11s spesi per
+       oggetto: vedi il log "llm: completamento fase=lua" prima di questo
+       cambio, prompt~9.6s contro generazione~0.5-2s). Se anche solo questa
+       decodifica fallisce (file di prompt mancanti, o il prefisso da solo
+       satura n_ctx) nessun oggetto di questa run puo' avere uno script Lua:
+       tutti restano sulla sola mini-VM, come se 'sess' fosse NULL, ma qui e'
+       un fallimento vero quindi lo si conta nel riepilogo (fellBack per
+       tutti) invece di restare silenzioso. */
+    char *prefix = BuildLuaPrefix(promptsDir);
+    int nPrefix = 0;
+    if (!prefix || GenLlmPrefixPrime(sess, prefix, &nPrefix) != 0)
+    {
+        GenLogLine("lua: prefisso condiviso non decodificabile (file mancanti in %s, o prompt troppo grande): nessuno script Lua per questa run", promptsDir);
+        free(prefix);
+        stats->fellBack = totalItems;
+        return;
+    }
+    free(prefix);
+
+    int itemNum = 0;
     for (int f = 0; f < GEN_FLOORS; f++)
     {
         GenFloor *floor = &run->floors[f];
         for (int i = 0; i < GEN_ITEMS; i++)
         {
             itemNum++;
-            GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, run->seed, floor->theme,
+            GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, nPrefix, run->seed, floor->theme,
                                    &floor->items[i], false, itemNum, totalItems, stats);
         }
         itemNum++;
-        GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, run->seed, floor->theme,
+        GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, nPrefix, run->seed, floor->theme,
                                &floor->bossItem, true, itemNum, totalItems, stats);
     }
     GenLogLine("lua: riepilogo run - %d/%d primo tentativo, %d dopo retry, %d nessun comportamento, %d ripiegati, %d saltati per budget",
