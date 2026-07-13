@@ -40,6 +40,26 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
     {
         GenFloor *floor = &run->floors[f];
         int h = GenRngRange(&rng, 0, 359);
+
+        /* Ordine di estrazione dall'RNG identico a fallbackRun() in run_content.mjs:
+           in JS il ciclo sugli item viene eseguito PRIMA di costruire l'oggetto
+           floor (theme/style sono valutati solo nel floors.push() successivo),
+           quindi qui gli item vanno generati subito dopo `h` e prima di
+           theme/style. I colori (bg/floor/wall/accent/.../item.color) non
+           consumano RNG: dipendono solo da h e j, quindi la loro posizione nel
+           codice non altera lo stream e possono restare dopo per leggibilita'. */
+        for (int j = 0; j < GEN_ITEMS; j++)
+        {
+            GenItem *item = &floor->items[j];
+            const char *trait = GEN_TRAITS[GenRngRange(&rng, 0, 8)];
+            snprintf(item->name, sizeof(item->name), "%s %s", itemNames[GenRngRange(&rng, 0, 7)], trait);
+            snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(&rng, 0, 5)]);
+            snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
+            item->traitCount = 1;
+            GenHsvToHex((h + 80 + j*53)%360, 0.75, 0.92, item->color);
+            FallbackScriptForTrait(trait, &rng, item);
+        }
+
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);
         snprintf(floor->style, sizeof(floor->style), "%s", styles[GenRngRange(&rng, 0, 4)]);
@@ -52,17 +72,5 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
         GenHsvToHex((h + 172)%360, 0.70, 0.94, floor->accent2);
         GenHsvToHex((h + 235)%360, 0.58, 0.82, floor->enemy);
         GenHsvToHex((h + 300)%360, 0.75, 0.88, floor->bossColor);
-
-        for (int j = 0; j < GEN_ITEMS; j++)
-        {
-            GenItem *item = &floor->items[j];
-            const char *trait = GEN_TRAITS[GenRngRange(&rng, 0, 8)];
-            snprintf(item->name, sizeof(item->name), "%s %s", itemNames[GenRngRange(&rng, 0, 7)], trait);
-            snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(&rng, 0, 5)]);
-            snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
-            item->traitCount = 1;
-            GenHsvToHex((h + 80 + j*53)%360, 0.75, 0.92, item->color);
-            FallbackScriptForTrait(trait, &rng, item);
-        }
     }
 }

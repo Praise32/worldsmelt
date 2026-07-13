@@ -69,4 +69,15 @@ rc=$?
 set -e
 [ "$rc" -eq 4 ]
 
+# Golden file di regressione: blocca l'ordine di estrazione dall'RNG del
+# fallback (hue -> per-item trait/nome/slot x3 -> theme/weird -> style),
+# le liste di parole e gli arrotondamenti. Un cambio accidentale a uno di
+# questi tre punti produce un run diverso a parita' di seed senza far
+# fallire nessun altro controllo di questo script (che confronta solo
+# C-contro-C), quindi qui confrontiamo l'output con un file di riferimento
+# generato una volta e committato.
+echo "-- golden file: seed 12345 = manifest di riferimento --"
+"$GEN" --fallback --seed 12345 --out "$TMP/golden"
+cmp "$TMP/golden/current_run.txt" tests/melting-gen/golden-fallback-seed12345.txt
+
 echo "TEST-GEN: OK"
