@@ -53,6 +53,31 @@ Per forzare l'atlas locale invece del PNG API:
 generate_dynamic_assets.bat --seed=12345 --quality=medium --local-atlas
 ```
 
+## Avvio rapido su Linux
+
+```bash
+scripts/setup-deps.sh          # una tantum: apt + raylib + llama.cpp (chiede la password)
+make                           # compila gioco + melting-gen
+make run                       # gioca (manifest esistente o fallback interno)
+scripts/download-models.sh     # scarica i modelli GGUF (~5,8 GB, riprendibile)
+./bin/melting_run_gpu --generate   # nuova run generata in locale: INVIO dal menu, R in gioco
+make test && make test-gen     # test senza modello
+make test-llm                  # generazione reale + tempi (vedi docs/BENCHMARKS.md)
+```
+
+La generazione locale usa Qwen2.5-Coder 7B (GGUF Q4_K_M, Apache 2.0) con
+llama.cpp su backend Vulkan e una grammatica GBNF che rende impossibile un
+JSON malformato; senza modelli scaricati il gioco ripiega sempre sul
+generatore deterministico interno. `make run` da solo non genera nulla di
+nuovo: serve il flag `--generate` sul binario del gioco per abilitare la
+generazione dal menu/in partita. Design e roadmap in `docs/superpowers/specs/`.
+
+`make test` apre finestre (i test dei portali, dello smoke test, ecc.): se
+`xvfb-run` è installato (lo installa `scripts/setup-deps.sh`) il Makefile li
+fa girare da solo su un display X11 virtuale, quindi funziona anche senza
+monitor o su una sessione Wayland bloccata, senza far comparire nulla sullo
+schermo.
+
 ## OpenAI API
 
 La chiave API non viene mai salvata nel gioco e non entra nell'eseguibile C.
