@@ -57,7 +57,8 @@ static double GenLuaCheckHandle(lua_State *L, int argIdx, const char *what)
     return handle;
 }
 
-static int GenLuaStubPlayerPos(lua_State *L)      { lua_pushnumber(L, 500.0); lua_pushnumber(L, 300.0); return 2; }
+static int GenLuaStubPlayerX(lua_State *L)        { lua_pushnumber(L, 500.0); return 1; }
+static int GenLuaStubPlayerY(lua_State *L)        { lua_pushnumber(L, 300.0); return 1; }
 static int GenLuaStubPlayerHp(lua_State *L)       { lua_pushnumber(L, 6.0); return 1; }
 static int GenLuaStubPlayerMaxHp(lua_State *L)    { lua_pushnumber(L, 6.0); return 1; }
 static int GenLuaStubPlayerDamage(lua_State *L)   { lua_pushnumber(L, 8.0); return 1; }
@@ -70,12 +71,18 @@ static int GenLuaStubPlayerHasItem(lua_State *L)
     return 1;
 }
 
-static int GenLuaStubEnemyPos(lua_State *L)
+static int GenLuaStubEnemyX(lua_State *L)
 {
     GenLuaCheckHandle(L, 1, "nemico");
     lua_pushnumber(L, 520.0);
+    return 1;
+}
+
+static int GenLuaStubEnemyY(lua_State *L)
+{
+    GenLuaCheckHandle(L, 1, "nemico");
     lua_pushnumber(L, 300.0);
-    return 2;
+    return 1;
 }
 
 static int GenLuaStubEnemyHp(lua_State *L)
@@ -85,12 +92,18 @@ static int GenLuaStubEnemyHp(lua_State *L)
     return 1;
 }
 
-static int GenLuaStubShotPos(lua_State *L)
+static int GenLuaStubShotX(lua_State *L)
 {
     GenLuaCheckHandle(L, 1, "colpo");
     lua_pushnumber(L, 500.0);
+    return 1;
+}
+
+static int GenLuaStubShotY(lua_State *L)
+{
+    GenLuaCheckHandle(L, 1, "colpo");
     lua_pushnumber(L, 300.0);
-    return 2;
+    return 1;
 }
 
 static int GenLuaStubNearestEnemy(lua_State *L)
@@ -99,20 +112,16 @@ static int GenLuaStubNearestEnemy(lua_State *L)
     luaL_checknumber(L, 2);
     /* Sempre "trovato" (a differenza del gioco vero, dove puo' tornare nil):
        cosi' il dry-run esercita il ramo "id ~= nil", quello dove uno script
-       tipicamente chiama enemy_pos/enemy_hp/damage_enemy, che e' il ramo
+       tipicamente chiama enemy_x/enemy_y/enemy_hp/damage_enemy, che e' il ramo
        che vale davvero la pena validare. */
     lua_pushnumber(L, GenLuaFakeHandle());
     return 1;
 }
 
-static int GenLuaStubRoomBounds(lua_State *L)
-{
-    lua_pushnumber(L, (lua_Number)ROOM_X);
-    lua_pushnumber(L, (lua_Number)ROOM_Y);
-    lua_pushnumber(L, (lua_Number)ROOM_RIGHT);
-    lua_pushnumber(L, (lua_Number)ROOM_BOTTOM);
-    return 4;
-}
+static int GenLuaStubRoomLeft(lua_State *L)   { lua_pushnumber(L, (lua_Number)ROOM_X); return 1; }
+static int GenLuaStubRoomTop(lua_State *L)    { lua_pushnumber(L, (lua_Number)ROOM_Y); return 1; }
+static int GenLuaStubRoomRight(lua_State *L)  { lua_pushnumber(L, (lua_Number)ROOM_RIGHT); return 1; }
+static int GenLuaStubRoomBottom(lua_State *L) { lua_pushnumber(L, (lua_Number)ROOM_BOTTOM); return 1; }
 
 static int GenLuaStubSpawnShot(lua_State *L)
 {
@@ -176,17 +185,23 @@ static void GenLuaStubRegister(ScriptSandbox *sb)
     if (!L) return;
     lua_pushglobaltable(L);
 
-    GenLuaRegisterFn(L, "player_pos", GenLuaStubPlayerPos);
+    GenLuaRegisterFn(L, "player_x", GenLuaStubPlayerX);
+    GenLuaRegisterFn(L, "player_y", GenLuaStubPlayerY);
     GenLuaRegisterFn(L, "player_hp", GenLuaStubPlayerHp);
     GenLuaRegisterFn(L, "player_max_hp", GenLuaStubPlayerMaxHp);
     GenLuaRegisterFn(L, "player_damage", GenLuaStubPlayerDamage);
     GenLuaRegisterFn(L, "player_item_count", GenLuaStubPlayerItemCount);
     GenLuaRegisterFn(L, "player_has_item", GenLuaStubPlayerHasItem);
-    GenLuaRegisterFn(L, "enemy_pos", GenLuaStubEnemyPos);
+    GenLuaRegisterFn(L, "enemy_x", GenLuaStubEnemyX);
+    GenLuaRegisterFn(L, "enemy_y", GenLuaStubEnemyY);
     GenLuaRegisterFn(L, "enemy_hp", GenLuaStubEnemyHp);
-    GenLuaRegisterFn(L, "shot_pos", GenLuaStubShotPos);
+    GenLuaRegisterFn(L, "shot_x", GenLuaStubShotX);
+    GenLuaRegisterFn(L, "shot_y", GenLuaStubShotY);
     GenLuaRegisterFn(L, "nearest_enemy", GenLuaStubNearestEnemy);
-    GenLuaRegisterFn(L, "room_bounds", GenLuaStubRoomBounds);
+    GenLuaRegisterFn(L, "room_left", GenLuaStubRoomLeft);
+    GenLuaRegisterFn(L, "room_top", GenLuaStubRoomTop);
+    GenLuaRegisterFn(L, "room_right", GenLuaStubRoomRight);
+    GenLuaRegisterFn(L, "room_bottom", GenLuaStubRoomBottom);
     GenLuaRegisterFn(L, "spawn_shot", GenLuaStubSpawnShot);
     GenLuaRegisterFn(L, "damage_enemy", GenLuaStubDamageEnemy);
     GenLuaRegisterFn(L, "heal_player", GenLuaStubHealPlayer);

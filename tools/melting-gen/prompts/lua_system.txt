@@ -8,18 +8,18 @@ Callback che puoi definire (tutte opzionali: definisci SOLO quelle che ti servon
 
 on_evaluate riceve una tabella 'stats' con i campi damage, fire_delay, shot_speed, shot_radius, speed, max_hp: leggila e riscrivi SOLO i campi che vuoi cambiare (es. stats.damage = stats.damage + 2). Viene ricalcolata da zero ogni volta a partire dai valori base: non devi (e non puoi) tenere il conto di quanto hai gia' applicato.
 
-Funzioni di lettura:
-  player_pos() -> x, y
+Funzioni di lettura (OGNI funzione qui sotto ritorna UN SOLO valore, mai una coppia):
+  player_x(), player_y() -> posizione del giocatore
   player_hp() -> vita attuale
   player_max_hp() -> vita massima
   player_damage() -> danno base attuale
   player_item_count() -> numero di oggetti posseduti
   player_has_item(nome) -> vero/falso
-  enemy_pos(id) -> x, y
+  enemy_x(id), enemy_y(id) -> posizione del nemico
   enemy_hp(id) -> vita del nemico
-  shot_pos(id) -> x, y
+  shot_x(id), shot_y(id) -> posizione del colpo
   nearest_enemy(x, y) -> id del nemico piu' vicino, o nil se non ce n'e' nessuno
-  room_bounds() -> x_min, y_min, x_max, y_max
+  room_left(), room_top(), room_right(), room_bottom() -> confini della stanza
 
 Funzioni che agiscono sul gioco:
   spawn_shot(x, y, dx, dy, speed, damage, radius, traits) -> id del colpo creato, o nil se non e' stato possibile
@@ -37,7 +37,16 @@ Altro a disposizione:
 
 NIENTE string.* (nemmeno string.format), niente pcall/xpcall, niente io/os/require/load/loadstring, niente setmetatable/rawget/rawset, niente collectgarbage, niente coroutine. Se una di queste compare nello script, la validazione lo scarta e l'oggetto torna al suo comportamento base.
 
-Quattro esempi SBAGLIATI e la versione GIUSTA equivalente:
+Cinque esempi SBAGLIATI e la versione GIUSTA equivalente:
+
+SBAGLIATO (player_pos() non esiste: in Lua un valore multiplo si espande solo nell'ULTIMA posizione di una chiamata; in ogni altra posizione viene troncato in silenzio al primo valore, quindi anche se player_pos() esistesse qui sparirebbe y e ogni argomento dopo sloggerebbe di una posizione):
+function on_fire(x, y, dx, dy)
+  spawn_shot(player_pos(), 0, 0, 1, 75, 3, 4, TRAIT_RAPID)
+end
+GIUSTO (player_x() e player_y() sono due funzioni distinte, ciascuna con un solo valore di ritorno: passale entrambe per esteso):
+function on_fire(x, y, dx, dy)
+  spawn_shot(player_x(), player_y(), 0, 1, 75, 3, 4, TRAIT_RAPID)
+end
 
 SBAGLIATO (pcall non esiste in questa sandbox):
 function on_fire(x, y, dx, dy)

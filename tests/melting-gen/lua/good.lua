@@ -7,7 +7,7 @@ function on_fire(x, y, dx, dy)
   if shot_count % 3 == 0 then
     local id = nearest_enemy(x, y)
     if id ~= nil then
-      local ex, ey = enemy_pos(id)
+      local ex, ey = enemy_x(id), enemy_y(id)
       local hx, hy = ex - x, ey - y
       local len = math.sqrt(hx*hx + hy*hy)
       if len > 0.0001 then

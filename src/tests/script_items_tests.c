@@ -91,7 +91,7 @@ static int CountActiveShotsWithTrait(const Game *game, unsigned int trait)
    ============================================================ */
 
 /* Il primo frammento punta SUBITO al nemico piu' vicino (usa nearest_enemy/
-   enemy_pos: l'API a handle di lettura); il secondo mantiene la direzione
+   enemy_x/enemy_y: l'API a handle di lettura); il secondo mantiene la direzione
    di sparo originale e si affida INTERAMENTE alla fisica homing gia'
    esistente in CombatUpdateShots (src/gameplay/combat.c) per raggiungere il
    bersaglio nei frame successivi. Verificato SUL SERIO (vedi sotto) che sia
@@ -106,7 +106,7 @@ static const char *HEADLINE_LUA =
     "    local hx, hy = dx, dy\n"
     "    local id = nearest_enemy(x, y)\n"
     "    if id ~= nil then\n"
-    "      local ex, ey = enemy_pos(id)\n"
+    "      local ex, ey = enemy_x(id), enemy_y(id)\n"
     "      local ddx, ddy = ex - x, ey - y\n"
     "      local len = math.sqrt(ddx*ddx + ddy*ddy)\n"
     "      if len > 0.0001 then\n"
@@ -302,7 +302,7 @@ static bool TestRecomputeIdempotent(void)
 
 static const char *SPAWN_MANY_LUA =
     "function on_tick(dt)\n"
-    "  local px, py = player_pos()\n"
+    "  local px, py = player_x(), player_y()\n"
     "  local i = 0\n"
     "  while i < 2000000 do\n"
     "    spawn_shot(px, py, 1, 0, 300, 1, 3, 0)\n"
@@ -481,7 +481,7 @@ static const char *PERF_LUA =
     "function on_fire(x, y, dx, dy)\n"
     "  local id = nearest_enemy(x, y)\n"
     "  if id ~= nil then\n"
-    "    local ex, ey = enemy_pos(id)\n"
+    "    local ex, ey = enemy_x(id), enemy_y(id)\n"
     "    local d = (ex - x)*(ex - x) + (ey - y)*(ey - y)\n"
     "  end\n"
     "end\n"

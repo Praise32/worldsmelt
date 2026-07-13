@@ -94,14 +94,34 @@ static Shot *ScriptApiCheckShot(lua_State *L, Game *game, int argIdx)
    senza di lei on_tick(dt) (nessun argomento di posizione) non avrebbe
    alcun modo di sapere DOVE si trova il giocatore (es. per un'aura
    periodica centrata su di lui), mentre on_fire(x,y,dx,dy) la posizione la
-   riceve gia' come argomento. Stessa forma a due numeri di enemy_pos/
-   shot_pos, coerente col resto dell'API. */
-static int ScriptApiPlayerPos(lua_State *L)
+   riceve gia' come argomento.
+
+   player_x/player_y (e allo stesso modo enemy_x/enemy_y, shot_x/shot_y
+   sotto) sono DUE funzioni a un solo valore di ritorno ciascuna, non UNA
+   funzione a due valori (player_pos() -> x, y come nella prima versione di
+   questa API). Il motivo e' una trappola reale di Lua, non estetica: un
+   valore multiplo si espande SOLO nell'ultima posizione di una chiamata
+   (`f(player_pos())` espande entrambi), in QUALSIASI altra posizione viene
+   troncato al primo valore senza errore ne' avviso
+   (`f(player_pos(), 0)` passa SOLO px, py sparisce silenziosamente). Un
+   modello da 7B scrive `spawn_shot(player_pos(), 0, 0, 1, 75, 3, 4, ...)"
+   in modo del tutto naturale (osservato per davvero in un run generato:
+   spara con y=0, il bordo alto della stanza, non la posizione del
+   giocatore) e quello script e' Lua valido, passa il validatore, non va mai
+   in crash: sbaglia in silenzio. Rendere ogni getter a un solo valore rende
+   l'errore IRRAPPRESENTABILE piuttosto che documentarlo e sperare che il
+   modello legga il cheat-sheet (prompts/lua_system.txt) con abbastanza
+   attenzione da evitarlo. */
+static int ScriptApiPlayerX(lua_State *L)
 {
-    Game *game = ScriptApiGame(L);
-    lua_pushnumber(L, (lua_Number)game->player.pos.x);
-    lua_pushnumber(L, (lua_Number)game->player.pos.y);
-    return 2;
+    lua_pushnumber(L, (lua_Number)ScriptApiGame(L)->player.pos.x);
+    return 1;
+}
+
+static int ScriptApiPlayerY(lua_State *L)
+{
+    lua_pushnumber(L, (lua_Number)ScriptApiGame(L)->player.pos.y);
+    return 1;
 }
 
 static int ScriptApiPlayerHp(lua_State *L)
@@ -141,13 +161,20 @@ static int ScriptApiPlayerHasItem(lua_State *L)
     return 1;
 }
 
-static int ScriptApiEnemyPos(lua_State *L)
+static int ScriptApiEnemyX(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
     Enemy *e = ScriptApiCheckEnemy(L, game, 1);
     lua_pushnumber(L, (lua_Number)e->pos.x);
+    return 1;
+}
+
+static int ScriptApiEnemyY(lua_State *L)
+{
+    Game *game = ScriptApiGame(L);
+    Enemy *e = ScriptApiCheckEnemy(L, game, 1);
     lua_pushnumber(L, (lua_Number)e->pos.y);
-    return 2;
+    return 1;
 }
 
 static int ScriptApiEnemyHp(lua_State *L)
@@ -158,13 +185,20 @@ static int ScriptApiEnemyHp(lua_State *L)
     return 1;
 }
 
-static int ScriptApiShotPos(lua_State *L)
+static int ScriptApiShotX(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
     Shot *s = ScriptApiCheckShot(L, game, 1);
     lua_pushnumber(L, (lua_Number)s->pos.x);
+    return 1;
+}
+
+static int ScriptApiShotY(lua_State *L)
+{
+    Game *game = ScriptApiGame(L);
+    Shot *s = ScriptApiCheckShot(L, game, 1);
     lua_pushnumber(L, (lua_Number)s->pos.y);
-    return 2;
+    return 1;
 }
 
 static int ScriptApiNearestEnemy(lua_State *L)
@@ -187,13 +221,42 @@ static int ScriptApiNearestEnemy(lua_State *L)
     return 1;
 }
 
-static int ScriptApiRoomBounds(lua_State *L)
+/* room_bounds() -> x_min, y_min, x_max, y_max aveva la STESSA trappola di
+   player_pos() sopra (uno script che scrive spawn_shot(room_bounds(), dx,
+   dy, ...) tronca silenziosamente a room_left soltanto), quindi stessa
+   cura: quattro getter a un solo valore invece di uno a quattro. Non basta
+   "usarla solo da sola" come alternativa: un modello da 7B che ha appena
+   imparato a chiamare player_x()/player_y() separatamente generalizza
+   naturalmente lo stesso schema qui, mentre un'eccezione ("questa singola
+   funzione fa eccezione ed e' ok chiamarla con piu' ritorni, le altre no")
+   e' esattamente il tipo di regola sottile che un 7B non tiene a mente in
+   modo affidabile. */
+static int ScriptApiRoomLeft(lua_State *L)
 {
+    (void)L;
     lua_pushnumber(L, (lua_Number)ROOM_X);
+    return 1;
+}
+
+static int ScriptApiRoomTop(lua_State *L)
+{
+    (void)L;
     lua_pushnumber(L, (lua_Number)ROOM_Y);
+    return 1;
+}
+
+static int ScriptApiRoomRight(lua_State *L)
+{
+    (void)L;
     lua_pushnumber(L, (lua_Number)ROOM_RIGHT);
+    return 1;
+}
+
+static int ScriptApiRoomBottom(lua_State *L)
+{
+    (void)L;
     lua_pushnumber(L, (lua_Number)ROOM_BOTTOM);
-    return 4;
+    return 1;
 }
 
 /* ============================================================
@@ -322,17 +385,23 @@ void ScriptApiRegister(ScriptSandbox *sb, Game *game)
     if (L == NULL) return;
     lua_pushglobaltable(L);
 
-    ScriptApiRegisterFn(L, game, "player_pos", ScriptApiPlayerPos);
+    ScriptApiRegisterFn(L, game, "player_x", ScriptApiPlayerX);
+    ScriptApiRegisterFn(L, game, "player_y", ScriptApiPlayerY);
     ScriptApiRegisterFn(L, game, "player_hp", ScriptApiPlayerHp);
     ScriptApiRegisterFn(L, game, "player_max_hp", ScriptApiPlayerMaxHp);
     ScriptApiRegisterFn(L, game, "player_damage", ScriptApiPlayerDamage);
     ScriptApiRegisterFn(L, game, "player_item_count", ScriptApiPlayerItemCount);
     ScriptApiRegisterFn(L, game, "player_has_item", ScriptApiPlayerHasItem);
-    ScriptApiRegisterFn(L, game, "enemy_pos", ScriptApiEnemyPos);
+    ScriptApiRegisterFn(L, game, "enemy_x", ScriptApiEnemyX);
+    ScriptApiRegisterFn(L, game, "enemy_y", ScriptApiEnemyY);
     ScriptApiRegisterFn(L, game, "enemy_hp", ScriptApiEnemyHp);
-    ScriptApiRegisterFn(L, game, "shot_pos", ScriptApiShotPos);
+    ScriptApiRegisterFn(L, game, "shot_x", ScriptApiShotX);
+    ScriptApiRegisterFn(L, game, "shot_y", ScriptApiShotY);
     ScriptApiRegisterFn(L, game, "nearest_enemy", ScriptApiNearestEnemy);
-    ScriptApiRegisterFn(L, game, "room_bounds", ScriptApiRoomBounds);
+    ScriptApiRegisterFn(L, game, "room_left", ScriptApiRoomLeft);
+    ScriptApiRegisterFn(L, game, "room_top", ScriptApiRoomTop);
+    ScriptApiRegisterFn(L, game, "room_right", ScriptApiRoomRight);
+    ScriptApiRegisterFn(L, game, "room_bottom", ScriptApiRoomBottom);
     ScriptApiRegisterFn(L, game, "spawn_shot", ScriptApiSpawnShot);
     ScriptApiRegisterFn(L, game, "damage_enemy", ScriptApiDamageEnemy);
     ScriptApiRegisterFn(L, game, "heal_player", ScriptApiHealPlayer);
