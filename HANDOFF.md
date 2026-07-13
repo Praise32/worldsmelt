@@ -94,6 +94,44 @@ e una funzione Lua (`table.move`) permetteva un ciclo in C che bloccava il gioco
 va in loop, esaurisce la memoria — viene ucciso e l'oggetto ripiega sulla vecchia mini-VM.
 Il giocatore vede al massimo un oggetto scialbo, mai un crash.**
 
+## Fase 3, seconda parte: la tua visione degli oggetti
+
+Dopo la tua descrizione (oggetti semplici ma unici, sinergie, stat-up dal boss,
+personaggio a strati) ho scritto il design in
+`docs/superpowers/specs/2026-07-13-items-synergy-vision.md` e implementato le parti
+non ambigue. Cosa c'e' adesso:
+
+- **Due famiglie di oggetti.** Gli oggetti di tesoro/negozio sono **attivi** (un
+  comportamento semplice: un colpo che rimbalza, uno che insegue, uno grande…). Il
+  boss lascia cadere un oggetto **stat-up** puro (piu' danno, piu' vita…), bilanciato:
+  ogni stat-up puo' spostare una statistica al massimo del 25% della base, quindi non
+  puo' rompere il personaggio.
+- **Il 7B scrive davvero i comportamenti.** All'inizio scriveva quasi solo scaling di
+  numeri (1 comportamento su 15); ho rifatto il prompt e ora ne scrive **11 su 14**.
+  Esempi veri, scritti dal modello: un frammento che rimbalza verso il nemico
+  all'impatto, uno che lo insegue, un colpo extra grande quando spari. Gli stat-up del
+  boss restano puliti (5/5, bilanciati).
+- **Il personaggio a strati (la tua "tela vuota").** Il personaggio base ora e' uno
+  stickman minimale e fisso, e gli oggetti raccolti si vedono **sopra**, a strati,
+  ognuno al suo slot (cappelli impilati con badge "+2" se sono tanti, occhiali, arma in
+  mano, mantello dietro le gambe, aura che orbita). C'e' uno screenshot:
+  `logs/melting-run-layers-screen.png` — guardalo quando torni. La sorgente di ogni
+  strato e' **pluggabile**: adesso e' geometria colorata, domani ci si mette lo sprite
+  generato senza rifare niente.
+
+**Cosa ho lasciato apposta a te (le domande della sezione 7 del design doc):**
+
+1. **Il merge/le sinergie.** Il pezzo piu' importante della tua visione — "facendo il
+   merge dei due oggetti si creano nuovi oggetti" — non l'ho costruito, perche' ci sono
+   tre modi diversi di intenderlo (sinergia implicita alla Isaac / fusione esplicita di
+   due oggetti in uno / arma che evolve) e la scelta cambia molto. La mia proposta e' la
+   sinergia implicita per iniziare, con la fusione visiva fatta a strati. Dimmi tu.
+2. **Gli sprite degli oggetti.** Adesso gli strati sono forme geometriche. Generare uno
+   sprite per ogni oggetto raccolto e' il passo dopo, ma aggiunge tempo di generazione:
+   vale la pena, o gli strati geometrici bastano per ora?
+3. **Il personaggio base**: l'ho fatto fisso e minimale (per agganciare gli oggetti in
+   modo affidabile). Confermi, o lo vuoi generato da SD ma semplice?
+
 ## Le tue risposte, registrate
 
 - **Vendita**: passo al modello Apache 2.0 per gli sprite → **ma non era adatto** (fa
@@ -101,9 +139,10 @@ Il giocatore vede al massimo un oggetto scialbo, mai un crash.**
   non esiste: il gioco non ridistribuisce mai i pesi (li scarica chi gioca), quindi OpenRAIL-M
   va bene. Tutto in `docs/LICENZE.md`.
 - **Attesa**: 2 min 30 s vanno bene → non toccato.
-- **Fase 3**: scope «tutto». La 3a (oggetti) e' fatta. Restano **3b** (nemici e boss) e
-  **3c** (stanze). Quelle le faccio quando torni: alcune scelte di design del *tuo* gioco
-  le voglio decidere con te.
+- **Fase 3**: scope «tutto». La **3a (oggetti) e' fatta**, e sopra ci ho costruito la
+  tua visione (oggetti attivi + stat-up + personaggio a strati, vedi sopra). Restano
+  **il merge/sinergie** (domanda 1 qui sopra), **3b** (nemici e boss) e **3c** (stanze).
+  Quelle contengono scelte di design del *tuo* gioco che voglio decidere con te.
 
 `local-sprites` contiene gia' tutto `linux-local-llm`, quindi per prendere tutto:
 
