@@ -300,6 +300,23 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
             NormalizeTraits(rawItem ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawItem, "traits") : NULL, fbItem, item);
             CopyColor(item->color, sizeof(item->color), JsonString(rawItem, "color"), fbItem->color);
             NormalizeScript(rawItem ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawItem, "script") : NULL, fbItem, item);
+            /* "kind" non fa parte della grammatica JSON (run.gbnf): i tre
+               oggetti di items[] sono SEMPRE attivi, deciso qui in C, mai dal
+               modello (vedi il commento su GenItem.kind in melting_gen.h). */
+            snprintf(item->kind, sizeof(item->kind), "active");
         }
+
+        /* Oggetto stat-up del piano (fase 3): non fa parte della grammatica
+           JSON che il modello scrive (niente "bossItem" in run.gbnf/
+           system.txt), quindi non c'e' nulla da leggere da rawFloor qui.
+           Si prende SEMPRE il bossItem procedurale derivato dal seed della
+           run (fbFloor, gia' calcolato sopra da GenFallbackRun): stessa
+           qualita' di ogni altro contenuto di ripiego, deterministico e mai
+           un doppione degli oggetti attivi. Il suo comportamento Lua (se un
+           modello e' disponibile) viene scritto A PARTE da
+           GenLuaGenerateForRun con un prompt dedicato (vedi gen_lua.c),
+           DOPO questa normalizzazione: qui il campo 'lua' resta quindi
+           quello del fallback (vuoto, vedi GenFallbackRun/FallbackBossItem). */
+        floor->bossItem = fbFloor->bossItem;
     }
 }

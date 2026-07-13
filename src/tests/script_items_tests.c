@@ -297,6 +297,116 @@ static bool TestRecomputeIdempotent(void)
 }
 
 /* ============================================================
+   Test I/J/K (fase 3, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+   sezioni 1,2,5 + il task brief "items synergy vision"): oggetti stat-up
+   (ITEM_STATUP), il budget di potenza per-oggetto e il ripiego C "mai un
+   dud". Stesso pattern degli altri test qui sopra: Game locale, TestAddItem
+   riproduce il pickup vero.
+   ============================================================ */
+
+/* Test I: on_evaluate ambizioso (+1000 danno) -> clampato al budget
+   per-oggetto (SCRIPT_ITEMS_ITEM_DELTA_FRACTION=0.25 di baseDamage in
+   src/script/script_items.c), MAI ai 1000 richiesti. E' il test esplicito
+   del task brief: "feed a script bumping damage by +1000, assert the
+   player's damage lands at the per-item cap, not 1000". */
+static const char *GREEDY_DAMAGE_LUA =
+    "function on_evaluate(stats)\n"
+    "  stats.damage = stats.damage + 1000\n"
+    "end\n";
+
+static bool TestStatUpClampedToPerItemCap(void)
+{
+    Game game = MakeBaseGame(9001u);
+    float base = game.player.baseDamage;
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_STATUP;
+    item.slot = SLOT_HAT;
+    snprintf(item.name, sizeof(item.name), "Nucleo Ingordo");
+    snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
+    TestAddItem(&game, item);
+
+    float perItemCap = base*0.25f;   /* deve combaciare con SCRIPT_ITEMS_ITEM_DELTA_FRACTION */
+    float expected = base + perItemCap;
+    float got = game.player.damage;
+    bool ok = fabsf(got - expected) < 1e-3f;
+    printf("  [I] on_evaluate chiede +1000 danno -> damage=%.4f (atteso %.4f = base %.1f + tetto per-oggetto %.2f, MAI base+1000)\n",
+           got, expected, base, perItemCap);
+    ScriptItemsShutdown(&game);
+    if (!ok) printf("      FALLITO: il tetto di potenza per-oggetto (fase 3) non ha limitato uno script avido\n");
+    return ok;
+}
+
+/* Test J: un oggetto stat-up SENZA alcuno script Lua (mai generato: il caso
+   piu' comune quando il modello fallisce/opta per non proporre nulla) non
+   deve mai restare senza effetto ("so a boss reward is never a dud", task
+   brief): il ripiego C (ScriptItemsApplyStatUpFallback) scatta al posto di
+   on_evaluate, sommandosi al bonus "built-in" per trait che ogni oggetto
+   gia' riceve (ScriptItemsApplyBuiltin, invariato da fase 3a-L2). */
+static bool TestStatUpFallbackWhenNoLua(void)
+{
+    Game game = MakeBaseGame(4444u);
+    int baseMaxHp = game.player.baseMaxHp;
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_STATUP;
+    item.slot = SLOT_HAT;
+    item.traits = TRAIT_VAMP;
+    snprintf(item.name, sizeof(item.name), "Sigillo Vitale");
+    /* luaSource vuota di proposito: nessun on_evaluate, il ripiego C deve bastare da solo. */
+    TestAddItem(&game, item);
+
+    bool noLua = !ScriptItemsHasActiveLua(&game, 0);   /* luaSource vuota: nessuna sandbox creata */
+    int expected = baseMaxHp + 1 /* ApplyBuiltin, TRAIT_VAMP */ + 1 /* ripiego stat-up, TRAIT_VAMP */;
+    bool ok = noLua && game.player.maxHp == expected;
+    printf("  [J] oggetto stat-up SENZA Lua (trait vamp) -> maxHp=%d (atteso %d = base %d + builtin 1 + ripiego 1: mai un dud)\n",
+           game.player.maxHp, expected, baseMaxHp);
+    ScriptItemsShutdown(&game);
+    if (!ok) printf("      FALLITO: il ripiego C per un oggetto stat-up senza Lua non e' scattato come atteso\n");
+    return ok;
+}
+
+/* Test K: due oggetti stat-up si compongono (nessuna sinergia speciale,
+   solo somma via il sistema delle cache) e la rimozione ricalcola senza
+   deriva, esattamente come gia' verificato per gli oggetti generici in
+   TestRecomputeNoDrift/TestRecomputeIdempotent: qui si estende lo stesso
+   principio a ITEM_STATUP (task brief, make test-script: "extend it to the
+   stat-up kind"). +1 vita ciascuno, ben sotto il tetto per-oggetto di
+   maxHp (0.25*6=1.5), cosi' il test isola la composizione dal clamp. */
+static const char *STATUP_ADD_MAXHP_1_LUA = "function on_evaluate(stats)\n  stats.max_hp = stats.max_hp + 1\nend\n";
+
+static bool TestStatUpComposeAndRecompute(void)
+{
+    Game game = MakeBaseGame(555u);
+    int baseMaxHp = game.player.baseMaxHp;
+
+    Item item1 = { 0 }; item1.active = true; item1.kind = ITEM_STATUP; item1.slot = SLOT_HAT;
+    snprintf(item1.name, sizeof(item1.name), "Cuore Piu' Uno");
+    snprintf(item1.luaSource, sizeof(item1.luaSource), "%s", STATUP_ADD_MAXHP_1_LUA);
+    TestAddItem(&game, item1);
+
+    Item item2 = { 0 }; item2.active = true; item2.kind = ITEM_STATUP; item2.slot = SLOT_HAT;
+    snprintf(item2.name, sizeof(item2.name), "Cuore Ancora Uno");
+    snprintf(item2.luaSource, sizeof(item2.luaSource), "%s", STATUP_ADD_MAXHP_1_LUA);
+    TestAddItem(&game, item2);
+
+    int withBoth = game.player.maxHp;
+    bool composeOk = withBoth == baseMaxHp + 2;
+    printf("  [K] due oggetti stat-up (+1 vita ciascuno) -> maxHp=%d (atteso %d)\n", withBoth, baseMaxHp + 2);
+
+    game.player.itemCount = 1;
+    ScriptItemsRecomputeStats(&game);
+    int withOne = game.player.maxHp;
+    bool removedOk = withOne == baseMaxHp + 1;
+    printf("  [K] rimosso il secondo oggetto stat-up: maxHp=%d (atteso %d, NESSUNA deriva)\n", withOne, baseMaxHp + 1);
+
+    ScriptItemsShutdown(&game);
+    bool ok = composeOk && removedOk;
+    if (!ok) printf("      FALLITO: composizione/ricalcolo degli oggetti stat-up non corrisponde\n");
+    return ok;
+}
+
+/* ============================================================
    Test D: 10^6 spawn_shot -> clamp a MAX_SHOTS, mai un blocco.
    ============================================================ */
 
@@ -558,6 +668,9 @@ bool ScriptItemsSelfTest(void)
         { "F (Lua rotto: ripiego mini-VM da subito)", TestBrokenLuaFallsBack },
         { "G (determinismo: stesso seed -> stesso risultato)", TestDeterminism },
         { "H (prestazioni: costo reale delle callback, stanza piena)", TestPerformance },
+        { "I (stat-up: budget per-oggetto, +1000 danno clampato)", TestStatUpClampedToPerItemCap },
+        { "J (stat-up: ripiego C quando non c'e' Lua, mai un dud)", TestStatUpFallbackWhenNoLua },
+        { "K (stat-up: due oggetti si compongono, rimozione senza deriva)", TestStatUpComposeAndRecompute },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

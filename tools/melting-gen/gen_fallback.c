@@ -3,6 +3,28 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Oggetto stat-up del piano (fase 3, ricompensa del boss): stesso stile
+   procedurale degli oggetti attivi sopra (nome tema+trait, slot/colore
+   dall'rng), ma SENZA alcuna operazione mini-VM (opCount resta 0: un
+   oggetto stat-up non ha comportamento, solo statistiche via on_evaluate/il
+   ripiego C keyed-off-trait, vedi src/script/script_items.c). Il trait
+   scelto qui non pilota nessuna azione di gioco: serve solo come "etichetta"
+   per il nome e per il ripiego C se lo script Lua del modello fallisce o non
+   c'e' (vedi ScriptItemsApplyStatUpFallback). */
+static void FallbackBossItem(unsigned int *rng, GenItem *item, int h, int floorIdx)
+{
+    static const char *bossNames[] = { "Nucleo", "Reliquia", "Sigillo", "Totem", "Cristallo", "Anima", "Cuore", "Emblema" };
+    const char *trait = GEN_TRAITS[GenRngRange(rng, 0, 8)];
+    snprintf(item->name, sizeof(item->name), "%s %s", bossNames[GenRngRange(rng, 0, 7)], trait);
+    snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(rng, 0, 5)]);
+    snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
+    item->traitCount = 1;
+    GenHsvToHex((h + 260 + floorIdx*37)%360, 0.70, 0.95, item->color);
+    snprintf(item->kind, sizeof(item->kind), "statup");
+    item->opCount = 0;
+    item->lua[0] = '\0';
+}
+
 static void FallbackScriptForTrait(const char *trait, unsigned int *rng, GenItem *item)
 {
     GenScriptOp *op = &item->ops[0];
@@ -57,8 +79,17 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
             snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
             item->traitCount = 1;
             GenHsvToHex((h + 80 + j*53)%360, 0.75, 0.92, item->color);
+            snprintf(item->kind, sizeof(item->kind), "active");
             FallbackScriptForTrait(trait, &rng, item);
         }
+
+        /* Oggetto stat-up del piano (fase 3): subito dopo i 3 attivi, stesso
+           motivo di ordine RNG del commento sopra (documentare deliberatamente
+           dove consuma lo stream, non lasciarlo implicito). E' un NUOVO punto
+           di consumo rispetto a prima di questa fase: il golden file di
+           regressione (tests/melting-gen/golden-fallback-seed12345.txt) e'
+           stato rigenerato di conseguenza, vedi scripts/test-gen.sh. */
+        FallbackBossItem(&rng, &floor->bossItem, h, f);
 
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);

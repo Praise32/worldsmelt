@@ -78,7 +78,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
             }
             char err[192];
             bool anyCallback = false;
-            bool ok = GenLuaValidate(src, 12345u, &anyCallback, err, sizeof(err));
+            bool ok = GenLuaValidate(src, 12345u, false, &anyCallback, err, sizeof(err));
             free(src);
             if (ok)
             {

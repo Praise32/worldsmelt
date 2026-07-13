@@ -97,8 +97,19 @@ bool GameManifestTest(Game *game)
         {
             const Item *item = &game->content.floors[f].items[i];
             if (!item->name[0] || !strchr(item->script, ':')) return false;
+            if (item->kind != ITEM_ACTIVE) return false;   /* fase 3: i 3 oggetti del piano sono sempre attivi */
             if (!ManifestLuaLoads(game, item)) return false;
         }
+        /* Fase 3: l'oggetto stat-up del piano (ricompensa del boss) e'
+           sempre presente, sempre ITEM_STATUP, e non ha script mini-VM
+           (nessun comportamento, solo statistiche: vedi
+           tools/melting-gen/gen_manifest.c, WriteManifest, che non scrive
+           mai "floorN.bossItem.script="). */
+        const Item *boss = &game->content.floors[f].bossItem;
+        if (!boss->name[0]) return false;
+        if (boss->kind != ITEM_STATUP) return false;
+        if (boss->script[0] != '\0') return false;
+        if (!ManifestLuaLoads(game, boss)) return false;
     }
     /* GameManifestTest verificava solo il contenuto testuale del manifest, mai
        game->atlasLoaded: una regressione nello scrittore del BMP (Important 2)

@@ -86,9 +86,24 @@ function on_fire(x, y, dx, dy)
   local t = nearest_enemy(x, y)
 end
 
+Tavolozza di archetipi per un oggetto ATTIVO (la profondita' nasce dalle SINERGIE fra oggetti semplici, non dal singolo): scegli UN SOLO archetipo, mai due insieme. Rimbalzo (TRAIT_BOUNCE), Perforazione (TRAIT_PIERCE), Laser/raggio (velocita' alta, raggio piccolo), Evocazione/orbitale (on_tick, angolo che avanza nel tempo), Rallentamento al colpo (set_enemy_velocity in on_hit).
+
+SBAGLIATO (troppi effetti in un oggetto solo: illeggibile, non bilanciabile):
+function on_fire(x, y, dx, dy)
+  spawn_shot(x, y, dx, dy, 400, 5, 4, TRAIT_BOUNCE)
+  heal_player(1)
+  orbit_angle = (orbit_angle or 0) + 0.1
+end
+GIUSTO (un solo effetto, chiaro):
+function on_fire(x, y, dx, dy)
+  spawn_shot(x, y, dx, dy, 400, 5, 4, TRAIT_BOUNCE)
+end
+
 Regole:
-- Scrivi UN SOLO comportamento piccolo e concreto, non un intero moveset.
-- Deve fare qualcosa che un semplice modificatore statico non puo' esprimere: una condizione (hp basso, ogni N colpi, distanza da un nemico), un contatore che persiste fra chiamate, o una scelta dinamica del bersaglio.
-- Non ripetere in Lua un effetto che i trait dell'oggetto danno gia' gratis: aggiungi qualcosa in piu', coerente col nome e col tema.
-- Se non ti viene in mente nulla che valga la pena scriptare, va bene anche non definire nessuna callback: rispondi con una riga di commento tipo "-- nessun comportamento speciale".
-- Rispondi SOLO con il codice Lua: niente spiegazioni, niente markdown, niente testo prima o dopo.
+- Scrivi UN SOLO comportamento piccolo e concreto (un archetipo sopra o un'idea altrettanto semplice), mai due insieme.
+- Deve fare qualcosa che un semplice modificatore statico non puo': una condizione, un contatore che persiste, o un bersaglio scelto dinamicamente.
+- Non ripetere un effetto che i trait danno gia' gratis: aggiungi qualcosa in piu', coerente col nome e col tema.
+- Nessuna idea buona? Va bene non definire nessuna callback: rispondi con "-- nessun comportamento speciale".
+- Rispondi SOLO con codice Lua: niente spiegazioni, niente markdown.
+
+Oggetto STAT-UP (te lo dice il prompt utente): le regole sopra su "un solo comportamento" non si applicano. Definisci SOLO on_evaluate, mai on_fire/on_hit/on_tick: nessun comportamento nuovo, solo numeri.

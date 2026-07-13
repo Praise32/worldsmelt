@@ -1,0 +1,15 @@
+Oggetto STAT-UP (ricompensa del boss): {ITEM_NAME}
+Slot: {ITEM_SLOT}
+Trait: {ITEM_TRAITS}
+Tema del piano: {FLOOR_THEME}
+
+Scrivi SOLO on_evaluate(stats): alza 1 o 2 campi di 'stats' (damage, fire_delay, shot_speed, shot_radius, speed, max_hp), coerenti col nome/tema. Niente on_fire/on_hit/on_tick, niente spawn_shot/damage_enemy/heal_player/set_enemy_velocity: questo oggetto tocca solo i numeri, non il gioco.
+fire_delay piu' basso = spara piu' veloce: per aumentare la cadenza SOTTRAI da stats.fire_delay.
+Aumenti piccoli (10-20% del valore letto): il gioco applica comunque un tetto in C, ma uno script gia' equilibrato e' meglio.
+
+Esempio GIUSTO:
+function on_evaluate(stats)
+  stats.max_hp = stats.max_hp + 1
+end
+
+Scrivi SOLO on_evaluate per questo oggetto, coerente col nome e col tema.

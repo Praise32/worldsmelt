@@ -99,6 +99,18 @@ typedef enum ItemSlot {
     SLOT_AURA
 } ItemSlot;
 
+/* Tassonomia degli oggetti (fase 3, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+   sezioni 1,2,5): ITEM_ACTIVE modifica come spari o ti muovi (i mattoni delle
+   sinergie: stanze tesoro e negozio), ITEM_STATUP e' un puro aumento di
+   statistiche (ricompensa del boss, nessun comportamento nuovo). ITEM_ACTIVE
+   vale 0 di proposito: un Item azzerato con "{0}" (il pattern usato in tutto
+   il codice, vedi CombatApplyItem/i test) o un manifest vecchio senza alcuna
+   riga "kind=" restano attivi di default, mai stat-up per sbaglio. */
+typedef enum ItemKind {
+    ITEM_ACTIVE,
+    ITEM_STATUP
+} ItemKind;
+
 typedef enum GamePhase {
     PHASE_PLAY,
     PHASE_GAME_OVER,
@@ -171,6 +183,7 @@ typedef struct Item {
     char name[48];
     ItemSlot slot;
     unsigned int traits;
+    ItemKind kind;   /* ITEM_ACTIVE di default (vedi il commento sopra): mai stat-up senza che qualcuno lo imposti esplicitamente */
     Color color;
     int shape;
     char script[SCRIPT_TEXT_LEN];
@@ -179,7 +192,19 @@ typedef struct Item {
 
 typedef struct FloorContent {
     Theme theme;
-    Item items[3];
+    Item items[3];   /* oggetti ATTIVI del piano: stanza tesoro e negozio pescano da qui (world.c) */
+    /* Oggetto STAT-UP del piano, campo esplicito e non un quarto slot di
+       items[] (scelta deliberata, vedi il report di fase: docs/superpowers/sdd/
+       phase3-items-report.md): src/render/game_renderer.c gia' itera
+       "items[3]" con un letterale "3" per l'anteprima del piano (fuori scopo
+       di questo task, di proprieta' di un lavoro parallelo sulla grafica) -
+       crescere items[] a 4 avrebbe silenziosamente infilato l'oggetto del
+       boss in quella anteprima "oggetti del piano" senza toccare quel file.
+       Un campo a parte rende impossibile quel bug per costruzione e non
+       richiede alcuna modifica al renderer. E' SEMPRE la ricompensa del boss
+       del piano (world.c, WorldSpawnRoomContents/WorldSpawnRoomReward), mai
+       pescato a caso come items[0..2]. */
+    Item bossItem;
 } FloorContent;
 
 typedef struct RunContent {

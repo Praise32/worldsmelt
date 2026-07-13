@@ -7,6 +7,8 @@
 #include "lauxlib.h"
 #include "lua.h"
 
+#include <math.h>
+
 #define SCRIPT_ITEMS_NO_REF (-1)
 
 /* ============================================================
@@ -210,6 +212,91 @@ static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc)
     acc->maxHp      = GameMathClampFloat(acc->maxHp,      SCRIPT_ITEMS_MAX_HP_MIN,      SCRIPT_ITEMS_MAX_HP_MAX);
 }
 
+/* ============================================================
+   Budget di potenza PER OGGETTO (fase 3, vision doc sezione 1: "un budget di
+   potenza per oggetto, non bonus arbitrari"). SCRIPT_ITEMS_CLAMP_STATS sopra
+   e' un tetto GLOBALE, indipendente da quanti oggetti hai: protegge il
+   giocatore nel suo insieme (mai piu' veloce di X, mai piu' fragile di Y),
+   ma da solo NON impedisce che un singolo oggetto malfatto (un 7B che sbaglia
+   i conti, o semplicemente uno script troppo generoso) spinga UNA statistica
+   fin quasi al tetto in un colpo solo. Qui sotto si aggiunge un secondo
+   limite, per-oggetto: quanto puo' SPOSTARE quella statistica un singolo
+   on_evaluate, a prescindere da cosa il tetto globale permetterebbe ancora.
+
+   La percentuale e' relativa a player.base* (il valore di PARTENZA della
+   run, fisso), non al valore corrente prima di questo oggetto: un oggetto
+   raccolto per decimo non deve poter spostare la statistica piu' di uno
+   raccolto per primo solo perche' i nove precedenti l'hanno gia' gonfiata.
+   25% e' la stessa cifra per tutte le sei statistiche: abbastanza per
+   sentire davvero un oggetto stat-up (su damage=8 sono +2, un incremento
+   del 25% e' ben percepibile), abbastanza poco perche' anche il singolo
+   oggetto peggio riuscito nell'intera run (al massimo 5 oggetti stat-up,
+   uno per piano) non possa mai avvicinarsi da solo al tetto globale sopra
+   (0.25*8=2 contro un tetto [0.5,200]; anche sommando tutti e 5 i piani al
+   loro massimo assoluto restano ben dentro banda).
+
+   Applicato SOLO agli oggetti ITEM_STATUP (task brief, fase 3: "cap how
+   much a single stat-up item may shift any stat"), non a ogni on_evaluate:
+   un oggetto ATTIVO puo' gia' definire on_evaluate oggi (fase 3a-L2, prima
+   di questo task) per esprimere sinergie piu' ricche di un semplice
+   modificatore statico (vedi src/tests/script_items_tests.c, test B/C, che
+   sommano +2/+3 danno da due oggetti attivi ben oltre il 25% di un singolo
+   oggetto) -- resta cosi', la sandbox non perde liberta'. Il budget
+   per-oggetto e' la promessa di equilibrio specifica dei BOSS REWARD, non
+   una restrizione nuova sull'intera libreria di oggetti attivi gia'
+   esistente. */
+#define SCRIPT_ITEMS_ITEM_DELTA_FRACTION 0.25f
+
+static float ScriptItemsClampItemDeltaField(float post, float pre, float base)
+{
+    float cap = fabsf(base)*SCRIPT_ITEMS_ITEM_DELTA_FRACTION;
+    float delta = GameMathClampFloat(post - pre, -cap, cap);
+    return pre + delta;
+}
+
+/* Applica il tetto per-oggetto a TUTTE le statistiche che 'post' porta
+   rispetto a 'pre' (i valori subito prima di chiamare on_evaluate per
+   QUESTO oggetto), scrivendo il risultato clampato in 'post' stesso. Il
+   tetto globale (ScriptItemsClampStats) va comunque richiamato DOPO questa
+   funzione dal chiamante: sono due reti distinte, non una alternativa
+   all'altra. */
+static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptItemsStatsAccum *pre, const Player *p)
+{
+    post->damage     = ScriptItemsClampItemDeltaField(post->damage,     pre->damage,     p->baseDamage);
+    post->fireDelay  = ScriptItemsClampItemDeltaField(post->fireDelay,  pre->fireDelay,  p->baseFireDelay);
+    post->shotSpeed  = ScriptItemsClampItemDeltaField(post->shotSpeed,  pre->shotSpeed,  p->baseShotSpeed);
+    post->shotRadius = ScriptItemsClampItemDeltaField(post->shotRadius, pre->shotRadius, p->baseShotRadius);
+    post->speed      = ScriptItemsClampItemDeltaField(post->speed,      pre->speed,      p->baseSpeed);
+    post->maxHp      = ScriptItemsClampItemDeltaField(post->maxHp,      pre->maxHp,      (float)p->baseMaxHp);
+}
+
+/* Ripiego fisso e sicuro (fase 3, task brief: "so a boss reward is never a
+   dud"): un oggetto stat-up SENZA un on_evaluate Lua funzionante (mai
+   generato, o generato ma bocciato dalla validazione/ucciso a runtime, vedi
+   ScriptItemsRecomputeStats sotto) prende comunque UN bonus, piccolo ma
+   reale, deciso qui in C e scelto in base al suo trait (lo stesso trait che
+   nel manifest serve solo da "etichetta", vedi tools/melting-gen/gen_fallback.c
+   FallbackBossItem): niente RNG, stesso trait -> sempre lo stesso bonus,
+   cosi' il ripiego resta prevedibile e testabile quanto il resto del
+   sistema delle cache. Passa comunque per ScriptItemsClampItemDelta subito
+   dopo (vedi il chiamante), quindi anche questi valori "piccoli a mano"
+   restano sotto lo stesso tetto per-oggetto di un on_evaluate scritto da un
+   modello. Ordine di priorita' identico a ItemFirstTraitName
+   (src/gameplay/item_traits.c): un solo trait guida un solo bonus. */
+static void ScriptItemsApplyStatUpFallback(ScriptItemsStatsAccum *acc, const Item *item)
+{
+    if (item->traits & TRAIT_VAMP)         { acc->maxHp     += 1.0f;  return; }
+    if (item->traits & TRAIT_GIANT)        { acc->damage    += 1.5f;  return; }
+    if (item->traits & TRAIT_RAPID)        { acc->fireDelay -= 0.03f; return; }
+    if (item->traits & TRAIT_PIERCE)       { acc->damage    += 1.0f;  return; }
+    if (item->traits & TRAIT_HOMING)       { acc->shotSpeed += 60.0f; return; }
+    if (item->traits & TRAIT_BOUNCE)       { acc->shotSpeed += 60.0f; return; }
+    if (item->traits & TRAIT_EXPLODE)      { acc->shotRadius += 1.0f; return; }
+    if (item->traits & TRAIT_SPLIT)        { acc->shotRadius += 1.0f; return; }
+    if (item->traits & TRAIT_SLOW)         { acc->speed      += 20.0f; return; }
+    acc->maxHp += 1.0f;   /* nessun trait riconosciuto: un cuore extra, sempre sicuro */
+}
+
 /* La stessa matematica che prima viveva UNA TANTUM (al pickup) in
    CombatApplyItem, ora ricalcolata da zero ad ogni passaggio: e' quello che
    rende l'aggiunta/rimozione di un oggetto priva di deriva (spec, sezione
@@ -288,10 +375,39 @@ void ScriptItemsRecomputeStats(Game *game)
 
         ScriptItemRuntime *rt = &game->itemScripts[i];
         ScriptSandbox *sb = (ScriptSandbox *)rt->sandbox;
-        if (sb != NULL && !ScriptSandboxIsDisabled(sb))
+        bool sandboxUsable = sb != NULL && !ScriptSandboxIsDisabled(sb);
+        bool isStatUp = item->kind == ITEM_STATUP;
+
+        /* on_evaluate, quando c'e' ed e' ancora vivo: per un oggetto
+           ITEM_STATUP anche il budget per-oggetto (vedi
+           ScriptItemsClampItemDelta sopra), SEMPRE seguito dal tetto
+           globale. Un oggetto ATTIVO passa SOLO dal tetto globale, come
+           prima di questa fase (vedi il commento sopra la macro). */
+        bool ranLuaEval = false;
+        if (sandboxUsable && rt->evalRef != SCRIPT_ITEMS_NO_REF)
         {
-            ScriptItemsCallEvaluate(rt, &acc);
+            ScriptItemsStatsAccum pre = acc;
+            if (ScriptItemsCallEvaluate(rt, &acc))
+            {
+                if (isStatUp) ScriptItemsClampItemDelta(&acc, &pre, p);
+                ranLuaEval = true;
+            }
             ScriptItemsClampStats(&acc);   /* di nuovo: anche dopo un fallimento, per sicurezza in profondita' */
+        }
+
+        /* Ripiego "mai un dud" (task brief, fase 3): un oggetto STAT-UP
+           senza un on_evaluate Lua riuscito in QUESTO ricalcolo (mai
+           acquisito con Lua, sandbox disabilitata dal patto di sicurezza, o
+           script che non definisce on_evaluate) prende comunque il bonus
+           fisso di ScriptItemsApplyStatUpFallback. Un oggetto ATTIVO senza
+           on_evaluate resta invece esattamente come oggi: solo
+           ScriptItemsApplyBuiltin, nessun bonus in piu' inventato qui. */
+        if (!ranLuaEval && isStatUp)
+        {
+            ScriptItemsStatsAccum pre = acc;
+            ScriptItemsApplyStatUpFallback(&acc, item);
+            ScriptItemsClampItemDelta(&acc, &pre, p);
+            ScriptItemsClampStats(&acc);
         }
     }
 

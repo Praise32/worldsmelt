@@ -46,14 +46,22 @@ typedef struct GenScriptOp {
  * ogni tentativo Lua fallito). */
 #define GEN_LUA_LEN 2000
 
+/* "active" | "statup" (vedi GEN_KINDS in gen_util.c): mai scritto dal
+ * modello (non fa parte della grammatica JSON, run.gbnf), sempre deciso in C
+ * -- "active" per ogni GenItem dentro items[] (assegnato in
+ * GenNormalizeRun/GenFallbackRun), "statup" per bossItem sotto. Esiste
+ * comunque come campo testuale (non un bool) per lo stesso motivo di
+ * slot/traits: e' cio' che gen_manifest.c scrive alla lettera nel manifest,
+ * e cio' che run_content.c rilegge con lo stesso schema chiave=valore. */
 typedef struct GenItem {
     char name[48];      /* stesso limite di Item.name in game_types.h */
     char slot[8];       /* uno dei GEN_SLOTS */
     char traits[2][10];
     int traitCount;     /* 1..2 */
     char color[8];      /* "#rrggbb" */
+    char kind[8];        /* uno dei GEN_KINDS */
     GenScriptOp ops[GEN_MAX_OPS];
-    int opCount;        /* 1..3 */
+    int opCount;        /* 1..3; sempre 0 per un oggetto stat-up (nessun comportamento mini-VM, vedi bossItem) */
     char lua[GEN_LUA_LEN];
 } GenItem;
 
@@ -62,7 +70,22 @@ typedef struct GenFloor {
     char style[48];
     char boss[64];
     char bg[8], floorColor[8], wall[8], accent[8], accent2[8], enemy[8], bossColor[8];
-    GenItem items[GEN_ITEMS];
+    GenItem items[GEN_ITEMS];   /* oggetti ATTIVI: la stessa grammatica JSON di sempre (run.gbnf), il modello li scrive */
+    /* Oggetto STAT-UP del piano, ricompensa del boss (fase 3, vedi
+     * docs/superpowers/specs/2026-07-13-items-synergy-vision.md sezioni
+     * 1,2,5): campo esplicito, non un quarto elemento di items[] (stessa
+     * scelta e stessa motivazione del lato gioco, vedi FloorContent in
+     * core/game_types.h). Nome/slot/colore/trait sono generati
+     * DETERMINISTICAMENTE dal seed della run (GenFallbackRun, riusato anche
+     * da GenNormalizeRun quando il JSON del modello non lo prevede: non fa
+     * parte della grammatica, per non dover ritoccare run.gbnf/system.txt/
+     * user.txt in questa fase): stessa qualita' procedurale di ogni altro
+     * contenuto di ripiego, MAI un doppione degli oggetti attivi. Cio' che e'
+     * davvero scritto dal modello, quando c'e', e' il suo comportamento
+     * on_evaluate (campo 'lua' sotto), con un prompt dedicato (vedi
+     * gen_lua.c, prompts/lua_statup_user.txt): "mai un doppione" del
+     * comportamento, solo numeri, bilanciati in C (src/script/script_items.c). */
+    GenItem bossItem;
 } GenFloor;
 
 typedef struct GenRun {
@@ -111,6 +134,7 @@ char *GenChatMlWrap(const char *sys, const char *user);
 int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath);
 extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
+extern const char *GEN_KINDS[2];   /* "active", "statup": vedi il commento su GenItem.kind sopra */
 const GenTraitRule *GenTraitRuleFor(const char *trait);   /* NULL se sconosciuto */
 
 /* gen_fallback.c */

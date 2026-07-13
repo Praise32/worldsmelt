@@ -52,6 +52,18 @@ static ItemSlot SlotFromText(const char *text)
     return SLOT_HAT;
 }
 
+/* Fase 3 (vedi ItemKind in core/game_types.h): "statup" e' l'UNICO testo che
+   produce ITEM_STATUP, qualunque altra cosa (mancante, vuoto, "active",
+   refuso) ricade su ITEM_ACTIVE. Il chiamante decide se invocarla affatto:
+   quando la chiave del manifest e' assente (run vecchia, oggetto senza
+   riga "kind=") il campo NON va toccato qui, resta quello gia' impostato dal
+   contenuto di ripiego (vedi RunContentLoad sotto, stesso schema "per-key
+   fallback" di ogni altro campo di questo file). */
+static ItemKind ItemKindFromText(const char *text)
+{
+    return (text && strcmp(text, "statup") == 0) ? ITEM_STATUP : ITEM_ACTIVE;
+}
+
 static const char *FallbackScriptForTrait(unsigned int trait)
 {
     if (trait & TRAIT_BOUNCE) return "on_fire:burst,2,0.25,bounce";
@@ -83,6 +95,7 @@ static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
     };
     Item item = { 0 };
     item.active = true;
+    item.kind = ITEM_ACTIVE;
     snprintf(item.name, sizeof(item.name), "%s", names[(index + GameRngRange(rng, 0, 5))%6]);
     item.slot = (ItemSlot)GameRngRange(rng, 0, 5);
     item.traits = RandomTrait(rng);
@@ -90,6 +103,31 @@ static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
     item.color = GameColorLerp(theme->accent, ColorFromHSV(GameRngFloat(rng, 0.0f, 360.0f), 0.75f, 0.95f), 0.45f);
     item.shape = GameRngRange(rng, 0, 4);
     snprintf(item.script, sizeof(item.script), "%s", FallbackScriptForTrait(item.traits));
+    return item;
+}
+
+/* Oggetto stat-up di ripiego (fase 3, ricompensa del boss): stesso stile
+   procedurale di MakeFallbackItem sopra, ma senza alcuno script mini-VM
+   (item.script resta "" -- un oggetto stat-up non ha comportamento, solo
+   statistiche, vedi ScriptItemsRecomputeStats/ScriptItemsApplyStatUpFallback
+   in src/script/script_items.c) e con un solo trait (usato SOLO come
+   etichetta per il ripiego C se non c'e' un on_evaluate Lua valido, mai per
+   pilotare la mini-VM). */
+static Item MakeFallbackBossItem(unsigned int *rng, const Theme *theme, int floorIdx)
+{
+    static const char *names[] = {
+        "Reliquia Possente", "Nucleo Ardente", "Sigillo Vitale",
+        "Cristallo Rapido", "Totem Solido", "Anima Grande"
+    };
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_STATUP;
+    snprintf(item.name, sizeof(item.name), "%s", names[(floorIdx + GameRngRange(rng, 0, 5))%6]);
+    item.slot = (ItemSlot)GameRngRange(rng, 0, 5);
+    item.traits = RandomTrait(rng);
+    item.color = GameColorLerp(theme->accent2, ColorFromHSV(GameRngFloat(rng, 0.0f, 360.0f), 0.65f, 0.92f), 0.5f);
+    item.shape = GameRngRange(rng, 0, 4);
+    item.script[0] = '\0';
     return item;
 }
 
@@ -128,6 +166,7 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
         {
             content->floors[f].items[i] = MakeFallbackItem(&rng, &content->floors[f].theme, i);
         }
+        content->floors[f].bossItem = MakeFallbackBossItem(&rng, &content->floors[f].theme, f);
     }
 }
 
@@ -256,6 +295,15 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             ReadManifestValue(text, key, value, sizeof(value));
             if (value[0]) item->color = ParseHexColor(value, item->color);
 
+            /* Fase 3: riga assente (manifest scritto prima di questo task, o
+               un vecchio golden file) -> item->kind resta ITEM_ACTIVE, gia'
+               impostato da MakeFallbackItem sopra (stesso schema "per-key
+               fallback" di ogni altro campo qui). */
+            snprintf(key, sizeof(key), "floor%d.item%d.kind=", n, i + 1);
+            value[0] = '\0';
+            ReadManifestValue(text, key, value, sizeof(value));
+            if (value[0]) item->kind = ItemKindFromText(value);
+
             snprintf(key, sizeof(key), "floor%d.item%d.script=", n, i + 1);
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));
@@ -283,6 +331,56 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             }
             item->active = true;
         }
+
+        /* Oggetto stat-up del piano (fase 3, ricompensa del boss): stesso
+           schema chiave=valore/per-key-fallback di items[] sopra, ma col
+           prefisso "bossItem" e SENZA ".script=" (nessuna riga da leggere:
+           un manifest scritto da questa fase non la scrive mai, vedi
+           WriteManifest in gen_manifest.c, quindi floor->bossItem.script
+           resta "" -- gia' cosi' dal contenuto di ripiego). Una run
+           generata PRIMA di questo task non ha nessuna di queste chiavi:
+           l'intero bossItem resta quello di MakeFallbackBossItem sopra
+           (kind=ITEM_STATUP incluso), mai un oggetto vuoto. */
+        Item *boss = &floor->bossItem;
+        snprintf(key, sizeof(key), "floor%d.bossItem.name=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0]) snprintf(boss->name, sizeof(boss->name), "%s", value);
+
+        snprintf(key, sizeof(key), "floor%d.bossItem.slot=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0]) boss->slot = SlotFromText(value);
+
+        snprintf(key, sizeof(key), "floor%d.bossItem.traits=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0]) boss->traits = ItemTraitsFromText(value);
+
+        snprintf(key, sizeof(key), "floor%d.bossItem.color=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0]) boss->color = ParseHexColor(value, boss->color);
+
+        snprintf(key, sizeof(key), "floor%d.bossItem.kind=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0]) boss->kind = ItemKindFromText(value);
+
+        boss->luaSource[0] = '\0';
+        snprintf(key, sizeof(key), "floor%d.bossItem.lua=", n);
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (value[0])
+        {
+            char *luaText = LoadFileText(value);
+            if (luaText)
+            {
+                snprintf(boss->luaSource, sizeof(boss->luaSource), "%s", luaText);
+                UnloadFileText(luaText);
+            }
+        }
+        boss->active = true;
     }
 
     content->loaded = loadedSomething;

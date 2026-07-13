@@ -38,6 +38,27 @@ echo "-- il manifest e' completo --"
 grep -q "^floor5.item3.script=" "$TMP/a/current_run.txt"
 grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 
+# Fase 3 (tassonomia degli oggetti, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+# sezioni 1,2,5): un campo "kind" per oggetto, gli oggetti attivi vanno in
+# items[1..3], l'oggetto stat-up del piano (ricompensa del boss) e' un
+# quarto campo esplicito "bossItem". Round-trip attraverso il manifest di
+# testo, per ciascuno dei 5 piani.
+echo "-- fase 3: kind round-trips attraverso il manifest (attivi=active, boss=statup) --"
+for n in 1 2 3 4 5; do
+  for i in 1 2 3; do
+    grep -q "^floor${n}.item${i}.kind=active$" "$TMP/a/current_run.txt" || {
+      echo "FALLITO: floor${n}.item${i}.kind non e' 'active'"; exit 1; }
+  done
+  grep -q "^floor${n}.bossItem.kind=statup$" "$TMP/a/current_run.txt" || {
+    echo "FALLITO: floor${n}.bossItem.kind non e' 'statup'"; exit 1; }
+  grep -q "^floor${n}.bossItem.name=" "$TMP/a/current_run.txt" || {
+    echo "FALLITO: floor${n}.bossItem.name mancante"; exit 1; }
+  # Un oggetto stat-up non ha comportamento mini-VM: mai una riga ".script=".
+  if grep -q "^floor${n}.bossItem.script=" "$TMP/a/current_run.txt"; then
+    echo "FALLITO: floor${n}.bossItem ha una riga .script= (un oggetto stat-up non ha comportamento)"; exit 1
+  fi
+done
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

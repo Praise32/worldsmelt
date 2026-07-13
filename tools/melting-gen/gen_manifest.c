@@ -66,7 +66,12 @@ static void TraitsToText(const GenItem *item, char *out, size_t outSize)
  * current_run.txt: vedi GenWriteRunFiles sotto), ma e' il massimo
  * restringimento ragionevole senza riscrivere l'intera pipeline di
  * pubblicazione. */
-static void WriteItemLua(const GenItem *item, const char *outDir, int floorNum, int itemNum)
+/* 'itemTag' e' il pezzo che distingue il percorso di un oggetto dall'altro
+ * ("item1".."item3" per gli attivi, "bossItem" per lo stat-up del piano,
+ * fase 3): stringa invece di un intero da quando bossItem non e' piu' un
+ * indice di items[], vedi il commento su FloorContent.bossItem in
+ * core/game_types.h. */
+static void WriteItemLua(const GenItem *item, const char *outDir, int floorNum, const char *itemTag)
 {
     if (item->lua[0] == '\0') return;
 
@@ -81,8 +86,8 @@ static void WriteItemLua(const GenItem *item, const char *outDir, int floorNum, 
        dimensione dichiarata fa scattare un falso -Wformat-truncation,
        perche' gcc ragiona sul caso pessimo dell'intero buffer sorgente. */
     char finalPath[512], tmpPath[512];
-    snprintf(finalPath, sizeof(finalPath), "%s/floor%d_item%d.lua", scriptDir, floorNum, itemNum);
-    snprintf(tmpPath, sizeof(tmpPath), "%s/floor%d_item%d.lua.tmp", scriptDir, floorNum, itemNum);
+    snprintf(finalPath, sizeof(finalPath), "%s/floor%d_%s.lua", scriptDir, floorNum, itemTag);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/floor%d_%s.lua.tmp", scriptDir, floorNum, itemTag);
     FILE *lf = fopen(tmpPath, "w");
     if (!lf) return;
     fputs(item->lua, lf);
@@ -139,6 +144,7 @@ static int WriteManifest(const GenRun *run, const char *outDir)
             TraitsToText(item, text, sizeof(text));
             fprintf(f, "floor%d.item%d.traits=%s\n", n, i + 1, text);
             fprintf(f, "floor%d.item%d.color=%s\n", n, i + 1, item->color);
+            fprintf(f, "floor%d.item%d.kind=%s\n", n, i + 1, item->kind);
             ScriptToText(item, text, sizeof(text));
             fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
             /* La riga .lua= si scrive QUI (testo), il FILE che referenzia si
@@ -149,6 +155,25 @@ static int WriteManifest(const GenRun *run, const char *outDir)
                 fprintf(f, "floor%d.item%d.lua=generated/scripts/floor%d_item%d.lua\n", n, i + 1, n, i + 1);
             }
         }
+
+        /* Oggetto stat-up del piano (fase 3, ricompensa del boss): stesse
+           chiavi degli oggetti attivi sopra MA senza ".script=" (nessun
+           comportamento mini-VM, vedi il commento su GenItem.bossItem in
+           melting_gen.h) e col prefisso "bossItem" invece di "itemN", per
+           tenerlo inconfondibile da un quarto oggetto attivo quando si legge
+           il manifest a mano. */
+        const GenItem *boss = &floor->bossItem;
+        char bossText[256];
+        fprintf(f, "floor%d.bossItem.name=%s\n", n, boss->name);
+        fprintf(f, "floor%d.bossItem.slot=%s\n", n, boss->slot);
+        TraitsToText(boss, bossText, sizeof(bossText));
+        fprintf(f, "floor%d.bossItem.traits=%s\n", n, bossText);
+        fprintf(f, "floor%d.bossItem.color=%s\n", n, boss->color);
+        fprintf(f, "floor%d.bossItem.kind=%s\n", n, boss->kind);
+        if (boss->lua[0] != '\0')
+        {
+            fprintf(f, "floor%d.bossItem.lua=generated/scripts/floor%d_bossItem.lua\n", n, n);
+        }
     }
 
     /* Ultimo giro, il piu' vicino possibile alla pubblicazione atomica del
@@ -157,17 +182,27 @@ static int WriteManifest(const GenRun *run, const char *outDir)
     for (int fl = 0; fl < GEN_FLOORS; fl++)
     {
         const GenFloor *floor = &run->floors[fl];
+        char tag[16];
         for (int i = 0; i < GEN_ITEMS; i++)
         {
-            WriteItemLua(&floor->items[i], outDir, fl + 1, i + 1);
+            snprintf(tag, sizeof(tag), "item%d", i + 1);
+            WriteItemLua(&floor->items[i], outDir, fl + 1, tag);
         }
+        WriteItemLua(&floor->bossItem, outDir, fl + 1, "bossItem");
     }
 
     return GenPublishFile(f, tmpPath, finalPath);
 }
 
 /* Ordine di inserimento = ordine chiavi di run.gbnf: la coppia writer/grammatica
-   viene verificata da test-gen (Task 5). */
+   viene verificata da test-gen (Task 5). Volutamente NON include
+   floor->bossItem (fase 3): quel campo non fa parte di cosa il modello
+   scrive in JSON (run.gbnf/system.txt restano quelli di sempre, 3 oggetti
+   per piano), quindi non ha senso nel JSON di debug/nel campione usato dal
+   validatore GBNF (--emit-llm-json, scripts/test-gen.sh) che verifica
+   ESATTAMENTE che l'output di questa funzione rispetti quella grammatica.
+   Vedi il commento su GenFloor.bossItem in melting_gen.h per il perche'
+   dell'intera scelta. */
 static cJSON *RunToJson(const GenRun *run)
 {
     cJSON *root = cJSON_CreateObject();

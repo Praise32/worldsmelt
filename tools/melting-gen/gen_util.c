@@ -183,6 +183,10 @@ const char *GEN_SLOTS[6] = { "hat", "eyes", "hand", "back", "body", "aura" };
 const char *GEN_TRAITS[9] = {
     "bounce", "homing", "explode", "split", "pierce", "rapid", "giant", "slow", "vamp"
 };
+/* Vedi il commento su GenItem.kind in melting_gen.h: mai scelto dal modello,
+ * sempre assegnato in C secondo la posizione dell'oggetto (items[] contro
+ * bossItem). */
+const char *GEN_KINDS[2] = { "active", "statup" };
 
 static const GenTraitRule GEN_TRAIT_RULES[9] = {
     { "bounce",  "on_fire", "burst",       2, 0.25 },

@@ -228,7 +228,7 @@ static void GenLuaStubRegister(ScriptSandbox *sb)
    definita, una volta, con argomenti plausibili.
    ============================================================ */
 
-bool GenLuaValidate(const char *source, unsigned int seed, bool *anyCallback, char *err, size_t errSize)
+bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize)
 {
     if (err && errSize) err[0] = '\0';
     if (anyCallback) *anyCallback = false;
@@ -262,6 +262,20 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool *anyCallback, ch
     bool hasHit  = ScriptSandboxHasFunction(sb, "on_hit");
     bool hasTick = ScriptSandboxHasFunction(sb, "on_tick");
     if (anyCallback) *anyCallback = hasEval || hasFire || hasHit || hasTick;
+
+    /* Gate di dominio per gli oggetti stat-up (fase 3, vedi gen_lua.h sopra):
+       NON e' una fuga della sandbox ne' un errore di sintassi, e' una regola
+       di melting-gen su COSA puo' scrivere il modello per questa categoria
+       di oggetto. Controllato PRIMA di eseguire alcunche' (dry-run incluso),
+       cosi' un modello che ignora l'istruzione del prompt e propone
+       comunque un comportamento viene sempre rimandato indietro con
+       l'errore, non silenziosamente accettato. */
+    if (statUpOnly && (hasFire || hasHit || hasTick))
+    {
+        ScriptSandboxDestroy(sb);
+        if (err) snprintf(err, errSize, "un oggetto stat-up puo' definire solo on_evaluate, niente on_fire/on_hit/on_tick");
+        return false;
+    }
 
     bool ok = true;
     if (hasEval)
@@ -344,12 +358,18 @@ static void ExtractLuaCode(const char *raw, char *out, size_t outCap)
     TrimWhitespace(out);
 }
 
-static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, const GenItem *item, const char *prevError)
+/* 'isStatUp' sceglie SOLO il template utente (lua_user.txt vs
+   lua_statup_user.txt, vedi prompts/): il cheat-sheet di sistema
+   (lua_system.txt) resta condiviso, perche' l'API della sandbox e le
+   funzioni proibite sono le stesse per ogni oggetto, attivo o stat-up (vedi
+   la vision doc sezione 2). E' il TASK che cambia (un solo effetto semplice
+   contro un ricalcolo di 1-2 statistiche), non le regole della sandbox. */
+static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, const GenItem *item, bool isStatUp, const char *prevError)
 {
     char path[512];
     snprintf(path, sizeof(path), "%s/lua_system.txt", promptsDir);
     char *sys = GenReadFile(path);
-    snprintf(path, sizeof(path), "%s/lua_user.txt", promptsDir);
+    snprintf(path, sizeof(path), "%s/%s", promptsDir, isStatUp ? "lua_statup_user.txt" : "lua_user.txt");
     char *userTpl = GenReadFile(path);
     if (!sys || !userTpl) { free(sys); free(userTpl); return NULL; }
 
@@ -395,6 +415,98 @@ static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, cons
     return prompt;
 }
 
+/* Corpo del ciclo prompt->modello->valida->ritenta per UN oggetto (attivo o
+   stat-up): prima viveva inline dentro il doppio for di GenLuaGenerateForRun,
+   estratto qui perche' ora va eseguito 4 volte per piano (3 attivi + il
+   bossItem) invece di 3, con solo il template utente/il gate statUpOnly che
+   cambiano fra le due categorie (vedi BuildLuaPrompt/GenLuaValidate sopra). */
+static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, const char *outDir,
+                                   double deadline, unsigned int runSeed, const char *floorTheme,
+                                   GenItem *item, bool isStatUp, int itemNum, int totalItems, GenLuaStats *stats)
+{
+    item->lua[0] = '\0';
+
+    if (GenNowSeconds() >= deadline)
+    {
+        stats->skippedBudget++;
+        GenLogLine("lua: oggetto %d/%d (%s) saltato: budget di tempo della fase Lua esaurito",
+                   itemNum, totalItems, item->name);
+        return;
+    }
+
+    char err[192];
+    err[0] = '\0';
+    char code[GEN_LUA_LEN];
+    code[0] = '\0';
+    bool success = false;
+    bool optedOut = false;
+    int attempt = 0;
+
+    for (attempt = 0; attempt < GEN_LUA_MAX_ATTEMPTS && !success && !optedOut; attempt++)
+    {
+        if (GenNowSeconds() >= deadline) break;
+
+        char *prompt = BuildLuaPrompt(promptsDir, floorTheme, item, isStatUp, attempt > 0 ? err : NULL);
+        if (!prompt)
+        {
+            snprintf(err, sizeof(err), "prompt Lua non costruibile (file mancanti in %s?)", promptsDir);
+            break;
+        }
+
+        char msg[112];
+        snprintf(msg, sizeof(msg), "scrivo il Lua di %s (tentativo %d/%d)", item->name, attempt + 1, GEN_LUA_MAX_ATTEMPTS);
+        GenProgressWrite(outDir, "lua", 92 + (6*itemNum)/totalItems, msg);
+
+        char raw[4096];
+        unsigned int callSeed = runSeed + (unsigned int)(itemNum*131u + (unsigned int)attempt*17u + 1u);
+        int rc = GenLlmComplete(sess, prompt, NULL, GEN_LUA_N_PREDICT, GEN_LUA_TEMP, callSeed,
+                                 outDir, "lua", 92 + (6*itemNum)/totalItems, 1,
+                                 raw, sizeof(raw), NULL);
+        free(prompt);
+        if (rc != 0)
+        {
+            snprintf(err, sizeof(err), "generazione fallita (decodifica o token troncati)");
+            continue;
+        }
+
+        char extracted[GEN_LUA_LEN];
+        ExtractLuaCode(raw, extracted, sizeof(extracted));
+
+        bool anyCallback = false;
+        bool valid = GenLuaValidate(extracted, runSeed + (unsigned int)itemNum, isStatUp, &anyCallback, err, sizeof(err));
+        if (valid && !anyCallback)
+        {
+            optedOut = true;   /* sintassi ok, ma nessuna callback: il modello ha scelto di non proporre nulla */
+            break;
+        }
+        if (valid)
+        {
+            snprintf(code, sizeof(code), "%s", extracted);
+            success = true;
+        }
+    }
+
+    if (success)
+    {
+        snprintf(item->lua, sizeof(item->lua), "%s", code);
+        if (attempt <= 1) stats->firstTry++; else stats->afterRetry++;
+        GenLogLine("lua: oggetto %d/%d (%s%s) ok al tentativo %d/%d",
+                   itemNum, totalItems, item->name, isStatUp ? ", stat-up" : "", attempt, GEN_LUA_MAX_ATTEMPTS);
+    }
+    else if (optedOut)
+    {
+        stats->optedOut++;
+        GenLogLine("lua: oggetto %d/%d (%s%s) nessun comportamento proposto dal modello",
+                   itemNum, totalItems, item->name, isStatUp ? ", stat-up" : "");
+    }
+    else
+    {
+        stats->fellBack++;
+        GenLogLine("lua: oggetto %d/%d (%s%s) fallito dopo %d tentativi, ripiego mini-VM/fallback C: %s",
+                   itemNum, totalItems, item->name, isStatUp ? ", stat-up" : "", attempt, err);
+    }
+}
+
 void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsDir,
                            const char *outDir, double deadline, GenLuaStats *stats)
 {
@@ -402,96 +514,19 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
     if (!sess) return;
 
     int itemNum = 0;
-    const int totalItems = GEN_FLOORS*GEN_ITEMS;
+    const int totalItems = GEN_FLOORS*(GEN_ITEMS + 1);   /* +1: il bossItem stat-up di ogni piano (fase 3) */
     for (int f = 0; f < GEN_FLOORS; f++)
     {
         GenFloor *floor = &run->floors[f];
         for (int i = 0; i < GEN_ITEMS; i++)
         {
             itemNum++;
-            GenItem *item = &floor->items[i];
-            item->lua[0] = '\0';
-
-            if (GenNowSeconds() >= deadline)
-            {
-                stats->skippedBudget++;
-                GenLogLine("lua: oggetto %d/%d (%s) saltato: budget di tempo della fase Lua esaurito",
-                           itemNum, totalItems, item->name);
-                continue;
-            }
-
-            char err[192];
-            err[0] = '\0';
-            char code[GEN_LUA_LEN];
-            code[0] = '\0';
-            bool success = false;
-            bool optedOut = false;
-            int attempt = 0;
-
-            for (attempt = 0; attempt < GEN_LUA_MAX_ATTEMPTS && !success && !optedOut; attempt++)
-            {
-                if (GenNowSeconds() >= deadline) break;
-
-                char *prompt = BuildLuaPrompt(promptsDir, floor->theme, item, attempt > 0 ? err : NULL);
-                if (!prompt)
-                {
-                    snprintf(err, sizeof(err), "prompt Lua non costruibile (file mancanti in %s?)", promptsDir);
-                    break;
-                }
-
-                char msg[112];
-                snprintf(msg, sizeof(msg), "scrivo il Lua di %s (tentativo %d/%d)", item->name, attempt + 1, GEN_LUA_MAX_ATTEMPTS);
-                GenProgressWrite(outDir, "lua", 92 + (6*itemNum)/totalItems, msg);
-
-                char raw[4096];
-                unsigned int callSeed = run->seed + (unsigned int)(itemNum*131u + (unsigned int)attempt*17u + 1u);
-                int rc = GenLlmComplete(sess, prompt, NULL, GEN_LUA_N_PREDICT, GEN_LUA_TEMP, callSeed,
-                                         outDir, "lua", 92 + (6*itemNum)/totalItems, 1,
-                                         raw, sizeof(raw), NULL);
-                free(prompt);
-                if (rc != 0)
-                {
-                    snprintf(err, sizeof(err), "generazione fallita (decodifica o token troncati)");
-                    continue;
-                }
-
-                char extracted[GEN_LUA_LEN];
-                ExtractLuaCode(raw, extracted, sizeof(extracted));
-
-                bool anyCallback = false;
-                bool valid = GenLuaValidate(extracted, run->seed + (unsigned int)itemNum, &anyCallback, err, sizeof(err));
-                if (valid && !anyCallback)
-                {
-                    optedOut = true;   /* sintassi ok, ma nessuna callback: il modello ha scelto di non proporre nulla */
-                    break;
-                }
-                if (valid)
-                {
-                    snprintf(code, sizeof(code), "%s", extracted);
-                    success = true;
-                }
-            }
-
-            if (success)
-            {
-                snprintf(item->lua, sizeof(item->lua), "%s", code);
-                if (attempt <= 1) stats->firstTry++; else stats->afterRetry++;
-                GenLogLine("lua: oggetto %d/%d (%s) ok al tentativo %d/%d",
-                           itemNum, totalItems, item->name, attempt, GEN_LUA_MAX_ATTEMPTS);
-            }
-            else if (optedOut)
-            {
-                stats->optedOut++;
-                GenLogLine("lua: oggetto %d/%d (%s) nessun comportamento proposto dal modello",
-                           itemNum, totalItems, item->name);
-            }
-            else
-            {
-                stats->fellBack++;
-                GenLogLine("lua: oggetto %d/%d (%s) fallito dopo %d tentativi, ripiego mini-VM: %s",
-                           itemNum, totalItems, item->name, attempt, err);
-            }
+            GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, run->seed, floor->theme,
+                                   &floor->items[i], false, itemNum, totalItems, stats);
         }
+        itemNum++;
+        GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, run->seed, floor->theme,
+                               &floor->bossItem, true, itemNum, totalItems, stats);
     }
     GenLogLine("lua: riepilogo run - %d/%d primo tentativo, %d dopo retry, %d nessun comportamento, %d ripiegati, %d saltati per budget",
                stats->firstTry, totalItems, stats->afterRetry, stats->optedOut, stats->fellBack, stats->skippedBudget);

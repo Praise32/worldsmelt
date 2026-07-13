@@ -273,7 +273,12 @@ static void WorldSpawnRoomReward(Game *game)
     }
     else if (room->kind == ROOM_BOSS)
     {
-        EntitiesAddItemPickup(game, (Vector2){ center.x - 52.0f, center.y }, game->content.floors[game->floor - 1].items[GameRngRange(&game->rng, 0, 2)], 0);
+        /* Fase 3 (vedi la vision doc, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+           sezioni 1,2,5): il boss lascia SEMPRE l'oggetto stat-up del piano,
+           mai uno a caso fra i tre attivi (quelli restano la ricompensa di
+           tesoro/negozio, vedi WorldSpawnRoomContents sopra e
+           game->content.floors[...].items[...] li'). */
+        EntitiesAddItemPickup(game, (Vector2){ center.x - 52.0f, center.y }, game->content.floors[game->floor - 1].bossItem, 0);
         EntitiesAddPickup(game, PICKUP_EXIT, (Vector2){ center.x + 70.0f, center.y }, 0, 0);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale sconfitto. Entra nell'uscita." : "Boss sconfitto. Prendi il premio e scendi.");
     }
