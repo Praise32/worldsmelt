@@ -64,6 +64,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --portal-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
 
 test-gen: all
 	bash scripts/test-gen.sh

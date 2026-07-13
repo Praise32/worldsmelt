@@ -2,6 +2,7 @@
 
 #include "game/game.h"
 #include "render/game_renderer.h"
+#include "tests/game_tests.h"
 
 #include "raylib.h"
 
@@ -63,6 +64,7 @@ int AppRun(int argc, char **argv)
     bool portalTest = false;
     bool scriptTest = false;
     bool manifestTest = false;
+    bool genTest = false;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--smoke-test") == 0) smokeTest = true;
@@ -92,6 +94,14 @@ int AppRun(int argc, char **argv)
             screenshotTest = true;
             menuScreenshotTest = true;
         }
+        if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
+    }
+
+    if (genTest)
+    {
+        bool ok = GenRunnerSelfTest();
+        printf("Gen runner test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 6;
     }
 
     bool compactTestWindow = smokeTest && !screenshotTest;

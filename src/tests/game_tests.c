@@ -72,3 +72,54 @@ bool GameManifestTest(Game *game)
     }
     return true;
 }
+
+#ifndef _WIN32
+#include "gen/gen_runner.h"
+
+#include <stdlib.h>
+#include <time.h>
+
+static bool GenRunnerWait(GenRunner *runner, double maxSeconds)
+{
+    for (int i = 0; i < (int)(maxSeconds*100.0); i++)
+    {
+        GenRunnerUpdate(runner);
+        if (runner->state != GEN_RUNNER_RUNNING) return true;
+        struct timespec ts = { 0, 10L*1000L*1000L };
+        nanosleep(&ts, NULL);
+    }
+    return false;
+}
+
+bool GenRunnerSelfTest(void)
+{
+    const char *cmd = "tests/fake-gen.sh";
+    GenRunner runner;
+    setenv("FAKE_GEN_OUT", "generated", 1);
+
+    setenv("FAKE_GEN_MODE", "ok", 1);
+    if (!GenRunnerStart(&runner, cmd, 1, 10.0, "generated/gen_progress.txt")) return false;
+    if (!GenRunnerWait(&runner, 10.0) || runner.state != GEN_RUNNER_SUCCEEDED) return false;
+    if (runner.progress.percent != 100) return false;
+
+    setenv("FAKE_GEN_MODE", "fail", 1);
+    if (!GenRunnerStart(&runner, cmd, 2, 10.0, "generated/gen_progress.txt")) return false;
+    if (!GenRunnerWait(&runner, 10.0) || runner.state != GEN_RUNNER_FAILED) return false;
+
+    setenv("FAKE_GEN_MODE", "hang", 1);   /* timeout: 2s contro uno sleep 30 */
+    if (!GenRunnerStart(&runner, cmd, 3, 2.0, "generated/gen_progress.txt")) return false;
+    if (!GenRunnerWait(&runner, 8.0) || runner.state != GEN_RUNNER_FAILED) return false;
+
+    setenv("FAKE_GEN_MODE", "hang", 1);   /* annullamento esplicito */
+    if (!GenRunnerStart(&runner, cmd, 4, 30.0, "generated/gen_progress.txt")) return false;
+    GenRunnerCancel(&runner);
+    if (runner.state != GEN_RUNNER_FAILED) return false;
+
+    return true;
+}
+#else
+bool GenRunnerSelfTest(void)
+{
+    return true;   /* la generazione in-game non esiste su Windows */
+}
+#endif

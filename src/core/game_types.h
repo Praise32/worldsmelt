@@ -279,4 +279,11 @@ typedef struct UiLayout {
     float gameScale;
 } UiLayout;
 
+/* Progresso del generatore esterno (melting-gen), letto da gen_progress.txt. */
+typedef struct GenProgress {
+    char phase[32];
+    int percent;
+    char message[96];
+} GenProgress;
+
 #endif
