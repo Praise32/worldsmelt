@@ -63,6 +63,33 @@ l'hashing delle stringhe. Senza, l'ordine di `pairs()` cambia a ogni avvio (Lua 
 indirizzi ASLR e `time()` nel seed) e **la stessa run con lo stesso seed darebbe risultati
 diversi**. Con il seed passato dal gioco, una run e' riproducibile.
 
+**Limite noto del determinismo (trovato dalla revisione di sicurezza finale, non corretto nel
+motore Lua stesso - solo aggirato lato prompt): il seed governa l'hashing delle CHIAVI STRINGA
+e la RNG del gioco, non tutto cio' che potrebbe apparire deterministico.** Due buchi verificati
+nel sorgente vendorizzato e a runtime:
+- `tostring({})` e `tostring(function() end)` includono l'indirizzo di memoria grezzo
+  dell'oggetto (vedi `deps/lua-5.5.0/src/lauxlib.c`, `luaL_tolstring`: per tabelle/funzioni/
+  userdata/thread senza un `__tostring` personalizzato fa `lua_pushfstring(L, "%s: %p", kind,
+  lua_topointer(L, idx))`, non un valore derivato dal seed): quell'indirizzo cambia da un
+  processo all'altro (ASLR), quindi due run con lo stesso seed di gioco produrrebbero stringhe
+  diverse se uno script generato chiamasse `tostring` su una tabella o una funzione.
+- `pairs()` su una tabella con **chiavi di tipo riferimento** (tabelle o funzioni come chiave,
+  a differenza delle chiavi stringa/numero) itera nell'ordine delle celle della parte hash
+  della tabella, che per chiavi di tipo riferimento e' derivato anch'esso dall'indirizzo
+  dell'oggetto, non dal seed di hashing delle stringhe: stesso problema, stessa causa.
+
+Il rischio pratico e' basso (uno script tipico generato usa solo chiavi stringa/numero e non
+chiama mai `tostring` su una tabella: non c'e' motivo di gioco per farlo), ma il criterio 5
+("stesso seed -> stesso comportamento, byte per byte") promette riproducibilita' totale, quindi
+va dichiarato onestamente invece di lasciarlo implicito. Non abbiamo patchato l'interprete Lua
+vendorizzato per chiudere questi due casi (cambierebbe `luaO_tostringbuff`, funzione centrale
+usata da un intero albero di chiamate, per un rischio che nessuno script generato oggi
+attraversa): la mitigazione scelta e' lato prompt, la piu' economica che risolve il caso
+pratico senza toccare il motore - il cheat-sheet (`tools/melting-gen/prompts/lua_system.txt`)
+istruisce esplicitamente il modello a non chiamare mai `tostring` su una tabella o una funzione
+e a usare solo chiavi stringa/numero nelle tabelle. Se in futuro emergesse un bisogno di gioco
+reale per uno di questi due pattern, la correzione vera (non lato prompt) andrebbe rivalutata.
+
 ## 4. Le tre barriere di sicurezza
 
 1. **Ambiente esplicito** (`_ENV` costruito a mano): solo `math` (senza `random`, sostituita

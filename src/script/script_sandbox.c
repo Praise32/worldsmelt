@@ -240,24 +240,81 @@ static void ScriptSandboxBuildEnv(ScriptSandbox *sb)
     }
     else lua_settop(L, envIdx);
 
-    /* table: sottoinsieme sicuro. ESCLUSO table.sort, di proposito, oltre
-       a quanto gia' richiesto dalla spec: la sua difesa anti-caso-
-       patologico (randomizzare il pivot quando l'input sembra costruito
-       ad arte per far degenerare il quicksort, vedi ltablib.c,
-       l_randomizePivot) chiama luaL_makeseed(), che pesca entropia da
-       orologio di sistema e indirizzi di memoria. Per un interprete Lua
-       generico e' un'ottima difesa; per QUESTA sandbox e' l'esatto
-       contrario di cio' che serve: una sorgente di nondeterminismo
-       nascosta dentro una libreria altrimenti innocua. Il numero di
-       confronti (e quindi l'ordine osservabile delle chiamate, se il
-       comparatore ha effetti collaterali) potrebbe differire fra due run
-       con lo stesso seed di gioco, che e' esattamente la proprieta' che
-       tutta questa sandbox esiste per garantire (spec sezione 3). Le
-       restanti funzioni di table sono pure manipolazioni dato-a-dato,
-       senza alcuna sorgente di entropia propria. */
+    /* table: NESSUNA funzione della libreria resta esposta (dettaglio per
+       dettaglio sotto). La tabella 'table' stessa resta presente ma VUOTA,
+       non serve toglierla del tutto: il cheat-sheet del generatore
+       (tools/melting-gen/prompts/lua_system.txt) non insegna al modello
+       NESSUNA funzione table.*, e nessun test/fixture di questo repo ne
+       chiama una (verificato con grep prima di questa correzione), quindi
+       non si perde nulla di cio' che uno script generato usa davvero. La
+       sintassi letterale "{ ... }" e l'assegnamento "t[i] = v" restano
+       comunque disponibili (sono istruzioni della VM Lua - OP_NEWTABLE/
+       OP_SETTABLE -, non funzioni di QUESTA libreria C): tabelle vere si
+       possono ancora costruire e far crescere, solo non tramite queste
+       funzioni. Sono infatti proprio quelle istruzioni VM, coperte dal-
+       l'hook LUA_MASKCOUNT, a costruire la bomba di memoria dell'escape 2
+       qui sopra e la tabella dello script "ben educato" dell'escape 10.
+
+       - sort: gia' escluso da prima di questa correzione (motivo
+         invariato): la sua difesa anti-caso-patologico (randomizzare il
+         pivot quando l'input sembra costruito ad arte per far degenerare
+         il quicksort, vedi ltablib.c, l_randomizePivot) chiama
+         luaL_makeseed(), che pesca entropia da orologio di sistema e
+         indirizzi di memoria - l'esatto opposto del determinismo che
+         questa sandbox esiste per garantire (spec sezione 3).
+       - move: la fuga CRITICA trovata dalla revisione di sicurezza finale
+         (non a tavolino, vedi il test dell'escape 11 in
+         src/tests/script_sandbox_tests.c per la prova prima/dopo). Il
+         ciclo di ltablib.c/tmove che copia gli elementi ("for (i = 0; i <
+         n; i++) { lua_geti(...); lua_seti(...); }" con n = e - f + 1) gira
+         INTERAMENTE IN C, e f/e sono interi arbitrari passati dallo
+         script, SVINCOLATI dalla dimensione vera della tabella
+         (lua_geti/lua_seti fuori dai limiti reali restituiscono/creano
+         silenziosamente nil, non sollevano mai un errore che
+         fermerebbe il ciclo prima del previsto). L'hook di conteggio
+         istruzioni (barriera 3 sopra) conta SOLO istruzioni della VM Lua e
+         non scatta MAI dentro una funzione C: e' esattamente la fuga 5
+         della spec ("le funzioni di pattern matching girano in C, senza
+         limiti, inarrestabili"), rimasta aperta per errore su table.move
+         mentre era gia' stata chiusa per string. Verificato per davvero:
+         table.move(a, 1, 300000000, 1, a) gira 6.3s ininterrotti senza che
+         la sandbox si disattivi (4.2s se lanciato dentro on_tick sotto il
+         budget di frame, comunque mai fermato), e con math.maxinteger
+         (~9.2*10^18, gia' esposto da 'math', vedi lmathlib.c) il ciclo non
+         finisce mai in pratica - senza che il tetto di memoria intervenga:
+         non alloca nulla di nuovo, legge e riscrive celle gia' esistenti.
+       - concat/remove/insert/pack/unpack: nessuna di queste, ad oggi, in
+         questa versione vendorizzata di Lua, e' sfruttabile allo stesso
+         modo di move (concat si ferma con un errore normale al primo
+         indice mancante; remove/insert sono limitati dalla lunghezza VERA
+         della tabella, gia' sotto il tetto di memoria; unpack controlla lo
+         spazio libero sullo stack PRIMA di ciclare e solleva un errore
+         invece di girare a vuoto). Vengono comunque escluse per difesa in
+         profondita' (spec sezione 4: "table senza remove/concat
+         illimitati"): dipendono da dettagli implementativi di ltablib.c
+         non coperti da nessun test automatico qui dentro - esattamente
+         come move dipendeva da un dettaglio ("il ciclo non controlla mai i
+         limiti reali della tabella") che nessuno aveva verificato finche'
+         non e' stato sfruttato per davvero - e nessuno script generato le
+         usa comunque, quindi il costo di escluderle e' zero.
+       - create: tecnicamente gia' al sicuro con l'allocatore di barriera 2
+         di oggi (lua_createtable fa UNA SOLA realloc grande quanto
+         narray/nrec, non un ciclo C proporzionale: la richiesta viene
+         rifiutata dal nostro allocatore PRIMA di qualunque ciclo di
+         inizializzazione se supera il tetto di memoria), ma resta comunque
+         fuori: nessuno script generato la usa, e non vale la pena tenere
+         un'altra funzione da ri-verificare ad ogni futuro aggiornamento
+         del Lua vendorizzato quando il beneficio per il gioco e' zero. */
     if (ScriptSandboxOpenLib(L, luaopen_table))
     {
-        lua_pushnil(L); lua_setfield(L, -2, "sort");
+        static const char *const tableDeny[] = {
+            "sort", "move", "concat", "remove", "insert", "pack", "unpack", "create", NULL
+        };
+        for (int i = 0; tableDeny[i] != NULL; i++)
+        {
+            lua_pushnil(L);
+            lua_setfield(L, -2, tableDeny[i]);
+        }
         lua_setfield(L, envIdx, "table");
     }
     else lua_settop(L, envIdx);

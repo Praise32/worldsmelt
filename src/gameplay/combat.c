@@ -42,6 +42,19 @@ void CombatDamagePlayer(Game *game, int amount)
 
 void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int traits)
 {
+    /* Guardia contro il doppio credito di morte: ScriptItemsOnHit (chiamata
+       PRIMA di questa funzione, vedi il ciclo colpi qui sotto) puo' gia' far
+       morire questo stesso nemico se lo script Lua dell'oggetto chiama
+       damage_enemy(id, amount) nel suo on_hit (script_api.c,
+       ScriptApiDamageEnemy chiama proprio questa funzione). Senza questa
+       guardia, la CombatDamageEnemy "incorporata" che segue nel ciclo colpi
+       rientrerebbe nel ramo hp<=0 una seconda volta sullo STESSO nemico
+       (gia' enemy->active=false, ma questa funzione non lo controllava):
+       punteggio +30/+300 due volte, particelle doppie, e un secondo tiro
+       indipendente di vamp. Un nemico non attivo e' gia' "morto" a tutti
+       gli effetti: nessun danno ulteriore ha senso applicargli. */
+    if (!enemy->active) return;
+
     enemy->hp -= damage;
     if (traits & TRAIT_SLOW) enemy->slowTimer = 1.6f;
     EntitiesAddParticle(game, enemy->pos, game->theme.accent2, 4);

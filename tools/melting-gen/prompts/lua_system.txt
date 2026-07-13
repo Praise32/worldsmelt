@@ -32,10 +32,12 @@ Funzioni che agiscono sul gioco:
 Altro a disposizione:
   rng() -> numero casuale 0..1, deterministico per la run (MAI usare math.random, non esiste)
   TRAIT_BOUNCE, TRAIT_HOMING, TRAIT_EXPLODE, TRAIT_SPLIT, TRAIT_PIERCE, TRAIT_RAPID, TRAIT_GIANT, TRAIT_SLOW, TRAIT_VAMP
-  math (senza random/randomseed), table (senza sort), ipairs, pairs, type, tonumber, tostring, select, error, assert
+  math (senza random/randomseed), ipairs, pairs, type, tonumber, tostring, select, error, assert
   Le variabili globali che assegni (es. un contatore) sopravvivono da una chiamata all'altra nella stessa run: usale per logica con memoria.
 
-NIENTE string.* (nemmeno string.format), niente pcall/xpcall, niente io/os/require/load/loadstring, niente setmetatable/rawget/rawset, niente collectgarbage, niente coroutine. Se una di queste compare nello script, la validazione lo scarta e l'oggetto torna al suo comportamento base.
+NIENTE string.* (nemmeno string.format), niente table.* (nemmeno table.insert/table.concat: usa solo "{ ... }" e "t[i] = v"), niente pcall/xpcall, niente io/os/require/load/loadstring, niente setmetatable/rawget/rawset, niente collectgarbage, niente coroutine. Se una di queste compare nello script, la validazione lo scarta e l'oggetto torna al suo comportamento base.
+
+Determinismo: NON chiamare mai tostring() su una tabella o una funzione (es. tostring({}) o tostring(on_fire)): il risultato include un indirizzo di memoria che cambia a ogni avvio del gioco, quindi la stessa run con lo stesso seed produrrebbe output diversi. Per lo stesso motivo, usa SOLO chiavi stringa o numero nelle tabelle (mai una tabella o una funzione come chiave): l'ordine di pairs() su chiavi di quel tipo dipende dal loro indirizzo in memoria, non dal seed della run.
 
 Cinque esempi SBAGLIATI e la versione GIUSTA equivalente:
 

@@ -6,6 +6,7 @@
 #include "lauxlib.h"
 #include "lua.h"
 
+#include <limits.h>
 #include <math.h>
 #include <string.h>
 
@@ -16,6 +17,16 @@
 
 #define SCRIPT_API_INDEX_BITS 16
 #define SCRIPT_API_INDEX_MASK ((1u << SCRIPT_API_INDEX_BITS) - 1)
+
+/* Tetto per ScriptApiUnpackHandle sotto: un handle vero e' "generazione (32
+   bit) << 16 | indice (16 bit)", quindi non supera mai 2^48. Qualunque
+   valore Lua oltre questo tetto e' gia' un handle invalido di suo (non
+   corrisponde a nessuna combinazione indice/generazione producibile da
+   ScriptApiPackEnemyHandle/ScriptApiPackShotHandle sopra): rifiutarlo qui,
+   PRIMA del cast a unsigned long long piu' sotto, non esclude nessun
+   handle legittimo. Un double rappresenta ogni intero fino a 2^53 in modo
+   esatto, quindi il confronto sotto e' preciso, non approssimato. */
+#define SCRIPT_API_HANDLE_MAX ((double)(1ull << 48))
 
 double ScriptApiPackEnemyHandle(const Game *game, int index)
 {
@@ -37,7 +48,17 @@ double ScriptApiPackShotHandle(const Game *game, int index)
    non a questa funzione pura. */
 static bool ScriptApiUnpackHandle(double handle, int *indexOut, unsigned int *genOut)
 {
-    if (handle < 0.0 || handle != floor(handle)) return false;
+    /* Il cast (unsigned long long)handle qui sotto e' undefined behaviour
+       (C99 6.3.1.4) per qualunque double che il tipo di destinazione non
+       possa rappresentare: enemy_x(1e300) supera sia "handle < 0" sia
+       "floor(handle)==handle" (1e300 e' gia' un intero in virgola mobile),
+       arrivando al cast senza altre difese. Sulla toolchain x86-64 di oggi
+       l'effetto osservato e' innocuo (il valore risultante fallisce
+       comunque i controlli di range del chiamante), ma UB resta UB: niente
+       lo garantisce su un'altra architettura o un'altra versione del
+       compilatore. Il controllo handle >= SCRIPT_API_HANDLE_MAX rifiuta
+       questi valori PRIMA del cast, senza costare nessun handle vero. */
+    if (handle < 0.0 || handle != floor(handle) || handle >= SCRIPT_API_HANDLE_MAX) return false;
     unsigned long long packed = (unsigned long long)handle;
     *indexOut = (int)(packed & SCRIPT_API_INDEX_MASK);
     *genOut = (unsigned int)(packed >> SCRIPT_API_INDEX_BITS);
@@ -284,6 +305,25 @@ static int ScriptApiRoomBottom(lua_State *L)
 #define SCRIPT_API_TRAIT_MASK (TRAIT_BOUNCE | TRAIT_HOMING | TRAIT_EXPLODE | TRAIT_SPLIT | \
                                 TRAIT_PIERCE | TRAIT_RAPID | TRAIT_GIANT | TRAIT_SLOW | TRAIT_VAMP)
 
+/* Converte un double arbitrario in unsigned int in modo SEMPRE definito.
+   luaL_optnumber() non impone alcun limite superiore (a differenza dei
+   parametri che passano per GameMathClampFloat, che restano float e non
+   scattano mai in UB), e (unsigned int)x per un double fuori dal range
+   rappresentabile e' undefined behaviour (C99 6.3.1.4) esattamente come il
+   cast in ScriptApiUnpackHandle sopra, qui per traits/colore invece che per
+   un handle: spawn_shot(..., 1e300) o add_particle(x, y, 1e300) ci
+   arriverebbero senza nessun'altra difesa. A differenza dell'handle pero'
+   non ha senso rifiutare lo script (traits e colore non indicizzano nulla:
+   un valore fuori range e' solo "sbagliato", non pericoloso), quindi si
+   CLAMPA nel range rappresentabile invece di uccidere la sandbox - stesso
+   spirito dei clamp GameMathClampFloat gia' usati in questo file. */
+static unsigned int ScriptApiClampToUint(double v)
+{
+    if (!(v > 0.0)) return 0u;   /* copre anche NaN (ogni confronto con NaN e' falso) */
+    if (v >= (double)UINT_MAX) return UINT_MAX;
+    return (unsigned int)v;
+}
+
 static int ScriptApiSpawnShot(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
@@ -294,7 +334,7 @@ static int ScriptApiSpawnShot(lua_State *L)
     float speed = GameMathClampFloat((float)luaL_checknumber(L, 5), SCRIPT_API_SHOT_SPEED_MIN, SCRIPT_API_SHOT_SPEED_MAX);
     float damage = GameMathClampFloat((float)luaL_checknumber(L, 6), SCRIPT_API_SHOT_DAMAGE_MIN, SCRIPT_API_SHOT_DAMAGE_MAX);
     float radius = GameMathClampFloat((float)luaL_checknumber(L, 7), SCRIPT_API_SHOT_RADIUS_MIN, SCRIPT_API_SHOT_RADIUS_MAX);
-    unsigned int traits = (unsigned int)luaL_optnumber(L, 8, 0.0) & SCRIPT_API_TRAIT_MASK;
+    unsigned int traits = ScriptApiClampToUint(luaL_optnumber(L, 8, 0.0)) & SCRIPT_API_TRAIT_MASK;
 
     /* EntitiesAddShot torna NULL sia se la direzione e' nulla sia se
        MAX_SHOTS e' gia' pieno: in ENTRAMBI i casi il cap esistente
@@ -356,7 +396,7 @@ static int ScriptApiAddParticle(lua_State *L)
     Game *game = ScriptApiGame(L);
     float x = GameMathClampFloat((float)luaL_checknumber(L, 1), ROOM_X, ROOM_RIGHT);
     float y = GameMathClampFloat((float)luaL_checknumber(L, 2), ROOM_Y, ROOM_BOTTOM);
-    unsigned int packed = (unsigned int)luaL_optnumber(L, 3, 0.0);
+    unsigned int packed = ScriptApiClampToUint(luaL_optnumber(L, 3, 0.0));   /* stesso cast UB di traits sopra: vedi ScriptApiClampToUint */
     Color color = { (unsigned char)((packed >> 16) & 0xFFu), (unsigned char)((packed >> 8) & 0xFFu), (unsigned char)(packed & 0xFFu), 255 };
     EntitiesAddParticle(game, (Vector2){ x, y }, color, 1);
     return 0;

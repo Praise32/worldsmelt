@@ -339,6 +339,80 @@ static bool TestEscape10WellBehaved(void)
     return ok;
 }
 
+/* Escape 11 (revisione di sicurezza finale, non a tavolino): table.move gira
+   in un ciclo TUTTO IN C (deps/lua-5.5.0/src/ltablib.c, tmove: "for (i = 0;
+   i < n; i++) { lua_geti(...); lua_seti(...); }" con n = e - f + 1, dove f/e
+   sono interi passati dallo script e SVINCOLATI dalla dimensione vera della
+   tabella: lua_geti/lua_seti fuori range restituiscono/creano
+   silenziosamente nil, non sollevano mai un errore che fermerebbe il
+   ciclo). L'hook LUA_MASKCOUNT (spec, sezione 4, barriera 3) conta SOLO
+   istruzioni della VM Lua e non scatta MAI dentro una funzione C: e'
+   esattamente la fuga 5 di sopra (pattern matching di string, "gira in C,
+   senza limiti, inarrestabile"), rimasta aperta per errore su table.move
+   mentre era gia' stata chiusa per string. Il revisore l'ha verificata per
+   davvero: table.move(a, 1, 300000000, 1, a) ha girato 6.3s ininterrotti
+   senza che la sandbox si disattivasse (4.2s se lanciato dentro on_tick sotto
+   il budget di frame, comunque mai fermato), e con math.maxinteger
+   (~9.2*10^18, gia' esposto da 'math': vedi lmathlib.c) il ciclo non
+   finisce mai in pratica, senza nemmeno far crescere la memoria (il tetto
+   di memoria, barriera 2, non interviene: non alloca nulla di nuovo, legge
+   e riscrive celle gia' esistenti).
+
+   Questo test passa DAVVERO per il percorso di chiamata di frame
+   (ScriptSandboxCallVoid su on_tick, budget stretto SCRIPT_SANDBOX_FRAME_BUDGET),
+   lo stesso che il gioco userebbe 60 volte al secondo, non una scorciatoia.
+   PRIMA della correzione (table.move ancora presente in _ENV) questa
+   chiamata non ritorna MAI: e' bloccata dentro tmove, e l'unica cosa che la
+   ferma e' il timeout esterno (`timeout -s KILL 30` in
+   scripts/test-script.sh), che trasforma l'intero processo di test in un
+   fallimento (SIGKILL), non in un "FALLITO" pulito stampato da qui sotto.
+   DOPO la correzione (table.move nil in _ENV) la chiamata a un valore nil
+   solleva un errore Lua immediato ("attempt to call a nil value"),
+   catturato da lua_pcall come qualunque altro errore a runtime, e la
+   sandbox si disabilita in modo pulito (patto di sicurezza, spec sezione
+   9): questo prima/dopo (hang forzatamente ucciso dall'esterno contro kill
+   pulito e verificato qui) e' la prova che la correzione chiude davvero la
+   fuga, non solo "sembra chiuderla". */
+static bool TestEscape11TableMoveUnbounded(void)
+{
+    ScriptSandbox *sb = ScriptSandboxCreate(111u, SCRIPT_SANDBOX_DEFAULT_MEMORY_CAP);
+    if (sb == NULL) { printf("  [11] impossibile creare la sandbox\n"); return false; }
+
+    char err[256];
+    bool loaded = ScriptSandboxLoad(sb, "escape11",
+        "local a = {1, 2, 3}\n"
+        "function on_tick()\n"
+        "  table.move(a, 1, math.maxinteger, 1, a)\n"
+        "end\n",
+        err, sizeof(err));
+    if (!loaded)
+    {
+        printf("  [11] script di preparazione non caricato (inatteso): %s\n", err);
+        ScriptSandboxDestroy(sb);
+        return false;
+    }
+
+    /* ATTENZIONE a chi rilancia questo test su un binario NON corretto: la
+       riga sotto (ScriptSandboxCallVoid) non ritorna mai in quel caso (vedi
+       il commento sopra). Non e' un bug del test: e' la prova stessa della
+       fuga, ed e' esattamente cosi' che questo test e' stato verificato
+       (fallito/appeso prima della correzione, passato dopo). */
+    double t0 = NowSeconds();
+    bool called = ScriptSandboxCallVoid(sb, "on_tick", 0);
+    double elapsed = NowSeconds() - t0;
+    bool disabled = ScriptSandboxIsDisabled(sb);
+    const char *reason = ScriptSandboxDisabledReason(sb);
+    bool runtimeErr = strstr(reason, "runtime") != NULL;
+
+    printf("  [11] on_tick con table.move(a,1,math.maxinteger,1,a) -> %s in %.3fs, motivo=\"%s\"\n",
+           called ? "ESEGUITO (sbagliato!)" : "bloccato", elapsed, reason);
+    ScriptSandboxDestroy(sb);
+
+    bool ok = !called && disabled && runtimeErr && elapsed < 3.0;
+    if (!ok) printf("      FALLITO: 'table.move' deve essere nil, fallimento immediato (kill switch)\n");
+    return ok;
+}
+
 bool ScriptSandboxSelfTest(void)
 {
     struct { const char *label; bool (*fn)(void); } tests[] = {
@@ -351,6 +425,7 @@ bool ScriptSandboxSelfTest(void)
         { "7 (pattern string assenti)",     TestEscape7StringPatternsAbsent },
         { "8 (errore di sintassi)",         TestEscape8SyntaxError },
         { "10 (script ben educato)",        TestEscape10WellBehaved },
+        { "11 (table.move senza limiti)",   TestEscape11TableMoveUnbounded },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)
