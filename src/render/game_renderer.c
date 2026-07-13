@@ -3,6 +3,7 @@
 #include "core/game_math.h"
 #include "game/game.h"
 #include "render/item_layers.h"
+#include "render/rarity_style.h"
 
 #include "rlgl.h"
 
@@ -165,6 +166,33 @@ static void DrawItemShape(Vector2 pos, Item item, float size)
     DrawCircleLines((int)pos.x, (int)pos.y, size + 5.0f, RAYWHITE);
 }
 
+/* Bordo/glow di rarita' del pickup (design doc, sezione 6: "il pickup
+   dell'oggetto ha un bordo del colore della rarita'"). Disegnato attorno
+   alla posizione DOPO l'oggetto stesso (sprite d'atlas o forma di riserva,
+   vedi il chiamante) ma PRIMA delle etichette di testo (nome/costo): resta
+   quindi sempre dietro il testo, mai sopra, cosi' un leggendario nel
+   negozio si legge sia come "prezioso" (costo in monete) sia come
+   "leggendario" (anello arancio) senza che i due si accavallino. Raggio 25:
+   piu' largo dei 23px di meta' sprite (ATLAS_CELL 128 scalato a 46px in
+   DrawPickup) cosi' l'anello circonda l'oggetto invece di tagliarlo, e
+   sopra i ~19px del cerchio di riserva di DrawItemShape (size+5 con size=14)
+   cosi' resta leggibile anche quando l'atlas non ha disegnato nulla. Il
+   pulso (raggio+alpha che respirano) e' riservato a raro/leggendario, per
+   farli risaltare "da lontano" (task brief) senza affaticare l'occhio sugli
+   oggetti comuni/non-comuni che restano un anello fermo. */
+static void DrawItemRarityRing(Vector2 pos, Rarity rarity)
+{
+    Color rc = RarityColor(rarity);
+    const float radius = 25.0f;
+    if (rarity == RARITY_RARE || rarity == RARITY_LEGENDARY)
+    {
+        float pulse = (sinf((float)GetTime()*3.0f) + 1.0f)*0.5f;   /* 0..1 */
+        DrawCircleV(pos, radius + 4.0f + pulse*3.0f, GameColorWithAlpha(rc, (unsigned char)(35.0f + pulse*35.0f)));
+    }
+    DrawCircleLines((int)pos.x, (int)pos.y, radius, rc);
+    DrawCircleLines((int)pos.x, (int)pos.y, radius - 1.0f, rc);
+}
+
 static void DrawPickup(Game *game, const Pickup *p)
 {
     float bob = sinf((float)GetTime()*4.0f + p->pos.x*0.01f)*3.5f;
@@ -209,6 +237,12 @@ static void DrawPickup(Game *game, const Pickup *p)
             label = p->item.name;
         }
     }
+    /* Anello di rarita' SOLO per i pickup di oggetto (design doc, sezione 6):
+       le altre raccolte (cuore/moneta/bomba/chiave/uscita) non hanno una
+       Rarity significativa e restano invariate. Disegnato qui, DOPO lo
+       sprite/forma ma PRIMA delle etichette sotto, cosi' il testo (nome o
+       costo in monete) resta sempre leggibile sopra l'anello. */
+    if (p->kind == PICKUP_ITEM) DrawItemRarityRing(pos, p->item.rarity);
     if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) DrawText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
     if (p->cost > 0) DrawText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
     else if (p->kind == PICKUP_ITEM) DrawText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
@@ -417,15 +451,30 @@ static void DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
 {
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
+    /* Bordo della riga = colore della rarita' (design doc, sezione 6: "si
+       vede col colore del bordo... nel pannello"), non piu' il colore
+       proprio dell'oggetto (item->color resta usato per il layer sul
+       personaggio e per la forma di riserva qui sotto -- solo il bordo del
+       PANNELLO passa alla rarita'). 2px invece di 1: leggibile anche a
+       sguardo veloce, senza diventare invadente sulle righe COMUNI/grigie. */
+    Color rarityColor = RarityColor(item->rarity);
     Rectangle row = { (float)x, (float)y, (float)width, 58.0f };
     DrawRectangleRec(row, owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 });
-    DrawRectangleLinesEx(row, 1.0f, GameColorWithAlpha(item->color, 170));
+    DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, 200));
     if (!DrawAtlasCell(game, SPR_ITEM, (Vector2){ x + 28.0f, y + 29.0f }, 36.0f, WHITE))
     {
         DrawItemShape((Vector2){ x + 28.0f, y + 29.0f }, *item, 12.0f);
     }
     DrawText(item->name, x + 55, y + 9, 14, RAYWHITE);
-    DrawText(TextFormat("%s  |  %s", SlotName(item->slot), traits), x + 55, y + 31, 12, (Color){ 190, 198, 211, 255 });
+    /* Nome della rarita' in coda alla riga slot/traits, nel suo colore (design
+       doc, sezione 6: "...e col nome nel pannello"): due DrawText invece di
+       uno solo cosi' SOLO il nome della rarita' prende il suo colore, il
+       resto della riga resta nel grigio neutro gia' in uso. */
+    char slotTraits[144];
+    snprintf(slotTraits, sizeof(slotTraits), "%s  |  %s  |  ", SlotName(item->slot), traits);
+    DrawText(slotTraits, x + 55, y + 31, 12, (Color){ 190, 198, 211, 255 });
+    int rarityTextX = x + 55 + MeasureText(slotTraits, 12);
+    DrawText(RarityName(item->rarity), rarityTextX, y + 31, 12, rarityColor);
 }
 
 static void DrawOuterUi(Game *game, UiLayout layout)

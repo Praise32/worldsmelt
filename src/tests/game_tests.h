@@ -16,6 +16,15 @@ bool GameAtlasFallbackTest(Game *game);
    Vedi src/tests/game_tests.c per i dettagli. */
 bool GameLayerTest(Game *game);
 
+/* Fase 3b VISIVA (src/render/rarity_style.h): screenshot di verifica con un
+   oggetto per ciascuna delle quattro rarita', sia equipaggiato (pannello
+   "OGGETTI PRESI") sia a terra (pickup col suo anello colorato). Vedi
+   src/tests/game_tests.c per i dettagli. Scrive
+   logs/melting-run-rarity-screen.png, percorso separato sia da
+   logs/melting-run-screen.png (--screenshot-test) sia da
+   logs/melting-run-layers-screen.png (--layer-test). */
+bool GameRarityScreenshotTest(Game *game);
+
 bool GenRunnerSelfTest(void);
 
 /* Suite di test della sandbox Lua (src/script/script_sandbox.c): un test

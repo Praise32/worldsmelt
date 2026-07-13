@@ -233,6 +233,7 @@ int AppRun(int argc, char **argv)
     bool genTest = false;
     bool atlasFallbackTest = false;
     bool layerTest = false;
+    bool rarityScreenshotTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
@@ -271,6 +272,15 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             layerTest = true;
+        }
+        /* Fase 3b VISIVA: come --layer-test, ma equipaggia/piazza un oggetto
+           per ciascuna delle quattro rarita' invece di un mix di slot, per
+           verificare a schermo RarityColor/RarityName (src/render/
+           rarity_style.h). Vedi GameRarityScreenshotTest. */
+        if (strcmp(argv[i], "--rarity-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            rarityScreenshotTest = true;
         }
         if (strcmp(argv[i], "--screenshot-test") == 0)
         {
@@ -330,7 +340,14 @@ int AppRun(int argc, char **argv)
         return ok ? 0 : 10;
     }
 
-    bool compactTestWindow = smokeTest && !screenshotTest;
+    /* --rarity-screenshot-test vuole la finestra GRANDE (non compatta) come
+       --screenshot-test: a differenza di --layer-test (dove il personaggio
+       equipaggiato e' l'unica cosa da vedere), qui serve anche leggere per
+       intero il pannello "GIOCATORE" a destra (bordo + nome della rarita'),
+       che nella finestra compatta 960x640 finisce in parte sotto il
+       riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
+       vedi logs/melting-run-layers-screen.png). */
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(compactTestWindow ? SCREEN_WIDTH : APP_WINDOW_WIDTH, compactTestWindow ? SCREEN_HEIGHT : APP_WINDOW_HEIGHT, "Melting Run");
     SetExitKey(KEY_NULL);
@@ -383,6 +400,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 11;
+    }
+    if (rarityScreenshotTest)
+    {
+        bool ok = GameRarityScreenshotTest(&game);
+        printf("Rarity screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 12;
     }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);

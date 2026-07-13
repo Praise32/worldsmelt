@@ -1,6 +1,7 @@
 #include "tests/game_tests.h"
 
 #include "game/game_internal.h"
+#include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
 #include "render/item_layers.h"
 #include "script/script_api.h"
@@ -330,6 +331,64 @@ bool GameLayerTest(Game *game)
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-layers-screen.png");   /* non deve andare in crash */
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+
+    return textureValid;
+}
+
+/* Fase 3b VISIVA (docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+   sezione 6): verifica manuale/screenshot che RarityColor/RarityName
+   (src/render/rarity_style.h) si leggano bene DAVVERO, sia sul pickup a
+   terra (DrawPickup) sia nel pannello (DrawItemPreview). Come GameLayerTest
+   sopra, costruisce a mano un mix -- qui uno per ciascuna delle quattro
+   rarita' -- invece di giocare una run intera sperando di incontrare un
+   leggendario: NON tocca game->content (la distribuzione/generazione resta
+   quella caricata da GameResetRun, fuori dallo scopo di questo task), si
+   limita a impostare player.items[] (pannello "OGGETTI PRESI" + personaggio
+   equipaggiato) e a piazzare quattro pickup a terra (uno costa monete, come
+   un vero oggetto da negozio, per verificare che l'anello di rarita' e il
+   prezzo restino entrambi leggibili). */
+bool GameRarityScreenshotTest(Game *game)
+{
+    static const Rarity kRarities[4] = { RARITY_COMMON, RARITY_UNCOMMON, RARITY_RARE, RARITY_LEGENDARY };
+    static const char *kNames[4] = { "Straccio Comune", "Amuleto Verde", "Lente Blu", "Corona Dorata" };
+    static const ItemSlot kSlots[4] = { SLOT_HAT, SLOT_EYES, SLOT_HAND, SLOT_BACK };
+
+    memset(game->player.items, 0, sizeof(game->player.items));
+    for (int i = 0; i < 4; i++)
+    {
+        Item *it = &game->player.items[i];
+        it->active = true;
+        snprintf(it->name, sizeof(it->name), "%s", kNames[i]);
+        it->slot = kSlots[i];
+        it->rarity = kRarities[i];
+        it->kind = ITEM_ACTIVE;
+        it->color = game->theme.accent;
+        it->shape = i;
+    }
+    game->player.itemCount = 4;
+
+    EntitiesClear(game);
+    for (int i = 0; i < 4; i++)
+    {
+        Item pickupItem = { 0 };
+        pickupItem.active = true;
+        snprintf(pickupItem.name, sizeof(pickupItem.name), "%s", kNames[i]);
+        pickupItem.slot = kSlots[i];
+        pickupItem.rarity = kRarities[i];
+        pickupItem.kind = ITEM_ACTIVE;
+        pickupItem.color = game->theme.accent2;
+        pickupItem.shape = i;
+        /* Solo il leggendario ha un costo (com'e' nel negozio vero): verifica
+           che l'etichetta "Nc" e l'anello di rarita' non si accavallino
+           (task brief, punto 4). */
+        int cost = (kRarities[i] == RARITY_LEGENDARY) ? ItemShopCostForRarity(RARITY_LEGENDARY) : 0;
+        EntitiesAddItemPickup(game, (Vector2){ ROOM_X + 130.0f + (float)i*170.0f, ROOM_Y + ROOM_H*0.5f }, pickupItem, cost);
+    }
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-rarity-screen.png");   /* non deve andare in crash */
     bool textureValid = canvas.texture.id != 0;
     UnloadRenderTexture(canvas);
 
