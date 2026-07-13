@@ -2,6 +2,7 @@
 
 #include "content/run_content.h"
 #include "game/game_internal.h"
+#include "script/script_items.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,16 +23,24 @@ void GameResetRun(Game *game)
     AssetsLoad(game);
     game->phase = PHASE_PLAY;
     game->player.radius = 14.0f;
-    game->player.speed = 224.0f;
-    game->player.maxHp = 6;
     game->player.hp = 6;
     game->player.coins = 3;
     game->player.bombs = 2;
     game->player.keys = 1;
-    game->player.damage = 8.0f;
-    game->player.fireDelay = 0.23f;
-    game->player.shotSpeed = 520.0f;
-    game->player.shotRadius = 5.0f;
+    /* Valori di PARTENZA del sistema delle cache (spec, sezione 7): non
+       vengono piu' assegnati direttamente ai campi "vivi" (damage,
+       fireDelay, shotSpeed, shotRadius, speed, maxHp). ScriptItemsInit sotto
+       li deriva chiamando ScriptItemsRecomputeStats con zero oggetti
+       posseduti, che per costruzione produce esattamente questi stessi
+       numeri (nessun cambiamento di comportamento per una run senza
+       oggetti). */
+    game->player.baseDamage = 8.0f;
+    game->player.baseFireDelay = 0.23f;
+    game->player.baseShotSpeed = 520.0f;
+    game->player.baseShotRadius = 5.0f;
+    game->player.baseSpeed = 224.0f;
+    game->player.baseMaxHp = 6;
+    ScriptItemsInit(game);
     WorldStartFloor(game, 1);
 }
 
@@ -47,6 +56,13 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
         return;
     }
 
+    /* Rete di sicurezza del sistema delle cache (spec, sezione 7): consuma
+       Game.statsDirty una volta per frame, PRIMA che CombatUpdatePlayer
+       legga player.damage/fireDelay/shotSpeed/shotRadius/speed. In pratica
+       CombatApplyItem la consuma gia' subito al momento del pickup (vedi
+       combat.c): questa chiamata copre solo l'eventualita' che qualcos'altro
+       in futuro sporchi la bandiera senza ricalcolare subito. */
+    ScriptItemsProcessDirty(game);
     CombatUpdatePlayer(game, dt, mouseGame, mouseInsideGame);
     CombatUpdateEnemies(game, dt);
     CombatUpdateShots(game, dt);

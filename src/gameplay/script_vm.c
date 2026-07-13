@@ -3,6 +3,7 @@
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
+#include "script/script_items.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -120,6 +121,15 @@ void ScriptVmExecutePlayer(Game *game, ScriptTrigger trigger, Vector2 pos, Vecto
     int executed = 0;
     for (int i = 0; i < game->player.itemCount && executed < 8; i++)
     {
+        /* Un oggetto con Lua attualmente utilizzabile (fase 3a-L2, vedi
+           src/script/script_items.h) gestisce se' stesso per intero:
+           ScriptItemsOnFire/OnHit lo hanno gia' chiamato altrove (vedi
+           combat.c), e questa mini-VM lo salta per non eseguirlo due volte.
+           Appena lo script viene disabilitato (patto di sicurezza, spec
+           sezione 9) questa condizione torna falsa dal frame successivo e
+           l'oggetto ripiega qui sotto da solo, senza alcuno switch esplicito
+           da scrivere. */
+        if (ScriptItemsHasActiveLua(game, i)) continue;
         const Item *item = &game->player.items[i];
         const char *cursor = item->script;
         while (cursor && *cursor && executed < 8)

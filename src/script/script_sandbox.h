@@ -27,6 +27,8 @@
    fisse) e condividere il prefisso avrebbe violato la regola di AGENTS.md
    sui simboli generici invece di rispettarla. */
 
+#include "lua.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -86,6 +88,29 @@ bool ScriptSandboxLoad(ScriptSandbox *sb, const char *name, const char *source,
    hook del gioco. Solo un errore a runtime (o lo sforamento di un budget)
    durante l'ESECUZIONE della funzione disabilita la sandbox. */
 bool ScriptSandboxCallVoid(ScriptSandbox *sb, const char *fn, int nargs, ...);
+
+/* Restituisce lo stato Lua grezzo di 'sb', per chi (SOLO dentro src/script/:
+   script_api.c e script_items.c, mai src/gameplay/, vedi AGENTS.md) deve
+   costruire argomenti non numerici (es. la tabella delle statistiche di
+   on_evaluate, o registrare nuove funzioni C nell'_ENV) prima di una
+   chiamata protetta con ScriptSandboxProtectedCall sotto. Torna NULL se
+   'sb' e' NULL o gia' disabilitata: il chiamante non deve toccare lo stack
+   in quel caso (nessuna chiamata Lua e' mai sicura su una sandbox morta). */
+lua_State *ScriptSandboxRawState(ScriptSandbox *sb);
+
+/* Versione generica di ScriptSandboxCallVoid, per chiamate i cui argomenti
+   non sono tutti 'double' (es. una tabella) o che vogliono leggere valori di
+   ritorno. Il chiamante deve aver GIA' pushato sullo stack di
+   ScriptSandboxRawState(sb), in quest'ordine: la funzione da chiamare, poi
+   i suoi 'nargs' argomenti. Questa funzione esegue lua_pcall(L, nargs,
+   nresults, 0) sotto lo STESSO budget di istruzioni di frame e con la
+   STESSA classificazione di errore/uccisione permanente di
+   ScriptSandboxCallVoid (patto di sicurezza, spec sezione 9): e' l'unico
+   punto in cui quella logica vive, cosi' script_api.c/script_items.c non
+   devono duplicarla. In caso di successo lascia 'nresults' valori sullo
+   stack (il chiamante li legge e li ripulisce); in caso di fallimento lo
+   stack e' gia' ripulito e la sandbox e' disabilitata. */
+bool ScriptSandboxProtectedCall(ScriptSandbox *sb, int nargs, int nresults);
 
 /* Vero se 'fn' e' attualmente una funzione globale chiamabile (per decidere
    se vale la pena chiamare ScriptSandboxCallVoid, es. per un hook opzionale

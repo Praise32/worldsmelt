@@ -1,5 +1,7 @@
 #include "assets/game_assets.h"
 
+#include "script/script_items.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,6 +14,17 @@ void GameUnloadAssets(Game *game)
         game->atlas.id = 0;
     }
     memset(game->atlasCellPresent, 0, sizeof(game->atlasCellPresent));
+
+    /* Ogni ScriptSandbox viva (una per oggetto con Lua, vedi
+       core/game_types.h, Game.itemScripts) va chiusa qui, non lasciata al
+       memset di GameResetRun: quel memset azzererebbe i puntatori senza mai
+       chiamare lua_close, perdendo la memoria di Lua (fuori dal heap C
+       normale, mai vista da free()). GameUnloadAssets e' il punto giusto
+       perche' e' GIA' la prima riga di GameResetRun (game.c) e l'ultima
+       chiamata di ogni percorso di uscita in src/app/app.c: un solo punto
+       di pulizia per tutto cio' che Game possiede, invece di doverlo
+       ricordare in ogni call site. */
+    ScriptItemsShutdown(game);
 }
 
 static bool IsAtlasKeyPixel(Color c, Color key)

@@ -16,7 +16,7 @@
 - Ogni nuova responsabilità deve avere una cartella dedicata sotto `src` e, quando serve un'API, una coppia `.h`/`.c`.
 - Non aggiungere nuove funzioni di gameplay a `main.c`.
 - Usa `src/game/game_internal.h` soltanto per collaborazioni interne tra moduli. Le API pubbliche restano nei rispettivi header.
-- Evita simboli globali generici: usa i prefissi del modulo (`Game`, `World`, `Combat`, `Entities`, `ScriptVm`, `ScriptSandbox`, `Renderer`, `Ui`, `GenRunner`; `Gen` dentro `tools/melting-gen`). `ScriptVm` (la mini-VM CSV a quattro operazioni, `src/gameplay/script_vm.c`) e `ScriptSandbox` (l'interprete Lua vero, `src/script/`) sono due cose diverse: non riunirli sotto lo stesso prefisso.
+- Evita simboli globali generici: usa i prefissi del modulo (`Game`, `World`, `Combat`, `Entities`, `ScriptVm`, `ScriptSandbox`, `ScriptApi`, `ScriptItems`, `Renderer`, `Ui`, `GenRunner`; `Gen` dentro `tools/melting-gen`). Tre prefissi distinti convivono in `src/script`/`src/gameplay` e NON vanno confusi: `ScriptVm` (la mini-VM CSV a quattro operazioni, `src/gameplay/script_vm.c`, la rete di sicurezza), `ScriptSandbox` (il "vascello" Lua blindato, `src/script/script_sandbox.c`: stato, allocatore, hook di istruzioni, `_ENV`), `ScriptApi` (le funzioni di gioco a handle esposte dentro quell'`_ENV`, `src/script/script_api.c`) e `ScriptItems` (le callback degli oggetti + il sistema delle cache, `src/script/script_items.c`, l'unico punto che `src/gameplay/combat.c` chiama).
 - Mantieni il motore C indipendente da rete, chiavi API e modelli AI. Il runtime legge soltanto file locali già validati in `generated/`. Solo `bin/melting-gen` linka llama.cpp e cJSON; `bin/melting-sprites` linka stable-diffusion.cpp. Il binario del gioco linka Lua (statico, `src/script/`) ma nessuno dei tre.
 
 ## Responsabilità dei moduli
@@ -26,14 +26,24 @@
 - `src/content`: manifest e contenuti della run.
 - `src/core`: tipi, costanti e funzioni matematiche condivise.
 - `src/game`: orchestrazione dello stato di gioco.
-- `src/gameplay`: entità, combattimento, oggetti e mini-VM.
+- `src/gameplay`: entità, combattimento, oggetti e mini-VM. Chiama
+  `ScriptItems*` (`src/script/script_items.h`) per le callback Lua degli
+  oggetti (`on_evaluate`/`on_fire`/`on_hit`/`on_tick`) e per il sistema delle
+  cache: non include mai `lua.h` ne' `script_sandbox.h`/`script_api.h`
+  direttamente, quel confine è di `src/script/`.
 - `src/gen`: ciclo di vita del processo melting-gen (avvio, progresso, timeout, annullamento). Nessuna logica di gioco.
 - `src/render`: rendering del gioco e dell'interfaccia.
 - `src/script`: sandbox Lua 5.5 per script non fidati (vedi
-  `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`). Solo il
-  "vascello" (stato Lua, allocatore col tetto di memoria, hook del budget di
-  istruzioni, `_ENV` costruito da un allowlist): l'API di gioco a handle che
-  gli script useranno davvero è un task successivo.
+  `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`). Tre livelli:
+  `script_sandbox.{h,c}` (il "vascello": stato Lua, allocatore col tetto di
+  memoria, hook del budget di istruzioni, `_ENV` costruito da un allowlist,
+  invariato dalla fase 3a-L1); `script_api.{h,c}` (l'API di gioco a handle —
+  indice+generazione, mai un puntatore grezzo — registrata in quell'`_ENV`,
+  con ogni scrittura clampata agli stessi confini della mini-VM);
+  `script_items.{h,c}` (le quattro callback degli oggetti e il sistema delle
+  cache "alla Isaac": ricalcola SEMPRE da zero da `Player.base*`, mai in
+  place, cosi' un oggetto generato male non fa accumulare un modificatore e
+  rimuoverlo è banale). `src/gameplay/combat.c` chiama solo `ScriptItems*`.
 - `src/tests`: test interni eseguibili da riga di comando.
 - `src/world`: stanze, mappe, transizioni e ricompense.
 - `tools/melting-gen`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico). Scrive gli stessi file del sidecar Node.
@@ -45,7 +55,7 @@ Dopo modifiche al codice C, su Linux:
 ```bash
 make test          # script/portal/smoke/screenshot/gen-runner (+ guardia anti-bytecode di src/script)
 make test-gen      # determinismo fallback, coerenza grammatica, corpus JSON rotti
-make test-script   # sandbox Lua: un test per ciascuna fuga nota, determinismo cross-processo
+make test-script   # sandbox Lua: fughe note + determinismo cross-processo, API a handle, callback oggetti, sistema delle cache
 ```
 
 Chi modifica `tools/melting-gen/run.gbnf`, i prompt o `gen_validate.c` riesegue

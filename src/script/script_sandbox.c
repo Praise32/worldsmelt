@@ -446,6 +446,35 @@ bool ScriptSandboxCallVoid(ScriptSandbox *sb, const char *fn, int nargs, ...)
     return true;
 }
 
+lua_State *ScriptSandboxRawState(ScriptSandbox *sb)
+{
+    if (sb == NULL || sb->disabled) return NULL;
+    return sb->L;
+}
+
+bool ScriptSandboxProtectedCall(ScriptSandbox *sb, int nargs, int nresults)
+{
+    if (sb == NULL || sb->disabled) return false;
+    lua_State *L = sb->L;
+
+    /* Stesso budget stretto di ScriptSandboxCallVoid: questa e' la stessa
+       "chiamata di frame", solo con argomenti/risultati non numerici
+       costruiti dal chiamante invece che dalla variadica qui sotto. */
+    lua_sethook(L, ScriptSandboxCountHook, LUA_MASKCOUNT, SCRIPT_SANDBOX_FRAME_BUDGET);
+    int rc = lua_pcall(L, nargs, nresults, 0);
+    lua_sethook(L, NULL, 0, 0);
+
+    if (rc != LUA_OK)
+    {
+        const char *msg = lua_tostring(L, -1);
+        const char *reason = ScriptSandboxClassifyError(rc, msg);
+        lua_pop(L, 1);
+        ScriptSandboxKill(sb, reason);
+        return false;
+    }
+    return true;
+}
+
 bool ScriptSandboxHasFunction(const ScriptSandbox *sb, const char *fn)
 {
     if (sb == NULL || sb->disabled || fn == NULL) return false;

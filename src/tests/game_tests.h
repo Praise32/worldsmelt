@@ -25,4 +25,11 @@ bool ScriptSandboxSelfTest(void);
    processo. */
 bool ScriptSandboxDeterminismProbe(unsigned int seed, char *out, size_t outSize);
 
+/* Suite di test dell'API di gioco a handle e delle callback degli oggetti
+   (fase 3a-L2, src/script/script_api.c e src/script/script_items.c): vedi
+   src/tests/script_items_tests.c. Come ScriptSandboxSelfTest, non richiede
+   una finestra raylib (nessuna delle funzioni esercitate tocca GLFW/OpenGL),
+   quindi src/app/app.c la richiama PRIMA di InitWindow. */
+bool ScriptItemsSelfTest(void);
+
 #endif

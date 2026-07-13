@@ -32,6 +32,16 @@
 #define MAX_PARTICLES 128
 #define MAX_SCRIPT_OPS 4
 #define SCRIPT_TEXT_LEN 256
+/* Sorgente Lua opzionale di un oggetto (fase 3a-L2, vedi
+   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md sezioni 5-9).
+   Vuota ("") per un oggetto che usa solo la mini-VM (tutti gli oggetti
+   generati oggi, dato che tools/melting-gen non scrive ancora Lua: e'
+   deliberatamente fuori scopo per questo task, vedi il task brief). Quando
+   non vuota, l'oggetto la eseguisce al posto del suo `script` mini-VM
+   finche' resta valida (vedi src/script/script_items.c); se lo script Lua
+   viene disabilitato dal patto di sicurezza, l'oggetto ripiega su `script`
+   dallo stesso frame in poi, senza bisogno di alcuno switch esplicito. */
+#define SCRIPT_LUA_LEN 2048
 #define ATLAS_CELL 128
 #define ATLAS_COLS 8
 
@@ -164,6 +174,7 @@ typedef struct Item {
     Color color;
     int shape;
     char script[SCRIPT_TEXT_LEN];
+    char luaSource[SCRIPT_LUA_LEN];   /* vedi il commento su SCRIPT_LUA_LEN sopra */
 } Item;
 
 typedef struct FloorContent {
@@ -204,6 +215,20 @@ typedef struct Player {
     unsigned int traits;
     Item items[MAX_ITEMS];
     int itemCount;
+    /* Valori di PARTENZA (prima di qualunque oggetto), da cui
+       ScriptItemsRecomputeStats riparte OGNI VOLTA che ricalcola: e' il
+       sistema delle cache "alla Isaac" (spec, sezione 7). damage/fireDelay/
+       shotSpeed/shotRadius/speed/maxHp sopra sono invece il risultato
+       dell'ultimo ricalcolo, mai mutati direttamente altrove (vedi
+       src/script/script_items.c, ScriptItemsRecomputeStats): permette di
+       rimuovere/aggiungere un oggetto senza deriva, e rende idempotente
+       ripetere lo stesso passaggio piu' volte. */
+    float baseDamage;
+    float baseFireDelay;
+    float baseShotSpeed;
+    float baseShotRadius;
+    float baseSpeed;
+    int baseMaxHp;
 } Player;
 
 typedef struct Enemy {
@@ -261,6 +286,27 @@ typedef struct Particle {
     Color color;
 } Particle;
 
+/* Stato di runtime Lua per l'oggetto nello slot i-esimo di Player.items[]
+   (fase 3a-L2). Vive qui, in "core", non in src/script/, perche' Game deve
+   restare un dato POD semplice (array fissi, zero allocazioni fuori da Lua
+   stesso, coerente con lo stile del resto del file) che game.c puo'
+   azzerare con un memset in GameResetRun -- ma SOLO se qualcuno ha gia'
+   distrutto le sandbox vive prima di quel memset (vedi ScriptItemsShutdown,
+   chiamata da GameResetRun come GameUnloadAssets). 'sandbox' e' un
+   ScriptSandbox* volutamente tipizzato void*: game_types.h e' "core" e non
+   deve dipendere da src/script/ (vedi AGENTS.md); solo script_items.c lo
+   interpreta davvero, con un cast. I quattro *Ref e statsTableRef sono
+   riferimenti luaL_ref nel registro DI QUELLA sandbox (creazione pigra al
+   caricamento riuscito, vedi script_items.c): -1 = nessun riferimento. */
+typedef struct ScriptItemRuntime {
+    void *sandbox;
+    int evalRef;
+    int fireRef;
+    int hitRef;
+    int tickRef;
+    int statsTableRef;
+} ScriptItemRuntime;
+
 typedef struct Game {
     RunContent content;
     Theme theme;
@@ -279,6 +325,29 @@ typedef struct Game {
     Pickup pickups[MAX_PICKUPS];
     Bomb bombs[MAX_BOMBS];
     Particle particles[MAX_PARTICLES];
+    /* Contatori di generazione per l'API a handle di Lua (spec, sezione 5):
+       incrementati in EntitiesAddEnemy/EntitiesAddShot ogni volta che uno
+       slot viene (ri)assegnato. Un handle e' indice+generazione impacchettati
+       (vedi src/script/script_api.c): se lo slot e' stato riusato da
+       un'altra entita' nel frattempo, la generazione non combacia piu' e la
+       chiamata viene rifiutata (script ucciso, vedi il patto di sicurezza)
+       invece di leggere/scrivere l'entita' sbagliata. Array separati da
+       enemies/shots (non un campo dentro Enemy/Shot) cosi' EntitiesClear
+       (che azzera quegli array con un memset) non li tocca: la generazione
+       deve continuare a crescere anche attraverso una pulizia di stanza,
+       altrimenti un handle catturato prima di EntitiesClear e uno catturato
+       dopo, sullo stesso indice, sarebbero indistinguibili. */
+    unsigned int enemyGen[MAX_ENEMIES];
+    unsigned int shotGen[MAX_SHOTS];
+    /* Runtime Lua per ciascuno slot di player.items[] (stesso indice). Vedi
+       il commento su ScriptItemRuntime sopra. */
+    ScriptItemRuntime itemScripts[MAX_ITEMS];
+    /* Bandiera sporca del sistema delle cache (spec, sezione 7): impostata
+       da CombatApplyItem quando un oggetto viene acquisito, consumata una
+       volta per frame da GameUpdate (ScriptItemsProcessDirty), che chiama
+       ScriptItemsRecomputeStats solo se davvero necessario invece che ad
+       ogni frame. */
+    bool statsDirty;
     GamePhase phase;
     unsigned int rng;
     int floor;

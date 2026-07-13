@@ -224,6 +224,7 @@ int AppRun(int argc, char **argv)
     bool atlasFallbackTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
+    bool scriptItemsTest = false;
     unsigned int scriptSeed = 12345u;
     AppGen gen = { 0 };
     gen.command = "bin/melting-gen";
@@ -265,6 +266,7 @@ int AppRun(int argc, char **argv)
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
+        if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) scriptSeed = (unsigned int)strtoul(argv[++i], NULL, 10);
         if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
         if (strcmp(argv[i], "--no-sprites") == 0) gen.noSprites = true;
@@ -295,6 +297,17 @@ int AppRun(int argc, char **argv)
         bool ok = ScriptSandboxDeterminismProbe(scriptSeed, out, sizeof(out));
         printf("%s\n", out);
         return ok ? 0 : 9;
+    }
+    /* Come sopra: l'API di gioco a handle (src/script/script_api.c) e le
+       callback degli oggetti (src/script/script_items.c) non toccano mai
+       raylib direttamente (i loro test costruiscono un Game minimo sullo
+       stack, vedi src/tests/script_items_tests.c), quindi anche questo flag
+       gira prima di InitWindow. */
+    if (scriptItemsTest)
+    {
+        bool ok = ScriptItemsSelfTest();
+        printf("Script items test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 10;
     }
 
     bool compactTestWindow = smokeTest && !screenshotTest;

@@ -60,4 +60,16 @@ echo "-- log: ogni kill finisce in logs/script-sandbox.log con il suo motivo --"
 grep -q "tetto di memoria superato" logs/script-sandbox.log
 grep -q "budget di istruzioni superato\|errore a runtime" logs/script-sandbox.log
 
+# ============================================================
+# Fase 3a-L2: API di gioco a handle + callback degli oggetti +
+# sistema delle cache (src/script/script_api.c, src/script/script_items.c).
+# Vedi src/tests/script_items_tests.c per il dettaglio di ciascun test:
+# non richiede raylib/xvfb per lo stesso motivo dei test sopra (gira PRIMA
+# di InitWindow, vedi src/app/app.c).
+# ============================================================
+echo "-- API a handle + callback oggetti + sistema delle cache (--script-items-test) --"
+ITEMS_OUT=$(timeout -s KILL 30 "$GAME" --script-items-test)
+echo "$ITEMS_OUT"
+echo "$ITEMS_OUT" | grep -q "^Script items test: ok$"
+
 echo "TEST-SCRIPT: OK"

@@ -49,6 +49,12 @@ void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 pos)
     {
         Enemy *e = &game->enemies[i];
         if (e->active) continue;
+        /* Generazione per l'API a handle di Lua (core/game_types.h,
+           Game.enemyGen): incrementata ogni volta che questo slot viene
+           riassegnato, cosi' un handle catturato da uno script PRIMA che
+           questo nemico morisse smette di combaciare con quello nuovo (vedi
+           src/script/script_api.c, ScriptApiCheckEnemy). */
+        game->enemyGen[i]++;
         e->active = true;
         e->kind = kind;
         e->pos = pos;
@@ -94,6 +100,8 @@ Shot *EntitiesAddShot(Game *game, bool fromPlayer, Vector2 pos, Vector2 dir, flo
         Shot *s = &game->shots[i];
         if (s->active) continue;
         memset(s, 0, sizeof(*s));
+        /* Stessa generazione di EntitiesAddEnemy sopra, per Game.shotGen. */
+        game->shotGen[i]++;
         s->active = true;
         s->fromPlayer = fromPlayer;
         s->pos = pos;

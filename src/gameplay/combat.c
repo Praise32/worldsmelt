@@ -3,6 +3,7 @@
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
+#include "script/script_items.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -99,6 +100,13 @@ void CombatFirePlayer(Game *game, Vector2 dir)
         float offset = ((float)i - (float)(pellets - 1)*0.5f)*0.18f;
         EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(angle + offset), sinf(angle + offset) }, speed, damage, radius, traits, game->theme.accent2);
     }
+    /* Lua prima, mini-VM dopo: sono a prova reciproca, non in cascata.
+       ScriptVmExecutePlayer (src/gameplay/script_vm.c) salta da solo ogni
+       oggetto per cui ScriptItemsHasActiveLua e' vero, quindi ogni oggetto
+       viene eseguito esattamente una volta, o dall'uno o dall'altro mai da
+       entrambi (patto di sicurezza, spec sezione 9: "l'oggetto ripiega sulla
+       mini-VM", non "in aggiunta alla mini-VM"). */
+    ScriptItemsOnFire(game, p->pos, dir);
     ScriptVmExecutePlayer(game, SCRIPT_ON_FIRE, p->pos, dir, damage, traits, 0);
     p->fireTimer = p->fireDelay*((traits & TRAIT_RAPID) ? 0.62f : 1.0f);
 }
@@ -140,6 +148,7 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
 
     if (p->invuln > 0.0f) p->invuln -= dt;
     if (p->fireTimer > 0.0f) p->fireTimer -= dt;
+    ScriptItemsOnTick(game, dt);
 
     Vector2 aim = { 0.0f, 0.0f };
     if (mouseInsideGame && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) aim = GameMathSubtract(mouseGame, p->pos);
@@ -179,6 +188,13 @@ void CombatUpdateEnemies(Game *game, float dt)
         }
 
         e->pos = GameMathAdd(e->pos, GameMathScale(move, e->speed*slow*dt));
+        /* Impulso di spinta (es. ScriptApiSetEnemyVelocity, un contraccolpo
+           impostato da on_hit di un oggetto Lua): si somma al movimento
+           dell'IA sopra, poi si smorza esponenzialmente, stesso schema di
+           Particle.vel in GameUpdateParticles. Resta zero (nessun effetto)
+           per qualunque nemico che nessuno script ha mai toccato. */
+        e->pos = GameMathAdd(e->pos, GameMathScale(e->vel, dt));
+        e->vel = GameMathScale(e->vel, 0.90f);
         e->pos.x = GameMathClampFloat(e->pos.x, ROOM_X + e->radius, ROOM_RIGHT - e->radius);
         e->pos.y = GameMathClampFloat(e->pos.y, ROOM_Y + e->radius, ROOM_BOTTOM - e->radius);
         e->cooldown -= dt;
@@ -264,6 +280,13 @@ void CombatUpdateShots(Game *game, float dt)
                 if (!enemy->active) continue;
                 float r = s->radius + enemy->radius;
                 if (GameMathLengthSquared(GameMathSubtract(s->pos, enemy->pos)) >= r*r) continue;
+                /* ScriptItemsOnHit PRIMA di CombatDamageEnemy (a differenza
+                   della mini-VM sotto, che e' sempre girata dopo): uno script
+                   Lua deve poter leggere lo stato del nemico com'era AL
+                   MOMENTO dell'impatto (es. enemy_hp(id) prima di questo
+                   colpo), non un handle che CombatDamageEnemy potrebbe aver
+                   gia' disattivato (nemico ucciso da questo stesso colpo). */
+                ScriptItemsOnHit(game, i, e);
                 CombatDamageEnemy(game, enemy, s->damage, s->traits);
                 ScriptVmExecutePlayer(game, SCRIPT_ON_HIT, s->pos, GameMathNormalize(s->vel), s->damage, s->traits, s->scriptDepth);
                 if ((s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 50.0f + s->radius*2.0f, s->damage*0.55f);
@@ -296,25 +319,30 @@ void CombatUpdateShots(Game *game, float dt)
 static void CombatApplyItem(Game *game, Item item)
 {
     Player *p = &game->player;
-    if (p->itemCount < MAX_ITEMS) p->items[p->itemCount++] = item;
-    else p->items[MAX_ITEMS - 1] = item;
+    int itemIndex;
+    if (p->itemCount < MAX_ITEMS) { itemIndex = p->itemCount; p->items[p->itemCount++] = item; }
+    else { itemIndex = MAX_ITEMS - 1; p->items[itemIndex] = item; }
     p->traits |= item.traits;
 
-    if (item.traits & TRAIT_RAPID) p->fireDelay *= 0.92f;
-    if (item.traits & TRAIT_GIANT)
-    {
-        p->damage += 1.6f;
-        p->shotRadius += 0.8f;
-    }
-    if (item.traits & TRAIT_PIERCE) p->damage += 0.8f;
-    if (item.traits & TRAIT_VAMP) p->maxHp = GameMathClampInt(p->maxHp + 1, 1, 12);
-    if (item.slot == SLOT_BODY)
-    {
-        p->maxHp = GameMathClampInt(p->maxHp + 1, 1, 12);
-        p->hp = p->maxHp;
-    }
-    if (item.slot == SLOT_HAND) p->damage += 1.0f;
-    if (item.slot == SLOT_EYES) p->shotSpeed += 25.0f;
+    /* Il calcolo di damage/fireDelay/shotSpeed/shotRadius/maxHp da
+       trait/slot NON vive piu' qui (una tantum, al pickup): vive dentro
+       ScriptItemsRecomputeStats (src/script/script_items.c,
+       ScriptItemsApplyBuiltin), ricalcolato da zero ad ogni passaggio
+       insieme all'eventuale on_evaluate Lua dell'oggetto. ScriptItemsOnAcquire
+       carica la sandbox Lua dell'oggetto (se ne ha una) e marca la bandiera
+       sporca; ScriptItemsProcessDirty la consuma SUBITO, cosi' il pickup e'
+       gia' visibile nello stesso frame (invece di aspettare il prossimo
+       GameUpdate, vedi game.c). */
+    ScriptItemsOnAcquire(game, itemIndex);
+    ScriptItemsProcessDirty(game);
+
+    /* Guarigione completa al pickup: e' un bonus UNA TANTUM del momento
+       dell'acquisizione (il giocatore "sente" subito il cuore in piu'), non
+       una statistica ricalcolabile: se vivesse nel sistema delle cache,
+       ogni ricalcolo (es. l'acquisizione di un oggetto successivo)
+       guarirebbe di nuovo il giocatore gratis. p->maxHp e' gia' aggiornato
+       dalla ScriptItemsProcessDirty qui sopra. */
+    if (item.slot == SLOT_BODY) p->hp = p->maxHp;
 
     char msg[160];
     snprintf(msg, sizeof(msg), "Oggetto: %s (%s).", item.name, ItemFirstTraitName(item.traits));
