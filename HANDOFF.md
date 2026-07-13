@@ -51,7 +51,14 @@ Ho lasciato a te la decisione di mergiare: vorrai prima vederlo girare.
 | Branch | Cosa | Stato |
 |---|---|---|
 | `linux-local-llm` | Build Linux + generazione **testuale** locale | 18 commit, completo, review passata |
-| `local-sprites` | Il precedente + **sprite** con Stable Diffusion | 7 commit, completo, review in corso |
+| `local-sprites` | Il precedente + **sprite** con Stable Diffusion | 9 commit, completo, review passata |
+
+La review della fase 2 ha trovato un bug serio che ho poi corretto, e che vale la pena
+raccontarti perche' spiega come e' fatto il sistema: quando uno sprite veniva scartato dal
+controllo qualita', la sua cella restava vuota — e il gioco disegnava il vuoto. Nemici,
+boss e portale sarebbero diventati **invisibili**. Ora ogni cella vuota fa ricadere quella
+singola entita' sulla vecchia forma geometrica, ed esiste un test che lo dimostra (fallisce
+apposta se qualcuno rompe di nuovo quel percorso).
 
 `local-sprites` contiene gia' tutto `linux-local-llm`, quindi per prendere tutto:
 
