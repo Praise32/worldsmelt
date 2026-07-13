@@ -1,0 +1,1 @@
+pixelsprite, 16-bit pixel art of a small heroic adventurer character, front-facing, full body, {THEME} theme, {STYLE} art style, game sprite, single subject, centered, plain flat empty background, no scenery, no shadow, crisp pixel edges, vibrant colors, high detail

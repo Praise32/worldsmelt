@@ -26,15 +26,27 @@ GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
   -lvulkan -lgomp -lstdc++ -lpthread -lm -ldl
 GEN_BIN := bin/melting-gen
 
-# melting-sprites: post-processing degli sprite generati (fase 2). Non linka
-# raylib ne' llama.cpp. Per ora niente librerie di stable-diffusion.cpp (non
-# ancora collegato: --dry-run sintetizza le celle sorgente): SPRITES_LIBS e'
-# gia' strutturata come GEN_LIBS cosi' un task successivo deve solo
-# aggiungerci le .a di sd.cpp.
+# melting-sprites: post-processing + generazione via stable-diffusion.cpp
+# (fase 2, S3). Non linka raylib ne' llama.cpp: llama.cpp e stable-diffusion.cpp
+# vendorizzano due ggml incompatibili (sd.cpp usa il fork leejet/ggml), quindi
+# melting-sprites e melting-gen restano DUE ESEGUIBILI SEPARATI, mai linkati
+# insieme (vedi anche il commento in cima a tools/melting-sprites/sprite_sd.c).
+# E' anche quello che serve per la VRAM: i due modelli non stanno insieme nei
+# 6 GB della scheda di riferimento, ma i due processi si alternano e ognuno
+# libera tutto quando esce.
+SD_DIR := deps/stable-diffusion.cpp
+SD_BUILD := $(SD_DIR)/build
+
 SPRITES_SRC := $(wildcard tools/melting-sprites/*.c) $(wildcard tools/melting-sprites/vendor/*.c)
 SPRITES_HDR := $(wildcard tools/melting-sprites/*.h) $(wildcard tools/melting-sprites/vendor/*.h)
-SPRITES_CFLAGS := $(CFLAGS) -Itools/melting-sprites -Itools/melting-sprites/vendor
-SPRITES_LIBS := -lm
+SPRITES_CFLAGS := $(CFLAGS) -Itools/melting-sprites -Itools/melting-sprites/vendor \
+  -I$(SD_DIR)/include -I$(SD_DIR)/ggml/include
+SPRITES_LIBS := $(SD_BUILD)/libstable-diffusion.a \
+  $(SD_BUILD)/ggml/src/libggml.a \
+  $(SD_BUILD)/ggml/src/ggml-vulkan/libggml-vulkan.a \
+  $(SD_BUILD)/ggml/src/libggml-cpu.a \
+  $(SD_BUILD)/ggml/src/libggml-base.a \
+  -lvulkan -lgomp -lstdc++ -lpthread -lm -ldl
 SPRITES_BIN := bin/melting-sprites
 
 # I test aprono una finestra. Su Wayland, se la sessione e' bloccata o la finestra

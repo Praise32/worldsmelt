@@ -1,10 +1,13 @@
 /* CLI e orchestrazione di melting-sprites.
 
-   In questa fase (S1/S2 della roadmap di fase 2) il tool non collega ancora
-   Stable Diffusion: solo --dry-run e' implementato, per rendere testabile
-   tutta la pipeline di post-processing senza modello (vedi
-   docs/superpowers/specs/2026-07-13-local-sprites-design.md). Un task
-   successivo aggiunge la generazione vera. */
+   Dalla fase S3 in poi il tool collega davvero stable-diffusion.cpp (vedi
+   sprite_sd.c): --dry-run resta disponibile e usato dai test (sintetizza
+   celle di prova senza modello, vedi SynthesizeCell piu' sotto), ma il
+   comportamento di default e' generare le 12 celle con Stable Diffusion, dal
+   tema/stile del manifest (sprite_manifest.c) e dai template di
+   tools/melting-sprites/prompts/ (sprite_prompt.c). Se il modello non c'e' o
+   il caricamento fallisce, si ripiega su --dry-run: non deve mai andare in
+   crash (vedi docs/superpowers/specs/2026-07-13-local-sprites-design.md). */
 #include "melting_sprites.h"
 
 #include "stb_image.h"
@@ -12,8 +15,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
+
+#define SPRITE_CELL_PIXELS (SPRITE_CELL*SPRITE_CELL)
 
 typedef struct SpritesArgs {
     const char *outDir;
@@ -21,14 +25,13 @@ typedef struct SpritesArgs {
     int dryRun;
     int check;
     int cells;
+    const char *model;
+    const char *lora;
+    int useTaesd;
+    int steps;
+    float cfg;
+    const char *promptsDir;
 } SpritesArgs;
-
-static int EnsureDir(const char *path)
-{
-    if (mkdir(path, 0755) == 0) return 0;
-    struct stat st;
-    return (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) ? 0 : -1;
-}
 
 static int ParseArgs(int argc, char **argv, SpritesArgs *args)
 {
@@ -37,6 +40,13 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     args->dryRun = 0;
     args->check = 0;
     args->cells = SPRITE_CELLS;
+    /* Misurati nello spike (docs/SPRITES-SPIKE.md): non ridiscussi qui. */
+    args->model = "models/Public-Prompts-Pixel-Model.ckpt";
+    args->lora = "models/lcm-lora-sdv1-5.safetensors";
+    args->useTaesd = 0;   /* di default la VAE reale: piu' nitida, ~1s in piu' per cella */
+    args->steps = 8;
+    args->cfg = 1.5f;
+    args->promptsDir = "tools/melting-sprites/prompts";
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
@@ -44,6 +54,12 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
         else if (strcmp(argv[i], "--dry-run") == 0) args->dryRun = 1;
         else if (strcmp(argv[i], "--check") == 0) args->check = 1;
         else if (strcmp(argv[i], "--cells") == 0 && i + 1 < argc) args->cells = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) args->model = argv[++i];
+        else if (strcmp(argv[i], "--lora") == 0 && i + 1 < argc) args->lora = argv[++i];
+        else if (strcmp(argv[i], "--taesd") == 0) args->useTaesd = 1;
+        else if (strcmp(argv[i], "--steps") == 0 && i + 1 < argc) args->steps = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--cfg") == 0 && i + 1 < argc) args->cfg = (float)atof(argv[++i]);
+        else if (strcmp(argv[i], "--prompts") == 0 && i + 1 < argc) args->promptsDir = argv[++i];
         else
         {
             fprintf(stderr, "melting-sprites: opzione sconosciuta: %s\n", argv[i]);
@@ -52,6 +68,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     }
     if (args->cells < 1) args->cells = 1;
     if (args->cells > SPRITE_CELLS) args->cells = SPRITE_CELLS;
+    if (args->steps < 1) args->steps = 1;
     return 0;
 }
 
@@ -176,14 +193,106 @@ static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src5
 }
 
 /* ---------------------------------------------------------------------
- * Generazione (solo --dry-run in questa fase).
+ * Gate di qualita' (vedi spec, sezione 4): una cella generata da SD viene
+ * scartata se e' implausibile. Ogni soglia e' quella misurata/decisa nello
+ * spike, non ridiscussa qui. */
+static int CellPassesQualityGate(const SpritePostStats *stats, const unsigned char *cellRgba, const char **reason)
+{
+    double ratio = (double)stats->opaquePixels / (double)SPRITE_CELL_PIXELS;
+    if (ratio < 0.05) { *reason = "pixel opachi < 5%"; return 0; }
+    if (ratio > 0.70) { *reason = "pixel opachi > 70%"; return 0; }
+    if (SpritesOpaqueTouchesBorder(cellRgba)) { *reason = "il riquadro opaco tocca il bordo (ritaglio fallito)"; return 0; }
+    return 1;
+}
+
+/* Genera e post-processa UNA cella con Stable Diffusion, col gate di qualita'
+ * e un solo tentativo di ritocco del seed (vedi spec). Se anche il secondo
+ * tentativo fallisce il gate, cellBuf resta una cella trasparente: il gioco
+ * disegna la sua forma geometrica di riserva per quell'entita', nessuna cella
+ * rotta puo' rompere il gioco. Ritorna 0 se una generazione e' stata accettata,
+ * 1 se la cella resta trasparente (non e' un errore fatale del processo). */
+static int GenerateCellReal(SpriteSdCtx *sdCtx, const SpritesArgs *args, const SpriteManifest *manifest,
+                            int cellIndex, unsigned char *cellBuf, unsigned char *src512, double *genSecsOut)
+{
+    *genSecsOut = 0;
+    char *prompt = SpritesLoadCellPrompt(args->promptsDir, cellIndex, manifest->theme, manifest->style);
+    char *neg = SpritesLoadNegativePrompt(args->promptsDir);
+    if (!prompt)
+    {
+        SpritesLogLine("cella %s: prompt mancante in %s, resta trasparente",
+                       SPRITE_CELL_NAMES[cellIndex], args->promptsDir);
+        free(neg);
+        memset(cellBuf, 0, (size_t)SPRITE_CELL*SPRITE_CELL*4);
+        return 1;
+    }
+    SpritesLogLine("cella %s: prompt=\"%s\"", SPRITE_CELL_NAMES[cellIndex], prompt);
+
+    unsigned int seed0 = args->seed + (unsigned int)cellIndex*104729u;
+    int ok = 0;
+    for (int attempt = 0; attempt < 2 && !ok; attempt++)
+    {
+        unsigned int seed = attempt == 0 ? seed0 : (seed0 ^ 0x9E3779B9u) + 1u;
+        double genSecs = 0;
+        if (SpriteSdGenerate(sdCtx, prompt, neg ? neg : "", seed, src512, &genSecs) != 0)
+        {
+            *genSecsOut += genSecs;
+            SpritesLogLine("cella %s: generazione fallita (tentativo %d, seed=%u)",
+                           SPRITE_CELL_NAMES[cellIndex], attempt + 1, seed);
+            continue;
+        }
+        *genSecsOut += genSecs;
+        SpritePostStats stats;
+        SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
+        const char *reason = NULL;
+        if (CellPassesQualityGate(&stats, cellBuf, &reason)) { ok = 1; break; }
+        SpritesLogLine("cella %s: SCARTATA (tentativo %d, seed=%u): %s (opachi=%d/%d)",
+                       SPRITE_CELL_NAMES[cellIndex], attempt + 1, seed, reason,
+                       stats.opaquePixels, SPRITE_CELL_PIXELS);
+    }
+    free(prompt);
+    free(neg);
+    if (!ok)
+    {
+        memset(cellBuf, 0, (size_t)SPRITE_CELL*SPRITE_CELL*4);
+        SpritesLogLine("cella %s: nessun tentativo valido, resta trasparente (riserva geometrica in gioco)",
+                       SPRITE_CELL_NAMES[cellIndex]);
+    }
+    return ok ? 0 : 1;
+}
+
+/* ---------------------------------------------------------------------
+ * Generazione: con Stable Diffusion di default, --dry-run (o la mancanza del
+ * modello/LoRA, o un caricamento fallito) ripiega sulle celle sintetiche.
  */
 static int RunGenerate(const SpritesArgs *args)
 {
-    if (EnsureDir(args->outDir) != 0)
+    if (SpritesEnsureDir(args->outDir) != 0)
     {
         fprintf(stderr, "melting-sprites: impossibile creare %s\n", args->outDir);
         return 3;
+    }
+    SpritesEnsureDir("logs");
+
+    double tRunStart = SpritesNowSeconds();
+
+    int useDryRun = args->dryRun;
+    if (!useDryRun && !SpritesFileExists(args->model))
+    {
+        SpritesLogLine("modello assente (%s): ripiego su celle sintetiche (--dry-run)", args->model);
+        useDryRun = 1;
+    }
+    if (!useDryRun && !SpritesFileExists(args->lora))
+    {
+        SpritesLogLine("LoRA assente (%s): ripiego su celle sintetiche (--dry-run)", args->lora);
+        useDryRun = 1;
+    }
+
+    SpriteManifest manifest = {0};
+    if (!useDryRun)
+    {
+        SpritesLoadManifest(args->outDir, &manifest);
+        if (!manifest.loaded)
+            SpritesLogLine("manifest %s/current_run.txt assente o senza floor1.theme: uso un tema generico", args->outDir);
     }
 
     unsigned char *atlas = SpritesAtlasNew();
@@ -196,27 +305,94 @@ static int RunGenerate(const SpritesArgs *args)
         return 3;
     }
 
+    SpriteSdCtx *sdCtx = NULL;
+    double loadSecs = 0;
+    if (!useDryRun)
+    {
+        SpriteSdConfig sdCfg;
+        sdCfg.modelPath = args->model;
+        sdCfg.loraPath = args->lora;
+        sdCfg.taesdPath = args->useTaesd ? "models/taesd.safetensors" : NULL;
+        sdCfg.steps = args->steps;
+        sdCfg.cfg = args->cfg;
+        sdCfg.outDir = args->outDir;
+
+        long long vramBefore = SpritesReadVramUsedBytes();
+        sdCtx = SpriteSdLoad(&sdCfg, &loadSecs);
+        if (!sdCtx)
+        {
+            SpritesLogLine("caricamento del modello fallito: ripiego su celle sintetiche (--dry-run)");
+            useDryRun = 1;
+        }
+        else
+        {
+            /* Preferisci la cifra che sd.cpp stesso logga durante il caricamento
+               ("total params memory size ... VRAM ...MB"): e' esatta, non una
+               differenza di campionamento. Il delta da /sys/class/drm resta un
+               ripiego "a miglior sforzo" se quella riga non arriva. */
+            double vramMB = SpriteSdVramMB(sdCtx);
+            long long vramAfter = SpritesReadVramUsedBytes();
+            if (vramMB > 0.0)
+                SpritesLogLine("caricamento modello: %.1fs, VRAM %.0f MB (da sd.cpp)", loadSecs, vramMB);
+            else if (vramBefore >= 0 && vramAfter >= 0)
+                SpritesLogLine("caricamento modello: %.1fs, VRAM ~%.0f MB (da /sys/class/drm)",
+                               loadSecs, (double)(vramAfter - vramBefore)/1048576.0);
+            else
+                SpritesLogLine("caricamento modello: %.1fs (VRAM non disponibile su questo sistema)", loadSecs);
+        }
+    }
+
+    double totalGenSecs = 0;
+    int rejectedCells = 0;
     for (int i = 0; i < args->cells; i++)
     {
-        SynthesizeCell(args->seed, i, src512);
-        SpritePostStats stats;
-        SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
-        SpritesComposeAtlas(atlas, i, cellBuf);
-        fprintf(stderr, "melting-sprites: cella %2d/%d tagliati=%5d opachi=%5d a-rischio=%d\n",
-                i + 1, args->cells, stats.cutPixels, stats.opaquePixels, stats.keyRiskPixels);
-    }
-    free(src512); free(cellBuf);
+        int pct = 15 + (int)((95.0 - 15.0)*i/args->cells);
+        char msg[96];
+        snprintf(msg, sizeof(msg), "genero sprite %d/%d (%s)", i + 1, args->cells, SPRITE_CELL_NAMES[i]);
+        SpritesProgressWrite(args->outDir, "genero", pct, msg);
 
+        if (useDryRun)
+        {
+            SynthesizeCell(args->seed, i, src512);
+            SpritePostStats stats;
+            SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
+            fprintf(stderr, "melting-sprites: cella %2d/%d (%-13s) tagliati=%5d opachi=%5d a-rischio=%d\n",
+                    i + 1, args->cells, SPRITE_CELL_NAMES[i], stats.cutPixels, stats.opaquePixels, stats.keyRiskPixels);
+        }
+        else
+        {
+            double cellSecs = 0;
+            int rc = GenerateCellReal(sdCtx, args, &manifest, i, cellBuf, src512, &cellSecs);
+            totalGenSecs += cellSecs;
+            if (rc > 0) rejectedCells++;
+            fprintf(stderr, "melting-sprites: cella %2d/%d (%-13s) %.1fs%s\n",
+                    i + 1, args->cells, SPRITE_CELL_NAMES[i], cellSecs, rc > 0 ? " [TRASPARENTE]" : "");
+        }
+        SpritesComposeAtlas(atlas, i, cellBuf);
+    }
+
+    if (sdCtx) SpriteSdFree(sdCtx);
+
+    SpritesProgressWrite(args->outDir, "scrivo", 96, "scrivo l'atlas");
     int rc = SpritesWriteAtlasPng(atlas, args->outDir);
-    free(atlas);
+    free(atlas); free(src512); free(cellBuf);
     if (rc != 0)
     {
+        SpritesProgressWrite(args->outDir, "errore", 100, "scrittura PNG fallita");
         fprintf(stderr, "melting-sprites: scrittura PNG fallita\n");
         return 3;
     }
 
-    printf("melting-sprites: atlas scritto in %s/current_atlas.png (%d celle, seed=%u)\n",
-           args->outDir, args->cells, args->seed);
+    SpritesUpdateManifestAtlasPath(args->outDir);
+    SpritesProgressWrite(args->outDir, "fine", 100, "atlas pronto");
+
+    double totalSecs = SpritesNowSeconds() - tRunStart;
+    SpritesLogLine("run: modo=%s celle=%d scartate=%d caricamento=%.1fs generazione=%.1fs totale=%.1fs seed=%u",
+                   useDryRun ? "dry-run" : "stable-diffusion", args->cells, rejectedCells,
+                   loadSecs, totalGenSecs, totalSecs, args->seed);
+
+    printf("melting-sprites: atlas scritto in %s/current_atlas.png (%d celle, seed=%u, modo=%s, %.1fs totali)\n",
+           args->outDir, args->cells, args->seed, useDryRun ? "dry-run" : "stable-diffusion", totalSecs);
     return 0;
 }
 
@@ -277,14 +453,6 @@ int main(int argc, char **argv)
     if (ParseArgs(argc, argv, &args) != 0) return 2;
 
     if (args.check) return RunCheck(&args);
-
-    if (!args.dryRun)
-    {
-        fprintf(stderr,
-            "melting-sprites: la generazione con Stable Diffusion non e' ancora collegata "
-            "in questa fase; usa --dry-run per testare la pipeline di post-processing.\n");
-        return 1;
-    }
 
     return RunGenerate(&args);
 }

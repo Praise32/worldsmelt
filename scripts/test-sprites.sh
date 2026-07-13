@@ -8,15 +8,19 @@ SPR=bin/melting-sprites
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-echo "-- fase 1/2: nessuna IA collegata ancora, il binario non deve linkare sd.cpp o llama.cpp --"
-! nm "$SPR" 2>/dev/null | grep -qiE 'llama_|ggml_|sd_ctx'
+echo "-- fase 3: melting-sprites linka stable-diffusion.cpp ma MAI llama.cpp (due ggml incompatibili, vedi Makefile) --"
+# nm scrive su file invece di andare diretto in pipe a grep -q: con pipefail,
+# grep -q che chiude presto la pipe manda SIGPIPE a nm e il suo exit status
+# (141) vince quello di grep nella pipeline, anche se il pattern e' stato
+# trovato. Su file non c'e' pipe da rompere.
+NM_OUT="$TMP/nm.txt"
+nm "$SPR" 2>/dev/null > "$NM_OUT"
+grep -qiE 'new_sd_ctx|generate_image' "$NM_OUT"
+! grep -qiE 'llama_model_load|llama_decode|llama_sampler' "$NM_OUT"
 
-echo "-- senza --dry-run, la generazione vera non e' ancora disponibile in questa fase --"
-set +e
-"$SPR" --out "$TMP/nogen" >/dev/null 2>&1
-rc=$?
-set -e
-[ "$rc" -ne 0 ]
+echo "-- senza modello ne' --dry-run, si ripiega su celle sintetiche invece di andare in crash --"
+"$SPR" --out "$TMP/nomodel" --model "$TMP/nessun-modello.ckpt" --seed 1 >/dev/null
+[ -f "$TMP/nomodel/current_atlas.png" ]
 
 echo "-- --dry-run produce un PNG 1024x1024 RGBA a 8 bit per canale --"
 "$SPR" --dry-run --seed 12345 --out "$TMP/a" >/dev/null

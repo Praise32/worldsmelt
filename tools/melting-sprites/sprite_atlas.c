@@ -55,6 +55,21 @@ void SpritesComposeAtlas(unsigned char *atlas, int cellIndex, unsigned char *cel
                cellRgba + (size_t)y*SPRITE_CELL*4, (size_t)SPRITE_CELL*4);
 }
 
+int SpritesOpaqueTouchesBorder(const unsigned char *cellRgba)
+{
+    for (int x = 0; x < SPRITE_CELL; x++)
+    {
+        if (cellRgba[(x*4) + 3] != 0) return 1;                                        /* riga y=0 */
+        if (cellRgba[((SPRITE_CELL - 1)*SPRITE_CELL + x)*4 + 3] != 0) return 1;         /* riga y=ultima */
+    }
+    for (int y = 0; y < SPRITE_CELL; y++)
+    {
+        if (cellRgba[(y*SPRITE_CELL)*4 + 3] != 0) return 1;                             /* colonna x=0 */
+        if (cellRgba[(y*SPRITE_CELL + SPRITE_CELL - 1)*4 + 3] != 0) return 1;           /* colonna x=ultima */
+    }
+    return 0;
+}
+
 int SpritesWriteAtlasPng(const unsigned char *atlas, const char *outDir)
 {
     char tmpPath[512], finalPath[512];
