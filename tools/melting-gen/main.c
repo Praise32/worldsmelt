@@ -30,9 +30,13 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->seed = (unsigned int)time(NULL);
     args->outDir = "generated";
     args->fromJson = NULL;
+    /* Calibrati nel Task 8 su Ryzen 5 3600 + RX 5600 XT 6GB (dettagli in
+     * docs/BENCHMARKS.md): a ngl=99 il 7B occupa ~4.53 GiB di VRAM e completa
+     * in 49.6s totali, la corsa piu' veloce E con la qualita' migliore
+     * dell'intera matrice misurata (batte anche il fallback 1.5B). */
     args->model = "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf";
     args->modelFallback = "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
-    args->ngl = 99;   /* il Task 8 lo ricalibra */
+    args->ngl = 99;
     args->temp = 0.8f;
     args->nPredict = 2048;
     args->promptsDir = "tools/melting-gen/prompts";
