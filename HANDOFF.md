@@ -1,102 +1,159 @@
 # Cosa fare quando torni
 
-Scritto da Claude mentre eri via. Ordine consigliato: **prima la sezione 1** (5 minuti, ti fa vedere il lavoro fatto), poi il resto quando hai tempo.
+Scritto da Claude mentre eri via. **Prima la sezione 1** (dieci minuti, ti fa vedere tutto), il resto con calma.
 
 ---
 
-## 1. Provalo (la parte bella)
+## 1. Provalo
 
 ```bash
 cd ~/progetti/melting-run-gpu
+git checkout local-sprites
 make run-gen
 ```
 
-Premi **INVIO** nel menu. Vedi una barra di caricamento: e' il modello Qwen 7B che gira sulla tua 5600 XT e inventa la run. Dopo ~50 secondi parti a giocare con temi, boss, oggetti e sinergie appena generati. Tutto in locale: niente rete, niente chiave API.
+Premi **INVIO** nel menu. Parte una barra di caricamento in due tempi:
 
-Durante la generazione **ESC** annulla e torna al menu. In partita **R** rigenera una run nuova.
+1. **Testo** (~50 s) — il Qwen 7B inventa i 5 piani: temi, boss, oggetti, sinergie.
+2. **Sprite** (~85 s) — Stable Diffusion disegna i 12 sprite del gioco, coerenti col tema appena inventato.
 
-Cose da guardare mentre ci giochi:
-- I nomi degli oggetti e dei boss: sono inventati dal modello a ogni run.
-- Il pannello sinistro dice `Fonte: LLM cache` quando la run viene dal modello.
-- Se stacchi la rete, funziona lo stesso. Se cancelli i modelli da `models/`, il gioco ripiega sul generatore deterministico interno e parte comunque.
+Dopo circa **2 minuti e mezzo** giochi con contenuti e grafica generati sul momento, in locale,
+senza rete e senza chiavi API. **ESC** annulla, **R** rigenera.
+
+Se vuoi solo il testo (85 secondi in meno):
+
+```bash
+make run-gen-fast     # equivale a --no-sprites: tiene gli sprite geometrici di prima
+```
+
+Guarda anche l'atlas da solo:
+
+```bash
+xdg-open generated/current_atlas.png
+```
 
 ### Se qualcosa non parte
 
 ```bash
-make                 # ricompila
-make test            # 5 test del gioco
-make test-gen        # test del generatore (senza modello, veloci)
-make test-llm        # generazione vera col modello (~1 minuto)
+make                 # ricompila tutto
+make test            # test del gioco
+make test-gen        # test del generatore di testo (senza modello, veloci)
+make test-sprites    # test degli sprite (senza modello: usa --dry-run)
+make test-llm        # generazione di testo vera (~1 min)
 ```
 
 ---
 
-## 2. Decisione che spetta a te: il merge
+## 2. Lo stato del lavoro: due branch, nessuno pushato
 
-Il lavoro e' su due branch, **non pushati e non mergiati**. Ho lasciato la scelta a te perche' vorrai prima vederlo girare.
+Ho lasciato a te la decisione di mergiare: vorrai prima vederlo girare.
 
-| Branch | Cosa contiene | Stato |
+| Branch | Cosa | Stato |
 |---|---|---|
-| `linux-local-llm` | Build Linux + generazione testuale locale (17 commit) | Completo, testato, review passata |
-| `local-sprites` | Parte da quello sopra + sprite con Stable Diffusion | In corso — vedi sezione 4 |
+| `linux-local-llm` | Build Linux + generazione **testuale** locale | 18 commit, completo, review passata |
+| `local-sprites` | Il precedente + **sprite** con Stable Diffusion | 7 commit, completo, review in corso |
 
-Per prendere il primo:
+`local-sprites` contiene gia' tutto `linux-local-llm`, quindi per prendere tutto:
 
 ```bash
 git checkout main
-git merge linux-local-llm
-git push                       # se lo vuoi anche su GitHub
+git merge local-sprites
+git push               # solo se vuoi mandarlo anche su GitHub
 ```
 
-Se invece vuoi buttare tutto: `git branch -D linux-local-llm local-sprites` e non e' successo niente (il tuo `main` non e' stato toccato).
+Per buttare via tutto: `git branch -D linux-local-llm local-sprites`. Il tuo `main` non e' stato toccato.
 
 ---
 
-## 3. Cose che ho cambiato sul tuo sistema
+## 3. I numeri veri, misurati sulla tua macchina
 
-- **Installato `xvfb` e `xdotool`.** Servivano per testare senza di te: i test aprono una finestra, e con lo schermo bloccato il gioco si piantava (su Wayland una finestra non visibile non riceve piu' frame). Ora i test girano su uno schermo virtuale. Se non li vuoi: `sudo apt remove xvfb xdotool` — ma il Makefile li usa, quindi i test tornerebbero a richiedere lo schermo sbloccato.
-- **Sospensione automatica**: l'avevo disattivata per non farti spegnere il PC a meta' lavoro, poi **ripristinata** com'era (suspend dopo 2h). Controlla pure: `gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type` deve dire `'suspend'`.
-- **La password che mi hai passato in chat e' finita nella trascrizione della sessione.** L'ho usata solo per installare quei due pacchetti e non l'ho salvata da nessuna parte. Valuta di cambiarla.
+| | |
+|---|---|
+| Testo: Qwen2.5-Coder **7B** | ~50 s, **28 token/s**, 4,5 GB di VRAM |
+| Sprite: SD1.5 pixel-art + LCM | ~5,7 s per sprite, **~85 s** per 12, 2,0 GB di VRAM |
+| Totale a inizio run | **~2 min 30 s** |
 
-Non ho toccato: GRUB, partizioni, dischi NTFS, la tua configurazione GNOME (a parte la sospensione, ripristinata).
-
----
-
-## 4. Dove sono arrivato con gli sprite (fase 2)
-
-Branch `local-sprites`. Obiettivo: generare gli sprite del gioco in locale con Stable Diffusion, come gia' facciamo col testo.
-
-**Stato: sto misurando se e' possibile.** La ricerca ha trovato una cosa importante: **non esiste nessun benchmark pubblico di stable-diffusion.cpp su una GPU RDNA1 come la tua**, e la tua scheda non ha le unita' matriciali (coopmat) che rendono veloci le RDNA3. Quindi sto costruendo tutto e generando un'immagine vera per misurare, invece di promettere numeri inventati.
-
-Se trovi questo file con la sezione qui sotto ancora vuota, vuol dire che la misura non e' finita: guarda `docs/SPRITES-SPIKE.md`, che scrivo appena ho il numero.
-
-Due scoperte della ricerca che cambiano il progetto e che ti riguardano:
-
-1. **Gli sprite NON vanno generati su sfondo nero.** Il gioco oggi fa chroma-key sul quasi-nero, ma la pixel art ha i *contorni neri*: il ritaglio mangerebbe i bordi degli sprite. Vanno generati su sfondo **magenta**, ritagliati con un flood fill dai bordi (che non puo' raggiungere i pixel neri *dentro* lo sprite) e salvati con vera trasparenza. E' un miglioramento anche per l'atlas che gia' hai.
-2. **L'API di stable-diffusion.cpp e' cambiata**: le guide in giro (e la mia memoria) parlano di una funzione `txt2img()` che non esiste piu'. Ho gia' i nomi giusti dalla versione fissata.
+Il 7B ci sta **tutto** nei tuoi 6 GB (era la mia previsione piu' pessimista, sbagliata: bene cosi').
+I due modelli non possono stare in VRAM insieme, ma non serve: sono due processi che si
+alternano e ognuno libera tutto quando esce. Dettagli in `docs/BENCHMARKS.md` e `docs/SPRITES-SPIKE.md`.
 
 ---
 
-## 5. Cose su cui ho bisogno di te (decisioni, non lavoro)
+## 4. Le due cose che devi guardare tu, perche' sono gusto tuo
 
-Nessuna e' urgente. Rispondimi quando vuoi e proseguo.
+### a) La qualita' degli sprite
 
-1. **Qualita' dei contenuti generati.** Il 7B in italiano e' altalenante a seconda del seed: a volte tira fuori *"Catacombe Crepuscolari — Ossamento Scuro"*, a volte *"deserto — Sandstorm"*. Ho gia' tolto un difetto grosso (copiava l'esempio del prompt) e aggiunto la penalita' sulle ripetizioni. Per migliorare ancora ci sono tre strade, e vorrei sapere quale preferisci:
-   - accettare la varianza (una run brutta la ributti con R);
-   - aggiungere un *controllo qualita*': se i nomi sono pochi o sciatti, rigenera in automatico (ma raddoppia l'attesa);
-   - provare un modello piu' grande (14B a Q4 ~9 GB: **non ci sta nei tuoi 6 GB di VRAM**, girerebbe in parte su CPU e ci metterebbe minuti).
+Personaggi, nemici, boss, cuore, porta: **vengono bene**. Le icone piccole (moneta, chiave,
+bomba, colpo) sono un terno al lotto: a volte la chiave e' una chiave, a volte e' un
+lucchetto o peggio. Ho gia' fatto due giri di miglioramenti (soggetto in testa al prompt,
+negativi mirati, cfg alzato a 1.8 — sotto ignorava il soggetto, sopra sporcava lo sfondo).
 
-2. **Licenze, se un giorno vuoi vendere il gioco.** I modelli di testo (Qwen 7B/1.5B) sono Apache 2.0: nessun problema. Per gli sprite il modello pixel-art migliore (All-In-One-Pixel-Model) e' OpenRAIL-M: puoi usarlo e vendere le immagini, ma se **ridistribuisci i pesi** insieme al gioco devi propagare le sue restrizioni d'uso. C'e' un'alternativa Apache 2.0 (SD_PixelArt_SpriteSheet_Generator) leggermente peggiore. Dimmi se il gioco resta un hobby o se punti a venderlo, cosi' scelgo di conseguenza.
+Da qui in poi e' **direzione artistica, ed e' tua**. I prompt sono file di testo, uno per
+sprite, modificabili senza ricompilare:
 
-3. **Il tuo obiettivo vero.** Oggetti davvero unici, sinergie inventate da zero, comportamenti dei nemici: quella e' la **sandbox Lua** (fase 3). La mini-VM attuale ha 4 operazioni, non basta. E' il pezzo piu' grosso e piu' bello, e vorrei progettarlo con te presente, non da solo — le decisioni li' dentro (quali callback esporre, quanto potere dare all'IA) sono di design, non tecniche.
+```
+tools/melting-sprites/prompts/{player,boss,coin,key,bomb,shot,...}.txt
+tools/melting-sprites/prompts/negative.txt      <- cosa NON deve disegnare
+```
+
+Cambi il testo, rilanci `./bin/melting-sprites --seed 5`, guardi `generated/current_atlas.png`.
+Un giro costa 85 secondi. Se una cella esce indecente il gioco **non si rompe**: la lascia
+vuota e ridisegna la forma geometrica di prima per quell'entita'.
+
+### b) La qualita' dei testi
+
+Il 7B in italiano e' altalenante a seconda del seed: a volte *"Catacombe Crepuscolari —
+Ossamento Scuro"*, a volte *"deserto — Sandstorm"*. Ho tolto il difetto piu' grosso (copiava
+pari pari l'esempio dal prompt) e aggiunto la penalita' sulle ripetizioni. I prompt sono in
+`tools/melting-gen/prompts/`.
 
 ---
 
-## 6. Se vuoi capire cosa e' stato fatto
+## 5. Decisioni che aspettano te (nessuna urgente)
 
-- `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md` — il progetto approvato, con la roadmap in 5 fasi.
-- `docs/superpowers/plans/2026-07-13-linux-local-llm.md` — il piano di implementazione, task per task.
-- `docs/BENCHMARKS.md` — i numeri veri misurati sulla tua macchina.
-- `git log --oneline main..linux-local-llm` — i 17 commit, uno per pezzo.
+1. **Il gioco resta un hobby o punti a venderlo?** Cambia la scelta del modello per gli sprite.
+   Quello che uso ora (All-In-One-Pixel-Model) e' OpenRAIL-M: le immagini generate sono tue e
+   vendibili, ma se **ridistribuisci i pesi** insieme al gioco devi propagare le restrizioni
+   d'uso della licenza. Esiste un'alternativa Apache 2.0 (`SD_PixelArt_SpriteSheet_Generator`),
+   un po' peggiore in resa. I modelli di testo (Qwen) sono Apache 2.0: nessun problema.
+
+2. **Attesa a inizio run.** Adesso sono 2 minuti e mezzo. Alternative: generare gli sprite
+   una volta sola e riusarli per piu' run; oppure generarli in sottofondo mentre giochi il
+   primo piano. Dimmi cosa preferisci.
+
+3. **Il tuo obiettivo vero: oggetti unici, sinergie inventate, comportamenti dei nemici.**
+   E' la **sandbox Lua** (fase 3), il pezzo piu' grosso. La mini-VM di adesso ha 4 operazioni,
+   non basta a esprimerli. Vorrei progettarla **con te presente**: le decisioni li' dentro
+   (quali callback esporre all'IA, quanto potere darle, cosa resta blindato in C) sono scelte
+   di design del *tuo* gioco, non dettagli tecnici che posso decidere io.
+
+---
+
+## 6. Cose che ho cambiato sul tuo sistema
+
+- **Installato `xvfb` e `xdotool`.** Servivano per testare senza di te: i test aprono una
+  finestra e, con lo schermo bloccato, su Wayland il gioco si piantava (una finestra non
+  visibile non riceve piu' frame). Ora i test girano su uno schermo virtuale. Il Makefile li
+  usa: se li togli (`sudo apt remove xvfb xdotool`) i test torneranno a richiedere lo schermo
+  sbloccato.
+- **Sospensione automatica**: disattivata mentre lavoravo, **ripristinata** com'era (suspend
+  dopo 2 ore). Verifica: `gsettings get org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type`
+  deve dire `'suspend'`.
+- **La password che mi hai passato in chat e' finita nella trascrizione della sessione.**
+  L'ho usata solo per installare quei due pacchetti e non l'ho salvata da nessuna parte.
+  Valuta di cambiarla.
+
+Non ho toccato GRUB, partizioni, dischi NTFS, ne' il resto della tua configurazione.
+
+---
+
+## 7. Se vuoi capire cosa e' stato fatto
+
+- `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md` — il progetto della fase 1 e la roadmap.
+- `docs/superpowers/specs/2026-07-13-local-sprites-design.md` — il progetto della fase 2.
+- `docs/SPRITES-SPIKE.md` — le misure con cui ho deciso che gli sprite erano fattibili, e le
+  due trappole che hanno cambiato il progetto (perche' **non** si generano su sfondo nero).
+- `docs/BENCHMARKS.md` — i numeri del modello di testo.
+- `git log --oneline main..local-sprites` — i commit, uno per pezzo.
 
 I tuoi appunti (`docs/APPUNTI.md`, `docs/DESIGN_NOTES.md`) non li ho toccati: sono tuoi.
