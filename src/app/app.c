@@ -66,7 +66,17 @@ static bool AppStartGeneration(AppGen *gen)
     gen->inSpritesStage = false;
     gen->spritesPlannedThisRun = !gen->noSprites && SpritesModelsPresent();
     unsigned int seed = NextGenSeed(0u);
-    return GenRunnerStart(&gen->runner, gen->command, seed, 180.0, "generated/gen_progress.txt");
+    /* 420s, non piu' 180s: da fase 3a-L3 melting-gen non genera solo il JSON
+     * dei piani, ma anche (con lo stesso modello gia' caricato) fino a 15
+     * script Lua per run, ciascuno con fino a 2 ritenti (vedi
+     * tools/melting-gen/main.c e gen_lua.c). melting-gen ha il suo stesso
+     * budget interno, piu' stretto (GEN_LUA_PHASE_BUDGET_SEC=300s assoluti
+     * dall'avvio del processo, in tools/melting-gen/melting_gen.h): oltre
+     * quella soglia smette di tentare nuovi script (gli oggetti restanti
+     * restano sulla mini-VM) e scrive comunque la run. I 420s qui sono il
+     * tetto ESTERNO, solo per il caso patologico in cui anche quel budget
+     * interno non bastasse a lasciare il tempo di scrivere manifest/atlas. */
+    return GenRunnerStart(&gen->runner, gen->command, seed, 420.0, "generated/gen_progress.txt");
 }
 
 static bool AppStartSpritesGeneration(AppGen *gen)

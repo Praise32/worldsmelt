@@ -17,7 +17,7 @@
 - Non aggiungere nuove funzioni di gameplay a `main.c`.
 - Usa `src/game/game_internal.h` soltanto per collaborazioni interne tra moduli. Le API pubbliche restano nei rispettivi header.
 - Evita simboli globali generici: usa i prefissi del modulo (`Game`, `World`, `Combat`, `Entities`, `ScriptVm`, `ScriptSandbox`, `ScriptApi`, `ScriptItems`, `Renderer`, `Ui`, `GenRunner`; `Gen` dentro `tools/melting-gen`). Tre prefissi distinti convivono in `src/script`/`src/gameplay` e NON vanno confusi: `ScriptVm` (la mini-VM CSV a quattro operazioni, `src/gameplay/script_vm.c`, la rete di sicurezza), `ScriptSandbox` (il "vascello" Lua blindato, `src/script/script_sandbox.c`: stato, allocatore, hook di istruzioni, `_ENV`), `ScriptApi` (le funzioni di gioco a handle esposte dentro quell'`_ENV`, `src/script/script_api.c`) e `ScriptItems` (le callback degli oggetti + il sistema delle cache, `src/script/script_items.c`, l'unico punto che `src/gameplay/combat.c` chiama).
-- Mantieni il motore C indipendente da rete, chiavi API e modelli AI. Il runtime legge soltanto file locali già validati in `generated/`. Solo `bin/melting-gen` linka llama.cpp e cJSON; `bin/melting-sprites` linka stable-diffusion.cpp. Il binario del gioco linka Lua (statico, `src/script/`) ma nessuno dei tre.
+- Mantieni il motore C indipendente da rete, chiavi API e modelli AI. Il runtime legge soltanto file locali già validati in `generated/`. Solo `bin/melting-gen` linka llama.cpp e cJSON; `bin/melting-sprites` linka stable-diffusion.cpp. Il binario del gioco linka Lua (statico, `src/script/`) ma nessuno dei tre. Da fase 3a-L3, `bin/melting-gen` linka Lua ANCHE lui (compila anche `src/core/game_math.c` e `src/script/script_sandbox.c`, la stessa sandbox del gioco, per validare gli script Lua degli oggetti PRIMA di scriverli su disco: vedi `tools/melting-gen/gen_lua.c`) — permesso esplicitamente ("melting-gen può linkare Lua e cJSON"), il gioco resta l'unico a non linkare mai llama.cpp/cJSON.
 
 ## Responsabilità dei moduli
 
@@ -46,7 +46,7 @@
   rimuoverlo è banale). `src/gameplay/combat.c` chiama solo `ScriptItems*`.
 - `src/tests`: test interni eseguibili da riga di comando.
 - `src/world`: stanze, mappe, transizioni e ricompense.
-- `tools/melting-gen`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico). Scrive gli stessi file del sidecar Node.
+- `tools/melting-gen`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico). Scrive gli stessi file del sidecar Node. `gen_lua.c` (fase 3a-L3) genera e valida lo script Lua opzionale di ogni oggetto: prompt cheat-sheet + few-shot (`prompts/lua_system.txt`/`lua_user.txt`), nessuna grammatica (un Lua completo non si esprime in GBNF), dry-run nella sandbox vera con un'API di gioco finta (`GenLuaStubRegister`, nessun `Game*`), fino a 2 ritenti con l'errore rimandato al modello; su fallimento l'oggetto resta sulla mini-VM.
 
 ## Verifiche obbligatorie
 

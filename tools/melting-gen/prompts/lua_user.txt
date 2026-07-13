@@ -1,0 +1,6 @@
+Oggetto: {ITEM_NAME}
+Slot: {ITEM_SLOT}
+Trait: {ITEM_TRAITS}
+Tema del piano: {FLOOR_THEME}
+
+Scrivi lo script Lua di questo oggetto: una sola piccola sinergia o comportamento coerente col nome e col tema del piano, usando solo le funzioni e le callback del cheat-sheet sopra.

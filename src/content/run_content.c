@@ -260,6 +260,27 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));
             if (value[0]) snprintf(item->script, sizeof(item->script), "%s", value);
+
+            /* Fase 3a-L3: sorgente Lua opzionale, in un file a parte (vedi
+               tools/melting-gen/gen_lua.c e gen_manifest.c). item->luaSource
+               resta vuota (mini-VM soltanto) di default: una riga assente
+               (oggetto senza Lua valido), o presente ma che punta a un file
+               mancante/illeggibile (run copiata a meta', disco esterno
+               scollegato...), degrada silenziosamente allo stesso modo,
+               MAI un errore fatale per il caricamento del manifest. */
+            item->luaSource[0] = '\0';
+            snprintf(key, sizeof(key), "floor%d.item%d.lua=", n, i + 1);
+            value[0] = '\0';
+            ReadManifestValue(text, key, value, sizeof(value));
+            if (value[0])
+            {
+                char *luaText = LoadFileText(value);
+                if (luaText)
+                {
+                    snprintf(item->luaSource, sizeof(item->luaSource), "%s", luaText);
+                    UnloadFileText(luaText);
+                }
+            }
             item->active = true;
         }
     }

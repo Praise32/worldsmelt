@@ -8,6 +8,57 @@
 #include <sys/stat.h>
 #include <time.h>
 
+double GenNowSeconds(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec/1e9;
+}
+
+char *GenReplaceAll(const char *src, const char *find, const char *repl)
+{
+    if (!src) return NULL;
+    if (!find || !find[0]) return strdup(src);
+    const char *safeRepl = repl ? repl : "";
+    size_t findLen = strlen(find);
+    size_t replLen = strlen(safeRepl);
+
+    size_t count = 0;
+    for (const char *p = src; (p = strstr(p, find)) != NULL; p += findLen) count++;
+
+    /* Se repl e' piu' corto di find l'output e' SOLO piu' corto di src:
+       strlen(src)+1 resta una stima generosa (mai insufficiente) e non vale
+       la pena calcolare la dimensione esatta in quel ramo. */
+    size_t extra = (replLen > findLen) ? count*(replLen - findLen) : 0;
+    char *out = malloc(strlen(src) + extra + 1);
+    if (!out) return NULL;
+
+    char *w = out;
+    const char *r = src;
+    const char *hit;
+    while ((hit = strstr(r, find)) != NULL)
+    {
+        size_t chunk = (size_t)(hit - r);
+        memcpy(w, r, chunk); w += chunk;
+        memcpy(w, safeRepl, replLen); w += replLen;
+        r = hit + findLen;
+    }
+    strcpy(w, r);
+    return out;
+}
+
+char *GenChatMlWrap(const char *sys, const char *user)
+{
+    if (!sys || !user) return NULL;
+    size_t total = strlen(sys) + strlen(user) + 128;
+    char *prompt = malloc(total);
+    if (!prompt) return NULL;
+    snprintf(prompt, total,
+             "<|im_start|>system\n%s<|im_end|>\n<|im_start|>user\n%s<|im_end|>\n<|im_start|>assistant\n",
+             sys, user);
+    return prompt;
+}
+
 unsigned int GenRngNext(unsigned int *state)
 {
     unsigned int s = *state ? *state : 0xA341316Cu;

@@ -23,7 +23,17 @@ SEED="${SEED:-31337}"
 bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$SEED" --out generated
 grep -q "^source=local:" generated/current_run.txt
 grep -q "^floor5.item3.script=" generated/current_run.txt
+# --manifest-test (fase 3a-L3) carica anche gli script Lua presenti nel
+# manifest in una sandbox vera e asserisce che compilino: vedi
+# src/tests/game_tests.c, GameManifestTest.
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test
 echo "--- ultima riga di log (tempi e tok/s) ---"
-tail -1 logs/melting-gen.log
+grep "^\[.*\] ok: model=" logs/melting-gen.log | tail -1
+
+echo "--- riepilogo Lua (fase 3a-L3): quanti dei 15 oggetti hanno preso uno script funzionante ---"
+grep "lua: riepilogo run" logs/melting-gen.log | tail -1
+
+echo "--- script Lua scritti in generated/scripts/ ---"
+ls -1 generated/scripts/*.lua 2>/dev/null || echo "(nessuno: tutti gli oggetti sono ripiegati sulla mini-VM)"
+
 echo "TEST-LLM: OK"

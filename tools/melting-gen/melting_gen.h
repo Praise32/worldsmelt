@@ -16,6 +16,18 @@
 #define GEN_PENALTY_LAST_N 256
 #define GEN_PENALTY_REPEAT 1.08f
 
+/* Budget di tempo ASSOLUTO (secondi dall'avvio del processo, confrontato con
+ * GenNowSeconds()) per la fase Lua (fase 3a-L3, gen_lua.c): oltre questa
+ * soglia gli oggetti non ancora tentati restano senza Lua (mini-VM, nessun
+ * errore) invece di continuare a provare. Esiste perche' src/app/app.c
+ * (AppStartGeneration) manda SIGTERM al processo dopo un tetto fisso (vedi
+ * il commento li': alzato da 180s a 420s proprio per questa fase) e la run
+ * generata finora (JSON + atlas + quello che di Lua e' gia' pronto) va
+ * comunque scritta su disco PRIMA che quel SIGTERM arrivi, non persa. 300s
+ * lascia 120s di margine sotto i 420s per: gli ultimi item Lua in corso,
+ * la scrittura di manifest/atlas/script, e un margine di sicurezza. */
+#define GEN_LUA_PHASE_BUDGET_SEC 300.0
+
 typedef struct GenScriptOp {
     char trigger[10];   /* "on_fire" | "on_hit" */
     char op[12];        /* "burst" | "projectile" | "area" | "heal" */
@@ -23,6 +35,16 @@ typedef struct GenScriptOp {
     double b;
     char trait[10];     /* uno dei GEN_TRAITS oppure "none" */
 } GenScriptOp;
+
+/* Sorgente Lua opzionale dell'oggetto (fase 3a-L3, vedi
+ * docs/superpowers/specs/2026-07-13-lua-sandbox-design.md sezioni 6,9 e
+ * gen_lua.h). Deve restare comodamente sotto SCRIPT_LUA_LEN=2048 di
+ * core/game_types.h (il campo del lato gioco che la ospita): GenLuaValidate
+ * rifiuta qui in melting-gen qualunque script che sfori questo margine,
+ * cosi' il gioco non vede mai un file troncato a meta'. Vuota ("") per un
+ * oggetto che resta sulla sola mini-VM (il caso di oggi, e il ripiego di
+ * ogni tentativo Lua fallito). */
+#define GEN_LUA_LEN 2000
 
 typedef struct GenItem {
     char name[48];      /* stesso limite di Item.name in game_types.h */
@@ -32,6 +54,7 @@ typedef struct GenItem {
     char color[8];      /* "#rrggbb" */
     GenScriptOp ops[GEN_MAX_OPS];
     int opCount;        /* 1..3 */
+    char lua[GEN_LUA_LEN];
 } GenItem;
 
 typedef struct GenFloor {
@@ -65,6 +88,20 @@ char *GenReadFile(const char *path);   /* buffer malloc terminato da zero, NULL 
 int GenFileExists(const char *path);
 void GenProgressWrite(const char *outDir, const char *phase, int percent, const char *message);
 void GenLogLine(const char *fmt, ...);
+/* Orologio monotono in secondi (CLOCK_MONOTONIC): usato sia per i tempi di
+ * generazione (gia' prima di questa fase) sia per il budget di tempo della
+ * fase Lua (fase 3a-L3, vedi gen_lua.h e GEN_LUA_PHASE_BUDGET_SEC sotto). */
+double GenNowSeconds(void);
+/* Sostituisce OGNI occorrenza di 'find' in 'src' con 'repl' in un nuovo
+ * buffer malloc (mai in place: 'src' e' spesso lo stesso template riusato
+ * per piu' chiamate, es. i placeholder di gen_lua.c). 'find' vuoto o NULL
+ * ritorna una copia invariata di 'src'. NULL su fallimento di allocazione o
+ * se 'src' e' NULL. */
+char *GenReplaceAll(const char *src, const char *find, const char *repl);
+/* Prompt ChatML di Qwen2.5 (stesso formato gia' usato per il JSON dei
+ * piani): "<|im_start|>system\n...<|im_end|>\n<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n".
+ * Buffer malloc, NULL su fallimento o argomenti NULL. */
+char *GenChatMlWrap(const char *sys, const char *user);
 /* Pubblica atomicamente un file di output "definitivo" (manifest, JSON di
  * gioco, atlas BMP): f e' gia' stato aperto su tmpPath e scritto dal
  * chiamante. Controlla gli errori di scrittura, chiude il file, e solo se
@@ -90,19 +127,42 @@ int GenWriteAtlasBmp(const GenRun *run, const char *outDir);
 struct cJSON;
 void GenNormalizeRun(const struct cJSON *raw, unsigned int seed, GenRun *out);
 
-/* gen_llm.c */
-typedef struct GenLlmConfig {
-    const char *modelPath;
-    int nGpuLayers;
-    int nPredict;
-    float temp;
-    unsigned int seed;
-    const char *outDir;
-    const char *promptsDir;
-    const char *grammarPath;
-} GenLlmConfig;
+/* gen_llm.c: sessione = modello + contesto caricati UNA SOLA VOLTA per
+ * l'intero processo (fase 3a-L3). Prima di questa fase melting-gen faceva
+ * un caricamento per ogni tentativo di generazione JSON (fino a 2): con
+ * l'aggiunta dei 15 script Lua per run, ricaricare il modello ad ogni
+ * generazione indipendente costerebbe ~2.6s x 15 sul 7B (docs/BENCHMARKS.md),
+ * tempo tolto al budget di 180s che il gioco concede al processo (vedi
+ * src/app/app.c, AppStartGeneration) prima di mandargli SIGTERM. Una
+ * sessione condivisa paga quel costo una volta sola. */
+typedef struct GenLlmSession GenLlmSession;
 
-int GenLlmGenerate(const GenLlmConfig *cfg, char *out, size_t outCap,
-                   double *loadSecs, double *genSecs, int *tokensOut);
+/* Carica il modello e crea un contesto con n_ctx/n_batch abbastanza larghi
+ * da coprire sia il prompt JSON (grammatica GBNF, nPredict fino a 2048) sia
+ * i prompt Lua (cheat-sheet + few-shot, nPredict piu' corto): vedi le
+ * costanti GEN_LLM_SESSION_* in gen_llm.c. 'outDir' e' solo per il progress
+ * callback di caricamento (percentuale 0-60, come prima). Ritorna NULL su
+ * fallimento (gia' loggato). */
+GenLlmSession *GenLlmSessionOpen(const char *modelPath, int nGpuLayers, const char *outDir);
+void GenLlmSessionClose(GenLlmSession *sess);
+
+/* Un completamento indipendente: azzera la cache KV prima di generare (ogni
+ * chiamata e' una conversazione a se', mai il turno successivo di quella
+ * prima), poi campiona fino a 'nPredict' token o fino a un token di fine
+ * sequenza. 'grammarText' NULL = campionamento libero (percorso Lua, spec
+ * sezione 6: una grammatica GBNF per Lua completo non si puo' esprimere,
+ * vedi gen_lua.c); non-NULL = stesso percorso a grammatica del JSON di oggi.
+ * 'outDir'/'progressPhase' possono essere NULL per non scrivere progresso.
+ * Ritorna 0 su successo, -1 su errore (gia' loggato); 'out' e' sempre
+ * terminata da zero (stringa vuota su errore). */
+int GenLlmComplete(GenLlmSession *sess, const char *prompt, const char *grammarText,
+                    int nPredict, float temp, unsigned int seed,
+                    const char *outDir, const char *progressPhase, int progressBase, int progressSpan,
+                    char *out, size_t outCap, int *tokensOut);
+
+/* Prompt ChatML per il JSON dei piani: legge prompts/system.txt e
+ * prompts/user.txt da 'promptsDir', sostituisce {SEED}. Buffer malloc, NULL
+ * su fallimento (file mancanti). */
+char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed);
 
 #endif

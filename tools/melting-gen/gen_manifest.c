@@ -31,6 +31,69 @@ static void TraitsToText(const GenItem *item, char *out, size_t outSize)
     }
 }
 
+/* Fase 3a-L3: se l'oggetto ha uno script Lua VALIDATO (item->lua non vuoto,
+ * riempito da gen_lua.c SOLO dopo GenLuaValidate, mai dal JSON grezzo del
+ * modello), lo scrive nel proprio file (tmp+rename, stesso pattern atomico
+ * di GenPublishFile usato per tutto il resto). Un oggetto senza Lua non
+ * scrive nessun file: la mini-VM (gia' scritta nel manifest come .script=)
+ * resta l'unico comportamento, esattamente come un oggetto di oggi.
+ *
+ * Il percorso nel TESTO del manifest (scritto da WriteManifest, non da
+ * questa funzione: vedi sotto) e' SEMPRE il letterale
+ * "generated/scripts/floorN_itemM.lua", MAI derivato da 'outDir': stesso
+ * ragionamento di "atlas.path" sopra (vedi il commento li'). Il FILE pero'
+ * va scritto nella vera 'outDir' passata dal chiamante (che nei test e' una
+ * directory temporanea), cosi' i test restano isolati da generated/ vera.
+ *
+ * IMPORTANTE (trovato in review): questa funzione va chiamata SOLO nell'ultimo
+ * giro stretto di WriteManifest, appena prima di GenPublishFile sul manifest
+ * stesso, MAI intrecciata nel ciclo piani/oggetti che scrive il testo. Se
+ * ogni oggetto scrivesse subito il proprio file mentre il testo del
+ * manifest e' ancora in costruzione, un SIGTERM (timeout o ESC-annullamento,
+ * src/app/app.c) a meta' di quel ciclo potrebbe sovrascrivere un
+ * floorN_itemM.lua di una run PRECEDENTE con contenuto della run NUOVA,
+ * mentre il manifest vecchio (mai sostituito, perche' la sua stessa
+ * pubblicazione atomica non e' ancora avvenuta) continua a referenziare
+ * quel percorso per un oggetto con nome/trait diversi: mismatch silenzioso,
+ * non un crash, ma una vera incoerenza. Chiamandola solo qui, immediatamente
+ * prima del rename del manifest, la finestra di rischio si restringe al
+ * minimo indispensabile (pochi rename consecutivi) invece di estendersi a
+ * tutto il tempo di scrittura del testo: se il processo muore PRIMA di
+ * questo punto, NESSUN file .lua viene toccato, e i file di una run
+ * precedente restano coerenti col manifest precedente che li referenzia
+ * ancora. Non e' un'unica transazione multi-file vera (lo stesso limite,
+ * preesistente a questa fase, vale gia' per current_atlas.bmp rispetto a
+ * current_run.txt: vedi GenWriteRunFiles sotto), ma e' il massimo
+ * restringimento ragionevole senza riscrivere l'intera pipeline di
+ * pubblicazione. */
+static void WriteItemLua(const GenItem *item, const char *outDir, int floorNum, int itemNum)
+{
+    if (item->lua[0] == '\0') return;
+
+    char scriptDir[280];
+    snprintf(scriptDir, sizeof(scriptDir), "%s/scripts", outDir);
+    if (GenEnsureDir(scriptDir) != 0) return;
+
+    /* tmpPath costruito dagli STESSI componenti di finalPath (mai
+       "%s.tmp", finalPath"), come il resto di questo file (vedi
+       WriteManifest sotto): concatenare un %s letto da un array a
+       dimensione dichiarata (finalPath[512]) dentro un altro array a
+       dimensione dichiarata fa scattare un falso -Wformat-truncation,
+       perche' gcc ragiona sul caso pessimo dell'intero buffer sorgente. */
+    char finalPath[512], tmpPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/floor%d_item%d.lua", scriptDir, floorNum, itemNum);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/floor%d_item%d.lua.tmp", scriptDir, floorNum, itemNum);
+    FILE *lf = fopen(tmpPath, "w");
+    if (!lf) return;
+    fputs(item->lua, lf);
+    /* Se GenPublishFile fallisce (disco pieno, rename impossibile...) il
+     * manifest referenzia comunque il percorso (la riga .lua= e' gia' stata
+     * scritta da WriteManifest prima di questo giro finale): run_content.c
+     * degrada silenziosamente a mini-VM su un file mancante, non e' un
+     * errore fatale per il resto della run. */
+    GenPublishFile(lf, tmpPath, finalPath);
+}
+
 static int WriteManifest(const GenRun *run, const char *outDir)
 {
     /* Scrittura su file temporaneo + rename atomico alla fine (vedi
@@ -78,8 +141,28 @@ static int WriteManifest(const GenRun *run, const char *outDir)
             fprintf(f, "floor%d.item%d.color=%s\n", n, i + 1, item->color);
             ScriptToText(item, text, sizeof(text));
             fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
+            /* La riga .lua= si scrive QUI (testo), il FILE che referenzia si
+               scrive PIU' TARDI, in un giro a parte subito sotto: vedi il
+               commento lungo su WriteItemLua sopra per il perche'. */
+            if (item->lua[0] != '\0')
+            {
+                fprintf(f, "floor%d.item%d.lua=generated/scripts/floor%d_item%d.lua\n", n, i + 1, n, i + 1);
+            }
         }
     }
+
+    /* Ultimo giro, il piu' vicino possibile alla pubblicazione atomica del
+       manifest (subito sotto): vedi il commento su WriteItemLua per il
+       perche' NON e' stato fatto dentro il ciclo sopra. */
+    for (int fl = 0; fl < GEN_FLOORS; fl++)
+    {
+        const GenFloor *floor = &run->floors[fl];
+        for (int i = 0; i < GEN_ITEMS; i++)
+        {
+            WriteItemLua(&floor->items[i], outDir, fl + 1, i + 1);
+        }
+    }
+
     return GenPublishFile(f, tmpPath, finalPath);
 }
 

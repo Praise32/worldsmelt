@@ -22,15 +22,30 @@ GAME_BIN := bin/melting_run_gpu
 LLAMA_DIR := deps/llama.cpp
 LLAMA_BUILD := $(LLAMA_DIR)/build
 
-GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c)
+# Fase 3a-L3 (script Lua degli oggetti, gen_lua.c): melting-gen compila
+# anche src/core/game_math.c e src/script/script_sandbox.c per riusare LA
+# STESSA sandbox del gioco (stesso allowlist, stesso tetto di memoria, stesso
+# budget di istruzioni) per il dry-run di ogni script prima che il gioco lo
+# veda mai. I due file non toccano raylib (solo i tipi Vector2/Color del suo
+# header, mai una sua funzione: nessun link a libraylib.a qui), quindi
+# bastano -Isrc e l'header di raylib per compilarli; l'API di gioco vera
+# (src/script/script_api.c) resta FUORI apposta, sostituita da uno stub
+# senza Game* in gen_lua.c (vedi il commento li'). Per questo melting-gen
+# linka anche Lua (statica, come il gioco): AGENTS.md, "melting-gen puo'
+# linkare Lua e cJSON".
+GEN_EXTRA_SRC := src/core/game_math.c src/script/script_sandbox.c
+
+GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c) $(GEN_EXTRA_SRC)
 GEN_HDR := $(wildcard tools/melting-gen/*.h) $(wildcard tools/melting-gen/vendor/*.h)
 GEN_CFLAGS := $(CFLAGS) -Itools/melting-gen -Itools/melting-gen/vendor \
+  -Isrc -I$(RAYLIB_DIR)/src -I$(LUA_DIR)/src \
   -I$(LLAMA_DIR)/include -I$(LLAMA_DIR)/ggml/include
 GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
   $(LLAMA_BUILD)/ggml/src/libggml.a \
   $(LLAMA_BUILD)/ggml/src/ggml-vulkan/libggml-vulkan.a \
   $(LLAMA_BUILD)/ggml/src/libggml-cpu.a \
   $(LLAMA_BUILD)/ggml/src/libggml-base.a \
+  $(LUA_LIB) \
   -lvulkan -lgomp -lstdc++ -lpthread -lm -ldl
 GEN_BIN := bin/melting-gen
 

@@ -2,6 +2,8 @@
 
 #include "game/game_internal.h"
 #include "render/game_renderer.h"
+#include "script/script_api.h"
+#include "script/script_sandbox.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,6 +62,30 @@ bool GameScriptSandboxTest(Game *game)
     return created >= 4 && created <= 8;
 }
 
+/* Fase 3a-L3: se l'oggetto porta uno script Lua (item->luaSource non vuoto,
+   caricato da run_content.c da un file referenziato nel manifest), lo carica
+   davvero in una ScriptSandbox nuova con l'API di gioco VERA (ScriptApiRegister,
+   lo stesso codice che il gioco usa a runtime in ScriptItemsOnAcquire, non uno
+   stub): un manifest che referenzia uno script che non compila piu' (build del
+   gioco cambiata, file corrotto a mano...) deve far fallire QUESTO test, non
+   scoprirsi silenziosamente solo al primo pickup in game. melting-gen ha gia'
+   validato lo stesso script con la sua sandbox (gen_lua.c) prima di scriverlo:
+   questo e' un secondo controllo, piu' a valle, con l'API vera invece dello
+   stub - difesa in profondita', non ridondanza inutile. */
+static bool ManifestLuaLoads(Game *game, const Item *item)
+{
+    if (item->luaSource[0] == '\0') return true;   /* nessun Lua: solo mini-VM, niente da controllare qui */
+
+    ScriptSandbox *sb = ScriptSandboxCreate(1u, SCRIPT_SANDBOX_DEFAULT_MEMORY_CAP);
+    if (!sb) return false;
+    ScriptApiRegister(sb, game);
+    char err[160];
+    bool ok = ScriptSandboxLoad(sb, item->name, item->luaSource, err, sizeof(err));
+    if (!ok) fprintf(stderr, "GameManifestTest: Lua di '%s' non carica: %s\n", item->name, err);
+    ScriptSandboxDestroy(sb);
+    return ok;
+}
+
 bool GameManifestTest(Game *game)
 {
     if (!game->content.loaded) return false;
@@ -70,6 +96,7 @@ bool GameManifestTest(Game *game)
         {
             const Item *item = &game->content.floors[f].items[i];
             if (!item->name[0] || !strchr(item->script, ':')) return false;
+            if (!ManifestLuaLoads(game, item)) return false;
         }
     }
     /* GameManifestTest verificava solo il contenuto testuale del manifest, mai

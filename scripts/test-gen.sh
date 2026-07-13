@@ -99,4 +99,21 @@ echo "-- golden file: seed 12345 = manifest di riferimento --"
 "$GEN" --fallback --seed 12345 --out "$TMP/golden"
 cmp "$TMP/golden/current_run.txt" tests/melting-gen/golden-fallback-seed12345.txt
 
+# Fase 3a-L3: il validatore Lua di melting-gen (gen_lua.c), senza alcun
+# modello. Il corpus (tests/melting-gen/lua/) copre lo stesso elenco della
+# spec (sezione 2): sintassi, ciclo infinito, bomba di memoria, funzione
+# proibita (io.open), funzione inesistente, handle stantio. --lua-check
+# stampa VALID/REJECTED ed esce 0/1: buono per gli assert qui sotto.
+echo "-- corpus Lua: melting-gen accetta lo script buono --"
+"$GEN" --lua-check tests/melting-gen/lua/good.lua
+
+echo "-- corpus Lua: melting-gen rifiuta ciascuno degli script rotti --"
+for f in tests/melting-gen/lua/*.lua; do
+  base=$(basename "$f")
+  [ "$base" = "good.lua" ] && continue
+  if "$GEN" --lua-check "$f"; then
+    echo "FALLITO: $base doveva essere rifiutato dal validatore ed e' stato accettato"; exit 1
+  fi
+done
+
 echo "TEST-GEN: OK"
