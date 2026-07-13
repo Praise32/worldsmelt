@@ -16,6 +16,40 @@
 #define GEN_PENALTY_LAST_N 256
 #define GEN_PENALTY_REPEAT 1.08f
 
+/* n_ctx/n_batch della sessione condivisa (fase 3a-L3, gen_llm.c): fissi per
+   l'intero processo, devono coprire la chiamata piu' grande fra le due che
+   la sessione serve. JSON: prompt di poche centinaia di token + nPredict
+   fino a 2048 (args.nPredict di default). Lua: prompt piu' grande
+   (cheat-sheet + few-shot, vedi tools/melting-gen/prompts/lua_system.txt) ma
+   nPredict molto piu' corto (GEN_LUA_N_PREDICT in gen_lua.h). 4096 tiene
+   comodamente entrambe con margine.
+
+   n_batch = n_ctx (non piu' 2048, fase 3): GenLlmComplete sottomette l'intero
+   prompt in un colpo solo con llama_batch_get_one (vedi gen_llm.c), e
+   llama_decode ha un'asserzione interna "n_tokens_all <= cparams.n_batch"
+   che NON e' la stessa cosa del controllo "prompt+nPredict <= n_ctx" gia'
+   presente in GenLlmComplete (quello logga un errore e ritorna -1, questo
+   fa un ggml_abort() e uccide l'intero processo). Scoperto in fase 3
+   (docs/superpowers/sdd/phase3-items-report.md): il cheat-sheet Lua e' cresciuto
+   (tavolozza di archetipi per gli oggetti attivi + il prompt dedicato agli
+   oggetti stat-up) fino a superare 2048 token pur restando ben sotto n_ctx,
+   e la sessione condivisa e' andata in crash A META' RUN (dopo il JSON,
+   durante il primo item Lua), perdendo l'intera generazione. n_batch = n_ctx
+   rende il controllo "prompt+nPredict <= n_ctx" gia' esistente l'UNICO
+   vincolo binding: qualunque prompt che lo supera degrada gia' con un
+   log+fallback (mai un crash), qualunque prompt che lo rispetta non puo'
+   piu' far scattare l'asserzione di llama_decode. Il costo in VRAM e'
+   trascurabile: il buffer di calcolo riservato da llama.cpp e' dimensionato
+   su n_ubatch (default 512, non toccato qui), non su n_batch.
+
+   Spostate qui da gen_llm.c in fase 3b review (guardia byte-budget del
+   prompt Lua, gen_lua.h): GEN_LUA_PROMPT_BYTE_CEILING li' deriva da
+   GEN_LLM_SESSION_N_CTX e da gen_lua.h non si puo' includere llama.h (lo fa
+   solo gen_llm.c) solo per due #define. melting_gen.h e' incluso da
+   entrambi, quindi resta l'unico posto senza dipendenze in piu'. */
+#define GEN_LLM_SESSION_N_CTX   4096
+#define GEN_LLM_SESSION_N_BATCH GEN_LLM_SESSION_N_CTX
+
 /* Budget di tempo ASSOLUTO (secondi dall'avvio del processo, confrontato con
  * GenNowSeconds()) per la fase Lua (fase 3a-L3, gen_lua.c): oltre questa
  * soglia gli oggetti non ancora tentati restano senza Lua (mini-VM, nessun

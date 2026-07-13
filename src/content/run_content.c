@@ -70,10 +70,19 @@ static ItemKind ItemKindFromText(const char *text)
    "per-key fallback" di ItemKindFromText sopra: il chiamante non invoca
    questa funzione affatto quando la chiave "rarity=" e' assente dal
    manifest (manifest vecchio, scritto prima di questa fase), il campo
-   resta quello gia' impostato dal contenuto di ripiego (RARITY_COMMON, il
-   valore zero: ne' MakeFallbackItem ne' MakeFallbackBossItem sotto lo
-   toccano di proposito, vedi il commento li'). */
-static Rarity RarityFromText(const char *text)
+   resta quello gia' impostato dal contenuto di ripiego (RARITY_COMMON per
+   un oggetto normale; RARITY_RARE per il bossItem dalla fase 3b review "il
+   boss non delude mai", vedi MakeFallbackBossItem sotto).
+
+   NON piu' static (fase 3b review, "lock the rarity enum/text sync"): questi
+   quattro testi devono restare sincronizzati A MANO con GEN_RARITIES
+   (tools/melting-gen/gen_util.c) e con l'ordine dell'enum Rarity
+   (core/game_types.h) -- un mismatch silenzioso (es. "uncommon" ->
+   RARITY_RARE) passerebbe ogni altro test esistente. Esposta in
+   run_content.h SOLO per farla raggiungere dal test di round-trip in
+   src/tests/script_items_tests.c (TestRarityTextRoundTrip): nessun altro
+   chiamante fuori da questo file. */
+Rarity RarityFromText(const char *text)
 {
     if (text && strcmp(text, "uncommon") == 0) return RARITY_UNCOMMON;
     if (text && strcmp(text, "rare") == 0) return RARITY_RARE;
@@ -147,18 +156,23 @@ static Item MakeFallbackBossItem(unsigned int *rng, const Theme *theme, int floo
     Item item = { 0 };
     item.active = true;
     item.kind = ITEM_STATUP;
-    /* Fase 3b: stesso ragionamento di MakeFallbackItem sopra -- resta
-       comune di proposito. La promessa "il boss da' sempre raro o
-       leggendario" (design doc, sezione 3) vale per il contenuto DAVVERO
-       generato (il manifest scritto da melting-gen, che tira sempre da
+    /* Fase 3b review ("il boss non delude mai", decisione del proprietario):
+       A DIFFERENZA di MakeFallbackItem sopra (che resta comune di proposito
+       -- un oggetto tesoro/negozio di ripiego puro NON deve fingersi raro),
+       il bossItem NO. La promessa "il boss da' sempre raro o leggendario"
+       (design doc, sezione 3) vale gia' per il contenuto DAVVERO generato
+       (il manifest scritto da melting-gen, che tira sempre da
        GEN_RARITY_WEIGHTS_BOSS = {0,0,70,30}, mai comune/non-comune, vedi
-       tools/melting-gen/gen_fallback.c): non vale retroattivamente per il
-       ripiego "puro" senza alcun manifest, ne' per un manifest VECCHIO
-       (scritto prima di questa fase) a cui manca la riga
-       "bossItem.rarity=" -- il task brief e' esplicito su questo punto
-       ("a missing/unknown rarity defaults to RARITY_COMMON so old
-       manifests load"), senza eccezioni per il boss. */
-    item.rarity = RARITY_COMMON;
+       tools/melting-gen/gen_fallback.c): qui si estende lo STESSO principio
+       al caso degenere -- ripiego "puro" senza alcun manifest, o un
+       manifest VECCHIO (scritto prima della fase 3b) a cui manca la riga
+       "bossItem.rarity=" -- cosi' che "il boss non delude mai" valga
+       SEMPRE, non solo quando melting-gen e' gia' girato almeno una volta.
+       Resta invece invariato il back-compat per un oggetto NORMALE (righe
+       "itemN.rarity=" mancanti -> RARITY_COMMON, vedi RarityFromText sopra
+       e MakeFallbackItem): quella promessa era solo "niente rarita' alta
+       per sbaglio", non "il boss non delude mai", e non riguarda il boss. */
+    item.rarity = RARITY_RARE;
     snprintf(item.name, sizeof(item.name), "%s", names[(floorIdx + GameRngRange(rng, 0, 5))%6]);
     item.slot = (ItemSlot)GameRngRange(rng, 0, 5);
     item.traits = RandomTrait(rng);
@@ -413,9 +427,16 @@ void RunContentLoad(RunContent *content, unsigned int seed)
         ReadManifestValue(text, key, value, sizeof(value));
         if (value[0]) boss->kind = ItemKindFromText(value);
 
-        /* Fase 3b: stesso schema "per-key fallback" di sopra -- riga
-           assente -> RARITY_COMMON (mai RARO/LEGGENDARIO per sbaglio solo
-           perche' e' il bossItem, vedi il commento su MakeFallbackBossItem). */
+        /* Fase 3b review ("il boss non delude mai"): stesso schema "per-key
+           fallback" di sopra -- riga assente -> resta quello che
+           MakeFallbackBossItem ha gia' impostato, ora RARITY_RARE (non piu'
+           RARITY_COMMON: vedi il commento li' sopra). A differenza degli
+           oggetti normali (dove "riga assente -> comune" resta back-compat
+           voluto), qui la riga puo' mancare per due motivi ben distinti --
+           nessun manifest ancora (ripiego puro) o un manifest VECCHIO
+           (scritto prima di questa fase) -- ed entrambi ora ricadono su
+           "raro", mai piu' su "comune": il bossItem non deve MAI deludere,
+           nemmeno quando melting-gen non ha ancora scritto nulla. */
         snprintf(key, sizeof(key), "floor%d.bossItem.rarity=", n);
         value[0] = '\0';
         ReadManifestValue(text, key, value, sizeof(value));

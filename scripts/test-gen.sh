@@ -184,4 +184,15 @@ for f in tests/melting-gen/lua/*.lua; do
   fi
 done
 
+# Fase 3b review ("un guard automatico contro una futura re-inflazione dei
+# prompt"): stesso motivo del blocco Lua sopra, senza alcun modello. Vedi
+# tools/melting-gen/gen_lua.h (GenLuaPromptBudgetCheck, il commento sopra
+# GEN_LUA_PROMPT_BYTE_CEILING) per il bug reale che questa guardia previene
+# (hint di rarita' scritti come frasi intere hanno fatto sforare n_ctx per
+# OGNI prompt Lua di una run, 0/20 script generati, senza che `make test-gen`
+# se ne accorgesse: solo un giro reale con `make test-llm` lo mostrava nel
+# log). Deve passare con i prompt di oggi (brevi).
+echo "-- guardia byte-budget del prompt Lua: il prompt piu' grande di oggi sta sotto il ceiling --"
+"$GEN" --prompt-budget-check
+
 echo "TEST-GEN: OK"

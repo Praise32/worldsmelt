@@ -11,6 +11,7 @@
 
 #include "tests/game_tests.h"
 
+#include "content/run_content.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
 #include "script/script_items.h"
@@ -456,6 +457,72 @@ static bool TestShopCostScalesWithRarity(void)
     return ok;
 }
 
+/* Test P (fase 3b review, "lock the rarity enum/text sync"): GEN_RARITIES
+   (tools/melting-gen/gen_util.c, lato generatore), l'enum Rarity
+   (core/game_types.h, lato gioco) e RarityFromText (run_content.c, il
+   parser che li mette in comunicazione) vanno tenuti sincronizzati A MANO,
+   stesso ordine e stessi quattro testi letterali. Un mismatch silenzioso
+   (es. "uncommon" -> RARITY_RARE) passerebbe ogni altro test di oggi senza
+   che nessuno se ne accorga: qui si verifica che ciascuno dei 4 testi
+   CANONICI (identici a GEN_RARITIES: se li cambi la', cambiali anche qui)
+   mappi sul livello atteso e che i quattro livelli restino DISTINTI. */
+static bool TestRarityTextRoundTrip(void)
+{
+    static const char *kTexts[4]    = { "common", "uncommon", "rare", "legendary" };
+    static const Rarity kExpected[4] = { RARITY_COMMON, RARITY_UNCOMMON, RARITY_RARE, RARITY_LEGENDARY };
+    bool ok = true;
+    for (int i = 0; i < 4; i++)
+    {
+        Rarity got = RarityFromText(kTexts[i]);
+        if (got != kExpected[i])
+        {
+            printf("      FALLITO: RarityFromText(\"%s\") = %d, atteso %d\n", kTexts[i], (int)got, (int)kExpected[i]);
+            ok = false;
+        }
+        for (int j = 0; j < i; j++)
+        {
+            if (kExpected[j] == kExpected[i]) { printf("      FALLITO: due testi sullo stesso livello\n"); ok = false; }
+        }
+    }
+    return ok;
+}
+
+/* Test Q (fase 3b review, "il boss non delude mai", decisione del
+   proprietario): il ripiego DETERMINISTICO puro (RunContentLoad quando
+   generated/current_run.txt non esiste ancora, MakeFallbackBossItem in
+   run_content.c) deve dare comunque un bossItem raro o leggendario per
+   ciascuno dei 5 piani, mai comune -- lo stesso principio che gia' vale per
+   il manifest VERO generato da melting-gen (GEN_RARITY_WEIGHTS_BOSS, vedi
+   scripts/test-gen.sh), esteso qui al caso degenere "nessun manifest
+   ancora". Sposta via il manifest PRIMA di RunContentLoad (rename, non
+   remove: un giro precedente di make test-gen puo' averne lasciato uno vero
+   in generated/, e questo test non e' la sede giusta per distruggerlo) per
+   essere sicuri di esercitare il ramo di ripiego puro, poi lo rimette al
+   suo posto subito dopo, che il test passi o fallisca. */
+static bool TestFallbackBossItemIsRare(void)
+{
+    static const char *kManifest = "generated/current_run.txt";
+    static const char *kBackup = "generated/current_run.txt.rarity-test-bak";
+    bool hadManifest = (rename(kManifest, kBackup) == 0);
+
+    RunContent content = { 0 };
+    RunContentLoad(&content, 777u);
+
+    bool ok = true;
+    for (int f = 0; f < FLOOR_COUNT; f++)
+    {
+        Rarity r = content.floors[f].bossItem.rarity;
+        if (r != RARITY_RARE && r != RARITY_LEGENDARY)
+        {
+            printf("      FALLITO: floor %d bossItem.rarity = %d, atteso raro o leggendario (ripiego puro, mai comune)\n", f, (int)r);
+            ok = false;
+        }
+    }
+
+    if (hadManifest) rename(kBackup, kManifest);
+    return ok;
+}
+
 /* Test J: un oggetto stat-up SENZA alcuno script Lua (mai generato: il caso
    piu' comune quando il modello fallisce/opta per non proporre nulla) non
    deve mai restare senza effetto ("so a boss reward is never a dud", task
@@ -844,6 +911,8 @@ bool ScriptItemsSelfTest(void)
         { "M (rarita': il tetto per-oggetto scala, leggendario > comune, entrambi in banda)", TestRarityCapDiffersFromCommonToLegendary },
         { "N (rarita': cinque leggendari impilati restano dentro la banda globale)", TestFiveLegendariesStayInBand },
         { "O (rarita': il costo del negozio cresce con la rarita')", TestShopCostScalesWithRarity },
+        { "P (rarita': RarityFromText round-trip sui 4 testi canonici, sincronizzato con GEN_RARITIES)", TestRarityTextRoundTrip },
+        { "Q (rarita': il ripiego puro senza manifest da' comunque un boss raro/leggendario, mai comune)", TestFallbackBossItemIsRare },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

@@ -88,6 +88,27 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
             printf("REJECTED: %s\n", err);
             exit(1);
         }
+        else if (strcmp(argv[i], "--prompt-budget-check") == 0)
+        {
+            /* Guardia byte-budget del prompt Lua (fase 3b review), senza
+             * alcun modello: vedi gen_lua.h (GenLuaPromptBudgetCheck,
+             * GEN_LUA_PROMPT_BYTE_CEILING) per il perche' e la derivazione
+             * del ceiling. Usata da scripts/test-gen.sh, mai da
+             * scripts/test-llm.sh (non serve un modello caricato). Legge i
+             * template da args->promptsDir (--prompts per cambiarlo, PRIMA
+             * di questo flag sulla riga di comando: stesso ordine di
+             * dipendenza di --lua-check sopra), stampa OK/FALLITO su
+             * stdout ed esce con 0/1. */
+            char err[192];
+            bool ok = GenLuaPromptBudgetCheck(args->promptsDir, err, sizeof(err));
+            if (ok)
+            {
+                printf("OK\n");
+                exit(0);
+            }
+            printf("FALLITO: %s\n", err);
+            exit(1);
+        }
         else
         {
             fprintf(stderr, "melting-gen: opzione sconosciuta: %s\n", argv[i]);

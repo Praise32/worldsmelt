@@ -24,6 +24,15 @@
 #include "melting_gen.h"
 
 #include <stdbool.h>
+#include <stddef.h>
+
+/* Quanti token il modello genera per lo script Lua di UN oggetto (spostata
+   qui da gen_lua.c in fase 3b review: GEN_LUA_PROMPT_BYTE_CEILING sotto ne
+   ha bisogno per calcolare quanti token restano al PROMPT dentro
+   GEN_LLM_SESSION_N_CTX, vedi melting_gen.h). Uno script piccolo: abbondante
+   per "una sola sinergia" (vedi il prompt), tiene la fase dentro
+   GEN_LUA_PHASE_BUDGET_SEC. */
+#define GEN_LUA_N_PREDICT 384
 
 typedef struct GenLuaStats {
     int firstTry;       /* script valido al primo tentativo */
@@ -80,5 +89,73 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
    generatore: uno script scritto a mano resta libero di usare on_evaluate
    su un oggetto attivo. */
 bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize);
+
+/* ============================================================
+   Guardia byte-budget del prompt Lua (fase 3b review, "un guard automatico
+   contro una futura re-inflazione"): vedi il commento sopra
+   GEN_RARITY_PROMPT_HINTS in tools/melting-gen/gen_util.c per il bug REALE
+   che questa guardia previene -- durante lo sviluppo della fase 3b, hint di
+   rarita' scritti come frasi intere (invece delle frasi brevi di oggi)
+   hanno fatto sforare GEN_LLM_SESSION_N_CTX per OGNI singolo prompt Lua di
+   una run, mandando in fallback silenzioso tutti e 20 gli script (0 Lua):
+   `make test-gen` restava verde lo stesso (non tocca mai il modello vero),
+   solo un giro reale di `make test-llm` lo mostrava nel log. Questa guardia
+   non serve il modello: compone il prompt Lua PIU' GRANDE che melting-gen
+   possa costruire oggi con la stessa BuildLuaPrompt della generazione vera
+   (gen_lua.c, non una sua reimplementazione: se BuildLuaPrompt cambia, la
+   guardia la segue) e lo confronta a un ceiling in BYTE, cosi'
+   `scripts/test-gen.sh` (senza modello) puo' farla fallire in CI.
+
+   Perche' un ceiling in BYTE e non in token: contare i token veri richiede
+   il tokenizer del modello (vocabolario GGUF), che scripts/test-gen.sh non
+   carica di proposito (deve restare "senza modello", vedi il commento in
+   cima allo script) -- caricare anche solo il vocabolario per ogni run di
+   `make test-gen` e' un costo che qui non vale la pena pagare per una
+   guardia cosi' economica. Un ceiling in byte, tarato una tantum a mano
+   sotto, e' una stima sufficiente: falso-negativo occasionale su un prompt
+   che cresce di poche decine di byte, ma cattura senza ambiguita' il tipo
+   di regressione REALE del bug sopra (una frase intera al posto di un
+   hint di poche parole).
+
+   Derivazione del ceiling: GEN_LLM_SESSION_N_CTX (melting_gen.h, la
+   sessione condivisa) meno GEN_LUA_N_PREDICT sopra = quanti token il
+   PROMPT puo' occupare senza intaccare il budget riservato all'output
+   generato -- lo stesso confine che GenLlmComplete gia' impone a runtime
+   (gen_llm.c: "prompt+nPredict <= n_ctx", che pero' degrada sempre con un
+   log+fallback, mai un crash: quella resta l'ultima rete di sicurezza,
+   questa guardia serve solo a scoprirlo PRIMA, senza il modello). Convertiti
+   in byte con ~3.2 caratteri/token: non e' un numero a caso, e' vicino al
+   rapporto misurato UNA TANTUM (non ad ogni build, serve il modello vero)
+   tokenizzando per davvero il prompt Lua piu' grande di oggi col
+   vocabolario di Qwen2.5-Coder (vocab-only, ~5ms, nessuna inferenza):
+
+     deps/llama.cpp/build/bin/test-tokenizer-0 \
+       models/qwen2.5-coder-7b-instruct-q4_k_m.gguf <prompt-composto>.txt
+
+   -> 11601 byte = 3695 token reali (~3.14 caratteri/token per questo
+   contenuto misto italiano+Lua: lua_system.txt, il cheat-sheet condiviso,
+   pesa da solo 10683 dei circa 11600 byte del prompt piu' grande). Il
+   prompt Lua di oggi e' quindi GIA' vicino al tetto (solo ~14 token di
+   margine sotto n_ctx-GEN_LUA_N_PREDICT=3712): non e' una scoperta di
+   questa guardia, e' lo stesso motivo per cui GEN_RARITY_PROMPT_HINTS sono
+   "VOLUTAMENTE brevi" (vedi gen_util.c). Con un margine cosi' stretto un
+   ceiling byte non puo' inseguire l'ultimo token: il *16/5 sotto (= *3.2,
+   interi per evitare float in una #define) e' scelto leggermente PIU'
+   GENEROSO del rapporto misurato apposta, cosi' la guardia passa oggi senza
+   sfarfallare a ogni piccola modifica cosmetica del prompt, restando comunque
+   ben sotto l'intero n_ctx e capace di intercettare senza ambiguita' una
+   vera re-inflazione (centinaia di byte in piu', non decine). */
+#define GEN_LUA_PROMPT_BYTE_CEILING (((GEN_LLM_SESSION_N_CTX) - (GEN_LUA_N_PREDICT)) * 16 / 5)
+
+/* Compone il prompt Lua piu' grande possibile (entrambe le categorie,
+   attivo/stat-up: usa il template piu' grande delle due; hint di rarita'
+   piu' lungo fra i quattro di GEN_RARITY_PROMPT_HINTS; un contesto oggetto
+   rappresentativo, non i limiti di campo estremi) leggendo i prompt da
+   'promptsDir', e fallisce se supera GEN_LUA_PROMPT_BYTE_CEILING. Nessun
+   modello coinvolto (vedi il commento sopra). 'err' (puo' essere NULL/
+   errSize 0) riceve il motivo del fallimento (file mancanti o ceiling
+   superato, con le due dimensioni per il log). Ritorna true se il prompt
+   composto sta dentro il ceiling. */
+bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize);
 
 #endif

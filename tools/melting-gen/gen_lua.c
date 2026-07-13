@@ -337,7 +337,9 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
    ============================================================ */
 
 #define GEN_LUA_MAX_ATTEMPTS 3   /* tentativo iniziale + 2 ritenti, vedi il task brief */
-#define GEN_LUA_N_PREDICT 384    /* uno script piccolo: abbondante per "una sola sinergia" (vedi il prompt), tiene la fase dentro GEN_LUA_PHASE_BUDGET_SEC */
+/* GEN_LUA_N_PREDICT: vedi gen_lua.h (spostata li' in fase 3b review perche'
+   GEN_LUA_PROMPT_BYTE_CEILING, la guardia byte-budget del prompt, la usa per
+   calcolare quanti token restano al prompt dentro GEN_LLM_SESSION_N_CTX). */
 #define GEN_LUA_TEMP 0.6f        /* piu' bassa di quella del JSON (di norma 0.8): qui conta la correttezza sintattica/semantica, non la varieta' */
 
 static void TrimWhitespace(char *s)
@@ -449,6 +451,69 @@ static char *BuildLuaPrompt(const char *promptsDir, const char *floorTheme, cons
     free(sys);
     free(userFinal);
     return prompt;
+}
+
+/* Vedi gen_lua.h per la spiegazione completa (perche' esiste, il bug reale
+   che previene, la derivazione del ceiling). Riusa BuildLuaPrompt sopra
+   (la STESSA funzione della generazione vera, non una reimplementazione)
+   due volte -- una per categoria, attivo e stat-up, i due template utente
+   possibili -- con un GenItem sintetico che rappresenta il caso peggiore
+   su OGNI dimensione che puo' davvero variare:
+   - rarity: l'hint PIU' LUNGO fra i quattro di GEN_RARITY_PROMPT_HINTS
+     (gen_util.c) -- si scorre l'array invece di assumere quale sia oggi il
+     piu' lungo, cosi' la guardia resta corretta anche se l'ordine di
+     lunghezza cambiasse in futuro;
+   - traits: i due piu' lunghi (non un trait qualunque): fino a 2 traits per
+     oggetto (item->traitCount 1..2), uniti da BuildLuaPrompt con ", ";
+   - name/floorTheme: NON i limiti di campo estremi (item->name e' 48 byte,
+     ben oltre quanto un nome plausibile usa davvero: name/tema arrivano da
+     JSON generato dal modello con la grammatica run.gbnf, namechar{3,40},
+     o dal ripiego procedurale C, mai vicini al limite del campo), ma un
+     contesto rappresentativo un po' sopra la media osservata nel golden
+     file di ripiego (tests/melting-gen/golden-fallback-seed12345.txt) --
+     "rappresentativo", come da task brief, non uno stress-test dei campi. */
+bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
+{
+    if (err && errSize) err[0] = '\0';
+
+    int longestHint = 0;
+    for (int i = 1; i < 4; i++)
+    {
+        if (strlen(GEN_RARITY_PROMPT_HINTS[i]) > strlen(GEN_RARITY_PROMPT_HINTS[longestHint])) longestHint = i;
+    }
+
+    GenItem worst;
+    memset(&worst, 0, sizeof(worst));
+    snprintf(worst.name, sizeof(worst.name), "%s", "Lente del Vulcano Radioattivo");
+    snprintf(worst.slot, sizeof(worst.slot), "%s", "aura");
+    snprintf(worst.traits[0], sizeof(worst.traits[0]), "%s", "explode");
+    snprintf(worst.traits[1], sizeof(worst.traits[1]), "%s", "bounce");
+    worst.traitCount = 2;
+    snprintf(worst.rarity, sizeof(worst.rarity), "%s", GEN_RARITIES[longestHint]);
+    const char *floorTheme = "Laboratorio di Zucchero Radioattivo";
+
+    size_t worstBytes = 0;
+    for (int statUp = 0; statUp <= 1; statUp++)
+    {
+        char *prompt = BuildLuaPrompt(promptsDir, floorTheme, &worst, statUp != 0, NULL);
+        if (!prompt)
+        {
+            if (err) snprintf(err, errSize, "prompt Lua non costruibile (file mancanti in %s?)", promptsDir);
+            return false;
+        }
+        size_t len = strlen(prompt);
+        free(prompt);
+        if (len > worstBytes) worstBytes = len;
+    }
+
+    if (worstBytes > (size_t)GEN_LUA_PROMPT_BYTE_CEILING)
+    {
+        if (err) snprintf(err, errSize,
+            "prompt Lua composto = %zu byte, oltre il ceiling di %d (vedi GEN_LUA_PROMPT_BYTE_CEILING in gen_lua.h)",
+            worstBytes, GEN_LUA_PROMPT_BYTE_CEILING);
+        return false;
+    }
+    return true;
 }
 
 /* Corpo del ciclo prompt->modello->valida->ritenta per UN oggetto (attivo o
