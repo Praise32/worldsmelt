@@ -1,8 +1,15 @@
 # Melting Run GPU
 
-Piccolo action roguelite top-down GPU, costruito come base per testare run
-generate da OpenAI senza mettere la chiave API dentro raylib o dentro
-l'eseguibile C.
+Piccolo action roguelite top-down GPU. I contenuti di ogni run (temi, boss,
+oggetti, sinergie) sono generati da un LLM prima di iniziare a giocare. Di
+serie questo succede in locale: `tools/melting-gen` (C99 + llama.cpp su
+backend Vulkan) carica un modello Qwen2.5-Coder in GGUF, genera un JSON
+vincolato da una grammatica GBNF, lo valida e lo normalizza; niente rete,
+niente chiave API, niente dipendenze npm. Se il modello manca o la
+generazione fallisce, un generatore deterministico con seed prende il posto
+del modello: la run parte comunque. Il percorso storico con OpenAI + un
+piccolo sidecar Node resta disponibile come alternativa (sezione
+["OpenAI API"](#openai-api) più sotto) e non e' stato rimosso.
 
 Il gameplay segue una struttura da dungeon shooter stanza per stanza: 5 piani,
 mappa di stanze, nemici, boss, negozio, bombe, chiavi, monete, stanze tesoro e
@@ -60,7 +67,7 @@ scripts/setup-deps.sh          # una tantum: apt + raylib + llama.cpp (chiede la
 make                           # compila gioco + melting-gen
 make run                       # gioca (manifest esistente o fallback interno)
 scripts/download-models.sh     # scarica i modelli GGUF (~5,8 GB, riprendibile)
-./bin/melting_run_gpu --generate   # nuova run generata in locale: INVIO dal menu, R in gioco
+make run-gen                   # nuova run generata in locale: INVIO dal menu, R in gioco
 make test && make test-gen     # test senza modello
 make test-llm                  # generazione reale + tempi (vedi docs/BENCHMARKS.md)
 ```
@@ -69,8 +76,9 @@ La generazione locale usa Qwen2.5-Coder 7B (GGUF Q4_K_M, Apache 2.0) con
 llama.cpp su backend Vulkan e una grammatica GBNF che rende impossibile un
 JSON malformato; senza modelli scaricati il gioco ripiega sempre sul
 generatore deterministico interno. `make run` da solo non genera nulla di
-nuovo: serve il flag `--generate` sul binario del gioco per abilitare la
-generazione dal menu/in partita. Design e roadmap in `docs/superpowers/specs/`.
+nuovo: serve `make run-gen` (o il flag `--generate` sul binario del gioco a
+mano) per abilitare la generazione dal menu/in partita. Design e roadmap in
+`docs/superpowers/specs/`.
 
 `make test` apre finestre (i test dei portali, dello smoke test, ecc.): se
 `xvfb-run` è installato (lo installa `scripts/setup-deps.sh`) il Makefile li
@@ -100,6 +108,30 @@ quasi neri, cosi' gli sprite possono essere disegnati senza quadrati di sfondo.
 
 ## Pipeline dinamica
 
+Percorso locale, di serie (`make run-gen` o `--generate` sul binario):
+
+```text
+gioco (C + raylib)
+  -> lancia bin/melting-gen come processo figlio (llama.cpp su Vulkan)
+       -> carica il modello Qwen2.5-Coder GGUF
+       -> genera JSON vincolato da una grammatica GBNF (tools/melting-gen/run.gbnf)
+       -> valida e normalizza con cJSON (fino a 2 retry se il JSON e' incoerente)
+       -> generated/current_run.json
+       -> generated/current_run.txt
+       -> generated/current_atlas.bmp
+       -> esce, libera la VRAM
+  -> il gioco rilegge il manifest e riparte
+```
+
+La grammatica rende impossibile un JSON malformato; il validatore controlla
+che i valori abbiano senso (slot, trait, range ammessi). Se il modello manca,
+il caricamento fallisce o i retry si esauriscono, `melting-gen` ripiega da
+solo su un generatore deterministico con seed: in ogni caso il manifest
+scritto e' valido e il gioco non vede mai un errore.
+
+Percorso storico, con OpenAI + sidecar Node (opzionale, vedi sezione
+["OpenAI API"](#openai-api) sopra):
+
 ```text
 OpenAI Responses API
   -> generated/current_run.json
@@ -114,8 +146,9 @@ Fallback/forzatura locale
   -> generated/current_atlas.bmp
 ```
 
-Il gioco legge sempre un manifest semplice, non JSON diretto. Questo tiene il C
-leggero e rende facile capire cosa e' stato generato.
+Il gioco legge sempre un manifest semplice, non JSON diretto, indipendentemente
+da quale dei due percorsi lo ha scritto. Questo tiene il C leggero e rende
+facile capire cosa e' stato generato.
 
 ## Script sandboxati
 
@@ -205,23 +238,26 @@ le porte finche' non le ripulisci.
 ## Architettura
 
 - `src/main.c`: punto di ingresso minimo che delega ad `AppRun`.
-- `src/app/`: ciclo applicativo, finestra e modalità menu/gioco/pausa.
+- `src/app/`: ciclo applicativo, finestra e modalità menu/gioco/pausa/generazione.
 - `src/assets/`: caricamento e rilascio delle risorse Raylib.
 - `src/content/`: manifest e contenuti della run.
 - `src/core/`: strutture dati, costanti, matematica, colori e RNG.
 - `src/game/`: inizializzazione e orchestrazione dello stato.
 - `src/gameplay/`: entità, combattimento, oggetti e mini VM.
+- `src/gen/`: ciclo di vita del processo di generazione locale (avvio, progresso, timeout, annullamento); nessuna logica di gioco.
 - `src/render/`: rendering del gioco e dell'interfaccia.
 - `src/tests/`: test interni richiamabili da riga di comando.
 - `src/world/`: stanze, mappe, transizioni e ricompense.
-- `llm/run_content.mjs`: chiamate OpenAI, schema, fallback e scrittura file.
-- `llm/generate_run.mjs`: comando da terminale per generare una run.
-- `llm/server.mjs`: piccolo sidecar HTTP locale opzionale.
-- `generated/current_run.json`: risposta strutturata dell'LLM.
+- `tools/melting-gen/`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico), lanciato dal gioco come processo figlio con `--generate`.
+- `llm/run_content.mjs`: chiamate OpenAI, schema, fallback e scrittura file (percorso storico).
+- `llm/generate_run.mjs`: comando da terminale per generare una run con OpenAI.
+- `llm/server.mjs`: piccolo sidecar HTTP locale opzionale per il percorso OpenAI.
+- `generated/current_run.json`: risposta strutturata dell'LLM (locale o OpenAI).
 - `generated/current_run.txt`: manifest letto dal gioco C.
-- `generated/current_atlas.png`: spritesheet generato da OpenAI e letto dal gioco.
-- `generated/current_atlas.bmp`: fallback locale o atlas forzato con `--local-atlas`.
+- `generated/current_atlas.png`: spritesheet generato dalla Image API di OpenAI (percorso storico).
+- `generated/current_atlas.bmp`: atlas scritto dal percorso locale `melting-gen`, oppure fallback/atlas forzato del percorso OpenAI con `--local-atlas`.
 - `generated/current_atlas.json`: mappa celle dell'atlas.
+- `generated/gen_progress.txt`: progresso della generazione locale, letto dalla barra di caricamento in gioco.
 - `docs/`: appunti, decisioni architetturali, setup e problemi noti.
 
 I file in `generated/` sono ignorati da git per non committare contenuti
@@ -233,10 +269,16 @@ La struttura completa e le regole per aggiungere nuovi moduli sono descritte in
 ## Limiti intenzionali
 
 - L'LLM lavora prima della run, non durante il gameplay.
-- Lo spritesheet IA puo' non rispettare perfettamente la griglia; per questo il
-  prompt e' molto vincolato e resta disponibile `--local-atlas` come fallback.
+- Il percorso locale genera solo testo: lo spritesheet resta sempre l'atlas
+  BMP interno (sprite generati in locale sono una fase futura della roadmap).
+  Lo spritesheet IA del percorso storico OpenAI puo' non rispettare
+  perfettamente la griglia; per questo il prompt e' molto vincolato e resta
+  disponibile `--local-atlas` come fallback.
 - Niente dipendenze npm.
 - Niente chiavi API dentro il C.
 - Niente audio per ora.
-- Il sistema e' piccolo di proposito: serve a validare OpenAI + roguelite, poi
-  si puo' espandere con fusione oggetti, boss pattern e asset migliori.
+- Il sistema resta volutamente piccolo: valida la generazione di contenuti via
+  LLM (locale di serie, OpenAI come alternativa) applicata a un roguelite
+  semplice. Le fasi future (sprite locali, sandbox Lua per sinergie uniche,
+  UI raygui, benchmark automatico) sono nella roadmap in
+  `docs/superpowers/specs/`.

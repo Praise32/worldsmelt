@@ -5,6 +5,8 @@ Il programma è diviso per responsabilità. `src/main.c` contiene soltanto il pu
 ```text
 src/main.c
     -> app/AppRun
+        -> gen/GenRunner (opzionale, con --generate: stato APP_GENERATING)
+            -> tools/melting-gen (processo figlio, poi esce)
         -> game/GameUpdate
             -> world
             -> gameplay
@@ -25,9 +27,11 @@ src/main.c
 - `gameplay/entities`: creazione e pulizia delle entità.
 - `gameplay/item_traits`: conversione e descrizione dei tratti.
 - `gameplay/script_vm`: interprete dichiarativo sandboxato.
+- `gen`: ciclo di vita del processo esterno di generazione (avvio, sondaggio del progresso, timeout, annullamento); nessuna logica di gioco.
 - `render`: rendering della scena e dell'interfaccia esistente.
 - `tests`: test del portale e della mini-VM.
 - `world`: generazione delle stanze, transizioni e ricompense.
+- `tools/melting-gen` (fuori da `src/`, ma parte della build): generatore locale — llama.cpp su backend Vulkan, grammatica GBNF, validatore e fallback deterministico. Scrive lo stesso manifest del sidecar Node in `llm/`.
 
 ## Regola per le nuove funzioni
 
