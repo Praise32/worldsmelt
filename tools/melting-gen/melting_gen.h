@@ -53,6 +53,7 @@ int GenRngRange(unsigned int *state, int min, int max);
 void GenHsvToHex(double h, double s, double v, char out[8]);
 int GenEnsureDir(const char *path);
 char *GenReadFile(const char *path);   /* buffer malloc terminato da zero, NULL su errore */
+int GenFileExists(const char *path);
 void GenProgressWrite(const char *outDir, const char *phase, int percent, const char *message);
 void GenLogLine(const char *fmt, ...);
 extern const char *GEN_SLOTS[6];
@@ -72,5 +73,20 @@ int GenWriteAtlasBmp(const GenRun *run, const char *outDir);
 /* gen_validate.c (Task 6) */
 struct cJSON;
 void GenNormalizeRun(const struct cJSON *raw, unsigned int seed, GenRun *out);
+
+/* gen_llm.c */
+typedef struct GenLlmConfig {
+    const char *modelPath;
+    int nGpuLayers;
+    int nPredict;
+    float temp;
+    unsigned int seed;
+    const char *outDir;
+    const char *promptsDir;
+    const char *grammarPath;
+} GenLlmConfig;
+
+int GenLlmGenerate(const GenLlmConfig *cfg, char *out, size_t outCap,
+                   double *loadSecs, double *genSecs, int *tokensOut);
 
 #endif

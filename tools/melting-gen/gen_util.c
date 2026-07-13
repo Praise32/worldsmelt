@@ -68,6 +68,12 @@ char *GenReadFile(const char *path)
     return buf;
 }
 
+int GenFileExists(const char *path)
+{
+    struct stat st;
+    return path && stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 void GenProgressWrite(const char *outDir, const char *phase, int percent, const char *message)
 {
     char tmp[512], fin[512];

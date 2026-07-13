@@ -14,6 +14,13 @@ typedef struct GenArgs {
     unsigned int seed;
     const char *outDir;
     const char *fromJson;
+    const char *model;
+    const char *modelFallback;
+    int ngl;
+    float temp;
+    int nPredict;
+    const char *promptsDir;
+    const char *grammarPath;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -23,6 +30,13 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->seed = (unsigned int)time(NULL);
     args->outDir = "generated";
     args->fromJson = NULL;
+    args->model = "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf";
+    args->modelFallback = "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
+    args->ngl = 99;   /* il Task 8 lo ricalibra */
+    args->temp = 0.8f;
+    args->nPredict = 2048;
+    args->promptsDir = "tools/melting-gen/prompts";
+    args->grammarPath = "tools/melting-gen/run.gbnf";
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -37,6 +51,12 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) args->seed = (unsigned int)strtoul(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
         else if (strcmp(argv[i], "--from-json") == 0 && i + 1 < argc) args->fromJson = argv[++i];
+        else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) args->model = argv[++i];
+        else if (strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) args->ngl = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--temp") == 0 && i + 1 < argc) args->temp = (float)atof(argv[++i]);
+        else if (strcmp(argv[i], "--n-predict") == 0 && i + 1 < argc) args->nPredict = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--prompts") == 0 && i + 1 < argc) args->promptsDir = argv[++i];
+        else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) args->grammarPath = argv[++i];
         else
         {
             fprintf(stderr, "melting-gen: opzione sconosciuta: %s\n", argv[i]);
@@ -95,14 +115,56 @@ int main(int argc, char **argv)
         return WriteOutputs(&run, &args);
     }
 
+    GenRun run;
+    int haveRun = 0;
     if (!args.fallback)
     {
-        fprintf(stderr, "melting-gen: la generazione LLM arriva con i task successivi; usa --fallback\n");
-        GenProgressWrite(args.outDir, "errore", 100, "modalita' non disponibile");
-        return 2;
-    }
+        const char *modelPath = NULL;
+        if (GenFileExists(args.model)) modelPath = args.model;
+        else if (GenFileExists(args.modelFallback))
+        {
+            modelPath = args.modelFallback;
+            GenLogLine("modello principale assente, ripiego su %s", modelPath);
+        }
+        else GenLogLine("nessun modello in models/: uso il fallback deterministico");
 
-    GenRun run;
-    GenFallbackRun(&run, args.seed);
+        static char json[65536];
+        for (int attempt = 0; modelPath && attempt < 3 && !haveRun; attempt++)
+        {
+            GenLlmConfig cfg = {
+                .modelPath = modelPath,
+                .nGpuLayers = args.ngl,
+                .nPredict = args.nPredict,
+                .temp = args.temp,
+                .seed = args.seed + (unsigned int)attempt*7919u,
+                .outDir = args.outDir,
+                .promptsDir = args.promptsDir,
+                .grammarPath = args.grammarPath,
+            };
+            double loadSecs = 0, genSecs = 0;
+            int tokens = 0;
+            if (GenLlmGenerate(&cfg, json, sizeof(json), &loadSecs, &genSecs, &tokens) != 0)
+            {
+                GenLogLine("tentativo %d: generazione fallita", attempt + 1);
+                continue;
+            }
+            cJSON *root = cJSON_Parse(json);
+            if (!root)
+            {
+                GenLogLine("tentativo %d: JSON troncato o non parsabile (%d token)", attempt + 1, tokens);
+                continue;
+            }
+            GenProgressWrite(args.outDir, "valido", 94, "valido e normalizzo");
+            GenNormalizeRun(root, args.seed, &run);
+            cJSON_Delete(root);
+            const char *base = strrchr(modelPath, '/');
+            snprintf(run.source, sizeof(run.source), "local:%s", base ? base + 1 : modelPath);
+            GenLogLine("ok: model=%s ngl=%d load=%.1fs gen=%.1fs token=%d (%.1f tok/s)",
+                       modelPath, args.ngl, loadSecs, genSecs, tokens,
+                       genSecs > 0 ? tokens/genSecs : 0.0);
+            haveRun = 1;
+        }
+    }
+    if (!haveRun) GenFallbackRun(&run, args.seed);
     return WriteOutputs(&run, &args);
 }

@@ -39,7 +39,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen run test test-gen clean
+.PHONY: all game gen run test test-gen test-llm clean
 
 all: game gen
 
@@ -67,6 +67,9 @@ test: game
 
 test-gen: all
 	bash scripts/test-gen.sh
+
+test-llm: all
+	bash scripts/test-llm.sh
 
 clean:
 	rm -rf bin
