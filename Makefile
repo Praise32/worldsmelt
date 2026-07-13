@@ -25,6 +25,20 @@ GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
   -lvulkan -lgomp -lstdc++ -lpthread -lm -ldl
 GEN_BIN := bin/melting-gen
 
+# I test aprono una finestra. Su Wayland, se la sessione e' bloccata o la finestra
+# non e' visibile, il compositor smette di consegnare frame e il gioco resta appeso
+# al primo SwapBuffers. I test girano quindi su un display X11 virtuale quando
+# xvfb-run e' disponibile: schermo a 24 bit (a 8 bit OpenGL non parte) e
+# XDG_RUNTIME_DIR vuoto, altrimenti GLFW sceglie comunque il socket Wayland.
+XVFB := $(shell command -v xvfb-run 2>/dev/null)
+XVFB_RUNTIME := $(CURDIR)/.xvfb-runtime
+ifeq ($(XVFB),)
+TEST_RUNNER :=
+else
+TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
+  $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
+endif
+
 .PHONY: all game gen run test clean
 
 all: game gen
@@ -45,10 +59,11 @@ run: game
 	./$(GAME_BIN)
 
 test: game
-	./$(GAME_BIN) --script-test
-	./$(GAME_BIN) --portal-test
-	./$(GAME_BIN) --smoke-test
-	./$(GAME_BIN) --screenshot-test
+	@mkdir -p $(XVFB_RUNTIME) && chmod 700 $(XVFB_RUNTIME)
+	$(TEST_RUNNER) ./$(GAME_BIN) --script-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --portal-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 
 clean:
 	rm -rf bin

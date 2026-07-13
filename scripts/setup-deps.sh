@@ -13,7 +13,7 @@ SUDO="sudo"
 $SUDO apt-get update
 $SUDO apt-get install -y build-essential cmake git \
   libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev \
-  libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev \
+  libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev xvfb \
   libvulkan-dev glslc spirv-headers vulkan-tools
 
 mkdir -p deps

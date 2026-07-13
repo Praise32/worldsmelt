@@ -35,3 +35,6 @@ Thumbs.db
 
 # Il grafo viene rigenerato localmente da codebase-memory-mcp.
 .codebase-memory/
+
+# Display virtuale per i test
+.xvfb-runtime/
