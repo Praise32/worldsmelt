@@ -68,6 +68,16 @@ char *SpritesLoadCellPrompt(const char *promptsDir, int cellIndex, const char *t
     char *tmpl = SpritesReadFile(path);
     if (!tmpl) return NULL;
     TrimTrailingWhitespace(tmpl);
+    if (!tmpl[0])
+    {
+        /* File presente ma vuoto (o di soli spazi/a-capo, azzerati dal trim
+           sopra): stesso trattamento di un file mancante, come documentato
+           in melting_sprites.h. Senza questo controllo un prompt vuoto
+           arriverebbe comunque al modello, che genererebbe un'immagine non
+           guidata invece di lasciare la cella trasparente. */
+        free(tmpl);
+        return NULL;
+    }
     char *out = SpritesExpandTemplate(tmpl, theme, style);
     free(tmpl);
     return out;

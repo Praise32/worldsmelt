@@ -6,7 +6,7 @@
    Makefile, SPRITES_LIBS vs GEN_LIBS). Questo file e' la prova che nessun
    simbolo di sd.cpp trapela fuori dal modulo.
 
-   Parametri (modello, LoRA, 512x512, 8 passi, LCM, cfg 1.5, vae_conv_direct,
+   Parametri (modello, LoRA, 512x512, 8 passi, LCM, cfg 1.8, vae_conv_direct,
    flash-attn OFF) misurati nello spike, vedi docs/SPRITES-SPIKE.md: non
    ridiscussi qui. */
 #include "melting_sprites.h"
@@ -76,12 +76,14 @@ SpriteSdCtx *SpriteSdLoad(const SpriteSdConfig *cfg, double *loadSecs)
     if (!self->ctx)
     {
         SpritesLogLine("sd: new_sd_ctx fallita (modello=%s)", cfg->modelPath);
+        sd_set_log_callback(NULL, NULL);   /* self sta per essere liberato: non lasciare un puntatore penzolante registrato */
         free(self);
         return NULL;
     }
     if (!sd_ctx_supports_image_generation(self->ctx))
     {
         SpritesLogLine("sd: il contesto caricato non supporta la generazione di immagini (modello=%s)", cfg->modelPath);
+        sd_set_log_callback(NULL, NULL);   /* idem */
         free_sd_ctx(self->ctx);
         free(self);
         return NULL;
@@ -102,7 +104,7 @@ SpriteSdCtx *SpriteSdLoad(const SpriteSdConfig *cfg, double *loadSecs)
         }
         else
         {
-            SpritesLogLine("sd: LoRA assente: %s (continuo senza; a 8 passi/cfg 1.5 senza LCM la qualita' ne risente)",
+            SpritesLogLine("sd: LoRA assente: %s (continuo senza; a 8 passi/cfg 1.8 senza LCM la qualita' ne risente)",
                            cfg->loraPath);
         }
     }
@@ -118,6 +120,7 @@ double SpriteSdVramMB(const SpriteSdCtx *ctx)
 void SpriteSdFree(SpriteSdCtx *ctx)
 {
     if (!ctx) return;
+    sd_set_log_callback(NULL, NULL);   /* ctx (user-data di SdLogCb) sta per essere liberato */
     if (ctx->ctx) free_sd_ctx(ctx->ctx);
     free(ctx);
 }

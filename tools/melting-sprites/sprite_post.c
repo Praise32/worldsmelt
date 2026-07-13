@@ -82,6 +82,18 @@ int SpritesCutBackground(unsigned char *cellRgba, int tol, int tolHalo)
        soglia globale sulla luminosita' invece lo distruggerebbe. */
     unsigned char *mask = calloc((size_t)SPRITE_CELL*SPRITE_CELL, 1);
     int *stack = malloc(sizeof(int)*(size_t)SPRITE_CELL*SPRITE_CELL);
+    if (!mask || !stack)
+    {
+        /* Contratto del tool: mai un crash. Senza questi due buffer non si
+           puo' fare il flood fill: invece di proseguire su un puntatore
+           NULL, si lascia la cella del tutto trasparente. Il chiamante
+           (GenerateCellReal in main.c) tratta gia' una cella cosi' come uno
+           scarto normale del gate di qualita': il gioco disegna la sua
+           forma geometrica di riserva per quell'entita'. */
+        free(mask); free(stack);
+        memset(cellRgba, 0, (size_t)SPRITE_CELL*SPRITE_CELL*4);
+        return SPRITE_CELL*SPRITE_CELL;
+    }
     int sp = 0, t2 = tol*tol;
     for (int i = 0; i < SPRITE_CELL; i++)
     {
@@ -109,6 +121,12 @@ int SpritesCutBackground(unsigned char *cellRgba, int tol, int tolHalo)
     for (int pass = 0; pass < 2; pass++)
     {
         unsigned char *add = calloc((size_t)SPRITE_CELL*SPRITE_CELL, 1);
+        if (!add)
+        {
+            free(mask); free(stack);
+            memset(cellRgba, 0, (size_t)SPRITE_CELL*SPRITE_CELL*4);
+            return SPRITE_CELL*SPRITE_CELL;
+        }
         for (int p = 0; p < SPRITE_CELL*SPRITE_CELL; p++)
         {
             if (mask[p]) continue;
@@ -135,6 +153,17 @@ void SpritesQuantize(unsigned char *cellRgba, int ncolors)
     int n = SPRITE_CELL*SPRITE_CELL, m = 0;
     unsigned char *op = malloc((size_t)n*4);
     int *map = malloc(sizeof(int)*(size_t)n);
+    if (!op || !map)
+    {
+        /* Come in SpritesCutBackground: senza questi buffer non si puo'
+           quantizzare, e la cella potrebbe gia' avere un canale alpha
+           parzialmente valido dal ritaglio. Meglio azzerarla del tutto
+           (trasparente) che lasciarla in uno stato a meta' o andare in
+           crash su un puntatore NULL. */
+        free(op); free(map);
+        memset(cellRgba, 0, (size_t)n*4);
+        return;
+    }
     for (int p = 0; p < n; p++)
     {
         if (cellRgba[p*4+3] == 0) { map[p] = -1; continue; }
@@ -167,6 +196,12 @@ void SpritesQuantize(unsigned char *cellRgba, int ncolors)
     }
 
     unsigned char *idx = malloc((size_t)m);
+    if (!idx)
+    {
+        exq_free(e); free(op); free(map);
+        memset(cellRgba, 0, (size_t)n*4);
+        return;
+    }
     exq_map_image(e, m, op, idx);
     for (int p = 0; p < n; p++)
     {

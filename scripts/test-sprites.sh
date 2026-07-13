@@ -18,9 +18,23 @@ nm "$SPR" 2>/dev/null > "$NM_OUT"
 grep -qiE 'new_sd_ctx|generate_image' "$NM_OUT"
 ! grep -qiE 'llama_model_load|llama_decode|llama_sampler' "$NM_OUT"
 
-echo "-- senza modello ne' --dry-run, si ripiega su celle sintetiche invece di andare in crash --"
-"$SPR" --out "$TMP/nomodel" --model "$TMP/nessun-modello.ckpt" --seed 1 >/dev/null
-[ -f "$TMP/nomodel/current_atlas.png" ]
+echo "-- senza modello ne' --dry-run, si esce con errore invece di pubblicare un atlas placeholder --"
+# Prima di questo fix il tool ripiegava in silenzio sulle celle sintetiche di
+# --dry-run, scriveva current_atlas.png e ripuntava li' il manifest: il gioco
+# mostrava dodici dischi pastello quasi identici dichiarando "Stable
+# Diffusion", mentre l'atlas BMP procedurale (strettamente migliore) era gia'
+# su disco. Ora si esce con codice diverso da zero, SENZA scrivere l'atlas ne'
+# toccare il manifest: il gioco tiene gia' bene un passo sprite fallito
+# (mantiene l'atlas BMP, vedi src/gen/gen_runner.c).
+mkdir -p "$TMP/nomodel"
+printf 'atlas.path=generated/current_atlas.bmp\nfloor1.theme=Prova\n' > "$TMP/nomodel/current_run.txt"
+set +e
+"$SPR" --out "$TMP/nomodel" --model "$TMP/nessun-modello.ckpt" --seed 1 >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ]
+[ ! -f "$TMP/nomodel/current_atlas.png" ]
+grep -q '^atlas.path=generated/current_atlas.bmp$' "$TMP/nomodel/current_run.txt"
 
 echo "-- --dry-run produce un PNG 1024x1024 RGBA a 8 bit per canale --"
 "$SPR" --dry-run --seed 12345 --out "$TMP/a" >/dev/null
@@ -85,5 +99,29 @@ echo "-- --cells limita il numero di celle generate (per iterare in fretta) --"
 "$SPR" --dry-run --seed 1 --cells 3 --out "$TMP/d" >/dev/null
 "$SPR" --check --out "$TMP/d" --cells 3 > "$TMP/check3.txt"
 [ "$(wc -l < "$TMP/check3.txt")" -eq 3 ]
+
+echo "-- il gate di qualita' scarta una cella il cui riquadro opaco tocca il bordo --"
+# --dry-run normale (sopra) sintetizza sempre celle con margine di sfondo su
+# tutti i lati (vedi SynthesizeCell): il ramo "il riquadro opaco tocca il
+# bordo" di CellPassesQualityGate, il secondo tentativo con un altro seed, e
+# la cella lasciata trasparente quando anche il secondo fallisce non erano
+# MAI esercitati da nessun test. --dry-run-bad-border sintetizza invece una
+# cella deliberatamente vicina al bordo sinistro (vedi SynthesizeCellBadBorder
+# in main.c): stessa firma di un crop di Stable Diffusion fallito.
+: > logs/melting-sprites.log
+"$SPR" --dry-run-bad-border --seed 42 --cells 1 --out "$TMP/badborder" >/dev/null
+"$SPR" --check --out "$TMP/badborder" --cells 1 > "$TMP/badborder_check.txt"
+grep -q '^cell=0 opaque=0 ' "$TMP/badborder_check.txt"
+grep -q 'SCARTATA (dry-run-bad-border, tentativo 1): il riquadro opaco tocca il bordo' logs/melting-sprites.log
+grep -q 'SCARTATA (dry-run-bad-border, tentativo 2): il riquadro opaco tocca il bordo' logs/melting-sprites.log
+grep -q 'nessun tentativo valido (dry-run-bad-border), resta trasparente' logs/melting-sprites.log
+
+echo "-- SpritesUpdateManifestAtlasPath riscrive SOLO atlas.path, il resto del manifest sopravvive --"
+# Prima d'ora questa funzione non aveva alcuna copertura di test.
+mkdir -p "$TMP/manifest"
+printf 'floor1.theme=Tema di Prova\nfloor1.style=pixel semplice\natlas.path=generated/current_atlas.bmp\nextra.campo=invariato\n' > "$TMP/manifest/current_run.txt"
+"$SPR" --dry-run --seed 5 --cells 1 --out "$TMP/manifest" >/dev/null
+printf 'floor1.theme=Tema di Prova\nfloor1.style=pixel semplice\natlas.path=generated/current_atlas.png\nextra.campo=invariato\n' > "$TMP/manifest_expected.txt"
+diff "$TMP/manifest_expected.txt" "$TMP/manifest/current_run.txt"
 
 echo "TEST-SPRITES: OK"

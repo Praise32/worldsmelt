@@ -51,7 +51,7 @@ Nuovo eseguibile C99 (`tools/melting-sprites/`), che linka stable-diffusion.cpp
 2. Per ognuna delle 12 celle dell'atlas (player, 3 nemici, boss, oggetto, cuore, moneta,
    bomba, chiave, portale, colpo) costruisce un prompt: soggetto fisso + tema/stile della
    run + il trigger `pixelsprite` + la LoRA LCM.
-3. Genera a 512x512 (8 passi, LCM, cfg 1.5), riusando lo stesso contesto SD per tutti e 12.
+3. Genera a 512x512 (8 passi, LCM, cfg 1.8), riusando lo stesso contesto SD per tutti e 12.
 4. Post-processing per sprite: downscale modale 4x a 128x128, ritaglio dello sfondo con
    flood fill dai bordi, riduzione a 16 colori, `KEY_FLOOR` sui colori troppo scuri.
 5. Compone l'atlas 1024x1024 RGBA (8x8 celle da 128) e lo scrive come PNG.

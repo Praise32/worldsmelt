@@ -99,43 +99,53 @@ static bool DrawAtlasCell(Game *game, int cell, Vector2 pos, float size, Color t
 static void DrawEnemy(Game *game, const Enemy *e)
 {
     Color c = e->kind == ENEMY_BOSS ? game->theme.boss : game->theme.enemy;
+    /* drew traccia se l'atlas ha davvero disegnato qualcosa per QUESTA
+       entita': game->atlasLoaded dice solo che l'atlas e' caricato, non che
+       la cella di questo nemico sia presente (vedi DrawAtlasCell). Se la
+       cella e' vuota si ripiega sulla forma geometrica, invece di lasciare
+       il nemico invisibile. */
+    bool drew = false;
     if (game->atlasLoaded)
     {
         int cell = SPR_ENEMY_CHASER;
         if (e->kind == ENEMY_SHOOTER) cell = SPR_ENEMY_SHOOTER;
         else if (e->kind == ENEMY_TANK) cell = SPR_ENEMY_TANK;
         else if (e->kind == ENEMY_BOSS) cell = SPR_BOSS;
-        DrawAtlasCell(game, cell, e->pos, e->radius*3.3f, WHITE);
-        if (e->kind == ENEMY_BOSS) DrawText(game->theme.bossName, (int)(ROOM_X + 20), (int)(ROOM_Y + 16), 18, RAYWHITE);
+        drew = DrawAtlasCell(game, cell, e->pos, e->radius*3.3f, WHITE);
     }
-    else if (e->kind == ENEMY_CHASER)
+    /* Il nome del boss va sempre mostrato durante lo scontro, sia che si
+       disegni lo sprite sia la forma di riserva. */
+    if (e->kind == ENEMY_BOSS) DrawText(game->theme.bossName, (int)(ROOM_X + 20), (int)(ROOM_Y + 16), 18, RAYWHITE);
+    if (!drew)
     {
-        DrawCircleV(e->pos, e->radius, c);
-        DrawCircleV((Vector2){ e->pos.x - 5, e->pos.y - 4 }, 3, BLACK);
-        DrawCircleV((Vector2){ e->pos.x + 5, e->pos.y - 4 }, 3, BLACK);
-    }
-    else if (e->kind == ENEMY_SHOOTER)
-    {
-        DrawTriangle((Vector2){ e->pos.x, e->pos.y - e->radius },
-                     (Vector2){ e->pos.x - e->radius, e->pos.y + e->radius },
-                     (Vector2){ e->pos.x + e->radius, e->pos.y + e->radius }, c);
-        DrawCircleV(e->pos, 5, BLACK);
-    }
-    else if (e->kind == ENEMY_TANK)
-    {
-        DrawRectangleRounded((Rectangle){ e->pos.x - e->radius, e->pos.y - e->radius*0.75f, e->radius*2, e->radius*1.5f }, 0.25f, 8, c);
-        DrawCircleV((Vector2){ e->pos.x - 7, e->pos.y - 2 }, 4, BLACK);
-        DrawCircleV((Vector2){ e->pos.x + 7, e->pos.y - 2 }, 4, BLACK);
-    }
-    else
-    {
-        DrawCircleV(e->pos, e->radius, c);
-        for (int i = 0; i < 8; i++)
+        if (e->kind == ENEMY_CHASER)
         {
-            float a = (float)i*PI_F/4.0f + (float)GetTime();
-            DrawCircleV((Vector2){ e->pos.x + cosf(a)*(e->radius + 12.0f), e->pos.y + sinf(a)*(e->radius + 12.0f) }, 7.0f, game->theme.accent);
+            DrawCircleV(e->pos, e->radius, c);
+            DrawCircleV((Vector2){ e->pos.x - 5, e->pos.y - 4 }, 3, BLACK);
+            DrawCircleV((Vector2){ e->pos.x + 5, e->pos.y - 4 }, 3, BLACK);
         }
-        DrawText(game->theme.bossName, (int)(ROOM_X + 20), (int)(ROOM_Y + 16), 18, RAYWHITE);
+        else if (e->kind == ENEMY_SHOOTER)
+        {
+            DrawTriangle((Vector2){ e->pos.x, e->pos.y - e->radius },
+                         (Vector2){ e->pos.x - e->radius, e->pos.y + e->radius },
+                         (Vector2){ e->pos.x + e->radius, e->pos.y + e->radius }, c);
+            DrawCircleV(e->pos, 5, BLACK);
+        }
+        else if (e->kind == ENEMY_TANK)
+        {
+            DrawRectangleRounded((Rectangle){ e->pos.x - e->radius, e->pos.y - e->radius*0.75f, e->radius*2, e->radius*1.5f }, 0.25f, 8, c);
+            DrawCircleV((Vector2){ e->pos.x - 7, e->pos.y - 2 }, 4, BLACK);
+            DrawCircleV((Vector2){ e->pos.x + 7, e->pos.y - 2 }, 4, BLACK);
+        }
+        else
+        {
+            DrawCircleV(e->pos, e->radius, c);
+            for (int i = 0; i < 8; i++)
+            {
+                float a = (float)i*PI_F/4.0f + (float)GetTime();
+                DrawCircleV((Vector2){ e->pos.x + cosf(a)*(e->radius + 12.0f), e->pos.y + sinf(a)*(e->radius + 12.0f) }, 7.0f, game->theme.accent);
+            }
+        }
     }
     if (e->hp < e->maxHp)
     {
@@ -160,6 +170,12 @@ static void DrawPickup(Game *game, const Pickup *p)
     Vector2 pos = { p->pos.x, p->pos.y + bob };
     Color c = RAYWHITE;
     const char *label = "";
+    /* Come in DrawEnemy: drew dice se l'atlas ha davvero disegnato la cella
+       di QUESTO pickup, non solo se l'atlas e' caricato. Una cella vuota
+       (gate di qualita' fallito) deve far ripiegare sulla forma geometrica,
+       mai lasciare il pickup invisibile (l'uscita PICKUP_EXIT non aveva
+       nemmeno un'etichetta di riserva: senza sprite era del tutto invisibile). */
+    bool drew = false;
     if (game->atlasLoaded)
     {
         int cell = SPR_ITEM;
@@ -170,28 +186,27 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_KEY) { cell = SPR_KEY; label = "K"; }
         else if (p->kind == PICKUP_EXIT) { cell = SPR_EXIT; label = "EXIT"; size = 78.0f; }
         else label = p->item.name;
-        DrawAtlasCell(game, cell, pos, size, WHITE);
-        if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) DrawText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
-        if (p->cost > 0) DrawText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
-        else if (p->kind == PICKUP_ITEM) DrawText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
-        return;
+        drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
-    if (p->kind == PICKUP_HEART)
+    if (!drew)
     {
-        c = RED;
-        label = "HP";
-        DrawCircleV((Vector2){ pos.x - 5, pos.y - 3 }, 8, c);
-        DrawCircleV((Vector2){ pos.x + 5, pos.y - 3 }, 8, c);
-        DrawTriangle((Vector2){ pos.x - 13, pos.y + 1 }, (Vector2){ pos.x + 13, pos.y + 1 }, (Vector2){ pos.x, pos.y + 16 }, c);
-    }
-    else if (p->kind == PICKUP_COIN) { c = GOLD; label = "$"; DrawCircleV(pos, 11, c); }
-    else if (p->kind == PICKUP_BOMB) { c = DARKGRAY; label = "B"; DrawCircleV(pos, 12, c); DrawCircleV((Vector2){ pos.x + 6, pos.y - 8 }, 3, ORANGE); }
-    else if (p->kind == PICKUP_KEY) { c = SKYBLUE; label = "K"; DrawCircleV(pos, 10, c); DrawRectangle((int)pos.x, (int)pos.y - 3, 17, 6, c); }
-    else if (p->kind == PICKUP_EXIT) { c = game->theme.accent2; label = "EXIT"; DrawCircleV(pos, 26, GameColorWithAlpha(c, 90)); DrawCircleLines((int)pos.x, (int)pos.y, 24, c); }
-    else
-    {
-        DrawItemShape(pos, p->item, 14.0f);
-        label = p->item.name;
+        if (p->kind == PICKUP_HEART)
+        {
+            c = RED;
+            label = "HP";
+            DrawCircleV((Vector2){ pos.x - 5, pos.y - 3 }, 8, c);
+            DrawCircleV((Vector2){ pos.x + 5, pos.y - 3 }, 8, c);
+            DrawTriangle((Vector2){ pos.x - 13, pos.y + 1 }, (Vector2){ pos.x + 13, pos.y + 1 }, (Vector2){ pos.x, pos.y + 16 }, c);
+        }
+        else if (p->kind == PICKUP_COIN) { c = GOLD; label = "$"; DrawCircleV(pos, 11, c); }
+        else if (p->kind == PICKUP_BOMB) { c = DARKGRAY; label = "B"; DrawCircleV(pos, 12, c); DrawCircleV((Vector2){ pos.x + 6, pos.y - 8 }, 3, ORANGE); }
+        else if (p->kind == PICKUP_KEY) { c = SKYBLUE; label = "K"; DrawCircleV(pos, 10, c); DrawRectangle((int)pos.x, (int)pos.y - 3, 17, 6, c); }
+        else if (p->kind == PICKUP_EXIT) { c = game->theme.accent2; label = "EXIT"; DrawCircleV(pos, 26, GameColorWithAlpha(c, 90)); DrawCircleLines((int)pos.x, (int)pos.y, 24, c); }
+        else
+        {
+            DrawItemShape(pos, p->item, 14.0f);
+            label = p->item.name;
+        }
     }
     if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) DrawText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
     if (p->cost > 0) DrawText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
@@ -428,7 +443,7 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + 56, 14, (Color){ 214, 218, 226, 255 });
     DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + 92, RAYWHITE);
     DrawStatLine("Stanza", GameRoomKindName(GameCurrentRoom(game)->kind), lx, ly + 116, game->theme.accent2);
-    DrawStatLine("Fonte", game->content.loaded ? "OpenAI cache" : "fallback", lx, ly + 140, RAYWHITE);
+    DrawStatLine("Fonte", game->content.loaded ? "LLM cache" : "fallback", lx, ly + 140, RAYWHITE);
     DrawText("MAPPA", lx, ly + 184, 16, game->theme.accent2);
     DrawLargeMinimap(game, (Rectangle){ (float)lx, (float)(ly + 214), layout.leftPanel.width - 36.0f, 190.0f });
     DrawText("COMANDI", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 142), 16, game->theme.accent2);
@@ -486,7 +501,7 @@ static void DrawMenuOverlay(AppMode mode, Game *game)
     DrawText(title, (int)(box.x + box.width*0.5f - MeasureText(title, 38)*0.5f), (int)box.y + 36, 38, RAYWHITE);
     if (mode == APP_MENU)
     {
-        DrawText("Run generate da OpenAI, spritesheet API ritagliato a celle.", (int)box.x + 62, (int)box.y + 98, 18, game->theme.accent2);
+        DrawText("Run generata in locale: testo LLM, sprite Stable Diffusion.", (int)box.x + 62, (int)box.y + 98, 18, game->theme.accent2);
         DrawText("INVIO  nuova run", (int)box.x + 110, (int)box.y + 160, 24, RAYWHITE);
         DrawText("F11    cambia fullscreen", (int)box.x + 110, (int)box.y + 202, 22, RAYWHITE);
         DrawText("Q      esci", (int)box.x + 110, (int)box.y + 242, 22, RAYWHITE);

@@ -4,6 +4,7 @@
 #include "render/game_renderer.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 bool GamePortalRespawnTest(Game *game)
@@ -80,19 +81,39 @@ bool GameManifestTest(Game *game)
     return true;
 }
 
+/* Somma delle differenze assolute sui tre canali RGB fra due colori. Usata
+   sotto per verificare che un pixel sia cambiato nettamente fra due render
+   (soglia ben sopra il rumore di anti-aliasing/blend), senza dover predire a
+   mano il colore esatto risultante da un blend alpha ne' indovinare se la
+   riga diagonale della griglia del pavimento (DrawRoom) passa per quel
+   preciso pixel. */
+static int ColorChannelDiff(Color a, Color b)
+{
+    return abs((int)a.r - (int)b.r) + abs((int)a.g - (int)b.g) + abs((int)a.b - (int)b.b);
+}
+
 /* Verifica il bug critico della fase 2 (vedi la spec): una cella dell'atlas
    rimasta vuota (gate di qualita' di melting-sprites fallito) non deve
    rendere invisibile l'entita' corrispondente. Costruisce un atlas 1024x1024
-   sintetico con un canale alpha vero, tutto opaco tranne la cella del player
-   (colonna 0, riga 0), e verifica che: (1) il caricamento riconosca SOLO
-   quella cella come assente, non l'intero atlas; (2) il rendering vero (non
-   solo lo stato) disegni comunque la sagoma di riserva del player, senza
-   crash. */
+   sintetico con un canale alpha vero, tutto opaco tranne TRE celle note
+   (player, nemico chaser, uscita) e verifica che: (1) il caricamento
+   riconosca SOLO quelle celle come assenti, non l'intero atlas; (2) il
+   rendering vero (non solo lo stato) disegni comunque la sagoma di riserva
+   per ciascuna delle tre entita' corrispondenti, senza crash.
+
+   Player, nemico e uscita sono le tre entita' i cui call-site in
+   game_renderer.c (DrawPlayer, DrawEnemy, DrawPickup) erano storicamente
+   trattati in modo diverso: solo DrawPlayer controllava il valore di ritorno
+   di DrawAtlasCell. Questo test esiste apposta per coprire anche gli altri
+   due, che restavano invisibili quando l'atlas era caricato ma la loro cella
+   era vuota (vedi il fix in DrawEnemy/DrawPickup). */
 bool GameAtlasFallbackTest(Game *game)
 {
     const char *testPath = "generated/test_atlas_fallback.png";
     Image img = GenImageColor(ATLAS_CELL*ATLAS_COLS, ATLAS_CELL*ATLAS_COLS, WHITE);
-    ImageDrawRectangle(&img, 0, 0, ATLAS_CELL, ATLAS_CELL, BLANK);
+    ImageDrawRectangle(&img, (SPR_PLAYER%ATLAS_COLS)*ATLAS_CELL, (SPR_PLAYER/ATLAS_COLS)*ATLAS_CELL, ATLAS_CELL, ATLAS_CELL, BLANK);
+    ImageDrawRectangle(&img, (SPR_ENEMY_CHASER%ATLAS_COLS)*ATLAS_CELL, (SPR_ENEMY_CHASER/ATLAS_COLS)*ATLAS_CELL, ATLAS_CELL, ATLAS_CELL, BLANK);
+    ImageDrawRectangle(&img, (SPR_EXIT%ATLAS_COLS)*ATLAS_CELL, (SPR_EXIT/ATLAS_COLS)*ATLAS_CELL, ATLAS_CELL, ATLAS_CELL, BLANK);
     bool exported = ExportImage(img, testPath);
     UnloadImage(img);
     if (!exported) return false;
@@ -103,22 +124,69 @@ bool GameAtlasFallbackTest(Game *game)
     remove(testPath);
 
     if (!game->atlasLoaded) return false;
-    if (game->atlasCellPresent[SPR_PLAYER]) return false;          /* cella vuota: deve risultare assente */
-    if (!game->atlasCellPresent[SPR_ENEMY_CHASER]) return false;   /* cella piena: deve risultare presente */
+    if (game->atlasCellPresent[SPR_PLAYER]) return false;         /* celle vuote: devono risultare assenti */
+    if (game->atlasCellPresent[SPR_ENEMY_CHASER]) return false;
+    if (game->atlasCellPresent[SPR_EXIT]) return false;
+    if (!game->atlasCellPresent[SPR_ITEM]) return false;          /* cella piena: deve risultare presente */
+
+    Vector2 enemyPos = { 150.0f, 200.0f };
+    Vector2 exitPos = { 750.0f, 450.0f };
+    /* LoadImageFromTexture su una RenderTexture2D legge i pixel col
+       framebuffer OpenGL grezzo, che e' memorizzato capovolto rispetto alle
+       coordinate con cui si e' disegnato (stesso motivo per cui
+       RendererDrawApp usa un'altezza negativa quando ricompone il canvas
+       sullo schermo, vedi sotto in questo file): riga 0 dell'immagine letta
+       corrisponde al FONDO del canvas disegnato, non all'alto. Le coordinate
+       di gioco vanno quindi capovolte in verticale prima di leggere il
+       pixel. Il controllo sul giocatore sotto non lo fa (e passa comunque)
+       solo perche' la sua intera sagoma di riserva e' un unico colore
+       (tint) abbastanza esteso da coprire per coincidenza anche il pixel
+       "sbagliato": non e' una controprova valida in generale, qui sotto si
+       usa invece la trasformazione corretta. */
+    int enemyImgY = SCREEN_HEIGHT - 1 - (int)enemyPos.y;
+    int exitImgY = SCREEN_HEIGHT - 1 - (int)exitPos.y;
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    /* Primo render SENZA nemico ne' pickup extra (solo cio' che GameResetRun
+       ha gia' piazzato viene rimosso da EntitiesClear): cattura il pixel di
+       sfondo esatto (pavimento o riga diagonale della griglia, non importa
+       quale) in ciascuna posizione candidata, cosi' il confronto sotto non
+       deve indovinare la geometria della griglia. */
+    EntitiesClear(game);
+    RendererDrawApp(game, canvas, APP_PLAY, false, NULL);
+    Image before = LoadImageFromTexture(canvas.texture);
+    Color enemyBefore = GetImageColor(before, (int)enemyPos.x, enemyImgY);
+    Color exitBefore = GetImageColor(before, (int)exitPos.x, exitImgY);
+    UnloadImage(before);
+
+    EntitiesAddEnemy(game, ENEMY_CHASER, enemyPos);
+    EntitiesAddPickup(game, PICKUP_EXIT, exitPos, 0, 0);
     RendererDrawApp(game, canvas, APP_PLAY, false, NULL);   /* non deve andare in crash */
 
     /* DrawPlayer disegna, come riserva, un cerchio bianco per la testa a
        (pos.x, pos.y - 30): se DrawAtlasCell tornasse ancora "vero" per una
        cella vuota (il bug che questo test previene), li' sotto ci sarebbe
-       solo il pavimento della stanza, mai bianco. */
-    Image shot = LoadImageFromTexture(canvas.texture);
-    Color headPixel = GetImageColor(shot, (int)game->player.pos.x, (int)(game->player.pos.y - 30.0f));
-    UnloadImage(shot);
+       solo il pavimento della stanza, mai bianco. Nemico e uscita non hanno
+       un colore di riserva fisso e prevedibile in anticipo (il nemico usa
+       game->theme.enemy generato a caso per la run, l'uscita e' un cerchio
+       semitrasparente sopra qualunque cosa ci fosse sotto), quindi si
+       verifica invece che il pixel sia CAMBIATO nettamente rispetto al
+       render "prima": e' la prova che DrawEnemy/DrawPickup sono ricadute
+       sulla forma geometrica invece di lasciare la cella vuota (e quindi
+       l'entita') invisibile. */
+    Image after = LoadImageFromTexture(canvas.texture);
+    Color headPixel = GetImageColor(after, (int)game->player.pos.x, (int)(game->player.pos.y - 30.0f));
+    Color enemyAfter = GetImageColor(after, (int)enemyPos.x, enemyImgY);
+    Color exitAfter = GetImageColor(after, (int)exitPos.x, exitImgY);
+    UnloadImage(after);
     UnloadRenderTexture(canvas);
 
-    return headPixel.r > 200 && headPixel.g > 200 && headPixel.b > 200;
+    bool playerDrew = headPixel.r > 200 && headPixel.g > 200 && headPixel.b > 200;
+    bool enemyDrew = ColorChannelDiff(enemyBefore, enemyAfter) > 40;
+    bool exitDrew = ColorChannelDiff(exitBefore, exitAfter) > 40;
+
+    return playerDrew && enemyDrew && exitDrew;
 }
 
 #ifndef _WIN32
