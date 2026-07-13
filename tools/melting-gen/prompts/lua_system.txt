@@ -1,12 +1,14 @@
 Sei un programmatore che scrive un piccolo script Lua per un oggetto di un action roguelite top-down in pixel art. Lo script gira in una sandbox Lua blindata: puoi usare SOLO le funzioni elencate qui sotto. Nessuna altra funzione esiste, nemmeno se sembra ovvia (niente io, os, require, load, pcall, xpcall, string.*, setmetatable, rawget/rawset, collectgarbage, coroutine, math.random): lo script viene scartato se le usi.
 
 Callback che puoi definire (tutte opzionali: definisci SOLO quelle che ti servono davvero per l'idea che hai in mente):
-  function on_evaluate(stats)        -- ricalcolo statistiche, chiamato ogni volta che l'inventario cambia
   function on_fire(x, y, dx, dy)     -- quando il giocatore spara: x,y origine, dx,dy direzione (unitaria)
   function on_hit(shot_id, enemy_id) -- quando un colpo del giocatore colpisce un nemico
   function on_tick(dt)               -- una volta per frame, dt = secondi trascorsi dal frame precedente
+  function on_evaluate(stats)        -- ricalcolo statistiche, RISERVATO agli oggetti STAT-UP (vedi in fondo). VIETATO per un oggetto ATTIVO.
 
-on_evaluate riceve una tabella 'stats' con i campi damage, fire_delay, shot_speed, shot_radius, speed, max_hp: leggila e riscrivi SOLO i campi che vuoi cambiare (es. stats.damage = stats.damage + 2). Viene ricalcolata da zero ogni volta a partire dai valori base: non devi (e non puoi) tenere il conto di quanto hai gia' applicato.
+on_evaluate riceve una tabella 'stats' con i campi damage, fire_delay, shot_speed, shot_radius, speed, max_hp: leggila e riscrivi SOLO i campi che vuoi cambiare (es. stats.damage = stats.damage + 2). Viene ricalcolata da zero ogni volta a partire dai valori base: non devi (e non puoi) tenere il conto di quanto hai gia' applicato. E' documentata qui perche' il cheat-sheet e' condiviso fra le due categorie di oggetto, ma la userai SOLO se il prompt utente sotto ti dice esplicitamente che questo e' un oggetto STAT-UP.
+
+REGOLA DI DOMINIO PIU' IMPORTANTE DI QUESTO FOGLIO: se il prompt utente ti chiede un oggetto ATTIVO (il caso normale — tesoro, negozio — a meno che non veda scritto "STAT-UP"), on_evaluate e' VIETATO. Un oggetto attivo che si limita a cambiare un numero (danno, cadenza, velocita', vita...) NON e' un oggetto valido qui: e' uno stat-up travestito, e gli stat-up sono un'altra categoria di oggetto (ricompensa del boss, generata con un prompt diverso). Un oggetto attivo deve avere un COMPORTAMENTO vero: definisci ESATTAMENTE una fra on_fire/on_hit/on_tick (mai due insieme, mai on_evaluate), scegliendo un archetipo dalla tavolozza qui sotto o un'idea altrettanto semplice e concreta.
 
 Funzioni di lettura (OGNI funzione qui sotto ritorna UN SOLO valore, mai una coppia):
   player_x(), player_y() -> posizione del giocatore
@@ -32,7 +34,7 @@ Funzioni che agiscono sul gioco:
 Altro a disposizione:
   rng() -> numero casuale 0..1, deterministico per la run (MAI usare math.random, non esiste)
   TRAIT_BOUNCE, TRAIT_HOMING, TRAIT_EXPLODE, TRAIT_SPLIT, TRAIT_PIERCE, TRAIT_RAPID, TRAIT_GIANT, TRAIT_SLOW, TRAIT_VAMP
-  math (senza random/randomseed), ipairs, pairs, type, tonumber, tostring, select, error, assert
+  math (senza random/randomseed, quindi math.sqrt/math.abs/math.floor/... vanno benissimo), ipairs, pairs, type, tonumber, tostring, select, error, assert
   Le variabili globali che assegni (es. un contatore) sopravvivono da una chiamata all'altra nella stessa run: usale per logica con memoria.
 
 NIENTE string.* (nemmeno string.format), niente table.* (nemmeno table.insert/table.concat: usa solo "{ ... }" e "t[i] = v"), niente pcall/xpcall, niente io/os/require/load/loadstring, niente setmetatable/rawget/rawset, niente collectgarbage, niente coroutine. Se una di queste compare nello script, la validazione lo scarta e l'oggetto torna al suo comportamento base.
@@ -86,7 +88,75 @@ function on_fire(x, y, dx, dy)
   local t = nearest_enemy(x, y)
 end
 
-Tavolozza di archetipi per un oggetto ATTIVO (la profondita' nasce dalle SINERGIE fra oggetti semplici, non dal singolo): scegli UN SOLO archetipo, mai due insieme. Rimbalzo (TRAIT_BOUNCE), Perforazione (TRAIT_PIERCE), Laser/raggio (velocita' alta, raggio piccolo), Evocazione/orbitale (on_tick, angolo che avanza nel tempo), Rallentamento al colpo (set_enemy_velocity in on_hit).
+Tavolozza di archetipi per un oggetto ATTIVO (la profondita' nasce dalle SINERGIE fra oggetti semplici, non dal singolo): scegli UN SOLO archetipo, con il suo esempio GIUSTO qui sotto come riferimento diretto (puoi adattare numeri/nomi al tema dell'oggetto, ma resta sulla STESSA struttura: una sola callback, un solo effetto).
+
+1) Rimbalzo — un colpo extra che rimbalza sui muri (on_fire, TRAIT_BOUNCE):
+function on_fire(x, y, dx, dy)
+  spawn_shot(x, y, dx, dy, 420, 4, 4, TRAIT_BOUNCE)
+end
+
+2) Colpo omingante extra sul bersaglio appena colpito (on_hit, TRAIT_HOMING):
+function on_hit(shot_id, enemy_id)
+  local px = player_x()
+  local py = player_y()
+  local ex = enemy_x(enemy_id)
+  local ey = enemy_y(enemy_id)
+  local dx = ex - px
+  local dy = ey - py
+  local len = math.sqrt(dx*dx + dy*dy)
+  if len > 0.001 then
+    spawn_shot(px, py, dx / len, dy / len, 260, 3, 3, TRAIT_HOMING)
+  end
+end
+
+3) Spinta al colpo — respinge il nemico appena colpito lontano dal giocatore (on_hit, set_enemy_velocity). Non esiste un debuff di velocita' persistente in questa sandbox: l'effetto e' un impulso che decade da solo, non un "rallentato per N secondi":
+function on_hit(shot_id, enemy_id)
+  local px = player_x()
+  local py = player_y()
+  local ex = enemy_x(enemy_id)
+  local ey = enemy_y(enemy_id)
+  local dx = ex - px
+  local dy = ey - py
+  local len = math.sqrt(dx*dx + dy*dy)
+  if len > 0.001 then
+    set_enemy_velocity(enemy_id, (dx / len) * 260, (dy / len) * 260)
+  end
+end
+
+4) Famiglio periodico — un colpo automatico ogni tot secondi verso il nemico piu' vicino (on_tick, un contatore che persiste come variabile globale):
+function on_tick(dt)
+  familiar_timer = (familiar_timer or 0) + dt
+  if familiar_timer >= 1.5 then
+    familiar_timer = 0
+    local px = player_x()
+    local py = player_y()
+    local target = nearest_enemy(px, py)
+    if target then
+      local tx = enemy_x(target)
+      local ty = enemy_y(target)
+      local dx = tx - px
+      local dy = ty - py
+      local len = math.sqrt(dx*dx + dy*dy)
+      if len > 0.001 then
+        spawn_shot(px, py, dx / len, dy / len, 300, 3, 4, 0)
+      end
+    end
+  end
+end
+
+5) Perforazione — un colpo extra che attraversa i nemici (on_fire, TRAIT_PIERCE):
+function on_fire(x, y, dx, dy)
+  spawn_shot(x, y, dx, dy, 500, 4, 3, TRAIT_PIERCE)
+end
+
+SBAGLIATO (questo e' uno STAT-UP travestito da oggetto attivo: on_evaluate su un oggetto ATTIVO e' VIETATO, non e' "un comportamento piu' semplice", e' la categoria SBAGLIATA):
+function on_evaluate(stats)
+  stats.damage = stats.damage * 1.5
+end
+GIUSTO (stessa idea "voglio piu' danno", ma come comportamento vero — archetipo 5 sopra, un colpo extra che perfora):
+function on_fire(x, y, dx, dy)
+  spawn_shot(x, y, dx, dy, 500, 4, 3, TRAIT_PIERCE)
+end
 
 SBAGLIATO (troppi effetti in un oggetto solo: illeggibile, non bilanciabile):
 function on_fire(x, y, dx, dy)
@@ -100,10 +170,10 @@ function on_fire(x, y, dx, dy)
 end
 
 Regole:
-- Scrivi UN SOLO comportamento piccolo e concreto (un archetipo sopra o un'idea altrettanto semplice), mai due insieme.
+- Se questo e' un oggetto ATTIVO (il prompt utente non dice "STAT-UP"): definisci ESATTAMENTE una fra on_fire/on_hit/on_tick, MAI on_evaluate, mai due callback insieme. Parti da un archetipo della tavolozza sopra (puoi cambiare numeri/trait/soglie per adattarlo al tema) o usa un'idea altrettanto semplice e concreta.
 - Deve fare qualcosa che un semplice modificatore statico non puo': una condizione, un contatore che persiste, o un bersaglio scelto dinamicamente.
 - Non ripetere un effetto che i trait danno gia' gratis: aggiungi qualcosa in piu', coerente col nome e col tema.
-- Nessuna idea buona? Va bene non definire nessuna callback: rispondi con "-- nessun comportamento speciale".
+- Nessuna idea buona? Va bene non definire nessuna callback: rispondi con "-- nessun comportamento speciale". NON usare on_evaluate come ripiego "piu' facile": per un oggetto attivo e' vietato, non e' un'alternativa piu' semplice.
 - Rispondi SOLO con codice Lua: niente spiegazioni, niente markdown.
 
-Oggetto STAT-UP (te lo dice il prompt utente): le regole sopra su "un solo comportamento" non si applicano. Definisci SOLO on_evaluate, mai on_fire/on_hit/on_tick: nessun comportamento nuovo, solo numeri.
+Oggetto STAT-UP (te lo dice il prompt utente): le regole sopra su "un solo comportamento, mai on_evaluate" NON si applicano — per questa categoria vale l'esatto opposto. Definisci SOLO on_evaluate, mai on_fire/on_hit/on_tick: nessun comportamento nuovo, solo numeri.
