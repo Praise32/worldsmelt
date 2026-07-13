@@ -90,9 +90,14 @@ cd "$(dirname "$0")/.."
 RAYLIB_TAG="6.0"
 
 echo "== Pacchetti di sistema (chiede la password) =="
-sudo apt-get install -y build-essential cmake git \
+# In un terminale si usa sudo; senza TTY (es. esecuzione da agente) pkexec apre
+# la finestra grafica di autenticazione.
+SUDO="sudo"
+[ -t 0 ] || SUDO="pkexec"
+$SUDO apt-get install -y build-essential cmake git \
   libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev \
-  libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev
+  libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev \
+  libvulkan-dev glslc spirv-headers vulkan-tools
 
 mkdir -p deps
 
@@ -208,12 +213,9 @@ git commit -m "feat: Linux build via Makefile and pinned raylib 6.0 in deps/"
 
 - [ ] **Step 1: Aggiungi llama.cpp a `scripts/setup-deps.sh`**
 
-Dopo il blocco raylib, prima di `echo "Dipendenze pronte."`, inserisci:
+Dopo il blocco raylib, prima di `echo "Dipendenze pronte."`, inserisci (i pacchetti Vulkan sono già installati dal Task 1):
 
 ```bash
-echo "== Pacchetti Vulkan (chiede la password se non gia' dati) =="
-sudo apt-get install -y libvulkan-dev glslc spirv-headers vulkan-tools
-
 LLAMA_TAG="b9979"
 if [ ! -f deps/llama.cpp/build/src/libllama.a ]; then
   echo "== llama.cpp $LLAMA_TAG (statica, backend Vulkan) =="
