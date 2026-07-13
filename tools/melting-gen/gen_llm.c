@@ -146,6 +146,12 @@ int GenLlmGenerate(const GenLlmConfig *cfg, char *out, size_t outCap,
             goto cleanup;
         }
         llama_sampler_chain_add(smpl, gsmpl);   /* la grammatica PRIMA del selettore */
+        /* Penalita' sulle ripetizioni: senza, il modello riusa gli stessi nomi tra
+           i piani ("Ignea Ignea", due boss identici). La grammatica continua a
+           mascherare i token non validi, quindi la penalita' puo' solo spostare le
+           probabilita' fra scelte gia' legali: il JSON resta valido per costruzione. */
+        llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+            GEN_PENALTY_LAST_N, GEN_PENALTY_REPEAT, 0.0f, 0.0f));
         llama_sampler_chain_add(smpl, llama_sampler_init_temp(cfg->temp));
         llama_sampler_chain_add(smpl, llama_sampler_init_dist(cfg->seed));
 

@@ -1,2 +1,20 @@
-Seed della run: {SEED}. Genera i 5 piani con temi molto diversi tra loro e una progressione di difficolta'. Il boss del piano 5 deve essere il piu' minaccioso. Esempio del formato di UN singolo piano (non copiarne i contenuti, serve solo per il formato):
-{"theme":"Cantina Neon","style":"pixel semplice","boss":"Custode Verde","bg":"#151020","floor":"#241c30","wall":"#4a3a5c","accent":"#e08840","accent2":"#8fd4c0","enemy":"#c05555","bossColor":"#d8a030","items":[{"name":"Corona Frantumante","slot":"hat","traits":["split"],"color":"#e0c060","script":[{"trigger":"on_fire","op":"burst","a":3,"b":0.36,"trait":"split"}]},{"name":"Occhiali Segugio","slot":"eyes","traits":["homing"],"color":"#70c0e0","script":[{"trigger":"on_hit","op":"projectile","a":2,"b":260,"trait":"homing"}]},{"name":"Mantello Vampiro","slot":"back","traits":["vamp"],"color":"#b05070","script":[{"trigger":"on_hit","op":"heal","a":18,"b":1,"trait":"vamp"}]}]}
+Seed della run: {SEED}. Usa il seed come spinta creativa: run diverse devono dare mondi diversi.
+
+Genera 5 piani con temi molto diversi tra loro e una progressione di difficolta'. Il boss del piano 5 deve essere il piu' minaccioso.
+
+Regole sui nomi, importanti:
+- Scrivi tutti i nomi in ITALIANO corretto. Niente inglese, niente parole inventate storpiate.
+- Inventa nomi originali per ogni tema, boss e oggetto. Niente nomi generici tipo "Custode 1".
+- Nessun nome si ripete: 5 temi diversi, 5 boss diversi, 15 oggetti con 15 nomi diversi.
+- Un tema e' fatto di due parole: un luogo piu' una qualita' che lo rende strano
+  (non basta "deserto": serve qualcosa come un luogo con un aggettivo memorabile).
+- Un nome di oggetto e' fatto di due parole e suggerisce cosa fa: un oggetto piu' una qualita' o un effetto.
+- Il tema del piano contagia i suoi oggetti: in un piano ghiacciato gli oggetti sanno di ghiaccio.
+
+Promemoria dei campi. I valori tra parentesi angolari sono segnaposto: NON copiarli, sostituiscili con roba tua.
+
+Piano: {"theme":"<tema>","style":"<stile grafico>","boss":"<nome boss>","bg":"<#colore scuro>","floor":"<#colore scuro>","wall":"<#colore medio>","accent":"<#colore vivo>","accent2":"<#colore vivo>","enemy":"<#colore vivo>","bossColor":"<#colore vivo>","items":[<oggetto>,<oggetto>,<oggetto>]}
+
+Oggetto: {"name":"<nome originale>","slot":"<hat|eyes|hand|back|body|aura>","traits":["<trait>"],"color":"<#colore vivo>","script":[{"trigger":"<on_fire|on_hit>","op":"<burst|projectile|area|heal>","a":<numero>,"b":<numero>,"trait":"<trait>"}]}
+
+Rispondi solo con il JSON completo dei 5 piani.

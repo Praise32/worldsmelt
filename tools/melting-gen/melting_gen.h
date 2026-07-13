@@ -8,6 +8,14 @@
 #define GEN_ITEMS 3
 #define GEN_MAX_OPS 3
 
+/* Penalita' sulle ripetizioni del campionamento (vedi gen_llm.c).
+   La finestra copre circa un piano e mezzo di JSON, cosi' il modello "vede" i nomi
+   che ha appena usato; il valore e' volutamente mite, perche' penalizza anche i
+   token strutturali del JSON (virgolette, parentesi) che pero' la grammatica
+   protegge comunque. */
+#define GEN_PENALTY_LAST_N 256
+#define GEN_PENALTY_REPEAT 1.08f
+
 typedef struct GenScriptOp {
     char trigger[10];   /* "on_fire" | "on_hit" */
     char op[12];        /* "burst" | "projectile" | "area" | "heal" */
