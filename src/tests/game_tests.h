@@ -5,5 +5,6 @@
 
 bool GamePortalRespawnTest(Game *game);
 bool GameScriptSandboxTest(Game *game);
+bool GameManifestTest(Game *game);
 
 #endif

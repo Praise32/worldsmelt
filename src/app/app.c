@@ -62,6 +62,7 @@ int AppRun(int argc, char **argv)
     bool menuScreenshotTest = false;
     bool portalTest = false;
     bool scriptTest = false;
+    bool manifestTest = false;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--smoke-test") == 0) smokeTest = true;
@@ -74,6 +75,11 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             scriptTest = true;
+        }
+        if (strcmp(argv[i], "--manifest-test") == 0)
+        {
+            smokeTest = true;
+            manifestTest = true;
         }
         if (strcmp(argv[i], "--screenshot-test") == 0)
         {
@@ -117,6 +123,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 3;
+    }
+    if (manifestTest)
+    {
+        bool ok = GameManifestTest(&game);
+        printf("Manifest test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 5;
     }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);

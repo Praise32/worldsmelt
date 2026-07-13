@@ -3,6 +3,7 @@
 #include "game/game_internal.h"
 
 #include <stdio.h>
+#include <string.h>
 
 bool GamePortalRespawnTest(Game *game)
 {
@@ -55,4 +56,19 @@ bool GameScriptSandboxTest(Game *game)
     CombatFirePlayer(game, (Vector2){ 1.0f, 0.0f });
     int created = CountActiveShots(game) - before;
     return created >= 4 && created <= 8;
+}
+
+bool GameManifestTest(Game *game)
+{
+    if (!game->content.loaded) return false;
+    for (int f = 0; f < FLOOR_COUNT; f++)
+    {
+        if (!game->content.floors[f].theme.name[0]) return false;
+        for (int i = 0; i < 3; i++)
+        {
+            const Item *item = &game->content.floors[f].items[i];
+            if (!item->name[0] || !strchr(item->script, ':')) return false;
+        }
+    }
+    return true;
 }

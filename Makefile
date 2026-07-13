@@ -39,7 +39,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen run test clean
+.PHONY: all game gen run test test-gen clean
 
 all: game gen
 
@@ -64,6 +64,9 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --portal-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
+
+test-gen: all
+	bash scripts/test-gen.sh
 
 clean:
 	rm -rf bin
