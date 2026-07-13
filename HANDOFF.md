@@ -119,7 +119,45 @@ non ambigue. Cosa c'e' adesso:
   strato e' **pluggabile**: adesso e' geometria colorata, domani ci si mette lo sprite
   generato senza rifare niente.
 
-**Cosa ho lasciato apposta a te (le domande della sezione 7 del design doc):**
+## Pool e rarita' (le tue decisioni di stamattina, gia' costruite)
+
+Hai scelto: sinergie **implicite alla Isaac**, rarita' a **4 livelli** (potenza +
+frequenza), il **luogo** determina tipo e rarita', sprite **geometrici** per ora. Ho
+scritto il design in `docs/superpowers/specs/2026-07-13-pools-rarity-design.md` e
+costruito pool + rarita':
+
+- **Quattro rarita'**: Comune (bianco), Non-comune (verde), Raro (blu), Leggendario (oro).
+  La rarita' decide **quanto e' forte** l'oggetto e **quanto e' raro** trovarlo.
+- **Bilanciamento vero.** Piu' alta la rarita', piu' grande l'effetto — ma dentro un
+  tetto: cinque leggendari sulla stessa statistica ti lasciano a 32 di danno su un tetto
+  di 200. Un leggendario e' forte, mai rotto. (Verificato con un test apposta.)
+- **I pool per luogo.** Il boss da' **sempre** uno stat-up raro o leggendario; il tesoro
+  da' oggetti attivi di rarita' mista; il negozio da' oggetti attivi che paghi in monete,
+  e **il costo scala con la rarita'** (un leggendario costa piu' di un comune).
+- **Espandibile come volevi.** I pesi della rarita', i tetti di potenza e gli archetipi
+  di effetto stanno in tabelle marcate «modifica qui per bilanciare»: aggiungi un
+  archetipo o ritocchi un numero senza toccare il motore.
+- **Si vede a colpo d'occhio.** Screenshot: `logs/melting-run-rarity-screen.png` (anche
+  in `docs/img/rarity-screen.png`). I pickup a terra hanno un anello del colore della
+  rarita', e il pannello mostra nome e colore. Il leggendario a terra ha un bagliore che
+  pulsa.
+
+Il segnale di rarita' **arriva davvero al modello**: in una run vera, un boss leggendario
+ha scritto +10 danno, i rari +1.5/+2; un oggetto attivo comune ha fatto un rimbalzo base.
+
+**Una cosa da sapere per il futuro.** Il prompt che chiede al modello di scrivere il Lua
+e' ormai vicino al limite di contesto (n_ctx=4096): oggi ci sta con poco margine. C'e' un
+controllo automatico (`make test-gen`) che fallisce se il prompt cresce troppo, cosi' non
+puo' piu' capitare che si sfori in silenzio. Ma se un domani vuoi aggiungere molti
+archetipi di effetto nel cheat-sheet (`tools/melting-gen/prompts/lua_system.txt`), a un
+certo punto dovrai alzare n_ctx (costa un po' piu' di VRAM e tempo) o accorciare il prompt.
+Non e' urgente, e' solo un tetto da tenere a mente.
+
+**Le sinergie vere** (tenere una coppia compatibile aggiunge un effetto) sono il **passo
+subito dopo**: ora gli oggetti hanno tipo, rarita' e archetipo dichiarati, cioe' tutte le
+informazioni su cui una sinergia decide. Quello lo costruiamo quando torni.
+
+## Le altre domande ancora aperte (design doc sezione 7)
 
 1. **Il merge/le sinergie.** Il pezzo piu' importante della tua visione — "facendo il
    merge dei due oggetti si creano nuovi oggetti" — non l'ho costruito, perche' ci sono
