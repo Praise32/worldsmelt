@@ -42,6 +42,19 @@ if [ ! -f deps/llama.cpp/build/src/libllama.a ]; then
   cmake --build deps/llama.cpp/build --target test-gbnf-validator -j4
 fi
 
+SD_TAG="master-775-b5d8120"
+if [ ! -f deps/stable-diffusion.cpp/build/libstable-diffusion.a ]; then
+  echo "== stable-diffusion.cpp $SD_TAG (statica, backend Vulkan) =="
+  # --recursive: sd.cpp vendorizza il proprio ggml come sottomodulo, ed e' un
+  # fork (leejet/ggml) diverso da quello di llama.cpp: i due binari restano
+  # comunque separati (vedi la spec di fase 2), non si linkano mai insieme.
+  [ -d deps/stable-diffusion.cpp ] || git clone --recursive --depth 1 --branch "$SD_TAG" https://github.com/leejet/stable-diffusion.cpp.git deps/stable-diffusion.cpp
+  cmake -S deps/stable-diffusion.cpp -B deps/stable-diffusion.cpp/build -DCMAKE_BUILD_TYPE=Release -DSD_VULKAN=ON
+  # -j4 e non $(nproc): stesso motivo di llama.cpp qui sopra (GCC 15 va in
+  # internal compiler error con 12 job paralleli su questa macchina).
+  cmake --build deps/stable-diffusion.cpp/build -j4
+fi
+
 echo "== Verifica Vulkan =="
 vulkaninfo --summary | head -25 || echo "ATTENZIONE: vulkaninfo fallito, controlla i driver"
 

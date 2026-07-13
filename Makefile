@@ -26,6 +26,17 @@ GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
   -lvulkan -lgomp -lstdc++ -lpthread -lm -ldl
 GEN_BIN := bin/melting-gen
 
+# melting-sprites: post-processing degli sprite generati (fase 2). Non linka
+# raylib ne' llama.cpp. Per ora niente librerie di stable-diffusion.cpp (non
+# ancora collegato: --dry-run sintetizza le celle sorgente): SPRITES_LIBS e'
+# gia' strutturata come GEN_LIBS cosi' un task successivo deve solo
+# aggiungerci le .a di sd.cpp.
+SPRITES_SRC := $(wildcard tools/melting-sprites/*.c) $(wildcard tools/melting-sprites/vendor/*.c)
+SPRITES_HDR := $(wildcard tools/melting-sprites/*.h) $(wildcard tools/melting-sprites/vendor/*.h)
+SPRITES_CFLAGS := $(CFLAGS) -Itools/melting-sprites -Itools/melting-sprites/vendor
+SPRITES_LIBS := -lm
+SPRITES_BIN := bin/melting-sprites
+
 # I test aprono una finestra. Su Wayland, se la sessione e' bloccata o la finestra
 # non e' visibile, il compositor smette di consegnare frame e il gioco resta appeso
 # al primo SwapBuffers. I test girano quindi su un display X11 virtuale quando
@@ -40,13 +51,15 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen run run-gen test test-gen test-llm clean
+.PHONY: all game gen sprites run run-gen test test-gen test-sprites test-llm clean
 
-all: game gen
+all: game gen sprites
 
 game: $(GAME_BIN)
 
 gen: $(GEN_BIN)
+
+sprites: $(SPRITES_BIN)
 
 $(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 	@mkdir -p bin logs generated
@@ -55,6 +68,10 @@ $(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 $(GEN_BIN): $(GEN_SRC) $(GEN_HDR)
 	@mkdir -p bin logs
 	$(CC) $(GEN_CFLAGS) $(GEN_SRC) $(GEN_LIBS) -o $@
+
+$(SPRITES_BIN): $(SPRITES_SRC) $(SPRITES_HDR)
+	@mkdir -p bin
+	$(CC) $(SPRITES_CFLAGS) $(SPRITES_SRC) $(SPRITES_LIBS) -o $@
 
 run: game
 	./$(GAME_BIN)
@@ -72,6 +89,9 @@ test: game
 
 test-gen: all
 	bash scripts/test-gen.sh
+
+test-sprites: sprites
+	bash scripts/test-sprites.sh
 
 test-llm: all
 	bash scripts/test-llm.sh
