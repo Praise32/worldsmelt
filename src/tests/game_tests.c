@@ -1,6 +1,7 @@
 #include "tests/game_tests.h"
 
 #include "game/game_internal.h"
+#include "render/game_renderer.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -77,6 +78,47 @@ bool GameManifestTest(Game *game)
        essere stato caricato. */
     if (game->content.atlasPath[0] && FileExists(game->content.atlasPath) && !game->atlasLoaded) return false;
     return true;
+}
+
+/* Verifica il bug critico della fase 2 (vedi la spec): una cella dell'atlas
+   rimasta vuota (gate di qualita' di melting-sprites fallito) non deve
+   rendere invisibile l'entita' corrispondente. Costruisce un atlas 1024x1024
+   sintetico con un canale alpha vero, tutto opaco tranne la cella del player
+   (colonna 0, riga 0), e verifica che: (1) il caricamento riconosca SOLO
+   quella cella come assente, non l'intero atlas; (2) il rendering vero (non
+   solo lo stato) disegni comunque la sagoma di riserva del player, senza
+   crash. */
+bool GameAtlasFallbackTest(Game *game)
+{
+    const char *testPath = "generated/test_atlas_fallback.png";
+    Image img = GenImageColor(ATLAS_CELL*ATLAS_COLS, ATLAS_CELL*ATLAS_COLS, WHITE);
+    ImageDrawRectangle(&img, 0, 0, ATLAS_CELL, ATLAS_CELL, BLANK);
+    bool exported = ExportImage(img, testPath);
+    UnloadImage(img);
+    if (!exported) return false;
+
+    GameUnloadAssets(game);
+    snprintf(game->content.atlasPath, sizeof(game->content.atlasPath), "%s", testPath);
+    AssetsLoad(game);
+    remove(testPath);
+
+    if (!game->atlasLoaded) return false;
+    if (game->atlasCellPresent[SPR_PLAYER]) return false;          /* cella vuota: deve risultare assente */
+    if (!game->atlasCellPresent[SPR_ENEMY_CHASER]) return false;   /* cella piena: deve risultare presente */
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_PLAY, false, NULL);   /* non deve andare in crash */
+
+    /* DrawPlayer disegna, come riserva, un cerchio bianco per la testa a
+       (pos.x, pos.y - 30): se DrawAtlasCell tornasse ancora "vero" per una
+       cella vuota (il bug che questo test previene), li' sotto ci sarebbe
+       solo il pavimento della stanza, mai bianco. */
+    Image shot = LoadImageFromTexture(canvas.texture);
+    Color headPixel = GetImageColor(shot, (int)game->player.pos.x, (int)(game->player.pos.y - 30.0f));
+    UnloadImage(shot);
+    UnloadRenderTexture(canvas);
+
+    return headPixel.r > 200 && headPixel.g > 200 && headPixel.b > 200;
 }
 
 #ifndef _WIN32

@@ -11,6 +11,7 @@ void GameUnloadAssets(Game *game)
         game->atlasLoaded = false;
         game->atlas.id = 0;
     }
+    memset(game->atlasCellPresent, 0, sizeof(game->atlasCellPresent));
 }
 
 static bool IsAtlasKeyPixel(Color c, Color key)
@@ -23,14 +24,64 @@ static bool IsAtlasKeyPixel(Color c, Color key)
     return nearKey || nearBlack;
 }
 
-static Texture2D LoadAtlasTexture(const char *path)
+/* Vero se image ha gia' un canale alpha "vero" (almeno un pixel non del
+   tutto opaco). L'atlas PNG di melting-sprites lo ha sempre: il ritaglio a
+   flood fill lascia trasparenti lo sfondo e (per costruzione, vedi
+   SpritesAtlasNew) tutte le celle dell'atlas 8x8 non usate dalle 12 note.
+   I vecchi spritesheet (API, pre fase-2) erano invece PNG completamente
+   opachi, senza alcuna informazione di trasparenza: per quelli il
+   chroma-key sotto resta l'unica rete di sicurezza. */
+static bool ImageHasRealAlpha(const Image *image)
+{
+    const Color *pixels = (const Color *)image->data;
+    int total = image->width*image->height;
+    for (int i = 0; i < total; i++) if (pixels[i].a != 255) return true;
+    return false;
+}
+
+/* Scandisce le SPR_COUNT celle note dell'atlas (stesso layout usato per il
+   disegno: colonna cell%ATLAS_COLS, riga cell/ATLAS_COLS) e registra quali
+   hanno abbastanza pixel opachi da essere sprite veri. Deve girare DOPO ogni
+   eventuale chroma-key, cosi' riflette l'alpha finale che verra' disegnato.
+   Per un atlas BMP procedurale (senza canale alpha: ImageFormat lo riempie
+   tutto a 255) ogni cella risulta sempre "presente", cioe' il comportamento
+   di oggi non cambia. */
+static void ScanAtlasCells(const Image *image, bool *cellPresent)
+{
+    const Color *pixels = (const Color *)image->data;
+    for (int cell = 0; cell < SPR_COUNT; cell++)
+    {
+        cellPresent[cell] = false;
+        int ox = (cell%ATLAS_COLS)*ATLAS_CELL;
+        int oy = (cell/ATLAS_COLS)*ATLAS_CELL;
+        if (ox + ATLAS_CELL > image->width || oy + ATLAS_CELL > image->height) continue;
+        int opaque = 0;
+        for (int y = 0; y < ATLAS_CELL && opaque < ATLAS_CELL_MIN_OPAQUE; y++)
+        {
+            const Color *row = pixels + (size_t)(oy + y)*image->width + ox;
+            for (int x = 0; x < ATLAS_CELL; x++) if (row[x].a > 0) opaque++;
+        }
+        cellPresent[cell] = opaque >= ATLAS_CELL_MIN_OPAQUE;
+    }
+}
+
+static Texture2D LoadAtlasTexture(const char *path, bool *cellPresent)
 {
     Image image = LoadImage(path);
     if (!image.data) return (Texture2D){ 0 };
-    bool chromaKey = strstr(path, ".png") != NULL;
-    if (chromaKey)
+    ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+
+    /* Il chroma-key sul quasi-nero serve solo da rete per i PNG SENZA un
+       canale alpha vero (i vecchi spritesheet API). Il nuovo atlas locale ha
+       gia' un alpha vero e affidabile (flood fill + KEY_FLOOR nel tool):
+       applicargli comunque il chroma-key rischierebbe di mangiare pixel
+       opachi dello sprite (KEY_FLOOR garantisce solo che il canale piu'
+       chiaro di ogni pixel sia >=16, non che tutti e tre i canali superino
+       le soglie per-canale usate qui sotto). */
+    bool isPng = strstr(path, ".png") != NULL;
+    bool hasRealAlpha = ImageHasRealAlpha(&image);
+    if (isPng && !hasRealAlpha)
     {
-        ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
         Color *pixels = (Color *)image.data;
         Color key = pixels[0];
         int total = image.width*image.height;
@@ -39,6 +90,9 @@ static Texture2D LoadAtlasTexture(const char *path)
             if (IsAtlasKeyPixel(pixels[i], key)) pixels[i].a = 0;
         }
     }
+
+    ScanAtlasCells(&image, cellPresent);
+
     Texture2D texture = LoadTextureFromImage(image);
     UnloadImage(image);
     return texture;
@@ -46,8 +100,10 @@ static Texture2D LoadAtlasTexture(const char *path)
 
 void AssetsLoad(Game *game)
 {
+    memset(game->atlasCellPresent, 0, sizeof(game->atlasCellPresent));
     if (!game->content.atlasPath[0] || !FileExists(game->content.atlasPath)) return;
-    game->atlas = LoadAtlasTexture(game->content.atlasPath);
+    game->atlas = LoadAtlasTexture(game->content.atlasPath, game->atlasCellPresent);
     game->atlasLoaded = game->atlas.id != 0;
     if (game->atlasLoaded) SetTextureFilter(game->atlas, TEXTURE_FILTER_POINT);
+    else memset(game->atlasCellPresent, 0, sizeof(game->atlasCellPresent));
 }

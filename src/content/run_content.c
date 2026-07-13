@@ -131,12 +131,40 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
     }
 }
 
+/* melting-gen scrive sempre "atlas.path=generated/current_atlas.bmp" nel
+   manifest (vedi gen_manifest.c): e' melting-sprites, se e quando il passo
+   sprite va a buon fine, a riscrivere quella riga puntando al PNG (vedi
+   SpritesUpdateManifestAtlasPath in tools/melting-sprites/sprite_manifest.c).
+   Quella riscrittura pero' non e' atomica insieme alla scrittura del PNG: un
+   ESC o un timeout che uccide melting-sprites fra le due scritture
+   lascerebbe un PNG completo (rename() atomico l'ha gia' pubblicato) ma un
+   manifest che dichiara ancora il BMP. Il gioco decide quindi da solo,
+   confrontando le date dei file su disco invece di fidarsi di quel campo:
+   se il PNG esiste ed e' piu' recente (o della stessa epoca, risoluzione a
+   1s) del manifest appena letto, lo si preferisce. Se il PNG non esiste, o
+   e' piu' vecchio del manifest (run precedente, passo sprite mai partito o
+   saltato con --no-sprites), resta il BMP che il manifest dichiara: stesso
+   comportamento di oggi, degrada correttamente senza bisogno di riscrivere
+   il manifest da questo lato. */
+static void PreferPngAtlasIfFresh(RunContent *content)
+{
+    static const char *MANIFEST_PATH = "generated/current_run.txt";
+    static const char *PNG_PATH = "generated/current_atlas.png";
+    if (!FileExists(PNG_PATH)) return;
+    if (GetFileModTime(PNG_PATH) >= GetFileModTime(MANIFEST_PATH))
+        snprintf(content->atlasPath, sizeof(content->atlasPath), "%s", PNG_PATH);
+}
+
 void RunContentLoad(RunContent *content, unsigned int seed)
 {
     GenerateFallbackContent(content, seed);
 
     char *text = LoadFileText("generated/current_run.txt");
-    if (!text) return;
+    if (!text)
+    {
+        PreferPngAtlasIfFresh(content);
+        return;
+    }
 
     char value[SCRIPT_TEXT_LEN];
     bool loadedSomething = false;
@@ -238,4 +266,5 @@ void RunContentLoad(RunContent *content, unsigned int seed)
 
     content->loaded = loadedSomething;
     UnloadFileText(text);
+    PreferPngAtlasIfFresh(content);
 }

@@ -6,6 +6,7 @@
 bool GamePortalRespawnTest(Game *game);
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
+bool GameAtlasFallbackTest(Game *game);
 bool GenRunnerSelfTest(void);
 
 #endif

@@ -63,7 +63,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen test test-gen test-sprites test-llm clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-llm clean
 
 all: game gen sprites
 
@@ -91,6 +91,11 @@ run: game
 run-gen: all
 	./$(GAME_BIN) --generate
 
+# Solo il testo (melting-gen): utile per iterare senza pagare gli ~85s di
+# melting-sprites ad ogni run. Stessa cosa di run-gen ma con --no-sprites.
+run-gen-fast: all
+	./$(GAME_BIN) --generate --no-sprites
+
 test: game
 	@mkdir -p $(XVFB_RUNTIME) && chmod 700 $(XVFB_RUNTIME)
 	$(TEST_RUNNER) ./$(GAME_BIN) --script-test
@@ -98,6 +103,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 
 test-gen: all
 	bash scripts/test-gen.sh

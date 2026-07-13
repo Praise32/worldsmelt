@@ -82,6 +82,12 @@ static void DrawRoom(Game *game)
 static bool DrawAtlasCell(Game *game, int cell, Vector2 pos, float size, Color tint)
 {
     if (!game->atlasLoaded) return false;
+    /* Cella nota ma rimasta vuota (gate di qualita' di melting-sprites
+       fallito, vedi ATLAS_CELL_MIN_OPAQUE in game_types.h): si ripiega sulla
+       forma geometrica di riserva per QUESTA entita', non per l'intero
+       atlas. cell fuori range (mai dovrebbe capitare con le costanti
+       SPR_*) e' trattato come assente, mai come crash. */
+    if (cell < 0 || cell >= SPR_COUNT || !game->atlasCellPresent[cell]) return false;
     int col = cell%ATLAS_COLS;
     int row = cell/ATLAS_COLS;
     Rectangle src = { (float)(col*ATLAS_CELL), (float)(row*ATLAS_CELL), (float)ATLAS_CELL, (float)ATLAS_CELL };
@@ -463,7 +469,7 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawPanel(layout.bottomPanel, "LOG", game->theme.wall);
     int bx = (int)layout.bottomPanel.x + 18;
     int by = (int)layout.bottomPanel.y + 46;
-    const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "API spritesheet: celle 128x128 ritagliate dal PNG" : "Atlas locale/fallback BMP";
+    const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (Stable Diffusion): atlas PNG 128x128" : "Atlas procedurale/fallback BMP";
     DrawText(atlasMode, bx, by, 15, game->theme.accent2);
     DrawText(game->messageTimer > 0.0f ? game->message : "Raccogli oggetti per creare sinergie generate.", bx, by + 28, 16, RAYWHITE);
 }

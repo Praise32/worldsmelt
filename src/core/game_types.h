@@ -35,6 +35,17 @@
 #define ATLAS_CELL 128
 #define ATLAS_COLS 8
 
+/* Soglia minima di pixel opachi perche' una cella dell'atlas sia considerata
+   uno sprite vero e non una cella vuota. melting-sprites scarta una cella
+   generata sotto il 5% di pixel opachi (819 su 16384 per una cella 128x128,
+   vedi tools/melting-sprites/main.c, CellPassesQualityGate) e in quel caso la
+   azzera per intero con memset: una cella scartata ha quindi SEMPRE zero
+   pixel opachi, mai "quasi zero". 32 sta ben sotto quella soglia (non serve
+   un margine stretto) ma ben sopra zero, cosi' qualche pixel opaco isolato
+   (rumore residuo, un futuro cambio di pipeline) non fa scambiare una cella
+   davvero rotta per uno sprite valido. */
+#define ATLAS_CELL_MIN_OPAQUE 32
+
 #define PI_F 3.14159265359f
 
 typedef enum RoomKind {
@@ -116,7 +127,8 @@ typedef enum AtlasSprite {
     SPR_BOMB,
     SPR_KEY,
     SPR_EXIT,
-    SPR_SHOT
+    SPR_SHOT,
+    SPR_COUNT   /* non e' una cella: conta le celle note, per dimensionare array */
 } AtlasSprite;
 
 enum {
@@ -254,6 +266,12 @@ typedef struct Game {
     Theme theme;
     Texture2D atlas;
     bool atlasLoaded;
+    /* Per ciascuna delle SPR_COUNT celle note: vero se contiene abbastanza
+       pixel opachi da essere uno sprite vero (vedi ATLAS_CELL_MIN_OPAQUE).
+       Una cella rimasta vuota (gate di qualita' di melting-sprites fallito)
+       ha questo flag falso, e DrawAtlasCell ripiega sulla forma geometrica
+       di riserva SOLO per quella cella, non per l'intero atlas. */
+    bool atlasCellPresent[SPR_COUNT];
     RoomState rooms[GRID_SIZE][GRID_SIZE];
     Player player;
     Enemy enemies[MAX_ENEMIES];
