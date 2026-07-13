@@ -298,46 +298,30 @@ static void DrawPlayer(Game *game)
     DrawEquipment(p, p->pos, tint);
 }
 
-static void DrawHud(Game *game)
-{
-    DrawRectangle(0, 0, SCREEN_WIDTH, HUD_H, (Color){ 18, 20, 25, 255 });
-    DrawRectangle(0, HUD_H - 2, SCREEN_WIDTH, 2, game->theme.wall);
-    DrawText("MELTING ISAAC LLM", 20, 10, 22, RAYWHITE);
-    DrawText(TextFormat("%d FPS", GetFPS()), 850, 12, 18, (Color){ 126, 232, 152, 255 });
-    DrawText(TextFormat("Piano %d/%d  Room %s  HP %d/%d  Monete %d  Bombe %d  Chiavi %d",
-                        game->floor, FLOOR_COUNT, GameRoomKindName(GameCurrentRoom(game)->kind),
-                        game->player.hp, game->player.maxHp, game->player.coins, game->player.bombs, game->player.keys),
-             20, 36, 15, (Color){ 214, 218, 226, 255 });
-    DrawText(TextFormat("Tema: %s | %s | %s", game->theme.name, game->theme.style, game->content.loaded ? "LLM cache" : "fallback"),
-             20, 58, 14, game->theme.accent2);
+/* Il vecchio DrawHud (titolo, FPS, "Piano X/Y HP.. Monete.. Bombe.. Chiavi..",
+   riga del tema, minimappa) e' stato tolto (GUI fix, step A,
+   docs/superpowers/specs/2026-07-14-feedback-roadmap.md punto 1): duplicava
+   in pieno il pannello sinistro "RUN" (titolo/tema/piano/stanza/minimappa,
+   vedi DrawOuterUi) e il pannello destro "GIOCATORE" (HP/monete/bombe/chiavi).
+   La vista centrale ora mostra solo gameplay -- stanza, entita', proiettili,
+   effetti -- mai le stesse statistiche gia' leggibili nei pannelli laterali.
+   Il nome/vita del boss restano sulla vista (DrawEnemy): quello e' overlay
+   di combattimento sopra il nemico stesso, non un duplicato dei pannelli.
+   Gli FPS, utili in debug ma non gameplay, si sono spostati nell'angolo del
+   pannello "GIOCATORE" (vedi DrawOuterUi). */
 
-    int baseX = 820;
-    int baseY = 28;
-    int size = 10;
-    int gap = 4;
-    for (int y = 0; y < GRID_SIZE; y++)
-    {
-        for (int x = 0; x < GRID_SIZE; x++)
-        {
-            const RoomState *room = &game->rooms[y][x];
-            if (!room->exists) continue;
-            Color c = room->visited ? RoomMapColor(room->kind) : (Color){ 70, 75, 82, 255 };
-            if (x == game->roomX && y == game->roomY) c = RAYWHITE;
-            DrawRectangle(baseX + x*(size + gap), baseY + y*(size + gap), size, size, c);
-        }
-    }
-}
-
-static void DrawFooter(Game *game)
+/* Messaggio di gioco transitorio (oggetto raccolto, porta bloccata, ecc.):
+   resta SOLO qui, vicino all'azione nella vista centrale -- e' l'unica sede
+   di questa informazione. Il pannello "LOG" in basso (DrawOuterUi) mostrava
+   lo stesso testo: ora mostra un suggerimento fisso, cosi' il messaggio non
+   compare due volte a schermo. Via anche la riga dei comandi che stava qui
+   sotto: i comandi vivono gia' nel pannello sinistro ("COMANDI"). */
+static void DrawTransientMessage(Game *game)
 {
-    DrawRectangle(0, SCREEN_HEIGHT - FOOTER_H, SCREEN_WIDTH, FOOTER_H, (Color){ 16, 17, 21, 255 });
-    DrawText("WASD muovi   Mouse/Frecce spara   SPACE bomba   R restart   ESC esci",
-             22, SCREEN_HEIGHT - 25, 15, RAYWHITE);
-    if (game->messageTimer > 0.0f)
-    {
-        DrawRectangle(18, SCREEN_HEIGHT - 70, SCREEN_WIDTH - 36, 25, GameColorWithAlpha(BLACK, 160));
-        DrawText(game->message, 28, SCREEN_HEIGHT - 64, 15, RAYWHITE);
-    }
+    if (game->messageTimer <= 0.0f) return;
+    Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 46.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
+    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 160));
+    DrawText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
 }
 
 static void DrawGameplayCanvas(Game *game)
@@ -367,8 +351,7 @@ static void DrawGameplayCanvas(Game *game)
         DrawCircleV(p->pos, p->radius, GameColorWithAlpha(p->color, (unsigned char)GameMathClampFloat(p->life*420.0f, 0.0f, 255.0f)));
     }
     DrawPlayer(game);
-    DrawHud(game);
-    DrawFooter(game);
+    DrawTransientMessage(game);
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)
     {
@@ -497,6 +480,13 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawText("ESC/P pausa   F11 fullscreen", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 46), 14, RAYWHITE);
 
     DrawPanel(layout.rightPanel, "GIOCATORE", game->theme.accent2);
+    /* FPS: utile in debug, non e' gameplay -- spostato qui, angolo in alto a
+       destra del pannello, invece che sopra la scena (GUI fix, step A).
+       Piccolo e defilato apposta, non deve competere con le statistiche. */
+    const char *fpsText = TextFormat("%d FPS", GetFPS());
+    int fpsW = MeasureText(fpsText, 13);
+    DrawText(fpsText, (int)(layout.rightPanel.x + layout.rightPanel.width - 16.0f) - fpsW,
+             (int)layout.rightPanel.y + 12, 13, (Color){ 126, 232, 152, 255 });
     int rx = (int)layout.rightPanel.x + 18;
     int ry = (int)layout.rightPanel.y + 48;
     Player *p = &game->player;
@@ -530,7 +520,11 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     int by = (int)layout.bottomPanel.y + 46;
     const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (Stable Diffusion): atlas PNG 128x128" : "Atlas procedurale/fallback BMP";
     DrawText(atlasMode, bx, by, 15, game->theme.accent2);
-    DrawText(game->messageTimer > 0.0f ? game->message : "Raccogli oggetti per creare sinergie generate.", bx, by + 28, 16, RAYWHITE);
+    /* Il messaggio transitorio (raccolta oggetto, porta bloccata, ecc.) vive
+       SOLO nella vista centrale, vicino all'azione (DrawTransientMessage):
+       qui resta un suggerimento fisso, mai lo stesso testo, per non mostrare
+       la stessa informazione due volte a schermo (GUI fix, step A). */
+    DrawText("Raccogli oggetti per creare sinergie generate.", bx, by + 28, 16, RAYWHITE);
 }
 
 static void DrawMenuOverlay(AppMode mode, Game *game)
