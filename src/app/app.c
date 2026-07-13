@@ -1,6 +1,8 @@
 #include "app/app.h"
 
 #include "game/game.h"
+#include "game/game_internal.h"
+#include "gen/gen_runner.h"
 #include "render/game_renderer.h"
 #include "tests/game_tests.h"
 
@@ -8,8 +10,24 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
-static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt)
+/* Contesto della generazione in-game: se abilitata (flag --generate), il
+ * gioco avvia il processo esterno (melting-gen o un finto sostituto) invece
+ * di limitarsi a rileggere il manifest gia' su disco. */
+typedef struct AppGen {
+    bool enabled;
+    const char *command;
+    GenRunner runner;
+} AppGen;
+
+static bool AppStartGeneration(AppGen *gen)
+{
+    unsigned int seed = (unsigned int)time(NULL);
+    return GenRunnerStart(&gen->runner, gen->command, seed, 180.0, "generated/gen_progress.txt");
+}
+
+static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppGen *gen)
 {
     if (IsKeyPressed(KEY_F11)) ToggleFullscreen();
 
@@ -18,8 +36,13 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt)
         if (IsKeyPressed(KEY_Q)) return true;
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))
         {
-            GameResetRun(game);
-            *mode = APP_PLAY;
+            if (gen->enabled && AppStartGeneration(gen)) *mode = APP_GENERATING;
+            else
+            {
+                GameResetRun(game);
+                if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
+                *mode = APP_PLAY;
+            }
         }
         GameUpdateParticles(game, dt);
         return false;
@@ -31,10 +54,38 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt)
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)) *mode = APP_PLAY;
         if (IsKeyPressed(KEY_R))
         {
+            if (gen->enabled && AppStartGeneration(gen)) *mode = APP_GENERATING;
+            else
+            {
+                GameResetRun(game);
+                *mode = APP_PLAY;
+            }
+        }
+        if (IsKeyPressed(KEY_M)) *mode = APP_MENU;
+        GameUpdateParticles(game, dt);
+        return false;
+    }
+
+    if (*mode == APP_GENERATING)
+    {
+        GenRunnerUpdate(&gen->runner);
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            GenRunnerCancel(&gen->runner);
+            *mode = APP_MENU;
+            return false;
+        }
+        if (gen->runner.state == GEN_RUNNER_SUCCEEDED)
+        {
             GameResetRun(game);
             *mode = APP_PLAY;
         }
-        if (IsKeyPressed(KEY_M)) *mode = APP_MENU;
+        else if (gen->runner.state == GEN_RUNNER_FAILED)
+        {
+            GameResetRun(game);
+            GameSetMessage(game, "Generazione fallita: uso i contenuti di riserva");
+            *mode = APP_PLAY;
+        }
         GameUpdateParticles(game, dt);
         return false;
     }
@@ -47,6 +98,17 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt)
     if (IsKeyPressed(KEY_M))
     {
         *mode = APP_MENU;
+        return false;
+    }
+
+    if (gen->enabled && IsKeyPressed(KEY_R))
+    {
+        if (AppStartGeneration(gen)) *mode = APP_GENERATING;
+        else
+        {
+            GameResetRun(game);
+            GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
+        }
         return false;
     }
 
@@ -65,6 +127,8 @@ int AppRun(int argc, char **argv)
     bool scriptTest = false;
     bool manifestTest = false;
     bool genTest = false;
+    AppGen gen = { 0 };
+    gen.command = "bin/melting-gen";
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--smoke-test") == 0) smokeTest = true;
@@ -95,6 +159,8 @@ int AppRun(int argc, char **argv)
             menuScreenshotTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
+        if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
+        if (strcmp(argv[i], "--gen-cmd") == 0 && i + 1 < argc) gen.command = argv[++i];
     }
 
     if (genTest)
@@ -152,8 +218,9 @@ int AppRun(int argc, char **argv)
     {
         float dt = GetFrameTime();
         UiLayout layout = UiComputeLayout();
-        if (UpdateApp(&game, &appMode, layout, dt)) break;
-        RendererDrawApp(&game, gameCanvas, appMode, screenshotTest && !screenshotDone);
+        if (UpdateApp(&game, &appMode, layout, dt, &gen)) break;
+        RendererDrawApp(&game, gameCanvas, appMode, screenshotTest && !screenshotDone,
+                        appMode == APP_GENERATING ? &gen.runner.progress : NULL);
         if (screenshotTest && !screenshotDone) screenshotDone = true;
         if (frames > 0)
         {

@@ -494,7 +494,31 @@ static void DrawMenuOverlay(AppMode mode, Game *game)
     }
 }
 
-void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot)
+static void DrawGeneratingOverlay(const Game *game, const GenProgress *progress)
+{
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 200));
+    Rectangle box = { sw*0.5f - 320.0f, sh*0.5f - 130.0f, 640.0f, 260.0f };
+    DrawRectangleRec(box, (Color){ 20, 22, 29, 246 });
+    DrawRectangleLinesEx(box, 2.0f, game->theme.accent2);
+    const char *title = "GENERAZIONE RUN";
+    DrawText(title, (int)(box.x + box.width*0.5f - MeasureText(title, 30)*0.5f), (int)box.y + 28, 30, RAYWHITE);
+
+    const char *phase = progress ? progress->phase : "avvio";
+    int percent = progress ? progress->percent : 0;
+    DrawText(TextFormat("%s  %d%%", phase, percent), (int)box.x + 60, (int)box.y + 84, 18, game->theme.accent2);
+
+    Rectangle bar = { box.x + 60.0f, box.y + 116.0f, box.width - 120.0f, 26.0f };
+    DrawRectangleRec(bar, (Color){ 35, 38, 48, 255 });
+    DrawRectangleRec((Rectangle){ bar.x, bar.y, bar.width*(float)percent/100.0f, bar.height }, game->theme.accent2);
+    DrawRectangleLinesEx(bar, 2.0f, RAYWHITE);
+
+    DrawText(progress ? progress->message : "", (int)box.x + 60, (int)box.y + 158, 16, RAYWHITE);
+    DrawText("ESC annulla e torna al menu", (int)box.x + 60, (int)box.y + 206, 15, (Color){ 155, 163, 176, 255 });
+}
+
+void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot, const GenProgress *genProgress)
 {
     BeginTextureMode(canvas);
     DrawGameplayCanvas(game);
@@ -509,6 +533,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool take
     DrawRectangleLinesEx(layout.gameRect, 4.0f, game->theme.accent2);
     DrawText("GAME VIEW", (int)layout.gameRect.x + 16, (int)layout.gameRect.y + 14, 16, GameColorWithAlpha(RAYWHITE, 170));
     if (mode == APP_MENU || mode == APP_PAUSE) DrawMenuOverlay(mode, game);
+    if (mode == APP_GENERATING) DrawGeneratingOverlay(game, genProgress);
     if (takeScreenshot)
     {
         rlDrawRenderBatchActive();

@@ -87,7 +87,8 @@ typedef enum GamePhase {
 typedef enum AppMode {
     APP_MENU,
     APP_PLAY,
-    APP_PAUSE
+    APP_PAUSE,
+    APP_GENERATING
 } AppMode;
 
 typedef enum ScriptTrigger {

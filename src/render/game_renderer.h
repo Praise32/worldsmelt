@@ -5,6 +5,6 @@
 
 UiLayout UiComputeLayout(void);
 bool UiScreenToGameMouse(UiLayout layout, Vector2 *out);
-void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot);
+void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot, const GenProgress *genProgress);
 
 #endif
