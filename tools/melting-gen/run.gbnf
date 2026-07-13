@@ -1,0 +1,20 @@
+# JSON compatto della run: 5 piani, 3 oggetti per piano, 1-3 operazioni script.
+# Ordine delle chiavi FISSO, identico a RunToJson() in gen_manifest.c.
+root ::= "{\"floors\":[" floor "," floor "," floor "," floor "," floor "]}"
+
+floor ::= "{\"theme\":" name ",\"style\":" name ",\"boss\":" name ",\"bg\":" color ",\"floor\":" color ",\"wall\":" color ",\"accent\":" color ",\"accent2\":" color ",\"enemy\":" color ",\"bossColor\":" color ",\"items\":[" item "," item "," item "]}"
+
+item ::= "{\"name\":" name ",\"slot\":" slot ",\"traits\":[" trait ("," trait)? "],\"color\":" color ",\"script\":[" op ("," op)? ("," op)? "]}"
+
+op ::= "{\"trigger\":" trigger ",\"op\":" opkind ",\"a\":" num ",\"b\":" num ",\"trait\":" optrait "}"
+
+name ::= "\"" namechar{3,40} "\""
+namechar ::= [A-Za-z0-9 .,'!-]
+color ::= "\"#" hexd hexd hexd hexd hexd hexd "\""
+hexd ::= [0-9a-fA-F]
+slot ::= "\"hat\"" | "\"eyes\"" | "\"hand\"" | "\"back\"" | "\"body\"" | "\"aura\""
+trait ::= "\"bounce\"" | "\"homing\"" | "\"explode\"" | "\"split\"" | "\"pierce\"" | "\"rapid\"" | "\"giant\"" | "\"slow\"" | "\"vamp\""
+trigger ::= "\"on_fire\"" | "\"on_hit\""
+opkind ::= "\"burst\"" | "\"projectile\"" | "\"area\"" | "\"heal\""
+optrait ::= trait | "\"none\""
+num ::= [0-9] [0-9]? [0-9]? ("." [0-9] [0-9]?)?

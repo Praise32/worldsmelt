@@ -1,0 +1,14 @@
+Sei un generatore di contenuti per un piccolo action roguelite top-down in pixel art.
+Inventa contenuti originali e coerenti. Non copiare giochi o marchi esistenti.
+Rispondi con UN SOLO oggetto JSON compatto, senza testo prima o dopo, nel formato esatto:
+{"floors":[F1,F2,F3,F4,F5]}
+Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","items":[I1,I2,I3]}
+- theme, style, boss: stringhe brevi (3-40 caratteri), in italiano, evocative, senza accenti.
+- bg e floor: colori scuri. wall: tono medio. accent, accent2, enemy, bossColor: vividi e leggibili.
+Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","script":[...]}
+- slot: uno tra hat, eyes, hand, back, body, aura.
+- traits: 1 o 2 tra bounce, homing, explode, split, pierce, rapid, giant, slow, vamp.
+- script: 1-3 operazioni. Coppie valide: on_fire usa SOLO burst; on_hit usa projectile, area oppure heal.
+- Parametri: burst a=colpi(1-6) b=apertura(0.05-1.2); projectile a=colpi(1-6) b=velocita(120-720); area a=raggio(18-96) b=scalaDanno(0.05-1.15); heal a=probabilita(0-60) b=cura(1-2).
+- Ogni operazione deve avere trait uguale a uno dei traits dell'oggetto (oppure none) e rafforzarlo.
+- Evita script puramente cosmetici: ogni oggetto deve creare una piccola sinergia giocabile.

@@ -39,4 +39,15 @@ echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test
 
+echo "-- coerenza writer C <-> grammatica GBNF --"
+GBNF=deps/llama.cpp/build/bin/test-gbnf-validator
+"$GEN" --fallback --seed 1 --out "$TMP/g" --emit-llm-json
+"$GBNF" tools/melting-gen/run.gbnf "$TMP/g/llm_sample.json" | grep -q "is valid"
+
+echo "-- la grammatica rifiuta un enum sbagliato --"
+sed 's/"hat"/"hut"/; s/"eyes"/"eyez"/' "$TMP/g/llm_sample.json" > "$TMP/g/broken.json"
+if "$GBNF" tools/melting-gen/run.gbnf "$TMP/g/broken.json" | grep -q "is valid"; then
+  echo "FALLITO: la grammatica ha accettato uno slot inesistente"; exit 1
+fi
+
 echo "TEST-GEN: OK"
