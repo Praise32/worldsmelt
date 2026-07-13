@@ -94,6 +94,7 @@ echo "== Pacchetti di sistema (chiede la password) =="
 # la finestra grafica di autenticazione.
 SUDO="sudo"
 [ -t 0 ] || SUDO="pkexec"
+$SUDO apt-get update
 $SUDO apt-get install -y build-essential cmake git \
   libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev \
   libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev \
@@ -130,7 +131,7 @@ Expected: clone e build di raylib senza errori; `ls deps/raylib/build/raylib/lib
 - [ ] **Step 5: Scrivi il `Makefile`**
 
 ```make
-CC ?= gcc
+CC := gcc
 
 RAYLIB_DIR := deps/raylib
 RAYLIB_LIB := $(RAYLIB_DIR)/build/raylib/libraylib.a
@@ -140,6 +141,7 @@ GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src
 GAME_LIBS := $(RAYLIB_LIB) -lGL -lm -lpthread -ldl -lrt -lX11
 
 GAME_SRC := $(shell find src -name '*.c')
+GAME_HDR := $(shell find src -name '*.h')
 GAME_BIN := bin/melting_run_gpu
 
 .PHONY: all game run test clean
@@ -148,7 +150,7 @@ all: game
 
 game: $(GAME_BIN)
 
-$(GAME_BIN): $(GAME_SRC)
+$(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 	@mkdir -p bin logs generated
 	$(CC) $(GAME_CFLAGS) $(GAME_SRC) $(GAME_LIBS) -o $@
 
@@ -222,15 +224,20 @@ if [ ! -f deps/llama.cpp/build/src/libllama.a ]; then
   [ -d deps/llama.cpp ] || git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp.git deps/llama.cpp
   cmake -S deps/llama.cpp -B deps/llama.cpp/build -DCMAKE_BUILD_TYPE=Release \
     -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_BUILD_TESTS=ON \
-    -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_CURL=OFF
-  cmake --build deps/llama.cpp/build -j"$(nproc)"
+    -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_APP=OFF \
+    -DLLAMA_BUILD_SERVER=OFF -DLLAMA_CURL=OFF
+  # -j4 e non $(nproc): con 12 job paralleli GCC 15 va in internal compiler error
+  # su llama-sampler.cpp per pressione di memoria (15 GiB di RAM su questa macchina).
+  cmake --build deps/llama.cpp/build -j4
+  # test-gbnf-validator non fa parte del target 'all': va chiesto esplicitamente.
+  cmake --build deps/llama.cpp/build --target test-gbnf-validator -j4
 fi
 
 echo "== Verifica Vulkan =="
 vulkaninfo --summary | head -25 || echo "ATTENZIONE: vulkaninfo fallito, controlla i driver"
 ```
 
-(`LLAMA_BUILD_TESTS=ON` serve per avere `build/bin/test-gbnf-validator`, usato dal Task 5.)
+(`LLAMA_BUILD_TESTS=ON` serve per avere `build/bin/test-gbnf-validator`, usato dal Task 5. `LLAMA_BUILD_APP=OFF` e `LLAMA_BUILD_SERVER=OFF` sono obbligatori: b9979 ha un target «binario unificato» attivo di default che richiede la libreria `common` e non compila senza; a noi serve solo `libllama`, quindi si spegne.)
 
 - [ ] **Step 2: AVVISA L'UTENTE (password) e riesegui lo script**
 
