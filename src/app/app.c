@@ -232,6 +232,7 @@ int AppRun(int argc, char **argv)
     bool manifestTest = false;
     bool genTest = false;
     bool atlasFallbackTest = false;
+    bool layerTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
@@ -261,6 +262,15 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             atlasFallbackTest = true;
+        }
+        /* Personaggio a strati (fase 3): come --atlas-fallback-test, disegna
+           un frame vero (serve la finestra/GL, quindi Xvfb in make test) per
+           verificare che BuildItemLayers/DrawItemLayer non vadano in crash
+           con un giocatore equipaggiato a fondo. Vedi GameLayerTest. */
+        if (strcmp(argv[i], "--layer-test") == 0)
+        {
+            smokeTest = true;
+            layerTest = true;
         }
         if (strcmp(argv[i], "--screenshot-test") == 0)
         {
@@ -366,6 +376,14 @@ int AppRun(int argc, char **argv)
         CloseWindow();
         return ok ? 0 : 7;
     }
+    if (layerTest)
+    {
+        bool ok = GameLayerTest(&game);
+        printf("Layer test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 11;
+    }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     SetTextureFilter(gameCanvas.texture, TEXTURE_FILTER_BILINEAR);
@@ -380,7 +398,7 @@ int AppRun(int argc, char **argv)
         GenProgress combinedProgress = { 0 };
         if (appMode == APP_GENERATING) combinedProgress = AppCombinedProgress(&gen);
         RendererDrawApp(&game, gameCanvas, appMode, screenshotTest && !screenshotDone,
-                        appMode == APP_GENERATING ? &combinedProgress : NULL);
+                        appMode == APP_GENERATING ? &combinedProgress : NULL, "logs/melting-run-screen.png");
         if (screenshotTest && !screenshotDone) screenshotDone = true;
         if (frames > 0)
         {

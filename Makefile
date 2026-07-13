@@ -132,6 +132,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test
 
 test-gen: all
 	bash scripts/test-gen.sh

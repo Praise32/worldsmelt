@@ -9,6 +9,13 @@ bool GamePortalRespawnTest(Game *game);
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
 bool GameAtlasFallbackTest(Game *game);
+
+/* Personaggio a strati (src/render/item_layers.h): BuildItemLayers su un
+   mix di oggetti costruito a mano (un layer per slot + uno slot in
+   overflow), poi lo stesso mix disegnato per davvero con RendererDrawApp.
+   Vedi src/tests/game_tests.c per i dettagli. */
+bool GameLayerTest(Game *game);
+
 bool GenRunnerSelfTest(void);
 
 /* Suite di test della sandbox Lua (src/script/script_sandbox.c): un test

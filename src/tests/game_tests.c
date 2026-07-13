@@ -2,6 +2,7 @@
 
 #include "game/game_internal.h"
 #include "render/game_renderer.h"
+#include "render/item_layers.h"
 #include "script/script_api.h"
 #include "script/script_sandbox.h"
 
@@ -181,7 +182,7 @@ bool GameAtlasFallbackTest(Game *game)
        quale) in ciascuna posizione candidata, cosi' il confronto sotto non
        deve indovinare la geometria della griglia. */
     EntitiesClear(game);
-    RendererDrawApp(game, canvas, APP_PLAY, false, NULL);
+    RendererDrawApp(game, canvas, APP_PLAY, false, NULL, NULL);
     Image before = LoadImageFromTexture(canvas.texture);
     Color enemyBefore = GetImageColor(before, (int)enemyPos.x, enemyImgY);
     Color exitBefore = GetImageColor(before, (int)exitPos.x, exitImgY);
@@ -189,7 +190,7 @@ bool GameAtlasFallbackTest(Game *game)
 
     EntitiesAddEnemy(game, ENEMY_CHASER, enemyPos);
     EntitiesAddPickup(game, PICKUP_EXIT, exitPos, 0, 0);
-    RendererDrawApp(game, canvas, APP_PLAY, false, NULL);   /* non deve andare in crash */
+    RendererDrawApp(game, canvas, APP_PLAY, false, NULL, NULL);   /* non deve andare in crash */
 
     /* DrawPlayer disegna, come riserva, un cerchio bianco per la testa a
        (pos.x, pos.y - 30): se DrawAtlasCell tornasse ancora "vero" per una
@@ -214,6 +215,108 @@ bool GameAtlasFallbackTest(Game *game)
     bool exitDrew = ColorChannelDiff(exitBefore, exitAfter) > 40;
 
     return playerDrew && enemyDrew && exitDrew;
+}
+
+/* Il personaggio a strati (fase 3, vedi docs/superpowers/specs/2026-07-13-
+   items-synergy-vision.md sezione 3, e src/render/item_layers.h). Due parti:
+
+   1. BuildItemLayers e' una funzione PURA (item_layers.c): la si esercita
+      qui direttamente, con un array di Item costruito a mano, senza bisogno
+      di Game* ne' di una finestra, per verificare (a) un layer per ciascuno
+      dei sei slot e (b) il tetto per-slot con badge di overflow su uno slot
+      sovraffollato (8 cappelli, oltre ITEM_LAYER_MAX_PER_SLOT = 6).
+   2. Il percorso vero, a schermo: lo stesso mix di oggetti finisce nel
+      Player VERO e RendererDrawApp disegna un frame completo su una
+      RenderTexture. Come --atlas-fallback-test, l'unica cosa richiesta e'
+      che non vada in crash e che produca un frame -- il rendering resta
+      visivo, non e' questo il posto per predire pixel esatti di una dozzina
+      di layer sovrapposti. */
+bool GameLayerTest(Game *game)
+{
+    Item items[13] = { 0 };
+    int n = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        items[n].active = true;
+        items[n].slot = SLOT_HAT;
+        items[n].color = RED;
+        n++;
+    }
+    static const ItemSlot others[] = { SLOT_EYES, SLOT_HAND, SLOT_BACK, SLOT_BODY, SLOT_AURA };
+    for (int i = 0; i < 5; i++)
+    {
+        items[n].active = true;
+        items[n].slot = others[i];
+        items[n].color = BLUE;
+        n++;
+    }
+
+    ItemLayer layers[MAX_ITEMS];
+    int count = BuildItemLayers(items, n, layers, MAX_ITEMS);
+
+    /* 6 cappelli (il tetto) + 1 layer per ciascuno degli altri cinque slot =
+       11, non 13: i due cappelli oltre il tetto restano equipaggiati (il
+       gameplay non li vede toccati da questo test) ma non producono un
+       altro layer disegnato. */
+    if (count != 11)
+    {
+        fprintf(stderr, "GameLayerTest: attesi 11 layer, trovati %d\n", count);
+        return false;
+    }
+
+    /* Ordine di disegno atteso: corpo, mantello, mano, occhi, poi i sei
+       cappelli, poi l'aura (vedi kSlotDrawOrder in item_layers.c). */
+    static const ItemSlot expectedOrder[11] = {
+        SLOT_BODY, SLOT_BACK, SLOT_HAND, SLOT_EYES,
+        SLOT_HAT, SLOT_HAT, SLOT_HAT, SLOT_HAT, SLOT_HAT, SLOT_HAT,
+        SLOT_AURA
+    };
+    for (int i = 0; i < 11; i++)
+    {
+        if (layers[i].slot != expectedOrder[i])
+        {
+            fprintf(stderr, "GameLayerTest: layer %d ha slot %d, atteso %d\n", i, layers[i].slot, expectedOrder[i]);
+            return false;
+        }
+    }
+
+    /* L'ultimo cappello disegnato (stackIndex 5, il tetto) deve riportare
+       stackTotal 8: e' il segnale che dice a DrawItemLayer di disegnare il
+       badge "+2" invece di lasciare i due cappelli in eccesso silenziosi. */
+    bool foundOverflowHat = false;
+    for (int i = 0; i < count; i++)
+    {
+        if (layers[i].slot == SLOT_HAT && layers[i].stackIndex == ITEM_LAYER_MAX_PER_SLOT - 1)
+        {
+            if (layers[i].stackTotal != 8)
+            {
+                fprintf(stderr, "GameLayerTest: stackTotal del cappello in overflow e' %d, atteso 8\n", layers[i].stackTotal);
+                return false;
+            }
+            foundOverflowHat = true;
+        }
+    }
+    if (!foundOverflowHat)
+    {
+        fprintf(stderr, "GameLayerTest: nessun layer HAT con stackIndex al tetto\n");
+        return false;
+    }
+
+    /* Parte 2: lo stesso mix sul Player vero, disegnato per davvero. Cattura
+       anche uno screenshot di comodo (percorso SEPARATO da
+       logs/melting-run-screen.png, che resta di --screenshot-test) cosi' il
+       proprietario puo' vedere il personaggio a strati senza dover giocare
+       una run fino a raccogliere otto cappelli. */
+    memset(game->player.items, 0, sizeof(game->player.items));
+    for (int i = 0; i < n; i++) game->player.items[i] = items[i];
+    game->player.itemCount = n;
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-layers-screen.png");   /* non deve andare in crash */
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+
+    return textureValid;
 }
 
 #ifndef _WIN32

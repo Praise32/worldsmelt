@@ -2,6 +2,7 @@
 
 #include "core/game_math.h"
 #include "game/game.h"
+#include "render/item_layers.h"
 
 #include "rlgl.h"
 
@@ -213,60 +214,54 @@ static void DrawPickup(Game *game, const Pickup *p)
     else if (p->kind == PICKUP_ITEM) DrawText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
 }
 
-static void DrawEquipment(const Game *game)
+/* Lo stickman minimale e FISSO: il personaggio base, mai generato (vision
+   doc, docs/superpowers/specs/2026-07-13-items-synergy-vision.md, sezione
+   3; APPUNTI.md sezioni 4 e 6, "la tela vuota"). Decisione esplicita del
+   proprietario: la base NON usa mai lo sprite generato SPR_PLAYER, anche
+   quando l'atlas e' caricato e la cella e' presente. Due motivi, entrambi
+   nel documento: (1) agganci affidabili per i layer degli oggetti — se il
+   personaggio base cambiasse ad ogni run generata, DrawEquipment non
+   saprebbe piu' dove mettere cappello/occhiali con certezza; (2) massima
+   semplicita' — il personaggio non deve rubare la scena agli oggetti che ci
+   si mette sopra. Percio' questo E' il fallback storico (quello che prima
+   scattava solo se l'atlas mancava o la cella era vuota), promosso a UNICO
+   percorso: SPR_PLAYER resta un indice valido nell'atlas (melting-sprites
+   continua a generare quella cella) per non rompere il layout, ma
+   DrawPlayer non la disegna mai piu'. Un domani, se si vorra' un
+   interruttore per tornare allo sprite generato come base, e' un secondo
+   percorso esplicito da aggiungere qui — non il default. */
+static void DrawBaseStickman(Vector2 pos, Color tint)
 {
-    const Player *p = &game->player;
-    int hatStack = 0;
-    for (int i = 0; i < p->itemCount; i++)
-    {
-        const Item *item = &p->items[i];
-        if (item->slot == SLOT_HAT)
-        {
-            float y = p->pos.y - 32.0f - (float)hatStack*8.0f;
-            DrawRectangleRounded((Rectangle){ p->pos.x - 14, y, 28, 8 }, 0.3f, 5, item->color);
-            DrawRectangleRounded((Rectangle){ p->pos.x - 9, y - 9, 18, 12 }, 0.35f, 5, item->color);
-            hatStack++;
-        }
-        else if (item->slot == SLOT_EYES)
-        {
-            DrawCircleV((Vector2){ p->pos.x - 6, p->pos.y - 18 }, 4.5f, item->color);
-            DrawCircleV((Vector2){ p->pos.x + 6, p->pos.y - 18 }, 4.5f, item->color);
-            DrawLineEx((Vector2){ p->pos.x - 2, p->pos.y - 18 }, (Vector2){ p->pos.x + 2, p->pos.y - 18 }, 2.0f, item->color);
-        }
-        else if (item->slot == SLOT_HAND)
-        {
-            float side = (i%2 == 0) ? 1.0f : -1.0f;
-            DrawLineEx((Vector2){ p->pos.x + side*13.0f, p->pos.y - 2.0f },
-                       (Vector2){ p->pos.x + side*32.0f, p->pos.y - 14.0f }, 5.0f, item->color);
-        }
-        else if (item->slot == SLOT_BACK)
-        {
-            DrawTriangle((Vector2){ p->pos.x, p->pos.y - 5 },
-                         (Vector2){ p->pos.x - 22, p->pos.y + 31 },
-                         (Vector2){ p->pos.x + 22, p->pos.y + 31 }, GameColorWithAlpha(item->color, 140));
-        }
-        else if (item->slot == SLOT_BODY) DrawCircleV((Vector2){ p->pos.x, p->pos.y + 3 }, 6, item->color);
-        else
-        {
-            float a = (float)GetTime()*2.4f + (float)i;
-            DrawCircleV((Vector2){ p->pos.x + cosf(a)*34.0f, p->pos.y + sinf(a)*34.0f }, 5, item->color);
-        }
-    }
+    DrawLineEx((Vector2){ pos.x, pos.y - 22 }, (Vector2){ pos.x, pos.y + 14 }, 5, tint);
+    DrawCircleV((Vector2){ pos.x, pos.y - 30 }, 10, tint);
+    DrawLineEx((Vector2){ pos.x - 18, pos.y - 4 }, (Vector2){ pos.x + 18, pos.y - 4 }, 4, tint);
+    DrawLineEx((Vector2){ pos.x, pos.y + 14 }, (Vector2){ pos.x - 15, pos.y + 31 }, 4, tint);
+    DrawLineEx((Vector2){ pos.x, pos.y + 14 }, (Vector2){ pos.x + 15, pos.y + 31 }, 4, tint);
+}
+
+/* Costruisce la lista dei layer (item_layers.h) e la disegna nell'ordine in
+   cui BuildItemLayers l'ha gia' scritta: corpo/mantello (dietro la base),
+   POI la base stessa, POI mano/occhi/cappello/aura (davanti). Un buffer
+   sullo stack dimensionato su MAX_ITEMS basta sempre, perche' BuildItemLayers
+   non puo' mai scrivere piu' elementi di quanti oggetti attivi esistano —
+   zero allocazioni per frame. */
+static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
+{
+    PlayerAnchors anchors = PlayerComputeAnchors(pos, p->radius);
+    ItemLayer layers[MAX_ITEMS];
+    int count = BuildItemLayers(p->items, p->itemCount, layers, MAX_ITEMS);
+
+    int i = 0;
+    for (; i < count && ItemLayerIsBehindBase(layers[i].slot); i++) DrawItemLayer(anchors, layers[i]);
+    DrawBaseStickman(pos, tint);
+    for (; i < count; i++) DrawItemLayer(anchors, layers[i]);
 }
 
 static void DrawPlayer(Game *game)
 {
     Player *p = &game->player;
     Color tint = (p->invuln > 0.0f && ((int)(GetTime()*18.0)%2 == 0)) ? GameColorWithAlpha(WHITE, 115) : WHITE;
-    if (!DrawAtlasCell(game, SPR_PLAYER, p->pos, 96.0f, tint))
-    {
-        DrawLineEx((Vector2){ p->pos.x, p->pos.y - 22 }, (Vector2){ p->pos.x, p->pos.y + 14 }, 5, tint);
-        DrawCircleV((Vector2){ p->pos.x, p->pos.y - 30 }, 10, tint);
-        DrawLineEx((Vector2){ p->pos.x - 18, p->pos.y - 4 }, (Vector2){ p->pos.x + 18, p->pos.y - 4 }, 4, tint);
-        DrawLineEx((Vector2){ p->pos.x, p->pos.y + 14 }, (Vector2){ p->pos.x - 15, p->pos.y + 31 }, 4, tint);
-        DrawLineEx((Vector2){ p->pos.x, p->pos.y + 14 }, (Vector2){ p->pos.x + 15, p->pos.y + 31 }, 4, tint);
-    }
-    DrawEquipment(game);
+    DrawEquipment(p, p->pos, tint);
 }
 
 static void DrawHud(Game *game)
@@ -539,7 +534,7 @@ static void DrawGeneratingOverlay(const Game *game, const GenProgress *progress)
     DrawText("ESC annulla e torna al menu", (int)box.x + 60, (int)box.y + 206, 15, (Color){ 155, 163, 176, 255 });
 }
 
-void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot, const GenProgress *genProgress)
+void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot, const GenProgress *genProgress, const char *screenshotPath)
 {
     BeginTextureMode(canvas);
     DrawGameplayCanvas(game);
@@ -555,10 +550,16 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool take
     DrawText("GAME VIEW", (int)layout.gameRect.x + 16, (int)layout.gameRect.y + 14, 16, GameColorWithAlpha(RAYWHITE, 170));
     if (mode == APP_MENU || mode == APP_PAUSE) DrawMenuOverlay(mode, game);
     if (mode == APP_GENERATING) DrawGeneratingOverlay(game, genProgress);
+    /* screenshotPath e' del chiamante (mai NULL quando takeScreenshot e'
+       vero, vedi game_renderer.h): --screenshot-test continua a scrivere
+       logs/melting-run-screen.png esattamente come prima (vedi app.c),
+       questo parametro serve solo a chi (come --layer-test, vedi
+       src/tests/game_tests.c) vuole un frame catturato altrove, senza
+       toccare quel file. */
     if (takeScreenshot)
     {
         rlDrawRenderBatchActive();
-        TakeScreenshot("logs/melting-run-screen.png");
+        TakeScreenshot(screenshotPath);
     }
     EndDrawing();
 }
