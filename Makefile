@@ -15,6 +15,7 @@ LLAMA_DIR := deps/llama.cpp
 LLAMA_BUILD := $(LLAMA_DIR)/build
 
 GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c)
+GEN_HDR := $(wildcard tools/melting-gen/*.h) $(wildcard tools/melting-gen/vendor/*.h)
 GEN_CFLAGS := $(CFLAGS) -Itools/melting-gen -Itools/melting-gen/vendor \
   -I$(LLAMA_DIR)/include -I$(LLAMA_DIR)/ggml/include
 GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
@@ -51,7 +52,7 @@ $(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 	@mkdir -p bin logs generated
 	$(CC) $(GAME_CFLAGS) $(GAME_SRC) $(GAME_LIBS) -o $@
 
-$(GEN_BIN): $(GEN_SRC)
+$(GEN_BIN): $(GEN_SRC) $(GEN_HDR)
 	@mkdir -p bin logs
 	$(CC) $(GEN_CFLAGS) $(GEN_SRC) $(GEN_LIBS) -o $@
 

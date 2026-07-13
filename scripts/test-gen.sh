@@ -19,6 +19,9 @@ GEN=bin/melting-gen
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+echo "-- il binario del gioco non deve linkare llama.cpp o cJSON --"
+! nm bin/melting_run_gpu | grep -qi -e llama -e cJSON
+
 echo "-- determinismo fallback: stesso seed = stessi byte --"
 "$GEN" --fallback --seed 12345 --out "$TMP/a"
 "$GEN" --fallback --seed 12345 --out "$TMP/b"
@@ -37,6 +40,22 @@ grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
+"${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test
+
+echo "-- una generazione riuscita sostituisce davvero i contenuti in generated/ --"
+# Non basta che i test siano verdi con una generazione sola: una regressione
+# che mettesse in cache i contenuti (o ignorasse il nuovo manifest) lascerebbe
+# per sempre la run precedente senza far fallire nessun altro controllo di
+# questo script. Si generano due run con semi diversi nella stessa generated/,
+# si verifica che il tema del piano 1 cambi, e che il gioco continui a
+# caricare correttamente il manifest piu' recente.
+"$GEN" --fallback --seed 12345 --out generated
+themeA=$(grep '^floor1.theme=' generated/current_run.txt)
+"$GEN" --fallback --seed 999 --out generated
+themeB=$(grep '^floor1.theme=' generated/current_run.txt)
+if [ "$themeA" = "$themeB" ]; then
+  echo "FALLITO: due semi diversi hanno prodotto lo stesso floor1.theme (contenuti non aggiornati?)"; exit 1
+fi
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test
 
 echo "-- coerenza writer C <-> grammatica GBNF --"

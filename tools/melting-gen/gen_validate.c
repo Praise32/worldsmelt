@@ -6,7 +6,22 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Stesse regole di llm/run_content.mjs (SCRIPT_BOUNDS, OP_TRAITS, SCRIPT_TRAIT_PRIORITY). */
+/* Stesse regole di llm/run_content.mjs (SCRIPT_BOUNDS, OP_TRAITS, SCRIPT_TRAIT_PRIORITY).
+ *
+ * Divergenze note e volute rispetto a normalizeRun() in llm/run_content.mjs,
+ * per risparmiare a chi legge un'indagine inutile:
+ *  - I trait vengono deduplicati e ordinati per priorita' gia' in fase di
+ *    raccolta qui in C (NormalizeTraits), mentre in Node succede dentro lo
+ *    script di normalizzazione: equivalente ai fini del gioco, perche' il
+ *    gioco memorizza i trait come bitmask (l'ordine di inserimento non
+ *    sopravvive comunque).
+ *  - Le stringhe numeriche tipo "a": "3" vengono rifiutate qui (JsonNumber
+ *    accetta solo cJSON_IsNumber) invece che convertite, a differenza del
+ *    ramo Node che le forza a numero: il fallback per campo copre il caso.
+ *  - I nomi vengono troncati alla dimensione del campo C (name[48], vedi
+ *    melting_gen.h) invece di essere rifiutati o troncati diversamente lato
+ *    Node.
+ */
 
 static const char *SCRIPT_TRAIT_PRIORITY[9] = {
     "split", "bounce", "rapid", "homing", "pierce", "explode", "slow", "giant", "vamp"

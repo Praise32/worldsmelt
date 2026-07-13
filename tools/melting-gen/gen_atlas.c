@@ -232,12 +232,21 @@ int GenWriteAtlasBmp(const GenRun *run, const char *outDir)
     WriteU16(header + 28, 32);
     WriteU32(header + 34, (unsigned int)pixelBytes);
 
-    char path[512];
-    snprintf(path, sizeof(path), "%s/current_atlas.bmp", outDir);
-    FILE *f = fopen(path, "wb");
+    /* Come per il manifest (gen_manifest.c): file temporaneo + rename atomico,
+       cosi' un SIGTERM o un disco pieno a meta' scrittura non lasciano un
+       current_atlas.bmp troncato al posto di quello valido di prima. */
+    char tmpPath[512], finalPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/current_atlas.bmp", outDir);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/current_atlas.bmp.tmp", outDir);
+    FILE *f = fopen(tmpPath, "wb");
     if (!f) { free(px); return -1; }
     int ok = fwrite(header, 1, 54, f) == 54 && fwrite(px, 1, pixelBytes, f) == pixelBytes;
-    fclose(f);
     free(px);
-    return ok ? 0 : -1;
+    if (!ok)
+    {
+        fclose(f);
+        remove(tmpPath);
+        return -1;
+    }
+    return GenPublishFile(f, tmpPath, finalPath);
 }

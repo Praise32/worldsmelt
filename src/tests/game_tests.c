@@ -70,6 +70,12 @@ bool GameManifestTest(Game *game)
             if (!item->name[0] || !strchr(item->script, ':')) return false;
         }
     }
+    /* GameManifestTest verificava solo il contenuto testuale del manifest, mai
+       game->atlasLoaded: una regressione nello scrittore del BMP (Important 2)
+       degraderebbe silenziosamente al rendering per forme con tutti i test
+       verdi. Se il manifest referenzia un atlas che esiste su disco, deve
+       essere stato caricato. */
+    if (game->content.atlasPath[0] && FileExists(game->content.atlasPath) && !game->atlasLoaded) return false;
     return true;
 }
 

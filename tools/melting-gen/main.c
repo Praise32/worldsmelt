@@ -133,7 +133,18 @@ int main(int argc, char **argv)
         else GenLogLine("nessun modello in models/: uso il fallback deterministico");
 
         static char json[65536];
-        for (int attempt = 0; modelPath && attempt < 3 && !haveRun; attempt++)
+        /* Limite tentativi legato al timeout del genitore: src/app/app.c
+         * (AppStartGeneration) manda SIGTERM a questo processo dopo 180s. Un
+         * tentativo costa fino a ~76s (load 2,6s + nPredict=2048 token a
+         * 28,1 tok/s, misurati sul 7B a ngl=99 in docs/BENCHMARKS.md), quindi
+         * 2 tentativi restano a ~152s, con margine per la scrittura finale
+         * del fallback deterministico che segue se anche il secondo fallisce.
+         * Con 3 tentativi (~228s) il genitore ucciderebbe questo processo
+         * PRIMA che possa arrivare a GenFallbackRun, lasciando il giocatore
+         * con la run stantia precedente invece di quella nuova garantita dal
+         * design: se uno di questi due numeri cambia, va ricontrollato anche
+         * l'altro. */
+        for (int attempt = 0; modelPath && attempt < 2 && !haveRun; attempt++)
         {
             GenLlmConfig cfg = {
                 .modelPath = modelPath,

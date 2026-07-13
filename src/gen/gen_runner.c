@@ -97,6 +97,11 @@ void GenRunnerUpdate(GenRunner *runner)
     pid_t done = waitpid((pid_t)runner->pid, &status, WNOHANG);
     if (done == (pid_t)runner->pid)
     {
+        /* Rilettura finale: il figlio puo' aver scritto l'ultimo progresso
+           (100%/"fine" o "errore") dopo la ReadProgress() qui sopra ma prima
+           di uscire, altrimenti lo stato finale mostrerebbe una percentuale
+           non aggiornata. */
+        ReadProgress(runner);
         runner->state = (WIFEXITED(status) && WEXITSTATUS(status) == 0)
             ? GEN_RUNNER_SUCCEEDED : GEN_RUNNER_FAILED;
         return;

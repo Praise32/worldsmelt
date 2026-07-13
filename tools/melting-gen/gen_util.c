@@ -86,6 +86,28 @@ void GenProgressWrite(const char *outDir, const char *phase, int percent, const 
     rename(tmp, fin);
 }
 
+int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath)
+{
+    /* ferror() va controllato PRIMA di fclose(): dopo la chiusura lo stream
+       non e' piu' valido. Un disco pieno fa fallire le fprintf/fwrite senza
+       che il chiamante lo controlli riga per riga: e' qui che l'errore viene
+       intercettato prima che il file troncato prenda il posto di quello
+       valido. */
+    int hadError = ferror(f);
+    int closeFailed = (fclose(f) != 0);
+    if (hadError || closeFailed)
+    {
+        remove(tmpPath);
+        return -1;
+    }
+    if (rename(tmpPath, finalPath) != 0)
+    {
+        remove(tmpPath);
+        return -1;
+    }
+    return 0;
+}
+
 void GenLogLine(const char *fmt, ...)
 {
     GenEnsureDir("logs");

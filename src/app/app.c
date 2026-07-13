@@ -23,7 +23,16 @@ typedef struct AppGen {
 
 static bool AppStartGeneration(AppGen *gen)
 {
-    unsigned int seed = (unsigned int)time(NULL);
+    /* time(NULL) da solo ha risoluzione di un secondo: premere R due volte
+     * nello stesso secondo produceva lo stesso seed e quindi una run
+     * identica. Si mescola clock() (risoluzione sub-secondo, e portabile:
+     * ISO C, disponibile sia su Linux sia su Windows/MinGW senza bisogno di
+     * header specifici della piattaforma) e un contatore di chiamate che
+     * garantisce unicita' anche se il clock non avanzasse a sufficienza tra
+     * due pressioni ravvicinate. */
+    static unsigned int callCount = 0;
+    callCount++;
+    unsigned int seed = (unsigned int)time(NULL) ^ (unsigned int)clock() ^ (callCount * 2654435761u);
     return GenRunnerStart(&gen->runner, gen->command, seed, 180.0, "generated/gen_progress.txt");
 }
 
@@ -58,6 +67,7 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
             else
             {
                 GameResetRun(game);
+                if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
                 *mode = APP_PLAY;
             }
         }
@@ -228,6 +238,13 @@ int AppRun(int argc, char **argv)
             if (frames == 0) break;
         }
     }
+
+    /* Se il ciclo termina (finestra chiusa, o contatore di frame dello
+     * smoke-test esaurito) mentre la generazione e' ancora in corso, il
+     * processo figlio va cancellato qui: altrimenti melting-gen resta a
+     * girare fino a 3 minuti con un modello da 7B sulla GPU e poi scrive in
+     * generated/, in corsa con un rilancio del gioco. */
+    if (gen.runner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.runner);
 
     UnloadRenderTexture(gameCanvas);
     GameUnloadAssets(&game);

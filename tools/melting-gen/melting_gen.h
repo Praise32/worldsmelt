@@ -2,6 +2,7 @@
 #define MELTING_GEN_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 #define GEN_FLOORS 5
 #define GEN_ITEMS 3
@@ -56,6 +57,13 @@ char *GenReadFile(const char *path);   /* buffer malloc terminato da zero, NULL 
 int GenFileExists(const char *path);
 void GenProgressWrite(const char *outDir, const char *phase, int percent, const char *message);
 void GenLogLine(const char *fmt, ...);
+/* Pubblica atomicamente un file di output "definitivo" (manifest, JSON di
+ * gioco, atlas BMP): f e' gia' stato aperto su tmpPath e scritto dal
+ * chiamante. Controlla gli errori di scrittura, chiude il file, e solo se
+ * tutto e' andato bene fa rename() su finalPath. Su qualunque errore rimuove
+ * tmpPath e non tocca finalPath (che quindi resta quello valido di prima).
+ * Stesso pattern tmp+rename di GenProgressWrite qui sopra. */
+int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath);
 extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
 const GenTraitRule *GenTraitRuleFor(const char *trait);   /* NULL se sconosciuto */
