@@ -55,6 +55,29 @@ if [ ! -f deps/stable-diffusion.cpp/build/libstable-diffusion.a ]; then
   cmake --build deps/stable-diffusion.cpp/build -j4
 fi
 
+LUA_TAG="5.5.0"
+# Hash del tarball scaricato una volta da lua.org e fissato qui: lua.org non
+# pubblica un file .sha256 affiancato, quindi il controllo di integrita' e'
+# contro il valore osservato, non contro una fonte terza firmata (idem per i
+# tag git di raylib/llama.cpp/stable-diffusion.cpp qui sopra, che si fidano
+# del canale HTTPS + del repository GitHub ufficiale).
+LUA_SHA256="57ccc32bbbd005cab75bcc52444052535af691789dba2b9016d5c50640d68b3d"
+if [ ! -f deps/lua-$LUA_TAG/src/liblua.a ]; then
+  echo "== Lua $LUA_TAG (statica, MIT) =="
+  if [ ! -d deps/lua-$LUA_TAG ]; then
+    curl -sSL -o deps/lua-$LUA_TAG.tar.gz "https://www.lua.org/ftp/lua-$LUA_TAG.tar.gz"
+    echo "$LUA_SHA256  deps/lua-$LUA_TAG.tar.gz" | sha256sum -c -
+    tar -xzf deps/lua-$LUA_TAG.tar.gz -C deps
+    rm -f deps/lua-$LUA_TAG.tar.gz
+  fi
+  # Target "linux" del Makefile ufficiale di Lua: a differenza di macOS/BSD
+  # non abilita readline (SYSCFLAGS = solo "-DLUA_USE_LINUX"), quindi non
+  # serve aggiungere libreadline alla lista di pacchetti apt sopra. Costruisce
+  # anche i binari lua/luac standalone oltre a liblua.a: il gioco linka solo
+  # la libreria statica, i due binari restano semplicemente inutilizzati.
+  make -C deps/lua-$LUA_TAG linux
+fi
+
 echo "== Verifica Vulkan =="
 vulkaninfo --summary | head -25 || echo "ATTENZIONE: vulkaninfo fallito, controlla i driver"
 

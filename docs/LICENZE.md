@@ -20,7 +20,7 @@ mantenuto: **non mettere i `.ckpt` / `.gguf` dentro il pacchetto del gioco.**
 | raylib 6.0 | zlib/libpng | Puoi vendere l'eseguibile chiuso. Serve solo il credito all'autore (Ramon Santamaria) in un `CREDITS.txt`. |
 | llama.cpp | MIT | Includi il testo della licenza. Nessun altro vincolo. |
 | stable-diffusion.cpp | MIT | Idem. |
-| Lua (fase 3) | MIT | Idem. |
+| Lua 5.5.0 | MIT | Idem. |
 | cJSON | MIT | Idem. |
 | stb_image / stb_image_write | dominio pubblico | Nessun vincolo. |
 | exoquant | MIT | Includi il testo della licenza. |

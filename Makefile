@@ -3,9 +3,17 @@ CC := gcc
 RAYLIB_DIR := deps/raylib
 RAYLIB_LIB := $(RAYLIB_DIR)/build/raylib/libraylib.a
 
+# Lua 5.5.0 (fase 3, sandbox script): compilata con la propria Makefile
+# ufficiale (target "linux") in scripts/setup-deps.sh, come raylib/llama.cpp/
+# stable-diffusion.cpp qui sotto. Statica, MIT: il binario del gioco la
+# linka (vedi docs/LICENZE.md), ma NON linka mai llama.cpp/stable-diffusion.cpp/
+# cJSON (vedi i commenti su GEN_LIBS/SPRITES_LIBS piu' sotto e AGENTS.md).
+LUA_DIR := deps/lua-5.5.0
+LUA_LIB := $(LUA_DIR)/src/liblua.a
+
 CFLAGS := -std=c99 -Wall -Wextra -O2 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
-GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src
-GAME_LIBS := $(RAYLIB_LIB) -lGL -lm -lpthread -ldl -lrt -lX11
+GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src -I$(LUA_DIR)/src
+GAME_LIBS := $(RAYLIB_LIB) $(LUA_LIB) -lGL -lm -lpthread -ldl -lrt -lX11
 
 GAME_SRC := $(shell find src -name '*.c')
 GAME_HDR := $(shell find src -name '*.h')
@@ -63,7 +71,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-llm clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm clean
 
 all: game gen sprites
 
@@ -97,6 +105,11 @@ run-gen-fast: all
 	./$(GAME_BIN) --generate --no-sprites
 
 test: game
+	@echo "-- guardia: mai luaL_loadbuffer/luaL_loadstring/luaL_dostring in src/ (caricano bytecode non verificato di default, vedi sandbox Lua sezione 2) --"
+	@if grep -rnE 'luaL_loadbuffer\(|luaL_loadstring\(|luaL_dostring\(' src/; then \
+		echo "FALLITO: src/ deve usare solo luaL_loadbufferx(...,\"t\"), mai le varianti che di default accettano bytecode"; \
+		exit 1; \
+	fi
 	@mkdir -p $(XVFB_RUNTIME) && chmod 700 $(XVFB_RUNTIME)
 	$(TEST_RUNNER) ./$(GAME_BIN) --script-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --portal-test
@@ -110,6 +123,9 @@ test-gen: all
 
 test-sprites: sprites
 	bash scripts/test-sprites.sh
+
+test-script: game
+	bash scripts/test-script.sh
 
 test-llm: all
 	bash scripts/test-llm.sh

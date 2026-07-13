@@ -9,6 +9,7 @@
 #include "raylib.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -221,6 +222,9 @@ int AppRun(int argc, char **argv)
     bool manifestTest = false;
     bool genTest = false;
     bool atlasFallbackTest = false;
+    bool scriptSandboxTest = false;
+    bool scriptDeterminismTest = false;
+    unsigned int scriptSeed = 12345u;
     AppGen gen = { 0 };
     gen.command = "bin/melting-gen";
     gen.spritesCommand = "bin/melting-sprites";
@@ -259,6 +263,9 @@ int AppRun(int argc, char **argv)
             menuScreenshotTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
+        if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
+        if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
+        if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) scriptSeed = (unsigned int)strtoul(argv[++i], NULL, 10);
         if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
         if (strcmp(argv[i], "--no-sprites") == 0) gen.noSprites = true;
         if (strcmp(argv[i], "--gen-cmd") == 0 && i + 1 < argc) gen.command = argv[++i];
@@ -270,6 +277,24 @@ int AppRun(int argc, char **argv)
         bool ok = GenRunnerSelfTest();
         printf("Gen runner test: %s\n", ok ? "ok" : "failed");
         return ok ? 0 : 6;
+    }
+
+    /* Come --gen-test: la sandbox Lua (src/script/script_sandbox.c) non
+       tocca raylib in nessun modo, quindi non serve nessuna finestra ne'
+       Xvfb per questi due (vedi scripts/test-script.sh, che infatti li
+       lancia senza il wrapper xvfb-run usato altrove in questo file). */
+    if (scriptSandboxTest)
+    {
+        bool ok = ScriptSandboxSelfTest();
+        printf("Lua sandbox test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 8;
+    }
+    if (scriptDeterminismTest)
+    {
+        char out[512];
+        bool ok = ScriptSandboxDeterminismProbe(scriptSeed, out, sizeof(out));
+        printf("%s\n", out);
+        return ok ? 0 : 9;
     }
 
     bool compactTestWindow = smokeTest && !screenshotTest;
