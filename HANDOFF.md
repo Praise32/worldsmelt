@@ -50,15 +50,60 @@ Ho lasciato a te la decisione di mergiare: vorrai prima vederlo girare.
 
 | Branch | Cosa | Stato |
 |---|---|---|
-| `linux-local-llm` | Build Linux + generazione **testuale** locale | 18 commit, completo, review passata |
-| `local-sprites` | Il precedente + **sprite** con Stable Diffusion | 9 commit, completo, review passata |
+Tutto il lavoro e' sul branch **`local-sprites`** (contiene anche `linux-local-llm`):
+**34 commit, non pushato, non mergiato.** Tre fasi complete, ognuna con la sua review:
 
-La review della fase 2 ha trovato un bug serio che ho poi corretto, e che vale la pena
-raccontarti perche' spiega come e' fatto il sistema: quando uno sprite veniva scartato dal
-controllo qualita', la sua cella restava vuota — e il gioco disegnava il vuoto. Nemici,
-boss e portale sarebbero diventati **invisibili**. Ora ogni cella vuota fa ricadere quella
-singola entita' sulla vecchia forma geometrica, ed esiste un test che lo dimostra (fallisce
-apposta se qualcuno rompe di nuovo quel percorso).
+| Fase | Cosa fa | Stato |
+|---|---|---|
+| 1 — testo | Build Linux + i contenuti della run generati dal Qwen 7B in locale | completa, review passata |
+| 2 — sprite | Gli sprite del gioco generati da Stable Diffusion in locale | completa, review passata |
+| 3a — Lua | **L'IA scrive il comportamento degli oggetti in Lua** (vedi sotto) | completa, review passata |
+
+Per prendere tutto: `git checkout main && git merge local-sprites && git push`.
+Per buttare via: `git branch -D linux-local-llm local-sprites` (il tuo `main` e' intatto).
+
+## La cosa grossa: la fase 3a e' fatta
+
+Era il tuo obiettivo dichiarato, e adesso funziona. Fino a ieri un oggetto era una fra
+quattro operazioni che il C sapeva gia' fare (`on_fire:burst,3,0.36,split`): l'IA poteva
+inventare il *nome*, non *cosa fa*. Ora l'IA **scrive vero codice Lua** per ogni oggetto, e
+il gioco lo esegue in una sandbox blindata.
+
+Nell'ultima run di prova, il 7B ha scritto Lua funzionante per **12-15 oggetti su 15 al
+primo colpo, zero ripieghi**. Esempio, scritto dal modello senza ritocchi:
+
+```lua
+function on_tick(dt)
+  if player_hp() < player_max_hp() / 2 then
+    spawn_shot(player_x(), player_y(), 0, 1, 75, 3, 4, TRAIT_RAPID)
+  end
+end
+```
+
+(un oggetto che spara da solo quando sei a meta' vita). Il test di riferimento e' un oggetto
+che la vecchia mini-VM **non sapeva esprimere**: «ogni terzo colpo si sdoppia e i frammenti
+inseguono il nemico piu' vicino, ma solo se hai meno di tre cuori» — gira davvero in gioco.
+
+**La sicurezza e' la parte a cui ho dedicato piu' attenzione**, perche' quel Lua lo scrive
+un modello inaffidabile e un giorno potrebbe girare sui computer di chi compra il gioco. La
+sandbox chiude undici vie di fuga note (cicli infiniti, bombe di memoria, tentativi di
+aprire file, di uscire dalla sandbox). Due bug seri trovati dalle review e corretti: uno
+sprite scartato lasciava nemici/boss **invisibili** (ora ripiegano sulla forma geometrica);
+e una funzione Lua (`table.move`) permetteva un ciclo in C che bloccava il gioco per sempre
+(ora e' rimossa, con un test che lo dimostra). **Qualunque script fallisca — non compila,
+va in loop, esaurisce la memoria — viene ucciso e l'oggetto ripiega sulla vecchia mini-VM.
+Il giocatore vede al massimo un oggetto scialbo, mai un crash.**
+
+## Le tue risposte, registrate
+
+- **Vendita**: passo al modello Apache 2.0 per gli sprite → **ma non era adatto** (fa
+  spritesheet a 4 pose, non sprite singoli). Rileggendo la licenza, il problema che temevi
+  non esiste: il gioco non ridistribuisce mai i pesi (li scarica chi gioca), quindi OpenRAIL-M
+  va bene. Tutto in `docs/LICENZE.md`.
+- **Attesa**: 2 min 30 s vanno bene → non toccato.
+- **Fase 3**: scope «tutto». La 3a (oggetti) e' fatta. Restano **3b** (nemici e boss) e
+  **3c** (stanze). Quelle le faccio quando torni: alcune scelte di design del *tuo* gioco
+  le voglio decidere con te.
 
 `local-sprites` contiene gia' tutto `linux-local-llm`, quindi per prendere tutto:
 
