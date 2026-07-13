@@ -89,9 +89,24 @@ void ScriptItemsOnAcquire(Game *game, int itemIndex)
     lua_State *L = ScriptSandboxRawState(sb);
     rt->sandbox = sb;
     rt->evalRef = ScriptItemsCacheGlobalRef(L, "on_evaluate");
-    rt->fireRef = ScriptItemsCacheGlobalRef(L, "on_fire");
-    rt->hitRef = ScriptItemsCacheGlobalRef(L, "on_hit");
-    rt->tickRef = ScriptItemsCacheGlobalRef(L, "on_tick");
+    /* Difesa in profondita' di tassonomia (review, "game-side taxonomy
+       defense-in-depth"): per un oggetto ITEM_STATUP non si mettono MAI in
+       cache i riferimenti a on_fire/on_hit/on_tick, anche se lo script Lua
+       li definisse (es. un manifest modificato a mano che assegna un
+       comportamento a un oggetto stat-up, aggirando GenLuaValidate, che gia'
+       lo vieta lato generatore -- vedi statUpOnly sopra in gen_lua.c). Un
+       solo guardiano qui basta: fireRef/hitRef/tickRef restano
+       SCRIPT_ITEMS_NO_REF (gia' impostato da ScriptItemsResetSlot in cima a
+       questa funzione), quindi ScriptItemsOnFire/OnHit/OnTick non chiamano
+       mai nulla per questo slot, qualunque cosa lo script definisca. "gli
+       stat-up non hanno comportamento" resta vero anche bypassando il
+       generatore. */
+    if (item->kind != ITEM_STATUP)
+    {
+        rt->fireRef = ScriptItemsCacheGlobalRef(L, "on_fire");
+        rt->hitRef = ScriptItemsCacheGlobalRef(L, "on_hit");
+        rt->tickRef = ScriptItemsCacheGlobalRef(L, "on_tick");
+    }
 
     /* Tabella di scratch per on_evaluate, creata una volta e riusata ad ogni
        ricalcolo invece che allocata per chiamata (spec, sezione 5). Solo se
@@ -343,12 +358,25 @@ static bool ScriptItemsCallEvaluate(ScriptItemRuntime *rt, ScriptItemsStatsAccum
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, rt->statsTableRef);
     int t = lua_gettop(L);
-    lua_getfield(L, t, "damage");      if (lua_isnumber(L, -1)) acc->damage     = (float)lua_tonumber(L, -1); lua_pop(L, 1);
-    lua_getfield(L, t, "fire_delay");  if (lua_isnumber(L, -1)) acc->fireDelay  = (float)lua_tonumber(L, -1); lua_pop(L, 1);
-    lua_getfield(L, t, "shot_speed");  if (lua_isnumber(L, -1)) acc->shotSpeed  = (float)lua_tonumber(L, -1); lua_pop(L, 1);
-    lua_getfield(L, t, "shot_radius"); if (lua_isnumber(L, -1)) acc->shotRadius = (float)lua_tonumber(L, -1); lua_pop(L, 1);
-    lua_getfield(L, t, "speed");       if (lua_isnumber(L, -1)) acc->speed      = (float)lua_tonumber(L, -1); lua_pop(L, 1);
-    lua_getfield(L, t, "max_hp");      if (lua_isnumber(L, -1)) acc->maxHp      = (float)lua_tonumber(L, -1); lua_pop(L, 1);
+    /* isfinite, non solo lua_isnumber: lua_isnumber torna vero anche per
+       NaN/+-inf (sono "numeri" Lua a tutti gli effetti), quindi da solo non
+       basta a fermare "stats.damage = 0/0" o "stats.speed = math.huge*0"
+       (aritmetica pura, permessa dalla sandbox, che passa anche il dry-run
+       del generatore). Un campo non finito viene scartato: 'acc' mantiene
+       il valore che aveva PRIMA di questa chiamata (gia' dentro banda dal
+       giro precedente), non un valore inventato qui. Questo e' il presidio
+       al confine Lua->C; l'altro, indipendente, e' GameMathClampFloat reso
+       NaN-safe (game_math.c) subito dopo, nel chiamante. Protegge anche il
+       percorso pre-esistente degli oggetti ATTIVI con on_evaluate (vedi il
+       commento sopra SCRIPT_ITEMS_ITEM_DELTA_FRACTION), non solo gli
+       stat-up. */
+    float v;
+    lua_getfield(L, t, "damage");      if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->damage     = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "fire_delay");  if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->fireDelay  = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "shot_speed");  if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->shotSpeed  = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "shot_radius"); if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->shotRadius = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "speed");       if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->speed      = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "max_hp");      if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->maxHp      = v; } lua_pop(L, 1);
     lua_pop(L, 1);   /* la tabella stessa */
     return true;
 }

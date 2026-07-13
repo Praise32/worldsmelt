@@ -66,9 +66,19 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
    fare nulla di scriptato. Non e' un cambiamento della sandbox (che resta
    libera quanto prima, vedi script_sandbox.c): e' un gate di dominio in
    PIU', qui in melting-gen, sullo stesso modello dei tanti altri gia'
-   presenti in questo file (OpAllowsTrait e affini in gen_validate.c). Falso
-   per un oggetto attivo: nessun cambiamento di comportamento rispetto a
-   prima di questa fase. */
+   presenti in questo file (OpAllowsTrait e affini in gen_validate.c).
+   'statUpOnly' falso (oggetto ATTIVO, il caso di --lua-check senza flag
+   aggiuntivi) applica il gate INVERSO: rifiuta uno script che definisce
+   on_evaluate. Non e' simmetria per il gusto della simmetria: a runtime
+   (ScriptItemsRecomputeStats, src/script/script_items.c) un oggetto ATTIVO
+   con on_evaluate passa SOLO dal tetto GLOBALE, mai dal tetto PER-OGGETTO
+   riservato a ITEM_STATUP, quindi puo' spostare una statistica ben oltre il
+   budget di un boss reward -- esattamente lo stat-up travestito da oggetto
+   attivo che il cheat-sheet (lua_system.txt) gia' vieta a parole ma che,
+   prima di questo gate, nessun controllo respingeva davvero (vedi il
+   corpus tests/melting-gen/lua/active-item-on-evaluate.lua). Solo lato
+   generatore: uno script scritto a mano resta libero di usare on_evaluate
+   su un oggetto attivo. */
 bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize);
 
 #endif

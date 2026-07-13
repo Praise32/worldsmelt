@@ -4,7 +4,18 @@
 
 float GameMathClampFloat(float v, float lo, float hi)
 {
-    if (v < lo) return lo;
+    /* "!(v > lo)" invece di "v < lo": su NaN ENTRAMBI i confronti < e >
+       sono falsi (IEEE 754), quindi la forma naive (if v<lo return lo; if
+       v>hi return hi; return v;) lascia passare NaN intatto invece di
+       clamparlo. "!(v > lo)" cattura sia "v < lo" sia "v e' NaN" nello
+       stesso ramo, mappando NaN sul bound basso: e' la scelta di sicurezza
+       corretta ovunque questa funzione sia gia' usata (statistiche del
+       giocatore, colore, ecc.), non solo per il chiamante che ha scoperto
+       il buco (script_items.c, ScriptItemsClampStats/ClampItemDeltaField).
+       Vedi anche il secondo presidio indipendente in
+       ScriptItemsCallEvaluate (script_items.c): quel controllo scarta NaN
+       PRIMA che arrivi qui, questo e' la rete di sicurezza di riserva. */
+    if (!(v > lo)) return lo;
     if (v > hi) return hi;
     return v;
 }

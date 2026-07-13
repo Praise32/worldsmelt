@@ -15,6 +15,7 @@
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -406,6 +407,56 @@ static bool TestStatUpComposeAndRecompute(void)
     return ok;
 }
 
+/* Test L (review CRITICO, "NaN poisons player stats through both clamps"):
+   un on_evaluate che scrive 0/0 (NaN, aritmetica pura, permessa dalla
+   sandbox e accettata dal dry-run del generatore) in due campi non deve mai
+   raggiungere player.damage/player.maxHp. Prima della correzione,
+   GameMathClampFloat (src/core/game_math.c) lasciava passare NaN intatto
+   (entrambi i confronti < e > sono falsi su NaN) e ScriptItemsCallEvaluate
+   (sopra) rileggeva il campo con lua_isnumber, che e' vero anche per NaN:
+   damage=NaN avrebbe reso i nemici immortali (mai danno reale), e
+   "p->maxHp = (int)(acc.maxHp + 0.5f)" con acc.maxHp=NaN e' un
+   comportamento indefinito (su x86/SSE tipicamente INT_MIN). Qui si verifica
+   che entrambi i campi restino finiti e dentro la banda di sicurezza
+   (SCRIPT_ITEMS_DAMAGE_MIN/MAX, SCRIPT_ITEMS_MAX_HP_MIN/MAX), non solo
+   "non-NaN": un valore finito ma fuori banda sarebbe comunque un buco. */
+static const char *NAN_POISON_LUA =
+    "function on_evaluate(stats)\n"
+    "  stats.damage = 0/0\n"
+    "  stats.max_hp = 0/0\n"
+    "end\n";
+
+static bool TestStatUpNaNPoisonClamped(void)
+{
+    Game game = MakeBaseGame(31416u);
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_STATUP;
+    item.slot = SLOT_HAT;
+    snprintf(item.name, sizeof(item.name), "Nucleo Instabile");
+    snprintf(item.luaSource, sizeof(item.luaSource), "%s", NAN_POISON_LUA);
+    TestAddItem(&game, item);
+
+    float damage = game.player.damage;
+    int maxHp = game.player.maxHp;
+    bool damageFinite = isfinite(damage) != 0;
+    bool damageInBand = damageFinite && damage >= 0.5f && damage <= 200.0f;
+    /* maxHp != INT_MIN esclude specificamente l'esito da manuale del task
+       brief ((int)(NaN+0.5f) su x86/SSE); il controllo di banda sotto e' il
+       vero criterio (finito E dentro [1,12], non solo "non e' INT_MIN"). */
+    bool maxHpNotUB = maxHp != INT_MIN;
+    bool maxHpInBand = maxHpNotUB && maxHp >= 1 && maxHp <= 12;
+    printf("  [L] on_evaluate scrive stats.damage=0/0, stats.max_hp=0/0 (NaN) -> damage=%f maxHp=%d "
+           "(attesi entrambi finiti e dentro banda: damage in [0.5,200], maxHp in [1,12])\n",
+           (double)damage, maxHp);
+
+    ScriptItemsShutdown(&game);
+    bool ok = damageInBand && maxHpInBand;
+    if (!ok) printf("      FALLITO: un on_evaluate che scrive NaN deve restare dentro banda finita "
+                     "(serve GameMathClampFloat NaN-safe + isfinite al confine Lua->C in ScriptItemsCallEvaluate)\n");
+    return ok;
+}
+
 /* ============================================================
    Test D: 10^6 spawn_shot -> clamp a MAX_SHOTS, mai un blocco.
    ============================================================ */
@@ -671,6 +722,7 @@ bool ScriptItemsSelfTest(void)
         { "I (stat-up: budget per-oggetto, +1000 danno clampato)", TestStatUpClampedToPerItemCap },
         { "J (stat-up: ripiego C quando non c'e' Lua, mai un dud)", TestStatUpFallbackWhenNoLua },
         { "K (stat-up: due oggetti si compongono, rimozione senza deriva)", TestStatUpComposeAndRecompute },
+        { "L (stat-up: NaN da on_evaluate resta clampato, mai NaN/INT_MIN)", TestStatUpNaNPoisonClamped },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

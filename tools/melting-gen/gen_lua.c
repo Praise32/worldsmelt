@@ -277,6 +277,32 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
         return false;
     }
 
+    /* Gate inverso (review, "active items can still write stat-scaling,
+       dodging the per-item budget"): un oggetto ATTIVO che definisce
+       on_evaluate valida oggi (nessun controllo lo impediva), ma a runtime
+       (ScriptItemsRecomputeStats, src/script/script_items.c) un oggetto
+       ATTIVO passa SOLO dal tetto GLOBALE, non dal tetto PER-OGGETTO
+       (ScriptItemsClampItemDelta, riservato a ITEM_STATUP): puo' quindi
+       spostare una statistica fino al doppio del budget di un boss reward
+       in un colpo solo. Il modello lo fa per davvero quando ignora il
+       cheat-sheet (lua_system.txt dice gia' "on_evaluate e' VIETATO per un
+       oggetto attivo", ma e' solo testo nel prompt): l'ultima run reale ha
+       spedito floor5_item2.lua = "stats.damage = stats.damage * 1.5" come
+       oggetto del negozio. Qui si rifiuta lo script PRIMA del dry-run,
+       rimandando l'errore al ciclo di retry (GenLuaGenerateOneItem sopra),
+       cosi' il modello riscrive un comportamento vero invece di uno
+       stat-up travestito. Solo lato generatore: la sandbox del gioco resta
+       libera quanto prima (vedi il commento sopra
+       SCRIPT_ITEMS_ITEM_DELTA_FRACTION in script_items.c), uno script
+       scritto a mano puo' ancora usare on_evaluate su un oggetto attivo per
+       una sinergia piu' ricca. */
+    if (!statUpOnly && hasEval)
+    {
+        ScriptSandboxDestroy(sb);
+        if (err) snprintf(err, errSize, "un oggetto attivo non puo' definire on_evaluate (e' riservato agli oggetti stat-up): definisci ESATTAMENTE un comportamento vero con on_fire/on_hit/on_tick, oppure nessuna callback");
+        return false;
+    }
+
     bool ok = true;
     if (hasEval)
     {
