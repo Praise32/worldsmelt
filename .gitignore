@@ -16,6 +16,7 @@ logs/
 
 # Modelli e cache locali
 models/
+deps/
 cache/
 node_modules/
 
