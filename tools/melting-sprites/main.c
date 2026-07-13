@@ -45,7 +45,11 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     args->lora = "models/lcm-lora-sdv1-5.safetensors";
     args->useTaesd = 0;   /* di default la VAE reale: piu' nitida, ~1s in piu' per cella */
     args->steps = 8;
-    args->cfg = 1.5f;
+    /* cfg 1.8: a 1.5 il modello ignorava il soggetto (la chiave diventava un
+       televisore); a 2.5 obbedisce ma lo sfondo esce a bande e il ritaglio le
+       lascerebbe dentro. 1.8 e' il punto in cui il soggetto si legge e lo sfondo
+       resta piatto. Misurato, non scelto a caso. */
+    args->cfg = 1.8f;
     args->promptsDir = "tools/melting-sprites/prompts";
     for (int i = 1; i < argc; i++)
     {

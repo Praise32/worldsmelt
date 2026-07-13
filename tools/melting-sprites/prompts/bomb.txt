@@ -1,1 +1,1 @@
-pixelsprite, 16-bit pixel art of a round black bomb with a lit fuse, game icon, {THEME} theme, {STYLE} art style, single subject, centered, plain flat empty background, no scenery, no shadow, crisp pixel edges, vibrant colors, high detail
+pixelsprite, a round black cannonball bomb, spherical dark bomb with a short lit fuse on top and a spark, game pickup icon, 16-bit pixel art, isolated single object, centered, {THEME} colors, {STYLE} art style, plain flat empty background, no scenery, no shadow, crisp pixel edges, a bomb
