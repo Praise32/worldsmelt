@@ -1,4 +1,4 @@
-CC ?= gcc
+CC := gcc
 
 RAYLIB_DIR := deps/raylib
 RAYLIB_LIB := $(RAYLIB_DIR)/build/raylib/libraylib.a
@@ -8,6 +8,7 @@ GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src
 GAME_LIBS := $(RAYLIB_LIB) -lGL -lm -lpthread -ldl -lrt -lX11
 
 GAME_SRC := $(shell find src -name '*.c')
+GAME_HDR := $(shell find src -name '*.h')
 GAME_BIN := bin/melting_run_gpu
 
 .PHONY: all game run test clean
@@ -16,7 +17,7 @@ all: game
 
 game: $(GAME_BIN)
 
-$(GAME_BIN): $(GAME_SRC)
+$(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 	@mkdir -p bin logs generated
 	$(CC) $(GAME_CFLAGS) $(GAME_SRC) $(GAME_LIBS) -o $@
 
