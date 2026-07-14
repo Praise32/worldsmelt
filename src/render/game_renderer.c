@@ -65,21 +65,134 @@ static Color RoomMapColor(RoomKind kind)
     }
 }
 
+/* ============================================================
+   Resa 2.5D (step E, docs/superpowers/specs/2026-07-14-feedback-roadmap.md
+   punto 5, e docs/APPUNTI.md sezione 7).
+ *
+ * La valutazione chiesta dal proprietario ha dato questo esito: il 2.5D "alla
+ * Isaac" si ottiene quasi tutto COL RENDERING, non generando piu' roba. Costa
+ * quindi ZERO secondi di generazione (che era il vincolo vero: i tempi di
+ * caricamento sono gia' il punto dolente numero 2 del feedback). Quattro trucchi,
+ * tutti qui sotto, piu' uno nel prompt degli sprite (vista a 3/4 invece che di
+ * fronte, tools/melting-sprites/prompts/):
+ *   1. OMBRA A TERRA: un'ellisse schiacciata sotto ogni entita'. E' il singolo
+ *      trucco che da' piu' profondita' per riga di codice: senza, ogni sprite
+ *      "galleggia" su uno sfondo piatto; con, il pavimento diventa un piano su
+ *      cui le cose POGGIANO.
+ *   2. ORDINAMENTO PER PROFONDITA': chi sta piu' in basso e' piu' vicino
+ *      all'osservatore, quindi va disegnato DOPO (davanti). Prima l'ordine era
+ *      fisso per categoria (tutti i pickup, poi tutti i nemici, poi il
+ *      giocatore), e un nemico "dietro" poteva coprire il giocatore "davanti".
+ *   3. PAVIMENTO IN PROSPETTIVA: griglia con punto di fuga sopra il muro di
+ *      fondo, righe orizzontali che si infittiscono verso il fondo, e una
+ *      sfumatura che scurisce la parte lontana.
+ *   4. MURI CON SPESSORE: il muro di fondo mostra la sua FACCIA (una fascia
+ *      verticale sopra il pavimento) e il suo spigolo superiore; i muri laterali
+ *      e quello davanti mostrano il loro spessore. Il campo di gioco (ROOM_*) NON
+ *      cambia di un pixel: e' tutta resa, nessuna modifica alla collisione.
+   ============================================================ */
+
+/* Spessore dei muri (solo resa: il campo di gioco resta ROOM_X..ROOM_RIGHT,
+   ROOM_Y..ROOM_BOTTOM, nessuna collisione cambia). Il muro di fondo e' piu' alto
+   degli altri perche' e' l'unico di cui vediamo la FACCIA. */
+#define WALL_BACK_H  34.0f
+#define WALL_SIDE_W  12.0f
+#define WALL_FRONT_H 14.0f
+
+/* Ombra a terra. 'lift' e' quanto sotto il centro dell'entita' poggia l'ombra
+   (di norma ~60% del raggio: il "piede"), lo schiacciamento verticale e' fisso a
+   0.42 -- e' l'inclinazione della camera, e deve restare UGUALE per tutte le
+   entita', altrimenti sembrerebbero riprese da angoli diversi. */
+static void DrawGroundShadow(Vector2 pos, float radius, float lift, unsigned char alpha)
+{
+    if (radius <= 0.5f) return;
+    DrawEllipse((int)pos.x, (int)(pos.y + lift), radius, radius*0.42f, (Color){ 0, 0, 0, alpha });
+}
+
 static void DrawRoom(Game *game)
 {
     ClearBackground(game->theme.bg);
+
+    /* Pavimento: tinta piena, poi una sfumatura che scurisce il FONDO della
+       stanza (la parte lontana). E' la stessa cosa che fa l'atmosfera in
+       prospettiva: cio' che e' lontano perde contrasto. */
     DrawRectangleRec((Rectangle){ ROOM_X, ROOM_Y, ROOM_W, ROOM_H }, game->theme.floor);
-    for (int x = (int)ROOM_X; x < (int)ROOM_RIGHT; x += 44) DrawLine(x, (int)ROOM_Y, x - 80, (int)ROOM_BOTTOM, GameColorWithAlpha(game->theme.accent, 42));
-    DrawRectangleLinesEx((Rectangle){ ROOM_X, ROOM_Y, ROOM_W, ROOM_H }, 5.0f, game->theme.wall);
+    DrawRectangleGradientV((int)ROOM_X, (int)ROOM_Y, (int)ROOM_W, (int)(ROOM_H*0.45f),
+                           GameColorWithAlpha(BLACK, 58), BLANK);
+
+    /* Griglia in prospettiva: le linee "verticali" convergono verso un punto di
+       fuga sopra il muro di fondo, quelle orizzontali si infittiscono verso il
+       fondo (spaziatura non lineare). Il punto di fuga sta FUORI dalla stanza, in
+       alto: e' cio' che fa leggere il pavimento come un piano inclinato sotto lo
+       sguardo, invece che come un rettangolo visto di fronte. */
+    const float vpx = ROOM_X + ROOM_W*0.5f;
+    const float vpy = ROOM_Y - 340.0f;
+    Color gridColor = GameColorWithAlpha(game->theme.accent, 34);
+    for (int i = 0; i <= 14; i++)
+    {
+        float x = ROOM_X + ROOM_W*(float)i/14.0f;
+        Vector2 near = { x, ROOM_BOTTOM };
+        /* Quanto si e' "risaliti" verso il punto di fuga arrivando al muro di
+           fondo: t = 0 al bordo vicino, cresce verso il punto di fuga. */
+        float t = (ROOM_BOTTOM - ROOM_Y)/(ROOM_BOTTOM - vpy);
+        Vector2 far = { near.x + (vpx - near.x)*t, ROOM_Y };
+        DrawLineEx(near, far, 1.0f, gridColor);
+    }
+    for (int i = 1; i < 9; i++)
+    {
+        float f = (float)i/9.0f;
+        float y = ROOM_Y + (ROOM_BOTTOM - ROOM_Y)*powf(f, 1.7f);   /* piu' fitte in alto = piu' lontane */
+        DrawLine((int)ROOM_X, (int)y, (int)ROOM_RIGHT, (int)y, gridColor);
+    }
+
+    /* Muri con spessore. Il muro di FONDO e' l'unico di cui si vede la faccia
+       (una fascia sopra il pavimento, piu' chiara in alto dove prende luce, con
+       uno spigolo netto in basso dove incontra il pavimento). I laterali e quello
+       davanti mostrano solo il loro spessore, senza faccia: e' esattamente cio'
+       che si vedrebbe da una camera inclinata di poco. */
+    Color wallDark = GameColorLerp(game->theme.wall, BLACK, 0.45f);
+    Color wallLit = GameColorLerp(game->theme.wall, WHITE, 0.18f);
+    DrawRectangleGradientV((int)(ROOM_X - WALL_SIDE_W), (int)(ROOM_Y - WALL_BACK_H),
+                           (int)(ROOM_W + WALL_SIDE_W*2.0f), (int)WALL_BACK_H, wallLit, wallDark);
+    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)(ROOM_Y - 3.0f), (int)(ROOM_W + WALL_SIDE_W*2.0f), 3, wallDark);
+    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_Y, (int)WALL_SIDE_W, (int)ROOM_H, wallDark);
+    DrawRectangle((int)ROOM_RIGHT, (int)ROOM_Y, (int)WALL_SIDE_W, (int)ROOM_H, wallDark);
+    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_BOTTOM,
+                  (int)(ROOM_W + WALL_SIDE_W*2.0f), (int)WALL_FRONT_H, wallDark);
+    /* Spigolo illuminato dei muri laterali/davanti: la linea sottile che fa
+       leggere lo spessore come uno spessore e non come una cornice piatta. */
+    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_BOTTOM, (int)(ROOM_W + WALL_SIDE_W*2.0f), 2, wallLit);
 
     const RoomState *room = GameCurrentRoom(game);
     float cx = ROOM_X + ROOM_W*0.5f;
     float cy = ROOM_Y + ROOM_H*0.5f;
     Color doorColor = GameRoomIsLocked(game) ? (Color){ 200, 58, 58, 255 } : game->theme.accent2;
-    if (room->doors[DIR_UP]) DrawRectangle((int)(cx - DOOR_HALF), (int)ROOM_Y - 2, (int)(DOOR_HALF*2), 10, doorColor);
-    if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)ROOM_BOTTOM - 8, (int)(DOOR_HALF*2), 10, doorColor);
-    if (room->doors[DIR_LEFT]) DrawRectangle((int)ROOM_X - 2, (int)(cy - DOOR_HALF), 10, (int)(DOOR_HALF*2), doorColor);
-    if (room->doors[DIR_RIGHT]) DrawRectangle((int)ROOM_RIGHT - 8, (int)(cy - DOOR_HALF), 10, (int)(DOOR_HALF*2), doorColor);
+    /* Le porte si disegnano SOPRA i muri (sono buchi nel muro): quella di fondo
+       occupa tutta la faccia del muro, cosi' si legge come un passaggio e non
+       come una striscia appoggiata. */
+    if (room->doors[DIR_UP]) DrawRectangle((int)(cx - DOOR_HALF), (int)(ROOM_Y - WALL_BACK_H), (int)(DOOR_HALF*2), (int)WALL_BACK_H, doorColor);
+    if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)ROOM_BOTTOM, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
+    if (room->doors[DIR_LEFT]) DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+    if (room->doors[DIR_RIGHT]) DrawRectangle((int)ROOM_RIGHT, (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+}
+
+/* Vignettatura: quattro sfumature ai bordi del canvas. Non e' decorazione fine a
+   se stessa -- scurendo i bordi si spinge l'occhio verso il centro e si accentua
+   la sensazione di volume data dagli altri tre trucchi (e' il quarto della lista
+   negli APPUNTI, sezione 7). Ultima cosa disegnata nella scena, prima solo del
+   messaggio transitorio (che deve restare leggibile). */
+static void DrawVignette(void)
+{
+    /* Banda stretta e alpha contenuta: la vista di gioco e' 960x640, non un
+       monitor intero -- una vignettatura tarata "da fotografia" (bande larghe,
+       alpha alta) qui non incornicia, SPEGNE la stanza. Provata a 110/130 e
+       rifatta: mangiava un quarto della larghezza per lato. */
+    const int band = 72;
+    const Color edge = (Color){ 0, 0, 0, 92 };
+    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, band, edge, BLANK);
+    DrawRectangleGradientV(0, SCREEN_HEIGHT - band, SCREEN_WIDTH, band, BLANK, edge);
+    DrawRectangleGradientH(0, 0, band, SCREEN_HEIGHT, edge, BLANK);
+    DrawRectangleGradientH(SCREEN_WIDTH - band, 0, band, SCREEN_HEIGHT, BLANK, edge);
 }
 
 static bool DrawAtlasCell(Game *game, int cell, Vector2 pos, float size, Color tint)
@@ -416,32 +529,120 @@ static void DrawShot(const Shot *shot)
     }
 }
 
+/* Una cosa da disegnare, con la sua profondita' (step E, trucco 2). L'ordine di
+   disegno non e' piu' per CATEGORIA (tutti i pickup, poi tutti i nemici, poi il
+   giocatore -- che faceva coprire il giocatore "davanti" da un nemico "dietro")
+   ma per POSIZIONE: chi ha la y piu' grande e' piu' vicino all'osservatore e va
+   disegnato per ultimo, quindi davanti. */
+typedef enum DepthKind { DEPTH_PICKUP, DEPTH_BOMB, DEPTH_ENEMY, DEPTH_PLAYER } DepthKind;
+
+typedef struct DepthEntry {
+    float y;
+    DepthKind kind;
+    int index;
+} DepthEntry;
+
+#define DEPTH_MAX (MAX_PICKUPS + MAX_BOMBS + MAX_ENEMIES + 1)
+
+/* Insertion sort: l'array e' piccolo (al massimo ~101 voci, in pratica una
+   decina) ed e' gia' quasi ordinato da un frame all'altro -- e' il caso in cui
+   l'insertion sort e' imbattibile, e non serve nessuna allocazione. */
+static void DepthSort(DepthEntry *list, int count)
+{
+    for (int i = 1; i < count; i++)
+    {
+        DepthEntry key = list[i];
+        int j = i - 1;
+        while (j >= 0 && list[j].y > key.y)
+        {
+            list[j + 1] = list[j];
+            j--;
+        }
+        list[j + 1] = key;
+    }
+}
+
 static void DrawGameplayCanvas(Game *game)
 {
     DrawRoom(game);
 
-    for (int i = 0; i < MAX_PICKUPS; i++) if (game->pickups[i].active) DrawPickup(game, &game->pickups[i]);
+    /* Tutte le ombre PRIMA di tutte le entita': un'ombra e' sul pavimento, e sul
+       pavimento deve restare -- se le si disegnasse insieme alla propria entita',
+       l'ombra di chi sta davanti finirebbe SOPRA chi sta dietro. */
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        const Pickup *p = &game->pickups[i];
+        if (p->active) DrawGroundShadow(p->pos, p->radius*0.85f, p->radius*0.7f, 70);
+    }
     for (int i = 0; i < MAX_BOMBS; i++)
     {
-        Bomb *b = &game->bombs[i];
-        if (!b->active) continue;
-        DrawCircleV(b->pos, 14.0f + sinf((float)GetTime()*10.0f)*2.0f, DARKGRAY);
-        DrawCircleLines((int)b->pos.x, (int)b->pos.y, b->radius*(1.0f - b->timer/1.05f), ORANGE);
+        if (game->bombs[i].active) DrawGroundShadow(game->bombs[i].pos, 13.0f, 9.0f, 80);
     }
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        const Enemy *e = &game->enemies[i];
+        if (e->active) DrawGroundShadow(e->pos, e->radius*0.95f, e->radius*0.62f, 90);
+    }
+    for (int i = 0; i < MAX_SHOTS; i++)
+    {
+        const Shot *s = &game->shots[i];
+        if (s->active) DrawGroundShadow(s->pos, s->radius*0.8f, s->radius*2.2f, 55);
+    }
+    DrawGroundShadow(game->player.pos, game->player.radius*0.95f, game->player.radius*0.72f, 95);
+
+    /* Entita' che POGGIANO sul pavimento, ordinate per profondita'. */
+    DepthEntry order[DEPTH_MAX];
+    int count = 0;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        if (game->pickups[i].active) order[count++] = (DepthEntry){ game->pickups[i].pos.y, DEPTH_PICKUP, i };
+    }
+    for (int i = 0; i < MAX_BOMBS; i++)
+    {
+        if (game->bombs[i].active) order[count++] = (DepthEntry){ game->bombs[i].pos.y, DEPTH_BOMB, i };
+    }
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (game->enemies[i].active) order[count++] = (DepthEntry){ game->enemies[i].pos.y, DEPTH_ENEMY, i };
+    }
+    order[count++] = (DepthEntry){ game->player.pos.y, DEPTH_PLAYER, 0 };
+    DepthSort(order, count);
+
+    for (int i = 0; i < count; i++)
+    {
+        switch (order[i].kind)
+        {
+            case DEPTH_PICKUP: DrawPickup(game, &game->pickups[order[i].index]); break;
+            case DEPTH_BOMB:
+            {
+                Bomb *b = &game->bombs[order[i].index];
+                DrawCircleV(b->pos, 14.0f + sinf((float)GetTime()*10.0f)*2.0f, DARKGRAY);
+                DrawCircleLines((int)b->pos.x, (int)b->pos.y, b->radius*(1.0f - b->timer/1.05f), ORANGE);
+                break;
+            }
+            case DEPTH_ENEMY: DrawEnemy(game, &game->enemies[order[i].index]); break;
+            case DEPTH_PLAYER: DrawPlayer(game); break;
+        }
+    }
+
+    /* I colpi VOLANO: stanno sopra tutto cio' che poggia a terra (la loro ombra,
+       gia' disegnata sul pavimento, e' cio' che dice a che altezza sono). Fuori
+       dall'ordinamento per profondita' apposta: un proiettile che sparisse dietro
+       un nemico sarebbe illeggibile, ed e' informazione di gioco, non scenografia. */
     for (int i = 0; i < MAX_SHOTS; i++)
     {
         Shot *s = &game->shots[i];
         if (!s->active) continue;
         DrawShot(s);
     }
-    for (int i = 0; i < MAX_ENEMIES; i++) if (game->enemies[i].active) DrawEnemy(game, &game->enemies[i]);
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
         Particle *p = &game->particles[i];
         if (!p->active) continue;
         DrawCircleV(p->pos, p->radius, GameColorWithAlpha(p->color, (unsigned char)GameMathClampFloat(p->life*420.0f, 0.0f, 255.0f)));
     }
-    DrawPlayer(game);
+
+    DrawVignette();
     DrawTransientMessage(game);
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)
