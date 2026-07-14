@@ -104,6 +104,72 @@ static ShotTypeDef MakeFallbackShotType(unsigned int *rng)
     return type;
 }
 
+/* Tipi di nemico di RIPIEGO (fase 3b). Come per i tipi di colpo: il motore non ha
+   un catalogo di nemici, li inventa il modello. Questi sono i tre nemici storici
+   riscritti nel vocabolario nuovo, usati SOLO quando non c'e' nessun manifest.
+   Vivono in core/enemy_type.c (EnemyTypeExample), condivisi col ripiego di
+   melting-gen: un solo elenco. */
+static void MakeFallbackEnemies(FloorContent *floor, unsigned int *rng)
+{
+    for (int i = 0; i < 2; i++)
+    {
+        EnemyTypeExample(&floor->enemies[i], GameRngRange(rng, 0, ENEMY_TYPE_EXAMPLE_COUNT - 1));
+    }
+    EnemyTypeExampleBoss(&floor->bossType);
+}
+
+/* Un tipo di nemico dal manifest: "floorN.enemyM.*" (M = 1,2) oppure
+   "floorN.bossType.*". La chiave "name" fa da sentinella -- se manca, il piano non
+   ha quel tipo e il gioco usa i nemici storici (back-compat totale con ogni
+   manifest scritto prima di questa fase). Passa sempre da EnemyTypeBalance: e' la
+   seconda rete indipendente dopo quella di melting-gen, perche' un manifest e' un
+   file di testo che chiunque puo' modificare a mano. */
+static void ReadEnemyType(const char *text, const char *prefix, bool isBoss, EnemyTypeDef *out)
+{
+    char key[96];
+    char value[SCRIPT_TEXT_LEN];
+
+    snprintf(key, sizeof(key), "%s.name=", prefix);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (!value[0]) return;   /* niente tipo: resta quello che c'era (zero = nemici storici) */
+
+    EnemyTypeDef type;
+    memset(&type, 0, sizeof(type));
+    type.active = true;
+    type.boss = isBoss;
+    snprintf(type.name, sizeof(type.name), "%s", value);
+
+    snprintf(key, sizeof(key), "%s.form=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.form = EnemyFormFromText(value);
+    snprintf(key, sizeof(key), "%s.move=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.move = EnemyMoveFromText(value);
+    snprintf(key, sizeof(key), "%s.fire=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.fire = EnemyFireFromText(value);
+
+    snprintf(key, sizeof(key), "%s.hp=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.hpMul = value[0] ? (float)atof(value) : 1.0f;
+    snprintf(key, sizeof(key), "%s.speed=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.speedMul = value[0] ? (float)atof(value) : 1.0f;
+    snprintf(key, sizeof(key), "%s.size=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.sizeMul = value[0] ? (float)atof(value) : 1.0f;
+    snprintf(key, sizeof(key), "%s.rate=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.fireRate = value[0] ? (float)atof(value) : 0.0f;
+    snprintf(key, sizeof(key), "%s.pellets=", prefix);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    type.pellets = value[0] ? atoi(value) : 1;
+
+    EnemyTypeBalance(&type);
+    *out = type;
+}
+
 static const char *FallbackScriptForTrait(unsigned int trait)
 {
     if (trait & TRAIT_BOUNCE) return "on_fire:burst,2,0.25,bounce";
@@ -239,6 +305,7 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
            stesso gioco con contenuti procedurali invece che inventati. */
         int shotOwner = GameRngRange(&rng, 0, 2);
         content->floors[f].items[shotOwner].shotType = MakeFallbackShotType(&rng);
+        MakeFallbackEnemies(&content->floors[f], &rng);   /* fase 3b */
     }
 }
 
@@ -453,6 +520,22 @@ void RunContentLoad(RunContent *content, unsigned int seed)
            melting-gen (che scrive sempre un tipo per piano, anche nel proprio
            ripiego procedurale). */
         for (int i = 0; i < 3; i++) memset(&floor->items[i].shotType, 0, sizeof(ShotTypeDef));
+
+        /* Fase 3b: i tipi di nemico del piano. Stessa regola dei tipi di colpo -- il
+           manifest e' l'AUTORITA': si azzerano quelli del ripiego procedurale e si
+           leggono i suoi. Un manifest VECCHIO (senza righe enemy*) lascia quindi il
+           piano SENZA tipi, e il gioco usa i nemici storici: esattamente il gioco di
+           prima, che e' la cosa giusta (inventare nemici che l'autore di quel
+           manifest non ha mai scritto sarebbe peggio che non averli). */
+        memset(floor->enemies, 0, sizeof(floor->enemies));
+        memset(&floor->bossType, 0, sizeof(floor->bossType));
+        for (int i = 0; i < 2; i++)
+        {
+            snprintf(key, sizeof(key), "floor%d.enemy%d", n, i + 1);
+            ReadEnemyType(text, key, false, &floor->enemies[i]);
+        }
+        snprintf(key, sizeof(key), "floor%d.bossType", n);
+        ReadEnemyType(text, key, true, &floor->bossType);
 
         for (int i = 0; i < 3; i++)
         {

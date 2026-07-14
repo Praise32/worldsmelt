@@ -189,6 +189,28 @@ static int WriteManifest(const GenRun *run, const char *outDir, bool preserveAtl
         fprintf(f, "floor%d.accent2=%s\n", n, floor->accent2);
         fprintf(f, "floor%d.enemy=%s\n", n, floor->enemy);
         fprintf(f, "floor%d.bossColor=%s\n", n, floor->bossColor);
+        /* Tipi di nemico del piano (fase 3b): due normali + il boss. La chiave
+           "name" fa da sentinella lato gioco (run_content.c, ReadEnemyType): se
+           manca, il piano usa i nemici storici -- back-compat totale con ogni
+           manifest scritto prima di questa fase. */
+        for (int en = 0; en <= 2; en++)   /* <= 2: l'ultimo giro e' il boss */
+        {
+            const EnemyTypeDef *foe = (en < 2) ? &floor->enemies[en] : &floor->bossType;
+            if (!foe->active) continue;
+            char prefix[32];
+            if (en < 2) snprintf(prefix, sizeof(prefix), "floor%d.enemy%d", n, en + 1);
+            else snprintf(prefix, sizeof(prefix), "floor%d.bossType", n);
+            fprintf(f, "%s.name=%s\n", prefix, foe->name);
+            fprintf(f, "%s.form=%s\n", prefix, EnemyFormName(foe->form));
+            fprintf(f, "%s.move=%s\n", prefix, EnemyMoveName(foe->move));
+            fprintf(f, "%s.fire=%s\n", prefix, EnemyFireName(foe->fire));
+            fprintf(f, "%s.hp=%.2f\n", prefix, (double)foe->hpMul);
+            fprintf(f, "%s.speed=%.2f\n", prefix, (double)foe->speedMul);
+            fprintf(f, "%s.size=%.2f\n", prefix, (double)foe->sizeMul);
+            fprintf(f, "%s.rate=%.2f\n", prefix, (double)foe->fireRate);
+            fprintf(f, "%s.pellets=%d\n", prefix, foe->pellets);
+        }
+
         for (int i = 0; i < GEN_ITEMS; i++)
         {
             const GenItem *item = &floor->items[i];
@@ -273,6 +295,23 @@ static int WriteManifest(const GenRun *run, const char *outDir, bool preserveAtl
     return GenPublishFile(f, tmpPath, finalPath);
 }
 
+/* Un tipo di nemico in JSON, nell'ordine di chiavi della regola 'foe' di run.gbnf
+   (fase 3b). */
+static cJSON *EnemyTypeToJson(const EnemyTypeDef *foe)
+{
+    cJSON *j = cJSON_CreateObject();
+    cJSON_AddStringToObject(j, "name", foe->name);
+    cJSON_AddStringToObject(j, "form", EnemyFormName(foe->form));
+    cJSON_AddStringToObject(j, "move", EnemyMoveName(foe->move));
+    cJSON_AddStringToObject(j, "fire", EnemyFireName(foe->fire));
+    cJSON_AddNumberToObject(j, "hp", RoundTo2(foe->hpMul));
+    cJSON_AddNumberToObject(j, "speed", RoundTo2(foe->speedMul));
+    cJSON_AddNumberToObject(j, "size", RoundTo2(foe->sizeMul));
+    cJSON_AddNumberToObject(j, "rate", RoundTo2(foe->fireRate));
+    cJSON_AddNumberToObject(j, "pellets", foe->pellets);
+    return j;
+}
+
 /* Ordine di inserimento = ordine chiavi di run.gbnf: la coppia writer/grammatica
    viene verificata da test-gen (Task 5). Volutamente NON include
    floor->bossItem (fase 3): quel campo non fa parte di cosa il modello
@@ -321,6 +360,13 @@ static cJSON *RunToJson(const GenRun *run)
         cJSON_AddNumberToObject(jshot, "chain",   floor->shot.chain);
         cJSON_AddNumberToObject(jshot, "pellets", floor->shot.pellets);
         cJSON_AddNumberToObject(jf, "shotItem", floor->shotItem);
+
+        /* Tipi di nemico (fase 3b): li scrive il modello, quindi stanno nel JSON e
+           nella grammatica. Stesso arrotondamento a 2 decimali dei moltiplicatori
+           del tipo di colpo, e per lo stesso motivo (la regola 'mul' di run.gbnf). */
+        cJSON *jfoes = cJSON_AddArrayToObject(jf, "enemies");
+        for (int en = 0; en < 2; en++) cJSON_AddItemToArray(jfoes, EnemyTypeToJson(&floor->enemies[en]));
+        cJSON_AddItemToObject(jf, "bossType", EnemyTypeToJson(&floor->bossType));
 
         cJSON *items = cJSON_AddArrayToObject(jf, "items");
         for (int i = 0; i < GEN_ITEMS; i++)

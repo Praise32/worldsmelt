@@ -9,7 +9,10 @@
 /* Stesso ordine di AtlasSprite in src/core/game_types.h. */
 const char *SPRITE_CELL_NAMES[SPRITE_CELLS] = {
     "player", "enemy_chaser", "enemy_shooter", "enemy_tank", "boss", "item",
-    "heart", "coin", "bomb", "key", "exit", "shot"
+    "heart", "coin", "bomb", "key", "exit", "shot",
+    /* Fase 3b: la quarta forma di nemico. In CODA, come nell'enum AtlasSprite del
+       gioco: l'indice e' la posizione nell'atlas. */
+    "enemy_floater"
 };
 
 static char *TrimTrailingWhitespace(char *s)

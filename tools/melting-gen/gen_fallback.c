@@ -118,6 +118,16 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
         ShotTypeExample(&floor->shot, GenRngRange(&rng, 0, SHOT_TYPE_EXAMPLE_COUNT - 1));
         floor->shotItem = GenRngRange(&rng, 1, GEN_ITEMS);
 
+        /* Tipi di nemico del piano (fase 3b): stesso ruolo del ripiego dei tipi di
+           colpo -- i nemici veri li inventa il modello, questi sono i tre storici
+           (core/enemy_type.c, EnemyTypeExample), usati quando il modello non c'e'.
+           NUOVI punti di consumo RNG: golden file rigenerato di conseguenza. */
+        for (int i = 0; i < 2; i++)
+        {
+            EnemyTypeExample(&floor->enemies[i], GenRngRange(&rng, 0, ENEMY_TYPE_EXAMPLE_COUNT - 1));
+        }
+        EnemyTypeExampleBoss(&floor->bossType);
+
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);
         snprintf(floor->style, sizeof(floor->style), "%s", styles[GenRngRange(&rng, 0, 4)]);

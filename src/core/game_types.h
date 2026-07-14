@@ -8,6 +8,7 @@
    a shot_type.h). Vive in un header a parte, senza raylib, perche' lo include
    anche melting-gen: una sola definizione, impossibile da far divergere fra
    generatore e gioco. */
+#include "core/enemy_type.h"
 #include "core/shot_type.h"
 
 #include <stdbool.h>
@@ -177,6 +178,11 @@ typedef enum AtlasSprite {
     SPR_KEY,
     SPR_EXIT,
     SPR_SHOT,
+    /* Fase 3b: la quarta FORMA di nemico (medusa che fluttua). Aggiunta IN CODA,
+       mai in mezzo: l'indice di una cella e' la sua posizione nell'atlas, quindi
+       inserirla fra le altre sposterebbe tutte le celle successive e ogni atlas
+       gia' generato (o gia' su disco) diventerebbe sbagliato di colpo. */
+    SPR_ENEMY_FLOATER,
     SPR_COUNT   /* non e' una cella: conta le celle note, per dimensionare array */
 } AtlasSprite;
 
@@ -230,6 +236,11 @@ typedef struct Item {
 
 typedef struct FloorContent {
     Theme theme;
+    /* I due tipi di nemico del piano e il tipo del boss (fase 3b), inventati dal
+       modello. Se non sono attivi (manifest vecchio, nessun manifest) il gioco usa
+       i nemici storici: back-compat totale, vedi RunContentLoad. */
+    EnemyTypeDef enemies[2];
+    EnemyTypeDef bossType;
     Item items[3];   /* oggetti ATTIVI del piano: stanza tesoro e negozio pescano da qui (world.c) */
     /* Oggetto STAT-UP del piano, campo esplicito e non un quarto slot di
        items[] (scelta deliberata, vedi il report di fase: docs/superpowers/sdd/
@@ -329,6 +340,12 @@ typedef struct Player {
 
 typedef struct Enemy {
     bool active;
+    /* EnemyKind resta, ma ora dice UNA COSA SOLA: se e' un boss (punteggio,
+       stanza, cella dell'atlas). Il COMPORTAMENTO non viene piu' da qui -- viene
+       dal tipo, inventato dal modello (fase 3b, core/enemy_type.h). Tenerlo
+       significa che ogni chiamante storico (il punteggio in CombatDamageEnemy, la
+       scelta dello sprite in DrawEnemy, il portale del boss in world.c) continua a
+       funzionare senza sapere nulla dei tipi. */
     EnemyKind kind;
     Vector2 pos;
     Vector2 vel;
@@ -338,6 +355,17 @@ typedef struct Enemy {
     float speed;
     float cooldown;
     float slowTimer;
+    /* Il tipo inventato dal modello (fase 3b). 'active' falso = i nemici storici,
+       cioe' lo zero-default: un Enemy azzerato con memset si comporta ESATTAMENTE
+       come prima di questa fase (insegue e non spara). Copiato per valore dentro
+       l'Enemy, come ShotTypeDef dentro l'Item e per lo stesso motivo: il contenuto
+       del piano puo' cambiare sotto i piedi (generazione pigra in sottofondo), un
+       nemico gia' in campo no. */
+    EnemyTypeDef type;
+    /* Stato per-nemico dei movimenti a fasi (orbita, zig-zag, scatto): un angolo/
+       fase che avanza da solo. Zero-default innocuo. */
+    float phase;
+    float chargeTimer;
 } Enemy;
 
 typedef struct Shot {

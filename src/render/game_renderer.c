@@ -223,10 +223,23 @@ static void DrawEnemy(Game *game, const Enemy *e)
     bool drew = false;
     if (game->atlasLoaded)
     {
+        /* Fase 3b: lo sprite si sceglie dalla FORMA del nemico (inventata dal
+           modello), non piu' dal vecchio 'kind'. Senza questo, con un atlas
+           presente -- cioe' nel caso NORMALE -- le forme sarebbero state
+           completamente invisibili: quattro nemici diversi avrebbero mostrato lo
+           stesso sprite, e l'unica cosa che il modello puo' dire sull'aspetto di un
+           nemico non sarebbe arrivata a schermo. Trovato guardando lo screenshot,
+           non da un test: nessun assert poteva accorgersene. */
         int cell = SPR_ENEMY_CHASER;
-        if (e->kind == ENEMY_SHOOTER) cell = SPR_ENEMY_SHOOTER;
+        if (e->kind == ENEMY_BOSS) cell = SPR_BOSS;   /* un boss e' un boss, qualunque forma abbia */
+        else if (e->type.active)
+        {
+            if (e->type.form == ENEMY_FORM_SPIKY) cell = SPR_ENEMY_SHOOTER;
+            else if (e->type.form == ENEMY_FORM_ARMORED) cell = SPR_ENEMY_TANK;
+            else if (e->type.form == ENEMY_FORM_FLOATER) cell = SPR_ENEMY_FLOATER;
+        }
+        else if (e->kind == ENEMY_SHOOTER) cell = SPR_ENEMY_SHOOTER;
         else if (e->kind == ENEMY_TANK) cell = SPR_ENEMY_TANK;
-        else if (e->kind == ENEMY_BOSS) cell = SPR_BOSS;
         drew = DrawAtlasCell(game, cell, e->pos, e->radius*3.3f, WHITE);
     }
     /* Il nome del boss va sempre mostrato durante lo scontro, sia che si
@@ -234,33 +247,69 @@ static void DrawEnemy(Game *game, const Enemy *e)
     if (e->kind == ENEMY_BOSS) DrawText(game->theme.bossName, (int)(ROOM_X + 20), (int)(ROOM_Y + 16), 18, RAYWHITE);
     if (!drew)
     {
-        if (e->kind == ENEMY_CHASER)
+        /* Fase 3b: la FORMA del nemico (inventata dal modello, core/enemy_type.h)
+           decide come si disegna la sagoma di riserva. Un nemico SENZA tipo
+           (zero-default: manifest vecchio, o nessun manifest) ricade sulle forme
+           storiche legate a kind, identiche a prima. */
+        EnemyForm form = e->type.active ? e->type.form : ENEMY_FORM_BLOB;
+        if (!e->type.active)
         {
-            DrawCircleV(e->pos, e->radius, c);
-            DrawCircleV((Vector2){ e->pos.x - 5, e->pos.y - 4 }, 3, BLACK);
-            DrawCircleV((Vector2){ e->pos.x + 5, e->pos.y - 4 }, 3, BLACK);
+            if (e->kind == ENEMY_SHOOTER) form = ENEMY_FORM_SPIKY;
+            else if (e->kind == ENEMY_TANK) form = ENEMY_FORM_ARMORED;
+            else if (e->kind == ENEMY_BOSS) form = ENEMY_FORM_FLOATER;
         }
-        else if (e->kind == ENEMY_SHOOTER)
+
+        switch (form)
         {
-            DrawTriangle((Vector2){ e->pos.x, e->pos.y - e->radius },
-                         (Vector2){ e->pos.x - e->radius, e->pos.y + e->radius },
-                         (Vector2){ e->pos.x + e->radius, e->pos.y + e->radius }, c);
-            DrawCircleV(e->pos, 5, BLACK);
-        }
-        else if (e->kind == ENEMY_TANK)
-        {
-            DrawRectangleRounded((Rectangle){ e->pos.x - e->radius, e->pos.y - e->radius*0.75f, e->radius*2, e->radius*1.5f }, 0.25f, 8, c);
-            DrawCircleV((Vector2){ e->pos.x - 7, e->pos.y - 2 }, 4, BLACK);
-            DrawCircleV((Vector2){ e->pos.x + 7, e->pos.y - 2 }, 4, BLACK);
-        }
-        else
-        {
-            DrawCircleV(e->pos, e->radius, c);
-            for (int i = 0; i < 8; i++)
+            case ENEMY_FORM_SPIKY:
             {
-                float a = (float)i*PI_F/4.0f + (float)GetTime();
-                DrawCircleV((Vector2){ e->pos.x + cosf(a)*(e->radius + 12.0f), e->pos.y + sinf(a)*(e->radius + 12.0f) }, 7.0f, game->theme.accent);
+                /* Stella spinosa: un corpo tondo con punte tutt'intorno. */
+                int spikes = 8;
+                for (int s = 0; s < spikes; s++)
+                {
+                    float a = (float)s*PI_F*2.0f/(float)spikes + e->phase*0.35f;
+                    Vector2 tip = { e->pos.x + cosf(a)*e->radius*1.6f, e->pos.y + sinf(a)*e->radius*1.6f };
+                    Vector2 l = { e->pos.x + cosf(a - 0.22f)*e->radius*0.9f, e->pos.y + sinf(a - 0.22f)*e->radius*0.9f };
+                    Vector2 r = { e->pos.x + cosf(a + 0.22f)*e->radius*0.9f, e->pos.y + sinf(a + 0.22f)*e->radius*0.9f };
+                    DrawTriangle(tip, l, r, c);
+                }
+                DrawCircleV(e->pos, e->radius*0.85f, c);
+                DrawCircleV(e->pos, e->radius*0.30f, BLACK);
+                break;
             }
+            case ENEMY_FORM_ARMORED:
+            {
+                /* Blocco squadrato con piastre: spigoli, niente curve. */
+                DrawRectangleRounded((Rectangle){ e->pos.x - e->radius, e->pos.y - e->radius*0.8f, e->radius*2.0f, e->radius*1.6f }, 0.18f, 6, c);
+                DrawRectangleLinesEx((Rectangle){ e->pos.x - e->radius, e->pos.y - e->radius*0.8f, e->radius*2.0f, e->radius*1.6f }, 3.0f, GameColorLerp(c, BLACK, 0.45f));
+                DrawRectangle((int)(e->pos.x - e->radius*0.55f), (int)(e->pos.y - e->radius*0.25f), (int)(e->radius*1.1f), (int)(e->radius*0.28f), GameColorLerp(c, BLACK, 0.5f));
+                DrawCircleV((Vector2){ e->pos.x - e->radius*0.42f, e->pos.y - e->radius*0.15f }, e->radius*0.16f, BLACK);
+                DrawCircleV((Vector2){ e->pos.x + e->radius*0.42f, e->pos.y - e->radius*0.15f }, e->radius*0.16f, BLACK);
+                break;
+            }
+            case ENEMY_FORM_FLOATER:
+            {
+                /* Medusa: cupola tonda e tentacoli che ondeggiano. */
+                DrawCircleV(e->pos, e->radius, c);
+                DrawCircleV((Vector2){ e->pos.x, e->pos.y - e->radius*0.25f }, e->radius*0.62f, GameColorLerp(c, WHITE, 0.25f));
+                for (int t = 0; t < 5; t++)
+                {
+                    float ox = ((float)t - 2.0f)*e->radius*0.36f;
+                    float wob = sinf((float)GetTime()*3.4f + (float)t*0.8f + e->phase)*e->radius*0.22f;
+                    DrawLineEx((Vector2){ e->pos.x + ox, e->pos.y + e->radius*0.55f },
+                               (Vector2){ e->pos.x + ox + wob, e->pos.y + e->radius*1.5f },
+                               e->radius*0.16f, GameColorLerp(c, BLACK, 0.25f));
+                }
+                DrawCircleV((Vector2){ e->pos.x - e->radius*0.3f, e->pos.y - e->radius*0.25f }, e->radius*0.14f, BLACK);
+                DrawCircleV((Vector2){ e->pos.x + e->radius*0.3f, e->pos.y - e->radius*0.25f }, e->radius*0.14f, BLACK);
+                break;
+            }
+            case ENEMY_FORM_BLOB:
+            default:
+                DrawCircleV(e->pos, e->radius, c);
+                DrawCircleV((Vector2){ e->pos.x - e->radius*0.33f, e->pos.y - e->radius*0.27f }, e->radius*0.2f, BLACK);
+                DrawCircleV((Vector2){ e->pos.x + e->radius*0.33f, e->pos.y - e->radius*0.27f }, e->radius*0.2f, BLACK);
+                break;
         }
     }
     if (e->hp < e->maxHp)

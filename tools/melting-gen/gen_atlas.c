@@ -177,6 +177,22 @@ static void DrawCell(unsigned char *px, int cell, const GenRun *run)
         FillCircle(px, cx + 35, cy - 11, 12, accent2);
         FillCircle(px, cx + 47, cy - 14, 5, boss);
     }
+    else if (cell == 12)
+    {
+        /* Fase 3b: la medusa (forma "floater"). Cupola tonda + tentacoli, cosi'
+           anche l'atlas PROCEDURALE (quello di riserva, senza Stable Diffusion) ha
+           una cella distinta per la quarta forma: senza, un nemico "floater"
+           mostrerebbe lo sprite di un altro. */
+        FillCircle(px, cx, cy - 8, 30, enemy);
+        FillCircle(px, cx, cy - 16, 20, Shade(enemy, 1.25));
+        for (int i = 0; i < 5; i++)
+        {
+            int ox = cx - 24 + i*12;
+            DrawLineT(px, ox, cy + 16, ox + ((i%2) ? 6 : -6), cy + 52, 5, Shade(enemy, 0.75));
+        }
+        FillCircle(px, cx - 10, cy - 12, 5, dark);
+        FillCircle(px, cx + 10, cy - 12, 5, dark);
+    }
     else
     {
         int variant = cell%8;

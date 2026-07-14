@@ -3,7 +3,15 @@
 # Ordine delle chiavi FISSO, identico a RunToJson() in gen_manifest.c.
 root ::= "{\"floors\":[" floor "," floor "," floor "," floor "," floor "]}"
 
-floor ::= "{\"theme\":" name ",\"style\":" name ",\"boss\":" name ",\"bg\":" color ",\"floor\":" color ",\"wall\":" color ",\"accent\":" color ",\"accent2\":" color ",\"enemy\":" color ",\"bossColor\":" color ",\"shot\":" shot ",\"shotItem\":" itemidx ",\"items\":[" item "," item "," item "]}"
+floor ::= "{\"theme\":" name ",\"style\":" name ",\"boss\":" name ",\"bg\":" color ",\"floor\":" color ",\"wall\":" color ",\"accent\":" color ",\"accent2\":" color ",\"enemy\":" color ",\"bossColor\":" color ",\"shot\":" shot ",\"shotItem\":" itemidx ",\"enemies\":[" foe "," foe "],\"bossType\":" foe ",\"items\":[" item "," item "," item "]}"
+
+# Tipo di nemico (fase 3b): lo INVENTA il modello, come i tipi di colpo. Il motore
+# non ha un catalogo di nemici, ha solo questo vocabolario (src/core/enemy_type.h).
+foe ::= "{\"name\":" name ",\"form\":" foeform ",\"move\":" foemove ",\"fire\":" foefire ",\"hp\":" mul ",\"speed\":" mul ",\"size\":" mul ",\"rate\":" mul ",\"pellets\":" knob08 "}"
+foeform ::= "\"blob\"" | "\"spiky\"" | "\"armored\"" | "\"floater\""
+foemove ::= "\"chase\"" | "\"kite\"" | "\"orbit\"" | "\"zigzag\"" | "\"charge\""
+foefire ::= "\"none\"" | "\"single\"" | "\"spread\"" | "\"ring\""
+knob08 ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8"
 
 # Tipo di colpo del piano (step C): il modello lo INVENTA -- nome, forma e sette
 # manopole. Il motore non ha un elenco di tipi possibili, ha solo questo
@@ -14,7 +22,10 @@ shot ::= "{\"name\":" name ",\"form\":" shotform ",\"speed\":" mul ",\"damage\":
 shotform ::= "\"orb\"" | "\"spike\"" | "\"beam\"" | "\"arc\"" | "\"blade\""
 # Moltiplicatore: 0.x oppure 1.x/2.x (le bande vere le impone il C, qui basta
 # tenere la forma numerica pulita: niente zeri iniziali, al massimo 2 decimali).
-mul ::= ("0" | "1" | "2") ("." [0-9] [0-9]?)?
+# 0..3: la vita di un nemico (fase 3b) arriva a 3.0, i moltiplicatori dei tipi di
+# colpo a 2.5. Le bande VERE le impongono il C (ShotTypeClamp/EnemyTypeClamp): qui
+# basta tenere la forma numerica pulita (niente zeri iniziali, al massimo 2 decimali).
+mul ::= ("0" | "1" | "2" | "3") ("." [0-9] [0-9]?)?
 knob03 ::= "0" | "1" | "2" | "3"
 itemidx ::= "1" | "2" | "3"
 

@@ -2,7 +2,7 @@ Sei un generatore di contenuti per un piccolo action roguelite top-down in pixel
 Inventa contenuti originali e coerenti. Non copiare giochi o marchi esistenti.
 Rispondi con UN SOLO oggetto JSON compatto, senza testo prima o dopo, nel formato esatto:
 {"floors":[F1,F2,F3,F4,F5]}
-Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","shot":{...},"shotItem":1,"items":[I1,I2,I3]}
+Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","shot":{...},"shotItem":1,"enemies":[N1,N2],"bossType":{...},"items":[I1,I2,I3]}
 - theme, style, boss: stringhe brevi (3-40 caratteri), in italiano, evocative, senza accenti.
 - bg e floor: colori scuri. wall: tono medio. accent, accent2, enemy, bossColor: vividi e leggibili.
 Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","script":[...]}
@@ -12,6 +12,18 @@ Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","scr
 - Parametri: burst a=colpi(1-6) b=apertura(0.05-1.2); projectile a=colpi(1-6) b=velocita(120-720); area a=raggio(18-96) b=scalaDanno(0.05-1.15); heal a=probabilita(0-60) b=cura(1-2).
 - Ogni operazione deve avere trait uguale a uno dei traits dell'oggetto (oppure none) e rafforzarlo.
 - Evita script puramente cosmetici: ogni oggetto deve creare una piccola sinergia giocabile.
+
+NEMICI DEL PIANO ("enemies": due nemici normali) E BOSS ("bossType"): INVENTALI TU. Il motore non ha un elenco di nemici: ha solo questo vocabolario, e i nemici li fai tu.
+{"name":"<nome del nemico>","form":"<forma>","move":"<movimento>","fire":"<come spara>","hp":<mul>,"speed":<mul>,"size":<mul>,"rate":<colpi al secondo>,"pellets":<1-8>}
+- form: blob (massa tonda), spiky (stella spinosa), armored (blocco corazzato), floater (medusa che fluttua).
+- move: chase (ti viene addosso), kite (si tiene a distanza), orbit (ti gira attorno), zigzag (serpeggia, difficile da colpire), charge (si ferma, prende la mira, poi scatta).
+- fire: none (solo contatto), single (un colpo mirato), spread (ventaglio verso di te), ring (corona in tutte le direzioni).
+- hp/speed/size: moltiplicatori del nemico base, fra 0.5 e 3 (1 = come il nemico base). rate: colpi al secondo, 0-2.5 (0 = non spara). pellets: quanti colpi per raffica (solo per spread e ring).
+- I due nemici di un piano devono essere DIVERSI fra loro: uno che ti viene addosso e uno che ti tiene a distanza, o un piccolo veloce e un grosso lento. Il boss deve essere il pezzo grosso del piano.
+- Nascono dal tema come tutto il resto: in una fucina sono scorie incandescenti, in una biblioteca sono libri che sbattono le pagine. Nomi diversi per ogni piano, 10 nemici e 5 boss mai visti.
+- Esempi SOLO per capire il meccanismo, NON copiarli:
+  {"name":"Scoria Impazzita","form":"blob","move":"zigzag","fire":"none","hp":0.8,"speed":1.4,"size":0.9,"rate":0,"pellets":1}
+  {"name":"Sentinella Corazzata","form":"armored","move":"kite","fire":"spread","hp":1.8,"speed":0.6,"size":1.3,"rate":0.8,"pellets":3}
 
 TIPO DI COLPO DEL PIANO ("shot"): INVENTALO TU. E' un modo completamente nuovo di sparare, che sostituisce il colpo base del giocatore quando raccoglie l'oggetto indicato da "shotItem" (1, 2 o 3: scegli quello il cui nome ha piu' senso con il colpo che hai inventato).
 {"name":"<nome del colpo, 3-40 caratteri>","form":"<forma>","speed":<mul>,"damage":<mul>,"size":<mul>,"life":<mul>,"pierce":<0-3>,"chain":<0-3>,"pellets":<1-3>}

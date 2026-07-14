@@ -43,68 +43,68 @@ void EntitiesAddParticle(Game *game, Vector2 pos, Color color, int count)
     }
 }
 
-void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 pos)
+/* Le BASI del motore, da cui i moltiplicatori del tipo (fase 3b) partono. Sono
+   quelle storiche dell'inseguitore/boss: un nemico senza tipo (zero-default) resta
+   quindi identico a prima di questa fase. MODIFICA QUI per ribilanciare la
+   difficolta' di fondo del gioco, non nei tipi (quelli li inventa il modello). */
+#define ENEMY_BASE_HP      24.0f
+#define ENEMY_BASE_SPEED   98.0f
+#define ENEMY_BASE_RADIUS  15.0f
+#define ENEMY_BOSS_BASE_HP     150.0f
+#define ENEMY_BOSS_BASE_SPEED   54.0f
+#define ENEMY_BOSS_BASE_RADIUS  42.0f
+
+/* Il nemico TIPIZZATO (fase 3b): stesse basi scalate per piano di sempre, modulate
+   dai moltiplicatori del tipo che il modello ha inventato. 'type' NULL o non attivo
+   -> il nemico storico corrispondente a 'kind', identico a prima. */
+void EntitiesAddEnemyTyped(Game *game, EnemyKind kind, Vector2 pos, const EnemyTypeDef *type)
 {
     for (int i = 0; i < MAX_ENEMIES; i++)
     {
         Enemy *e = &game->enemies[i];
         if (e->active) continue;
-        /* Azzeramento dello slot PRIMA di ripopolarlo, come fa gia' EntitiesAddShot
-           (correzione da review). Senza, il nemico nuovo ereditava due campi del
-           morto che occupava lo slot: 'vel' (la spinta impressa da un
-           set_enemy_velocity di uno script Lua -- il nemico appena nato partiva
-           scivolando) e soprattutto 'slowTimer' (il rallentamento di TRAIT_SLOW --
-           un nemico nato in uno slot appena liberato si muoveva al 45% per un
-           secondo e mezzo, senza che nessuno l'avesse rallentato). Bug vero e
-           preesistente, invisibile perche' somiglia a "un nemico un po' lento". */
         memset(e, 0, sizeof(*e));
-        /* Generazione per l'API a handle di Lua (core/game_types.h,
-           Game.enemyGen): incrementata ogni volta che questo slot viene
-           riassegnato, cosi' un handle catturato da uno script PRIMA che
-           questo nemico morisse smette di combaciare con quello nuovo (vedi
-           src/script/script_api.c, ScriptApiCheckEnemy). */
         game->enemyGen[i]++;
-        /* Stessa idea, per la maschera dei nemici gia' colpiti (Shot.hitMask, step
-           C): quella maschera e' indicizzata sullo SLOT, non sulla generazione,
-           quindi un colpo perforante ancora in volo avrebbe potuto rifiutarsi di
-           colpire il nemico NUOVO nato in uno slot che aveva gia' colpito. Ripulire
-           il bit alla nascita chiude il buco alla radice, e costa un giro su 220
-           colpi solo quando nasce un nemico. */
         for (int s = 0; s < MAX_SHOTS; s++) game->shots[s].hitMask &= ~(1ull << i);
+
         e->active = true;
         e->kind = kind;
         e->pos = pos;
         e->cooldown = GameRngFloat(&game->rng, 0.45f, 1.35f);
-        float scale = 1.0f + (float)(game->floor - 1)*0.20f;
+        e->phase = GameRngFloat(&game->rng, 0.0f, PI_F*2.0f);   /* orbita/zig-zag: fasi diverse, cosi' non si muovono all'unisono */
+        if (type && type->active) e->type = *type;
 
-        if (kind == ENEMY_CHASER)
+        bool isBoss = (kind == ENEMY_BOSS);
+        float floorScale = 1.0f + (float)(game->floor - 1)*0.20f;
+        float baseHp     = isBoss ? (ENEMY_BOSS_BASE_HP + 52.0f*(float)game->floor + ((game->floor == FLOOR_COUNT) ? 150.0f : 0.0f)) : ENEMY_BASE_HP*floorScale;
+        float baseSpeed  = isBoss ? (ENEMY_BOSS_BASE_SPEED + 4.0f*(float)game->floor) : (ENEMY_BASE_SPEED + 7.0f*(float)game->floor);
+        float baseRadius = isBoss ? ((game->floor == FLOOR_COUNT) ? 52.0f : ENEMY_BOSS_BASE_RADIUS) : ENEMY_BASE_RADIUS;
+
+        if (e->type.active)
         {
-            e->radius = 15.0f;
-            e->hp = 18.0f*scale;
-            e->speed = 98.0f + 7.0f*(float)game->floor;
-        }
-        else if (kind == ENEMY_SHOOTER)
-        {
-            e->radius = 17.0f;
-            e->hp = 24.0f*scale;
-            e->speed = 68.0f + 4.0f*(float)game->floor;
-        }
-        else if (kind == ENEMY_TANK)
-        {
-            e->radius = 23.0f;
-            e->hp = 45.0f*scale;
-            e->speed = 48.0f + 3.0f*(float)game->floor;
+            e->hp = baseHp*e->type.hpMul;
+            e->speed = baseSpeed*e->type.speedMul;
+            e->radius = baseRadius*e->type.sizeMul;
         }
         else
         {
-            e->radius = (game->floor == FLOOR_COUNT) ? 52.0f : 42.0f;
-            e->hp = 150.0f + 52.0f*(float)game->floor + ((game->floor == FLOOR_COUNT) ? 150.0f : 0.0f);
-            e->speed = 54.0f + 4.0f*(float)game->floor;
-            e->cooldown = 0.65f;
+            /* Nessun tipo: i quattro nemici storici, invariati. */
+            e->hp = baseHp;
+            e->speed = baseSpeed;
+            e->radius = baseRadius;
+            if (kind == ENEMY_SHOOTER) { e->radius = 17.0f; e->hp = 24.0f*floorScale; e->speed = 68.0f + 4.0f*(float)game->floor; }
+            else if (kind == ENEMY_TANK) { e->radius = 23.0f; e->hp = 45.0f*floorScale; e->speed = 48.0f + 3.0f*(float)game->floor; }
+            else if (kind == ENEMY_CHASER) { e->hp = 18.0f*floorScale; }
         }
+        if (isBoss) e->cooldown = 0.65f;
         e->maxHp = e->hp;
         return;
     }
+}
+
+void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 pos)
+{
+    EntitiesAddEnemyTyped(game, kind, pos, NULL);
 }
 
 Shot *EntitiesAddShot(Game *game, bool fromPlayer, Vector2 pos, Vector2 dir, float speed, float damage, float radius, unsigned int traits, Color color)

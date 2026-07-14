@@ -999,6 +999,261 @@ static bool TestSynergyPowerScalesWithRarity(void)
 }
 
 /* ============================================================
+   Test AD-AF (fase 3b, docs/superpowers/specs/2026-07-14-step-3b-enemies.md): i
+   nemici inventati dal modello. Stessa struttura dei test dei tipi di colpo, perche'
+   e' lo stesso principio: il motore non ha un catalogo di nemici, ha un vocabolario
+   e DUE GARANZIE -- l'equilibrio del singolo nemico (EnemyTypeBalance) e il budget
+   di difficolta' della stanza (world.c). Sono quelle due che si verificano qui.
+   ============================================================ */
+
+static EnemyTypeDef MakeEnemyType(EnemyForm form, EnemyMove move, EnemyFire fire,
+                                  float hp, float speed, float size, float rate, int pellets, bool boss)
+{
+    EnemyTypeDef type;
+    memset(&type, 0, sizeof(type));
+    type.active = true;
+    type.boss = boss;
+    snprintf(type.name, sizeof(type.name), "Prova");
+    type.form = form; type.move = move; type.fire = fire;
+    type.hpMul = hp; type.speedMul = speed; type.sizeMul = size;
+    type.fireRate = rate; type.pellets = pellets;
+    return type;
+}
+
+/* Test AD (il test centrale della fase 3b): QUALUNQUE nemico il modello inventi,
+   EnemyTypeBalance lo riporta dentro la banda di potenza. Griglia esaustiva sugli
+   estremi di tutte le manopole, per ogni combinazione di movimento e modo di
+   sparare -- piu' i due casi patologici espliciti (il sacco da boxe, che deve
+   essere RINFORZATO, e il muro che spara a raffica, che deve essere TAGLIATO).
+   Verifica anche il boss, che ha una banda SUA: bilanciarlo come un nemico normale
+   lo indebolirebbe (gli dimezzerebbe la vita per riportarlo a potenza 1.0). */
+static bool TestEnemyTypeAlwaysBalanced(void)
+{
+    static const float kHp[2]    = { ENEMY_TYPE_HP_MIN, ENEMY_TYPE_HP_MAX };
+    static const float kSpeed[2] = { ENEMY_TYPE_SPEED_MIN, ENEMY_TYPE_SPEED_MAX };
+    static const float kSize[2]  = { ENEMY_TYPE_SIZE_MIN, ENEMY_TYPE_SIZE_MAX };
+    static const float kRate[3]  = { 0.0f, 1.2f, ENEMY_TYPE_RATE_MAX };
+
+    bool ok = true;
+    int checked = 0;
+    float worstLow = 999.0f, worstHigh = 0.0f;
+
+    for (int boss = 0; boss <= 1; boss++)
+    for (int m = 0; m < (int)ENEMY_MOVE_COUNT; m++)
+    for (int fr = 0; fr < (int)ENEMY_FIRE_COUNT; fr++)
+    for (int h = 0; h < 2; h++)
+    for (int s = 0; s < 2; s++)
+    for (int z = 0; z < 2; z++)
+    for (int r = 0; r < 3; r++)
+    for (int p = 1; p <= ENEMY_TYPE_PELLETS_MAX; p += 3)
+    {
+        EnemyTypeDef type = MakeEnemyType(ENEMY_FORM_BLOB, (EnemyMove)m, (EnemyFire)fr,
+                                          kHp[h], kSpeed[s], kSize[z], kRate[r], p, boss != 0);
+        EnemyTypeBalance(&type);
+        float power = EnemyTypePower(&type);
+        float lo = boss ? ENEMY_TYPE_BOSS_POWER_MIN : ENEMY_TYPE_POWER_MIN;
+        float hi = boss ? ENEMY_TYPE_BOSS_POWER_MAX : ENEMY_TYPE_POWER_MAX;
+        checked++;
+        if (!boss)
+        {
+            if (power < worstLow) worstLow = power;
+            if (power > worstHigh) worstHigh = power;
+        }
+        if (power < lo || power > hi) ok = false;
+
+        EnemyTypeDef again = type;   /* idempotenza: gira tre volte davvero (gen, caricamento, spawn) */
+        EnemyTypeBalance(&again);
+        if (fabsf(EnemyTypePower(&again) - power) > 1e-4f) ok = false;
+    }
+
+    EnemyTypeDef punchBag = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE,
+                                          ENEMY_TYPE_HP_MIN, ENEMY_TYPE_SPEED_MIN, ENEMY_TYPE_SIZE_MAX, 0.0f, 1, false);
+    float bagBefore = EnemyTypePower(&punchBag);
+    EnemyTypeBalance(&punchBag);
+    float bagAfter = EnemyTypePower(&punchBag);
+
+    EnemyTypeDef wall = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_ZIGZAG, ENEMY_FIRE_SPREAD,
+                                      ENEMY_TYPE_HP_MAX, ENEMY_TYPE_SPEED_MAX, ENEMY_TYPE_SIZE_MAX,
+                                      ENEMY_TYPE_RATE_MAX, ENEMY_TYPE_PELLETS_MAX, false);
+    float wallBefore = EnemyTypePower(&wall);
+    EnemyTypeBalance(&wall);
+    float wallAfter = EnemyTypePower(&wall);
+
+    /* Il boss deve restare FORTE: la sua banda e' piu' alta di quella di un nemico. */
+    EnemyTypeDef boss;
+    EnemyTypeExampleBoss(&boss);
+    float bossPower = EnemyTypePower(&boss);
+    bool bossStrong = bossPower >= ENEMY_TYPE_BOSS_POWER_MIN && bossPower > ENEMY_TYPE_POWER_MAX;
+
+    printf("  [AD] %d nemici estremi bilanciati: potenza in [%.2f, %.2f] (banda [%.2f, %.2f])\n",
+           checked, (double)worstLow, (double)worstHigh, (double)ENEMY_TYPE_POWER_MIN, (double)ENEMY_TYPE_POWER_MAX);
+    printf("  [AD] sacco da boxe: %.2f -> %.2f (rinforzato) | muro che spara: %.2f -> %.2f (tagliato) | boss: %.2f (deve restare sopra %.2f)\n",
+           (double)bagBefore, (double)bagAfter, (double)wallBefore, (double)wallAfter,
+           (double)bossPower, (double)ENEMY_TYPE_POWER_MAX);
+
+    bool bagFixed = bagAfter > bagBefore && bagAfter >= ENEMY_TYPE_POWER_MIN;
+    bool wallFixed = wallAfter < wallBefore && wallAfter <= ENEMY_TYPE_POWER_MAX;
+    ok = ok && bagFixed && wallFixed && bossStrong;
+    if (!ok) printf("      FALLITO: un nemico inventato dal modello e' finito fuori banda (o il boss e' stato indebolito dalla rete)\n");
+    return ok;
+}
+
+/* Test AE: il round-trip testo<->enum di forme, movimenti e modi di sparare. Stessa
+   ragione del test S (i tipi di colpo): questi testi attraversano la grammatica
+   GBNF, il manifest e il parser del gioco, e un disallineamento silenzioso (es.
+   "kite" letto come "chase") non farebbe fallire nessun altro test -- i nemici si
+   comporterebbero solo... male. */
+static bool TestEnemyTypeTextRoundTrip(void)
+{
+    static const char *kForms[ENEMY_FORM_COUNT] = { "blob", "spiky", "armored", "floater" };
+    static const char *kMoves[ENEMY_MOVE_COUNT] = { "chase", "kite", "orbit", "zigzag", "charge" };
+    static const char *kFires[ENEMY_FIRE_COUNT] = { "none", "single", "spread", "ring" };
+    bool ok = true;
+
+    for (int i = 0; i < (int)ENEMY_FORM_COUNT; i++)
+    {
+        if (EnemyFormFromText(kForms[i]) != (EnemyForm)i || strcmp(EnemyFormName((EnemyForm)i), kForms[i]) != 0) ok = false;
+    }
+    for (int i = 0; i < (int)ENEMY_MOVE_COUNT; i++)
+    {
+        if (EnemyMoveFromText(kMoves[i]) != (EnemyMove)i || strcmp(EnemyMoveName((EnemyMove)i), kMoves[i]) != 0) ok = false;
+    }
+    for (int i = 0; i < (int)ENEMY_FIRE_COUNT; i++)
+    {
+        if (EnemyFireFromText(kFires[i]) != (EnemyFire)i || strcmp(EnemyFireName((EnemyFire)i), kFires[i]) != 0) ok = false;
+    }
+    /* Un testo sconosciuto ricade sempre sul valore 0, cioe' il piu' innocuo. */
+    if (EnemyFormFromText("drago-a-nove-teste") != ENEMY_FORM_BLOB ||
+        EnemyMoveFromText(NULL) != ENEMY_MOVE_CHASE ||
+        EnemyFireFromText("laser-orbitale") != ENEMY_FIRE_NONE) ok = false;
+
+    printf("  [AE] %d forme, %d movimenti, %d modi di sparare: testo <-> enum coerenti, ignoto -> il piu' innocuo\n",
+           (int)ENEMY_FORM_COUNT, (int)ENEMY_MOVE_COUNT, (int)ENEMY_FIRE_COUNT);
+    if (!ok) printf("      FALLITO: round-trip testo<->enum dei nemici rotto (gen e gioco si direbbero cose diverse)\n");
+    return ok;
+}
+
+/* Test AF: i cinque movimenti e i quattro modi di sparare fanno cose
+   OSSERVABILMENTE DIVERSE. Non e' un test estetico: se "kite" si muovesse come
+   "chase", il manifest sarebbe perfetto, la potenza in banda, tutti i test verdi --
+   e il modello starebbe inventando nemici che si comportano tutti uguale. */
+static bool TestEnemyBehavioursDiffer(void)
+{
+    bool ok = true;
+
+    /* MOVIMENTO: un inseguitore si avvicina, un tiratore che tiene le distanze si
+       ALLONTANA quando gli sei addosso. */
+    Game chaseGame = MakeBaseGame(9001u);
+    EnemyTypeDef chaser = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE, 1.0f, 1.0f, 1.0f, 0.0f, 1, false);
+    EntitiesAddEnemyTyped(&chaseGame, ENEMY_CHASER, (Vector2){ chaseGame.player.pos.x + 120.0f, chaseGame.player.pos.y }, &chaser);
+
+    Game kiteGame = MakeBaseGame(9002u);
+    EnemyTypeDef kiter = MakeEnemyType(ENEMY_FORM_SPIKY, ENEMY_MOVE_KITE, ENEMY_FIRE_NONE, 1.0f, 1.0f, 1.0f, 0.0f, 1, false);
+    EntitiesAddEnemyTyped(&kiteGame, ENEMY_SHOOTER, (Vector2){ kiteGame.player.pos.x + 120.0f, kiteGame.player.pos.y }, &kiter);
+
+    float chaseBefore = chaseGame.enemies[0].pos.x - chaseGame.player.pos.x;
+    float kiteBefore = kiteGame.enemies[0].pos.x - kiteGame.player.pos.x;
+    for (int step = 0; step < 60; step++)
+    {
+        CombatUpdateEnemies(&chaseGame, 1.0f/60.0f);
+        CombatUpdateEnemies(&kiteGame, 1.0f/60.0f);
+    }
+    float chaseAfter = chaseGame.enemies[0].pos.x - chaseGame.player.pos.x;
+    float kiteAfter = kiteGame.enemies[0].pos.x - kiteGame.player.pos.x;
+    bool chaseApproaches = chaseAfter < chaseBefore - 10.0f;
+    bool kiteRetreats = kiteAfter > kiteBefore + 10.0f;   /* era a 120 px, sotto i 210 di soglia: indietreggia */
+
+    /* FUOCO: nessuno / uno / ventaglio / corona producono un numero di colpi
+       crescente e diverso. */
+    int shots[4] = { 0, 0, 0, 0 };
+    for (int f = 0; f < 4; f++)
+    {
+        Game g = MakeBaseGame(9010u + (unsigned int)f);
+        EnemyTypeDef t = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, (EnemyFire)f,
+                                       1.0f, 1.0f, 1.0f, (f == ENEMY_FIRE_NONE) ? 0.0f : 1.0f, 5, false);
+        EntitiesAddEnemyTyped(&g, ENEMY_SHOOTER, (Vector2){ g.player.pos.x + 300.0f, g.player.pos.y }, &t);
+        g.enemies[0].cooldown = 0.0f;   /* pronto a sparare subito */
+        CombatUpdateEnemies(&g, 1.0f/60.0f);
+        for (int i = 0; i < MAX_SHOTS; i++) if (g.shots[i].active && !g.shots[i].fromPlayer) shots[f]++;
+        ScriptItemsShutdown(&g);
+    }
+    /* EnemyTypeBalance puo' aver tagliato i pallettoni di un nemico troppo carico:
+       si pretende quindi l'ORDINE (nessuno < uno < piu' d'uno), non i numeri esatti. */
+    bool fireDiffers = shots[ENEMY_FIRE_NONE] == 0 &&
+                       shots[ENEMY_FIRE_SINGLE] == 1 &&
+                       shots[ENEMY_FIRE_SPREAD] > 1 &&
+                       shots[ENEMY_FIRE_RING] > 1;
+
+    printf("  [AF] movimento: inseguitore %.0f->%.0f px (si avvicina=%s) | tiene le distanze %.0f->%.0f px (indietreggia=%s)\n",
+           (double)chaseBefore, (double)chaseAfter, chaseApproaches ? "si" : "NO",
+           (double)kiteBefore, (double)kiteAfter, kiteRetreats ? "si" : "NO");
+    printf("  [AF] fuoco: none=%d colpi, single=%d, spread=%d, ring=%d (devono essere diversi)\n",
+           shots[0], shots[1], shots[2], shots[3]);
+
+    ScriptItemsShutdown(&chaseGame);
+    ScriptItemsShutdown(&kiteGame);
+    ok = chaseApproaches && kiteRetreats && fireDiffers;
+    if (!ok) printf("      FALLITO: i movimenti/modi di sparare dei nemici devono fare cose osservabilmente diverse\n");
+    return ok;
+}
+
+/* Test AG (fase 3b, la SECONDA rete): il budget di difficolta' della stanza. La
+   stanza non spawna un numero fisso di nemici: spende un budget di punti, e ogni
+   nemico costa la propria potenza. Quindi un piano di nemici CATTIVI ne riceve
+   MENO, e uno di nemici FIACCHI di piu' -- la difficolta' della stanza resta una
+   decisione del C, qualunque cosa il modello abbia inventato. Senza questa rete, un
+   modello generoso riempirebbe la stanza di mostri e la run sarebbe ingiocabile,
+   con la potenza del SINGOLO nemico comunque perfettamente in banda. */
+static bool TestRoomDifficultyBudget(void)
+{
+    /* Due mondi identici (stesso piano, stesso seed) tranne per QUANTO sono cattivi
+       i nemici del piano. */
+    Game weakGame = MakeBaseGame(9100u);
+    weakGame.floor = 1;
+    EnemyTypeDef weak = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE,
+                                      ENEMY_TYPE_HP_MIN, ENEMY_TYPE_SPEED_MIN, ENEMY_TYPE_SIZE_MIN, 0.0f, 1, false);
+    EnemyTypeBalance(&weak);
+    weakGame.content.floors[0].enemies[0] = weak;
+    weakGame.content.floors[0].enemies[1] = weak;
+    WorldSpawnCombatRoom(&weakGame);
+
+    Game strongGame = MakeBaseGame(9100u);
+    strongGame.floor = 1;
+    EnemyTypeDef strong = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_ZIGZAG, ENEMY_FIRE_RING,
+                                        ENEMY_TYPE_HP_MAX, ENEMY_TYPE_SPEED_MAX, ENEMY_TYPE_SIZE_MAX,
+                                        ENEMY_TYPE_RATE_MAX, ENEMY_TYPE_PELLETS_MAX, false);
+    EnemyTypeBalance(&strong);
+    strongGame.content.floors[0].enemies[0] = strong;
+    strongGame.content.floors[0].enemies[1] = strong;
+    WorldSpawnCombatRoom(&strongGame);
+
+    int weakCount = 0, strongCount = 0;
+    float weakCost = 0.0f, strongCost = 0.0f;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (weakGame.enemies[i].active) { weakCount++; weakCost += EnemyTypePower(&weakGame.enemies[i].type); }
+        if (strongGame.enemies[i].active) { strongCount++; strongCost += EnemyTypePower(&strongGame.enemies[i].type); }
+    }
+
+    /* Il budget del piano 1 e' 3 + 1 + (0..2) = 4..6 punti. La spesa non lo sfora
+       (tranne, al massimo, per l'ultimo nemico: una stanza deve avere almeno un
+       nemico, e un budget avanzato di 0.2 non deve lasciarla vuota). */
+    bool weakMore = weakCount > strongCount;
+    bool bothSpawned = weakCount > 0 && strongCount > 0;
+    bool costsBounded = weakCost <= 6.0f + 1.4f && strongCost <= 6.0f + 1.4f;
+
+    printf("  [AG] budget della stanza: nemici fiacchi (potenza %.2f) -> %d spawnati (spesa %.1f) | nemici cattivi (potenza %.2f) -> %d spawnati (spesa %.1f)\n",
+           (double)EnemyTypePower(&weak), weakCount, (double)weakCost,
+           (double)EnemyTypePower(&strong), strongCount, (double)strongCost);
+
+    ScriptItemsShutdown(&weakGame);
+    ScriptItemsShutdown(&strongGame);
+    bool ok = weakMore && bothSpawned && costsBounded;
+    if (!ok) printf("      FALLITO: la stanza deve spendere un BUDGET (piu' nemici se sono fiacchi, meno se sono cattivi), mai un numero fisso\n");
+    return ok;
+}
+
+/* ============================================================
    Test AA-AC: le tre regressioni trovate dalla review a freddo dei commit della
    notte. Ognuno di questi tre bug era passato in mezzo a tutti i test di sopra --
    e il motivo per cui passavano e' documentato dentro ciascun test, perche' e' la
@@ -1540,6 +1795,10 @@ bool ScriptItemsSelfTest(void)
         { "AA (review: ricalcolo indipendente dall'ordine di raccolta, idempotente, niente auto-sinergia)", TestSynergyShotTypeOrderIndependent },
         { "AB (review: un salto di catena raggiunge un ALTRO nemico, non ricolpisce quello gia' colpito)", TestShotTypeChainOneJumpReachesSecondEnemy },
         { "AC (review: uno slot nemico riciclato non eredita rallentamento/spinta del morto)", TestEnemySlotDoesNotInheritState },
+        { "AD (3b: qualunque nemico inventi il modello resta in banda; il boss resta forte)", TestEnemyTypeAlwaysBalanced },
+        { "AE (3b: round-trip testo<->enum di forme/movimenti/spari, sincronizzato con run.gbnf)", TestEnemyTypeTextRoundTrip },
+        { "AF (3b: movimenti e modi di sparare fanno cose osservabilmente diverse)", TestEnemyBehavioursDiffer },
+        { "AG (3b: la stanza spende un BUDGET di difficolta', non un numero fisso di nemici)", TestRoomDifficultyBudget },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

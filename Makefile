@@ -40,7 +40,7 @@ LLAMA_BUILD := $(LLAMA_DIR)/build
 # rete di sicurezza al caricamento. Non tocca raylib (shot_type.h non lo include
 # nemmeno: e' l'unico header di src/core/ che ne fa a meno, proprio per poter
 # vivere dentro melting-gen senza trascinarsi dietro il gioco).
-GEN_EXTRA_SRC := src/core/game_math.c src/core/shot_type.c src/script/script_sandbox.c
+GEN_EXTRA_SRC := src/core/game_math.c src/core/shot_type.c src/core/enemy_type.c src/script/script_sandbox.c
 
 GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c) $(GEN_EXTRA_SRC)
 GEN_HDR := $(wildcard tools/melting-gen/*.h) $(wildcard tools/melting-gen/vendor/*.h)

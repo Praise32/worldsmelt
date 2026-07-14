@@ -314,6 +314,114 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     if (IsKeyPressed(KEY_SPACE)) CombatPlaceBomb(game);
 }
 
+/* ============================================================
+   Fase 3b: i cinque MOVIMENTI e i quattro modi di SPARARE che il motore mette a
+   disposizione, e che il modello combina inventando i nemici (core/enemy_type.h).
+   Il motore non sa nulla di "quel nemico li'": sa muovere e sparare in questi modi,
+   e basta. Un nemico SENZA tipo (zero-default) passa dal ramo storico, identico a
+   prima di questa fase.
+   ============================================================ */
+
+/* La direzione in cui il nemico si vuole muovere, secondo il suo movimento. */
+static Vector2 CombatEnemyMoveDir(Enemy *e, Vector2 dir, float dist, float dt)
+{
+    switch (e->type.move)
+    {
+        case ENEMY_MOVE_KITE:
+            /* Si tiene a mezza distanza: se sei lontano avanza, se sei addosso
+               indietreggia. E' il tiratore di sempre, generalizzato. */
+            if (dist < 210.0f) return GameMathScale(dir, -0.65f);
+            return dir;
+
+        case ENEMY_MOVE_ORBIT:
+        {
+            /* Gira attorno al giocatore a distanza fissa: si avvicina/allontana per
+               tenere il raggio, e intanto scorre di lato. */
+            e->phase += dt*1.2f;
+            float radial = (dist - 190.0f)*0.012f;
+            radial = GameMathClampFloat(radial, -1.0f, 1.0f);
+            Vector2 tangent = GameMathPerpendicular(dir);
+            return GameMathNormalize(GameMathAdd(GameMathScale(dir, radial), GameMathScale(tangent, 0.9f)));
+        }
+
+        case ENEMY_MOVE_ZIGZAG:
+        {
+            /* Verso il giocatore, ma serpeggiando: la fase iniziale e' casuale per
+               nemico (EntitiesAddEnemyTyped), cosi' un gruppo non ondeggia
+               all'unisono come un banco di pesci. */
+            e->phase += dt*4.5f;
+            Vector2 side = GameMathScale(GameMathPerpendicular(dir), sinf(e->phase)*0.85f);
+            return GameMathNormalize(GameMathAdd(dir, side));
+        }
+
+        case ENEMY_MOVE_CHARGE:
+        {
+            /* Si ferma, prende la mira, poi scatta. chargeTimer scandisce le due
+               fasi: negativo = sta caricando (fermo), positivo = sta scattando. */
+            e->chargeTimer -= dt;
+            if (e->chargeTimer <= 0.0f)
+            {
+                e->chargeTimer = 1.6f;         /* pronto a un nuovo ciclo */
+                e->phase = 0.45f;              /* durata dello scatto */
+                e->vel = GameMathScale(dir, e->speed*2.2f);   /* lo scatto vero e' un impulso: si smorza da solo */
+            }
+            if (e->phase > 0.0f) { e->phase -= dt; return (Vector2){ 0.0f, 0.0f }; }   /* durante lo scatto comanda l'impulso */
+            return GameMathScale(dir, 0.15f);   /* fra uno scatto e l'altro si trascina appena */
+        }
+
+        case ENEMY_MOVE_CHASE:
+        default:
+            return dir;
+    }
+}
+
+/* Il fuoco del nemico, secondo il suo modo di sparare. */
+static void CombatEnemyFire(Game *game, Enemy *e, Vector2 dir)
+{
+    float speed = 245.0f + 14.0f*(float)game->floor;
+    float radius = e->type.boss ? 7.0f : 6.0f;
+    Color color = e->type.boss ? game->theme.boss : game->theme.enemy;
+
+    switch (e->type.fire)
+    {
+        case ENEMY_FIRE_SINGLE:
+            EntitiesAddShot(game, false, e->pos, dir, speed, 1.0f, radius, 0, color);
+            break;
+
+        case ENEMY_FIRE_SPREAD:
+        {
+            /* Un ventaglio VERSO il giocatore: apertura fissa, il numero di colpi lo
+               ha scelto il modello (clampato e ribilanciato da EnemyTypeBalance). */
+            int pellets = e->type.pellets;
+            float base = atan2f(dir.y, dir.x);
+            for (int s = 0; s < pellets; s++)
+            {
+                float offset = ((float)s - (float)(pellets - 1)*0.5f)*0.22f;
+                EntitiesAddShot(game, false, e->pos, (Vector2){ cosf(base + offset), sinf(base + offset) }, speed, 1.0f, radius, 0, color);
+            }
+            break;
+        }
+
+        case ENEMY_FIRE_RING:
+        {
+            /* Una corona in tutte le direzioni, con la fase che ruota di raffica in
+               raffica: e' il boss di sempre, generalizzato a qualunque nemico. */
+            int pellets = e->type.pellets;
+            e->phase += 0.22f;
+            for (int s = 0; s < pellets; s++)
+            {
+                float a = (float)s*PI_F*2.0f/(float)pellets + e->phase;
+                EntitiesAddShot(game, false, e->pos, (Vector2){ cosf(a), sinf(a) }, speed*0.88f, 1.0f, radius, 0, color);
+            }
+            break;
+        }
+
+        case ENEMY_FIRE_NONE:
+        default:
+            break;   /* fa danno solo al contatto */
+    }
+}
+
 void CombatUpdateEnemies(Game *game, float dt)
 {
     for (int i = 0; i < MAX_ENEMIES; i++)
@@ -322,18 +430,28 @@ void CombatUpdateEnemies(Game *game, float dt)
         if (!e->active) continue;
         Vector2 toPlayer = GameMathSubtract(game->player.pos, e->pos);
         Vector2 dir = GameMathNormalize(toPlayer);
+        float dist = sqrtf(GameMathLengthSquared(toPlayer));
         float slow = e->slowTimer > 0.0f ? 0.45f : 1.0f;
         if (e->slowTimer > 0.0f) e->slowTimer -= dt;
 
-        Vector2 move = dir;
-        if (e->kind == ENEMY_SHOOTER)
+        Vector2 move;
+        if (e->type.active)
         {
-            float dist = sqrtf(GameMathLengthSquared(toPlayer));
-            if (dist < 210.0f) move = GameMathScale(dir, -0.65f);
+            move = CombatEnemyMoveDir(e, dir, dist, dt);   /* fase 3b: il movimento inventato dal modello */
         }
-        else if (e->kind == ENEMY_BOSS)
+        else
         {
-            move = GameMathNormalize(GameMathAdd(GameMathScale(dir, 0.5f), GameMathScale(GameMathPerpendicular(dir), sinf((float)GetTime()*1.4f)*0.75f)));
+            /* Nessun tipo: i nemici storici, invariati (manifest vecchio, o nessun
+               manifest). */
+            move = dir;
+            if (e->kind == ENEMY_SHOOTER)
+            {
+                if (dist < 210.0f) move = GameMathScale(dir, -0.65f);
+            }
+            else if (e->kind == ENEMY_BOSS)
+            {
+                move = GameMathNormalize(GameMathAdd(GameMathScale(dir, 0.5f), GameMathScale(GameMathPerpendicular(dir), sinf((float)GetTime()*1.4f)*0.75f)));
+            }
         }
 
         e->pos = GameMathAdd(e->pos, GameMathScale(move, e->speed*slow*dt));
@@ -348,7 +466,41 @@ void CombatUpdateEnemies(Game *game, float dt)
         e->pos.y = GameMathClampFloat(e->pos.y, ROOM_Y + e->radius, ROOM_BOTTOM - e->radius);
         e->cooldown -= dt;
 
-        if ((e->kind == ENEMY_SHOOTER || e->kind == ENEMY_TANK) && e->cooldown <= 0.0f)
+        if (e->type.active)
+        {
+            /* Fase 3b: un solo "istante di azione" per ciclo, scandito dal cooldown
+               -- e SOLO qui lo si riarma. Tenere le due cose (sparo e rinforzo del
+               boss) dentro lo stesso 'ready' e' necessario, non estetico: se lo
+               sparo riarmasse il cooldown per conto suo, il controllo del rinforzo
+               subito sotto lo troverebbe sempre > 0 e il boss finale non
+               chiamerebbe MAI nessuno. */
+            bool ready = e->cooldown <= 0.0f;
+            if (ready)
+            {
+                /* fireRate 0 = non spara mai: EnemyTypeClamp garantisce che in quel
+                   caso 'fire' sia NONE, quindi qui basta guardare 'fire'. */
+                if (e->type.fire != ENEMY_FIRE_NONE) CombatEnemyFire(game, e, dir);
+
+                /* Il boss dell'ultimo piano continua a chiamare rinforzi: e' una
+                   regola di STRUTTURA della run (l'ultimo scontro deve essere
+                   l'ultimo scontro), non un comportamento del tipo -- quindi resta
+                   in C e non fra le manopole che il modello puo' toccare. Il
+                   rinforzo, pero', e' un nemico DEL PIANO: uno di quelli che il
+                   modello ha inventato, non l'inseguitore hardcoded di sempre. */
+                if (e->kind == ENEMY_BOSS && game->floor == FLOOR_COUNT &&
+                    GameRngRange(&game->rng, 0, 100) < 45)
+                {
+                    const FloorContent *fc = &game->content.floors[game->floor - 1];
+                    const EnemyTypeDef *reinforcement = fc->enemies[0].active ? &fc->enemies[0] : NULL;
+                    EntitiesAddEnemyTyped(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, 60.0f), reinforcement);
+                }
+
+                /* 1.2s per un nemico che non spara: e' comunque il suo battito, e
+                   serve al boss finale per i rinforzi. */
+                e->cooldown = (e->type.fireRate > 0.0f) ? 1.0f/e->type.fireRate : 1.2f;
+            }
+        }
+        else if ((e->kind == ENEMY_SHOOTER || e->kind == ENEMY_TANK) && e->cooldown <= 0.0f)
         {
             EntitiesAddShot(game, false, e->pos, dir, 245.0f + 14.0f*(float)game->floor, 1.0f, 6.0f, 0, game->theme.enemy);
             e->cooldown = e->kind == ENEMY_TANK ? 1.4f : 1.0f;

@@ -430,6 +430,26 @@ bool GameShotFormsScreenshotTest(Game *game)
     EntitiesAddShot(game, false, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.75f },
                     (Vector2){ -1.0f, 0.0f }, 240.0f, 1.0f, 6.0f, 0, game->theme.enemy);
 
+    /* Fase 3b: un nemico per FORMA, in fila. Stessa ragione delle forme dei colpi --
+       il feedback chiedeva nemici che si vedano diversi, e nessun assert puo'
+       giudicarlo: serve guardarli. */
+    static const EnemyForm kEnemyForms[ENEMY_FORM_COUNT] = {
+        ENEMY_FORM_BLOB, ENEMY_FORM_SPIKY, ENEMY_FORM_ARMORED, ENEMY_FORM_FLOATER
+    };
+    for (int i = 0; i < (int)ENEMY_FORM_COUNT; i++)
+    {
+        EnemyTypeDef foe;
+        memset(&foe, 0, sizeof(foe));
+        foe.active = true;
+        foe.form = kEnemyForms[i];
+        foe.move = ENEMY_MOVE_CHASE;
+        foe.fire = ENEMY_FIRE_NONE;
+        foe.hpMul = 1.0f; foe.speedMul = 1.0f; foe.sizeMul = 1.2f; foe.pellets = 1;
+        snprintf(foe.name, sizeof(foe.name), "Forma %d", i + 1);
+        EntitiesAddEnemyTyped(game, ENEMY_CHASER,
+                              (Vector2){ ROOM_X + 190.0f + (float)i*170.0f, ROOM_Y + ROOM_H*0.72f }, &foe);
+    }
+
     /* Il pannello "GIOCATORE" mostra il tipo di colpo attivo: gli si mette in
        mano l'oggetto che lo conferisce, cosi' lo screenshot verifica anche
        quella riga (nome inventato + forma) e il colore condiviso col proiettile.

@@ -9,6 +9,7 @@
  * colpo lo inventa il MODELLO -- se generatore e gioco avessero due definizioni
  * separate (come e' successo per rarity/kind, due elenchi di stringhe da tenere
  * sincronizzati a mano) un giorno divergerebbero in silenzio. */
+#include "core/enemy_type.h"
 #include "core/shot_type.h"
 
 #include <stddef.h>
@@ -70,7 +71,18 @@
    solo gen_llm.c) solo per due #define. melting_gen.h e' incluso da
    entrambi, quindi resta l'unico posto senza dipendenze in piu'.
 
-   6144, non piu' 4096 (dopo lo step C): i tipi di colpo hanno fatto crescere il
+   8192 (era 4096 prima dello step C, 6144 dopo). Ogni fase che aggiunge contenuto
+   inventato dal modello fa crescere il JSON: i tipi di colpo (+25%), poi i nemici
+   della fase 3b (due nemici + un boss per piano). Misurato col 7B: 2796 token per
+   una run completa. Con nPredict=3072 il margine era di 276 token -- di nuovo
+   troppo poco, e un troncamento non e' un degrado ma un BUCO (la grammatica rende
+   il JSON troncato non parsabile, e la run finisce sul ripiego procedurale in
+   silenzio). Ora nPredict=4096 e il prompt ~2300: 6400 su 8192, con margine vero.
+   Il costo in VRAM e' misurato, non stimato: la KV cache di questo modello e'
+   ~57 KB/token, quindi 8192 token = ~467 MiB. Col modello (4.53 GiB) e il buffer di
+   calcolo (~300 MiB) si resta sotto i 6 GiB della scheda di riferimento -- ed e'
+   verificato con una generazione vera, non solo con l'aritmetica.
+   La ragione originale del primo aumento (dopo lo step C): i tipi di colpo hanno fatto crescere il
    JSON del ~25% (1851 token misurati col 7B contro i ~1450 di prima), e con
    nPredict=2048 il margine era sceso a ~200 token -- un tema dai nomi lunghi
    avrebbe troncato il JSON, che la grammatica rende non parsabile, mandando la run
@@ -81,7 +93,7 @@
    margine (vedi GEN_LUA_PROMPT_BYTE_CEILING in gen_lua.h -- e' proprio l'"alzare
    n_ctx" che HANDOFF.md indicava come la via d'uscita quando quel tetto fosse
    diventato stretto). */
-#define GEN_LLM_SESSION_N_CTX   6144
+#define GEN_LLM_SESSION_N_CTX   8192
 #define GEN_LLM_SESSION_N_BATCH GEN_LLM_SESSION_N_CTX
 
 /* Budget di tempo ASSOLUTO (secondi dall'avvio del processo, confrontato con
@@ -159,6 +171,12 @@ typedef struct GenFloor {
      * spara chiodi). Mai il bossItem: uno stat-up e' solo numeri. */
     ShotTypeDef shot;
     int shotItem;
+    /* Tipi di nemico del piano (fase 3b): due nemici normali + il boss. Come il
+     * tipo di colpo, li scrive IL MODELLO (fanno parte della grammatica JSON): sono
+     * contenuto creativo, non bilanciamento. Il C ne garantisce solo l'equilibrio
+     * (EnemyTypeBalance) e, in gioco, il budget di difficolta' della stanza. */
+    EnemyTypeDef enemies[2];
+    EnemyTypeDef bossType;
     GenItem items[GEN_ITEMS];   /* oggetti ATTIVI: la stessa grammatica JSON di sempre (run.gbnf), il modello li scrive */
     /* Oggetto STAT-UP del piano, ricompensa del boss (fase 3, vedi
      * docs/superpowers/specs/2026-07-13-items-synergy-vision.md sezioni

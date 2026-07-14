@@ -15,7 +15,7 @@
 #define SPRITE_ATLAS_W (SPRITE_ATLAS_COLS * SPRITE_CELL)
 /* Le celle note dell'atlas (vedi AtlasSprite in src/core/game_types.h):
    player, 3 nemici, boss, oggetto, cuore, moneta, bomba, chiave, portale, colpo. */
-#define SPRITE_CELLS 12
+#define SPRITE_CELLS 13   /* fase 3b: +enemy_floater, aggiunta IN CODA (vedi AtlasSprite in src/core/game_types.h) */
 
 /* Colori nella palette finale di ogni sprite (riduzione con exoquant). */
 #define SPRITE_PALETTE_COLORS 16

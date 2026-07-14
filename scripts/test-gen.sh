@@ -202,6 +202,29 @@ if [ ! -f "$TMP/b2c/scripts/floor3_item2.lua" ]; then
   echo "FALLITO: la ripresa ha cancellato uno script Lua della propria run"; exit 1
 fi
 
+# Fase 3b: ogni piano porta DUE tipi di nemico + il tipo del boss, inventati dal
+# modello (qui si esercita il ripiego procedurale, ma il formato e le garanzie sono
+# gli stessi). Il contratto vero -- "qualunque nemico inventi il modello resta in
+# banda di potenza" -- e' verificato dai test della suite --script-items-test.
+echo "-- fase 3b: due tipi di nemico + il boss per piano, con tutte le manopole --"
+FOE_FORM_RE='^(blob|spiky|armored|floater)$'
+FOE_MOVE_RE='^(chase|kite|orbit|zigzag|charge)$'
+FOE_FIRE_RE='^(none|single|spread|ring)$'
+for n in 1 2 3 4 5; do
+  for who in enemy1 enemy2 bossType; do
+    for field in name form move fire hp speed size rate pellets; do
+      grep -q "^floor${n}\.${who}\.${field}=" "$TMP/a/current_run.txt" || {
+        echo "FALLITO: floor${n}.${who}.${field} mancante"; exit 1; }
+    done
+    form=$(grep "^floor${n}\.${who}\.form=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+    move=$(grep "^floor${n}\.${who}\.move=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+    fire=$(grep "^floor${n}\.${who}\.fire=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+    echo "$form" | grep -Eq "$FOE_FORM_RE" || { echo "FALLITO: floor${n}.${who}.form=$form sconosciuta"; exit 1; }
+    echo "$move" | grep -Eq "$FOE_MOVE_RE" || { echo "FALLITO: floor${n}.${who}.move=$move sconosciuto"; exit 1; }
+    echo "$fire" | grep -Eq "$FOE_FIRE_RE" || { echo "FALLITO: floor${n}.${who}.fire=$fire sconosciuto"; exit 1; }
+  done
+done
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

@@ -154,6 +154,62 @@ static void WorldGenerateFloorMap(Game *game)
     WorldLinkRooms(game);
 }
 
+/* Il BUDGET DI DIFFICOLTA' della stanza (fase 3b, la seconda delle due reti che
+   permettono di lasciare a un 7B l'invenzione dei nemici -- la prima e'
+   EnemyTypeBalance, core/enemy_type.c).
+ *
+ * La stanza non spawna piu' "N nemici": SPENDE un budget di punti, e ogni nemico
+ * costa la propria potenza (EnemyTypePower, 1.0 = il nemico base). Un piano i cui
+ * nemici sono cattivi ne riceve quindi MENO; uno con nemici fiacchi, di piu'. La
+ * difficolta' della stanza resta cosi' una decisione del C -- il modello decide
+ * COM'E' un nemico, non QUANTA roba ti trovi davanti.
+ *
+ * Il budget e' esattamente quello che spendeva la formula di prima (3 + piano
+ * nemici da 1.0 di potenza), quindi una run senza tipi (manifest vecchio) genera
+ * stanze della stessa difficolta' di sempre. */
+void WorldSpawnCombatRoom(Game *game)
+{
+    const FloorContent *fc = &game->content.floors[game->floor - 1];
+    float budget = 3.0f + (float)game->floor + (float)GameRngRange(&game->rng, 0, 2);
+
+    /* Quanti tipi ha questo piano (0 = manifest vecchio/nessun manifest: si usano i
+       nemici storici, tirati a caso come prima). */
+    int typeCount = 0;
+    for (int i = 0; i < 2; i++) if (fc->enemies[i].active) typeCount++;
+
+    int spawned = 0;
+    /* Il tetto duro resta MAX_ENEMIES; 16 e' il tetto di BUON SENSO per una stanza
+       (con nemici fiacchissimi il budget potrebbe altrimenti farne comparire una
+       folla illeggibile). */
+    while (budget > 0.0f && spawned < 16)
+    {
+        if (typeCount > 0)
+        {
+            const EnemyTypeDef *type = &fc->enemies[GameRngRange(&game->rng, 0, typeCount - 1)];
+            float cost = EnemyTypePower(type);
+            if (cost < 0.35f) cost = 0.35f;   /* mai gratis: un nemico costa sempre qualcosa, o il ciclo non finirebbe */
+            /* L'ultimo nemico si spawna anche se sfora un po': una stanza deve
+               avere almeno un nemico, e un budget di 0.2 avanzato non deve
+               lasciare una stanza vuota che si apre da sola. */
+            if (cost > budget && spawned > 0) break;
+            /* Il "kind" storico serve solo a scegliere la cella dell'atlas: si
+               deriva dalla forma, cosi' uno sprite plausibile c'e' comunque. */
+            EnemyKind kind = ENEMY_CHASER;
+            if (type->form == ENEMY_FORM_SPIKY) kind = ENEMY_SHOOTER;
+            else if (type->form == ENEMY_FORM_ARMORED) kind = ENEMY_TANK;
+            EntitiesAddEnemyTyped(game, kind, EntitiesRandomRoomPosition(&game->rng, 58.0f), type);
+            budget -= cost;
+        }
+        else
+        {
+            EnemyKind kind = (EnemyKind)GameRngRange(&game->rng, 0, 2);
+            EntitiesAddEnemy(game, kind, EntitiesRandomRoomPosition(&game->rng, 58.0f));
+            budget -= 1.0f;   /* i nemici storici valgono 1.0 per definizione */
+        }
+        spawned++;
+    }
+}
+
 void WorldSpawnRoomContents(Game *game)
 {
     EntitiesClear(game);
@@ -163,17 +219,18 @@ void WorldSpawnRoomContents(Game *game)
 
     if (room->kind == ROOM_COMBAT && !room->cleared)
     {
-        int count = 3 + game->floor + GameRngRange(&game->rng, 0, 2);
-        for (int i = 0; i < count; i++)
-        {
-            EnemyKind kind = (EnemyKind)GameRngRange(&game->rng, 0, 2);
-            EntitiesAddEnemy(game, kind, EntitiesRandomRoomPosition(&game->rng, 58.0f));
-        }
+        WorldSpawnCombatRoom(game);
         GameSetMessage(game, "Ripulisci la stanza per sbloccare le porte.");
     }
     else if (room->kind == ROOM_BOSS && !room->cleared)
     {
-        EntitiesAddEnemy(game, ENEMY_BOSS, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + 118.0f });
+        /* Fase 3b: il boss del piano e' il TIPO che il modello ha inventato per
+           questo piano. Se non c'e' (manifest vecchio, nessun manifest) resta il
+           boss storico: EntitiesAddEnemyTyped con un tipo non attivo e' esattamente
+           EntitiesAddEnemy. */
+        const FloorContent *fc = &game->content.floors[game->floor - 1];
+        const EnemyTypeDef *bossType = fc->bossType.active ? &fc->bossType : NULL;
+        EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + 118.0f }, bossType);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale: ultimo piano." : "Boss del piano.");
     }
     else if (room->kind == ROOM_TREASURE && !room->rewardTaken)

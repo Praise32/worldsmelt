@@ -380,6 +380,51 @@ static void DedupeFloors(GenRun *out, const GenRun *fb)
     }
 }
 
+/* Un tipo di nemico dal JSON (fase 3b). Stessa filosofia del tipo di colpo: il
+   modello e' libero sui nomi, sulle forme e sui numeri; il C garantisce solo che il
+   risultato sia bilanciato (EnemyTypeBalance) -- e' l'unica ragione per cui si puo'
+   lasciare a un 7B l'invenzione dei nemici. Un campo mancante o sbagliato ricade su
+   quello del ripiego procedurale, mai su un errore. */
+static void NormalizeEnemyType(const cJSON *rawFoe, const EnemyTypeDef *fb, bool isBoss, EnemyTypeDef *out)
+{
+    if (!cJSON_IsObject((cJSON *)rawFoe))
+    {
+        *out = *fb;              /* nessun nemico nel JSON: quello procedurale, mai un piano senza */
+        out->boss = isBoss;
+        EnemyTypeBalance(out);
+        return;
+    }
+
+    EnemyTypeDef type;
+    memset(&type, 0, sizeof(type));
+    type.active = true;
+    type.boss = isBoss;
+    CopyText(type.name, sizeof(type.name), JsonString(rawFoe, "name"), fb->name);
+
+    /* Una forma/movimento/fuoco sconosciuti NON ricadono sul valore 0 (che e' il
+       nemico piu' banale: un blob che insegue e non spara -- un "nemico nuovo" cosi'
+       non e' un nemico nuovo), ma su quelli del ripiego procedurale. */
+    const char *formText = JsonString(rawFoe, "form");
+    type.form = formText ? EnemyFormFromText(formText) : fb->form;
+    if (formText && type.form == ENEMY_FORM_BLOB && strcmp(formText, "blob") != 0) type.form = fb->form;
+    const char *moveText = JsonString(rawFoe, "move");
+    type.move = moveText ? EnemyMoveFromText(moveText) : fb->move;
+    if (moveText && type.move == ENEMY_MOVE_CHASE && strcmp(moveText, "chase") != 0) type.move = fb->move;
+    const char *fireText = JsonString(rawFoe, "fire");
+    type.fire = fireText ? EnemyFireFromText(fireText) : fb->fire;
+    if (fireText && type.fire == ENEMY_FIRE_NONE && strcmp(fireText, "none") != 0) type.fire = fb->fire;
+
+    int ok = 0;
+    type.hpMul    = (float)JsonNumber(rawFoe, "hp",    fb->hpMul,    &ok);
+    type.speedMul = (float)JsonNumber(rawFoe, "speed", fb->speedMul, &ok);
+    type.sizeMul  = (float)JsonNumber(rawFoe, "size",  fb->sizeMul,  &ok);
+    type.fireRate = (float)JsonNumber(rawFoe, "rate",  fb->fireRate, &ok);
+    type.pellets  = (int)JsonNumber(rawFoe, "pellets", (double)(fb->pellets > 0 ? fb->pellets : 1), &ok);
+
+    EnemyTypeBalance(&type);
+    *out = type;
+}
+
 void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out)
 {
     GenRun fb;
@@ -405,6 +450,16 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
         CopyColor(floor->enemy, sizeof(floor->enemy), JsonString(rawFloor, "enemy"), fbFloor->enemy);
         CopyColor(floor->bossColor, sizeof(floor->bossColor), JsonString(rawFloor, "bossColor"), fbFloor->bossColor);
         NormalizeShot(rawFloor, fbFloor, floor);
+
+        /* Tipi di nemico del piano (fase 3b): due normali + il boss. */
+        const cJSON *rawFoes = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "enemies") : NULL;
+        for (int i = 0; i < 2; i++)
+        {
+            const cJSON *rawFoe = cJSON_IsArray((cJSON *)rawFoes) ? cJSON_GetArrayItem((cJSON *)rawFoes, i) : NULL;
+            NormalizeEnemyType(rawFoe, &fbFloor->enemies[i], false, &floor->enemies[i]);
+        }
+        NormalizeEnemyType(rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "bossType") : NULL,
+                            &fbFloor->bossType, true, &floor->bossType);
 
         const cJSON *rawItems = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "items") : NULL;
         for (int i = 0; i < GEN_ITEMS; i++)
