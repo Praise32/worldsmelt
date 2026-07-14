@@ -90,6 +90,20 @@ Rarity RarityFromText(const char *text)
     return RARITY_COMMON;
 }
 
+/* Tipo di colpo di RIPIEGO per un piano (step C). LEGGERE IL COMMENTO IN CIMA A
+   src/core/shot_type.h: i tipi di colpo di una run vera li INVENTA IL MODELLO,
+   sempre. Questo e' il ripiego per il caso degenere in cui non esiste alcun
+   manifest sul disco (melting-gen non e' mai girato), lo stesso ruolo che
+   MakeFallbackItem/MakeFallbackTheme hanno per oggetti e temi. Gli esempi veri
+   vivono in core/shot_type.c (ShotTypeExample), condivisi con il ripiego di
+   melting-gen: un solo elenco, mai due copie da tenere allineate. */
+static ShotTypeDef MakeFallbackShotType(unsigned int *rng)
+{
+    ShotTypeDef type;
+    ShotTypeExample(&type, GameRngRange(rng, 0, SHOT_TYPE_EXAMPLE_COUNT - 1));
+    return type;
+}
+
 static const char *FallbackScriptForTrait(unsigned int trait)
 {
     if (trait & TRAIT_BOUNCE) return "on_fire:burst,2,0.25,bounce";
@@ -218,7 +232,69 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
             content->floors[f].items[i] = MakeFallbackItem(&rng, &content->floors[f].theme, i);
         }
         content->floors[f].bossItem = MakeFallbackBossItem(&rng, &content->floors[f].theme, f);
+        /* Step C: UN tipo di colpo per piano, su UNO dei tre oggetti attivi (mai
+           sul bossItem: uno stat-up e' solo numeri, vedi la vision doc). Stessa
+           regola che segue il contenuto generato dal modello (campo "shotItem"
+           del JSON): il ripiego non e' una modalita' di gioco diversa, e' lo
+           stesso gioco con contenuti procedurali invece che inventati. */
+        int shotOwner = GameRngRange(&rng, 0, 2);
+        content->floors[f].items[shotOwner].shotType = MakeFallbackShotType(&rng);
     }
+}
+
+/* Un numero del tipo di colpo dal manifest ("floorN.itemM.<field>="), col suo
+   ripiego neutro se la riga manca (1.0 per un moltiplicatore, 0 per una manopola
+   discreta): un manifest a cui manca una riga produce un tipo di colpo piu'
+   BLANDO, mai uno piu' forte. */
+static float ReadShotNumber(const char *text, int floorNum, int itemNum, const char *field, float fallback)
+{
+    char key[80];
+    char value[64];
+    snprintf(key, sizeof(key), "floor%d.item%d.%s=", floorNum, itemNum, field);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (!value[0]) return fallback;
+    return (float)atof(value);
+}
+
+/* Tipo di colpo di un oggetto dal manifest (step C). La chiave "shotName=" e' la
+   sentinella: se manca, l'oggetto NON porta alcun tipo di colpo e la funzione non
+   tocca nulla (un manifest scritto prima di questa fase resta valido e produce
+   esattamente il gioco di prima -- back-compat, stesso schema "per-key fallback"
+   di kind/rarity). Se c'e', il tipo viene ricostruito e passato per
+   ShotTypeBalance: e' la SECONDA rete indipendente dopo quella di melting-gen
+   (la terza e' ScriptItemsRecomputeStats), perche' un manifest e' un file di
+   testo che chiunque puo' modificare a mano. */
+static void ReadItemShotType(const char *text, int floorNum, int itemNum, Item *item)
+{
+    char key[80];
+    char value[SCRIPT_TEXT_LEN];
+
+    snprintf(key, sizeof(key), "floor%d.item%d.shotName=", floorNum, itemNum);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (!value[0]) return;
+
+    ShotTypeDef type;
+    memset(&type, 0, sizeof(type));
+    type.active = true;
+    snprintf(type.name, sizeof(type.name), "%s", value);
+
+    snprintf(key, sizeof(key), "floor%d.item%d.shotForm=", floorNum, itemNum);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    type.form = ShotFormFromText(value);   /* testo mancante o sconosciuto -> SHOT_FORM_ORB */
+
+    type.speedMul    = ReadShotNumber(text, floorNum, itemNum, "shotSpeed",  1.0f);
+    type.damageMul   = ReadShotNumber(text, floorNum, itemNum, "shotDamage", 1.0f);
+    type.radiusMul   = ReadShotNumber(text, floorNum, itemNum, "shotSize",   1.0f);
+    type.lifeMul     = ReadShotNumber(text, floorNum, itemNum, "shotLife",   1.0f);
+    type.pierceBonus = (int)ReadShotNumber(text, floorNum, itemNum, "shotPierce",  0.0f);
+    type.chain       = (int)ReadShotNumber(text, floorNum, itemNum, "shotChain",   0.0f);
+    type.pellets     = (int)ReadShotNumber(text, floorNum, itemNum, "shotPellets", 1.0f);
+
+    ShotTypeBalance(&type);
+    item->shotType = type;
 }
 
 /* melting-gen scrive sempre "atlas.path=generated/current_atlas.bmp" nel
@@ -323,6 +399,24 @@ void RunContentLoad(RunContent *content, unsigned int seed)
         ReadManifestValue(text, key, value, sizeof(value));
         if (value[0]) floor->theme.boss = ParseHexColor(value, floor->theme.boss);
 
+        /* Step C, invariante "un solo tipo di colpo per piano": il manifest e'
+           l'AUTORITA' sui tipi di colpo dei piani che descrive. Si azzerano
+           quindi i tipi che il ripiego procedurale (GenerateFallbackContent, gia'
+           girato sopra) aveva assegnato, PRIMA di leggere quelli del manifest --
+           altrimenti un manifest che mette il tipo di colpo sull'oggetto 2 e un
+           ripiego che l'aveva messo sull'oggetto 1 lascerebbero DUE oggetti con
+           un tipo di colpo sullo stesso piano.
+           Conseguenza voluta: un manifest VECCHIO (scritto prima di questa fase,
+           senza righe "shot*") produce un piano SENZA tipi di colpo, cioe'
+           esattamente il gioco di prima -- back-compat pieno. Non e' il caso
+           "mai un dud": un manifest vecchio non ha contenuti mancanti, ha
+           contenuti di una versione precedente, e inventarci sopra un tipo di
+           colpo che il suo autore non ha mai scritto sarebbe peggio che non
+           averlo. Il "mai un dud" vive nel ripiego SENZA manifest (sopra) e in
+           melting-gen (che scrive sempre un tipo per piano, anche nel proprio
+           ripiego procedurale). */
+        for (int i = 0; i < 3; i++) memset(&floor->items[i].shotType, 0, sizeof(ShotTypeDef));
+
         for (int i = 0; i < 3; i++)
         {
             Item *item = &floor->items[i];
@@ -389,6 +483,10 @@ void RunContentLoad(RunContent *content, unsigned int seed)
                     UnloadFileText(luaText);
                 }
             }
+
+            /* Step C: il tipo di colpo che questo oggetto conferisce, se il
+               manifest gliene assegna uno (vedi ReadItemShotType sopra). */
+            ReadItemShotType(text, n, i + 1, item);
             item->active = true;
         }
 
@@ -455,6 +553,13 @@ void RunContentLoad(RunContent *content, unsigned int seed)
                 UnloadFileText(luaText);
             }
         }
+        /* Step C, invariante di tassonomia (difesa in profondita', come il gate
+           su on_fire/on_hit/on_tick per gli stat-up in script_items.c): un
+           oggetto stat-up NON cambia mai il modo di sparare -- e' solo numeri
+           (vision doc). Non si legge quindi nessuna riga "shot*" per bossItem, e
+           qui si azzera il campo esplicitamente: nemmeno un manifest scritto a
+           mano puo' dare un tipo di colpo alla ricompensa del boss. */
+        memset(&boss->shotType, 0, sizeof(ShotTypeDef));
         boss->active = true;
     }
 

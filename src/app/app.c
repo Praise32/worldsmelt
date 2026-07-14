@@ -234,6 +234,7 @@ int AppRun(int argc, char **argv)
     bool atlasFallbackTest = false;
     bool layerTest = false;
     bool rarityScreenshotTest = false;
+    bool shotFormsScreenshotTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
@@ -281,6 +282,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             rarityScreenshotTest = true;
+        }
+        /* Step C: le cinque forme di colpo, una accanto all'altra (vedi
+           GameShotFormsScreenshotTest). Finestra GRANDE come le altre due sopra:
+           serve leggere anche la riga "Colpo" del pannello "GIOCATORE". */
+        if (strcmp(argv[i], "--shot-forms-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            shotFormsScreenshotTest = true;
         }
         if (strcmp(argv[i], "--screenshot-test") == 0)
         {
@@ -347,7 +356,7 @@ int AppRun(int argc, char **argv)
        che nella finestra compatta 960x640 finisce in parte sotto il
        riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
        vedi logs/melting-run-layers-screen.png). */
-    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest;
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(compactTestWindow ? SCREEN_WIDTH : APP_WINDOW_WIDTH, compactTestWindow ? SCREEN_HEIGHT : APP_WINDOW_HEIGHT, "Melting Run");
     SetExitKey(KEY_NULL);
@@ -408,6 +417,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 12;
+    }
+    if (shotFormsScreenshotTest)
+    {
+        bool ok = GameShotFormsScreenshotTest(&game);
+        printf("Shot forms screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 13;   /* 13: il primo codice di uscita libero (vedi gli altri test sopra) */
     }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);

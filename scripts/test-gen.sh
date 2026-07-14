@@ -106,6 +106,42 @@ if [ "$distinctActive" -lt 2 ]; then
 fi
 echo "   rarita' distinte viste negli oggetti attivi su 7 semi: $distinctActive/4"
 
+# Step C (docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md): ogni
+# piano porta UN tipo di colpo, su UNO dei tre oggetti attivi (mai sul bossItem:
+# uno stat-up e' solo numeri). I tipi li INVENTA IL MODELLO -- qui si esercita il
+# ripiego procedurale, che e' quello che il gioco vede quando il modello non c'e',
+# ma il formato del manifest e le garanzie sono le stesse.
+echo "-- step C: un tipo di colpo per piano, su un solo oggetto attivo, mai sul boss --"
+SHOT_FORM_RE='^(orb|spike|beam|arc|blade)$'
+for n in 1 2 3 4 5; do
+  owners=$(grep -c "^floor${n}\.item[0-9]\.shotName=" "$TMP/a/current_run.txt" || true)
+  if [ "$owners" -ne 1 ]; then
+    echo "FALLITO: floor${n} ha $owners oggetti con un tipo di colpo (atteso esattamente 1)"; exit 1
+  fi
+  if grep -q "^floor${n}\.bossItem\.shot" "$TMP/a/current_run.txt"; then
+    echo "FALLITO: floor${n}.bossItem ha un tipo di colpo (uno stat-up non cambia il modo di sparare)"; exit 1
+  fi
+  owner=$(grep "^floor${n}\.item[0-9]\.shotName=" "$TMP/a/current_run.txt" | sed 's/^floor[0-9]\.\(item[0-9]\)\..*/\1/')
+  # Tutte le manopole devono esserci sull'oggetto che porta il tipo: un tipo di
+  # colpo a meta' (nome ma niente forma, o forma ma niente numeri) verrebbe
+  # ricostruito dal gioco coi valori neutri, cioe' sarebbe un colpo base con un
+  # nome inventato: il dud che questa fase deve rendere impossibile.
+  for field in shotForm shotSpeed shotDamage shotSize shotLife shotPierce shotChain shotPellets; do
+    grep -q "^floor${n}\.${owner}\.${field}=" "$TMP/a/current_run.txt" || {
+      echo "FALLITO: floor${n}.${owner}.${field} mancante"; exit 1; }
+  done
+  form=$(grep "^floor${n}\.${owner}\.shotForm=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+  echo "$form" | grep -Eq "$SHOT_FORM_RE" || {
+    echo "FALLITO: floor${n}.${owner}.shotForm=$form non e' una forma nota"; exit 1; }
+done
+
+# Il vero contratto dello step C non e' "il manifest ha le righe giuste": e' che
+# QUALUNQUE cosa il modello inventi resti bilanciata. Quel contratto e' verificato
+# per davvero (768 combinazioni estreme + i due casi patologici) dal test R della
+# suite --script-items-test, che gira in scripts/test-script.sh: qui basta la
+# prova che il formato su disco regge il round-trip fino al gioco (il
+# --manifest-test qui sotto carica proprio questo manifest).
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

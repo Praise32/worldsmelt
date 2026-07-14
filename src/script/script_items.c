@@ -8,6 +8,7 @@
 #include "lua.h"
 
 #include <math.h>
+#include <string.h>
 
 #define SCRIPT_ITEMS_NO_REF (-1)
 
@@ -195,6 +196,7 @@ typedef struct ScriptItemsStatsAccum
     float shotRadius;
     float speed;
     float maxHp;   /* float per condividere lo stesso clamp delle altre; arrotondata a int solo alla fine */
+    float luck;    /* step C: vedi Player.luck in core/game_types.h */
 } ScriptItemsStatsAccum;
 
 /* Confini di sicurezza (spec, sezione 3 della task brief: "C clamps every
@@ -206,9 +208,22 @@ typedef struct ScriptItemsStatsAccum
    non si muove piu', o e' immortale/istantaneamente morto. */
 #define SCRIPT_ITEMS_DAMAGE_MIN      0.5f
 #define SCRIPT_ITEMS_DAMAGE_MAX      200.0f
-#define SCRIPT_ITEMS_FIRE_DELAY_MIN  0.05f
-#define SCRIPT_ITEMS_FIRE_DELAY_MAX  2.0f
-#define SCRIPT_ITEMS_SHOT_SPEED_MIN  60.0f
+/* Step C (curve alla Isaac, docs/references/formule-statistiche.md + spec
+   2026-07-14-step-c-shottype-balance.md): la banda della cadenza non e' piu'
+   [0.05, 2.0] ma [0.10, 1.2], e sono PAVIMENTI PRATICI, non solo confini di
+   sicurezza. 0.05 s significa 20 colpi al secondo: nessun nemico di questo gioco
+   e' tarato per reggerlo, ed e' il tipo di valore che un oggetto Lua ambizioso
+   raggiungeva davvero impilando cadenza. All'altro estremo, un colpo ogni 2
+   secondi non e' "un compromesso interessante": e' una run rovinata da un
+   oggetto, esattamente il *dud* che questa fase deve rendere impossibile. Isaac
+   fa la stessa cosa: la sua cadenza ha un tetto duro (il "tear delay" non
+   scende sotto ~5 tick) e un pavimento sotto cui nessun oggetto ti spinge. */
+#define SCRIPT_ITEMS_FIRE_DELAY_MIN  0.10f
+#define SCRIPT_ITEMS_FIRE_DELAY_MAX  1.2f
+/* Stesso ragionamento: 60 px/s sono 15 secondi per attraversare la stanza (876
+   px). Il pavimento pratico e' meta' della velocita' di partenza (520/2 = 260):
+   un tipo di colpo o un oggetto possono rendere i colpi LENTI, mai inutili. */
+#define SCRIPT_ITEMS_SHOT_SPEED_MIN  260.0f
 #define SCRIPT_ITEMS_SHOT_SPEED_MAX  1400.0f
 #define SCRIPT_ITEMS_SHOT_RADIUS_MIN 2.0f
 #define SCRIPT_ITEMS_SHOT_RADIUS_MAX 40.0f
@@ -216,6 +231,11 @@ typedef struct ScriptItemsStatsAccum
 #define SCRIPT_ITEMS_SPEED_MAX       600.0f
 #define SCRIPT_ITEMS_MAX_HP_MIN      1.0f
 #define SCRIPT_ITEMS_MAX_HP_MAX      12.0f
+/* Fortuna (step C): banda alla Isaac. Puo' andare in negativo (un oggetto puo'
+   costare fortuna in cambio d'altro) ma non sotto -5, e non oltre +15: oltre
+   quella soglia ogni effetto a probabilita' sarebbe di fatto garantito. */
+#define SCRIPT_ITEMS_LUCK_MIN        (-5.0f)
+#define SCRIPT_ITEMS_LUCK_MAX        15.0f
 
 static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc)
 {
@@ -225,6 +245,32 @@ static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc)
     acc->shotRadius = GameMathClampFloat(acc->shotRadius, SCRIPT_ITEMS_SHOT_RADIUS_MIN, SCRIPT_ITEMS_SHOT_RADIUS_MAX);
     acc->speed      = GameMathClampFloat(acc->speed,      SCRIPT_ITEMS_SPEED_MIN,       SCRIPT_ITEMS_SPEED_MAX);
     acc->maxHp      = GameMathClampFloat(acc->maxHp,      SCRIPT_ITEMS_MAX_HP_MIN,      SCRIPT_ITEMS_MAX_HP_MAX);
+    acc->luck       = GameMathClampFloat(acc->luck,       SCRIPT_ITEMS_LUCK_MIN,        SCRIPT_ITEMS_LUCK_MAX);
+}
+
+/* Rendimenti decrescenti sul danno (step C, la curva alla Isaac). In Isaac il
+   danno non e' la somma dei bonus: passa per una radice
+   (base*sqrt(1.2*ups + 1)), cosi' il primo oggetto che trovi si sente eccome e
+   il decimo aggiunge ancora qualcosa, ma impilarne dieci non ti da' dieci volte
+   il danno. Qui la stessa idea, adattata al nostro sistema (che accumula un
+   VALORE, non un numero di "ups"): il danno resta INTATTO fino al doppio del
+   valore di partenza -- la zona dove vive il 95% delle run, quindi nessun
+   oggetto perde mordente e nessuno dei test esistenti cambia -- e sopra quella
+   soglia viene compresso con una radice attorno ad essa.
+   Concretamente, con base 8: 13 resta 13; 32 (cinque leggendari avidi impilati,
+   vedi il test N) diventa 22.6; 200 (il tetto assoluto) diventa 63.2. La curva
+   e' continua nel punto di raccordo (a d = 2b vale esattamente 2b), monotona
+   crescente (un oggetto in piu' non fa MAI male) e senza limite superiore
+   (nessun oggetto diventa mai del tutto inutile: aggiunge solo sempre meno).
+   Applicata UNA VOLTA in fondo al ricalcolo, non dentro il ciclo: il ricalcolo
+   riparte sempre da zero, quindi resta idempotente (test C) e i tetti
+   per-oggetto (che confrontano pre/post DENTRO il ciclo) continuano a misurare
+   il contributo grezzo dell'oggetto, non uno gia' compresso. */
+static float ScriptItemsDamageCurve(float damage, float baseDamage)
+{
+    float knee = 2.0f*baseDamage;
+    if (!(damage > knee) || knee <= 0.0f) return damage;   /* !(>) e non <=: NaN-safe, come GameMathClampFloat */
+    return knee*sqrtf(damage/knee);
 }
 
 /* ============================================================
@@ -305,6 +351,16 @@ static float ScriptItemsClampItemDeltaField(float post, float pre, float base, f
    'post' stesso. Il tetto globale (ScriptItemsClampStats) va comunque
    richiamato DOPO questa funzione dal chiamante: sono due reti distinte,
    non una alternativa all'altra. */
+/* La fortuna parte da ZERO (Player.baseLuck), quindi il tetto per-oggetto
+   "frazione x valore di partenza" (che vale per tutte le altre statistiche)
+   darebbe qui zero: nessun oggetto potrebbe mai dare un punto di fortuna. Serve
+   quindi una base VIRTUALE, solo per il calcolo del tetto: 4 punti di fortuna e'
+   la scala su cui la statistica ha senso (la banda utile e' [-5, +15]), quindi
+   il tetto per-oggetto diventa comune 0.6, non-comune 1.0, raro 1.6, leggendario
+   2.4 punti -- un leggendario "fortunato" sposta la probabilita' di VAMP di ~7
+   punti percentuali (vedi CombatDamageEnemy), sensibile ma mai decisivo da solo. */
+#define SCRIPT_ITEMS_LUCK_CAP_BASE 4.0f
+
 static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptItemsStatsAccum *pre, const Player *p, Rarity rarity)
 {
     float fraction = ScriptItemsRarityFraction(rarity);
@@ -314,6 +370,7 @@ static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptI
     post->shotRadius = ScriptItemsClampItemDeltaField(post->shotRadius, pre->shotRadius, p->baseShotRadius, fraction);
     post->speed      = ScriptItemsClampItemDeltaField(post->speed,      pre->speed,      p->baseSpeed,      fraction);
     post->maxHp      = ScriptItemsClampItemDeltaField(post->maxHp,      pre->maxHp,      (float)p->baseMaxHp, fraction);
+    post->luck       = ScriptItemsClampItemDeltaField(post->luck,       pre->luck,       SCRIPT_ITEMS_LUCK_CAP_BASE, fraction);
 }
 
 /* Ripiego fisso e sicuro (fase 3, task brief: "so a boss reward is never a
@@ -368,6 +425,12 @@ static void ScriptItemsApplyBuiltin(ScriptItemsStatsAccum *acc, const Item *item
     if (item->slot == SLOT_BODY) acc->maxHp += 1.0f;
     if (item->slot == SLOT_HAND) acc->damage += 1.0f;
     if (item->slot == SLOT_EYES) acc->shotSpeed += 25.0f;
+    /* Step C: lo slot AURA da' fortuna, come HAND da' danno e EYES velocita' dei
+       colpi. E' cio' che rende la nuova statistica REALE in ogni run, anche senza
+       un solo script Lua che la tocchi: senza questa riga, luck resterebbe a zero
+       per sempre in una run in cui il modello non ha generato nulla, e sarebbe
+       una statistica finta. */
+    if (item->slot == SLOT_AURA) acc->luck += 0.5f;
 }
 
 /* Chiama on_evaluate(stats) sulla tabella di scratch riusata (statsTableRef),
@@ -392,6 +455,7 @@ static bool ScriptItemsCallEvaluate(ScriptItemRuntime *rt, ScriptItemsStatsAccum
     lua_pushnumber(L, (lua_Number)acc->shotRadius); lua_setfield(L, -2, "shot_radius");
     lua_pushnumber(L, (lua_Number)acc->speed);      lua_setfield(L, -2, "speed");
     lua_pushnumber(L, (lua_Number)acc->maxHp);      lua_setfield(L, -2, "max_hp");
+    lua_pushnumber(L, (lua_Number)acc->luck);       lua_setfield(L, -2, "luck");
 
     if (!ScriptSandboxProtectedCall(sb, 1, 0)) return false;
 
@@ -416,6 +480,7 @@ static bool ScriptItemsCallEvaluate(ScriptItemRuntime *rt, ScriptItemsStatsAccum
     lua_getfield(L, t, "shot_radius"); if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->shotRadius = v; } lua_pop(L, 1);
     lua_getfield(L, t, "speed");       if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->speed      = v; } lua_pop(L, 1);
     lua_getfield(L, t, "max_hp");      if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->maxHp      = v; } lua_pop(L, 1);
+    lua_getfield(L, t, "luck");        if (lua_isnumber(L, -1)) { v = (float)lua_tonumber(L, -1); if (isfinite(v)) acc->luck       = v; } lua_pop(L, 1);
     lua_pop(L, 1);   /* la tabella stessa */
     return true;
 }
@@ -431,14 +496,32 @@ void ScriptItemsRecomputeStats(Game *game)
 {
     Player *p = &game->player;
     ScriptItemsStatsAccum acc = {
-        p->baseDamage, p->baseFireDelay, p->baseShotSpeed, p->baseShotRadius, p->baseSpeed, (float)p->baseMaxHp
+        p->baseDamage, p->baseFireDelay, p->baseShotSpeed, p->baseShotRadius, p->baseSpeed, (float)p->baseMaxHp,
+        p->baseLuck
     };
+
+    /* Tipo di colpo (step C): stesso identico principio delle statistiche --
+       si riparte da ZERO (nessun tipo = il colpo base) e si riscorrono gli
+       oggetti in ordine di acquisizione. Vince l'ULTIMO che ne porta uno (alla
+       Isaac: raccogliere una nuova "tear replacement" sostituisce la precedente,
+       non si sommano), quindi togliere quell'oggetto fa automaticamente tornare
+       il tipo di quello prima, senza alcuna contabilita' incrementale da
+       disfare. */
+    ShotTypeDef shotType;
+    memset(&shotType, 0, sizeof(shotType));
+    Color shotColor = (Color){ 0, 0, 0, 0 };
 
     for (int i = 0; i < p->itemCount; i++)
     {
         const Item *item = &p->items[i];
         ScriptItemsApplyBuiltin(&acc, item);
         ScriptItemsClampStats(&acc);
+
+        if (item->shotType.active)
+        {
+            shotType = item->shotType;
+            shotColor = item->color;
+        }
 
         ScriptItemRuntime *rt = &game->itemScripts[i];
         ScriptSandbox *sb = (ScriptSandbox *)rt->sandbox;
@@ -478,11 +561,31 @@ void ScriptItemsRecomputeStats(Game *game)
         }
     }
 
+    /* La curva dei rendimenti decrescenti (step C) va QUI, dopo l'ultimo oggetto
+       e prima della scrittura: vedi il commento su ScriptItemsDamageCurve. Il
+       clamp globale gira comunque un'ultima volta dopo di lei -- la curva puo'
+       solo ABBASSARE il danno, quindi non puo' sfondare il tetto, ma il
+       pavimento va comunque garantito per un baseDamage patologico (0 o
+       negativo) che nessuno dovrebbe mai impostare. */
+    acc.damage = ScriptItemsDamageCurve(acc.damage, p->baseDamage);
+    ScriptItemsClampStats(&acc);
+
     p->damage = acc.damage;
     p->fireDelay = acc.fireDelay;
     p->shotSpeed = acc.shotSpeed;
     p->shotRadius = acc.shotRadius;
     p->speed = acc.speed;
+    p->luck = acc.luck;
     p->maxHp = (int)(acc.maxHp + 0.5f);
     if (p->hp > p->maxHp) p->hp = p->maxHp;
+
+    /* Difesa in profondita' (terza rete, dopo melting-gen e run_content.c): il
+       tipo di colpo che finisce davvero nelle mani del giocatore e' SEMPRE
+       ribilanciato, qualunque strada abbia preso per arrivare qui (un manifest
+       modificato a mano, un test che costruisce un Item a mano, un futuro
+       oggetto che se lo inventa a runtime). Idempotente: un tipo gia' in banda
+       esce identico. */
+    if (shotType.active) ShotTypeBalance(&shotType);
+    p->shotType = shotType;
+    p->shotColor = shotColor;
 }

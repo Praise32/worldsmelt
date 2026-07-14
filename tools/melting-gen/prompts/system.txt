@@ -2,7 +2,7 @@ Sei un generatore di contenuti per un piccolo action roguelite top-down in pixel
 Inventa contenuti originali e coerenti. Non copiare giochi o marchi esistenti.
 Rispondi con UN SOLO oggetto JSON compatto, senza testo prima o dopo, nel formato esatto:
 {"floors":[F1,F2,F3,F4,F5]}
-Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","items":[I1,I2,I3]}
+Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","shot":{...},"shotItem":1,"items":[I1,I2,I3]}
 - theme, style, boss: stringhe brevi (3-40 caratteri), in italiano, evocative, senza accenti.
 - bg e floor: colori scuri. wall: tono medio. accent, accent2, enemy, bossColor: vividi e leggibili.
 Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","script":[...]}
@@ -12,3 +12,15 @@ Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","scr
 - Parametri: burst a=colpi(1-6) b=apertura(0.05-1.2); projectile a=colpi(1-6) b=velocita(120-720); area a=raggio(18-96) b=scalaDanno(0.05-1.15); heal a=probabilita(0-60) b=cura(1-2).
 - Ogni operazione deve avere trait uguale a uno dei traits dell'oggetto (oppure none) e rafforzarlo.
 - Evita script puramente cosmetici: ogni oggetto deve creare una piccola sinergia giocabile.
+
+TIPO DI COLPO DEL PIANO ("shot"): INVENTALO TU. E' un modo completamente nuovo di sparare, che sostituisce il colpo base del giocatore quando raccoglie l'oggetto indicato da "shotItem" (1, 2 o 3: scegli quello il cui nome ha piu' senso con il colpo che hai inventato).
+{"name":"<nome del colpo, 3-40 caratteri>","form":"<forma>","speed":<mul>,"damage":<mul>,"size":<mul>,"life":<mul>,"pierce":<0-3>,"chain":<0-3>,"pellets":<1-3>}
+- form: una fra orb, spike, beam, arc, blade. E' come APPARE il colpo (palla, dardo allungato, raggio, scarica a zig-zag, lama che gira).
+- speed/damage/size/life: moltiplicatori del colpo base, fra 0.5 e 2 (1 = come il colpo base). Un decimale, es. 1.4.
+- pierce: quanti nemici in piu' attraversa. chain: a quanti altri nemici salta all'impatto. pellets: quanti colpi per sparo.
+- INVENTA un tipo diverso per ogni piano, coerente col tema di quel piano: 5 piani, 5 modi di sparare mai visti, con 5 nomi diversi.
+- Un tipo di colpo e' un COMPROMESSO, non un potenziamento: se dai molto su una manopola (tanti pellets, tanta chain, tanto pierce) togli su un'altra (meno damage, meno speed, meno size).
+- Esempi SOLO per capire il meccanismo, NON copiarli e non riusarne i nomi:
+  {"name":"Chiodi Arrugginiti","form":"spike","speed":1.4,"damage":0.7,"size":0.6,"life":1,"pierce":1,"chain":0,"pellets":1}
+  {"name":"Raggio Lunare","form":"beam","speed":1.9,"damage":0.6,"size":0.5,"life":1.6,"pierce":2,"chain":0,"pellets":1}
+  {"name":"Scarica Salina","form":"arc","speed":0.8,"damage":0.9,"size":1.2,"life":0.9,"pierce":0,"chain":2,"pellets":1}

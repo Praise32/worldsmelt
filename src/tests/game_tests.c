@@ -5,6 +5,7 @@
 #include "render/game_renderer.h"
 #include "render/item_layers.h"
 #include "script/script_api.h"
+#include "script/script_items.h"
 #include "script/script_sandbox.h"
 
 #include <stdio.h>
@@ -393,6 +394,63 @@ bool GameRarityScreenshotTest(Game *game)
     UnloadRenderTexture(canvas);
 
     return textureValid;
+}
+
+/* Step C (docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md): il
+   COMPORTAMENTO dei tipi di colpo e' verificato per davvero dai test R-W della
+   suite --script-items-test (bilanciamento, catena, perforazione, ricalcolo). Ma
+   il feedback che ha aperto questa fase chiedeva anche un ASPETTO diverso per
+   ogni tipo, e quello nessun assert puo' giudicarlo: serve guardarlo. Questo test
+   mette in scena un colpo per ciascuna delle cinque forme (piu' uno nemico, che
+   resta sempre una palla) e salva uno screenshot -- stessa idea e stesso schema
+   di GameRarityScreenshotTest sopra: costruisce a mano un campione impossibile da
+   incontrare in una run vera, e l'assert automatico e' solo "non va in crash e la
+   texture e' valida" (DrawRectanglePro/DrawLineEx con rotazioni e spessori sono
+   proprio il tipo di codice che puo' esplodere su un caso limite).
+   Il file esce in logs/melting-run-shotforms-screen.png. */
+bool GameShotFormsScreenshotTest(Game *game)
+{
+    static const ShotForm kForms[SHOT_FORM_COUNT] = {
+        SHOT_FORM_ORB, SHOT_FORM_SPIKE, SHOT_FORM_BEAM, SHOT_FORM_ARC, SHOT_FORM_BLADE
+    };
+
+    EntitiesClear(game);
+
+    /* Un colpo per forma, in fila, tutti in volo verso destra: cosi' le forme
+       orientate dalla velocita' (spike, beam, arc) si vedono orientate davvero. */
+    for (int i = 0; i < (int)SHOT_FORM_COUNT; i++)
+    {
+        Shot *shot = EntitiesAddShot(game, true,
+                                     (Vector2){ ROOM_X + 150.0f + (float)i*150.0f, ROOM_Y + ROOM_H*0.45f },
+                                     (Vector2){ 1.0f, 0.0f }, 420.0f, 8.0f, 7.0f, 0, game->theme.accent2);
+        if (shot) shot->form = kForms[i];
+    }
+    /* Un colpo nemico: resta SEMPRE una palla (i nemici non hanno tipi di colpo,
+       vedi combat.c) -- e' il controllo negativo dello screenshot. */
+    EntitiesAddShot(game, false, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.75f },
+                    (Vector2){ -1.0f, 0.0f }, 240.0f, 1.0f, 6.0f, 0, game->theme.enemy);
+
+    /* Il pannello "GIOCATORE" mostra il tipo di colpo attivo: gli si mette in
+       mano l'oggetto che lo conferisce, cosi' lo screenshot verifica anche
+       quella riga (nome inventato + forma) e il colore condiviso col proiettile. */
+    memset(game->player.items, 0, sizeof(game->player.items));
+    Item *item = &game->player.items[0];
+    item->active = true;
+    snprintf(item->name, sizeof(item->name), "Guanto di Schegge");
+    item->slot = SLOT_HAND;
+    item->rarity = RARITY_RARE;
+    item->kind = ITEM_ACTIVE;
+    item->color = game->theme.accent;
+    ShotTypeExample(&item->shotType, 0);
+    game->player.itemCount = 1;
+    ScriptItemsRecomputeStats(game);
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-shotforms-screen.png");
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+
+    return textureValid && game->player.shotType.active;
 }
 
 #ifndef _WIN32

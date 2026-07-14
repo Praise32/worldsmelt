@@ -33,7 +33,14 @@ LLAMA_BUILD := $(LLAMA_DIR)/build
 # senza Game* in gen_lua.c (vedi il commento li'). Per questo melting-gen
 # linka anche Lua (statica, come il gioco): AGENTS.md, "melting-gen puo'
 # linkare Lua e cJSON".
-GEN_EXTRA_SRC := src/core/game_math.c src/script/script_sandbox.c
+# src/core/shot_type.c (step C): la definizione dei tipi di colpo e la loro
+# funzione di bilanciamento (ShotTypeBalance) sono UNA SOLA, condivisa fra gioco
+# e generatore. melting-gen la compila per bilanciare i tipi che il modello
+# inventa gia' mentre scrive il manifest; il gioco la ricompila per la propria
+# rete di sicurezza al caricamento. Non tocca raylib (shot_type.h non lo include
+# nemmeno: e' l'unico header di src/core/ che ne fa a meno, proprio per poter
+# vivere dentro melting-gen senza trascinarsi dietro il gioco).
+GEN_EXTRA_SRC := src/core/game_math.c src/core/shot_type.c src/script/script_sandbox.c
 
 GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c) $(GEN_EXTRA_SRC)
 GEN_HDR := $(wildcard tools/melting-gen/*.h) $(wildcard tools/melting-gen/vendor/*.h)
@@ -133,6 +140,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --shot-forms-screenshot-test
 
 test-gen: all
 	bash scripts/test-gen.sh

@@ -324,6 +324,85 @@ static void DrawTransientMessage(Game *game)
     DrawText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
 }
 
+/* Un colpo, disegnato secondo la sua FORMA (step C, core/shot_type.h). Le forme
+   non sono cinque colori diversi: sono cinque disegni diversi, perche' il punto
+   del feedback che ha aperto questa fase era "un tipo di colpo nuovo deve avere
+   un ASPETTO diverso e un COMPORTAMENTO diverso". Il comportamento vive in
+   combat.c (pallettoni, perforazione, catena, moltiplicatori); l'aspetto e' qui.
+   SHOT_FORM_ORB e' lo zero-default: ogni colpo nemico, ogni colpo generato da uno
+   script Lua e ogni colpo di una run senza tipi di colpo passa di qui e viene
+   disegnato ESATTAMENTE come prima di questa fase (due cerchi). */
+static void DrawShot(const Shot *shot)
+{
+    Color halo = GameColorWithAlpha(shot->color, 80);
+    float angle = atan2f(shot->vel.y, shot->vel.x);
+    float angleDeg = angle*180.0f/PI_F;
+
+    switch (shot->form)
+    {
+        case SHOT_FORM_SPIKE:
+        {
+            /* Chiodo/dardo: un rettangolo allungato orientato dalla velocita',
+               con la punta luminosa in testa. */
+            Rectangle body = { shot->pos.x, shot->pos.y, shot->radius*3.4f, shot->radius*1.1f };
+            Vector2 origin = { shot->radius*1.7f, shot->radius*0.55f };
+            DrawRectanglePro(body, origin, angleDeg, shot->color);
+            DrawCircleV(GameMathAdd(shot->pos, GameMathScale((Vector2){ cosf(angle), sinf(angle) }, shot->radius*1.5f)),
+                        shot->radius*0.6f, GameColorWithAlpha(RAYWHITE, 190));
+            break;
+        }
+        case SHOT_FORM_BEAM:
+        {
+            /* Raggio: una scia lunga e sottile dietro il colpo, con un nucleo
+               chiaro. La scia sta DIETRO (verso -vel): il colpo "traccia" il suo
+               percorso invece di occupare spazio davanti a se'. */
+            Vector2 back = GameMathAdd(shot->pos, GameMathScale((Vector2){ cosf(angle), sinf(angle) }, -shot->radius*7.0f));
+            DrawLineEx(back, shot->pos, shot->radius*1.6f, halo);
+            DrawLineEx(back, shot->pos, shot->radius*0.7f, GameColorWithAlpha(RAYWHITE, 210));
+            DrawCircleV(shot->pos, shot->radius*0.9f, shot->color);
+            break;
+        }
+        case SHOT_FORM_ARC:
+        {
+            /* Scarica: una spezzata a zig-zag dietro il colpo. L'oscillazione
+               dipende dal tempo, cosi' la scarica "sfrigola" invece di essere una
+               linea rigida. */
+            Vector2 dir = { cosf(angle), sinf(angle) };
+            Vector2 perp = GameMathPerpendicular(dir);
+            Vector2 prev = shot->pos;
+            for (int seg = 1; seg <= 4; seg++)
+            {
+                float back = -shot->radius*1.9f*(float)seg;
+                float wobble = sinf((float)GetTime()*38.0f + (float)seg*2.1f)*shot->radius*1.15f*((seg%2) ? 1.0f : -1.0f);
+                Vector2 next = GameMathAdd(shot->pos, GameMathAdd(GameMathScale(dir, back), GameMathScale(perp, wobble)));
+                DrawLineEx(prev, next, shot->radius*0.75f, seg == 1 ? shot->color : halo);
+                prev = next;
+            }
+            DrawCircleV(shot->pos, shot->radius*0.85f, GameColorWithAlpha(RAYWHITE, 200));
+            break;
+        }
+        case SHOT_FORM_BLADE:
+        {
+            /* Lama: un quadrato che ruota su se' stesso (rotazione dal tempo, non
+               dalla direzione: e' cio' che la fa leggere come "che gira"). */
+            float spin = (float)GetTime()*680.0f;
+            float side = shot->radius*2.4f;
+            Rectangle body = { shot->pos.x, shot->pos.y, side, side };
+            Vector2 origin = { side*0.5f, side*0.5f };
+            DrawCircleV(shot->pos, shot->radius + 3.0f, halo);
+            DrawRectanglePro(body, origin, spin, shot->color);
+            DrawRectanglePro((Rectangle){ shot->pos.x, shot->pos.y, side*0.45f, side*0.45f }, (Vector2){ side*0.225f, side*0.225f },
+                             -spin, GameColorWithAlpha(RAYWHITE, 170));
+            break;
+        }
+        case SHOT_FORM_ORB:
+        default:
+            DrawCircleV(shot->pos, shot->radius + 3.0f, halo);
+            DrawCircleV(shot->pos, shot->radius, shot->color);
+            break;
+    }
+}
+
 static void DrawGameplayCanvas(Game *game)
 {
     DrawRoom(game);
@@ -340,8 +419,7 @@ static void DrawGameplayCanvas(Game *game)
     {
         Shot *s = &game->shots[i];
         if (!s->active) continue;
-        DrawCircleV(s->pos, s->radius + 3.0f, GameColorWithAlpha(s->color, 80));
-        DrawCircleV(s->pos, s->radius, s->color);
+        DrawShot(s);
     }
     for (int i = 0; i < MAX_ENEMIES; i++) if (game->enemies[i].active) DrawEnemy(game, &game->enemies[i]);
     for (int i = 0; i < MAX_PARTICLES; i++)
@@ -495,13 +573,31 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rx, ry + 48, RAYWHITE);
     DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rx, ry + 72, RAYWHITE);
     DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rx, ry + 96, RAYWHITE);
-    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + 120, GOLD);
+    /* Step C: le due statistiche nuove. La fortuna col segno esplicito (puo'
+       essere negativa), il tipo di colpo attivo col colore dell'oggetto che l'ha
+       dato -- lo stesso colore con cui il colpo si disegna in scena, cosi' il
+       collegamento "questo oggetto -> questo proiettile" e' immediato. Il nome lo
+       ha inventato il modello: la GUI non lo interpreta, lo mostra e basta. */
+    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rx, ry + 120, (Color){ 126, 232, 152, 255 });
+    if (p->shotType.active)
+    {
+        DrawStatLine("Colpo", TextFormat("%s (%s)", p->shotType.name, ShotFormName(p->shotType.form)), rx, ry + 144, p->shotColor);
+    }
+    else
+    {
+        DrawStatLine("Colpo", "base", rx, ry + 144, (Color){ 155, 163, 176, 255 });
+    }
+    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + 168, GOLD);
 
-    DrawText("OGGETTI PRESI", rx, ry + 164, 16, game->theme.accent2);
-    int rowY = ry + 194;
+    DrawText("OGGETTI PRESI", rx, ry + 212, 16, game->theme.accent2);
+    int rowY = ry + 242;
     int shown = 0;
-    int start = p->itemCount > 6 ? p->itemCount - 6 : 0;
-    for (int i = start; i < p->itemCount && shown < 6; i++, shown++)
+    /* Cinque righe invece di sei: le due statistiche nuove sopra costano 48px, e
+       questa lista e' l'unico blocco elastico del pannello (l'anteprima del piano
+       sotto e' ancorata al fondo). Meglio un oggetto in meno mostrato che due
+       blocchi sovrapposti. */
+    int start = p->itemCount > 5 ? p->itemCount - 5 : 0;
+    for (int i = start; i < p->itemCount && shown < 5; i++, shown++)
     {
         DrawItemPreview(game, &p->items[i], rx, rowY + shown*64, (int)layout.rightPanel.width - 36, true);
     }

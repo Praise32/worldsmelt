@@ -258,6 +258,59 @@ static void NormalizeScript(const cJSON *rawScript, const GenItem *fbItem, GenIt
     }
 }
 
+/* Tipo di colpo del piano (step C): l'UNICO campo nuovo di questa fase che il
+   MODELLO scrive davvero (kind/rarity restano decisioni di bilanciamento prese in
+   C, vedi sotto). Qui si fa quello che questo file fa per ogni altro campo --
+   ripiego per-campo su quello procedurale, mai un errore fatale -- piu' una cosa
+   in piu' che gli altri campi non hanno: ShotTypeBalance (core/shot_type.c), che
+   riporta il tipo dentro la banda di potenza qualunque numero il modello abbia
+   scritto. E' la ragione per cui si puo' lasciare che sia un 7B a inventare i
+   modi di sparare: la creativita' e' sua, l'equilibrio e' del C. */
+static void NormalizeShot(const cJSON *rawFloor, const GenFloor *fbFloor, GenFloor *floor)
+{
+    const cJSON *rawShot = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "shot") : NULL;
+
+    if (!cJSON_IsObject((cJSON *)rawShot))
+    {
+        floor->shot = fbFloor->shot;   /* nessun tipo di colpo nel JSON: quello procedurale, mai un piano senza */
+    }
+    else
+    {
+        const GenFloor *fb = fbFloor;
+        ShotTypeDef type;
+        memset(&type, 0, sizeof(type));
+        type.active = true;
+        CopyText(type.name, sizeof(type.name), JsonString(rawShot, "name"), fb->shot.name);
+
+        /* Una forma sconosciuta NON ricade su SHOT_FORM_ORB (che e' il colpo
+           base: un "tipo di colpo nuovo" che si disegna come quello di sempre non
+           e' un tipo nuovo), ma sulla forma del ripiego procedurale. */
+        const char *formText = JsonString(rawShot, "form");
+        ShotForm form = ShotFormFromText(formText);
+        if (!formText || (form == SHOT_FORM_ORB && strcmp(formText, "orb") != 0)) form = fb->shot.form;
+        type.form = form;
+
+        int ok = 0;
+        type.speedMul    = (float)JsonNumber(rawShot, "speed",   fb->shot.speedMul,  &ok);
+        type.damageMul   = (float)JsonNumber(rawShot, "damage",  fb->shot.damageMul, &ok);
+        type.radiusMul   = (float)JsonNumber(rawShot, "size",    fb->shot.radiusMul, &ok);
+        type.lifeMul     = (float)JsonNumber(rawShot, "life",    fb->shot.lifeMul,   &ok);
+        type.pierceBonus = (int)JsonNumber(rawShot, "pierce",  0.0, &ok);
+        type.chain       = (int)JsonNumber(rawShot, "chain",   0.0, &ok);
+        type.pellets     = (int)JsonNumber(rawShot, "pellets", 1.0, &ok);
+
+        ShotTypeBalance(&type);   /* clampa + riporta in banda di potenza: nessun dud, nessun tipo rotto */
+        floor->shot = type;
+    }
+
+    /* Quale dei tre oggetti attivi lo conferisce (1..3). Fuori range o assente ->
+       il primo: sempre un oggetto vero, mai un indice che non esiste. */
+    int ok = 0;
+    int idx = (int)JsonNumber(rawFloor, "shotItem", (double)fbFloor->shotItem, &ok);
+    if (idx < 1 || idx > GEN_ITEMS) idx = 1;
+    floor->shotItem = idx;
+}
+
 void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out)
 {
     GenRun fb;
@@ -282,6 +335,7 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
         CopyColor(floor->accent2, sizeof(floor->accent2), JsonString(rawFloor, "accent2"), fbFloor->accent2);
         CopyColor(floor->enemy, sizeof(floor->enemy), JsonString(rawFloor, "enemy"), fbFloor->enemy);
         CopyColor(floor->bossColor, sizeof(floor->bossColor), JsonString(rawFloor, "bossColor"), fbFloor->bossColor);
+        NormalizeShot(rawFloor, fbFloor, floor);
 
         const cJSON *rawItems = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "items") : NULL;
         for (int i = 0; i < GEN_ITEMS; i++)

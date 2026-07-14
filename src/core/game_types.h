@@ -3,6 +3,13 @@
 
 #include "raylib.h"
 
+/* Tipi di colpo (step C): il vocabolario parametrico con cui il MODELLO inventa
+   i tipi di colpo di ogni run (mai un menu fisso in C, vedi il commento in cima
+   a shot_type.h). Vive in un header a parte, senza raylib, perche' lo include
+   anche melting-gen: una sola definizione, impossibile da far divergere fra
+   generatore e gioco. */
+#include "core/shot_type.h"
+
 #include <stdbool.h>
 
 #define SCREEN_WIDTH 960
@@ -209,6 +216,16 @@ typedef struct Item {
     int shape;
     char script[SCRIPT_TEXT_LEN];
     char luaSource[SCRIPT_LUA_LEN];   /* vedi il commento su SCRIPT_LUA_LEN sopra */
+    /* Tipo di colpo che questo oggetto conferisce, se ne conferisce uno (step C,
+       docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md). 'active'
+       falso (lo zero-default di "{0}", di un memset e di ogni manifest scritto
+       prima di questa fase) = l'oggetto NON cambia il modo di sparare: e' il
+       caso della grande maggioranza degli oggetti, e di TUTTI gli stat-up del
+       boss (che sono solo numeri, mai comportamento). Il tipo viaggia DENTRO
+       l'Item (per valore, non un indice in una tabella a parte) perche' un Item
+       viene copiato per valore ovunque -- FloorContent -> Pickup -> Player.items
+       -- e un riferimento indiretto si romperebbe silenziosamente a ogni copia. */
+    ShotTypeDef shotType;
 } Item;
 
 typedef struct FloorContent {
@@ -256,9 +273,27 @@ typedef struct Player {
     float fireDelay;
     float shotSpeed;
     float shotRadius;
+    /* Fortuna (step C, curve alla Isaac): statistica come le altre -- parte da
+       baseLuck, la ricalcola ScriptItemsRecomputeStats, e' clampata, e un
+       on_evaluate Lua la vede come stats.luck. Oggi pilota la probabilita' del
+       trait VAMP (vedi CombatDamageEnemy); e' il gancio per ogni futuro effetto
+       "a probabilita'" (critici, drop, catena) senza doverne inventare uno nuovo
+       ogni volta, esattamente come in Isaac. */
+    float luck;
     float fireTimer;
     float invuln;
     unsigned int traits;
+    /* Tipo di colpo ATTIVO del giocatore (step C): NON e' un'unione dei tipi
+       posseduti -- vince l'ULTIMO oggetto raccolto che ne porta uno (alla Isaac:
+       l'ultima "tear replacement" vince), e ScriptItemsRecomputeStats lo
+       ricalcola da zero come ogni altra statistica, quindi togliere quell'oggetto
+       fa tornare automaticamente il tipo precedente, senza deriva.
+       shotType.active falso = il colpo base di sempre. shotColor e' il colore
+       dell'OGGETTO che ha dato il tipo (cosi' il colpo si vede a colpo d'occhio
+       come "quello di quell'oggetto"); vale solo quando shotType.active e' vero,
+       altrimenti il colpo resta sul theme.accent2 di sempre. */
+    ShotTypeDef shotType;
+    Color shotColor;
     Item items[MAX_ITEMS];
     int itemCount;
     /* Valori di PARTENZA (prima di qualunque oggetto), da cui
@@ -275,6 +310,7 @@ typedef struct Player {
     float baseShotRadius;
     float baseSpeed;
     int baseMaxHp;
+    float baseLuck;   /* 0 di partenza (step C): la fortuna e' un bonus, mai un requisito */
 } Player;
 
 typedef struct Enemy {
@@ -304,6 +340,30 @@ typedef struct Shot {
     bool splitDone;
     int scriptDepth;
     Color color;
+    /* Step C: la FORMA con cui il renderer disegna questo colpo (zero-default
+       SHOT_FORM_ORB: ogni colpo creato prima di questa fase, ogni colpo nemico e
+       ogni colpo generato da uno script Lua resta la palla di sempre senza che
+       nessuno debba impostare nulla) e i salti di catena che gli restano
+       (0 = nessuno). Sono sul COLPO e non sul giocatore perche' un colpo vive
+       oltre lo sparo: deve ricordare come disegnarsi e se puo' ancora saltare
+       anche dopo che il giocatore ha cambiato tipo di colpo. */
+    ShotForm form;
+    int chain;
+    /* Nemici che QUESTO colpo ha gia' colpito, un bit per slot di Game.enemies
+       (step C). Esiste perche' senza di lei "perforare" non perforava: un colpo
+       con pierce resta sovrapposto al nemico che ha appena attraversato per
+       diversi frame (raggio del nemico ~23 px, il colpo ne percorre ~9 per
+       frame), e il ciclo delle collisioni lo ricolpiva ad ogni frame -- bruciando
+       tutta la perforazione sul PRIMO nemico e morendo prima di raggiungere il
+       secondo. Con la maschera, pierce significa quello che promette: attraversi
+       N nemici DIVERSI (la stessa semantica di Isaac).
+       Zero-default = nessun nemico colpito, quindi ogni colpo nasce "pulito"
+       senza che EntitiesAddShot debba fare nulla. Limite noto e accettato: gli
+       slot dei nemici vengono riusati, quindi un colpo ancora vivo (vita massima
+       ~1.2 s) potrebbe rifiutarsi di colpire un nemico NUOVO nato in uno slot che
+       aveva gia' colpito -- un colpo mancato, mai un danno doppio: il fallimento
+       cade sempre dalla parte sicura. */
+    unsigned long long hitMask;
 } Shot;
 
 typedef struct Pickup {

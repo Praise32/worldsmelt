@@ -40,6 +40,10 @@ void GameResetRun(Game *game)
     game->player.baseShotRadius = 5.0f;
     game->player.baseSpeed = 224.0f;
     game->player.baseMaxHp = 6;
+    /* Step C: la fortuna parte da zero (il memset sopra la azzera gia': la riga
+       e' esplicita come le altre, perche' "da dove parte una statistica" si deve
+       leggere qui e in nessun altro posto). */
+    game->player.baseLuck = 0.0f;
     ScriptItemsInit(game);
     WorldStartFloor(game, 1);
 }

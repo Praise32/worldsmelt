@@ -1,6 +1,16 @@
 #ifndef MELTING_GEN_H
 #define MELTING_GEN_H
 
+/* Tipi di colpo (step C): la STESSA definizione e la STESSA funzione di
+ * bilanciamento del gioco (src/core/shot_type.h, compilato dentro melting-gen
+ * via GEN_EXTRA_SRC nel Makefile). Quell'header non include raylib ne'
+ * game_types.h apposta, proprio per poter vivere anche qui dentro: e' l'unico
+ * pezzo di src/core/ che melting-gen include, e la ragione e' che un tipo di
+ * colpo lo inventa il MODELLO -- se generatore e gioco avessero due definizioni
+ * separate (come e' successo per rarity/kind, due elenchi di stringhe da tenere
+ * sincronizzati a mano) un giorno divergerebbero in silenzio. */
+#include "core/shot_type.h"
+
 #include <stddef.h>
 #include <stdio.h>
 
@@ -112,6 +122,19 @@ typedef struct GenFloor {
     char style[48];
     char boss[64];
     char bg[8], floorColor[8], wall[8], accent[8], accent2[8], enemy[8], bossColor[8];
+    /* Tipo di colpo del piano (step C, spec 2026-07-14-step-c-shottype-balance.md):
+     * A DIFFERENZA di kind/rarity (decisioni di bilanciamento, sempre prese in C,
+     * mai dal modello) questo lo scrive IL MODELLO -- fa parte della grammatica
+     * JSON (run.gbnf, chiave "shot"), perche' e' contenuto creativo puro: nome,
+     * forma e numeri di un modo nuovo di sparare. Il C non ne giudica il gusto,
+     * ne garantisce solo l'equilibrio (ShotTypeBalance, core/shot_type.c) e la
+     * sicurezza (le bande di ShotTypeClamp).
+     * 'shotItem' (1..3, chiave "shotItem" del JSON) e' QUALE dei tre oggetti
+     * attivi del piano lo conferisce: lo sceglie il modello, cosi' puo' dare il
+     * tipo di colpo all'oggetto il cui nome ha piu' senso ("Guanto di Chiodi" ->
+     * spara chiodi). Mai il bossItem: uno stat-up e' solo numeri. */
+    ShotTypeDef shot;
+    int shotItem;
     GenItem items[GEN_ITEMS];   /* oggetti ATTIVI: la stessa grammatica JSON di sempre (run.gbnf), il modello li scrive */
     /* Oggetto STAT-UP del piano, ricompensa del boss (fase 3, vedi
      * docs/superpowers/specs/2026-07-13-items-synergy-vision.md sezioni

@@ -320,6 +320,7 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
         lua_pushnumber(L, 5.0);   lua_setfield(L, -2, "shot_radius");
         lua_pushnumber(L, 224.0); lua_setfield(L, -2, "speed");
         lua_pushnumber(L, 6.0);   lua_setfield(L, -2, "max_hp");
+        lua_pushnumber(L, 0.0);   lua_setfield(L, -2, "luck");   /* step C: stessa tabella che il gioco passa davvero (script_items.c) */
         ok = ScriptSandboxProtectedCall(sb, 1, 0);
     }
     if (ok && hasFire) ok = ScriptSandboxCallVoid(sb, "on_fire", 4, 480.0, 300.0, 1.0, 0.0);

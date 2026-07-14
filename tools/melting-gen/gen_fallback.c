@@ -103,6 +103,21 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
            stato rigenerato di conseguenza, vedi scripts/test-gen.sh. */
         FallbackBossItem(&rng, &floor->bossItem, h, f);
 
+        /* Tipo di colpo del piano (step C): il ripiego procedurale per quando il
+           modello non c'e' (--fallback, o una generazione fallita). Gli esempi
+           veri vivono in src/core/shot_type.c (ShotTypeExample), condivisi con il
+           ripiego del gioco (src/content/run_content.c): un solo elenco, mai due
+           copie da tenere allineate. NON sono "i tipi di colpo del gioco" (il
+           motore non ne ha: li inventa il modello, vedi il commento in cima a
+           shot_type.h) -- sono contenuto di riserva, come i temi e gli oggetti
+           procedurali qui sopra.
+           ALTRO NUOVO PUNTO DI CONSUMO RNG rispetto alla fase precedente (due
+           tiri: quale esempio, e quale dei tre oggetti lo porta): il golden file
+           di regressione (tests/melting-gen/golden-fallback-seed12345.txt) e'
+           stato rigenerato di conseguenza, vedi scripts/test-gen.sh. */
+        ShotTypeExample(&floor->shot, GenRngRange(&rng, 0, SHOT_TYPE_EXAMPLE_COUNT - 1));
+        floor->shotItem = GenRngRange(&rng, 1, GEN_ITEMS);
+
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);
         snprintf(floor->style, sizeof(floor->style), "%s", styles[GenRngRange(&rng, 0, 4)]);

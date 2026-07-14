@@ -401,11 +401,16 @@ static bool TestRarityCapDiffersFromCommonToLegendary(void)
    (+1000 danno). Il tetto per-oggetto e' relativo a player.baseDamage
    (FISSO, non al valore corrente prima di questo oggetto, vedi il
    commento su ScriptItemsClampItemDelta): lo spostamento massimo per
-   oggetto resta 0.60*8=4.8 anche per il quinto oggetto, quindi il danno
-   atteso e' ESATTAMENTE 8 + 5*4.8 = 32.0 -- ben dentro la banda globale
-   [0.5,200] (16% del tetto assoluto): il giocatore resta giocabile, mai
-   rotto, anche col massimo storico possibile di oggetti stat-up (un
-   bossItem per piano, 5 piani). */
+   oggetto resta 0.60*8=4.8 anche per il quinto oggetto, quindi la somma
+   GREZZA e' 8 + 5*4.8 = 32.0.
+   STEP C (curve alla Isaac): quella somma grezza non e' piu' il danno finale.
+   ScriptItemsDamageCurve la comprime sopra il ginocchio (2*base = 16):
+   16*sqrt(32/16) = 22.63. Il valore atteso qui sotto e' quindi calcolato con la
+   STESSA formula invece che scritto a mano -- il test continua a verificare cio'
+   che ha sempre verificato (il tetto per-oggetto regge, cinque leggendari
+   restano dentro la banda globale [0.5,200], il giocatore resta giocabile) senza
+   diventare un doppione del test W, che e' quello che verifica la curva in se'
+   (compressione + monotonia). */
 static bool TestFiveLegendariesStayInBand(void)
 {
     Game game = MakeBaseGame(5005u);
@@ -421,12 +426,14 @@ static bool TestFiveLegendariesStayInBand(void)
         snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
         TestAddItem(&game, item);
     }
-    float expected = base + 5.0f*(base*0.60f);
+    float raw = base + 5.0f*(base*0.60f);   /* la somma grezza dei cinque tetti per-oggetto: 32.0 */
+    float knee = 2.0f*base;
+    float expected = raw > knee ? knee*sqrtf(raw/knee) : raw;
     float got = game.player.damage;
     bool matchesExpected = fabsf(got - expected) < 1e-2f;
     bool inBand = got >= 0.5f && got <= 200.0f;
-    printf("  [N] cinque oggetti stat-up leggendari (+1000 danno ciascuno) -> damage=%.4f (atteso %.4f = base %.1f + 5 x tetto 4.8), dentro banda [0.5,200]: %s\n",
-           got, expected, base, inBand ? "si" : "NO");
+    printf("  [N] cinque oggetti stat-up leggendari (+1000 danno ciascuno) -> damage=%.4f (atteso %.4f = somma grezza %.1f compressa dalla curva), dentro banda [0.5,200]: %s\n",
+           got, expected, raw, inBand ? "si" : "NO");
     ScriptItemsShutdown(&game);
     bool ok = matchesExpected && inBand;
     if (!ok) printf("      FALLITO: cinque leggendari devono restare dentro la banda globale (mai ingiocabile)\n");
@@ -520,6 +527,333 @@ static bool TestFallbackBossItemIsRare(void)
     }
 
     if (hadManifest) rename(kBackup, kManifest);
+    return ok;
+}
+
+/* ============================================================
+   Test R-W (step C, docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md):
+   i tipi di colpo INVENTATI DAL MODELLO e le curve alla Isaac. Il punto di
+   questi test e' che il motore non ha un elenco di tipi di colpo da verificare
+   (non esiste: li inventa il modello a ogni run) -- si verifica quindi la
+   PROMESSA che il motore fa al modello: "scrivi quello che vuoi, io garantisco
+   che sia bilanciato, che si comporti come dichiarato, e che non rompa nulla".
+   ============================================================ */
+
+/* Un tipo di colpo costruito a mano (come lo costruirebbe il parser dal
+   manifest, ma senza toccare il disco). Volutamente NON passa da
+   ShotTypeBalance: sono i test a decidere quando applicarlo. */
+static ShotTypeDef MakeShotType(ShotForm form, float speed, float damage, float radius, float life,
+                                int pierce, int chain, int pellets)
+{
+    ShotTypeDef type;
+    memset(&type, 0, sizeof(type));
+    type.active = true;
+    snprintf(type.name, sizeof(type.name), "Prova");
+    type.form = form;
+    type.speedMul = speed;
+    type.damageMul = damage;
+    type.radiusMul = radius;
+    type.lifeMul = life;
+    type.pierceBonus = pierce;
+    type.chain = chain;
+    type.pellets = pellets;
+    return type;
+}
+
+/* Test R (il test centrale di questa fase): QUALUNQUE cosa il modello inventi,
+   ShotTypeBalance la riporta dentro la banda di potenza. Si esplora l'intero
+   spazio delle manopole ai suoi estremi (2^4 combinazioni dei quattro
+   moltiplicatori al minimo/massimo x 4 valori di pierce x 4 di chain x 3 di
+   pellets = 768 tipi), piu' i due casi patologici espliciti -- il "dud" (tutto
+   al minimo: deve essere RINFORZATO, altrimenti sarebbe un tipo di colpo che
+   peggiora la run) e il "rotto" (tutto al massimo: deve essere TAGLIATO). Se
+   questo test passa, nessun tipo di colpo scritto da un 7B puo' rompere il
+   gioco, e non serve fidarsi del modello su nulla. */
+static bool TestShotTypeAlwaysBalanced(void)
+{
+    static const float kSpeeds[2]  = { SHOT_TYPE_SPEED_MIN,  SHOT_TYPE_SPEED_MAX };
+    static const float kDamages[2] = { SHOT_TYPE_DAMAGE_MIN, SHOT_TYPE_DAMAGE_MAX };
+    static const float kRadii[2]   = { SHOT_TYPE_RADIUS_MIN, SHOT_TYPE_RADIUS_MAX };
+    static const float kLives[2]   = { SHOT_TYPE_LIFE_MIN,   SHOT_TYPE_LIFE_MAX };
+
+    bool ok = true;
+    int checked = 0;
+    float worstLow = 999.0f, worstHigh = 0.0f;
+
+    for (int s = 0; s < 2; s++)
+    for (int d = 0; d < 2; d++)
+    for (int r = 0; r < 2; r++)
+    for (int l = 0; l < 2; l++)
+    for (int pierce = 0; pierce <= SHOT_TYPE_PIERCE_MAX; pierce++)
+    for (int chain = 0; chain <= SHOT_TYPE_CHAIN_MAX; chain++)
+    for (int pellets = 1; pellets <= SHOT_TYPE_PELLETS_MAX; pellets++)
+    {
+        ShotTypeDef type = MakeShotType(SHOT_FORM_SPIKE, kSpeeds[s], kDamages[d], kRadii[r], kLives[l], pierce, chain, pellets);
+        ShotTypeBalance(&type);
+        float power = ShotTypePower(&type);
+        checked++;
+        if (power < worstLow) worstLow = power;
+        if (power > worstHigh) worstHigh = power;
+        if (power < SHOT_TYPE_POWER_MIN || power > SHOT_TYPE_POWER_MAX) ok = false;
+
+        /* Idempotenza: ribilanciare un tipo gia' bilanciato non lo cambia (il
+           gioco lo fa DAVVERO tre volte -- melting-gen, run_content, recompute --
+           quindi non e' un dettaglio teorico). */
+        ShotTypeDef again = type;
+        ShotTypeBalance(&again);
+        if (fabsf(ShotTypePower(&again) - power) > 1e-4f) ok = false;
+    }
+
+    ShotTypeDef dud = MakeShotType(SHOT_FORM_ORB, SHOT_TYPE_SPEED_MIN, SHOT_TYPE_DAMAGE_MIN, SHOT_TYPE_RADIUS_MIN, SHOT_TYPE_LIFE_MIN, 0, 0, 1);
+    float dudBefore = ShotTypePower(&dud);
+    ShotTypeBalance(&dud);
+    float dudAfter = ShotTypePower(&dud);
+
+    ShotTypeDef broken = MakeShotType(SHOT_FORM_BLADE, SHOT_TYPE_SPEED_MAX, SHOT_TYPE_DAMAGE_MAX, SHOT_TYPE_RADIUS_MAX, SHOT_TYPE_LIFE_MAX,
+                                      SHOT_TYPE_PIERCE_MAX, SHOT_TYPE_CHAIN_MAX, SHOT_TYPE_PELLETS_MAX);
+    float brokenBefore = ShotTypePower(&broken);
+    ShotTypeBalance(&broken);
+    float brokenAfter = ShotTypePower(&broken);
+
+    printf("  [R] %d tipi di colpo estremi bilanciati: potere in [%.3f, %.3f] (banda ammessa [%.2f, %.2f])\n",
+           checked, (double)worstLow, (double)worstHigh, (double)SHOT_TYPE_POWER_MIN, (double)SHOT_TYPE_POWER_MAX);
+    printf("  [R] dud (tutto al minimo): potere %.3f -> %.3f (rinforzato); rotto (tutto al massimo): %.3f -> %.3f (tagliato)\n",
+           (double)dudBefore, (double)dudAfter, (double)brokenBefore, (double)brokenAfter);
+
+    bool dudFixed = dudAfter > dudBefore && dudAfter >= SHOT_TYPE_POWER_MIN && dudAfter <= SHOT_TYPE_POWER_MAX;
+    bool brokenFixed = brokenAfter < brokenBefore && brokenAfter <= SHOT_TYPE_POWER_MAX && brokenAfter >= SHOT_TYPE_POWER_MIN;
+    ok = ok && dudFixed && brokenFixed;
+    if (!ok) printf("      FALLITO: un tipo di colpo inventato dal modello e' finito fuori banda (o il ribilanciamento non e' idempotente)\n");
+    return ok;
+}
+
+/* Test S: round-trip testo<->enum delle forme, come il test P per la rarita'.
+   Stessa ragione: i testi ("orb", "spike", ...) attraversano tre confini
+   diversi -- la grammatica GBNF che il modello segue (run.gbnf), il manifest di
+   testo (gen_manifest.c) e il parser del gioco (run_content.c) -- e un
+   disallineamento silenzioso (es. "beam" letto come SHOT_FORM_ORB) non farebbe
+   fallire nessun altro test: i colpi si disegnerebbero solo... male. */
+static bool TestShotFormTextRoundTrip(void)
+{
+    static const char *kTexts[SHOT_FORM_COUNT] = { "orb", "spike", "beam", "arc", "blade" };
+    bool ok = true;
+    for (int i = 0; i < (int)SHOT_FORM_COUNT; i++)
+    {
+        ShotForm got = ShotFormFromText(kTexts[i]);
+        const char *back = ShotFormName((ShotForm)i);
+        if (got != (ShotForm)i || strcmp(back, kTexts[i]) != 0)
+        {
+            printf("      FALLITO: forma \"%s\": ShotFormFromText=%d (atteso %d), ShotFormName=\"%s\"\n",
+                   kTexts[i], (int)got, i, back);
+            ok = false;
+        }
+    }
+    /* Un testo sconosciuto NON deve mai produrre una forma esotica. */
+    if (ShotFormFromText("chiodo-arcobaleno") != SHOT_FORM_ORB || ShotFormFromText(NULL) != SHOT_FORM_ORB)
+    {
+        printf("      FALLITO: un testo sconosciuto/NULL deve ricadere su SHOT_FORM_ORB\n");
+        ok = false;
+    }
+    printf("  [S] %d forme: testo <-> enum coerenti in entrambe le direzioni, ignoto -> orb\n", (int)SHOT_FORM_COUNT);
+    return ok;
+}
+
+/* Test T (il sistema delle cache applicato ai tipi di colpo): raccogliere un
+   secondo oggetto con un tipo di colpo SOSTITUISCE il primo (alla Isaac:
+   l'ultima "tear replacement" vince, non si sommano), e "rimuovere" quel
+   secondo oggetto fa tornare il PRIMO senza alcuna deriva -- esattamente come
+   per le statistiche (test B). E' la prova che il tipo di colpo e' ricalcolato
+   da zero e non accumulato. */
+static bool TestShotTypeLastItemWinsAndReverts(void)
+{
+    Game game = MakeBaseGame(6001u);
+
+    Item nails = { 0 };
+    nails.active = true;
+    nails.slot = SLOT_HAND;
+    snprintf(nails.name, sizeof(nails.name), "Guanto di Chiodi");
+    nails.shotType = MakeShotType(SHOT_FORM_SPIKE, 1.45f, 0.75f, 0.65f, 1.0f, 1, 0, 1);
+    TestAddItem(&game, nails);
+    bool firstOk = game.player.shotType.active && game.player.shotType.form == SHOT_FORM_SPIKE;
+
+    Item arc = { 0 };
+    arc.active = true;
+    arc.slot = SLOT_AURA;
+    snprintf(arc.name, sizeof(arc.name), "Aura Scarica");
+    arc.shotType = MakeShotType(SHOT_FORM_ARC, 0.8f, 0.9f, 1.2f, 0.9f, 0, 2, 1);
+    TestAddItem(&game, arc);
+    bool secondWins = game.player.shotType.form == SHOT_FORM_ARC && game.player.shotType.chain == 2;
+
+    /* "Rimozione": come nel test B, il gioco non ha ancora una funzione per
+       scartare un oggetto -- il ricalcolo da zero e' esattamente cio' che la
+       rende banale il giorno che arrivera'. */
+    game.player.itemCount = 1;
+    ScriptItemsRecomputeStats(&game);
+    bool reverted = game.player.shotType.form == SHOT_FORM_SPIKE && game.player.shotType.pierceBonus == 1;
+
+    /* E senza alcun oggetto: nessun tipo di colpo, il colpo base di sempre. */
+    game.player.itemCount = 0;
+    ScriptItemsRecomputeStats(&game);
+    bool cleared = !game.player.shotType.active;
+
+    printf("  [T] primo tipo attivo=%s, il secondo vince=%s, rimosso il secondo torna il primo=%s, senza oggetti nessun tipo=%s\n",
+           firstOk ? "si" : "NO", secondWins ? "si" : "NO", reverted ? "si" : "NO", cleared ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = firstOk && secondWins && reverted && cleared;
+    if (!ok) printf("      FALLITO: il tipo di colpo non e' ricalcolato da zero (vince l'ultimo, la rimozione ripristina il precedente)\n");
+    return ok;
+}
+
+/* Test U: la manopola 'chain' non e' decorativa -- all'impatto nasce DAVVERO un
+   colpo verso un secondo nemico vicino. Due nemici a portata di catena, si
+   spara sul primo, si aggiornano i colpi, e si verifica che ne compaia uno
+   nuovo che si muove verso il secondo. Verifica anche che la catena NON colpisca
+   di nuovo lo stesso nemico (sarebbe danno doppio travestito da catena). */
+static bool TestShotTypeChainJumpsToSecondEnemy(void)
+{
+    Game game = MakeBaseGame(6002u);
+
+    Item arcItem = { 0 };
+    arcItem.active = true;
+    arcItem.slot = SLOT_HAND;
+    snprintf(arcItem.name, sizeof(arcItem.name), "Bobina Saltellante");
+    arcItem.shotType = MakeShotType(SHOT_FORM_ARC, 1.0f, 1.0f, 1.0f, 1.0f, 0, 2, 1);
+    TestAddItem(&game, arcItem);
+
+    /* Primo nemico davanti al giocatore, secondo poco piu' in la' ma dentro la
+       portata della catena (220 px, vedi COMBAT_CHAIN_RANGE in combat.c). */
+    Vector2 p = game.player.pos;
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 90.0f, p.y });
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 90.0f, p.y - 120.0f });
+
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });
+    int shotsAfterFire = CountActiveShots(&game);
+
+    /* Abbastanza frame perche' il colpo raggiunga il primo nemico. */
+    bool chained = false;
+    for (int step = 0; step < 40 && !chained; step++)
+    {
+        CombatUpdateShots(&game, 1.0f/60.0f);
+        for (int i = 0; i < MAX_SHOTS; i++)
+        {
+            const Shot *s = &game.shots[i];
+            /* Il colpo di catena si riconosce cosi': va VERSO L'ALTO (il secondo
+               nemico e' sopra), mentre quello sparato dal giocatore andava a
+               destra. Nessun altro meccanismo di questo test crea colpi. */
+            if (s->active && s->fromPlayer && s->vel.y < -50.0f) chained = true;
+        }
+    }
+
+    bool secondEnemyDamaged = false;
+    for (int step = 0; step < 60; step++) CombatUpdateShots(&game, 1.0f/60.0f);
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        Enemy *e = &game.enemies[i];
+        if (e->active && e->pos.y < p.y - 100.0f && e->hp < e->maxHp) secondEnemyDamaged = true;
+    }
+
+    printf("  [U] catena: %d colpo sparato, colpo di catena verso il secondo nemico=%s, secondo nemico danneggiato=%s\n",
+           shotsAfterFire, chained ? "si" : "NO", secondEnemyDamaged ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = chained && secondEnemyDamaged;
+    if (!ok) printf("      FALLITO: 'chain' deve creare un colpo verso un ALTRO nemico all'impatto, che poi lo colpisce davvero\n");
+    return ok;
+}
+
+/* Test V: la manopola 'pierce' fa sopravvivere il colpo al primo nemico (senza,
+   il colpo muore all'impatto: vedi CombatUpdateShots). Due nemici in fila sulla
+   traiettoria; un solo colpo deve danneggiarli entrambi. */
+static bool TestShotTypePierceSurvivesFirstEnemy(void)
+{
+    Game game = MakeBaseGame(6003u);
+
+    Item spike = { 0 };
+    spike.active = true;
+    spike.slot = SLOT_HAND;
+    snprintf(spike.name, sizeof(spike.name), "Dardo Passante");
+    spike.shotType = MakeShotType(SHOT_FORM_SPIKE, 1.0f, 1.0f, 1.0f, 1.0f, 2, 0, 1);
+    TestAddItem(&game, spike);
+
+    Vector2 p = game.player.pos;
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 80.0f, p.y });
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 190.0f, p.y });
+
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });
+    for (int step = 0; step < 60; step++) CombatUpdateShots(&game, 1.0f/60.0f);
+
+    int damaged = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        Enemy *e = &game.enemies[i];
+        if (e->active && e->hp < e->maxHp) damaged++;
+        else if (!e->active && e->maxHp > 0.0f) damaged++;   /* morto: danneggiato eccome */
+    }
+    printf("  [V] perforazione: nemici in fila danneggiati da UN solo colpo = %d (attesi 2)\n", damaged);
+
+    ScriptItemsShutdown(&game);
+    bool ok = damaged >= 2;
+    if (!ok) printf("      FALLITO: 'pierce' deve far attraversare il primo nemico e colpire il secondo\n");
+    return ok;
+}
+
+/* Test W (curve alla Isaac, step C): la curva dei rendimenti decrescenti sul
+   danno (ScriptItemsDamageCurve, src/script/script_items.c) deve
+   (1) NON toccare la zona normale di gioco -- due oggetti da +2/+3 su base 8
+       danno ancora esattamente 13, come prima di questa fase (e' il test B, qui
+       si verifica esplicitamente il confine);
+   (2) comprimere l'impilamento estremo -- cinque leggendari avidi (che sommati
+       darebbero 32) restano sotto 32;
+   (3) restare MONOTONA -- cinque oggetti fanno comunque piu' danno di quattro:
+       un oggetto in piu' non deve mai far male, deve solo rendere meno.
+   Senza (3) la curva sarebbe una punizione, non un bilanciamento. */
+static bool TestDamageCurveDiminishesButNeverHurts(void)
+{
+    Game linear = MakeBaseGame(6004u);
+    float base = linear.player.baseDamage;
+
+    Item plus2 = { 0 }; plus2.active = true; plus2.slot = SLOT_HAT;
+    snprintf(plus2.name, sizeof(plus2.name), "Piu' Due");
+    snprintf(plus2.luaSource, sizeof(plus2.luaSource), "%s", ADD_DAMAGE_2_LUA);
+    TestAddItem(&linear, plus2);
+    Item plus3 = { 0 }; plus3.active = true; plus3.slot = SLOT_HAT;
+    snprintf(plus3.name, sizeof(plus3.name), "Piu' Tre");
+    snprintf(plus3.luaSource, sizeof(plus3.luaSource), "%s", ADD_DAMAGE_3_LUA);
+    TestAddItem(&linear, plus3);
+    float normalZone = linear.player.damage;
+    bool normalUntouched = fabsf(normalZone - (base + 5.0f)) < 1e-4f;
+    ScriptItemsShutdown(&linear);
+
+    /* Quattro e cinque leggendari avidi: la somma grezza sarebbe 8+4*4.8=27.2 e
+       8+5*4.8=32, entrambe sopra il ginocchio della curva (2*8=16). */
+    float damageWith[6] = { 0 };
+    for (int count = 4; count <= 5; count++)
+    {
+        Game game = MakeBaseGame(6005u + (unsigned int)count);
+        for (int i = 0; i < count; i++)
+        {
+            Item item = { 0 };
+            item.active = true;
+            item.kind = ITEM_STATUP;
+            item.rarity = RARITY_LEGENDARY;
+            item.slot = SLOT_HAT;
+            snprintf(item.name, sizeof(item.name), "Nucleo %d", i + 1);
+            snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
+            TestAddItem(&game, item);
+        }
+        damageWith[count] = game.player.damage;
+        ScriptItemsShutdown(&game);
+    }
+
+    bool compressed = damageWith[5] < 32.0f;                 /* la somma grezza sarebbe 32 */
+    bool monotonic = damageWith[5] > damageWith[4];          /* ma il quinto oggetto aggiunge comunque qualcosa */
+    printf("  [W] zona normale (+2,+3): %.2f (atteso %.2f, INTATTA) | 4 leggendari: %.2f | 5 leggendari: %.2f (somma grezza 32, compressa=%s, monotona=%s)\n",
+           (double)normalZone, (double)(base + 5.0f), (double)damageWith[4], (double)damageWith[5],
+           compressed ? "si" : "NO", monotonic ? "si" : "NO");
+
+    bool ok = normalUntouched && compressed && monotonic;
+    if (!ok) printf("      FALLITO: la curva del danno deve lasciare intatta la zona normale, comprimere l'impilamento, e restare monotona\n");
     return ok;
 }
 
@@ -913,6 +1247,12 @@ bool ScriptItemsSelfTest(void)
         { "O (rarita': il costo del negozio cresce con la rarita')", TestShopCostScalesWithRarity },
         { "P (rarita': RarityFromText round-trip sui 4 testi canonici, sincronizzato con GEN_RARITIES)", TestRarityTextRoundTrip },
         { "Q (rarita': il ripiego puro senza manifest da' comunque un boss raro/leggendario, mai comune)", TestFallbackBossItemIsRare },
+        { "R (tipi di colpo: qualunque cosa inventi il modello resta in banda di potenza)", TestShotTypeAlwaysBalanced },
+        { "S (tipi di colpo: round-trip testo<->enum delle forme, sincronizzato con run.gbnf)", TestShotFormTextRoundTrip },
+        { "T (tipi di colpo: vince l'ultimo raccolto, rimuoverlo ripristina il precedente)", TestShotTypeLastItemWinsAndReverts },
+        { "U (tipi di colpo: 'chain' salta davvero su un secondo nemico all'impatto)", TestShotTypeChainJumpsToSecondEnemy },
+        { "V (tipi di colpo: 'pierce' fa attraversare il primo nemico)", TestShotTypePierceSurvivesFirstEnemy },
+        { "W (curve Isaac: rendimenti decrescenti sul danno, zona normale intatta, monotona)", TestDamageCurveDiminishesButNeverHurts },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

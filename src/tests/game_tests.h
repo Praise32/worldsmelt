@@ -25,6 +25,14 @@ bool GameLayerTest(Game *game);
    logs/melting-run-layers-screen.png (--layer-test). */
 bool GameRarityScreenshotTest(Game *game);
 
+/* Step C VISIVO (src/core/shot_type.h): screenshot di verifica con un colpo per
+   ciascuna delle cinque FORME di resa (piu' un colpo nemico, che resta sempre una
+   palla) e l'oggetto che conferisce il tipo di colpo in mano al giocatore. Vedi
+   src/tests/game_tests.c per i dettagli. Scrive
+   logs/melting-run-shotforms-screen.png, percorso separato da tutti gli altri
+   screenshot di test. */
+bool GameShotFormsScreenshotTest(Game *game);
+
 bool GenRunnerSelfTest(void);
 
 /* Suite di test della sandbox Lua (src/script/script_sandbox.c): un test

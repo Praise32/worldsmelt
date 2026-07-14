@@ -2,8 +2,16 @@
 
 #include "cJSON.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+/* Vedi il commento su "shot" in RunToJson piu' sotto: serve a tenere il JSON del
+   writer dentro la regola 'mul' di run.gbnf (al massimo 2 decimali). */
+static double RoundTo2(float value)
+{
+    return floor((double)value*100.0 + 0.5)/100.0;
+}
 
 static void ScriptToText(const GenItem *item, char *out, size_t outSize)
 {
@@ -148,6 +156,29 @@ static int WriteManifest(const GenRun *run, const char *outDir)
             fprintf(f, "floor%d.item%d.rarity=%s\n", n, i + 1, item->rarity);
             ScriptToText(item, text, sizeof(text));
             fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
+            /* Tipo di colpo (step C): scritto SOLO sull'oggetto che lo porta
+               (floor->shotItem, 1..3, scelto dal modello), mai su tutti e tre --
+               un piano ha UN modo di sparare nuovo, non tre. La chiave "shotName"
+               fa da sentinella lato gioco (run_content.c, ReadItemShotType): se
+               manca, l'oggetto non cambia il modo di sparare, e un manifest
+               scritto prima di questa fase resta valido esattamente com'e'.
+               %.2f e non %g per i moltiplicatori: due decimali bastano
+               (ShotTypeBalance lavora su questa scala) e il formato resta
+               identico byte-per-byte a parita' di seed su qualunque libc, che e'
+               cio' che il test di determinismo di scripts/test-gen.sh confronta. */
+            if (floor->shotItem == i + 1 && floor->shot.active)
+            {
+                const ShotTypeDef *shot = &floor->shot;
+                fprintf(f, "floor%d.item%d.shotName=%s\n", n, i + 1, shot->name);
+                fprintf(f, "floor%d.item%d.shotForm=%s\n", n, i + 1, ShotFormName(shot->form));
+                fprintf(f, "floor%d.item%d.shotSpeed=%.2f\n", n, i + 1, (double)shot->speedMul);
+                fprintf(f, "floor%d.item%d.shotDamage=%.2f\n", n, i + 1, (double)shot->damageMul);
+                fprintf(f, "floor%d.item%d.shotSize=%.2f\n", n, i + 1, (double)shot->radiusMul);
+                fprintf(f, "floor%d.item%d.shotLife=%.2f\n", n, i + 1, (double)shot->lifeMul);
+                fprintf(f, "floor%d.item%d.shotPierce=%d\n", n, i + 1, shot->pierceBonus);
+                fprintf(f, "floor%d.item%d.shotChain=%d\n", n, i + 1, shot->chain);
+                fprintf(f, "floor%d.item%d.shotPellets=%d\n", n, i + 1, shot->pellets);
+            }
             /* La riga .lua= si scrive QUI (testo), il FILE che referenzia si
                scrive PIU' TARDI, in un giro a parte subito sotto: vedi il
                commento lungo su WriteItemLua sopra per il perche'. */
@@ -223,6 +254,28 @@ static cJSON *RunToJson(const GenRun *run)
         cJSON_AddStringToObject(jf, "accent2", floor->accent2);
         cJSON_AddStringToObject(jf, "enemy", floor->enemy);
         cJSON_AddStringToObject(jf, "bossColor", floor->bossColor);
+
+        /* Tipo di colpo del piano (step C): fa parte di cio' che il MODELLO
+           scrive (a differenza di kind/rarity), quindi va nel JSON e nella
+           grammatica. I moltiplicatori sono arrotondati a 2 decimali PRIMA di
+           finire in cJSON: un float come 1.45f vale 1.4500000476837158 come
+           double, e cJSON lo stamperebbe con tutte le sue cifre ("1.45000004768372"),
+           che la regola 'mul' di run.gbnf (al massimo 2 decimali) rifiuterebbe --
+           facendo fallire il test di coerenza writer<->grammatica di
+           scripts/test-gen.sh, non il gioco. Arrotondare qui tiene le due cose
+           allineate per costruzione. */
+        cJSON *jshot = cJSON_AddObjectToObject(jf, "shot");
+        cJSON_AddStringToObject(jshot, "name", floor->shot.name);
+        cJSON_AddStringToObject(jshot, "form", ShotFormName(floor->shot.form));
+        cJSON_AddNumberToObject(jshot, "speed",  RoundTo2(floor->shot.speedMul));
+        cJSON_AddNumberToObject(jshot, "damage", RoundTo2(floor->shot.damageMul));
+        cJSON_AddNumberToObject(jshot, "size",   RoundTo2(floor->shot.radiusMul));
+        cJSON_AddNumberToObject(jshot, "life",   RoundTo2(floor->shot.lifeMul));
+        cJSON_AddNumberToObject(jshot, "pierce",  floor->shot.pierceBonus);
+        cJSON_AddNumberToObject(jshot, "chain",   floor->shot.chain);
+        cJSON_AddNumberToObject(jshot, "pellets", floor->shot.pellets);
+        cJSON_AddNumberToObject(jf, "shotItem", floor->shotItem);
+
         cJSON *items = cJSON_AddArrayToObject(jf, "items");
         for (int i = 0; i < GEN_ITEMS; i++)
         {

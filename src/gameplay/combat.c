@@ -9,6 +9,15 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Shot.hitMask e' una maschera a 64 bit, un bit per slot di Game.enemies: se
+   MAX_ENEMIES crescesse oltre 64, i nemici dagli slot 64 in su sarebbero
+   colpibili all'infinito dallo stesso colpo (uno spostamento di 1ull oltre la
+   larghezza del tipo e' comportamento indefinito, in pratica un wrap). Meglio
+   non compilare affatto che scoprirlo a runtime. */
+#if MAX_ENEMIES > 64
+#error "Shot.hitMask e' a 64 bit: MAX_ENEMIES non puo' superare 64 (vedi core/game_types.h)"
+#endif
+
 static Enemy *CombatNearestEnemy(Game *game, Vector2 pos)
 {
     Enemy *best = NULL;
@@ -63,9 +72,17 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
         enemy->active = false;
         game->score += (enemy->kind == ENEMY_BOSS) ? 300 : 30;
         EntitiesAddParticle(game, enemy->pos, enemy->kind == ENEMY_BOSS ? game->theme.boss : game->theme.enemy, 22);
-        if ((traits & TRAIT_VAMP) && game->player.hp < game->player.maxHp && GameRngRange(&game->rng, 0, 100) < 18)
+        /* Step C (fortuna): la probabilita' di rubare vita non e' piu' un 18%
+           fisso, e' 18% + 3 punti per ogni punto di fortuna, clampata in
+           [0, 60]. E' lo schema lineare di Isaac ("chance = base + luck*incr",
+           vedi docs/references/formule-statistiche.md), il primo consumatore
+           della nuova statistica: con fortuna 0 il comportamento e' identico a
+           prima di questa fase, con fortuna al massimo (15) si arriva al tetto
+           del 60% -- alto, mai garantito. */
+        if ((traits & TRAIT_VAMP) && game->player.hp < game->player.maxHp)
         {
-            game->player.hp++;
+            int chance = (int)GameMathClampFloat(18.0f + 3.0f*game->player.luck, 0.0f, 60.0f);
+            if (GameRngRange(&game->rng, 0, 100) < chance) game->player.hp++;
         }
     }
 }
@@ -99,19 +116,115 @@ void CombatSplitShot(Game *game, const Shot *shot)
     }
 }
 
+/* Step C: cuce un tipo di colpo (inventato dal modello, vedi core/shot_type.h)
+   su un colpo APPENA creato. I moltiplicatori continui su danno/velocita'/raggio
+   sono gia' stati applicati agli ARGOMENTI di EntitiesAddShot dal chiamante (sono
+   parametri di costruzione); qui restano i campi che esistono solo dopo la
+   nascita del colpo: la forma con cui il renderer lo disegna, i salti di catena
+   che gli restano, la perforazione in piu' e la vita moltiplicata.
+   'shot' NULL (array dei colpi pieno) e' un no-op: non e' un errore. */
+static void CombatApplyShotType(Shot *shot, const ShotTypeDef *type)
+{
+    if (!shot || !type || !type->active) return;
+    shot->form = type->form;
+    shot->chain = type->chain;
+    shot->pierce += type->pierceBonus;
+    shot->life *= type->lifeMul;
+}
+
+/* Il nemico attivo piu' vicino a 'pos' ENTRO 'maxDist', escluso 'exceptIndex'
+   (il nemico appena colpito: una catena che rimbalzasse su chi ha appena preso
+   il colpo non sarebbe una catena, sarebbe danno doppio). Ritorna -1 se non ce
+   n'e' nessuno: in quel caso la catena semplicemente non scatta, senza penalita'
+   ne' effetti collaterali. */
+static int CombatNearestEnemyExcept(Game *game, Vector2 pos, int exceptIndex, float maxDist)
+{
+    int best = -1;
+    float bestD = maxDist*maxDist;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (i == exceptIndex) continue;
+        Enemy *e = &game->enemies[i];
+        if (!e->active) continue;
+        float d = GameMathLengthSquared(GameMathSubtract(e->pos, pos));
+        if (d < bestD)
+        {
+            bestD = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+/* Portata di un salto di catena. Abbastanza larga da collegare due nemici di un
+   gruppo, troppo corta per attraversare l'intera stanza (876 px): la catena
+   premia chi combatte fra i nemici raggruppati, non chi spara a caso. */
+#define COMBAT_CHAIN_RANGE 220.0f
+/* Il danno che un salto porta con se'. La perdita e' cio' che rende la catena un
+   SIDEGRADE e non un moltiplicatore gratuito (ed e' esattamente il peso con cui
+   ShotTypePower la conta, vedi core/shot_type.c). */
+#define COMBAT_CHAIN_DAMAGE_FALLOFF 0.65f
+
+/* Il salto di catena vero e proprio (step C, manopola 'chain' di un tipo di
+   colpo): dal punto d'impatto parte un colpo NUOVO verso un altro nemico
+   vicino, con un salto in meno di quelli che restavano. Un colpo nuovo invece
+   di deviare quello vecchio, per due motivi: il colpo vecchio deve poter morire
+   (o perforare) secondo le sue regole normali, e MAX_SHOTS resta l'unico tetto
+   di sicurezza -- se l'array e' pieno, EntitiesAddShot torna NULL e la catena
+   semplicemente si ferma, senza casi speciali. Nasce SPOSTATO fuori dal nemico
+   appena colpito (raggio del nemico + raggio del colpo), altrimenti scatterebbe
+   subito una seconda collisione con lui: danno doppio invece di una catena. */
+static void CombatChainShot(Game *game, const Shot *shot, int hitEnemyIndex)
+{
+    int targetIndex = CombatNearestEnemyExcept(game, shot->pos, hitEnemyIndex, COMBAT_CHAIN_RANGE);
+    if (targetIndex < 0) return;
+
+    Enemy *target = &game->enemies[targetIndex];
+    Vector2 dir = GameMathNormalize(GameMathSubtract(target->pos, shot->pos));
+    if (GameMathLengthSquared(dir) <= 0.0001f) return;
+
+    float hitRadius = game->enemies[hitEnemyIndex].radius;
+    Vector2 origin = GameMathAdd(shot->pos, GameMathScale(dir, hitRadius + shot->radius + 2.0f));
+    float speed = sqrtf(GameMathLengthSquared(shot->vel));
+
+    Shot *spawned = EntitiesAddShot(game, true, origin, dir, speed, shot->damage*COMBAT_CHAIN_DAMAGE_FALLOFF,
+                                    shot->radius, shot->traits & ~(unsigned int)TRAIT_SPLIT, shot->color);
+    if (!spawned) return;
+    spawned->form = shot->form;
+    spawned->chain = shot->chain - 1;
+    spawned->scriptDepth = shot->scriptDepth;
+}
+
 void CombatFirePlayer(Game *game, Vector2 dir)
 {
     Player *p = &game->player;
     unsigned int traits = p->traits;
-    float radius = p->shotRadius + ((traits & TRAIT_GIANT) ? 5.0f : 0.0f);
-    float damage = p->damage + ((traits & TRAIT_GIANT) ? 4.0f : 0.0f);
-    float speed = p->shotSpeed*((traits & TRAIT_GIANT) ? 0.88f : 1.0f);
-    int pellets = (traits & TRAIT_SPLIT) ? 2 : 1;
+    /* Step C: il tipo di colpo del giocatore (ricalcolato da zero insieme alle
+       statistiche, vedi ScriptItemsRecomputeStats) MODULA il colpo base, non lo
+       sostituisce: i suoi moltiplicatori si applicano DOPO le statistiche vere e
+       DOPO gli aggiustamenti dei trait (GIANT), cosi' il sistema delle cache
+       resta l'unica fonte di verita' delle statistiche e un tipo di colpo non
+       puo' scavalcarlo. Senza tipo di colpo (type->active falso, il caso di ogni
+       run senza oggetti che ne portino uno) ogni fattore vale 1 e il codice qui
+       sotto e' identico a quello di prima di questa fase. */
+    const ShotTypeDef *type = &p->shotType;
+    bool typed = type->active;
+    float radius = (p->shotRadius + ((traits & TRAIT_GIANT) ? 5.0f : 0.0f))*(typed ? type->radiusMul : 1.0f);
+    float damage = (p->damage + ((traits & TRAIT_GIANT) ? 4.0f : 0.0f))*(typed ? type->damageMul : 1.0f);
+    float speed = p->shotSpeed*((traits & TRAIT_GIANT) ? 0.88f : 1.0f)*(typed ? type->speedMul : 1.0f);
+    Color color = typed ? p->shotColor : game->theme.accent2;
+    /* I pallettoni del tipo di colpo si SOMMANO a quello che TRAIT_SPLIT gia'
+       dava (non lo sostituiscono): un tipo a tre pallettoni su un giocatore con
+       split spara 4 colpi, non 3. Tetto a 5 perche' oltre il ventaglio diventa
+       un muro e MAX_SHOTS si consuma in un attimo. */
+    int pellets = ((traits & TRAIT_SPLIT) ? 2 : 1) + (typed ? type->pellets - 1 : 0);
+    if (pellets > 5) pellets = 5;
     float angle = atan2f(dir.y, dir.x);
     for (int i = 0; i < pellets; i++)
     {
         float offset = ((float)i - (float)(pellets - 1)*0.5f)*0.18f;
-        EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(angle + offset), sinf(angle + offset) }, speed, damage, radius, traits, game->theme.accent2);
+        Shot *spawned = EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(angle + offset), sinf(angle + offset) }, speed, damage, radius, traits, color);
+        CombatApplyShotType(spawned, type);
     }
     /* Lua prima, mini-VM dopo: sono a prova reciproca, non in cascata.
        ScriptVmExecutePlayer (src/gameplay/script_vm.c) salta da solo ogni
@@ -291,8 +404,14 @@ void CombatUpdateShots(Game *game, float dt)
             {
                 Enemy *enemy = &game->enemies[e];
                 if (!enemy->active) continue;
+                /* Un colpo non colpisce mai due volte lo stesso nemico (step C,
+                   vedi Shot.hitMask in core/game_types.h): e' cio' che fa
+                   funzionare davvero la perforazione, invece di far consumare
+                   tutti i suoi passaggi sul primo nemico che attraversa. */
+                if (s->hitMask & (1ull << e)) continue;
                 float r = s->radius + enemy->radius;
                 if (GameMathLengthSquared(GameMathSubtract(s->pos, enemy->pos)) >= r*r) continue;
+                s->hitMask |= (1ull << e);
                 /* ScriptItemsOnHit PRIMA di CombatDamageEnemy (a differenza
                    della mini-VM sotto, che e' sempre girata dopo): uno script
                    Lua deve poter leggere lo stato del nemico com'era AL
@@ -302,6 +421,11 @@ void CombatUpdateShots(Game *game, float dt)
                 ScriptItemsOnHit(game, i, e);
                 CombatDamageEnemy(game, enemy, s->damage, s->traits);
                 ScriptVmExecutePlayer(game, SCRIPT_ON_HIT, s->pos, GameMathNormalize(s->vel), s->damage, s->traits, s->scriptDepth);
+                /* Catena (step C): PRIMA di far esplodere/sdoppiare/morire questo
+                   colpo -- il salto parte dall'impatto, quindi deve leggere il
+                   colpo com'e' adesso (posizione, danno, forma), non dopo che
+                   pierce gli ha gia' ridotto il danno qui sotto. */
+                if (s->chain > 0) CombatChainShot(game, s, e);
                 if ((s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 50.0f + s->radius*2.0f, s->damage*0.55f);
                 if ((s->traits & TRAIT_SPLIT) && !s->splitDone)
                 {
@@ -358,7 +482,17 @@ static void CombatApplyItem(Game *game, Item item)
     if (item.slot == SLOT_BODY) p->hp = p->maxHp;
 
     char msg[160];
-    snprintf(msg, sizeof(msg), "Oggetto: %s (%s).", item.name, ItemFirstTraitName(item.traits));
+    /* Step C: se l'oggetto cambia il MODO di sparare, il messaggio lo dice --
+       e' l'evento piu' vistoso che possa capitare a una run, e finora il
+       giocatore lo avrebbe scoperto solo guardando i proiettili. */
+    if (item.shotType.active)
+    {
+        snprintf(msg, sizeof(msg), "Oggetto: %s (%s). Ora spari: %s.", item.name, ItemFirstTraitName(item.traits), item.shotType.name);
+    }
+    else
+    {
+        snprintf(msg, sizeof(msg), "Oggetto: %s (%s).", item.name, ItemFirstTraitName(item.traits));
+    }
     GameSetMessage(game, msg);
 }
 
