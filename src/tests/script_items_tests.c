@@ -998,6 +998,146 @@ static bool TestSynergyPowerScalesWithRarity(void)
     return ok;
 }
 
+/* ============================================================
+   Test AA-AC: le tre regressioni trovate dalla review a freddo dei commit della
+   notte. Ognuno di questi tre bug era passato in mezzo a tutti i test di sopra --
+   e il motivo per cui passavano e' documentato dentro ciascun test, perche' e' la
+   parte che vale piu' del test stesso.
+   ============================================================ */
+
+/* Test AA (il bug piu' grave): il ricalcolo delle statistiche LEGGEVA IL PROPRIO
+   OUTPUT PRECEDENTE. Le sinergie che condizionano sul tipo di colpo ("Arco
+   Voltaico": un tipo che salta + un oggetto che rallenta) venivano rilevate
+   PRIMA che il tipo di colpo di questo stesso ricalcolo fosse scritto su
+   player.shotType -- quindi leggevano quello del giro prima.
+   Due conseguenze, entrambe silenziose:
+   1. ORDINE: la stessa identica coppia di oggetti dava o non dava la sinergia a
+      seconda dell'ordine in cui li avevi raccolti.
+   2. IDEMPOTENZA: due ricalcoli di fila davano risultati diversi.
+   Cioe' esattamente le due promesse su cui e' costruito il sistema delle cache.
+   Il test dell'idempotenza (Y) non se ne accorgeva perche' usa una coppia
+   trait+trait, che non passa dal tipo di colpo. Questo test prova ENTRAMBI gli
+   ordini di raccolta e pretende lo stesso risultato. */
+static bool TestSynergyShotTypeOrderIndependent(void)
+{
+    /* Ordine A: prima l'oggetto che rallenta, poi quello col tipo di colpo che salta. */
+    Game slowFirst = MakeBaseGame(8001u);
+    TestAddItem(&slowFirst, MakeTraitItem("Brina Lenta", TRAIT_SLOW, RARITY_UNCOMMON, SLOT_AURA));
+    Item arcItemA = MakeTraitItem("Bobina Saltellante", 0u, RARITY_UNCOMMON, SLOT_HAND);
+    arcItemA.shotType = MakeShotType(SHOT_FORM_ARC, 1.0f, 1.0f, 1.0f, 1.0f, 0, 2, 1);
+    TestAddItem(&slowFirst, arcItemA);
+    bool onA = (slowFirst.player.synergies & (1u << SYNERGY_VOLTAIC_ARC)) != 0u;
+
+    /* Ordine B: gli stessi due oggetti, raccolti al contrario. */
+    Game arcFirst = MakeBaseGame(8002u);
+    Item arcItemB = MakeTraitItem("Bobina Saltellante", 0u, RARITY_UNCOMMON, SLOT_HAND);
+    arcItemB.shotType = MakeShotType(SHOT_FORM_ARC, 1.0f, 1.0f, 1.0f, 1.0f, 0, 2, 1);
+    TestAddItem(&arcFirst, arcItemB);
+    TestAddItem(&arcFirst, MakeTraitItem("Brina Lenta", TRAIT_SLOW, RARITY_UNCOMMON, SLOT_AURA));
+    bool onB = (arcFirst.player.synergies & (1u << SYNERGY_VOLTAIC_ARC)) != 0u;
+
+    /* Idempotenza: ricalcolare non deve cambiare nulla (era il secondo sintomo). */
+    unsigned int before = arcFirst.player.synergies;
+    ScriptItemsRecomputeStats(&arcFirst);
+    ScriptItemsRecomputeStats(&arcFirst);
+    bool stable = arcFirst.player.synergies == before;
+
+    /* Un oggetto SOLO non fa una sinergia, nemmeno se porta entrambi i segnali:
+       una coppia e' fra DUE oggetti (era il terzo bug: il tipo di colpo veniva
+       trattato come un segnale "senza padrone", quindi l'oggetto che lo portava
+       poteva fare da entrambe le meta'). */
+    Game selfGame = MakeBaseGame(8003u);
+    Item both = MakeTraitItem("Bobina Gelida", TRAIT_SLOW, RARITY_UNCOMMON, SLOT_HAND);
+    both.shotType = MakeShotType(SHOT_FORM_ARC, 1.0f, 1.0f, 1.0f, 1.0f, 0, 2, 1);
+    TestAddItem(&selfGame, both);
+    bool noSelfSynergy = (selfGame.player.synergies & (1u << SYNERGY_VOLTAIC_ARC)) == 0u;
+
+    printf("  [AA] arco voltaico: rallenta-poi-salta=%s | salta-poi-rallenta=%s (devono coincidere) | idempotente=%s | un solo oggetto NON sinergizza con se' stesso=%s\n",
+           onA ? "acceso" : "SPENTO", onB ? "acceso" : "SPENTO", stable ? "si" : "NO", noSelfSynergy ? "si" : "NO");
+
+    ScriptItemsShutdown(&slowFirst);
+    ScriptItemsShutdown(&arcFirst);
+    ScriptItemsShutdown(&selfGame);
+    bool ok = onA && onB && stable && noSelfSynergy;
+    if (!ok) printf("      FALLITO: il ricalcolo deve essere indipendente dall'ordine di raccolta e idempotente, e una sinergia richiede DUE oggetti\n");
+    return ok;
+}
+
+/* Test AB: la catena bruciava il PRIMO salto. Il colpo di catena nasceva misurato
+   dalla posizione del COLPO (che all'impatto e' gia' addosso al nemico) invece che
+   dal centro del NEMICO: partiva quindi ancora DENTRO il bersaglio appena colpito e
+   lo ricolpiva nel frame successivo, consumando subito un salto.
+   DUE cose rendono questo test capace di prendere il bug, e sono la ragione per cui
+   il test U non ci riusciva:
+   1. chain=1, non 2. Con due salti, quello bruciato lasciava comunque l'altro
+      buono: il secondo nemico veniva colpito lo stesso e il test restava verde.
+   2. Il secondo nemico e' IN LINEA DIETRO il primo, non di lato. La geometria
+      conta: se il salto va di traverso, lo spostamento sbagliato basta comunque a
+      uscire dal nemico appena colpito (l'ho verificato: con il bug rimesso, una
+      disposizione perpendicolare passava lo stesso). Il bug morde quando la catena
+      prosegue nella STESSA direzione, che e' anche il caso piu' comune in gioco:
+      un gruppetto di nemici in fila. */
+static bool TestShotTypeChainOneJumpReachesSecondEnemy(void)
+{
+    Game game = MakeBaseGame(8004u);
+
+    Item arcItem = MakeTraitItem("Bobina Singola", 0u, RARITY_UNCOMMON, SLOT_HAND);
+    arcItem.shotType = MakeShotType(SHOT_FORM_ARC, 1.0f, 1.0f, 1.0f, 1.0f, 0, 1, 1);   /* UN solo salto */
+    TestAddItem(&game, arcItem);
+
+    Vector2 p = game.player.pos;
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 90.0f, p.y });    /* primo: lo prende il colpo */
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ p.x + 200.0f, p.y });   /* secondo: in fila dietro, dentro la portata (110 px < 220) */
+
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });
+    for (int step = 0; step < 90; step++) CombatUpdateShots(&game, 1.0f/60.0f);
+
+    /* Il secondo nemico e' quello piu' lontano: deve aver preso danno dal SALTO
+       (il colpo sparato non lo puo' raggiungere da solo -- non ha perforazione,
+       muore sul primo). */
+    bool secondDamaged = false;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        Enemy *e = &game.enemies[i];
+        if (e->maxHp <= 0.0f) continue;
+        if (e->pos.x > p.x + 150.0f && (e->hp < e->maxHp || !e->active)) secondDamaged = true;
+    }
+    printf("  [AB] catena con UN SOLO salto, nemici in fila: il secondo e' stato colpito=%s (col bug, il salto si bruciava sul primo)\n",
+           secondDamaged ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    if (!secondDamaged) printf("      FALLITO: un salto di catena deve raggiungere un ALTRO nemico, non ricolpire quello appena colpito\n");
+    return secondDamaged;
+}
+
+/* Test AC: un nemico nuovo ereditava lo stato del morto che occupava il suo slot.
+   EntitiesAddEnemy ripopolava lo slot senza azzerarlo, lasciando intatti 'vel' (la
+   spinta di uno script Lua) e 'slowTimer' (il rallentamento di TRAIT_SLOW): un
+   nemico appena nato poteva partire gia' rallentato al 45%, o scivolando. Bug
+   preesistente e invisibile -- somiglia troppo a "un nemico un po' lento". */
+static bool TestEnemySlotDoesNotInheritState(void)
+{
+    Game game = MakeBaseGame(8005u);
+
+    EntitiesAddEnemy(&game, ENEMY_CHASER, (Vector2){ 400.0f, 300.0f });
+    game.enemies[0].slowTimer = 1.6f;                       /* rallentato... */
+    game.enemies[0].vel = (Vector2){ 250.0f, -180.0f };     /* ...e spinto da uno script */
+    game.enemies[0].active = false;                          /* muore, lo slot si libera */
+
+    EntitiesAddEnemy(&game, ENEMY_TANK, (Vector2){ 500.0f, 200.0f });   /* nasce nello stesso slot */
+    bool clean = game.enemies[0].slowTimer <= 0.0f &&
+                 fabsf(game.enemies[0].vel.x) < 0.001f && fabsf(game.enemies[0].vel.y) < 0.001f;
+    bool reused = game.enemies[0].active && game.enemies[0].kind == ENEMY_TANK;
+
+    printf("  [AC] nemico nato in uno slot riciclato: slowTimer=%.2f vel=(%.1f,%.1f) -> pulito=%s\n",
+           game.enemies[0].slowTimer, game.enemies[0].vel.x, game.enemies[0].vel.y, clean ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = clean && reused;
+    if (!ok) printf("      FALLITO: uno slot nemico riciclato non deve ereditare rallentamento/spinta del nemico morto\n");
+    return ok;
+}
+
 /* Test J: un oggetto stat-up SENZA alcuno script Lua (mai generato: il caso
    piu' comune quando il modello fallisce/opta per non proporre nulla) non
    deve mai restare senza effetto ("so a boss reward is never a dud", task
@@ -1397,6 +1537,9 @@ bool ScriptItemsSelfTest(void)
         { "X (sinergie: la coppia accende, togliere un oggetto spegne pulito)", TestSynergyPairTogglesOnAndOff },
         { "Y (sinergie: il canale statistico e' idempotente su 100 ricalcoli)", TestSynergyStatChannelIdempotent },
         { "Z (sinergie: la potenza scala con la rarita' minima della coppia, in banda)", TestSynergyPowerScalesWithRarity },
+        { "AA (review: ricalcolo indipendente dall'ordine di raccolta, idempotente, niente auto-sinergia)", TestSynergyShotTypeOrderIndependent },
+        { "AB (review: un salto di catena raggiunge un ALTRO nemico, non ricolpisce quello gia' colpito)", TestShotTypeChainOneJumpReachesSecondEnemy },
+        { "AC (review: uno slot nemico riciclato non eredita rallentamento/spinta del morto)", TestEnemySlotDoesNotInheritState },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

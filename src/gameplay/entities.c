@@ -49,12 +49,28 @@ void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 pos)
     {
         Enemy *e = &game->enemies[i];
         if (e->active) continue;
+        /* Azzeramento dello slot PRIMA di ripopolarlo, come fa gia' EntitiesAddShot
+           (correzione da review). Senza, il nemico nuovo ereditava due campi del
+           morto che occupava lo slot: 'vel' (la spinta impressa da un
+           set_enemy_velocity di uno script Lua -- il nemico appena nato partiva
+           scivolando) e soprattutto 'slowTimer' (il rallentamento di TRAIT_SLOW --
+           un nemico nato in uno slot appena liberato si muoveva al 45% per un
+           secondo e mezzo, senza che nessuno l'avesse rallentato). Bug vero e
+           preesistente, invisibile perche' somiglia a "un nemico un po' lento". */
+        memset(e, 0, sizeof(*e));
         /* Generazione per l'API a handle di Lua (core/game_types.h,
            Game.enemyGen): incrementata ogni volta che questo slot viene
            riassegnato, cosi' un handle catturato da uno script PRIMA che
            questo nemico morisse smette di combaciare con quello nuovo (vedi
            src/script/script_api.c, ScriptApiCheckEnemy). */
         game->enemyGen[i]++;
+        /* Stessa idea, per la maschera dei nemici gia' colpiti (Shot.hitMask, step
+           C): quella maschera e' indicizzata sullo SLOT, non sulla generazione,
+           quindi un colpo perforante ancora in volo avrebbe potuto rifiutarsi di
+           colpire il nemico NUOVO nato in uno slot che aveva gia' colpito. Ripulire
+           il bit alla nascita chiude il buco alla radice, e costa un giro su 220
+           colpi solo quando nasce un nemico. */
+        for (int s = 0; s < MAX_SHOTS; s++) game->shots[s].hitMask &= ~(1ull << i);
         e->active = true;
         e->kind = kind;
         e->pos = pos;

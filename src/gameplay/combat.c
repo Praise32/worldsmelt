@@ -180,12 +180,18 @@ static void CombatChainShot(Game *game, const Shot *shot, int hitEnemyIndex)
     int targetIndex = CombatNearestEnemyExcept(game, shot->pos, hitEnemyIndex, COMBAT_CHAIN_RANGE);
     if (targetIndex < 0) return;
 
+    Enemy *hitEnemy = &game->enemies[hitEnemyIndex];
     Enemy *target = &game->enemies[targetIndex];
-    Vector2 dir = GameMathNormalize(GameMathSubtract(target->pos, shot->pos));
+    Vector2 dir = GameMathNormalize(GameMathSubtract(target->pos, hitEnemy->pos));
     if (GameMathLengthSquared(dir) <= 0.0001f) return;
 
-    float hitRadius = game->enemies[hitEnemyIndex].radius;
-    Vector2 origin = GameMathAdd(shot->pos, GameMathScale(dir, hitRadius + shot->radius + 2.0f));
+    /* L'origine si misura dal CENTRO DEL NEMICO colpito, non dalla posizione del
+       colpo (correzione da review). Al momento dell'impatto il colpo si trova un
+       raggio-nemico PRIMA del centro (e' li' che scatta la collisione): partendo
+       da li' e spostandosi di "raggio del nemico + raggio del colpo" si finiva
+       ancora DENTRO il nemico appena colpito. */
+    float hitRadius = hitEnemy->radius;
+    Vector2 origin = GameMathAdd(hitEnemy->pos, GameMathScale(dir, hitRadius + shot->radius + 2.0f));
     float speed = sqrtf(GameMathLengthSquared(shot->vel));
 
     Shot *spawned = EntitiesAddShot(game, true, origin, dir, speed, shot->damage*COMBAT_CHAIN_DAMAGE_FALLOFF,
@@ -195,6 +201,15 @@ static void CombatChainShot(Game *game, const Shot *shot, int hitEnemyIndex)
     spawned->chain = shot->chain - 1;
     spawned->scriptDepth = shot->scriptDepth;
     spawned->synergized = shot->synergized;   /* un salto di catena resta lo stesso colpo, anche a vedersi */
+    /* La vera garanzia che la catena non torni indietro non e' la geometria sopra
+       (che dipende dai raggi e da dove sono i nemici): e' la MASCHERA dei gia'
+       colpiti. Il colpo di catena eredita quella del colpo che l'ha generato, piu'
+       il nemico appena colpito. Senza, il salto nasceva a un pelo dal bersaglio
+       precedente e lo ricolpiva nel frame successivo, bruciando subito il primo
+       salto: una catena da 1 non arrivava MAI a un secondo nemico, e una da 2 ne
+       colpiva uno solo. Il test U non se ne accorgeva perche' usa chain=2, e col
+       salto sprecato gliene restava comunque uno buono. */
+    spawned->hitMask = shot->hitMask | (1ull << hitEnemyIndex);
 }
 
 void CombatFirePlayer(Game *game, Vector2 dir)

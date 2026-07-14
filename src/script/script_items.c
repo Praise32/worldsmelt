@@ -511,6 +511,12 @@ void ScriptItemsRecomputeStats(Game *game)
     ShotTypeDef shotType;
     memset(&shotType, 0, sizeof(shotType));
     Color shotColor = (Color){ 0, 0, 0, 0 };
+    /* QUALE oggetto ha dato il tipo di colpo (-1 = nessuno). Serve alle sinergie
+       (correzione da review): una sinergia e' fra DUE oggetti diversi, quindi una
+       regola che condiziona sul tipo di colpo deve sapere a chi attribuirlo --
+       altrimenti un oggetto che porta un tipo di colpo che salta ED e' anche
+       l'oggetto che rallenta sinergizzerebbe con se' stesso. */
+    int shotTypeItem = -1;
 
     for (int i = 0; i < p->itemCount; i++)
     {
@@ -522,6 +528,7 @@ void ScriptItemsRecomputeStats(Game *game)
         {
             shotType = item->shotType;
             shotColor = item->color;
+            shotTypeItem = i;
         }
 
         ScriptItemRuntime *rt = &game->itemScripts[i];
@@ -562,6 +569,30 @@ void ScriptItemsRecomputeStats(Game *game)
         }
     }
 
+    /* Il tipo di colpo si PUBBLICA QUI, prima delle sinergie, non in fondo
+       (correzione da review). Motivo, e non e' un dettaglio di ordine: alcune
+       sinergie condizionano sul tipo di colpo attivo (oggi "Arco Voltaico": un
+       tipo che SALTA piu' un oggetto che rallenta, vedi synergies.c). Se le
+       sinergie si rilevassero prima di questa scrittura, leggerebbero il tipo di
+       colpo del ricalcolo PRECEDENTE -- cioe' ScriptItemsRecomputeStats leggerebbe
+       il proprio output precedente, e smetterebbe di essere una funzione pura dei
+       soli (oggetti, statistiche di base).
+       Le conseguenze erano due, entrambe silenziose: la stessa identica coppia di
+       oggetti dava o non dava la sinergia A SECONDA DELL'ORDINE in cui li avevi
+       raccolti, e due ricalcoli di fila davano risultati diversi -- cioe' proprio
+       le due promesse (nessuna deriva, idempotenza) su cui e' costruito tutto il
+       sistema delle cache. Il test dell'idempotenza non se ne accorgeva perche'
+       usa una coppia trait+trait, che non passa da qui.
+       Difesa in profondita' (terza rete, dopo melting-gen e run_content.c): il tipo
+       di colpo che finisce davvero nelle mani del giocatore e' SEMPRE ribilanciato,
+       qualunque strada abbia preso per arrivare qui (un manifest modificato a mano,
+       un test che costruisce un Item a mano). Idempotente: un tipo gia' in banda
+       esce identico. */
+    if (shotType.active) ShotTypeBalance(&shotType);
+    p->shotType = shotType;
+    p->shotColor = shotColor;
+    p->shotTypeItem = shotTypeItem;
+
     /* Sinergie, CANALE A (step D, docs/references/design-sinergie.md sezione 4.3):
        il contributo statistico delle coppie attive si applica QUI -- dopo i
        contributi di tutti i singoli oggetti, prima dei clamp finali. E' l'intero
@@ -601,13 +632,4 @@ void ScriptItemsRecomputeStats(Game *game)
     p->maxHp = (int)(acc.maxHp + 0.5f);
     if (p->hp > p->maxHp) p->hp = p->maxHp;
 
-    /* Difesa in profondita' (terza rete, dopo melting-gen e run_content.c): il
-       tipo di colpo che finisce davvero nelle mani del giocatore e' SEMPRE
-       ribilanciato, qualunque strada abbia preso per arrivare qui (un manifest
-       modificato a mano, un test che costruisce un Item a mano, un futuro
-       oggetto che se lo inventa a runtime). Idempotente: un tipo gia' in banda
-       esce identico. */
-    if (shotType.active) ShotTypeBalance(&shotType);
-    p->shotType = shotType;
-    p->shotColor = shotColor;
 }

@@ -167,13 +167,39 @@ grep -q '^floor1.item1.lua=generated/scripts/floor1_item1.lua$' "$TMP/b2/current
   echo "FALLITO: la ripresa ha perso la riga .lua= di uno script gia' generato"; exit 1; }
 grep -q '^floor5.item3.script=' "$TMP/b2/current_run.txt" || {
   echo "FALLITO: la ripresa ha prodotto un manifest incompleto"; exit 1; }
-# La ripresa NON deve toccare i contenuti: stesso tema del piano 1 di prima.
-themeBefore=$(grep '^floor1.theme=' "$TMP/a/current_run.txt")
+# La ripresa NON deve toccare i CONTENUTI della run. Il controllo confrontava solo
+# "floor1.theme=", che era un falso verde (trovato in review): il tema del piano 1
+# e' l'unica riga che la ripresa non potrebbe cambiare NEMMENO SE FOSSE ROTTA (la
+# rete anti-fotocopia non sostituisce mai il piano 1, e il seed viene riletto dal
+# JSON). Ora si confronta il manifest INTERO -- meno le sole righe che la ripresa
+# ha il diritto di aggiungere (.lua=) e la riga "source=", che passa a "resume".
 "$GEN" --fallback --seed 12345 --out "$TMP/b2b" >/dev/null
+grep -vE '^(source=|floor[0-9]+\.(item[0-9]+|bossItem)\.lua=)' "$TMP/b2b/current_run.txt" > "$TMP/b2b-before.txt"
 "$GEN" --from-json "$TMP/b2b/current_run.json" --resume --out "$TMP/b2b" >/dev/null
-themeAfter=$(grep '^floor1.theme=' "$TMP/b2b/current_run.txt")
-if [ "$themeBefore" != "$themeAfter" ]; then
-  echo "FALLITO: la ripresa ha cambiato i contenuti della run ($themeBefore -> $themeAfter)"; exit 1
+grep -vE '^(source=|floor[0-9]+\.(item[0-9]+|bossItem)\.lua=)' "$TMP/b2b/current_run.txt" > "$TMP/b2b-after.txt"
+if ! diff -u "$TMP/b2b-before.txt" "$TMP/b2b-after.txt" > "$TMP/b2b.diff"; then
+  echo "FALLITO: la ripresa ha cambiato i contenuti della run (deve solo AGGIUNGERE righe .lua=):"
+  head -20 "$TMP/b2b.diff"
+  exit 1
+fi
+
+# Una generazione NUOVA (non di ripresa) deve ripulire gli script della run
+# PRECEDENTE. Senza, la ripresa della run nuova li adotterebbe (GenLuaLoadExisting):
+# il comportamento inventato per un oggetto di ieri finirebbe addosso a un oggetto
+# di oggi, con nome/tema/trait che non c'entrano nulla. Silenzioso: lo script e'
+# valido, semplicemente non e' il suo.
+echo "-- step B2: una generazione nuova non eredita gli script Lua della run precedente --"
+mkdir -p "$TMP/b2c/scripts"
+printf 'function on_fire(x, y, dx, dy)\n  spawn_shot(x, y, dx, dy, 300, 3, 4, 0)\nend\n' > "$TMP/b2c/scripts/floor3_item2.lua"
+"$GEN" --fallback --seed 777 --out "$TMP/b2c" >/dev/null
+if [ -f "$TMP/b2c/scripts/floor3_item2.lua" ]; then
+  echo "FALLITO: una generazione nuova ha lasciato sul disco lo script Lua di una run precedente"; exit 1
+fi
+# ...ma una RIPRESA quegli script li deve conservare (sono i suoi).
+printf 'function on_fire(x, y, dx, dy)\n  spawn_shot(x, y, dx, dy, 300, 3, 4, 0)\nend\n' > "$TMP/b2c/scripts/floor3_item2.lua"
+"$GEN" --from-json "$TMP/b2c/current_run.json" --resume --out "$TMP/b2c" >/dev/null
+if [ ! -f "$TMP/b2c/scripts/floor3_item2.lua" ]; then
+  echo "FALLITO: la ripresa ha cancellato uno script Lua della propria run"; exit 1
 fi
 
 echo "-- il gioco carica il manifest generato --"

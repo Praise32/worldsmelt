@@ -231,6 +231,7 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
                     GameResetRun(game);
                     GameSetMessage(game, "Sprite non avviati: si gioca con l'atlas di riserva");
                     *mode = APP_PLAY;
+                    AppStartLazyGeneration(gen);   /* il passo TESTO e' comunque riuscito: i piani 2-5 si possono scrivere */
                 }
             }
             else
@@ -260,6 +261,13 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
                 ? "Sprite generati saltati: si gioca con l'atlas di riserva"
                 : "Generazione fallita: uso i contenuti di riserva");
             *mode = APP_PLAY;
+            /* Correzione da review: se a fallire e' stato il passo SPRITE (timeout
+               a 240s, o fork fallita), il passo TESTO era comunque riuscito -- la
+               run che si sta per giocare e' quella nuova, e i piani 2-5 vanno
+               scritti lo stesso. Prima la ripresa partiva SOLO dal ramo
+               "tutto riuscito", quindi un timeout degli sprite si portava dietro
+               anche la perdita silenziosa di 16 script Lua. */
+            if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
         }
         GameUpdateParticles(game, dt);
         return false;

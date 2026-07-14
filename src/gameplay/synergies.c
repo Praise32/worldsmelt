@@ -135,13 +135,21 @@ static bool SignalPresent(const Player *player, SynergySignal sig, int excludeIt
         if (!player->shotType.active) return false;
         bool present = (sig == SIG_SHOT_CHAIN) ? (player->shotType.chain > 0) : (player->shotType.pierceBonus > 0);
         if (!present) return false;
-        *outItem = -1;
-        /* Il tipo di colpo non porta una rarita' propria (e' una proprieta' del
-           piano, non dell'oggetto): si usa il livello NEUTRO (non-comune, il
-           fattore 1.0 della tavola dei tetti), cosi' una coppia che coinvolge il
-           tipo di colpo non e' ne' penalizzata ne' favorita rispetto a una
-           coppia di oggetti equivalente. */
-        *outRarity = RARITY_UNCOMMON;
+        /* Il tipo di colpo APPARTIENE all'oggetto che l'ha conferito
+           (player->shotTypeItem, ricalcolato in ScriptItemsRecomputeStats), non
+           "a nessuno" (correzione da review): se lo si trattasse come un segnale
+           senza padrone, l'oggetto che porta il tipo di colpo potrebbe fare da
+           ENTRAMBE le meta' della coppia -- un solo oggetto che rallenta e porta
+           un tipo di colpo che salta accenderebbe "Arco Voltaico" da solo, contro
+           la regola base di questo modulo (una sinergia e' fra DUE oggetti). Con
+           il padrone dichiarato, excludeItem lo esclude come qualunque altro. */
+        if (player->shotTypeItem < 0 || player->shotTypeItem >= player->itemCount) return false;
+        if (player->shotTypeItem == excludeItem) return false;
+        *outItem = player->shotTypeItem;
+        /* La rarita' della coppia e' quella dell'OGGETTO che porta il tipo di
+           colpo, come per ogni altro segnale: un tipo di colpo su un oggetto
+           leggendario vale piu' dello stesso tipo su un comune. */
+        *outRarity = player->items[player->shotTypeItem].rarity;
         return true;
     }
 

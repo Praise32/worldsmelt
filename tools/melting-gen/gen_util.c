@@ -137,6 +137,39 @@ void GenProgressWrite(const char *outDir, const char *phase, int percent, const 
     rename(tmp, fin);
 }
 
+/* Rimuove gli script Lua di una generazione PRECEDENTE (step B2, correzione da
+ * review). Va chiamata all'inizio di ogni generazione NON di ripresa.
+ *
+ * Il bug che chiude: i file si chiamano <outDir>/scripts/floorN_itemM.lua --
+ * un nome indicizzato SOLO da piano e oggetto, che non porta con se' nessuna
+ * identita' della run (ne' il seed, ne' il nome dell'oggetto). Nessuno li ha mai
+ * cancellati (nemmeno `make clean`, che tocca solo bin/). Finche' erano scritti e
+ * riletti dalla stessa generazione non faceva differenza; da quando esiste la
+ * RIPRESA in sottofondo (GenLuaLoadExisting), invece, il secondo processo li
+ * ADOTTA: se sul disco erano rimasti gli script di una run precedente, la run
+ * NUOVA se li prendeva -- il comportamento inventato per "Guanto di Chiodi" di
+ * ieri finiva addosso a "Aureola Gelida" di oggi, con un nome, un tema e dei trait
+ * che non c'entrano nulla. Silenzioso: lo script e' valido, semplicemente non e'
+ * il suo.
+ *
+ * Non e' un errore se la cartella non esiste o se un file non si lascia
+ * cancellare: e' pulizia opportunistica, non una precondizione. */
+void GenRemoveOldScripts(const char *outDir)
+{
+    if (!outDir) return;
+    for (int f = 1; f <= GEN_FLOORS; f++)
+    {
+        char path[512];
+        for (int i = 1; i <= GEN_ITEMS; i++)
+        {
+            snprintf(path, sizeof(path), "%s/scripts/floor%d_item%d.lua", outDir, f, i);
+            remove(path);
+        }
+        snprintf(path, sizeof(path), "%s/scripts/floor%d_bossItem.lua", outDir, f);
+        remove(path);
+    }
+}
+
 int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath)
 {
     /* ferror() va controllato PRIMA di fclose(): dopo la chiusura lo stream

@@ -294,6 +294,13 @@ typedef struct Player {
        altrimenti il colpo resta sul theme.accent2 di sempre. */
     ShotTypeDef shotType;
     Color shotColor;
+    /* Indice, dentro items[], dell'oggetto che ha dato il tipo di colpo attivo
+       (-1 = nessuno). Ricalcolato da zero come tutto il resto. Serve alle sinergie
+       (correzione da review): una sinergia e' fra DUE oggetti DIVERSI, quindi una
+       regola che condiziona sul tipo di colpo deve sapere a chi attribuirlo --
+       senza questo, un oggetto che porta un tipo di colpo "che salta" ed e' anche
+       l'oggetto che "rallenta" sinergizzerebbe con SE' STESSO. */
+    int shotTypeItem;
     /* Sinergie attive (step D, src/gameplay/synergies.h): un bit per SynergyId.
        E' una statistica come le altre -- ricalcolata da ZERO da
        ScriptItemsRecomputeStats sugli oggetti posseduti ORA, mai accumulata --

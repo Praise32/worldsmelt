@@ -588,7 +588,15 @@ static void DrawGameplayCanvas(Game *game)
         const Shot *s = &game->shots[i];
         if (s->active) DrawGroundShadow(s->pos, s->radius*0.8f, s->radius*2.2f, 55);
     }
-    DrawGroundShadow(game->player.pos, game->player.radius*0.95f, game->player.radius*0.72f, 95);
+    /* Il giocatore e' l'unica entita' il cui DISEGNO non coincide col suo raggio di
+       collisione: lo stickman ha i piedi a +31 px (DrawBaseStickman) mentre il
+       raggio e' 14. Ancorare la sua ombra a una frazione del raggio, come per le
+       altre entita', la lasciava a meta' gamba -- il giocatore sembrava sprofondato
+       nel pavimento (correzione da review). PLAYER_FOOT_Y e' proprio quel +31,
+       scalato se un giorno il raggio del giocatore cambiasse. */
+    const float PLAYER_FOOT_Y = 31.0f;
+    DrawGroundShadow(game->player.pos, game->player.radius*1.05f,
+                     PLAYER_FOOT_Y*(game->player.radius/14.0f), 95);
 
     /* Entita' che POGGIANO sul pavimento, ordinate per profondita'. */
     DepthEntry order[DEPTH_MAX];
@@ -836,15 +844,25 @@ static void DrawOuterUi(Game *game, UiLayout layout)
        SINERGIE ATTIVE (step D): sono lo stato piu' importante di una build e
        finora non erano visibili da nessuna parte. Riga fissa di suggerimento solo
        quando non ce n'e' ancora nessuna. */
+    /* Colonne calcolate dalla LARGHEZZA VERA del pannello, non da un letterale
+       (correzione da review): il pannello e' elastico (UiComputeLayout lo dimensiona
+       sulla finestra), e con un passo fisso di 300 px le sinergie finivano scritte
+       fuori dal suo bordo destro su una finestra stretta. Stessa cosa in verticale:
+       la riga di descrizione si disegna solo se il pannello e' abbastanza alto. */
+    int usableW = (int)layout.bottomPanel.width - 36;
+    int colW = usableW/3;
+    int maxCols = (colW > 140) ? 3 : ((usableW > 280) ? 2 : 1);
+    if (maxCols > 1) colW = usableW/maxCols;
+    bool roomForDescription = (by + 46 + 13) < (int)(layout.bottomPanel.y + layout.bottomPanel.height - 6);
     int activeSynergies = 0;
     for (int i = 0; i < (int)SYNERGY_COUNT; i++)
     {
         if (!(game->player.synergies & (1u << i))) continue;
-        int col = bx + activeSynergies*300;
+        int col = bx + activeSynergies*colW;
         DrawText(TextFormat("* %s", SynergyName(i)), col, by + 26, 16, GOLD);
-        DrawText(SynergyDescription(i), col, by + 46, 13, (Color){ 200, 206, 216, 255 });
+        if (roomForDescription) DrawText(SynergyDescription(i), col, by + 46, 13, (Color){ 200, 206, 216, 255 });
         activeSynergies++;
-        if (activeSynergies >= 3) break;   /* tre entrano nel pannello; le altre restano attive, solo non elencate */
+        if (activeSynergies >= maxCols) break;   /* le altre restano ATTIVE: solo non elencate, il pannello non e' la verita' */
     }
     if (activeSynergies == 0)
     {

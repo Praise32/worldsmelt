@@ -221,6 +221,11 @@ char *GenChatMlWrap(const char *sys, const char *user);
  * tmpPath e non tocca finalPath (che quindi resta quello valido di prima).
  * Stesso pattern tmp+rename di GenProgressWrite qui sopra. */
 int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath);
+/* Step B2 (correzione da review): cancella gli script Lua di una generazione
+ * precedente. Da chiamare all'inizio di ogni generazione NON di ripresa -- vedi il
+ * commento nel .c per il bug silenzioso che chiude (una run nuova che adotta gli
+ * script della run di ieri). */
+void GenRemoveOldScripts(const char *outDir);
 extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
 extern const char *GEN_KINDS[2];   /* "active", "statup": vedi il commento su GenItem.kind sopra */

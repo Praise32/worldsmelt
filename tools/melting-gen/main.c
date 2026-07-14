@@ -195,6 +195,12 @@ int main(int argc, char **argv)
         return 3;
     }
     GenProgressWrite(args.outDir, "avvio", 0, "melting-gen avviato");
+    /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
+     * scripts/ pulita. Senza, gli script della run precedente restavano sul disco
+     * e la RIPRESA in sottofondo (--resume, GenLuaLoadExisting) li adottava,
+     * attaccando il comportamento di un oggetto di ieri a un oggetto di oggi. La
+     * ripresa, ovviamente, NON deve pulire: quei file sono i suoi. */
+    if (!args.resume) GenRemoveOldScripts(args.outDir);
 
     if (args.fromJson)
     {
