@@ -311,6 +311,75 @@ static void NormalizeShot(const cJSON *rawFloor, const GenFloor *fbFloor, GenFlo
     floor->shotItem = idx;
 }
 
+/* Confronto senza distinzione fra maiuscole e minuscole, scritto a mano invece di
+   usare strcasecmp: quest'ultima e' POSIX, e melting-gen compila con -std=c99, dove
+   non e' dichiarata senza feature-test macro. Non vale una dipendenza in piu' per
+   dieci righe. */
+static int SameTextIgnoreCase(const char *a, const char *b)
+{
+    if (!a || !b) return 0;
+    for (; *a && *b; a++, b++)
+    {
+        char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a - 'A' + 'a') : *a;
+        char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b - 'A' + 'a') : *b;
+        if (ca != cb) return 0;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+/* La rete anti-fotocopia (step C review, bug REALE osservato con una generazione
+   vera al seed 20260714: il 7B ha prodotto CINQUE PIANI IDENTICI -- stesso tema,
+   stesso boss, stessi oggetti, stesso tipo di colpo).
+ *
+ * La causa immediata era la finestra della penalita' sulle ripetizioni, piu' corta
+ * di un piano di JSON (vedi GEN_PENALTY_LAST_N in melting_gen.h): allargarla ha
+ * migliorato molto le cose, ma non le puo' GARANTIRE -- il campionamento resta
+ * campionamento, e su cinque piani il quinto puo' sempre ricopiare il primo, che e'
+ * ormai fuori da qualunque finestra ragionevole.
+ *
+ * Quindi si fa qui la stessa cosa che si fa per i tipi di colpo (ShotTypeBalance,
+ * core/shot_type.c) e per il "mai un dud" degli oggetti: IL MODELLO E' LIBERO, IL C
+ * GARANTISCE IL MINIMO. Un piano che ricopia il tema di un piano precedente non e'
+ * contenuto: e' un buco. Lo si sostituisce in blocco col piano PROCEDURALE dello
+ * stesso indice (tema, stile, boss, colori, oggetti, tipo di colpo -- tutto
+ * coerente fra loro, perche' viene tutto dallo stesso GenFallbackRun), che e'
+ * esattamente cio' che il gioco userebbe se il modello non ci fosse affatto. Un
+ * piano procedurale e' meno ispirato di uno inventato bene, ma e' infinitamente
+ * meglio di una fotocopia: la run resta VARIA, che e' la promessa minima di un
+ * generatore di contenuti.
+ *
+ * Secondo giro, piu' fine: due piani per il resto diversi potrebbero comunque dare
+ * lo stesso NOME al proprio tipo di colpo (e' il campo piu' corto, quindi il piu'
+ * facile da ripetere). In quel caso non si butta l'intero piano: si sostituisce il
+ * solo tipo di colpo con quello procedurale. */
+static void DedupeFloors(GenRun *out, const GenRun *fb)
+{
+    for (int f = 1; f < GEN_FLOORS; f++)
+    {
+        for (int g = 0; g < f; g++)
+        {
+            if (!SameTextIgnoreCase(out->floors[f].theme, out->floors[g].theme)) continue;
+            GenLogLine("anti-fotocopia: il piano %d ripete il tema del piano %d (\"%s\") -> sostituito col piano procedurale",
+                       f + 1, g + 1, out->floors[f].theme);
+            out->floors[f] = fb->floors[f];
+            break;
+        }
+    }
+
+    for (int f = 1; f < GEN_FLOORS; f++)
+    {
+        for (int g = 0; g < f; g++)
+        {
+            if (!out->floors[f].shot.active || !out->floors[g].shot.active) continue;
+            if (!SameTextIgnoreCase(out->floors[f].shot.name, out->floors[g].shot.name)) continue;
+            GenLogLine("anti-fotocopia: il tipo di colpo del piano %d ripete quello del piano %d (\"%s\") -> sostituito con quello procedurale",
+                       f + 1, g + 1, out->floors[f].shot.name);
+            out->floors[f].shot = fb->floors[f].shot;
+            break;
+        }
+    }
+}
+
 void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out)
 {
     GenRun fb;
@@ -381,4 +450,9 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
            quello del fallback (vuoto, vedi GenFallbackRun/FallbackBossItem). */
         floor->bossItem = fbFloor->bossItem;
     }
+
+    /* Ultima cosa, quando tutti i piani sono normalizzati: la rete anti-fotocopia
+       (vedi DedupeFloors sopra). Va per forza QUI e non dentro il ciclo: per sapere
+       se un piano ripete un altro bisogna averli tutti. */
+    DedupeFloors(out, &fb);
 }

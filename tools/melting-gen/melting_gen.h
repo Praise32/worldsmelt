@@ -19,11 +19,23 @@
 #define GEN_MAX_OPS 3
 
 /* Penalita' sulle ripetizioni del campionamento (vedi gen_llm.c).
-   La finestra copre circa un piano e mezzo di JSON, cosi' il modello "vede" i nomi
-   che ha appena usato; il valore e' volutamente mite, perche' penalizza anche i
-   token strutturali del JSON (virgolette, parentesi) che pero' la grammatica
-   protegge comunque. */
-#define GEN_PENALTY_LAST_N 256
+   La finestra deve coprire PIU' DI UN PIANO di JSON, altrimenti il modello non
+   viene mai penalizzato per ricopiare il piano precedente -- ed e' esattamente
+   cio' che fa: con 256 token e piani da ~370 (misurati col 7B dopo l'aggiunta dei
+   tipi di colpo, step C: 1851 token per 5 piani) una generazione su alcuni seed
+   produceva CINQUE PIANI FOTOCOPIA, stesso tema, stesso boss, stessi oggetti.
+   Non e' una regressione teorica: si vedeva in una run vera (seed 20260714).
+   2048 copre l'INTERA generazione (1851 token misurati), non "abbastanza": provato
+   prima a 1024 (~tre piani) e non bastava -- il quinto piano ricopiava il PRIMO, che
+   a quel punto era gia' fuori finestra. Resta comunque solo la prima delle due
+   difese: la seconda, che e' quella che GARANTISCE, e' la rete anti-fotocopia in
+   gen_validate.c (DedupeFloors), perche' il campionamento si puo' rendere
+   improbabile, mai impossibile. Il
+   valore della penalita' resta mite: penalizza anche i token STRUTTURALI del JSON
+   (virgolette, parentesi), ma quelli la grammatica li impone comunque -- a quel
+   punto della sequenza sono gli unici token legali, quindi la penalita' non puo'
+   fare danno, puo' solo spostare la scelta dei CONTENUTI. */
+#define GEN_PENALTY_LAST_N 2048
 #define GEN_PENALTY_REPEAT 1.08f
 
 /* n_ctx/n_batch della sessione condivisa (fase 3a-L3, gen_llm.c): fissi per
@@ -56,8 +68,20 @@
    prompt Lua, gen_lua.h): GEN_LUA_PROMPT_BYTE_CEILING li' deriva da
    GEN_LLM_SESSION_N_CTX e da gen_lua.h non si puo' includere llama.h (lo fa
    solo gen_llm.c) solo per due #define. melting_gen.h e' incluso da
-   entrambi, quindi resta l'unico posto senza dipendenze in piu'. */
-#define GEN_LLM_SESSION_N_CTX   4096
+   entrambi, quindi resta l'unico posto senza dipendenze in piu'.
+
+   6144, non piu' 4096 (dopo lo step C): i tipi di colpo hanno fatto crescere il
+   JSON del ~25% (1851 token misurati col 7B contro i ~1450 di prima), e con
+   nPredict=2048 il margine era sceso a ~200 token -- un tema dai nomi lunghi
+   avrebbe troncato il JSON, che la grammatica rende non parsabile, mandando la run
+   sul ripiego procedurale IN SILENZIO. Alzare n_ctx costa poco (la KV cache di
+   questo modello e' ~57 KB/token: 2048 token in piu' = ~117 MiB, su una scheda che
+   ne ha 6144) e paga due volte: da' respiro a nPredict (ora 2560, vedi main.c) e
+   rilassa il budget di byte del prompt Lua, che era arrivato a ~14 token di
+   margine (vedi GEN_LUA_PROMPT_BYTE_CEILING in gen_lua.h -- e' proprio l'"alzare
+   n_ctx" che HANDOFF.md indicava come la via d'uscita quando quel tetto fosse
+   diventato stretto). */
+#define GEN_LLM_SESSION_N_CTX   6144
 #define GEN_LLM_SESSION_N_BATCH GEN_LLM_SESSION_N_CTX
 
 /* Budget di tempo ASSOLUTO (secondi dall'avvio del processo, confrontato con

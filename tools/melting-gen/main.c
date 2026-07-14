@@ -47,7 +47,12 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->modelFallback = "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
     args->ngl = 99;
     args->temp = 0.8f;
-    args->nPredict = 2048;
+    /* 2560 (step C review): il JSON di una run e' cresciuto ~25% con i tipi di
+     * colpo (1851 token misurati col 7B), e a 2048 il margine era di ~200 token --
+     * troppo poco: un troncamento rende il JSON non parsabile e manda la run sul
+     * ripiego procedurale senza che nessuno se ne accorga. Sta comodamente dentro
+     * GEN_LLM_SESSION_N_CTX=6144 insieme al prompt (~1600 token). */
+    args->nPredict = 2560;
     args->promptsDir = "tools/melting-gen/prompts";
     args->grammarPath = "tools/melting-gen/run.gbnf";
     args->luaFirst = GEN_FLOORS;   /* step B2: di default si generano tutti i piani, come sempre */
