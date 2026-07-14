@@ -40,6 +40,7 @@ typedef struct GenLuaStats {
     int optedOut;         /* il modello ha scelto esplicitamente "nessun comportamento speciale" (script sintatticamente valido ma senza nessuna callback) */
     int fellBack;          /* nessuno script valido entro i tentativi: l'oggetto resta sulla sola mini-VM */
     int skippedBudget;      /* mai tentato: budget di tempo della fase Lua esaurito (vedi GEN_LUA_PHASE_BUDGET_SEC) */
+    int alreadyDone;         /* step B2: script gia' presente su disco (ripresa), saltato senza rigenerarlo */
 } GenLuaStats;
 
 /* Genera, quando possibile, lo script Lua di ciascuno dei 20 oggetti di
@@ -52,8 +53,31 @@ typedef struct GenLuaStats {
    (gen_manifest.c) scrive i file .lua e la riga di manifest solo per gli
    oggetti con .lua non vuoto. Scrive 'stats' con il riepilogo per il log
    (vedi make test-llm). */
+/* 'firstFloors' (step B2, generazione pigra dei piani, roadmap punto 2): quanti
+   piani generare, a partire dal primo. GEN_FLOORS = tutti (il comportamento di
+   sempre). 1 = solo il piano che il giocatore giochera' SUBITO, cosi' la run
+   parte dopo 4 script invece di 20 -- gli altri 16 li scrive un secondo processo
+   in sottofondo mentre si gioca (vedi --resume in main.c).
+   'publishPerFloor': se vero, il manifest viene PUBBLICATO (atomicamente) dopo
+   ogni piano completato, invece che solo alla fine. E' cio' che permette al gioco,
+   gia' in partita, di raccogliere gli script di un piano appena questo e' pronto
+   (RunContentRefreshFloorScripts, src/content/run_content.c) invece di aspettare
+   la fine dell'intera fase.
+   Gli oggetti che hanno GIA' uno script (item->lua non vuoto, tipicamente caricato
+   da disco con GenLuaLoadExisting sotto) vengono SALTATI: e' cio' che rende la
+   ripresa idempotente e non fa rigenerare quello che c'e' gia'. */
 void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsDir,
-                           const char *outDir, double deadline, GenLuaStats *stats);
+                           const char *outDir, double deadline, int firstFloors,
+                           bool publishPerFloor, GenLuaStats *stats);
+
+/* Carica in 'run' gli script Lua GIA' scritti su disco da una generazione
+   precedente (<outDir>/scripts/floorN_itemM.lua e floorN_bossItem.lua). Serve alla
+   ripresa in sottofondo (step B2): il secondo processo deve (a) non rigenerare
+   cio' che il primo ha gia' fatto, e (b) non PERDERLO -- se ricostruisse il
+   manifest senza questi script, le righe ".lua=" del piano 1 sparirebbero e il
+   gioco tornerebbe alla mini-VM per oggetti che avevano gia' il loro Lua.
+   Ritorna quanti script ha caricato. */
+int GenLuaLoadExisting(GenRun *run, const char *outDir);
 
 /* Validazione pura, senza alcun modello: carica 'source' in una
    ScriptSandbox NUOVA con lo stesso allowlist/tetto di memoria/budget di

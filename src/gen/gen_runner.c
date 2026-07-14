@@ -18,6 +18,14 @@ bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
     return false;   /* su Windows la generazione resta esterna (.bat), come oggi */
 }
 
+bool GenRunnerStartWithArgs(GenRunner *runner, const char *command, unsigned int seed,
+                            double timeoutSec, const char *progressPath,
+                            const char *const *extraArgs)
+{
+    (void)extraArgs;
+    return GenRunnerStart(runner, command, seed, timeoutSec, progressPath);
+}
+
 void GenRunnerUpdate(GenRunner *runner) { (void)runner; }
 void GenRunnerCancel(GenRunner *runner) { (void)runner; }
 
@@ -60,8 +68,14 @@ static void ReadProgress(GenRunner *runner)
     fclose(f);
 }
 
-bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
-                    double timeoutSec, const char *progressPath)
+/* Massimo di argomenti extra accettati (step B2: il comando di ripresa piu'
+ * lungo ne usa 5). Un array fisso: nessuna allocazione fra fork() e exec(), dove
+ * malloc non e' async-signal-safe. */
+#define GEN_RUNNER_MAX_ARGS 16
+
+bool GenRunnerStartWithArgs(GenRunner *runner, const char *command, unsigned int seed,
+                            double timeoutSec, const char *progressPath,
+                            const char *const *extraArgs)
 {
     memset(runner, 0, sizeof(*runner));
     snprintf(runner->progressPath, sizeof(runner->progressPath), "%s", progressPath);
@@ -69,6 +83,20 @@ bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
 
     char seedText[32];
     snprintf(seedText, sizeof(seedText), "%u", seed);
+
+    /* argv costruita PRIMA della fork (vedi il commento su GEN_RUNNER_MAX_ARGS):
+       dopo la fork, nel figlio, si puo' solo exec. */
+    char *argv[GEN_RUNNER_MAX_ARGS];
+    int argc = 0;
+    argv[argc++] = (char *)command;
+    argv[argc++] = (char *)"--seed";
+    argv[argc++] = seedText;
+    if (extraArgs)
+    {
+        for (int i = 0; extraArgs[i] && argc < GEN_RUNNER_MAX_ARGS - 1; i++) argv[argc++] = (char *)extraArgs[i];
+    }
+    argv[argc] = NULL;
+
     pid_t pid = fork();
     if (pid < 0)
     {
@@ -77,7 +105,7 @@ bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
     }
     if (pid == 0)
     {
-        execl(command, command, "--seed", seedText, (char *)NULL);
+        execv(command, argv);
         _exit(127);
     }
     runner->pid = (long)pid;
@@ -87,6 +115,12 @@ bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
     snprintf(runner->progress.phase, sizeof(runner->progress.phase), "avvio");
     snprintf(runner->progress.message, sizeof(runner->progress.message), "avvio del generatore");
     return true;
+}
+
+bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
+                    double timeoutSec, const char *progressPath)
+{
+    return GenRunnerStartWithArgs(runner, command, seed, timeoutSec, progressPath, NULL);
 }
 
 void GenRunnerUpdate(GenRunner *runner)

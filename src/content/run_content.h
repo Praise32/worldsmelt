@@ -14,4 +14,22 @@ void RunContentLoad(RunContent *content, unsigned int seed);
  */
 Rarity RarityFromText(const char *text);
 
+/* Step B2 (generazione pigra dei piani, roadmap punto 2): ricarica dal manifest
+ * SOLO gli script Lua del piano dato (indice 0..FLOOR_COUNT-1), lasciando intatto
+ * tutto il resto del contenuto gia' caricato.
+ *
+ * Serve perche' con la generazione pigra il gioco parte quando e' pronto il solo
+ * piano 1, e un secondo processo melting-gen scrive gli script dei piani 2-5 in
+ * sottofondo mentre si gioca, ripubblicando il manifest dopo ogni piano. Il gioco
+ * chiama questa funzione quando ENTRA in un piano (WorldStartFloor): se nel
+ * frattempo gli script di quel piano sono arrivati, li raccoglie; se non sono
+ * ancora pronti, non cambia nulla e gli oggetti di quel piano restano sulla
+ * mini-VM, esattamente come degradano oggi.
+ *
+ * NON e' RunContentLoad: quella ricostruirebbe l'intero RunContent (temi, oggetti,
+ * colori) ripartendo dal contenuto procedurale e da un seed -- a meta' partita
+ * sarebbe un disastro. Questa tocca UNA cosa sola: la sorgente Lua degli oggetti
+ * di quel piano. Nessun RNG, nessuna riallocazione, nessun altro campo. */
+void RunContentRefreshFloorScripts(RunContent *content, int floorIndex);
+
 #endif

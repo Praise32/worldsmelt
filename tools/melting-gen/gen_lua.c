@@ -606,11 +606,46 @@ bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
    rimandato indietro) o il prossimo oggetto deve sempre ripartire dallo
    stesso identico prefisso, mai da quello allungato dal tentativo appena
    fatto. */
+/* Step B2: gli script gia' presenti su disco da una generazione precedente. Il
+   percorso e' lo STESSO che scrive gen_manifest.c (WriteItemLua): se cambia li',
+   va cambiato anche qui -- sono le due meta' della stessa convenzione. */
+int GenLuaLoadExisting(GenRun *run, const char *outDir)
+{
+    int loaded = 0;
+    if (!run || !outDir) return 0;
+
+    for (int f = 0; f < GEN_FLOORS; f++)
+    {
+        for (int i = 0; i <= GEN_ITEMS; i++)   /* <= : l'ultimo giro e' il bossItem */
+        {
+            GenItem *item = (i < GEN_ITEMS) ? &run->floors[f].items[i] : &run->floors[f].bossItem;
+            char path[512];
+            if (i < GEN_ITEMS) snprintf(path, sizeof(path), "%s/scripts/floor%d_item%d.lua", outDir, f + 1, i + 1);
+            else snprintf(path, sizeof(path), "%s/scripts/floor%d_bossItem.lua", outDir, f + 1);
+
+            char *text = GenReadFile(path);
+            if (!text) continue;
+            snprintf(item->lua, sizeof(item->lua), "%s", text);
+            free(text);
+            loaded++;
+        }
+    }
+    return loaded;
+}
+
 static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, const char *outDir,
                                    double deadline, int nPrefix, unsigned int runSeed, const char *floorTheme,
                                    GenItem *item, bool isStatUp, int itemNum, int totalItems, GenLuaStats *stats)
 {
-    item->lua[0] = '\0';
+    /* Step B2: script gia' presente (caricato da disco da GenLuaLoadExisting in
+       una ripresa) -> non si rigenera. Non e' solo un'ottimizzazione: e' cio' che
+       rende la ripresa IDEMPOTENTE, e che impedisce a un secondo processo di
+       sovrascrivere con un tentativo peggiore uno script gia' validato. */
+    if (item->lua[0] != '\0')
+    {
+        stats->alreadyDone++;
+        return;
+    }
 
     if (GenNowSeconds() >= deadline)
     {
@@ -698,12 +733,16 @@ static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, c
 }
 
 void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsDir,
-                           const char *outDir, double deadline, GenLuaStats *stats)
+                           const char *outDir, double deadline, int firstFloors,
+                           bool publishPerFloor, GenLuaStats *stats)
 {
     memset(stats, 0, sizeof(*stats));
     if (!sess) return;
+    if (firstFloors < 0) firstFloors = 0;
+    if (firstFloors > GEN_FLOORS) firstFloors = GEN_FLOORS;
 
-    const int totalItems = GEN_FLOORS*(GEN_ITEMS + 1);   /* +1: il bossItem stat-up di ogni piano (fase 3) */
+    const int totalItems = firstFloors*(GEN_ITEMS + 1);   /* +1: il bossItem stat-up di ogni piano (fase 3) */
+    if (totalItems == 0) return;
 
     /* Fase 3b step B1: il prefisso ChatML condiviso (system+cheat-sheet,
        ~3700 token, quasi il n_ctx=4096 della sessione) si decodifica QUI,
@@ -728,7 +767,7 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
     free(prefix);
 
     int itemNum = 0;
-    for (int f = 0; f < GEN_FLOORS; f++)
+    for (int f = 0; f < firstFloors; f++)
     {
         GenFloor *floor = &run->floors[f];
         for (int i = 0; i < GEN_ITEMS; i++)
@@ -740,7 +779,27 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
         itemNum++;
         GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, nPrefix, run->seed, floor->theme,
                                &floor->bossItem, true, itemNum, totalItems, stats);
+
+        /* Step B2: il piano e' completo -> lo si PUBBLICA subito (manifest +
+           file .lua, scrittura atomica tmp+rename come sempre) invece di
+           aspettare la fine di tutti e cinque. Il gioco, che sta gia' girando,
+           raccoglie gli script di questo piano appena ci entra
+           (RunContentRefreshFloorScripts). L'atlas.path esistente viene
+           PRESERVATO: melting-sprites potrebbe averlo gia' fatto puntare al PNG,
+           e ricostruirlo alla cieca riporterebbe la run all'atlas BMP di riserva
+           (vedi GenWriteRunFilesResume in gen_manifest.c). */
+        if (publishPerFloor)
+        {
+            if (GenWriteRunFilesResume(run, outDir) == 0)
+            {
+                GenLogLine("lua: piano %d pubblicato (manifest aggiornato, il gioco puo' raccoglierlo)", f + 1);
+            }
+            else
+            {
+                GenLogLine("lua: piano %d generato ma la pubblicazione del manifest e' fallita", f + 1);
+            }
+        }
     }
-    GenLogLine("lua: riepilogo run - %d/%d primo tentativo, %d dopo retry, %d nessun comportamento, %d ripiegati, %d saltati per budget",
-               stats->firstTry, totalItems, stats->afterRetry, stats->optedOut, stats->fellBack, stats->skippedBudget);
+    GenLogLine("lua: riepilogo - %d/%d primo tentativo, %d dopo retry, %d nessun comportamento, %d ripiegati, %d saltati per budget, %d gia' fatti",
+               stats->firstTry, totalItems, stats->afterRetry, stats->optedOut, stats->fellBack, stats->skippedBudget, stats->alreadyDone);
 }

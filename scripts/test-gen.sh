@@ -142,6 +142,40 @@ done
 # prova che il formato su disco regge il round-trip fino al gioco (il
 # --manifest-test qui sotto carica proprio questo manifest).
 
+# Step B2 (generazione pigra dei piani): il processo di RIPRESA gira in sottofondo
+# MENTRE si gioca e riscrive il manifest per aggiungere gli script dei piani 2-5.
+# Ha due modi non ovvi di rovinare la run, ed entrambi sarebbero silenziosi:
+#   1. rimettere atlas.path al BMP di riserva, buttando via il PNG che
+#      melting-sprites aveva appena prodotto (il gioco tornerebbe alla grafica
+#      procedurale pur avendo gli sprite veri sul disco);
+#   2. riscrivere il manifest SENZA le righe .lua= degli script gia' generati dal
+#      primo processo (gli oggetti del piano 1 tornerebbero alla mini-VM).
+# Qui si simulano entrambe le situazioni (nessun modello coinvolto: la ripresa
+# senza modello non genera nulla, ma fa comunque tutta la riscrittura -- che e'
+# esattamente la parte che questi due controlli devono proteggere).
+echo "-- step B2: la ripresa preserva l'atlas degli sprite e gli script gia' scritti --"
+"$GEN" --fallback --seed 4242 --out "$TMP/b2" >/dev/null
+sed -i 's|^atlas\.path=.*|atlas.path=generated/current_atlas.png|' "$TMP/b2/current_run.txt"
+mkdir -p "$TMP/b2/scripts"
+printf 'function on_fire(x, y, dx, dy)\n  spawn_shot(x, y, dx, dy, 300, 3, 4, 0)\nend\n' > "$TMP/b2/scripts/floor1_item1.lua"
+
+"$GEN" --from-json "$TMP/b2/current_run.json" --resume --out "$TMP/b2" >/dev/null
+
+grep -q '^atlas.path=generated/current_atlas.png$' "$TMP/b2/current_run.txt" || {
+  echo "FALLITO: la ripresa ha perso l'atlas PNG degli sprite (atlas.path riscritto sul BMP di riserva)"; exit 1; }
+grep -q '^floor1.item1.lua=generated/scripts/floor1_item1.lua$' "$TMP/b2/current_run.txt" || {
+  echo "FALLITO: la ripresa ha perso la riga .lua= di uno script gia' generato"; exit 1; }
+grep -q '^floor5.item3.script=' "$TMP/b2/current_run.txt" || {
+  echo "FALLITO: la ripresa ha prodotto un manifest incompleto"; exit 1; }
+# La ripresa NON deve toccare i contenuti: stesso tema del piano 1 di prima.
+themeBefore=$(grep '^floor1.theme=' "$TMP/a/current_run.txt")
+"$GEN" --fallback --seed 12345 --out "$TMP/b2b" >/dev/null
+"$GEN" --from-json "$TMP/b2b/current_run.json" --resume --out "$TMP/b2b" >/dev/null
+themeAfter=$(grep '^floor1.theme=' "$TMP/b2b/current_run.txt")
+if [ "$themeBefore" != "$themeAfter" ]; then
+  echo "FALLITO: la ripresa ha cambiato i contenuti della run ($themeBefore -> $themeAfter)"; exit 1
+fi
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

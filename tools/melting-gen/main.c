@@ -22,6 +22,13 @@ typedef struct GenArgs {
     float temp;
     int nPredict;
     const char *promptsDir;
+    /* Step B2 (generazione pigra dei piani): quanti piani generare in Lua a
+       partire dal primo (GEN_FLOORS = tutti, il comportamento di sempre; 1 = solo
+       il piano che si gioca subito). E 'resume': riprendi una run gia' scritta su
+       disco, generando SOLO gli script che mancano e pubblicando il manifest dopo
+       ogni piano -- e' il processo che gira in sottofondo mentre si gioca. */
+    int luaFirst;
+    int resume;
     const char *grammarPath;
 } GenArgs;
 
@@ -43,6 +50,8 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->nPredict = 2048;
     args->promptsDir = "tools/melting-gen/prompts";
     args->grammarPath = "tools/melting-gen/run.gbnf";
+    args->luaFirst = GEN_FLOORS;   /* step B2: di default si generano tutti i piani, come sempre */
+    args->resume = 0;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -63,6 +72,8 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--n-predict") == 0 && i + 1 < argc) args->nPredict = atoi(argv[++i]);
         else if (strcmp(argv[i], "--prompts") == 0 && i + 1 < argc) args->promptsDir = argv[++i];
         else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) args->grammarPath = argv[++i];
+        else if (strcmp(argv[i], "--lua-first") == 0 && i + 1 < argc) args->luaFirst = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--resume") == 0) args->resume = 1;
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -124,7 +135,13 @@ static int WriteOutputs(const GenRun *run, const GenArgs *args)
      * progresso fino al 98% (vedi GenLuaGenerateForRun in gen_lua.c), la
      * barra deve restare monotona crescente fino a "fine" a 100. */
     GenProgressWrite(args->outDir, "scrivo", 99, "scrivo manifest e atlas");
-    if (GenWriteAtlasBmp(run, args->outDir) != 0 || GenWriteRunFiles(run, args->outDir) != 0)
+    /* Step B2: una RIPRESA non tocca l'atlas (esiste gia', ed e' magari il PNG
+     * degli sprite) e preserva la riga atlas.path del manifest. Vedi
+     * GenWriteRunFilesResume in gen_manifest.c per il perche' -- e' il bug che
+     * riporterebbe la run all'atlas di riserva pur avendo gli sprite sul disco. */
+    int rc = args->resume ? GenWriteRunFilesResume(run, args->outDir)
+                          : ((GenWriteAtlasBmp(run, args->outDir) != 0) ? -1 : GenWriteRunFiles(run, args->outDir));
+    if (rc != 0)
     {
         GenProgressWrite(args->outDir, "errore", 100, "scrittura file fallita");
         return 3;
@@ -138,6 +155,28 @@ static int WriteOutputs(const GenRun *run, const GenArgs *args)
     GenProgressWrite(args->outDir, "fine", 100, "manifest pronto");
     GenLogLine("source=%s seed=%u out=%s", run->source, run->seed, args->outDir);
     return 0;
+}
+
+/* Apertura del modello (principale, poi il ripiego piu' piccolo, poi niente):
+ * estratta da main perche' ora la usano DUE percorsi -- la generazione completa e
+ * la ripresa in sottofondo dello step B2. Ritorna NULL se non c'e' alcun modello
+ * (caso legittimo: si usa il contenuto procedurale). */
+static GenLlmSession *OpenModelSession(const GenArgs *args, const char **modelPathOut)
+{
+    const char *modelPath = NULL;
+    if (GenFileExists(args->model)) modelPath = args->model;
+    else if (GenFileExists(args->modelFallback))
+    {
+        modelPath = args->modelFallback;
+        GenLogLine("modello principale assente, ripiego su %s", modelPath);
+    }
+    else
+    {
+        GenLogLine("nessun modello in models/: uso il fallback deterministico");
+        return NULL;
+    }
+    if (modelPathOut) *modelPathOut = modelPath;
+    return GenLlmSessionOpen(modelPath, args->ngl, args->outDir);
 }
 
 int main(int argc, char **argv)
@@ -163,11 +202,55 @@ int main(int argc, char **argv)
             GenProgressWrite(args.outDir, "errore", 100, "JSON non parsabile");
             return 4;
         }
+        /* Step B2: in ripresa il seed NON e' una scelta libera -- deve essere
+         * ESATTAMENTE quello della run che si sta giocando, perche' rarita', kind
+         * e bossItem sono derivati dal seed (GenNormalizeRun li prende dal ripiego
+         * procedurale, che e' deterministico sul seed). Un seed diverso
+         * ricostruirebbe un contenuto DIVERSO da quello a schermo. Il JSON che il
+         * primo processo ha scritto porta il proprio seed con se': si usa quello,
+         * cosi' la cosa e' vera per costruzione e non dipende da chi lancia il
+         * comando. */
+        cJSON *seedNode = cJSON_GetObjectItemCaseSensitive(root, "seed");
+        if (args.resume && cJSON_IsNumber(seedNode))
+        {
+            unsigned int jsonSeed = (unsigned int)seedNode->valuedouble;
+            if (jsonSeed != args.seed)
+            {
+                GenLogLine("resume: uso il seed del JSON (%u) invece di quello passato (%u)", jsonSeed, args.seed);
+                args.seed = jsonSeed;
+            }
+        }
+
         GenRun run;
         GenProgressWrite(args.outDir, "valido", 60, "valido e normalizzo il JSON");
         GenNormalizeRun(root, args.seed, &run);
         cJSON_Delete(root);
         snprintf(run.source, sizeof(run.source), "from-json");
+
+        /* Step B2, il processo di RIPRESA (quello che gira in sottofondo mentre
+         * si gioca): la run e' gia' stata inventata dal primo processo e sta su
+         * disco come JSON -- qui non si tocca nulla di creativo, si scrivono solo
+         * gli script Lua che MANCANO. GenLuaLoadExisting carica quelli gia' fatti
+         * (il piano 1, di norma) cosi' non vengono ne' rigenerati ne' -- errore
+         * ben peggiore -- persi dal manifest che stiamo per riscrivere. */
+        if (args.resume)
+        {
+            int existing = GenLuaLoadExisting(&run, args.outDir);
+            GenLogLine("resume: %d script Lua gia' presenti su disco, genero i mancanti", existing);
+
+            const char *modelPath = NULL;
+            GenLlmSession *sess = OpenModelSession(&args, &modelPath);
+            if (sess)
+            {
+                GenLuaStats luaStats;
+                double deadline = processStart + GEN_LUA_RESUME_BUDGET_SEC;
+                GenLuaGenerateForRun(sess, &run, args.promptsDir, args.outDir, deadline,
+                                      GEN_FLOORS, true /* pubblica dopo OGNI piano */, &luaStats);
+                GenLlmSessionClose(sess);
+                snprintf(run.source, sizeof(run.source), "resume");
+            }
+            else GenLogLine("resume: nessun modello disponibile, niente da fare");
+        }
         return WriteOutputs(&run, &args);
     }
 
@@ -176,13 +259,6 @@ int main(int argc, char **argv)
     if (!args.fallback)
     {
         const char *modelPath = NULL;
-        if (GenFileExists(args.model)) modelPath = args.model;
-        else if (GenFileExists(args.modelFallback))
-        {
-            modelPath = args.modelFallback;
-            GenLogLine("modello principale assente, ripiego su %s", modelPath);
-        }
-        else GenLogLine("nessun modello in models/: uso il fallback deterministico");
 
         /* Sessione condivisa (fase 3a-L3): il modello si carica UNA VOLTA
          * sola per l'intero processo e serve sia i tentativi JSON sotto sia,
@@ -196,9 +272,8 @@ int main(int argc, char **argv)
          * (300s assoluti dall'avvio del processo, vedi melting_gen.h) sia
          * per la scrittura finale se anche il secondo tentativo fallisce. */
         static char json[65536];
-        if (modelPath)
         {
-            GenLlmSession *sess = GenLlmSessionOpen(modelPath, args.ngl, args.outDir);
+            GenLlmSession *sess = OpenModelSession(&args, &modelPath);
             if (sess)
             {
                 char *grammar = GenReadFile(args.grammarPath);
@@ -243,9 +318,17 @@ int main(int argc, char **argv)
                 {
                     double luaDeadline = processStart + GEN_LUA_PHASE_BUDGET_SEC;
                     GenLuaStats luaStats;
-                    GenLuaGenerateForRun(sess, &run, args.promptsDir, args.outDir, luaDeadline, &luaStats);
-                    GenLogLine("lua: %d/15 primo tentativo, %d dopo retry, %d senza comportamento, %d ripiegati su mini-VM, %d saltati per budget",
-                               luaStats.firstTry, luaStats.afterRetry, luaStats.optedOut, luaStats.fellBack, luaStats.skippedBudget);
+                    /* Step B2: 'args.luaFirst' piani soltanto (di default tutti e
+                     * cinque; il gioco passa 1 per far partire la run prima e
+                     * lasciare i piani 2-5 al processo di ripresa in sottofondo).
+                     * Nessuna pubblicazione per-piano qui: questo processo blocca
+                     * ancora la partenza della run, il manifest lo scrive una volta
+                     * sola alla fine (WriteOutputs). */
+                    GenLuaGenerateForRun(sess, &run, args.promptsDir, args.outDir, luaDeadline,
+                                          args.luaFirst, false, &luaStats);
+                    GenLogLine("lua: %d primo tentativo, %d dopo retry, %d senza comportamento, %d ripiegati su mini-VM, %d saltati per budget (piani generati: %d/%d)",
+                               luaStats.firstTry, luaStats.afterRetry, luaStats.optedOut, luaStats.fellBack, luaStats.skippedBudget,
+                               args.luaFirst, GEN_FLOORS);
                 }
                 GenLlmSessionClose(sess);
             }

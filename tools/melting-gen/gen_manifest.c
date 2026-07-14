@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Vedi il commento su "shot" in RunToJson piu' sotto: serve a tenere il JSON del
@@ -107,7 +108,47 @@ static void WriteItemLua(const GenItem *item, const char *outDir, int floorNum, 
     GenPublishFile(lf, tmpPath, finalPath);
 }
 
-static int WriteManifest(const GenRun *run, const char *outDir)
+/* Step B2: l'atlas.path gia' scritto nel manifest esistente, se c'e'.
+ * ESISTE PER UN MOTIVO PRECISO: melting-sprites, quando il passo sprite va a
+ * buon fine, RISCRIVE quella riga facendola puntare al PNG generato
+ * (SpritesUpdateManifestAtlasPath). Una ripresa in sottofondo (--resume, che
+ * riscrive il manifest per aggiungere le righe .lua dei piani 2-5 mentre si
+ * gioca) che rimettesse il letterale "generated/current_atlas.bmp" butterebbe via
+ * quel puntamento: il gioco, al prossimo caricamento, tornerebbe all'atlas
+ * procedurale di riserva pur avendo gli sprite veri sul disco. Nemmeno
+ * PreferPngAtlasIfFresh (run_content.c) salverebbe la situazione, perche' quel
+ * controllo confronta le DATE (manifest appena riscritto = piu' recente del PNG
+ * -> il PNG viene ignorato). Preservare la riga e' l'unico modo corretto.
+ * Ritorna false se non c'e' nessun manifest o nessuna riga atlas.path: il
+ * chiamante usa allora il letterale di sempre. */
+static bool ReadExistingAtlasPath(const char *outDir, char *out, size_t outSize)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/current_run.txt", outDir);
+    char *text = GenReadFile(path);
+    if (!text) return false;
+
+    const char *key = "atlas.path=";
+    const char *start = strstr(text, key);
+    if (!start) { free(text); return false; }
+    start += strlen(key);
+
+    size_t i = 0;
+    while (start[i] && start[i] != '\n' && start[i] != '\r' && i < outSize - 1)
+    {
+        out[i] = start[i];
+        i++;
+    }
+    out[i] = '\0';
+    free(text);
+    return i > 0;
+}
+
+/* 'preserveAtlasPath' (step B2): vedi ReadExistingAtlasPath sopra. Falso = il
+ * comportamento di sempre (atlas.path = il letterale del BMP), che e' quello
+ * giusto per una generazione NUOVA (l'atlas BMP viene riscritto insieme al
+ * manifest, e un eventuale PNG di una run precedente e' ormai stantio). */
+static int WriteManifest(const GenRun *run, const char *outDir, bool preserveAtlasPath)
 {
     /* Scrittura su file temporaneo + rename atomico alla fine (vedi
        GenPublishFile in gen_util.c): se il gioco manda SIGTERM per timeout o
@@ -128,7 +169,12 @@ static int WriteManifest(const GenRun *run, const char *outDir)
        parita' di formato col generatore Node sia il test di determinismo
        di scripts/test-gen.sh, che confronta due run con lo stesso seed
        scritte in --out diversi e si aspetta manifest identici byte-a-byte. */
-    fprintf(f, "atlas.path=generated/current_atlas.bmp\n");
+    char atlasLine[256];
+    if (!preserveAtlasPath || !ReadExistingAtlasPath(outDir, atlasLine, sizeof(atlasLine)))
+    {
+        snprintf(atlasLine, sizeof(atlasLine), "generated/current_atlas.bmp");
+    }
+    fprintf(f, "atlas.path=%s\n", atlasLine);
     for (int fl = 0; fl < GEN_FLOORS; fl++)
     {
         const GenFloor *floor = &run->floors[fl];
@@ -322,10 +368,24 @@ int GenWriteLlmJson(const GenRun *run, const char *path)
     return 0;
 }
 
+/* Step B2: pubblicazione di una RIPRESA (manifest + file .lua soltanto). Non
+ * tocca l'atlas BMP (esiste gia' su disco dalla generazione che ha aperto la run,
+ * riscriverlo sarebbe lavoro sprecato e ne cambierebbe la data) e PRESERVA
+ * atlas.path (vedi ReadExistingAtlasPath). Chiamata dopo OGNI piano completato,
+ * mentre il giocatore sta gia' giocando: e' quindi il percorso piu' delicato del
+ * file, ed e' anche il motivo per cui ogni scrittura qui dentro passa da
+ * tmp+rename (GenPublishFile) -- il gioco puo' leggere il manifest in qualunque
+ * momento e non deve mai vederne uno a meta'. */
+int GenWriteRunFilesResume(const GenRun *run, const char *outDir)
+{
+    if (GenEnsureDir(outDir) != 0) return -1;
+    return WriteManifest(run, outDir, true);
+}
+
 int GenWriteRunFiles(const GenRun *run, const char *outDir)
 {
     if (GenEnsureDir(outDir) != 0) return -1;
-    if (WriteManifest(run, outDir) != 0) return -1;
+    if (WriteManifest(run, outDir, false) != 0) return -1;
 
     char atlasPath[300];
     snprintf(atlasPath, sizeof(atlasPath), "%s/current_atlas.bmp", outDir);

@@ -321,6 +321,43 @@ static void PreferPngAtlasIfFresh(RunContent *content)
         snprintf(content->atlasPath, sizeof(content->atlasPath), "%s", PNG_PATH);
 }
 
+/* Vedi run_content.h per il perche' esiste (step B2). Rilegge dal manifest le sole
+   righe "floorN.itemM.lua=" / "floorN.bossItem.lua=" del piano dato e ricarica i
+   file che referenziano. Un file mancante o una riga assente NON azzerano lo
+   script gia' in memoria: gli script arrivano nel tempo, e questa funzione puo'
+   girare mentre il generatore sta ancora scrivendo -- il caso "non c'e' ancora"
+   deve essere un no-op, mai una regressione a mini-VM di qualcosa che funzionava. */
+void RunContentRefreshFloorScripts(RunContent *content, int floorIndex)
+{
+    if (!content || floorIndex < 0 || floorIndex >= FLOOR_COUNT) return;
+
+    char *text = LoadFileText("generated/current_run.txt");
+    if (!text) return;
+
+    FloorContent *floor = &content->floors[floorIndex];
+    int n = floorIndex + 1;
+    char key[80];
+    char value[SCRIPT_TEXT_LEN];
+
+    for (int i = 0; i <= 3; i++)   /* <= 3: l'ultimo giro e' il bossItem */
+    {
+        Item *item = (i < 3) ? &floor->items[i] : &floor->bossItem;
+        if (i < 3) snprintf(key, sizeof(key), "floor%d.item%d.lua=", n, i + 1);
+        else snprintf(key, sizeof(key), "floor%d.bossItem.lua=", n);
+
+        value[0] = '\0';
+        ReadManifestValue(text, key, value, sizeof(value));
+        if (!value[0]) continue;
+
+        char *luaText = LoadFileText(value);
+        if (!luaText) continue;
+        snprintf(item->luaSource, sizeof(item->luaSource), "%s", luaText);
+        UnloadFileText(luaText);
+    }
+
+    UnloadFileText(text);
+}
+
 void RunContentLoad(RunContent *content, unsigned int seed)
 {
     GenerateFallbackContent(content, seed);

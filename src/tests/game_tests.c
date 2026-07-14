@@ -530,6 +530,31 @@ bool GenRunnerSelfTest(void)
     GenRunnerCancel(&runner);
     if (runner.state != GEN_RUNNER_FAILED) return false;
 
+    /* Step B2: gli argomenti IN PIU' devono arrivare davvero al figlio. Se una
+       argv malcostruita li perdesse, il processo di ripresa in sottofondo si
+       comporterebbe da generatore NORMALE: rigenererebbe una run diversa da quella
+       che il giocatore sta giocando, sovrascrivendo la sua -- in silenzio, senza
+       che nessun altro test se ne accorga. Il finto generatore in modalita' "args"
+       si limita a scrivere la propria riga di comando su file. */
+    remove("generated/fake-gen-args.txt");
+    setenv("FAKE_GEN_MODE", "args", 1);
+    static const char *kExtra[] = { "--from-json", "generated/current_run.json", "--resume", NULL };
+    if (!GenRunnerStartWithArgs(&runner, cmd, 4242, 10.0, "generated/gen_progress.txt", kExtra)) return false;
+    if (!GenRunnerWait(&runner, 10.0) || runner.state != GEN_RUNNER_SUCCEEDED) return false;
+
+    char *args = LoadFileText("generated/fake-gen-args.txt");
+    if (!args) return false;
+    bool sawSeed = strstr(args, "--seed 4242") != NULL;
+    bool sawJson = strstr(args, "--from-json generated/current_run.json") != NULL;
+    bool sawResume = strstr(args, "--resume") != NULL;
+    UnloadFileText(args);
+    if (!sawSeed || !sawJson || !sawResume)
+    {
+        fprintf(stderr, "GenRunnerSelfTest: argomenti extra non arrivati al figlio (seed=%d json=%d resume=%d)\n",
+                sawSeed, sawJson, sawResume);
+        return false;
+    }
+
     return true;
 }
 #else

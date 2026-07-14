@@ -227,8 +227,17 @@ int GenRarityIndexFromText(const char *text);
 /* gen_fallback.c */
 void GenFallbackRun(GenRun *run, unsigned int seed);
 
+/* Budget di tempo della fase Lua in RIPRESA (step B2, processo in sottofondo
+ * mentre si gioca): piu' largo di GEN_LUA_PHASE_BUDGET_SEC perche' qui nessuno
+ * sta aspettando davanti a una barra di caricamento -- il giocatore sta gia'
+ * giocando, e il costo di arrendersi troppo presto e' un piano che resta senza
+ * script Lua (mini-VM) per il resto della run. Resta comunque un tetto: il
+ * processo non deve vivere per sempre se il modello si impianta. */
+#define GEN_LUA_RESUME_BUDGET_SEC 600.0
+
 /* gen_manifest.c */
 int GenWriteRunFiles(const GenRun *run, const char *outDir);
+int GenWriteRunFilesResume(const GenRun *run, const char *outDir);   /* step B2: vedi il commento nel .c */
 int GenWriteLlmJson(const GenRun *run, const char *path);
 
 /* gen_atlas.c */

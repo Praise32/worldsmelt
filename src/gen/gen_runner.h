@@ -25,6 +25,16 @@ typedef struct GenRunner {
 
 bool GenRunnerStart(GenRunner *runner, const char *command, unsigned int seed,
                     double timeoutSec, const char *progressPath);
+
+/* Come GenRunnerStart, ma con argomenti IN PIU' dopo "--seed <seed>" (array
+ * terminato da NULL; NULL = nessuno, cioe' esattamente GenRunnerStart). Serve
+ * allo step B2: il processo di RIPRESA in sottofondo va avviato con
+ * "--from-json ... --resume --lua-first ...", non con le sole opzioni di
+ * default. Resta qui, e non in app.c, perche' e' questo modulo a possedere
+ * fork/exec: app.c non deve costruire una argv da solo. */
+bool GenRunnerStartWithArgs(GenRunner *runner, const char *command, unsigned int seed,
+                            double timeoutSec, const char *progressPath,
+                            const char *const *extraArgs);
 void GenRunnerUpdate(GenRunner *runner);
 void GenRunnerCancel(GenRunner *runner);
 

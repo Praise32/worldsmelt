@@ -1,5 +1,7 @@
 #include "world/world.h"
 
+#include "content/run_content.h"
+
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
@@ -209,6 +211,16 @@ void WorldSpawnRoomContents(Game *game)
 void WorldStartFloor(Game *game, int floor)
 {
     game->floor = floor;
+    /* Step B2 (generazione pigra dei piani): con la generazione pigra il gioco
+       parte quando e' pronto il solo piano 1, e un secondo processo melting-gen
+       scrive gli script Lua dei piani 2-5 in sottofondo mentre si gioca,
+       ripubblicando il manifest dopo ogni piano. Entrare in un piano e' il momento
+       ESATTO in cui vale la pena riguardare il manifest: gli script di questo
+       piano potrebbero essere arrivati nel frattempo. Se non ci sono ancora, non
+       cambia nulla (gli oggetti restano sulla mini-VM, la degradazione di sempre).
+       Nessun costo quando la generazione pigra non c'e': e' una lettura di un file
+       di testo, una volta per piano. */
+    RunContentRefreshFloorScripts(&game->content, floor - 1);
     game->theme = game->content.floors[floor - 1].theme;
     WorldGenerateFloorMap(game);
     game->player.pos = (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };

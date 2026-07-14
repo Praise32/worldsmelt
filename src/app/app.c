@@ -34,6 +34,21 @@ typedef struct AppGen {
        mappa il passo testo su 0-50% o 0-100% a seconda di questo flag)
        salterebbe in modo visibile. */
     bool spritesPlannedThisRun;
+    /* Step B2 (generazione pigra dei piani, roadmap punto 2): il passo testo
+       genera gli script Lua del SOLO piano 1 (--lua-first 1), cosi' la run parte
+       dopo 4 script invece di 20. I 16 restanti li scrive QUESTO processo, avviato
+       nel momento in cui la partita comincia e lasciato correre in sottofondo
+       mentre si gioca (--resume: rilegge la run dal JSON gia' su disco, genera solo
+       cio' che manca, e ripubblica il manifest dopo ogni piano). Il gioco raccoglie
+       gli script di un piano quando ci entra (WorldStartFloor ->
+       RunContentRefreshFloorScripts): si esplora il piano 1 per minuti, il tempo
+       abbondante perche' i piani successivi siano pronti prima di arrivarci.
+       Non gira MAI insieme a melting-sprites (i due modelli non stanno insieme
+       nella VRAM della scheda di riferimento, vedi il commento nel Makefile): parte
+       solo DOPO che il passo sprite e' finito, cioe' quando si entra in gioco. */
+    GenRunner lazyRunner;
+    bool lazyRunning;
+    unsigned int lastGenSeed;   /* il seed della generazione in corso: la ripresa DEVE usare lo stesso, o ricostruirebbe un'altra run */
 } AppGen;
 
 /* Stessi percorsi di default dei modelli SD di tools/melting-sprites/main.c
@@ -61,11 +76,52 @@ static unsigned int NextGenSeed(unsigned int salt)
     return (unsigned int)time(NULL) ^ (unsigned int)clock() ^ (callCount * 2654435761u) ^ salt;
 }
 
+/* Step B2: il processo di ripresa in sottofondo. Va fermato PRIMA di avviare una
+ * generazione nuova (due melting-gen insieme = due modelli da ~4.5 GiB nella
+ * VRAM della scheda di riferimento: il secondo fallirebbe, o peggio farebbero
+ * thrashing entrambi) e prima di uscire dal gioco. No-op se non sta girando. */
+static void AppStopLazyGeneration(AppGen *gen)
+{
+    if (!gen->lazyRunning) return;
+    GenRunnerCancel(&gen->lazyRunner);
+    gen->lazyRunning = false;
+}
+
+/* Avvia la ripresa dei piani 2-5 in sottofondo. Chiamata quando la partita
+ * comincia davvero (mai prima: vedi il commento su AppGen.lazyRunner). Silenziosa
+ * su ogni fallimento -- e' un miglioramento opportunistico, non un requisito: se
+ * non parte, i piani 2-5 restano sulla mini-VM, che e' esattamente la
+ * degradazione gia' prevista quando il modello non c'e'. */
+static void AppStartLazyGeneration(AppGen *gen)
+{
+    if (!gen->enabled || gen->lazyRunning) return;
+    /* Serve la run gia' scritta su disco: e' da li' che la ripresa la rilegge,
+       invece di inventarne un'altra (stesso seed + stesso JSON = stessa run). */
+    if (!FileExists("generated/current_run.json")) return;
+
+    static const char *kArgs[] = {
+        "--from-json", "generated/current_run.json",
+        "--resume",
+        "--out", "generated",
+        NULL
+    };
+    /* Progresso su un file DIVERSO da quello della generazione bloccante: la barra
+       dell'overlay legge generated/gen_progress.txt, e questo processo non deve
+       riscriverla mentre si gioca. */
+    if (GenRunnerStartWithArgs(&gen->lazyRunner, gen->command, gen->lastGenSeed, 900.0,
+                               "generated/gen_progress_lazy.txt", kArgs))
+    {
+        gen->lazyRunning = true;
+    }
+}
+
 static bool AppStartGeneration(AppGen *gen)
 {
+    AppStopLazyGeneration(gen);   /* mai due melting-gen insieme: vedi AppStopLazyGeneration */
     gen->inSpritesStage = false;
     gen->spritesPlannedThisRun = !gen->noSprites && SpritesModelsPresent();
     unsigned int seed = NextGenSeed(0u);
+    gen->lastGenSeed = seed;
     /* 420s, non piu' 180s: da fase 3a-L3 melting-gen non genera solo il JSON
      * dei piani, ma anche (con lo stesso modello gia' caricato) fino a 15
      * script Lua per run, ciascuno con fino a 2 ritenti (vedi
@@ -76,7 +132,14 @@ static bool AppStartGeneration(AppGen *gen)
      * restano sulla mini-VM) e scrive comunque la run. I 420s qui sono il
      * tetto ESTERNO, solo per il caso patologico in cui anche quel budget
      * interno non bastasse a lasciare il tempo di scrivere manifest/atlas. */
-    return GenRunnerStart(&gen->runner, gen->command, seed, 420.0, "generated/gen_progress.txt");
+    /* Step B2: il passo bloccante genera il Lua del SOLO piano 1. E' cio' che
+       taglia l'attesa iniziale: 4 script invece di 20 (a ~3-5s l'uno con la cache
+       del prefisso condiviso, step B1, sono ~50-80s risparmiati). Gli altri 16 li
+       scrive AppStartLazyGeneration in sottofondo, quando la partita e' gia'
+       cominciata. */
+    static const char *kArgs[] = { "--lua-first", "1", NULL };
+    return GenRunnerStartWithArgs(&gen->runner, gen->command, seed, 420.0,
+                                  "generated/gen_progress.txt", kArgs);
 }
 
 static bool AppStartSpritesGeneration(AppGen *gen)
@@ -175,6 +238,14 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
                 GameResetRun(game);
                 if (gen->inSpritesStage) GameSetMessage(game, "Sprite generati: run pronta");
                 *mode = APP_PLAY;
+                /* Step B2: la partita comincia ORA -> parte la ripresa dei piani
+                   2-5 in sottofondo. Solo se il passo TESTO e' andato a buon fine:
+                   la ripresa rilegge generated/current_run.json e ha bisogno dello
+                   STESSO seed di quella run (gen->lastGenSeed) -- se il passo testo
+                   fosse fallito, quel JSON sarebbe di una run precedente e la
+                   ripresa ricostruirebbe un contenuto DIVERSO da quello che si sta
+                   giocando. */
+                if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
             }
         }
         else if (active->state == GEN_RUNNER_FAILED)
@@ -192,6 +263,16 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
         }
         GameUpdateParticles(game, dt);
         return false;
+    }
+
+    /* Step B2: il processo di ripresa vive mentre si gioca. GenRunnerUpdate lo
+       raccoglie quando finisce (niente zombie) e ne applica il timeout. Il gioco
+       non lo aspetta mai: se finisce, bene; se muore, i piani non ancora scritti
+       restano sulla mini-VM. */
+    if (gen->lazyRunning)
+    {
+        GenRunnerUpdate(&gen->lazyRunner);
+        if (gen->lazyRunner.state != GEN_RUNNER_RUNNING) gen->lazyRunning = false;
     }
 
     if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))
@@ -458,6 +539,10 @@ int AppRun(int argc, char **argv)
      * RUNNING in un dato momento, ma non costa nulla controllarli entrambi. */
     if (gen.runner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.runner);
     if (gen.spritesRunner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.spritesRunner);
+    /* Step B2: e anche il processo di ripresa in sottofondo, che a differenza
+       degli altri due e' vivo proprio MENTRE si gioca -- quindi e' quello che ha
+       piu' probabilita' di essere ancora in piedi quando si chiude il gioco. */
+    AppStopLazyGeneration(&gen);
 
     UnloadRenderTexture(gameCanvas);
     GameUnloadAssets(&game);
