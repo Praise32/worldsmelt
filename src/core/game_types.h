@@ -294,6 +294,13 @@ typedef struct Player {
        altrimenti il colpo resta sul theme.accent2 di sempre. */
     ShotTypeDef shotType;
     Color shotColor;
+    /* Sinergie attive (step D, src/gameplay/synergies.h): un bit per SynergyId.
+       E' una statistica come le altre -- ricalcolata da ZERO da
+       ScriptItemsRecomputeStats sugli oggetti posseduti ORA, mai accumulata --
+       quindi togliere un oggetto della coppia spegne la sinergia pulita, senza
+       alcuna contabilita' da disfare. NON derivarla mai da Player.traits: quello
+       e' un OR monotono che non si spegne piu'. */
+    unsigned int synergies;
     Item items[MAX_ITEMS];
     int itemCount;
     /* Valori di PARTENZA (prima di qualunque oggetto), da cui
@@ -349,6 +356,10 @@ typedef struct Shot {
        anche dopo che il giocatore ha cambiato tipo di colpo. */
     ShotForm form;
     int chain;
+    /* Vero se una sinergia ha toccato questo colpo (step D): il renderer gli
+       disegna un anello in piu' attorno. Le sinergie DEVONO vedersi -- "non si
+       notano" era esattamente il feedback che ha aperto questo passo. */
+    bool synergized;
     /* Nemici che QUESTO colpo ha gia' colpito, un bit per slot di Game.enemies
        (step C). Esiste perche' senza di lei "perforare" non perforava: un colpo
        con pierce resta sovrapposto al nemico che ha appena attraversato per

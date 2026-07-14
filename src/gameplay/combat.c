@@ -3,6 +3,7 @@
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
+#include "gameplay/synergies.h"
 #include "script/script_items.h"
 
 #include <math.h>
@@ -193,6 +194,7 @@ static void CombatChainShot(Game *game, const Shot *shot, int hitEnemyIndex)
     spawned->form = shot->form;
     spawned->chain = shot->chain - 1;
     spawned->scriptDepth = shot->scriptDepth;
+    spawned->synergized = shot->synergized;   /* un salto di catena resta lo stesso colpo, anche a vedersi */
 }
 
 void CombatFirePlayer(Game *game, Vector2 dir)
@@ -217,7 +219,12 @@ void CombatFirePlayer(Game *game, Vector2 dir)
        dava (non lo sostituiscono): un tipo a tre pallettoni su un giocatore con
        split spara 4 colpi, non 3. Tetto a 5 perche' oltre il ventaglio diventa
        un muro e MAX_SHOTS si consuma in un attimo. */
-    int pellets = ((traits & TRAIT_SPLIT) ? 2 : 1) + (typed ? type->pellets - 1 : 0);
+    /* Sinergie, CANALE B (step D, docs/references/design-sinergie.md 4.3): il
+       punto di innesto naturale e' proprio qui, subito dopo la creazione del
+       colpo -- e' l'equivalente delle "tear flags" di Isaac. La maschera e' gia'
+       in cache (ricalcolata da zero insieme alle statistiche, vedi
+       ScriptItemsRecomputeStats): qui non si rileva nulla, si applica soltanto. */
+    int pellets = ((traits & TRAIT_SPLIT) ? 2 : 1) + (typed ? type->pellets - 1 : 0) + SynergiesExtraPellets(p->synergies);
     if (pellets > 5) pellets = 5;
     float angle = atan2f(dir.y, dir.x);
     for (int i = 0; i < pellets; i++)
@@ -225,6 +232,7 @@ void CombatFirePlayer(Game *game, Vector2 dir)
         float offset = ((float)i - (float)(pellets - 1)*0.5f)*0.18f;
         Shot *spawned = EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(angle + offset), sinf(angle + offset) }, speed, damage, radius, traits, color);
         CombatApplyShotType(spawned, type);
+        SynergiesApplyToShot(p, p->synergies, spawned);
     }
     /* Lua prima, mini-VM dopo: sono a prova reciproca, non in cascata.
        ScriptVmExecutePlayer (src/gameplay/script_vm.c) salta da solo ogni
@@ -470,8 +478,16 @@ static void CombatApplyItem(Game *game, Item item)
        sporca; ScriptItemsProcessDirty la consuma SUBITO, cosi' il pickup e'
        gia' visibile nello stesso frame (invece di aspettare il prossimo
        GameUpdate, vedi game.c). */
+    /* Sinergie: si guarda la maschera PRIMA e DOPO il ricalcolo del pickup, cosi'
+       si annuncia solo cio' che questo oggetto ha davvero SBLOCCATO (mai le
+       coppie che c'erano gia'). Il confronto vive qui e non dentro il ricalcolo
+       apposta: ScriptItemsRecomputeStats deve restare PURA e idempotente (gira
+       piu' volte per frame, e ogni volta annuncerebbe di nuovo la stessa
+       sinergia). */
+    unsigned int synergiesBefore = p->synergies;
     ScriptItemsOnAcquire(game, itemIndex);
     ScriptItemsProcessDirty(game);
+    unsigned int unlocked = p->synergies & ~synergiesBefore;
 
     /* Guarigione completa al pickup: e' un bonus UNA TANTUM del momento
        dell'acquisizione (il giocatore "sente" subito il cuore in piu'), non
@@ -482,10 +498,21 @@ static void CombatApplyItem(Game *game, Item item)
     if (item.slot == SLOT_BODY) p->hp = p->maxHp;
 
     char msg[160];
+    /* Una sinergia appena sbloccata e' l'evento piu' importante che possa
+       capitare a una build: si prende il messaggio (e una fiammata di particelle),
+       davanti perfino al cambio di tipo di colpo. "Le sinergie non si notano" era
+       il feedback: qui si notano. */
+    if (unlocked != 0u)
+    {
+        int first = 0;
+        while (first < 31 && !(unlocked & (1u << first))) first++;
+        snprintf(msg, sizeof(msg), "SINERGIA: %s -- %s!", SynergyName(first), SynergyDescription(first));
+        EntitiesAddParticle(game, p->pos, item.color, 34);
+    }
     /* Step C: se l'oggetto cambia il MODO di sparare, il messaggio lo dice --
        e' l'evento piu' vistoso che possa capitare a una run, e finora il
        giocatore lo avrebbe scoperto solo guardando i proiettili. */
-    if (item.shotType.active)
+    else if (item.shotType.active)
     {
         snprintf(msg, sizeof(msg), "Oggetto: %s (%s). Ora spari: %s.", item.name, ItemFirstTraitName(item.traits), item.shotType.name);
     }

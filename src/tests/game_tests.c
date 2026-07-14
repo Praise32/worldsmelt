@@ -432,7 +432,12 @@ bool GameShotFormsScreenshotTest(Game *game)
 
     /* Il pannello "GIOCATORE" mostra il tipo di colpo attivo: gli si mette in
        mano l'oggetto che lo conferisce, cosi' lo screenshot verifica anche
-       quella riga (nome inventato + forma) e il colore condiviso col proiettile. */
+       quella riga (nome inventato + forma) e il colore condiviso col proiettile.
+       I due oggetti successivi (inseguimento + perforazione) formano una COPPIA
+       (step D): servono a verificare a occhio l'altra meta' del feedback -- le
+       sinergie devono VEDERSI. Nello screenshot: l'anello bianco attorno ai colpi
+       sparati dal giocatore e l'elenco delle sinergie attive nel pannello "LOG"
+       in basso. */
     memset(game->player.items, 0, sizeof(game->player.items));
     Item *item = &game->player.items[0];
     item->active = true;
@@ -442,15 +447,45 @@ bool GameShotFormsScreenshotTest(Game *game)
     item->kind = ITEM_ACTIVE;
     item->color = game->theme.accent;
     ShotTypeExample(&item->shotType, 0);
-    game->player.itemCount = 1;
+
+    Item *homing = &game->player.items[1];
+    homing->active = true;
+    snprintf(homing->name, sizeof(homing->name), "Occhio Rapace");
+    homing->slot = SLOT_EYES;
+    homing->rarity = RARITY_UNCOMMON;
+    homing->kind = ITEM_ACTIVE;
+    homing->color = game->theme.accent2;
+    homing->traits = TRAIT_HOMING;
+
+    Item *pierce = &game->player.items[2];
+    pierce->active = true;
+    snprintf(pierce->name, sizeof(pierce->name), "Punteruolo Lungo");
+    pierce->slot = SLOT_BACK;
+    pierce->rarity = RARITY_UNCOMMON;
+    pierce->kind = ITEM_ACTIVE;
+    pierce->color = game->theme.accent;
+    pierce->traits = TRAIT_PIERCE;
+
+    game->player.itemCount = 3;
     ScriptItemsRecomputeStats(game);
+
+    /* Un colpo VERO sparato dal giocatore (non uno costruito a mano come i cinque
+       sopra): e' l'unico che passa da CombatFirePlayer, quindi l'unico che riceve
+       davvero il marchio della sinergia -- se l'anello comparisse anche senza
+       passare di li', il canale B non sarebbe agganciato dove crediamo. */
+    CombatFirePlayer(game, (Vector2){ 0.0f, -1.0f });
+    /* Qualche frame di volo: appena sparato il colpo sta ESATTAMENTE sul
+       giocatore, che gli viene disegnato sopra (DrawPlayer e' l'ultimo) -- lo
+       screenshot mostrerebbe una sinergia invisibile proprio nel test che serve a
+       verificare che si veda. */
+    for (int frame = 0; frame < 12; frame++) CombatUpdateShots(game, 1.0f/60.0f);
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-shotforms-screen.png");
     bool textureValid = canvas.texture.id != 0;
     UnloadRenderTexture(canvas);
 
-    return textureValid && game->player.shotType.active;
+    return textureValid && game->player.shotType.active && game->player.synergies != 0u;
 }
 
 #ifndef _WIN32

@@ -14,6 +14,7 @@
 #include "content/run_content.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
+#include "gameplay/synergies.h"
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
 
@@ -857,6 +858,146 @@ static bool TestDamageCurveDiminishesButNeverHurts(void)
     return ok;
 }
 
+/* ============================================================
+   Test X-Z (step D, docs/references/design-sinergie.md, sezione 6 punto 5: i
+   criteri di successo della prima versione delle sinergie implicite). Le
+   sinergie sono coppie: nessun oggetto sa dell'altro, ma il gioco riconosce la
+   coppia e aggiunge UN effetto leggibile.
+   ============================================================ */
+
+/* Un oggetto attivo minimale con un trait e una rarita' dati. */
+static Item MakeTraitItem(const char *name, unsigned int traits, Rarity rarity, ItemSlot slot)
+{
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_ACTIVE;
+    item.rarity = rarity;
+    item.slot = slot;
+    item.traits = traits;
+    snprintf(item.name, sizeof(item.name), "%s", name);
+    return item;
+}
+
+/* Test X (criteri 1 e 4 del design doc): la coppia ACCENDE la sinergia, e
+   togliere uno dei due oggetti la SPEGNE pulita. Verifica entrambi i canali:
+   il canale B (il colpo sparato riceve davvero la perforazione in piu') e la
+   maschera in cache. E' il test che dimostra che la sinergia si calcola dagli
+   oggetti posseduti ORA e non da Player.traits (che e' un OR monotono: se la
+   rilevazione passasse da li', togliere l'oggetto non spegnerebbe nulla e
+   questo test fallirebbe). */
+static bool TestSynergyPairTogglesOnAndOff(void)
+{
+    Game game = MakeBaseGame(7001u);
+
+    /* Un solo oggetto: nessuna coppia, nessuna sinergia. */
+    TestAddItem(&game, MakeTraitItem("Occhio Rapace", TRAIT_HOMING, RARITY_UNCOMMON, SLOT_EYES));
+    bool aloneOff = (game.player.synergies & (1u << SYNERGY_PIERCING_FLIGHT)) == 0u;
+
+    /* Il secondo oggetto chiude la coppia inseguimento+perforazione. */
+    TestAddItem(&game, MakeTraitItem("Punteruolo", TRAIT_PIERCE, RARITY_UNCOMMON, SLOT_HAND));
+    bool pairOn = (game.player.synergies & (1u << SYNERGY_PIERCING_FLIGHT)) != 0u;
+
+    /* Canale B: il colpo nasce con la perforazione del trait (2) PIU' quella
+       della sinergia (2, scala non-comune = 1.0). */
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });
+    int pierceOnShot = -1;
+    bool ringed = false;
+    for (int i = 0; i < MAX_SHOTS; i++)
+    {
+        if (!game.shots[i].active || !game.shots[i].fromPlayer) continue;
+        pierceOnShot = game.shots[i].pierce;
+        ringed = game.shots[i].synergized;
+        break;
+    }
+
+    /* "Rimozione" (come nei test B/T: il ricalcolo da zero e' cio' che la rende
+       banale il giorno che il gioco avra' un modo di scartare un oggetto). */
+    game.player.itemCount = 1;
+    ScriptItemsRecomputeStats(&game);
+    bool removedOff = (game.player.synergies & (1u << SYNERGY_PIERCING_FLIGHT)) == 0u;
+
+    printf("  [X] un oggetto solo: sinergia spenta=%s | coppia completa: accesa=%s, pierce sul colpo=%d (atteso 4 = 2 del trait + 2 della sinergia), anello visivo=%s | tolto un oggetto: spenta=%s\n",
+           aloneOff ? "si" : "NO", pairOn ? "si" : "NO", pierceOnShot, ringed ? "si" : "NO", removedOff ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = aloneOff && pairOn && pierceOnShot == 4 && ringed && removedOff;
+    if (!ok) printf("      FALLITO: la coppia deve accendere la sinergia (canale B incluso) e toglierne un oggetto deve spegnerla pulita\n");
+    return ok;
+}
+
+/* Test Y (criterio 2): il canale statistico e' IDEMPOTENTE. E' la proprieta' che
+   rende una sinergia "solo un altro modificatore" del ricalcolo-da-zero: 100
+   ricalcoli di fila devono dare esattamente lo stesso giocatore. Se qualcuno un
+   giorno spostasse il contributo delle sinergie fuori dal ricalcolo (in un
+   "applica una tantum al pickup"), questo test fallirebbe subito. */
+static bool TestSynergyStatChannelIdempotent(void)
+{
+    Game game = MakeBaseGame(7002u);
+    TestAddItem(&game, MakeTraitItem("Brina Lenta", TRAIT_SLOW, RARITY_RARE, SLOT_AURA));
+    TestAddItem(&game, MakeTraitItem("Molla a Scatto", TRAIT_RAPID, RARITY_RARE, SLOT_HAND));
+
+    bool active = (game.player.synergies & (1u << SYNERGY_ETERNAL_FROST)) != 0u;
+    float damage = game.player.damage;
+    float fireDelay = game.player.fireDelay;
+
+    bool stable = true;
+    for (int i = 0; i < 100; i++)
+    {
+        ScriptItemsRecomputeStats(&game);
+        if (fabsf(game.player.damage - damage) > 1e-5f) stable = false;
+        if (fabsf(game.player.fireDelay - fireDelay) > 1e-6f) stable = false;
+        if (game.player.synergies != (unsigned int)(1u << SYNERGY_ETERNAL_FROST)) stable = false;
+    }
+
+    printf("  [Y] gelo perpetuo (rallentamento+cadenza) attivo=%s -> danno %.4f, cadenza %.4fs; 100 ricalcoli identici=%s\n",
+           active ? "si" : "NO", damage, fireDelay, stable ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = active && stable;
+    if (!ok) printf("      FALLITO: il contributo statistico di una sinergia deve essere idempotente sotto ricalcoli ripetuti\n");
+    return ok;
+}
+
+/* Test Z (criterio 3): la potenza di una sinergia scala con la rarita' MINIMA
+   della coppia -- due leggendari spingono piu' di due comuni -- ma entrambe
+   restano dentro la banda globale. E' il punto in cui le sinergie riusano il
+   sistema di bilanciamento gia' esistente (la tavola dei tetti per rarita')
+   invece di introdurne un secondo. */
+static bool TestSynergyPowerScalesWithRarity(void)
+{
+    Game commonGame = MakeBaseGame(7003u);
+    TestAddItem(&commonGame, MakeTraitItem("Brina Scialba", TRAIT_SLOW, RARITY_COMMON, SLOT_AURA));
+    TestAddItem(&commonGame, MakeTraitItem("Molla Scialba", TRAIT_RAPID, RARITY_COMMON, SLOT_HAND));
+    float commonDamage = commonGame.player.damage;
+
+    Game legendaryGame = MakeBaseGame(7004u);
+    TestAddItem(&legendaryGame, MakeTraitItem("Brina Eterna", TRAIT_SLOW, RARITY_LEGENDARY, SLOT_AURA));
+    TestAddItem(&legendaryGame, MakeTraitItem("Molla Eterna", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_HAND));
+    float legendaryDamage = legendaryGame.player.damage;
+
+    /* Coppia MISTA: comanda la rarita' MINIMA (un leggendario non "traina" un
+       comune), quindi deve valere come la coppia di comuni, non come quella di
+       leggendari. */
+    Game mixedGame = MakeBaseGame(7005u);
+    TestAddItem(&mixedGame, MakeTraitItem("Brina Scialba", TRAIT_SLOW, RARITY_COMMON, SLOT_AURA));
+    TestAddItem(&mixedGame, MakeTraitItem("Molla Eterna", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_HAND));
+    float mixedDamage = mixedGame.player.damage;
+
+    bool scales = legendaryDamage > commonDamage;
+    bool minRarityWins = fabsf(mixedDamage - commonDamage) < 1e-3f;
+    bool inBand = commonDamage >= 0.5f && legendaryDamage <= 200.0f;
+
+    printf("  [Z] gelo perpetuo: due comuni -> danno %.4f | due leggendari -> %.4f (piu' forte=%s) | coppia mista -> %.4f (comanda la rarita' minima=%s), entrambe in banda=%s\n",
+           commonDamage, legendaryDamage, scales ? "si" : "NO", mixedDamage, minRarityWins ? "si" : "NO", inBand ? "si" : "NO");
+
+    ScriptItemsShutdown(&commonGame);
+    ScriptItemsShutdown(&legendaryGame);
+    ScriptItemsShutdown(&mixedGame);
+    bool ok = scales && minRarityWins && inBand;
+    if (!ok) printf("      FALLITO: la potenza di una sinergia deve scalare con la rarita' minima della coppia, restando in banda\n");
+    return ok;
+}
+
 /* Test J: un oggetto stat-up SENZA alcuno script Lua (mai generato: il caso
    piu' comune quando il modello fallisce/opta per non proporre nulla) non
    deve mai restare senza effetto ("so a boss reward is never a dud", task
@@ -1253,6 +1394,9 @@ bool ScriptItemsSelfTest(void)
         { "U (tipi di colpo: 'chain' salta davvero su un secondo nemico all'impatto)", TestShotTypeChainJumpsToSecondEnemy },
         { "V (tipi di colpo: 'pierce' fa attraversare il primo nemico)", TestShotTypePierceSurvivesFirstEnemy },
         { "W (curve Isaac: rendimenti decrescenti sul danno, zona normale intatta, monotona)", TestDamageCurveDiminishesButNeverHurts },
+        { "X (sinergie: la coppia accende, togliere un oggetto spegne pulito)", TestSynergyPairTogglesOnAndOff },
+        { "Y (sinergie: il canale statistico e' idempotente su 100 ricalcoli)", TestSynergyStatChannelIdempotent },
+        { "Z (sinergie: la potenza scala con la rarita' minima della coppia, in banda)", TestSynergyPowerScalesWithRarity },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

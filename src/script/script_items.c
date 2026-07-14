@@ -1,6 +1,7 @@
 #include "script/script_items.h"
 
 #include "core/game_math.h"
+#include "gameplay/synergies.h"
 #include "script/script_api.h"
 #include "script/script_sandbox.h"
 
@@ -561,12 +562,32 @@ void ScriptItemsRecomputeStats(Game *game)
         }
     }
 
+    /* Sinergie, CANALE A (step D, docs/references/design-sinergie.md sezione 4.3):
+       il contributo statistico delle coppie attive si applica QUI -- dopo i
+       contributi di tutti i singoli oggetti, prima dei clamp finali. E' l'intero
+       motivo per cui questo passo e' poco codice: una sinergia e' solo "un altro
+       modificatore nella stessa lista" del ricalcolo-da-zero, quindi e'
+       idempotente per costruzione (test C) e passa per gli stessi tetti di
+       sicurezza di tutto il resto (nemmeno una sinergia sbagliata puo' portare il
+       giocatore fuori banda).
+       La maschera si calcola DAGLI OGGETTI POSSEDUTI ORA, mai da p->traits (che e'
+       un OR monotono e non si spegne piu'): e' cio' che fa spegnere pulita una
+       sinergia quando togli uno dei due oggetti. */
+    unsigned int synergies = SynergiesDetect(p);
+    SynergyStatBonus bonus = SynergiesStatBonus(p, synergies);
+    acc.damage    *= bonus.damageMul;
+    acc.fireDelay *= bonus.fireDelayMul;
+    acc.shotSpeed *= bonus.shotSpeedMul;
+    acc.luck      += bonus.luckAdd;
+    ScriptItemsClampStats(&acc);
+
     /* La curva dei rendimenti decrescenti (step C) va QUI, dopo l'ultimo oggetto
-       e prima della scrittura: vedi il commento su ScriptItemsDamageCurve. Il
-       clamp globale gira comunque un'ultima volta dopo di lei -- la curva puo'
-       solo ABBASSARE il danno, quindi non puo' sfondare il tetto, ma il
-       pavimento va comunque garantito per un baseDamage patologico (0 o
-       negativo) che nessuno dovrebbe mai impostare. */
+       (e dopo le sinergie: anche il loro contributo e' danno, e deve rispettare
+       la stessa curva) e prima della scrittura: vedi il commento su
+       ScriptItemsDamageCurve. Il clamp globale gira comunque un'ultima volta dopo
+       di lei -- la curva puo' solo ABBASSARE il danno, quindi non puo' sfondare il
+       tetto, ma il pavimento va comunque garantito per un baseDamage patologico
+       (0 o negativo) che nessuno dovrebbe mai impostare. */
     acc.damage = ScriptItemsDamageCurve(acc.damage, p->baseDamage);
     ScriptItemsClampStats(&acc);
 
@@ -576,6 +597,7 @@ void ScriptItemsRecomputeStats(Game *game)
     p->shotRadius = acc.shotRadius;
     p->speed = acc.speed;
     p->luck = acc.luck;
+    p->synergies = synergies;
     p->maxHp = (int)(acc.maxHp + 0.5f);
     if (p->hp > p->maxHp) p->hp = p->maxHp;
 

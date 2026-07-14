@@ -2,6 +2,7 @@
 
 #include "core/game_math.h"
 #include "game/game.h"
+#include "gameplay/synergies.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
 
@@ -338,6 +339,18 @@ static void DrawShot(const Shot *shot)
     float angle = atan2f(shot->vel.y, shot->vel.x);
     float angleDeg = angle*180.0f/PI_F;
 
+    /* Step D: un colpo toccato da una sinergia porta un anello pulsante. E' il
+       segnale VISIVO che la coppia sta lavorando davvero -- il feedback diceva
+       che le sinergie non si notavano: ora si vedono a ogni colpo, non solo nel
+       messaggio del momento in cui le sblocchi. Disegnato PRIMA della forma, cosi'
+       resta un contorno e non copre il colpo. */
+    if (shot->synergized)
+    {
+        float pulse = 2.0f + sinf((float)GetTime()*9.0f)*1.1f;
+        DrawCircleLines((int)shot->pos.x, (int)shot->pos.y, shot->radius + pulse + 3.0f,
+                        GameColorWithAlpha(RAYWHITE, 150));
+    }
+
     switch (shot->form)
     {
         case SHOT_FORM_SPIKE:
@@ -617,10 +630,25 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (Stable Diffusion): atlas PNG 128x128" : "Atlas procedurale/fallback BMP";
     DrawText(atlasMode, bx, by, 15, game->theme.accent2);
     /* Il messaggio transitorio (raccolta oggetto, porta bloccata, ecc.) vive
-       SOLO nella vista centrale, vicino all'azione (DrawTransientMessage):
-       qui resta un suggerimento fisso, mai lo stesso testo, per non mostrare
-       la stessa informazione due volte a schermo (GUI fix, step A). */
-    DrawText("Raccogli oggetti per creare sinergie generate.", bx, by + 28, 16, RAYWHITE);
+       SOLO nella vista centrale, vicino all'azione (DrawTransientMessage): qui
+       NON si ripete mai (GUI fix, step A). Questo spazio ospita invece le
+       SINERGIE ATTIVE (step D): sono lo stato piu' importante di una build e
+       finora non erano visibili da nessuna parte. Riga fissa di suggerimento solo
+       quando non ce n'e' ancora nessuna. */
+    int activeSynergies = 0;
+    for (int i = 0; i < (int)SYNERGY_COUNT; i++)
+    {
+        if (!(game->player.synergies & (1u << i))) continue;
+        int col = bx + activeSynergies*300;
+        DrawText(TextFormat("* %s", SynergyName(i)), col, by + 26, 16, GOLD);
+        DrawText(SynergyDescription(i), col, by + 46, 13, (Color){ 200, 206, 216, 255 });
+        activeSynergies++;
+        if (activeSynergies >= 3) break;   /* tre entrano nel pannello; le altre restano attive, solo non elencate */
+    }
+    if (activeSynergies == 0)
+    {
+        DrawText("Nessuna sinergia attiva: raccogli oggetti che si combinano.", bx, by + 28, 16, RAYWHITE);
+    }
 }
 
 static void DrawMenuOverlay(AppMode mode, Game *game)
