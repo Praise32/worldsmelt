@@ -1,7 +1,10 @@
 # Roadmap dopo la tua prova (feedback distribuito negli step)
 
 Data: 2026-07-14
-Stato: piano d'azione, in esecuzione
+Stato: **ESEGUITA** — A, B1, C, D, E, B2 tutti fatti e committati su `local-sprites`
+(vedi HANDOFF.md sezione 0). Restano i punti 7 della lista d'ordine (3b nemici/boss,
+3c stanze, raygui, benchmark al primo avvio), che contengono scelte di design da fare
+insieme al proprietario.
 
 Questo documento prende le 5 impressioni della tua prova e le distribuisce negli step di
 sviluppo, con l'ordine che hai chiesto. Il cambio d'ordine più importante: **il
@@ -61,13 +64,20 @@ Valutazione (come hai chiesto di fare con attenzione):
 
 ## L'ordine di esecuzione
 
-1. **A — Fix GUI** (vista centrale pulita). *In corso.*
-2. **B1 — Cache del prefisso** per la generazione Lua (taglia i tempi). *In corso.*
-3. **C — Bilanciamento oggetti + tipi di attacco** (chiodi/laser/elettricità). *Prossimo grande passo, prima delle sinergie.*
-4. **D — Sinergie** (codice + visiva).
-5. **E — Sprite 2.5D** (rendering: ombre, profondità, prospettiva; prompt a ¾).
-6. **B2 — Generazione pigra dei piani** (in background), quando serve limare ancora l'attesa.
-7. Poi le fasi già previste: 3b nemici/boss, 3c stanze, raygui (GUI completa), benchmark al primo avvio.
+1. **A — Fix GUI** (vista centrale pulita). **FATTO** (`9ed0a90`).
+2. **B1 — Cache del prefisso** per la generazione Lua (taglia i tempi). **FATTO** (`86b1e7a`).
+3. **C — Bilanciamento oggetti + tipi di attacco.** **FATTO** (`1f924e1`) — ma non come
+   scritto qui sotto: il feedback del proprietario a metà lavoro («i tipi di colpo nuovi
+   devono SEMPRE crearli i modelli AI, i tre che hai creato sono solo esempi») ha cambiato
+   il progetto. Il C **non ha un enum di tipi di colpo**: espone un vocabolario parametrico
+   (forme + manopole clampate, `src/core/shot_type.h`) e il modello inventa i tipi a ogni
+   run nel JSON. `ShotTypeBalance()` garantisce che qualunque cosa inventi resti un
+   sidegrade. Spec: `2026-07-14-step-c-shottype-balance.md`.
+4. **D — Sinergie** (codice + visiva). **FATTO** (`59a881f`) — `src/gameplay/synergies.c`.
+5. **E — Sprite 2.5D** (rendering: ombre, profondità, prospettiva; prompt a ¾). **FATTO** (`3415b64`).
+6. **B2 — Generazione pigra dei piani** (in background). **FATTO** (`5e483dc`) — il passo
+   bloccante scrive il Lua del solo piano 1, il resto arriva mentre giochi.
+7. Poi le fasi già previste: 3b nemici/boss, 3c stanze, raygui (GUI completa), benchmark al primo avvio. *Da fare.*
 
 ## Note
 

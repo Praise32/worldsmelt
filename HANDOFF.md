@@ -4,6 +4,57 @@ Scritto da Claude mentre eri via. **Prima la sezione 1** (dieci minuti, ti fa ve
 
 ---
 
+## 0. La notte del 14 luglio: i quattro passi della roadmap sono fatti
+
+Ho eseguito la roadmap che avevi lasciato (`docs/superpowers/specs/2026-07-14-feedback-roadmap.md`)
+nell'ordine che avevi chiesto. Quattro commit, tutti su `local-sprites`, `make test` +
+`make test-gen` + `make test-script` verdi.
+
+**C — Bilanciamento alla Isaac + tipi di colpo inventati dall'AI** (`1f924e1`)
+Il tuo feedback a metà lavoro («i tipi di colpo devono SEMPRE crearli i modelli AI, i tre
+che hai fatto sono solo esempi») ha riscritto questo passo, ed è la parte di cui vado più
+fiero. Il motore **non ha un menu di tipi di colpo**: espone un vocabolario parametrico
+(5 forme di resa × 7 manopole) e **il modello inventa i tipi a ogni run** — nome, forma e
+numeri — nel JSON, uno per piano, attaccato all'oggetto che sceglie lui. Chiodi/raggio/scarica
+sopravvivono solo come *esempi nel prompt* e come ripiego procedurale.
+La promessa che il motore fa al modello è `ShotTypeBalance()`: qualunque cosa scriva, il tipo
+viene riportato a un budget di potenza ~1.0. Quindi un tipo di colpo è sempre un **sidegrade**
+(chiodi veloci e deboli ≈ raggio che perfora ≈ scarica che salta), mai un dud e mai rotto.
+Un test prova 768 combinazioni estreme: nessuna esce dalla banda.
+Curve alla Isaac: cadenza con pavimento pratico a 0.10s, rendimenti decrescenti sul danno
+sopra 2× base, nuova statistica **fortuna**.
+*Bug vero trovato dai test nuovi*: la perforazione non perforava — ricolpiva lo **stesso**
+nemico ogni frame mentre lo attraversava, bruciando tutti i passaggi sul primo. Ora un colpo
+non colpisce mai due volte lo stesso nemico.
+
+**D — Sinergie implicite** (`59a881f`)
+Sei coppie canoniche in una tavola dichiarativa (aggiungerne una = una riga). Due canali:
+statistico dentro il ricalcolo-da-zero (idempotente e clampato per costruzione) e
+comportamentale sui trait del colpo. La potenza scala sulla **rarità minima** della coppia.
+**E si vedono**, che era il punto: anello pulsante sui colpi sinergici, elenco delle coppie
+attive nel pannello in basso, messaggio + particelle quando ne sblocchi una.
+
+**E — Resa 2.5D** (`3415b64`)
+Come avevi chiesto di valutare: il 2.5D alla Isaac è quasi tutto **rendering**, quindi costa
+**zero secondi di generazione**. Ombre ellittiche sotto ogni entità, ordinamento per
+profondità (chi è più in basso è disegnato davanti), pavimento in prospettiva, muri con
+spessore (le porte sono passaggi *nel* muro), vignettatura. I prompt degli sprite ora
+chiedono una vista a ¾ dall'alto, coerente con le ombre. Campo di gioco invariato: nessuna
+collisione è cambiata.
+
+**B2 — Generazione pigra dei piani** (`5e483dc`)
+Il passo bloccante scrive il Lua del **solo piano 1** (4 script invece di 20); gli altri 16
+li scrive un secondo processo che parte quando comincia la partita e lavora **mentre giochi**,
+pubblicando il manifest piano per piano. Il gioco raccoglie gli script di un piano quando ci
+entra. Misurato col modello piccolo: **49s bloccanti invece di ~90s**, e i quattro piani
+restanti completati in 42s di gioco.
+
+**Da guardare a occhio quando torni** (sono gusto tuo, non correttezza):
+`logs/melting-run-shotforms-screen.png` — le cinque forme di colpo, la stanza in 2.5D, la
+sinergia attiva nel pannello LOG e l'anello attorno al colpo sparato.
+
+---
+
 ## 1. Provalo
 
 ```bash
@@ -14,11 +65,14 @@ make run-gen
 
 Premi **INVIO** nel menu. Parte una barra di caricamento in due tempi:
 
-1. **Testo** (~50 s) — il Qwen 7B inventa i 5 piani: temi, boss, oggetti, sinergie.
+1. **Testo** — il Qwen 7B inventa i 5 piani (temi, boss, oggetti, tipi di colpo) e scrive il
+   Lua del **solo piano 1** (step B2: gli altri quattro piani li scrive in sottofondo mentre
+   giochi, vedi sezione 0).
 2. **Sprite** (~85 s) — Stable Diffusion disegna i 12 sprite del gioco, coerenti col tema appena inventato.
 
-Dopo circa **2 minuti e mezzo** giochi con contenuti e grafica generati sul momento, in locale,
-senza rete e senza chiavi API. **ESC** annulla, **R** rigenera.
+L'attesa iniziale è **scesa** rispetto ai 2 min 30 s di prima (il pezzo Lua è passato da 20
+script a 4). **ESC** annulla, **R** rigenera. Mentre giochi il piano 1, un secondo processo
+scrive gli oggetti dei piani 2-5: li trovi già pronti quando ci arrivi.
 
 Se vuoi solo il testo (85 secondi in meno):
 
@@ -153,9 +207,10 @@ archetipi di effetto nel cheat-sheet (`tools/melting-gen/prompts/lua_system.txt`
 certo punto dovrai alzare n_ctx (costa un po' piu' di VRAM e tempo) o accorciare il prompt.
 Non e' urgente, e' solo un tetto da tenere a mente.
 
-**Le sinergie vere** (tenere una coppia compatibile aggiunge un effetto) sono il **passo
-subito dopo**: ora gli oggetti hanno tipo, rarita' e archetipo dichiarati, cioe' tutte le
-informazioni su cui una sinergia decide. Quello lo costruiamo quando torni.
+**Le sinergie vere** sono ora **fatte** (step D, vedi sezione 0 in cima): sei coppie
+canoniche, due canali di applicazione, potenza scalata sulla rarita' minima della coppia, e
+soprattutto *visibili* in gioco. La tavola e' dichiarativa: aggiungere una sinergia e' una
+riga in `src/gameplay/synergies.c`.
 
 ## Le altre domande ancora aperte (design doc sezione 7)
 
