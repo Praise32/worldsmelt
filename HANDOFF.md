@@ -53,6 +53,43 @@ restanti completati in 42s di gioco.
 `logs/melting-run-shotforms-screen.png` — le cinque forme di colpo, la stanza in 2.5D, la
 sinergia attiva nel pannello LOG e l'anello attorno al colpo sparato.
 
+## 0-bis. Poi ho continuato: nemici, stanze, GUI — tutto generato dall'AI
+
+Dopo la roadmap ho proseguito, sempre con lo stesso principio (il motore dà mattoni parametrici
++ garanzie, il modello compone), e con una **review a freddo dopo ogni fase** (agenti in
+parallelo che si demoliscono i risultati a vicenda). Ogni review ha trovato bug veri — quasi
+tutti scoperti *guardando* o *provando*, non nei test. Commit in coda su `local-sprites`:
+
+- **Fix anti-fotocopia del generatore** (`fe1fce9`). Al primo giro col 7B vero ho scoperto che a
+  certi seed sputava **cinque piani identici** (manifest perfetto, tutti i test verdi, run
+  rovinata). Causa: aggiungere i tipi di colpo aveva allungato il JSON oltre la finestra della
+  penalità sulle ripetizioni. Fix: finestra allargata + rete che sostituisce un piano-fotocopia
+  col piano procedurale + guardia in `make test-llm`.
+- **Review del lavoro notturno** (`71585c0`): 8 bug. Il più grave: il ricalcolo delle statistiche
+  **leggeva il proprio output precedente**, così la stessa coppia di oggetti dava o non dava una
+  sinergia a seconda dell'*ordine* in cui li raccoglievi. Più: la perforazione ricolpiva lo stesso
+  nemico, una generazione nuova adottava gli script Lua di quella vecchia, ecc.
+- **Fase 3b — nemici e boss inventati dall'AI** (`607d86d`). Il motore non ha un catalogo di
+  nemici: 4 forme, 5 movimenti, 4 modi di sparare, manopole clampate; il modello inventa 2 nemici
+  + 1 boss per piano. Due reti: `EnemyTypeBalance` (potenza in banda) e il **budget di difficoltà
+  della stanza** (spende punti, non spawna un numero fisso — nemici cattivi = meno nemici). Il 7B
+  ha inventato "Guardiano delle Dune", "Scorpiotto Fiorente"… Review 3b (`4231bce`): 2 bug.
+- **Fase 3c — stanze con ostacoli inventati dall'AI** (`7281992`). 5 forme di layout
+  (open/pillars/corridor/arena/scatter) + densità; le stanze di combattimento hanno ostacoli
+  solidi (coperture) con collisione vera. Garanzia: la croce centrale resta sempre libera, quindi
+  la stanza è **sempre** giocabile. Il 7B ha inventato "Colonnato Sacro", "Casse Ardenti"…
+  Review 3c (`bbed31f`): 2 bug (un ostacolo attaccato al muro poteva spingerti *dentro* il muro).
+- **GUI completa con raygui** (`bbed31f`). Restyle di tutti i pannelli + **HP come cuori**,
+  **tooltip sugli oggetti** (passa il mouse), **minimappa migliore** (colori, icone T/$/B,
+  legenda, stanza corrente), e un **blocco BUILD** che mette in evidenza tipo di colpo + sinergie.
+
+**Non fatto, di proposito:** il benchmark al primo avvio (mi hai detto di saltarlo: la tua
+macchina è già tarata). E la fase 3c è l'ultimo contenuto generato: da qui in poi è
+bilanciamento fine e contenuti aggiuntivi, non nuovi sistemi.
+
+**Tutte le suite verdi** (`make test`, `make test-gen`, `make test-script`, `make test-sprites`)
+e verificato col 7B vero a ogni fase. Il gioco non linka mai llama/cJSON (incluso dopo raygui).
+
 ---
 
 ## 1. Provalo
