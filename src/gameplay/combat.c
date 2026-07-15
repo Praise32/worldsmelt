@@ -336,8 +336,9 @@ static Vector2 CombatEnemyMoveDir(Enemy *e, Vector2 dir, float dist, float dt)
         case ENEMY_MOVE_ORBIT:
         {
             /* Gira attorno al giocatore a distanza fissa: si avvicina/allontana per
-               tenere il raggio, e intanto scorre di lato. */
-            e->phase += dt*1.2f;
+               tenere il raggio, e intanto scorre di lato. Non usa 'phase': la
+               tangente viene dalla direzione verso il giocatore, non da un
+               accumulatore. */
             float radial = (dist - 190.0f)*0.012f;
             radial = GameMathClampFloat(radial, -1.0f, 1.0f);
             Vector2 tangent = GameMathPerpendicular(dir);
@@ -407,10 +408,10 @@ static void CombatEnemyFire(Game *game, Enemy *e, Vector2 dir)
             /* Una corona in tutte le direzioni, con la fase che ruota di raffica in
                raffica: e' il boss di sempre, generalizzato a qualunque nemico. */
             int pellets = e->type.pellets;
-            e->phase += 0.22f;
+            e->firePhase += 0.22f;   /* campo separato da 'phase': vedi Enemy in game_types.h */
             for (int s = 0; s < pellets; s++)
             {
-                float a = (float)s*PI_F*2.0f/(float)pellets + e->phase;
+                float a = (float)s*PI_F*2.0f/(float)pellets + e->firePhase;
                 EntitiesAddShot(game, false, e->pos, (Vector2){ cosf(a), sinf(a) }, speed*0.88f, 1.0f, radius, 0, color);
             }
             break;

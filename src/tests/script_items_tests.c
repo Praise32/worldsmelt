@@ -1198,6 +1198,93 @@ static bool TestEnemyBehavioursDiffer(void)
     return ok;
 }
 
+/* Test AI (regressione, review fase 3b): slot nemico NON contigui. Un manifest
+   scritto a mano puo' definire enemy2 e non enemy1, lasciando lo slot 0 inattivo e
+   il 1 attivo. Il budget della stanza deve spawnare il nemico del piano (slot 1),
+   non ricadere sul chaser storico perche' ha pescato lo slot 0 vuoto. */
+static bool TestRoomSpawnsNonContiguousEnemyType(void)
+{
+    Game game = MakeBaseGame(9300u);
+    game.floor = 2;
+    /* Solo lo slot 1 attivo, con una forma inconfondibile (medusa): se il gioco
+       spawna il nemico giusto, i nemici in stanza hanno type.form == FLOATER; se
+       ricade sul chaser storico, hanno type non attivo. */
+    memset(game.content.floors[1].enemies, 0, sizeof(game.content.floors[1].enemies));
+    game.content.floors[1].enemies[1] = MakeEnemyType(ENEMY_FORM_FLOATER, ENEMY_MOVE_ORBIT, ENEMY_FIRE_RING,
+                                                      1.0f, 1.0f, 1.0f, 1.0f, 4, false);
+    EnemyTypeBalance(&game.content.floors[1].enemies[1]);
+    WorldSpawnCombatRoom(&game);
+
+    int spawned = 0, typedFloater = 0, historicalFallback = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (!game.enemies[i].active) continue;
+        spawned++;
+        if (game.enemies[i].type.active && game.enemies[i].type.form == ENEMY_FORM_FLOATER) typedFloater++;
+        else if (!game.enemies[i].type.active) historicalFallback++;
+    }
+    printf("  [AI] slot nemico non contigui (solo enemy2 definito): %d spawnati, %d del tipo giusto (medusa), %d ricaduti sul chaser storico\n",
+           spawned, typedFloater, historicalFallback);
+
+    ScriptItemsShutdown(&game);
+    bool ok = spawned > 0 && typedFloater == spawned && historicalFallback == 0;
+    if (!ok) printf("      FALLITO: con lo slot 0 inattivo e il 1 attivo, la stanza deve spawnare il nemico dello slot 1, non il chaser storico\n");
+    return ok;
+}
+
+/* Test AJ (regressione, review fase 3b): sparare a CORONA non deve perturbare lo
+   stato del MOVIMENTO. Il bug era che il fuoco a corona (RING) e il movimento a
+   scatto (CHARGE) condividevano lo stesso campo 'phase': ogni raffica ci sommava
+   0.22, e il movimento a scatto usa 'phase' come timer di stato -- quindi il fuoco
+   gli sballava il timer.
+   Questo test punta alla CAUSA, non all'effetto emergente. Un primo tentativo
+   misurava la distanza percorsa: era un FALSO VERDE, perche' gli scatti (che
+   dominano il movimento) non sono toccati dal bug -- solo la deriva fra uno scatto
+   e l'altro singhiozza, un effetto troppo piccolo per emergere dalla distanza netta.
+   La causa invece si isola in modo netto: si mette il nemico nella fase di
+   avvicinamento (phase<=0, chargeTimer>0: nessuno scatto in questo frame, e il
+   movimento NON tocca 'phase'), lo si fa sparare, e si pretende che 'phase' resti
+   invariato -- col bug salterebbe di 0.22. */
+static bool TestChargeRingFireDoesNotDisturbMovement(void)
+{
+    Game game = MakeBaseGame(9301u);
+    game.floor = 2;
+    EnemyTypeDef cr = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_CHARGE, ENEMY_FIRE_RING,
+                                    1.5f, 1.2f, 1.4f, ENEMY_TYPE_RATE_MAX, 6, false);
+    EnemyTypeBalance(&cr);
+    EntitiesAddEnemyTyped(&game, ENEMY_TANK, (Vector2){ game.player.pos.x + 300.0f, game.player.pos.y }, &cr);
+
+    Enemy *e = &game.enemies[0];
+    /* Fase di avvicinamento: phase a 0 (nessuno scatto in corso) e chargeTimer alto
+       (nessuno scatto in questo frame), cosi' il ramo CHARGE del movimento non
+       tocca 'phase'. cooldown a 0 perche' spari a corona SUBITO. */
+    e->phase = 0.0f;
+    e->chargeTimer = 1.0f;
+    e->cooldown = 0.0f;
+
+    int shotsBefore = 0;
+    for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && !game.shots[i].fromPlayer) shotsBefore++;
+    CombatUpdateEnemies(&game, 1.0f/60.0f);
+    int shotsAfter = 0;
+    for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && !game.shots[i].fromPlayer) shotsAfter++;
+
+    /* Basta che abbia sparato: EnemyTypeBalance puo' aver tagliato i pallettoni di
+       un nemico cosi' offensivo (rate e pellets al massimo), quindi non si pretende
+       il numero esatto. firePhase avanzato (sotto) e' la prova indipendente che la
+       corona e' partita. */
+    bool fired = shotsAfter > shotsBefore;
+    bool phaseUntouched = fabsf(e->phase) < 1e-4f;  /* il fuoco NON ha toccato il timer del movimento */
+    bool firePhaseMoved = e->firePhase > 0.0f;      /* la rotazione del fuoco e' andata nel SUO campo */
+
+    printf("  [AJ] carica+corona in avvicinamento: sparata la corona=%s | phase del movimento invariato=%s (%.3f) | firePhase avanzato=%s (%.3f)\n",
+           fired ? "si" : "NO", phaseUntouched ? "si" : "NO", (double)e->phase, firePhaseMoved ? "si" : "NO", (double)e->firePhase);
+
+    ScriptItemsShutdown(&game);
+    bool ok = fired && phaseUntouched && firePhaseMoved;
+    if (!ok) printf("      FALLITO: sparare a corona non deve toccare 'phase' (il timer del movimento a scatto); la rotazione va in 'firePhase'\n");
+    return ok;
+}
+
 /* Test AH (fase 3b): un SOAK test d'integrazione. I test AD-AG verificano ognuno
    una proprieta' isolata; questo mette in scena una stanza coi nemici PIU'
    STRESSANTI possibili (uno che spara a corona a cadenza massima, uno che scatta,
@@ -1894,6 +1981,8 @@ bool ScriptItemsSelfTest(void)
         { "AF (3b: movimenti e modi di sparare fanno cose osservabilmente diverse)", TestEnemyBehavioursDiffer },
         { "AG (3b: la stanza spende un BUDGET di difficolta', non un numero fisso di nemici)", TestRoomDifficultyBudget },
         { "AH (3b: soak 10s coi nemici piu' cattivi -- niente NaN, colpi entro MAX_SHOTS, nemici che muoiono)", TestEnemySoak },
+        { "AI (review 3b: slot nemico non contigui -- la stanza spawna il tipo giusto, non il chaser storico)", TestRoomSpawnsNonContiguousEnemyType },
+        { "AJ (review 3b: sparare a corona non tocca il timer del movimento a scatto)", TestChargeRingFireDoesNotDisturbMovement },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

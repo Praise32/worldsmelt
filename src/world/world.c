@@ -172,10 +172,17 @@ void WorldSpawnCombatRoom(Game *game)
     const FloorContent *fc = &game->content.floors[game->floor - 1];
     float budget = 3.0f + (float)game->floor + (float)GameRngRange(&game->rng, 0, 2);
 
-    /* Quanti tipi ha questo piano (0 = manifest vecchio/nessun manifest: si usano i
-       nemici storici, tirati a caso come prima). */
+    /* Gli INDICI degli slot attivi, compattati (correzione da review). Contare
+       quanti sono e poi indicizzare enemies[0..typeCount-1] presuppone che gli slot
+       attivi siano impaccati dall'indice 0 -- falso per un manifest scritto a mano
+       che definisce enemy2 ma non enemy1 (ReadEnemyType riempie i due slot in modo
+       indipendente): con typeCount=1 e GameRngRange(0,0)=0 si pescava sempre lo
+       slot 0 INATTIVO, spawnando il chaser storico invece del nemico del modello --
+       per tutto il piano. Con la lista compattata si pesca solo fra gli slot che
+       esistono davvero. */
+    int activeIdx[2];
     int typeCount = 0;
-    for (int i = 0; i < 2; i++) if (fc->enemies[i].active) typeCount++;
+    for (int i = 0; i < 2; i++) if (fc->enemies[i].active) activeIdx[typeCount++] = i;
 
     int spawned = 0;
     /* Il tetto duro resta MAX_ENEMIES; 16 e' il tetto di BUON SENSO per una stanza
@@ -185,7 +192,7 @@ void WorldSpawnCombatRoom(Game *game)
     {
         if (typeCount > 0)
         {
-            const EnemyTypeDef *type = &fc->enemies[GameRngRange(&game->rng, 0, typeCount - 1)];
+            const EnemyTypeDef *type = &fc->enemies[activeIdx[GameRngRange(&game->rng, 0, typeCount - 1)]];
             float cost = EnemyTypePower(type);
             if (cost < 0.35f) cost = 0.35f;   /* mai gratis: un nemico costa sempre qualcosa, o il ciclo non finirebbe */
             /* L'ultimo nemico si spawna anche se sfora un po': una stanza deve

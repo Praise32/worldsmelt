@@ -362,9 +362,15 @@ typedef struct Enemy {
        del piano puo' cambiare sotto i piedi (generazione pigra in sottofondo), un
        nemico gia' in campo no. */
     EnemyTypeDef type;
-    /* Stato per-nemico dei movimenti a fasi (orbita, zig-zag, scatto): un angolo/
-       fase che avanza da solo. Zero-default innocuo. */
+    /* Stato per-nemico dei movimenti a fasi (zig-zag, scatto): un angolo/fase che
+       avanza da solo. Zero-default innocuo. 'firePhase' e' TENUTO SEPARATO da
+       'phase' (correzione da review): il fuoco a corona (RING) ruota di raffica in
+       raffica, e il movimento a scatto (CHARGE) usa 'phase' come timer di stato --
+       condividere lo stesso campo faceva singhiozzare la deriva fra uno scatto e
+       l'altro di un nemico che carica E spara a corona (una combinazione che il
+       modello puo' inventare: movimento e fuoco sono manopole indipendenti). */
     float phase;
+    float firePhase;
     float chargeTimer;
 } Enemy;
 
