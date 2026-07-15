@@ -12,6 +12,7 @@
 #include "tests/game_tests.h"
 
 #include "content/run_content.h"
+#include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
 #include "gameplay/synergies.h"
@@ -1197,6 +1198,99 @@ static bool TestEnemyBehavioursDiffer(void)
     return ok;
 }
 
+/* Test AH (fase 3b): un SOAK test d'integrazione. I test AD-AG verificano ognuno
+   una proprieta' isolata; questo mette in scena una stanza coi nemici PIU'
+   STRESSANTI possibili (uno che spara a corona a cadenza massima, uno che scatta,
+   uno grosso e lento) e la simula per 600 frame (10 secondi) col giocatore che
+   spara di continuo, cercando i guai che nascono solo dall'INTERAZIONE prolungata:
+   posizioni che vanno in NaN, colpi che sfondano MAX_SHOTS (un nemico a corona
+   lasciato girare puo' inondare la stanza), un nemico a scatto che si incastra, un
+   ciclo che non finisce. Non pretende un esito di gioco (chi vince dipende dai
+   numeri), pretende che il gioco resti SANO. */
+static bool TestEnemySoak(void)
+{
+    Game game = MakeBaseGame(9200u);
+    game.floor = 3;
+    game.player.baseDamage = 40.0f;   /* il giocatore deve poter fare fuori qualcosa nei 10s, o non si esercita la morte dei nemici */
+    ScriptItemsRecomputeStats(&game);
+
+    /* Due tipi cattivi nel piano: una corona a cadenza massima e uno scattante
+       grosso. Il budget della stanza decide quanti ne spawna. */
+    game.content.floors[2].enemies[0] = MakeEnemyType(ENEMY_FORM_FLOATER, ENEMY_MOVE_ORBIT, ENEMY_FIRE_RING,
+                                                      1.5f, 1.0f, 1.2f, ENEMY_TYPE_RATE_MAX, ENEMY_TYPE_PELLETS_MAX, false);
+    game.content.floors[2].enemies[1] = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_CHARGE, ENEMY_FIRE_SPREAD,
+                                                      2.0f, 1.4f, 1.6f, 1.5f, 4, false);
+    EnemyTypeBalance(&game.content.floors[2].enemies[0]);
+    EnemyTypeBalance(&game.content.floors[2].enemies[1]);
+    WorldSpawnCombatRoom(&game);
+
+    int spawned = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++) if (game.enemies[i].active) spawned++;
+
+    bool sane = true;
+    int maxShotsSeen = 0;
+    bool anyEnemyDied = false;
+    int startEnemies = spawned;
+
+    for (int frame = 0; frame < 600 && sane; frame++)
+    {
+        /* Il giocatore spara verso il nemico piu' vicino (nessun input reale in un
+           test headless: si chiama direttamente CombatFirePlayer, come gli altri
+           test). Il fireTimer va rispettato a mano. */
+        if (game.player.fireTimer > 0.0f) game.player.fireTimer -= 1.0f/60.0f;
+        Enemy *nearest = NULL;
+        float bestD = 1e18f;
+        for (int i = 0; i < MAX_ENEMIES; i++)
+        {
+            if (!game.enemies[i].active) continue;
+            float d = GameMathLengthSquared(GameMathSubtract(game.enemies[i].pos, game.player.pos));
+            if (d < bestD) { bestD = d; nearest = &game.enemies[i]; }
+        }
+        if (nearest && game.player.fireTimer <= 0.0f)
+        {
+            Vector2 aim = GameMathNormalize(GameMathSubtract(nearest->pos, game.player.pos));
+            if (GameMathLengthSquared(aim) > 0.01f) CombatFirePlayer(&game, aim);
+        }
+
+        CombatUpdateEnemies(&game, 1.0f/60.0f);
+        CombatUpdateShots(&game, 1.0f/60.0f);
+
+        /* Invarianti di sanita', ogni frame. */
+        int activeShots = 0;
+        for (int i = 0; i < MAX_SHOTS; i++)
+        {
+            if (!game.shots[i].active) continue;
+            activeShots++;
+            if (!isfinite(game.shots[i].pos.x) || !isfinite(game.shots[i].pos.y)) { sane = false; break; }
+        }
+        if (activeShots > maxShotsSeen) maxShotsSeen = activeShots;
+        if (activeShots > MAX_SHOTS) sane = false;   /* non puo' succedere per costruzione, ma e' il punto */
+
+        int aliveEnemies = 0;
+        for (int i = 0; i < MAX_ENEMIES; i++)
+        {
+            Enemy *e = &game.enemies[i];
+            if (!e->active) continue;
+            aliveEnemies++;
+            if (!isfinite(e->pos.x) || !isfinite(e->pos.y)) sane = false;
+            /* Un nemico non deve mai uscire dalla stanza (un movimento sballato o
+               uno scatto non clampato lo spedirebbe fuori). Tolleranza di un
+               raggio: il clamp lo tiene ai bordi. */
+            if (e->pos.x < ROOM_X - 40.0f || e->pos.x > ROOM_RIGHT + 40.0f ||
+                e->pos.y < ROOM_Y - 40.0f || e->pos.y > ROOM_BOTTOM + 40.0f) sane = false;
+        }
+        if (aliveEnemies < startEnemies) anyEnemyDied = true;
+    }
+
+    printf("  [AH] soak 600 frame: %d nemici spawnati, colpi max visti %d/%d, almeno un nemico morto=%s, tutto finito e sano=%s\n",
+           spawned, maxShotsSeen, MAX_SHOTS, anyEnemyDied ? "si" : "NO", sane ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = sane && spawned > 0 && anyEnemyDied && maxShotsSeen <= MAX_SHOTS;
+    if (!ok) printf("      FALLITO: 10s di combattimento coi nemici piu' cattivi devono restare sani (niente NaN, colpi entro MAX_SHOTS, nemici che muoiono)\n");
+    return ok;
+}
+
 /* Test AG (fase 3b, la SECONDA rete): il budget di difficolta' della stanza. La
    stanza non spawna un numero fisso di nemici: spende un budget di punti, e ogni
    nemico costa la propria potenza. Quindi un piano di nemici CATTIVI ne riceve
@@ -1799,6 +1893,7 @@ bool ScriptItemsSelfTest(void)
         { "AE (3b: round-trip testo<->enum di forme/movimenti/spari, sincronizzato con run.gbnf)", TestEnemyTypeTextRoundTrip },
         { "AF (3b: movimenti e modi di sparare fanno cose osservabilmente diverse)", TestEnemyBehavioursDiffer },
         { "AG (3b: la stanza spende un BUDGET di difficolta', non un numero fisso di nemici)", TestRoomDifficultyBudget },
+        { "AH (3b: soak 10s coi nemici piu' cattivi -- niente NaN, colpi entro MAX_SHOTS, nemici che muoiono)", TestEnemySoak },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)
