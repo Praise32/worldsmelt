@@ -128,6 +128,11 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
         }
         EnemyTypeExampleBoss(&floor->bossType);
 
+        /* Layout delle stanze del piano (fase 3c): ripiego procedurale (i layout
+           veri li inventa il modello). NUOVO punto di consumo RNG: golden
+           rigenerato. */
+        RoomLayoutExample(&floor->roomLayout, GenRngRange(&rng, 0, ROOM_LAYOUT_EXAMPLE_COUNT - 1));
+
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);
         snprintf(floor->style, sizeof(floor->style), "%s", styles[GenRngRange(&rng, 0, 4)]);

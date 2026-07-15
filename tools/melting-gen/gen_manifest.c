@@ -211,6 +211,15 @@ static int WriteManifest(const GenRun *run, const char *outDir, bool preserveAtl
             fprintf(f, "%s.pellets=%d\n", prefix, foe->pellets);
         }
 
+        /* Layout della stanza del piano (fase 3c). La chiave "room.name" fa da
+           sentinella lato gioco; un layout OPEN non si scrive (stanza vuota). */
+        if (floor->roomLayout.active && floor->roomLayout.form != ROOM_LAYOUT_OPEN)
+        {
+            fprintf(f, "floor%d.room.name=%s\n", n, floor->roomLayout.name);
+            fprintf(f, "floor%d.room.form=%s\n", n, RoomFormName(floor->roomLayout.form));
+            fprintf(f, "floor%d.room.density=%.2f\n", n, (double)floor->roomLayout.density);
+        }
+
         for (int i = 0; i < GEN_ITEMS; i++)
         {
             const GenItem *item = &floor->items[i];
@@ -367,6 +376,12 @@ static cJSON *RunToJson(const GenRun *run)
         cJSON *jfoes = cJSON_AddArrayToObject(jf, "enemies");
         for (int en = 0; en < 2; en++) cJSON_AddItemToArray(jfoes, EnemyTypeToJson(&floor->enemies[en]));
         cJSON_AddItemToObject(jf, "bossType", EnemyTypeToJson(&floor->bossType));
+
+        /* Layout della stanza (fase 3c): fa parte di cio' che il modello scrive. */
+        cJSON *jroom = cJSON_AddObjectToObject(jf, "room");
+        cJSON_AddStringToObject(jroom, "name", floor->roomLayout.name);
+        cJSON_AddStringToObject(jroom, "form", RoomFormName(floor->roomLayout.form));
+        cJSON_AddNumberToObject(jroom, "density", RoundTo2(floor->roomLayout.density));
 
         cJSON *items = cJSON_AddArrayToObject(jf, "items");
         for (int i = 0; i < GEN_ITEMS; i++)

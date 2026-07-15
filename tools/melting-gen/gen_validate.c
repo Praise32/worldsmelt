@@ -425,6 +425,33 @@ static void NormalizeEnemyType(const cJSON *rawFoe, const EnemyTypeDef *fb, bool
     *out = type;
 }
 
+/* Il layout della stanza dal JSON (fase 3c). Stessa filosofia: il modello e' libero
+   su nome/forma/densita', il C garantisce solo che siano validi (RoomLayoutClamp);
+   la giocabilita' vera la garantisce RoomLayoutBuild lato gioco. */
+static void NormalizeRoomLayout(const cJSON *rawRoom, const RoomLayoutDef *fb, RoomLayoutDef *out)
+{
+    if (!cJSON_IsObject((cJSON *)rawRoom)) { *out = *fb; RoomLayoutClamp(out); return; }
+
+    RoomLayoutDef def;
+    memset(&def, 0, sizeof(def));
+    def.active = true;
+    CopyText(def.name, sizeof(def.name), JsonString(rawRoom, "name"), fb->name);
+
+    const char *formText = JsonString(rawRoom, "form");
+    def.form = formText ? RoomFormFromText(formText) : fb->form;
+    /* "open" col nome resta un layout attivo a forma OPEN: il writer lo scrivera'
+       comunque (il gioco lo trattera' come stanza vuota, vedi ReadRoomLayout).
+       Una forma sconosciuta ricade sul ripiego, non su OPEN (una stanza "nuova" che
+       si disegna vuota non e' una stanza nuova). */
+    if (formText && def.form == ROOM_LAYOUT_OPEN && strcmp(formText, "open") != 0) def.form = fb->form;
+
+    int ok = 0;
+    def.density = (float)JsonNumber(rawRoom, "density", fb->density, &ok);
+
+    RoomLayoutClamp(&def);
+    *out = def;
+}
+
 void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out)
 {
     GenRun fb;
@@ -460,6 +487,8 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out
         }
         NormalizeEnemyType(rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "bossType") : NULL,
                             &fbFloor->bossType, true, &floor->bossType);
+        NormalizeRoomLayout(rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "room") : NULL,
+                            &fbFloor->roomLayout, &floor->roomLayout);
 
         const cJSON *rawItems = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "items") : NULL;
         for (int i = 0; i < GEN_ITEMS; i++)

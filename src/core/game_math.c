@@ -98,3 +98,73 @@ Color GameColorLerp(Color a, Color b, float t)
         (unsigned char)((float)a.a + ((float)b.a - (float)a.a)*t)
     };
 }
+
+bool GameMathResolveCircleRect(Vector2 *pos, float radius, Rectangle rect)
+{
+    /* Punto del rettangolo piu' vicino al centro del cerchio. */
+    float nx = GameMathClampFloat(pos->x, rect.x, rect.x + rect.width);
+    float ny = GameMathClampFloat(pos->y, rect.y, rect.y + rect.height);
+    float dx = pos->x - nx;
+    float dy = pos->y - ny;
+    float d2 = dx*dx + dy*dy;
+
+    if (d2 > radius*radius) return false;   /* non tocca */
+
+    if (d2 > 0.0001f)
+    {
+        /* Il centro e' FUORI dal rettangolo ma il cerchio lo sfiora: spingi lungo la
+           normale (dal punto piu' vicino al centro) fino a staccare. */
+        float d = sqrtf(d2);
+        float push = radius - d;
+        pos->x += (dx/d)*push;
+        pos->y += (dy/d)*push;
+        return true;
+    }
+
+    /* Il centro e' DENTRO il rettangolo: esci dal lato piu' vicino (la penetrazione
+       minima fra i quattro lati). */
+    float left = pos->x - rect.x;
+    float right = (rect.x + rect.width) - pos->x;
+    float top = pos->y - rect.y;
+    float bottom = (rect.y + rect.height) - pos->y;
+    float minH = left < right ? left : right;
+    float minV = top < bottom ? top : bottom;
+    if (minH < minV)
+    {
+        pos->x += (left < right) ? -(left + radius) : (right + radius);
+    }
+    else
+    {
+        pos->y += (top < bottom) ? -(top + radius) : (bottom + radius);
+    }
+    return true;
+}
+
+bool GameMathSegmentHitsRect(Vector2 a, Vector2 b, Rectangle rect)
+{
+    /* Estremi gia' dentro: intersezione ovvia. */
+    if (a.x >= rect.x && a.x <= rect.x + rect.width && a.y >= rect.y && a.y <= rect.y + rect.height) return true;
+    if (b.x >= rect.x && b.x <= rect.x + rect.width && b.y >= rect.y && b.y <= rect.y + rect.height) return true;
+
+    /* Clipping di Liang-Barsky del segmento contro il rettangolo: se resta un tratto
+       parametrico valido, il segmento attraversa. */
+    float x0 = a.x, y0 = a.y, x1 = b.x, y1 = b.y;
+    float dx = x1 - x0, dy = y1 - y0;
+    float p[4] = { -dx, dx, -dy, dy };
+    float q[4] = { x0 - rect.x, (rect.x + rect.width) - x0, y0 - rect.y, (rect.y + rect.height) - y0 };
+    float t0 = 0.0f, t1 = 1.0f;
+    for (int i = 0; i < 4; i++)
+    {
+        if (p[i] == 0.0f)
+        {
+            if (q[i] < 0.0f) return false;   /* parallelo e fuori */
+        }
+        else
+        {
+            float t = q[i]/p[i];
+            if (p[i] < 0.0f) { if (t > t1) return false; if (t > t0) t0 = t; }
+            else             { if (t < t0) return false; if (t < t1) t1 = t; }
+        }
+    }
+    return t0 <= t1;
+}

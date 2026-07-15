@@ -1198,6 +1198,139 @@ static bool TestEnemyBehavioursDiffer(void)
     return ok;
 }
 
+/* ============================================================
+   Test AK-AM (fase 3c): i layout delle stanze inventati dal modello. Come per tutto
+   il resto, il motore garantisce due cose e queste sono cio' che si verifica: la
+   stanza resta SEMPRE giocabile (RoomLayoutBuild non mura mai il centro ne' le
+   porte), e gli ostacoli fermano davvero chi ci sbatte (collisione).
+   ============================================================ */
+
+/* Il rettangolo di gioco, come in game_types.h (ROOM_X..). Ripetuto qui in locale
+   per non dipendere da altro. */
+#define TEST_ROOM_X 42.0f
+#define TEST_ROOM_Y 104.0f
+#define TEST_ROOM_W 876.0f
+#define TEST_ROOM_H 458.0f
+
+/* Test AK (il test centrale della fase 3c): QUALUNQUE layout il modello inventi, la
+   stanza resta giocabile. Per ogni forma e su tutta la banda di densita' si
+   costruiscono gli ostacoli e si pretende che: (1) la CROCE centrale (le due fasce
+   che passano per il centro) resti libera -- cosi' il giocatore non nasce in un
+   muro e ogni porta e' raggiungibile; (2) nessun ostacolo esca dalla stanza; (3) la
+   densita' resti clampata (non piu' di MAX_OBSTACLES). Se questo passa, nessun
+   layout scritto da un 7B puo' murare il giocatore. */
+static bool TestRoomLayoutAlwaysPlayable(void)
+{
+    const float cx = TEST_ROOM_X + TEST_ROOM_W*0.5f;
+    const float cy = TEST_ROOM_Y + TEST_ROOM_H*0.5f;
+    /* La semiampiezza della croce e' un dettaglio interno di room_layout.c (90px):
+       qui si verifica una fascia PIU' STRETTA (70px), cosi' il test non si rompe se
+       quel valore interno cambiasse di poco, ma cattura comunque un ostacolo che
+       invadesse il centro. */
+    const float crossHalf = 70.0f;
+
+    bool ok = true;
+    int checkedForms = 0;
+    int maxBlocksSeen = 0;
+
+    for (int form = 1; form < (int)ROOM_LAYOUT_COUNT; form++)   /* da 1: OPEN non ha ostacoli */
+    {
+        for (int d = 0; d <= 10; d++)
+        {
+            RoomLayoutDef def;
+            memset(&def, 0, sizeof(def));
+            def.active = true;
+            def.form = (RoomForm)form;
+            def.density = (float)d/10.0f;   /* 0..1, RoomLayoutClamp lo riporta in banda */
+
+            for (unsigned int seed = 1; seed <= 6; seed++)
+            {
+                Obstacle obs[MAX_OBSTACLES];
+                int n = RoomLayoutBuild(&def, seed, TEST_ROOM_X, TEST_ROOM_Y, TEST_ROOM_W, TEST_ROOM_H, obs, MAX_OBSTACLES);
+                if (n > maxBlocksSeen) maxBlocksSeen = n;
+                if (n > MAX_OBSTACLES) ok = false;
+                for (int i = 0; i < n; i++)
+                {
+                    /* Non deve intersecare la fascia verticale della croce... */
+                    if (obs[i].x < cx + crossHalf && obs[i].x + obs[i].w > cx - crossHalf) ok = false;
+                    /* ...ne' quella orizzontale. */
+                    if (obs[i].y < cy + crossHalf && obs[i].y + obs[i].h > cy - crossHalf) ok = false;
+                    /* Ne' uscire dalla stanza. */
+                    if (obs[i].x < TEST_ROOM_X || obs[i].y < TEST_ROOM_Y ||
+                        obs[i].x + obs[i].w > TEST_ROOM_X + TEST_ROOM_W ||
+                        obs[i].y + obs[i].h > TEST_ROOM_Y + TEST_ROOM_H) ok = false;
+                }
+            }
+            checkedForms++;
+        }
+    }
+
+    printf("  [AK] %d combinazioni forma/densita' x 6 semi: croce centrale sempre libera, ostacoli dentro la stanza, max %d blocchi (tetto %d) -> giocabile=%s\n",
+           checkedForms, maxBlocksSeen, MAX_OBSTACLES, ok ? "si" : "NO");
+    if (!ok) printf("      FALLITO: un layout ha murato il centro/una porta, o e' uscito dalla stanza, o ha sforato MAX_OBSTACLES\n");
+    return ok;
+}
+
+/* Test AL: il round-trip testo<->enum delle forme di layout (come per rarity, tipi
+   di colpo, nemici). */
+static bool TestRoomFormTextRoundTrip(void)
+{
+    static const char *kForms[ROOM_LAYOUT_COUNT] = { "open", "pillars", "corridor", "arena", "scatter" };
+    bool ok = true;
+    for (int i = 0; i < (int)ROOM_LAYOUT_COUNT; i++)
+    {
+        if (RoomFormFromText(kForms[i]) != (RoomForm)i || strcmp(RoomFormName((RoomForm)i), kForms[i]) != 0) ok = false;
+    }
+    if (RoomFormFromText("labirinto-di-specchi") != ROOM_LAYOUT_OPEN || RoomFormFromText(NULL) != ROOM_LAYOUT_OPEN) ok = false;
+    printf("  [AL] %d forme di layout: testo <-> enum coerenti, ignoto -> open\n", (int)ROOM_LAYOUT_COUNT);
+    if (!ok) printf("      FALLITO: round-trip testo<->enum dei layout rotto\n");
+    return ok;
+}
+
+/* Test AM: gli ostacoli FERMANO davvero. (1) Un giocatore che cammina dritto contro
+   un muro non lo attraversa. (2) Un colpo che lo colpisce muore (o rimbalza). Senza
+   collisione, gli ostacoli sarebbero decorazione. */
+static bool TestObstaclesBlockMovementAndShots(void)
+{
+    Game game = MakeBaseGame(9400u);
+
+    /* Un solo ostacolo, un blocco a destra del giocatore. */
+    game.obstacleCount = 1;
+    float px = game.player.pos.x, py = game.player.pos.y;
+    game.obstacles[0] = (Obstacle){ px + 60.0f, py - 40.0f, 60.0f, 80.0f };
+
+    /* (1) Sposta il giocatore DENTRO il blocco e risolvi: deve finire FUORI. */
+    game.player.pos = (Vector2){ px + 90.0f, py };   /* dentro il blocco */
+    /* CombatResolveObstacles e' static in combat.c; lo si esercita attraverso il
+       movimento reale. Si spinge il giocatore verso destra con l'update... ma senza
+       input. Piu' semplice: si verifica l'helper pubblico GameMathResolveCircleRect,
+       che e' cio' che il movimento usa. */
+    Vector2 pos = { px + 90.0f, py };
+    Rectangle r = { game.obstacles[0].x, game.obstacles[0].y, game.obstacles[0].w, game.obstacles[0].h };
+    bool pushed = GameMathResolveCircleRect(&pos, game.player.radius, r);
+    bool outside = pos.x <= r.x - game.player.radius + 0.5f || pos.x >= r.x + r.width + game.player.radius - 0.5f ||
+                   pos.y <= r.y - game.player.radius + 0.5f || pos.y >= r.y + r.height + game.player.radius - 0.5f;
+
+    /* (2) Un colpo del giocatore verso il blocco: dopo qualche frame deve essere
+       morto (nessun rimbalzo: colpo base). */
+    game.player.pos = (Vector2){ px, py };
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });   /* verso destra, contro il blocco */
+    int shotsAfterFire = 0;
+    for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && game.shots[i].fromPlayer) shotsAfterFire++;
+    for (int step = 0; step < 30; step++) CombatUpdateShots(&game, 1.0f/60.0f);
+    int shotsAlive = 0;
+    for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && game.shots[i].fromPlayer) shotsAlive++;
+    bool shotBlocked = shotsAfterFire > 0 && shotsAlive == 0;
+
+    printf("  [AM] muro: giocatore spinto fuori=%s (%.1f,%.1f) | colpo verso il muro: sparati %d, vivi dopo=%d (fermato=%s)\n",
+           (pushed && outside) ? "si" : "NO", (double)pos.x, (double)pos.y, shotsAfterFire, shotsAlive, shotBlocked ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = pushed && outside && shotBlocked;
+    if (!ok) printf("      FALLITO: un ostacolo deve fermare il movimento del giocatore e i colpi (non e' decorazione)\n");
+    return ok;
+}
+
 /* Test AI (regressione, review fase 3b): slot nemico NON contigui. Un manifest
    scritto a mano puo' definire enemy2 e non enemy1, lasciando lo slot 0 inattivo e
    il 1 attivo. Il budget della stanza deve spawnare il nemico del piano (slot 1),
@@ -1983,6 +2116,9 @@ bool ScriptItemsSelfTest(void)
         { "AH (3b: soak 10s coi nemici piu' cattivi -- niente NaN, colpi entro MAX_SHOTS, nemici che muoiono)", TestEnemySoak },
         { "AI (review 3b: slot nemico non contigui -- la stanza spawna il tipo giusto, non il chaser storico)", TestRoomSpawnsNonContiguousEnemyType },
         { "AJ (review 3b: sparare a corona non tocca il timer del movimento a scatto)", TestChargeRingFireDoesNotDisturbMovement },
+        { "AK (3c: qualunque layout inventi il modello, la stanza resta giocabile -- croce libera)", TestRoomLayoutAlwaysPlayable },
+        { "AL (3c: round-trip testo<->enum delle forme di layout, sincronizzato con run.gbnf)", TestRoomFormTextRoundTrip },
+        { "AM (3c: gli ostacoli fermano il movimento del giocatore e i colpi, non sono decorazione)", TestObstaclesBlockMovementAndShots },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

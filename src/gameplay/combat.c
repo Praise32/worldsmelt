@@ -19,6 +19,30 @@
 #error "Shot.hitMask e' a 64 bit: MAX_ENEMIES non puo' superare 64 (vedi core/game_types.h)"
 #endif
 
+/* Fase 3c: spinge un cerchio (giocatore o nemico) fuori da TUTTI gli ostacoli
+   solidi della stanza corrente. Un solo giro basta nella pratica (gli ostacoli non
+   si toccano fra loro, la croce centrale li tiene separati), ma se un cerchio
+   grosso stesse a cavallo di due blocchi adiacenti un secondo giro lo sistema:
+   due giri sono un tetto abbondante e a costo nullo (MAX_OBSTACLES=10, gli ostacoli
+   veri sono ~4). Ritorna true se ha toccato qualcosa (serve ai colpi, sotto, per
+   sapere se rimbalzare). */
+static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
+{
+    bool touched = false;
+    for (int pass = 0; pass < 2; pass++)
+    {
+        bool any = false;
+        for (int i = 0; i < game->obstacleCount; i++)
+        {
+            Obstacle *o = &game->obstacles[i];
+            Rectangle r = { o->x, o->y, o->w, o->h };
+            if (GameMathResolveCircleRect(pos, radius, r)) { any = true; touched = true; }
+        }
+        if (!any) break;
+    }
+    return touched;
+}
+
 static Enemy *CombatNearestEnemy(Game *game, Vector2 pos)
 {
     Enemy *best = NULL;
@@ -293,6 +317,7 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     p->pos = GameMathAdd(p->pos, GameMathScale(move, p->speed*dt));
     p->pos.x = GameMathClampFloat(p->pos.x, ROOM_X + p->radius, ROOM_RIGHT - p->radius);
     p->pos.y = GameMathClampFloat(p->pos.y, ROOM_Y + p->radius, ROOM_BOTTOM - p->radius);
+    CombatResolveObstacles(game, &p->pos, p->radius);   /* fase 3c: non si passa attraverso i muri */
     WorldHandleTransitions(game, move);
 
     if (p->invuln > 0.0f) p->invuln -= dt;
@@ -465,6 +490,7 @@ void CombatUpdateEnemies(Game *game, float dt)
         e->vel = GameMathScale(e->vel, 0.90f);
         e->pos.x = GameMathClampFloat(e->pos.x, ROOM_X + e->radius, ROOM_RIGHT - e->radius);
         e->pos.y = GameMathClampFloat(e->pos.y, ROOM_Y + e->radius, ROOM_BOTTOM - e->radius);
+        CombatResolveObstacles(game, &e->pos, e->radius);   /* fase 3c: i nemici non passano attraverso i muri */
         e->cooldown -= dt;
 
         if (e->type.active)
@@ -546,6 +572,7 @@ void CombatUpdateShots(Game *game, float dt)
             }
         }
 
+        Vector2 prevPos = s->pos;
         s->pos = GameMathAdd(s->pos, GameMathScale(s->vel, dt));
         s->life -= dt;
         bool wall = false;
@@ -560,6 +587,31 @@ void CombatUpdateShots(Game *game, float dt)
             s->vel.y *= -1.0f;
             s->pos.y = GameMathClampFloat(s->pos.y, ROOM_Y + s->radius, ROOM_BOTTOM - s->radius);
             wall = true;
+        }
+        /* Fase 3c: gli ostacoli fermano i colpi come i muri. Si usa il SEGMENTO del
+           movimento (prevPos -> pos), non il solo punto d'arrivo: un colpo veloce
+           puo' scavalcare un ostacolo sottile in un frame. Un colpo con rimbalzi
+           spende un rimbalzo e riparte dal punto prima dell'ostacolo, invertendo la
+           componente di velocita' del lato colpito; altrimenti muore. Vale per i
+           colpi del giocatore E dei nemici: un muro e' un muro per entrambi. */
+        if (!wall && game->obstacleCount > 0)
+        {
+            for (int oi = 0; oi < game->obstacleCount; oi++)
+            {
+                Obstacle *o = &game->obstacles[oi];
+                Rectangle r = { o->x - s->radius, o->y - s->radius, o->w + s->radius*2.0f, o->h + s->radius*2.0f };
+                if (!GameMathSegmentHitsRect(prevPos, s->pos, r)) continue;
+                /* Da che lato e' entrato: si guarda dove stava PRIMA rispetto al
+                   rettangolo gonfiato, per decidere quale componente invertire. */
+                bool fromSide = prevPos.x <= r.x || prevPos.x >= r.x + r.width;
+                bool fromTopBottom = prevPos.y <= r.y || prevPos.y >= r.y + r.height;
+                s->pos = prevPos;   /* torna al punto sicuro prima dell'ostacolo */
+                if (fromSide && !fromTopBottom) s->vel.x *= -1.0f;
+                else if (fromTopBottom && !fromSide) s->vel.y *= -1.0f;
+                else { s->vel.x *= -1.0f; s->vel.y *= -1.0f; }   /* angolo: inverti entrambe */
+                wall = true;
+                break;
+            }
         }
         if (wall)
         {

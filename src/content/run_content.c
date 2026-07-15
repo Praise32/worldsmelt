@@ -170,6 +170,41 @@ static void ReadEnemyType(const char *text, const char *prefix, bool isBoss, Ene
     *out = type;
 }
 
+/* Il layout della stanza del piano dal manifest (fase 3c). Chiave "name" come
+   sentinella: se manca, il piano ha stanze VUOTE (back-compat totale con i manifest
+   scritti prima di questa fase). Passa da RoomLayoutClamp (la garanzia vera --
+   stanza sempre giocabile -- e' in RoomLayoutBuild, che gira solo lato gioco). */
+static void ReadRoomLayout(const char *text, int floorNum, RoomLayoutDef *out)
+{
+    char key[64];
+    char value[SCRIPT_TEXT_LEN];
+
+    snprintf(key, sizeof(key), "floor%d.room.name=", floorNum);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (!value[0]) return;
+
+    RoomLayoutDef def;
+    memset(&def, 0, sizeof(def));
+    def.active = true;
+    snprintf(def.name, sizeof(def.name), "%s", value);
+
+    snprintf(key, sizeof(key), "floor%d.room.form=", floorNum);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    def.form = RoomFormFromText(value);
+
+    snprintf(key, sizeof(key), "floor%d.room.density=", floorNum);
+    value[0] = '\0'; ReadManifestValue(text, key, value, sizeof(value));
+    def.density = value[0] ? (float)atof(value) : 0.5f;
+
+    RoomLayoutClamp(&def);
+    /* Un layout OPEN col nome non e' un layout: se il modello ha detto "open", il
+       piano resta a stanze vuote (active falso), non un layout attivo che non
+       disegna nulla ma occupa il campo. */
+    if (def.form == ROOM_LAYOUT_OPEN) return;
+    *out = def;
+}
+
 static const char *FallbackScriptForTrait(unsigned int trait)
 {
     if (trait & TRAIT_BOUNCE) return "on_fire:burst,2,0.25,bounce";
@@ -306,6 +341,7 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
         int shotOwner = GameRngRange(&rng, 0, 2);
         content->floors[f].items[shotOwner].shotType = MakeFallbackShotType(&rng);
         MakeFallbackEnemies(&content->floors[f], &rng);   /* fase 3b */
+        RoomLayoutExample(&content->floors[f].roomLayout, GameRngRange(&rng, 0, ROOM_LAYOUT_EXAMPLE_COUNT - 1));   /* fase 3c */
     }
 }
 
@@ -536,6 +572,11 @@ void RunContentLoad(RunContent *content, unsigned int seed)
         }
         snprintf(key, sizeof(key), "floor%d.bossType", n);
         ReadEnemyType(text, key, true, &floor->bossType);
+
+        /* Fase 3c: il layout delle stanze del piano. Azzerato prima (il manifest e'
+           l'autorita', come per nemici/tipi di colpo). */
+        memset(&floor->roomLayout, 0, sizeof(floor->roomLayout));
+        ReadRoomLayout(text, n, &floor->roomLayout);
 
         for (int i = 0; i < 3; i++)
         {

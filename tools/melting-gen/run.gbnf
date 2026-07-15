@@ -3,7 +3,7 @@
 # Ordine delle chiavi FISSO, identico a RunToJson() in gen_manifest.c.
 root ::= "{\"floors\":[" floor "," floor "," floor "," floor "," floor "]}"
 
-floor ::= "{\"theme\":" name ",\"style\":" name ",\"boss\":" name ",\"bg\":" color ",\"floor\":" color ",\"wall\":" color ",\"accent\":" color ",\"accent2\":" color ",\"enemy\":" color ",\"bossColor\":" color ",\"shot\":" shot ",\"shotItem\":" itemidx ",\"enemies\":[" foe "," foe "],\"bossType\":" foe ",\"items\":[" item "," item "," item "]}"
+floor ::= "{\"theme\":" name ",\"style\":" name ",\"boss\":" name ",\"bg\":" color ",\"floor\":" color ",\"wall\":" color ",\"accent\":" color ",\"accent2\":" color ",\"enemy\":" color ",\"bossColor\":" color ",\"shot\":" shot ",\"shotItem\":" itemidx ",\"enemies\":[" foe "," foe "],\"bossType\":" foe ",\"room\":" room ",\"items\":[" item "," item "," item "]}"
 
 # Tipo di nemico (fase 3b): lo INVENTA il modello, come i tipi di colpo. Il motore
 # non ha un catalogo di nemici, ha solo questo vocabolario (src/core/enemy_type.h).
@@ -12,6 +12,11 @@ foeform ::= "\"blob\"" | "\"spiky\"" | "\"armored\"" | "\"floater\""
 foemove ::= "\"chase\"" | "\"kite\"" | "\"orbit\"" | "\"zigzag\"" | "\"charge\""
 foefire ::= "\"none\"" | "\"single\"" | "\"spread\"" | "\"ring\""
 knob08 ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8"
+
+# Layout della stanza (fase 3c): lo INVENTA il modello. Il motore garantisce la
+# giocabilita' (RoomLayoutBuild), qui basta forma + densita' + nome.
+room ::= "{\"name\":" name ",\"form\":" roomform ",\"density\":" mul "}"
+roomform ::= "\"open\"" | "\"pillars\"" | "\"corridor\"" | "\"arena\"" | "\"scatter\""
 
 # Tipo di colpo del piano (step C): il modello lo INVENTA -- nome, forma e sette
 # manopole. Il motore non ha un elenco di tipi possibili, ha solo questo

@@ -611,9 +611,36 @@ static void DepthSort(DepthEntry *list, int count)
     }
 }
 
+/* Fase 3c: gli ostacoli solidi della stanza, in 2.5D (blocchi rialzati). Ogni
+   blocco ha un'ombra a terra, una FACCIA FRONTALE scura (lo spessore, verso
+   l'osservatore) e una FACCIA SUPERIORE piu' chiara (la cima, dove batte la luce),
+   coerenti con muri/ombre del resto della resa 2.5D (step E). Disegnati subito dopo
+   il pavimento e PRIMA delle entita': sono coperture basse, le entita' ci passano
+   davanti (un ordinamento per profondita' rettangolo-vs-cerchio non varrebbe la
+   complessita' per coperture cosi' basse). */
+static void DrawObstacles(Game *game)
+{
+    const float LIFT = 16.0f;   /* quanto e' "alto" il blocco: la faccia superiore e' spostata su di tanto */
+    Color side = GameColorLerp(game->theme.wall, BLACK, 0.55f);
+    Color top = GameColorLerp(game->theme.wall, WHITE, 0.12f);
+    Color edge = GameColorLerp(game->theme.wall, BLACK, 0.30f);
+    for (int i = 0; i < game->obstacleCount; i++)
+    {
+        Obstacle *o = &game->obstacles[i];
+        /* Ombra a terra alla base del blocco. */
+        DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
+        /* Faccia frontale (lo spessore): dalla base del blocco giu' di LIFT. */
+        DrawRectangle((int)o->x, (int)(o->y + o->h - LIFT), (int)o->w, (int)LIFT, side);
+        /* Faccia superiore: il rettangolo del blocco, spostato SU di LIFT. */
+        DrawRectangle((int)o->x, (int)(o->y - LIFT), (int)o->w, (int)o->h, top);
+        DrawRectangleLinesEx((Rectangle){ o->x, o->y - LIFT, o->w, o->h }, 2.0f, edge);
+    }
+}
+
 static void DrawGameplayCanvas(Game *game)
 {
     DrawRoom(game);
+    DrawObstacles(game);
 
     /* Tutte le ombre PRIMA di tutte le entita': un'ombra e' sul pavimento, e sul
        pavimento deve restare -- se le si disegnasse insieme alla propria entita',

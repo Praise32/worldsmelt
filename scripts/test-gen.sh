@@ -225,6 +225,22 @@ for n in 1 2 3 4 5; do
   done
 done
 
+# Fase 3c: ogni piano porta un layout di stanza (forma + densita' + nome), inventato
+# dal modello. Qui si esercita il ripiego procedurale, ma formato e garanzie sono gli
+# stessi. La garanzia vera -- la stanza resta SEMPRE giocabile -- e' verificata dai
+# test della suite --script-items-test (croce centrale sempre libera).
+echo "-- fase 3c: un layout di stanza per piano (forma nota + densita') --"
+ROOM_FORM_RE='^(open|pillars|corridor|arena|scatter)$'
+for n in 1 2 3 4 5; do
+  # il ripiego procedurale non genera mai "open", quindi tutte le righe ci sono
+  for field in name form density; do
+    grep -q "^floor${n}\.room\.${field}=" "$TMP/a/current_run.txt" || {
+      echo "FALLITO: floor${n}.room.${field} mancante"; exit 1; }
+  done
+  form=$(grep "^floor${n}\.room\.form=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+  echo "$form" | grep -Eq "$ROOM_FORM_RE" || { echo "FALLITO: floor${n}.room.form=$form sconosciuta"; exit 1; }
+done
+
 echo "-- il gioco carica il manifest generato --"
 "$GEN" --fallback --seed 4242 --out generated
 "${GAME_RUN[@]}" bin/melting_run_gpu --manifest-test

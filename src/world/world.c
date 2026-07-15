@@ -154,6 +154,45 @@ static void WorldGenerateFloorMap(Game *game)
     WorldLinkRooms(game);
 }
 
+/* Fase 3c: ricostruisce gli ostacoli della stanza CORRENTE dal layout del piano.
+   Solo per le stanze di COMBATTIMENTO: il boss ha bisogno di spazio, e in
+   tesoro/negozio l'oggetto da raccogliere non deve mai finire dietro un muro. Il
+   seme mescola numero di stanza e coordinate cosi' due stanze di combattimento
+   dello stesso piano non hanno ostacoli identici, restando entrambe valide (la
+   garanzia e' in RoomLayoutBuild). */
+static void WorldBuildObstacles(Game *game, const RoomState *room)
+{
+    game->obstacleCount = 0;
+    if (room->kind != ROOM_COMBAT || room->cleared) return;
+    const RoomLayoutDef *layout = &game->content.floors[game->floor - 1].roomLayout;
+    if (!layout->active) return;
+    unsigned int seed = (unsigned int)(game->roomX*73856093) ^ (unsigned int)(game->roomY*19349663) ^ ((unsigned int)game->floor*83492791u);
+    game->obstacleCount = RoomLayoutBuild(layout, seed, ROOM_X, ROOM_Y, ROOM_W, ROOM_H,
+                                          game->obstacles, MAX_OBSTACLES);
+}
+
+/* Una posizione casuale nella stanza che NON cade dentro un ostacolo (fase 3c): un
+   nemico non deve mai nascere incastrato in un muro. Riprova fino a 12 volte; se non
+   trova un punto libero (stanza fittissima) usa comunque l'ultima -- la risoluzione
+   della collisione lo spingera' fuori al primo frame. */
+static Vector2 WorldFreeRoomPosition(Game *game, float pad)
+{
+    Vector2 pos = EntitiesRandomRoomPosition(&game->rng, pad);
+    for (int tries = 0; tries < 12; tries++)
+    {
+        bool inside = false;
+        for (int i = 0; i < game->obstacleCount; i++)
+        {
+            Obstacle *o = &game->obstacles[i];
+            if (pos.x > o->x - pad && pos.x < o->x + o->w + pad &&
+                pos.y > o->y - pad && pos.y < o->y + o->h + pad) { inside = true; break; }
+        }
+        if (!inside) return pos;
+        pos = EntitiesRandomRoomPosition(&game->rng, pad);
+    }
+    return pos;
+}
+
 /* Il BUDGET DI DIFFICOLTA' della stanza (fase 3b, la seconda delle due reti che
    permettono di lasciare a un 7B l'invenzione dei nemici -- la prima e'
    EnemyTypeBalance, core/enemy_type.c).
@@ -204,13 +243,13 @@ void WorldSpawnCombatRoom(Game *game)
             EnemyKind kind = ENEMY_CHASER;
             if (type->form == ENEMY_FORM_SPIKY) kind = ENEMY_SHOOTER;
             else if (type->form == ENEMY_FORM_ARMORED) kind = ENEMY_TANK;
-            EntitiesAddEnemyTyped(game, kind, EntitiesRandomRoomPosition(&game->rng, 58.0f), type);
+            EntitiesAddEnemyTyped(game, kind, WorldFreeRoomPosition(game, 58.0f), type);
             budget -= cost;
         }
         else
         {
             EnemyKind kind = (EnemyKind)GameRngRange(&game->rng, 0, 2);
-            EntitiesAddEnemy(game, kind, EntitiesRandomRoomPosition(&game->rng, 58.0f));
+            EntitiesAddEnemy(game, kind, WorldFreeRoomPosition(game, 58.0f));
             budget -= 1.0f;   /* i nemici storici valgono 1.0 per definizione */
         }
         spawned++;
@@ -223,6 +262,10 @@ void WorldSpawnRoomContents(Game *game)
     RoomState *room = WorldCurrentRoomMutable(game);
     room->visited = true;
     game->roomNumber++;
+
+    /* Fase 3c: gli ostacoli si costruiscono PRIMA di piazzare i nemici, cosi'
+       WorldFreeRoomPosition puo' evitarli. */
+    WorldBuildObstacles(game, room);
 
     if (room->kind == ROOM_COMBAT && !room->cleared)
     {

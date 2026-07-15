@@ -10,6 +10,7 @@
  * separate (come e' successo per rarity/kind, due elenchi di stringhe da tenere
  * sincronizzati a mano) un giorno divergerebbero in silenzio. */
 #include "core/enemy_type.h"
+#include "core/room_layout.h"
 #include "core/shot_type.h"
 
 #include <stddef.h>
@@ -177,6 +178,11 @@ typedef struct GenFloor {
      * (EnemyTypeBalance) e, in gioco, il budget di difficolta' della stanza. */
     EnemyTypeDef enemies[2];
     EnemyTypeDef bossType;
+    /* Layout delle stanze del piano (fase 3c): lo scrive il modello (grammatica
+     * JSON, chiave "room"). Il C garantisce solo densita' e forma valide
+     * (RoomLayoutClamp); la giocabilita' vera la garantisce RoomLayoutBuild lato
+     * gioco. */
+    RoomLayoutDef roomLayout;
     GenItem items[GEN_ITEMS];   /* oggetti ATTIVI: la stessa grammatica JSON di sempre (run.gbnf), il modello li scrive */
     /* Oggetto STAT-UP del piano, ricompensa del boss (fase 3, vedi
      * docs/superpowers/specs/2026-07-13-items-synergy-vision.md sezioni

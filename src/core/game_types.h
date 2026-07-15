@@ -9,6 +9,7 @@
    anche melting-gen: una sola definizione, impossibile da far divergere fra
    generatore e gioco. */
 #include "core/enemy_type.h"
+#include "core/room_layout.h"
 #include "core/shot_type.h"
 
 #include <stdbool.h>
@@ -241,6 +242,10 @@ typedef struct FloorContent {
        i nemici storici: back-compat totale, vedi RunContentLoad. */
     EnemyTypeDef enemies[2];
     EnemyTypeDef bossType;
+    /* Layout delle stanze di combattimento del piano (fase 3c), inventato dal
+       modello. Non attivo (manifest vecchio, nessun manifest) = stanze vuote come
+       prima: back-compat totale. */
+    RoomLayoutDef roomLayout;
     Item items[3];   /* oggetti ATTIVI del piano: stanza tesoro e negozio pescano da qui (world.c) */
     /* Oggetto STAT-UP del piano, campo esplicito e non un quarto slot di
        items[] (scelta deliberata, vedi il report di fase: docs/superpowers/sdd/
@@ -483,6 +488,12 @@ typedef struct Game {
     Pickup pickups[MAX_PICKUPS];
     Bomb bombs[MAX_BOMBS];
     Particle particles[MAX_PARTICLES];
+    /* Ostacoli solidi della stanza CORRENTE (fase 3c): ricostruiti da
+       WorldSpawnRoomContents ogni volta che si entra in una stanza, a partire dal
+       RoomLayoutDef del piano. Vuoto (obstacleCount 0) per le stanze senza layout e
+       per quelle che non ne hanno (boss/tesoro/negozio: servono spazio). */
+    Obstacle obstacles[MAX_OBSTACLES];
+    int obstacleCount;
     /* Contatori di generazione per l'API a handle di Lua (spec, sezione 5):
        incrementati in EntitiesAddEnemy/EntitiesAddShot ogni volta che uno
        slot viene (ri)assegnato. Un handle e' indice+generazione impacchettati

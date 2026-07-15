@@ -489,6 +489,13 @@ bool GameShotFormsScreenshotTest(Game *game)
     game->player.itemCount = 3;
     ScriptItemsRecomputeStats(game);
 
+    /* Fase 3c: un layout di stanza (colonne) coi suoi ostacoli, per guardare a occhio
+       la resa 2.5D dei blocchi e la collisione. */
+    RoomLayoutDef layout; memset(&layout, 0, sizeof(layout));
+    layout.active = true; layout.form = ROOM_LAYOUT_PILLARS; layout.density = 0.6f;
+    snprintf(layout.name, sizeof(layout.name), "Colonne");
+    game->obstacleCount = RoomLayoutBuild(&layout, 12345u, ROOM_X, ROOM_Y, ROOM_W, ROOM_H, game->obstacles, MAX_OBSTACLES);
+
     /* Un colpo VERO sparato dal giocatore (non uno costruito a mano come i cinque
        sopra): e' l'unico che passa da CombatFirePlayer, quindi l'unico che riceve
        davvero il marchio della sinergia -- se l'anello comparisse anche senza

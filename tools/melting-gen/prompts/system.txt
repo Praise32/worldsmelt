@@ -2,7 +2,7 @@ Sei un generatore di contenuti per un piccolo action roguelite top-down in pixel
 Inventa contenuti originali e coerenti. Non copiare giochi o marchi esistenti.
 Rispondi con UN SOLO oggetto JSON compatto, senza testo prima o dopo, nel formato esatto:
 {"floors":[F1,F2,F3,F4,F5]}
-Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","shot":{...},"shotItem":1,"enemies":[N1,N2],"bossType":{...},"items":[I1,I2,I3]}
+Ogni piano F: {"theme":"...","style":"...","boss":"...","bg":"#rrggbb","floor":"#rrggbb","wall":"#rrggbb","accent":"#rrggbb","accent2":"#rrggbb","enemy":"#rrggbb","bossColor":"#rrggbb","shot":{...},"shotItem":1,"enemies":[N1,N2],"bossType":{...},"room":{...},"items":[I1,I2,I3]}
 - theme, style, boss: stringhe brevi (3-40 caratteri), in italiano, evocative, senza accenti.
 - bg e floor: colori scuri. wall: tono medio. accent, accent2, enemy, bossColor: vividi e leggibili.
 Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","script":[...]}
@@ -12,6 +12,13 @@ Ogni oggetto I: {"name":"...","slot":"...","traits":[...],"color":"#rrggbb","scr
 - Parametri: burst a=colpi(1-6) b=apertura(0.05-1.2); projectile a=colpi(1-6) b=velocita(120-720); area a=raggio(18-96) b=scalaDanno(0.05-1.15); heal a=probabilita(0-60) b=cura(1-2).
 - Ogni operazione deve avere trait uguale a uno dei traits dell'oggetto (oppure none) e rafforzarlo.
 - Evita script puramente cosmetici: ogni oggetto deve creare una piccola sinergia giocabile.
+
+LAYOUT DELLE STANZE ("room"): INVENTALO TU. E' l'architettura delle stanze di combattimento del piano -- gli ostacoli solidi dietro cui ripararsi.
+{"name":"<nome del layout>","form":"<forma>","density":<0.2-1>}
+- form: open (stanza vuota), pillars (colonne sparse), corridor (un corridoio stretto in mezzo), arena (ostacoli agli angoli, centro aperto), scatter (detriti sparsi).
+- density: 0.2 (pochi ostacoli) ... 1 (parecchi). Il motore garantisce che la stanza resti sempre attraversabile, qualunque densita' scegli.
+- Nasce dal tema: in una cattedrale sono colonne, in una fucina sono casse di metallo, in una caverna sono massi. Un layout diverso per ogni piano, con un nome a tema.
+- Esempio SOLO per capire, NON copiarlo: {"name":"Colonnato Sacro","form":"pillars","density":0.6}
 
 NEMICI DEL PIANO ("enemies": due nemici normali) E BOSS ("bossType"): INVENTALI TU. Il motore non ha un elenco di nemici: ha solo questo vocabolario, e i nemici li fai tu.
 {"name":"<nome del nemico>","form":"<forma>","move":"<movimento>","fire":"<come spara>","hp":<mul>,"speed":<mul>,"size":<mul>,"rate":<colpi al secondo>,"pellets":<1-8>}
