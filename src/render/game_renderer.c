@@ -7,10 +7,31 @@
 #include "render/rarity_style.h"
 
 #include "rlgl.h"
+#include "raygui.h"   /* solo dichiarazioni: l'implementazione e' in src/render/raygui_impl.c */
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+/* Fase 4 (GUI completa con raygui): applica al tema globale di raygui i colori
+   della run corrente, cosi' i pannelli/etichette/righe hanno l'estetica scura del
+   gioco invece del grigio di default di raygui. Chiamata una volta per frame prima
+   di disegnare la GUI (costa niente: solo GuiSetStyle, che scrive in un array
+   globale). I colori si passano a raygui come interi 0xRRGGBBAA (ColorToInt). */
+static void UiApplyTheme(const Theme *theme)
+{
+    GuiSetStyle(DEFAULT, TEXT_SIZE, 15);
+    GuiSetStyle(DEFAULT, BACKGROUND_COLOR, ColorToInt((Color){ 16, 18, 24, 255 }));
+    GuiSetStyle(DEFAULT, LINE_COLOR, ColorToInt(GameColorWithAlpha(theme->accent, 120)));
+    /* Pannelli e riquadri: sfondo scuro semitrasparente, bordo nel colore accento. */
+    GuiSetStyle(DEFAULT, BASE_COLOR_NORMAL, ColorToInt((Color){ 20, 22, 29, 236 }));
+    GuiSetStyle(DEFAULT, BORDER_COLOR_NORMAL, ColorToInt(GameColorWithAlpha(theme->accent, 170)));
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));
+    GuiSetStyle(STATUSBAR, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));
+    GuiSetStyle(STATUSBAR, BASE_COLOR_NORMAL, ColorToInt((Color){ 24, 27, 34, 236 }));
+    GuiSetStyle(STATUSBAR, BORDER_COLOR_NORMAL, ColorToInt(GameColorWithAlpha(theme->accent2, 150)));
+    GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
+}
 
 UiLayout UiComputeLayout(void)
 {
@@ -771,18 +792,80 @@ static void TraitsToText(unsigned int traits, char *out, int outSize)
     if (!out[0]) snprintf(out, outSize, "nessuno");
 }
 
+/* Un pannello con barra del titolo (fase 4, raygui). GuiPanel disegna cornice e
+   fascia del titolo con lo stile a tema (UiApplyTheme); sopra la fascia si aggiunge
+   una lama di colore accento, che raygui da solo non fa, per legare ogni pannello al
+   tema della run. */
 static void DrawPanel(Rectangle rec, const char *title, Color accent)
 {
-    DrawRectangleRec(rec, (Color){ 18, 20, 26, 236 });
-    DrawRectangleLinesEx(rec, 2.0f, GameColorWithAlpha(accent, 190));
-    DrawRectangle((int)rec.x, (int)rec.y, (int)rec.width, 34, GameColorWithAlpha(accent, 55));
-    DrawText(title, (int)rec.x + 16, (int)rec.y + 10, 16, RAYWHITE);
+    GuiPanel(rec, title);
+    DrawRectangle((int)rec.x, (int)rec.y + 24, (int)rec.width, 2, GameColorWithAlpha(accent, 180));
 }
 
 static void DrawStatLine(const char *label, const char *value, int x, int y, Color color)
 {
-    DrawText(label, x, y, 14, (Color){ 155, 163, 176, 255 });
-    DrawText(value, x + 118, y, 15, color);
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 150, 158, 172, 255 }));
+    GuiLabel((Rectangle){ (float)x, (float)y, 116.0f, 18.0f }, label);
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(color));
+    GuiLabel((Rectangle){ (float)(x + 118), (float)y, 220.0f, 18.0f }, value);
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));   /* ripristina il default */
+}
+
+/* La vita come CUORI (fase 4, richiesta dell'utente): stile Isaac, un cuore pieno
+   ogni due HP piu' un mezzo cuore per l'HP dispari, poi cuori vuoti fino a maxHp.
+   Disegnati come due lobi + un triangolo, cosi' non servono sprite. Ritorna la
+   larghezza occupata, per allineare cio' che segue. */
+static void DrawHeart(float cx, float cy, float s, Color fill, bool half)
+{
+    /* Due lobi in alto + la punta in basso. */
+    DrawCircleV((Vector2){ cx - s*0.42f, cy - s*0.18f }, s*0.46f, fill);
+    if (!half) DrawCircleV((Vector2){ cx + s*0.42f, cy - s*0.18f }, s*0.46f, fill);
+    DrawTriangle((Vector2){ cx - s*0.86f, cy - s*0.02f },
+                 (Vector2){ cx + (half ? 0.06f : 0.86f)*s, cy - s*0.02f },
+                 (Vector2){ cx - (half ? 0.4f : 0.0f)*s, cy + s*0.72f }, fill);
+    if (half)
+    {
+        /* mezzo cuore: il lobo destro e la meta' destra restano "vuoti" -- si
+           ridisegna il contorno del cuore pieno in scuro per suggerire la meta'
+           mancante. */
+        DrawCircleLines((int)(cx + s*0.42f), (int)(cy - s*0.18f), s*0.46f, GameColorWithAlpha(fill, 90));
+    }
+}
+
+static int DrawHearts(const Player *p, int x, int y)
+{
+    const float s = 15.0f;
+    const float step = s*1.15f;
+    int full = p->hp/2;
+    bool half = (p->hp%2) != 0;
+    int totalSlots = (p->maxHp + 1)/2;
+    Color red = (Color){ 226, 72, 78, 255 };
+    Color empty = (Color){ 60, 46, 52, 255 };
+    int drawn = 0;
+    for (int i = 0; i < totalSlots; i++)
+    {
+        float cx = x + s + drawn*step;
+        float cy = (float)y + s*0.5f;
+        if (i < full) DrawHeart(cx, cy, s, red, false);
+        else if (i == full && half) { DrawHeart(cx, cy, s, empty, false); DrawHeart(cx, cy, s, red, true); }
+        else DrawHeart(cx, cy, s, empty, false);
+        drawn++;
+    }
+    return (int)(drawn*step);
+}
+
+/* Una lettera-icona al centro di una cella della minimappa per le stanze speciali
+   (fase 4): T tesoro, $ negozio, B boss. Le stanze normali/di partenza restano
+   vuote. Reso leggibile anche a 26px. */
+static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color)
+{
+    const char *g = NULL;
+    if (kind == ROOM_TREASURE) g = "T";
+    else if (kind == ROOM_SHOP) g = "$";
+    else if (kind == ROOM_BOSS) g = "B";
+    if (!g) return;
+    int w = MeasureText(g, 14);
+    DrawText(g, (int)(cell.x + cell.width*0.5f - w*0.5f), (int)(cell.y + cell.height*0.5f - 7), 14, color);
 }
 
 static void DrawLargeMinimap(Game *game, Rectangle rec)
@@ -797,16 +880,37 @@ static void DrawLargeMinimap(Game *game, Rectangle rec)
         for (int x = 0; x < GRID_SIZE; x++)
         {
             const RoomState *room = &game->rooms[y][x];
+            if (!room->exists) continue;   /* niente cornice sulle celle inesistenti: la mappa "respira" */
             Rectangle cell = { (float)(baseX + x*(size + gap)), (float)(baseY + y*(size + gap)), (float)size, (float)size };
-            Color c = room->exists ? (room->visited ? RoomMapColor(room->kind) : (Color){ 72, 78, 88, 255 }) : (Color){ 28, 31, 38, 255 };
-            DrawRectangleRec(cell, c);
-            if (x == game->roomX && y == game->roomY) DrawRectangleLinesEx(cell, 3.0f, RAYWHITE);
-            else DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 160));
+            bool current = (x == game->roomX && y == game->roomY);
+            /* Visitata: colore pieno del suo tipo. Non visitata ma esistente
+               (adiacente a una visitata): smorzata, cosi' si vede DOVE si puo'
+               andare senza svelare cosa c'e'. */
+            Color base = room->visited ? RoomMapColor(room->kind) : GameColorLerp(RoomMapColor(room->kind), (Color){ 30, 33, 40, 255 }, 0.7f);
+            DrawRectangleRec(cell, base);
+            /* Le icone delle stanze speciali si vedono solo dopo averle visitate:
+               un pizzico di scoperta, come in Isaac. */
+            if (room->visited) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200));
+            if (current) DrawRectangleLinesEx(cell, 3.0f, RAYWHITE);
+            else DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 150));
         }
+    }
+    /* Legenda compatta sotto la griglia: cosa vuol dire ogni colore/lettera. */
+    int legendY = baseY + GRID_SIZE*(size + gap) + 6;
+    struct { const char *g; RoomKind kind; } items[] = { { "T tesoro", ROOM_TREASURE }, { "$ negozio", ROOM_SHOP }, { "B boss", ROOM_BOSS } };
+    int lx = baseX;
+    for (int i = 0; i < 3; i++)
+    {
+        DrawRectangle(lx, legendY + 2, 10, 10, RoomMapColor(items[i].kind));
+        DrawText(items[i].g, lx + 14, legendY, 11, (Color){ 170, 178, 190, 255 });
+        lx += MeasureText(items[i].g, 11) + 30;
     }
 }
 
-static void DrawItemPreview(Game *game, const Item *item, int x, int y, int width, bool owned)
+/* Ritorna true se il mouse e' sopra la riga (fase 4: per il tooltip). Il tooltip
+   VERO lo disegna il chiamante dopo tutti i pannelli, cosi' non finisce sotto la
+   riga successiva. */
+static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int width, bool owned)
 {
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
@@ -818,37 +922,127 @@ static void DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
        sguardo veloce, senza diventare invadente sulle righe COMUNI/grigie. */
     Color rarityColor = RarityColor(item->rarity);
     Rectangle row = { (float)x, (float)y, (float)width, 58.0f };
-    DrawRectangleRec(row, owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 });
-    DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, 200));
+    bool hover = CheckCollisionPointRec(GetMousePosition(), row);
+    DrawRectangleRec(row, hover ? (Color){ 40, 45, 56, 235 } : (owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 }));
+    DrawRectangleLinesEx(row, hover ? 2.0f : 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
     if (!DrawAtlasCell(game, SPR_ITEM, (Vector2){ x + 28.0f, y + 29.0f }, 36.0f, WHITE))
     {
         DrawItemShape((Vector2){ x + 28.0f, y + 29.0f }, *item, 12.0f);
     }
+    /* Se l'oggetto cambia il modo di sparare (step C), un puntino del colore del
+       colpo in coda al nome: si vede a colpo d'occhio quali oggetti danno un tipo
+       di colpo. */
+    if (item->shotType.active) DrawCircleV((Vector2){ x + 47.0f, y + 15.0f }, 4.0f, item->color);
     DrawText(item->name, x + 55, y + 9, 14, RAYWHITE);
     /* Nome della rarita' in coda alla riga slot/traits, nel suo colore (design
        doc, sezione 6: "...e col nome nel pannello"): due DrawText invece di
        uno solo cosi' SOLO il nome della rarita' prende il suo colore, il
        resto della riga resta nel grigio neutro gia' in uso. */
-    char slotTraits[144];
+    char slotTraits[200];
     snprintf(slotTraits, sizeof(slotTraits), "%s  |  %s  |  ", SlotName(item->slot), traits);
     DrawText(slotTraits, x + 55, y + 31, 12, (Color){ 190, 198, 211, 255 });
     int rarityTextX = x + 55 + MeasureText(slotTraits, 12);
     DrawText(RarityName(item->rarity), rarityTextX, y + 31, 12, rarityColor);
+    return hover;
+}
+
+/* Il tooltip di un oggetto (fase 4, richiesta dell'utente): passando il mouse su un
+   oggetto, una scheda con COSA FA -- slot, trait, rarita', e il tipo di colpo che
+   conferisce. Disegnato per ULTIMO (sopra tutto), ancorato vicino al mouse ma
+   tenuto dentro lo schermo. */
+static void DrawItemTooltip(const Item *item)
+{
+    char traits[128];
+    TraitsToText(item->traits, traits, sizeof(traits));
+
+    char lines[4][160];
+    int n = 0;
+    snprintf(lines[n++], sizeof(lines[0]), "%s  -  %s", SlotName(item->slot), RarityName(item->rarity));
+    snprintf(lines[n++], sizeof(lines[0]), "Effetti: %s", traits);
+    if (item->shotType.active)
+        snprintf(lines[n++], sizeof(lines[0]), "Spari: %s (%s)", item->shotType.name, ShotFormName(item->shotType.form));
+    if (item->kind == ITEM_STATUP)
+        snprintf(lines[n++], sizeof(lines[0]), "Ricompensa del boss: potenzia una statistica");
+
+    int w = MeasureText(item->name, 16);
+    for (int i = 0; i < n; i++) { int lw = MeasureText(lines[i], 13); if (lw > w) w = lw; }
+    w += 24;
+    int h = 30 + n*18 + 8;
+
+    Vector2 m = GetMousePosition();
+    float bx = m.x + 18.0f;
+    float by = m.y + 8.0f;
+    if (bx + w > (float)GetScreenWidth() - 6.0f) bx = m.x - w - 8.0f;
+    if (by + h > (float)GetScreenHeight() - 6.0f) by = (float)GetScreenHeight() - h - 6.0f;
+
+    DrawRectangleRec((Rectangle){ bx, by, (float)w, (float)h }, (Color){ 12, 14, 19, 245 });
+    DrawRectangleLinesEx((Rectangle){ bx, by, (float)w, (float)h }, 2.0f, GameColorWithAlpha(RarityColor(item->rarity), 230));
+    DrawText(item->name, (int)bx + 12, (int)by + 8, 16, RAYWHITE);
+    for (int i = 0; i < n; i++)
+        DrawText(lines[i], (int)bx + 12, (int)by + 30 + i*18, 13, (Color){ 198, 205, 217, 255 });
+}
+
+/* Il blocco BUILD (fase 4, richiesta dell'utente: "sinergie/colpo piu' in vista").
+   Il tipo di colpo attivo in una barra tinta del suo colore, e le sinergie attive
+   come pillole dorate. E' lo stato piu' importante di una build, e prima era
+   confinato in righe piccole (il colpo nel pannello, le sinergie nel LOG). Ritorna
+   l'altezza occupata, per impaginare cio' che segue. */
+static int DrawBuildBlock(Game *game, int x, int y, int width)
+{
+    const Player *p = &game->player;
+    int cy = y;
+
+    /* Barra del tipo di colpo. */
+    Rectangle bar = { (float)x, (float)cy, (float)width, 30.0f };
+    Color shotTint = p->shotType.active ? p->shotColor : (Color){ 60, 66, 78, 255 };
+    DrawRectangleRec(bar, GameColorWithAlpha(shotTint, 60));
+    DrawRectangleLinesEx(bar, 2.0f, GameColorWithAlpha(shotTint, 200));
+    DrawCircleV((Vector2){ (float)x + 16.0f, (float)cy + 15.0f }, 6.0f, shotTint);
+    if (p->shotType.active)
+        DrawText(TextFormat("%s  (%s)", p->shotType.name, ShotFormName(p->shotType.form)), x + 30, cy + 7, 15, RAYWHITE);
+    else
+        DrawText("Colpo base", x + 30, cy + 7, 15, (Color){ 170, 178, 190, 255 });
+    cy += 38;
+
+    /* Pillole delle sinergie attive: vanno a capo da sole se non ci stanno in
+       larghezza. */
+    int chipX = x, chipY = cy, anyPill = 0;
+    for (int i = 0; i < (int)SYNERGY_COUNT; i++)
+    {
+        if (!(p->synergies & (1u << i))) continue;
+        const char *name = SynergyName(i);
+        int w = MeasureText(name, 13) + 20;
+        if (chipX + w > x + width) { chipX = x; chipY += 26; }
+        DrawRectangleRounded((Rectangle){ (float)chipX, (float)chipY, (float)w, 22.0f }, 0.5f, 6, GameColorWithAlpha(GOLD, 40));
+        DrawRectangleRoundedLines((Rectangle){ (float)chipX, (float)chipY, (float)w, 22.0f }, 0.5f, 6, GOLD);
+        DrawText(name, chipX + 10, chipY + 4, 13, GOLD);
+        chipX += w + 8;
+        anyPill++;
+    }
+    if (!anyPill)
+    {
+        DrawText("Nessuna sinergia: combina gli oggetti.", x, cy + 2, 13, (Color){ 150, 158, 172, 255 });
+        chipY = cy;
+    }
+    return (chipY + 26) - y;
 }
 
 static void DrawOuterUi(Game *game, UiLayout layout)
 {
+    UiApplyTheme(&game->theme);
+    const Item *hoveredItem = NULL;   /* fase 4: l'oggetto sotto il mouse, per il tooltip (disegnato per ultimo) */
+
     DrawPanel(layout.leftPanel, "RUN", game->theme.accent);
     int lx = (int)layout.leftPanel.x + 18;
-    int ly = (int)layout.leftPanel.y + 48;
-    DrawText("MELTING ISAAC LLM", lx, ly, 23, RAYWHITE);
-    DrawText(TextFormat("%s / %s", game->theme.name, game->theme.style), lx, ly + 34, 14, game->theme.accent2);
-    DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + 56, 14, (Color){ 214, 218, 226, 255 });
-    DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + 92, RAYWHITE);
-    DrawStatLine("Stanza", GameRoomKindName(GameCurrentRoom(game)->kind), lx, ly + 116, game->theme.accent2);
-    DrawStatLine("Fonte", game->content.loaded ? "LLM cache" : "fallback", lx, ly + 140, RAYWHITE);
-    DrawText("MAPPA", lx, ly + 184, 16, game->theme.accent2);
-    DrawLargeMinimap(game, (Rectangle){ (float)lx, (float)(ly + 214), layout.leftPanel.width - 36.0f, 190.0f });
+    int ly = (int)layout.leftPanel.y + 40;
+    DrawText("MELTING ISAAC LLM", lx, ly, 22, RAYWHITE);
+    DrawText(TextFormat("%s / %s", game->theme.name, game->theme.style), lx, ly + 32, 14, game->theme.accent2);
+    DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + 54, 14, (Color){ 214, 218, 226, 255 });
+    DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + 88, RAYWHITE);
+    DrawStatLine("Stanza", GameRoomKindName(GameCurrentRoom(game)->kind), lx, ly + 112, game->theme.accent2);
+    DrawStatLine("Fonte", game->content.loaded ? "LLM cache" : "fallback", lx, ly + 136, RAYWHITE);
+    DrawText("MAPPA", lx, ly + 176, 16, game->theme.accent2);
+    DrawLargeMinimap(game, (Rectangle){ (float)lx, (float)(ly + 204), layout.leftPanel.width - 36.0f, 190.0f });
     DrawText("COMANDI", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 142), 16, game->theme.accent2);
     DrawText("WASD muovi", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 112), 14, RAYWHITE);
     DrawText("Mouse/Frecce spara", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 90), 14, RAYWHITE);
@@ -856,119 +1050,106 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawText("ESC/P pausa   F11 fullscreen", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 46), 14, RAYWHITE);
 
     DrawPanel(layout.rightPanel, "GIOCATORE", game->theme.accent2);
-    /* FPS: utile in debug, non e' gameplay -- spostato qui, angolo in alto a
-       destra del pannello, invece che sopra la scena (GUI fix, step A).
-       Piccolo e defilato apposta, non deve competere con le statistiche. */
     const char *fpsText = TextFormat("%d FPS", GetFPS());
     int fpsW = MeasureText(fpsText, 13);
     DrawText(fpsText, (int)(layout.rightPanel.x + layout.rightPanel.width - 16.0f) - fpsW,
-             (int)layout.rightPanel.y + 12, 13, (Color){ 126, 232, 152, 255 });
+             (int)layout.rightPanel.y + 6, 13, (Color){ 126, 232, 152, 255 });
     int rx = (int)layout.rightPanel.x + 18;
-    int ry = (int)layout.rightPanel.y + 48;
+    int ry = (int)layout.rightPanel.y + 36;
     Player *p = &game->player;
-    DrawStatLine("HP", TextFormat("%d / %d", p->hp, p->maxHp), rx, ry, RED);
-    DrawStatLine("Danno", TextFormat("%.1f", p->damage), rx, ry + 24, RAYWHITE);
-    DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rx, ry + 48, RAYWHITE);
-    DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rx, ry + 72, RAYWHITE);
-    DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rx, ry + 96, RAYWHITE);
-    /* Step C: le due statistiche nuove. La fortuna col segno esplicito (puo'
-       essere negativa), il tipo di colpo attivo col colore dell'oggetto che l'ha
-       dato -- lo stesso colore con cui il colpo si disegna in scena, cosi' il
-       collegamento "questo oggetto -> questo proiettile" e' immediato. Il nome lo
-       ha inventato il modello: la GUI non lo interpreta, lo mostra e basta. */
-    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rx, ry + 120, (Color){ 126, 232, 152, 255 });
-    if (p->shotType.active)
-    {
-        DrawStatLine("Colpo", TextFormat("%s (%s)", p->shotType.name, ShotFormName(p->shotType.form)), rx, ry + 144, p->shotColor);
-    }
-    else
-    {
-        DrawStatLine("Colpo", "base", rx, ry + 144, (Color){ 155, 163, 176, 255 });
-    }
-    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + 168, GOLD);
 
-    DrawText("OGGETTI PRESI", rx, ry + 212, 16, game->theme.accent2);
-    int rowY = ry + 242;
+    /* Vita come cuori (fase 4). */
+    DrawHearts(p, rx, ry);
+    ry += 30;
+    DrawStatLine("Danno", TextFormat("%.1f", p->damage), rx, ry, RAYWHITE);
+    DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rx, ry + 22, RAYWHITE);
+    DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rx, ry + 44, RAYWHITE);
+    DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rx, ry + 66, RAYWHITE);
+    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rx, ry + 88, (Color){ 126, 232, 152, 255 });
+    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + 110, GOLD);
+
+    /* Blocco BUILD prominente (colpo + sinergie). */
+    int buildY = ry + 140;
+    int buildH = DrawBuildBlock(game, rx, buildY, (int)layout.rightPanel.width - 36);
+
+    DrawText("OGGETTI PRESI", rx, buildY + buildH + 6, 16, game->theme.accent2);
+    int rowY = buildY + buildH + 32;
+    /* Quante righe ci stanno fra qui e l'anteprima del piano (ancorata al fondo). */
+    int previewY = (int)(layout.rightPanel.y + layout.rightPanel.height - 230);
+    int room = (previewY - 30 - rowY)/64;
+    if (room < 1) room = 1;
+    int maxShow = room < 6 ? room : 6;
     int shown = 0;
-    /* Cinque righe invece di sei: le due statistiche nuove sopra costano 48px, e
-       questa lista e' l'unico blocco elastico del pannello (l'anteprima del piano
-       sotto e' ancorata al fondo). Meglio un oggetto in meno mostrato che due
-       blocchi sovrapposti. */
-    int start = p->itemCount > 5 ? p->itemCount - 5 : 0;
-    for (int i = start; i < p->itemCount && shown < 5; i++, shown++)
+    int start = p->itemCount > maxShow ? p->itemCount - maxShow : 0;
+    for (int i = start; i < p->itemCount && shown < maxShow; i++, shown++)
     {
-        DrawItemPreview(game, &p->items[i], rx, rowY + shown*64, (int)layout.rightPanel.width - 36, true);
+        if (DrawItemPreview(game, &p->items[i], rx, rowY + shown*64, (int)layout.rightPanel.width - 36, true)) hoveredItem = &p->items[i];
     }
-    if (shown == 0) DrawText("Nessun oggetto ancora.", rx, rowY + 8, 14, (Color){ 155, 163, 176, 255 });
+    if (shown == 0) DrawText("Nessun oggetto ancora.", rx, rowY + 8, 14, (Color){ 150, 158, 172, 255 });
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
-    int previewY = (int)(layout.rightPanel.y + layout.rightPanel.height - 230);
     DrawText("ANTEPRIMA PIANO", rx, previewY, 16, game->theme.accent2);
     for (int i = 0; i < 3; i++)
     {
-        DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rx, previewY + 30 + i*64, (int)layout.rightPanel.width - 36, false);
+        if (DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rx, previewY + 30 + i*64, (int)layout.rightPanel.width - 36, false))
+            hoveredItem = &game->content.floors[floorIndex].items[i];
     }
 
+    /* LOG: ora mostra la fonte grafica E l'architettura della stanza (fase 3c: il
+       layout inventato dal modello ha un nome a tema, es. "Colonnato Sacro"). Le
+       sinergie sono migrate nel blocco BUILD sopra, quindi qui non si ripetono. */
     DrawPanel(layout.bottomPanel, "LOG", game->theme.wall);
     int bx = (int)layout.bottomPanel.x + 18;
-    int by = (int)layout.bottomPanel.y + 46;
+    int by = (int)layout.bottomPanel.y + 34;
     const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (Stable Diffusion): atlas PNG 128x128" : "Atlas procedurale/fallback BMP";
     DrawText(atlasMode, bx, by, 15, game->theme.accent2);
-    /* Il messaggio transitorio (raccolta oggetto, porta bloccata, ecc.) vive
-       SOLO nella vista centrale, vicino all'azione (DrawTransientMessage): qui
-       NON si ripete mai (GUI fix, step A). Questo spazio ospita invece le
-       SINERGIE ATTIVE (step D): sono lo stato piu' importante di una build e
-       finora non erano visibili da nessuna parte. Riga fissa di suggerimento solo
-       quando non ce n'e' ancora nessuna. */
-    /* Colonne calcolate dalla LARGHEZZA VERA del pannello, non da un letterale
-       (correzione da review): il pannello e' elastico (UiComputeLayout lo dimensiona
-       sulla finestra), e con un passo fisso di 300 px le sinergie finivano scritte
-       fuori dal suo bordo destro su una finestra stretta. Stessa cosa in verticale:
-       la riga di descrizione si disegna solo se il pannello e' abbastanza alto. */
-    int usableW = (int)layout.bottomPanel.width - 36;
-    int colW = usableW/3;
-    int maxCols = (colW > 140) ? 3 : ((usableW > 280) ? 2 : 1);
-    if (maxCols > 1) colW = usableW/maxCols;
-    bool roomForDescription = (by + 46 + 13) < (int)(layout.bottomPanel.y + layout.bottomPanel.height - 6);
-    int activeSynergies = 0;
-    for (int i = 0; i < (int)SYNERGY_COUNT; i++)
-    {
-        if (!(game->player.synergies & (1u << i))) continue;
-        int col = bx + activeSynergies*colW;
-        DrawText(TextFormat("* %s", SynergyName(i)), col, by + 26, 16, GOLD);
-        if (roomForDescription) DrawText(SynergyDescription(i), col, by + 46, 13, (Color){ 200, 206, 216, 255 });
-        activeSynergies++;
-        if (activeSynergies >= maxCols) break;   /* le altre restano ATTIVE: solo non elencate, il pannello non e' la verita' */
-    }
-    if (activeSynergies == 0)
-    {
-        DrawText("Nessuna sinergia attiva: raccogli oggetti che si combinano.", bx, by + 28, 16, RAYWHITE);
-    }
+    const RoomLayoutDef *rl = &game->content.floors[floorIndex].roomLayout;
+    if (rl->active && rl->form != ROOM_LAYOUT_OPEN)
+        DrawText(TextFormat("Architettura del piano: %s (%s)", rl->name, RoomFormName(rl->form)), bx, by + 24, 14, RAYWHITE);
+    else
+        DrawText("Raccogli oggetti diversi per sbloccare sinergie.", bx, by + 24, 14, RAYWHITE);
+
+    /* Il tooltip per ultimo, sopra tutto. */
+    if (hoveredItem) DrawItemTooltip(hoveredItem);
+}
+
+/* Una riga "tasto -> azione" del menu (fase 4, raygui): il tasto in una pillola,
+   l'azione accanto. Restyle coerente coi pannelli; l'input resta da tastiera (scelta
+   dell'utente: restyle, non widget cliccabili). */
+static void DrawMenuKey(const char *key, const char *action, int x, int y, Color accent)
+{
+    int kw = MeasureText(key, 18) + 22;
+    DrawRectangleRounded((Rectangle){ (float)x, (float)y, (float)kw, 28.0f }, 0.4f, 6, GameColorWithAlpha(accent, 45));
+    DrawRectangleRoundedLines((Rectangle){ (float)x, (float)y, (float)kw, 28.0f }, 0.4f, 6, GameColorWithAlpha(accent, 200));
+    DrawText(key, x + 11, y + 5, 18, RAYWHITE);
+    DrawText(action, x + kw + 16, y + 6, 18, (Color){ 214, 220, 230, 255 });
 }
 
 static void DrawMenuOverlay(AppMode mode, Game *game)
 {
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
-    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 180));
-    Rectangle box = { sw*0.5f - 300.0f, sh*0.5f - 190.0f, 600.0f, 380.0f };
-    DrawRectangleRec(box, (Color){ 20, 22, 29, 246 });
-    DrawRectangleLinesEx(box, 2.0f, game->theme.accent2);
-    const char *title = mode == APP_MENU ? "MELTING ISAAC LLM" : "PAUSA";
-    DrawText(title, (int)(box.x + box.width*0.5f - MeasureText(title, 38)*0.5f), (int)box.y + 36, 38, RAYWHITE);
+    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
+    UiApplyTheme(&game->theme);
+    Rectangle box = { sw*0.5f - 300.0f, sh*0.5f - 200.0f, 600.0f, 400.0f };
+    GuiPanel(box, mode == APP_MENU ? "MELTING ISAAC LLM" : "PAUSA");
+    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, 2, GameColorWithAlpha(game->theme.accent2, 200));
+
+    int kx = (int)box.x + 90;
     if (mode == APP_MENU)
     {
-        DrawText("Run generata in locale: testo LLM, sprite Stable Diffusion.", (int)box.x + 62, (int)box.y + 98, 18, game->theme.accent2);
-        DrawText("INVIO  nuova run", (int)box.x + 110, (int)box.y + 160, 24, RAYWHITE);
-        DrawText("F11    cambia fullscreen", (int)box.x + 110, (int)box.y + 202, 22, RAYWHITE);
-        DrawText("Q      esci", (int)box.x + 110, (int)box.y + 242, 22, RAYWHITE);
+        DrawText("Roguelite con contenuti generati in locale.", (int)box.x + 40, (int)box.y + 58, 17, game->theme.accent2);
+        DrawText("Testo e comportamenti: LLM.  Sprite: Stable Diffusion.", (int)box.x + 40, (int)box.y + 82, 15, (Color){ 176, 184, 198, 255 });
+        DrawMenuKey("INVIO", "nuova run", kx, (int)box.y + 138, game->theme.accent2);
+        DrawMenuKey("F11", "schermo intero", kx, (int)box.y + 190, game->theme.accent2);
+        DrawMenuKey("Q", "esci", kx, (int)box.y + 242, game->theme.accent2);
     }
     else
     {
-        DrawText("ESC/P  continua", (int)box.x + 128, (int)box.y + 148, 24, RAYWHITE);
-        DrawText("R      nuova run", (int)box.x + 128, (int)box.y + 190, 22, RAYWHITE);
-        DrawText("M      menu principale", (int)box.x + 128, (int)box.y + 230, 22, RAYWHITE);
-        DrawText("Q      esci", (int)box.x + 128, (int)box.y + 270, 22, RAYWHITE);
+        DrawMenuKey("ESC/P", "continua", kx, (int)box.y + 96, game->theme.accent2);
+        DrawMenuKey("R", "nuova run", kx, (int)box.y + 148, game->theme.accent2);
+        DrawMenuKey("M", "menu principale", kx, (int)box.y + 200, game->theme.accent2);
+        DrawMenuKey("Q", "esci", kx, (int)box.y + 252, game->theme.accent2);
     }
 }
 
@@ -1005,11 +1186,16 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool take
     BeginDrawing();
     ClearBackground((Color){ 9, 11, 16, 255 });
     UiLayout layout = UiComputeLayout();
-    DrawOuterUi(game, layout);
+    /* La vista di gioco (il canvas scalato) PRIMA della GUI, cosi' il tooltip di un
+       oggetto -- disegnato per ultimo dentro DrawOuterUi -- resta sopra tutto, anche
+       quando sborda dal pannello verso la vista (fase 4). I pannelli non si
+       sovrappongono a gameRect (UiComputeLayout li tiene separati), quindi l'ordine
+       fra loro e il canvas non cambia nulla di visibile, tranne appunto il tooltip. */
     Rectangle src = { 0.0f, 0.0f, (float)canvas.texture.width, -(float)canvas.texture.height };
     DrawTexturePro(canvas.texture, src, layout.gameRect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
     DrawRectangleLinesEx(layout.gameRect, 4.0f, game->theme.accent2);
     DrawText("GAME VIEW", (int)layout.gameRect.x + 16, (int)layout.gameRect.y + 14, 16, GameColorWithAlpha(RAYWHITE, 170));
+    DrawOuterUi(game, layout);
     if (mode == APP_MENU || mode == APP_PAUSE) DrawMenuOverlay(mode, game);
     if (mode == APP_GENERATING) DrawGeneratingOverlay(game, genProgress);
     /* screenshotPath e' del chiamante (mai NULL quando takeScreenshot e'

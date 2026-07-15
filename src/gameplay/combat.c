@@ -40,6 +40,19 @@ static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
         }
         if (!any) break;
     }
+    /* Ri-clamp ai bordi DOPO la risoluzione (correzione da review): il chiamante ha
+       gia' clampato prima, ma la spinta fuori da un ostacolo attaccato al muro puo'
+       riportare il centro OLTRE il bordo -- e nessuno ri-clampava, quindi l'entita'
+       finiva col bordo dentro il muro (2px per il giocatore, fino a ~20px per un
+       corazzato grosso in una strozzatura d'angolo). Meglio che l'entita' resti
+       incollata al muro con l'hitbox che sfiora appena il blocco (invisibile) che
+       bucare il muro (visibile). Fatto qui, dentro la funzione, cosi' vale per
+       giocatore e nemici -- entrambi la chiamano subito dopo il proprio clamp. */
+    if (touched)
+    {
+        pos->x = GameMathClampFloat(pos->x, ROOM_X + radius, ROOM_RIGHT - radius);
+        pos->y = GameMathClampFloat(pos->y, ROOM_Y + radius, ROOM_BOTTOM - radius);
+    }
     return touched;
 }
 

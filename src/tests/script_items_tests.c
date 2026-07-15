@@ -1287,34 +1287,54 @@ static bool TestRoomFormTextRoundTrip(void)
     return ok;
 }
 
-/* Test AM: gli ostacoli FERMANO davvero. (1) Un giocatore che cammina dritto contro
-   un muro non lo attraversa. (2) Un colpo che lo colpisce muore (o rimbalza). Senza
-   collisione, gli ostacoli sarebbero decorazione. */
+/* Un cerchio in 'pos' con raggio 'radius' e' dentro (o dentro il margine) di un
+   ostacolo? Helper del test. */
+static bool PointInObstacle(Vector2 pos, float radius, const Obstacle *o)
+{
+    return pos.x > o->x - radius && pos.x < o->x + o->w + radius &&
+           pos.y > o->y - radius && pos.y < o->y + o->h + radius;
+}
+
+/* Test AM: gli ostacoli FERMANO davvero, sul PERCORSO VERO. Il primo tentativo era
+   un falso verde (trovato in review): chiamava GameMathResolveCircleRect a mano su
+   una variabile locale, cioe' testava l'HELPER, non il fatto che il movimento lo
+   USI. La collisione del giocatore non e' pilotabile in un test headless (legge la
+   tastiera), ma quella dei NEMICI si': un nemico si muove da solo (insegue il
+   giocatore, CombatUpdateEnemies) e passa dalla STESSA CombatResolveObstacles. Cosi'
+   si testa il cablaggio reale.
+   (1) Un nemico che insegue il giocatore attraverso un ostacolo non ci finisce mai
+       dentro. (2) Un colpo del giocatore contro un ostacolo muore (percorso vero,
+       CombatUpdateShots). */
 static bool TestObstaclesBlockMovementAndShots(void)
 {
     Game game = MakeBaseGame(9400u);
-
-    /* Un solo ostacolo, un blocco a destra del giocatore. */
-    game.obstacleCount = 1;
+    game.floor = 1;
     float px = game.player.pos.x, py = game.player.pos.y;
-    game.obstacles[0] = (Obstacle){ px + 60.0f, py - 40.0f, 60.0f, 80.0f };
 
-    /* (1) Sposta il giocatore DENTRO il blocco e risolvi: deve finire FUORI. */
-    game.player.pos = (Vector2){ px + 90.0f, py };   /* dentro il blocco */
-    /* CombatResolveObstacles e' static in combat.c; lo si esercita attraverso il
-       movimento reale. Si spinge il giocatore verso destra con l'update... ma senza
-       input. Piu' semplice: si verifica l'helper pubblico GameMathResolveCircleRect,
-       che e' cio' che il movimento usa. */
-    Vector2 pos = { px + 90.0f, py };
-    Rectangle r = { game.obstacles[0].x, game.obstacles[0].y, game.obstacles[0].w, game.obstacles[0].h };
-    bool pushed = GameMathResolveCircleRect(&pos, game.player.radius, r);
-    bool outside = pos.x <= r.x - game.player.radius + 0.5f || pos.x >= r.x + r.width + game.player.radius - 0.5f ||
-                   pos.y <= r.y - game.player.radius + 0.5f || pos.y >= r.y + r.height + game.player.radius - 0.5f;
+    /* Un ostacolo FRA il giocatore e il nemico: il nemico, inseguendo, ci sbatte. */
+    game.obstacleCount = 1;
+    game.obstacles[0] = (Obstacle){ px + 60.0f, py - 60.0f, 70.0f, 120.0f };
+
+    EnemyTypeDef chaser = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE, 1.0f, 1.5f, 1.0f, 0.0f, 1, false);
+    EntitiesAddEnemyTyped(&game, ENEMY_CHASER, (Vector2){ px + 220.0f, py }, &chaser);
+
+    /* (1) 300 frame d'inseguimento: il nemico non deve MAI trovarsi dentro
+       l'ostacolo (la risoluzione lo tiene fuori ad ogni frame). */
+    bool everInside = false;
+    for (int step = 0; step < 300; step++)
+    {
+        CombatUpdateEnemies(&game, 1.0f/60.0f);
+        for (int i = 0; i < MAX_ENEMIES; i++)
+        {
+            Enemy *e = &game.enemies[i];
+            if (e->active && PointInObstacle(e->pos, e->radius - 3.0f, &game.obstacles[0])) everInside = true;
+        }
+    }
 
     /* (2) Un colpo del giocatore verso il blocco: dopo qualche frame deve essere
-       morto (nessun rimbalzo: colpo base). */
+       morto (nessun rimbalzo: colpo base). Percorso vero, CombatUpdateShots. */
     game.player.pos = (Vector2){ px, py };
-    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });   /* verso destra, contro il blocco */
+    CombatFirePlayer(&game, (Vector2){ 1.0f, 0.0f });
     int shotsAfterFire = 0;
     for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && game.shots[i].fromPlayer) shotsAfterFire++;
     for (int step = 0; step < 30; step++) CombatUpdateShots(&game, 1.0f/60.0f);
@@ -1322,13 +1342,70 @@ static bool TestObstaclesBlockMovementAndShots(void)
     for (int i = 0; i < MAX_SHOTS; i++) if (game.shots[i].active && game.shots[i].fromPlayer) shotsAlive++;
     bool shotBlocked = shotsAfterFire > 0 && shotsAlive == 0;
 
-    printf("  [AM] muro: giocatore spinto fuori=%s (%.1f,%.1f) | colpo verso il muro: sparati %d, vivi dopo=%d (fermato=%s)\n",
-           (pushed && outside) ? "si" : "NO", (double)pos.x, (double)pos.y, shotsAfterFire, shotsAlive, shotBlocked ? "si" : "NO");
+    printf("  [AM] nemico inseguitore mai dentro il muro=%s | colpo verso il muro: sparati %d, vivi dopo=%d (fermato=%s)\n",
+           everInside ? "NO (bug)" : "si", shotsAfterFire, shotsAlive, shotBlocked ? "si" : "NO");
 
     ScriptItemsShutdown(&game);
-    bool ok = pushed && outside && shotBlocked;
-    if (!ok) printf("      FALLITO: un ostacolo deve fermare il movimento del giocatore e i colpi (non e' decorazione)\n");
+    bool ok = !everInside && shotBlocked;
+    if (!ok) printf("      FALLITO: un ostacolo deve fermare il movimento (percorso vero: un nemico non ci entra) e i colpi\n");
     return ok;
+}
+
+/* Test AN (regressione, review fase 3c): un ostacolo attaccato al muro non deve mai
+   spingere un'entita' OLTRE il bordo della stanza. Prima del fix, la risoluzione
+   della collisione girava dopo il clamp ai bordi senza ri-clampare, quindi un
+   blocco a ridosso del muro spingeva l'entita' dentro il muro (poco per il
+   giocatore, ~20px per un corazzato grosso in una strozzatura). Si mette un nemico
+   grosso in una strozzatura fra un blocco e il muro e si verifica che, per quanto
+   spinto, il suo hitbox non buchi mai il bordo. */
+static bool TestObstacleAgainstWallDoesNotPushThroughIt(void)
+{
+    Game game = MakeBaseGame(9500u);
+    game.floor = 1;
+
+    /* Blocco a ridosso del muro sinistro (come un angolo ARENA/SCATTER: gap ~26px),
+       e un nemico corazzato (grosso) spinto nella strozzatura. */
+    game.obstacleCount = 1;
+    game.obstacles[0] = (Obstacle){ ROOM_X + 26.0f, ROOM_Y + 150.0f, 120.0f, 120.0f };
+
+    EnemyTypeDef tank = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE, 2.0f, 0.6f, 2.0f, 0.0f, 1, false);
+    EnemyTypeBalance(&tank);
+    /* Il nemico e' piazzato GIA' nella strozzatura, col centro contro il muro e
+       dentro il blocco (e' il caso che innesca il bug: il clamp lo tiene al bordo,
+       la risoluzione lo spinge oltre). Il giocatore e' messo SULLA stessa posizione
+       del nemico, cosi' la direzione d'inseguimento e' ~zero e l'IA non lo sposta:
+       l'unica cosa che muove il nemico e' la risoluzione della collisione, che e'
+       esattamente cio' che si vuole isolare. */
+    float blockCenterY = ROOM_Y + 150.0f + 60.0f;
+    Vector2 wedged = { ROOM_X + 30.0f, blockCenterY };   /* centro dentro il blocco (che parte a ROOM_X+26), contro il muro */
+    game.player.pos = wedged;
+    EntitiesAddEnemyTyped(&game, ENEMY_TANK, wedged, &tank);
+
+    float worstLeft = 9999.0f, worstTop = 9999.0f, worstRight = -9999.0f, worstBottom = -9999.0f;
+    for (int step = 0; step < 300; step++)
+    {
+        CombatUpdateEnemies(&game, 1.0f/60.0f);
+        for (int i = 0; i < MAX_ENEMIES; i++)
+        {
+            Enemy *e = &game.enemies[i];
+            if (!e->active) continue;
+            if (e->pos.x - e->radius < worstLeft) worstLeft = e->pos.x - e->radius;
+            if (e->pos.y - e->radius < worstTop) worstTop = e->pos.y - e->radius;
+            if (e->pos.x + e->radius > worstRight) worstRight = e->pos.x + e->radius;
+            if (e->pos.y + e->radius > worstBottom) worstBottom = e->pos.y + e->radius;
+        }
+    }
+    /* Tolleranza di 1px per l'arrotondamento del disegno; il bug ne produceva ~20. */
+    bool insideWalls = worstLeft >= ROOM_X - 1.0f && worstTop >= ROOM_Y - 1.0f &&
+                       worstRight <= ROOM_RIGHT + 1.0f && worstBottom <= ROOM_BOTTOM + 1.0f;
+
+    printf("  [AN] corazzato in strozzatura muro-blocco: hitbox min (%.1f,%.1f) max (%.1f,%.1f) vs stanza [%.0f,%.0f]-[%.0f,%.0f] -> dentro i muri=%s\n",
+           (double)worstLeft, (double)worstTop, (double)worstRight, (double)worstBottom,
+           (double)ROOM_X, (double)ROOM_Y, (double)ROOM_RIGHT, (double)ROOM_BOTTOM, insideWalls ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    if (!insideWalls) printf("      FALLITO: un ostacolo a ridosso del muro non deve spingere un'entita' oltre il bordo della stanza\n");
+    return insideWalls;
 }
 
 /* Test AI (regressione, review fase 3b): slot nemico NON contigui. Un manifest
@@ -2119,6 +2196,7 @@ bool ScriptItemsSelfTest(void)
         { "AK (3c: qualunque layout inventi il modello, la stanza resta giocabile -- croce libera)", TestRoomLayoutAlwaysPlayable },
         { "AL (3c: round-trip testo<->enum delle forme di layout, sincronizzato con run.gbnf)", TestRoomFormTextRoundTrip },
         { "AM (3c: gli ostacoli fermano il movimento del giocatore e i colpi, non sono decorazione)", TestObstaclesBlockMovementAndShots },
+        { "AN (review 3c: un ostacolo a ridosso del muro non spinge un'entita' oltre il bordo)", TestObstacleAgainstWallDoesNotPushThroughIt },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

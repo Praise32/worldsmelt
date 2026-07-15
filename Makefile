@@ -12,7 +12,7 @@ LUA_DIR := deps/lua-5.5.0
 LUA_LIB := $(LUA_DIR)/src/liblua.a
 
 CFLAGS := -std=c99 -Wall -Wextra -O2 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
-GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src -I$(LUA_DIR)/src
+GAME_CFLAGS := $(CFLAGS) -Isrc -I$(RAYLIB_DIR)/src -Ideps/raygui -I$(LUA_DIR)/src
 GAME_LIBS := $(RAYLIB_LIB) $(LUA_LIB) -lGL -lm -lpthread -ldl -lrt -lX11
 
 GAME_SRC := $(shell find src -name '*.c')
