@@ -164,7 +164,20 @@ static GenProgress AppCombinedProgress(const AppGen *gen)
     return combined;
 }
 
-static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppGen *gen)
+/* Passo FISSO della simulazione (spec appunti 01/03: sim a 60 Hz, rendering a
+   frequenza propria). Un frame video normale contiene 1 passo; un frame lento
+   ne recupera fino a APP_SIM_MAX_STEPS; oltre, il tempo in eccesso si butta
+   (anti "spirale della morte": frame lento -> piu' passi -> frame ancora piu'
+   lento). Il gameplay smette cosi' di dipendere dal framerate. */
+#define APP_SIM_DT (1.0f / 60.0f)
+#define APP_SIM_MAX_STEPS 5
+
+/* Gestione di input e transizioni di modalita': UNA volta per frame di
+   finestra, perche' IsKeyPressed() e' un evento per-frame. La simulazione
+   (che in un frame puo' girare 0 o 2 volte) sta in AppSimStep; gli eventi che
+   la riguardano (bomba, reset rapido) vengono LATCHATI qui dentro Game e
+   consumati dal passo che li legge (vedi il commento in game_types.h). */
+static bool UpdateApp(Game *game, AppMode *mode, AppGen *gen)
 {
     if (IsKeyPressed(KEY_F11)) ToggleFullscreen();
 
@@ -181,7 +194,6 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
                 *mode = APP_PLAY;
             }
         }
-        GameUpdateParticles(game, dt);
         return false;
     }
 
@@ -200,7 +212,6 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
             }
         }
         if (IsKeyPressed(KEY_M)) *mode = APP_MENU;
-        GameUpdateParticles(game, dt);
         return false;
     }
 
@@ -269,7 +280,6 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
                anche la perdita silenziosa di 16 script Lua. */
             if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
         }
-        GameUpdateParticles(game, dt);
         return false;
     }
 
@@ -305,10 +315,27 @@ static bool UpdateApp(Game *game, AppMode *mode, UiLayout layout, float dt, AppG
         return false;
     }
 
-    Vector2 mouseGame = { 0.0f, 0.0f };
-    bool mouseInsideGame = UiScreenToGameMouse(layout, &mouseGame);
-    GameUpdate(game, dt, mouseGame, mouseInsideGame);
+    /* Eventi destinati alla simulazione: latch (mai consumo diretto qui). Il
+       reset rapido con R esiste solo senza melting-gen: con la generazione
+       attiva R e' gia' stato intercettato sopra (rigenera i contenuti). */
+    if (IsKeyPressed(KEY_SPACE)) game->bombQueued = true;
+    if (!gen->enabled && IsKeyPressed(KEY_R)) game->resetQueued = true;
     return false;
+}
+
+/* Un passo di simulazione a dt FISSO: il gioco vero in APP_PLAY, le sole
+   particelle cosmetiche negli altri stati (menu, pausa, generazione). Il
+   mouse viene mappato una volta per frame dal chiamante: dentro lo stesso
+   frame non cambia. */
+static void AppSimStep(Game *game, AppMode mode, UiLayout layout)
+{
+    if (mode == APP_PLAY)
+    {
+        Vector2 mouseGame = { 0.0f, 0.0f };
+        bool mouseInsideGame = UiScreenToGameMouse(layout, &mouseGame);
+        GameUpdate(game, APP_SIM_DT, mouseGame, mouseInsideGame);
+    }
+    else GameUpdateParticles(game, APP_SIM_DT);
 }
 
 int AppRun(int argc, char **argv)
@@ -521,11 +548,27 @@ int AppRun(int argc, char **argv)
     AppMode appMode = (smokeTest && !menuScreenshotTest) ? APP_PLAY : APP_MENU;
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;
+    float simAccum = 0.0f;
     while (!WindowShouldClose())
     {
-        float dt = GetFrameTime();
+        /* Nei test a frame contati il tempo e' forzato a un passo esatto:
+           10 frame = 10 passi di simulazione, qualunque cosa faccia il clock
+           sotto Xvfb (il primo GetFrameTime dopo l'init puo' valere centinaia
+           di ms). In gioco normale, un frame vicino al passo nominale viene
+           AGGANCIATO al passo: il jitter del vsync (16.6ms +/- decimi) non
+           deve accumulare resti che ogni tanto producono frame a 0 o 2 passi
+           (micro-scatto visibile senza interpolazione). */
+        float frameDt = smokeTest ? APP_SIM_DT : GetFrameTime();
+        if (frameDt > APP_SIM_DT*(float)APP_SIM_MAX_STEPS) frameDt = APP_SIM_DT*(float)APP_SIM_MAX_STEPS;
+        if (frameDt > APP_SIM_DT - 0.002f && frameDt < APP_SIM_DT + 0.002f) frameDt = APP_SIM_DT;
+        simAccum += frameDt;
         UiLayout layout = UiComputeLayout();
-        if (UpdateApp(&game, &appMode, layout, dt, &gen)) break;
+        if (UpdateApp(&game, &appMode, &gen)) break;
+        while (simAccum >= APP_SIM_DT)
+        {
+            AppSimStep(&game, appMode, layout);
+            simAccum -= APP_SIM_DT;
+        }
         GenProgress combinedProgress = { 0 };
         if (appMode == APP_GENERATING) combinedProgress = AppCombinedProgress(&gen);
         RendererDrawApp(&game, gameCanvas, appMode, screenshotTest && !screenshotDone,

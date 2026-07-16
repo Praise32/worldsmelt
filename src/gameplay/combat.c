@@ -349,7 +349,11 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     aim = GameMathNormalize(aim);
     if (p->fireTimer <= 0.0f && GameMathLengthSquared(aim) > 0.01f) CombatFirePlayer(game, aim);
 
-    if (IsKeyPressed(KEY_SPACE)) CombatPlaceBomb(game);
+    if (game->bombQueued)
+    {
+        game->bombQueued = false;   /* consumato: un evento = una bomba, anche su frame a 2 passi */
+        CombatPlaceBomb(game);
+    }
 }
 
 /* ============================================================

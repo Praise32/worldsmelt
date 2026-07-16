@@ -51,7 +51,7 @@ void GameResetRun(Game *game)
 void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
 {
     if (dt > 0.033f) dt = 0.033f;
-    if (IsKeyPressed(KEY_R)) GameResetRun(game);
+    if (game->resetQueued) GameResetRun(game);   /* latch consumato: GameResetRun azzera l'intero Game */
     if (game->messageTimer > 0.0f) game->messageTimer -= dt;
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)

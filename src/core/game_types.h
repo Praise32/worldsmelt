@@ -517,6 +517,15 @@ typedef struct Game {
        ScriptItemsRecomputeStats solo se davvero necessario invece che ad
        ogni frame. */
     bool statsDirty;
+    /* Input a EVENTO latchato dal livello applicativo (src/app), una volta per
+       frame di finestra, e consumato dal primo passo di simulazione che lo
+       legge. Con la simulazione a passo fisso (60 Hz) un frame video puo'
+       contenere 0 o 2 passi: leggere IsKeyPressed() dentro la simulazione
+       perderebbe l'evento nel primo caso e lo raddoppierebbe nel secondo.
+       Gli input CONTINUI (IsKeyDown per movimento/mira) restano letti
+       direttamente dentro la simulazione: rileggerli a ogni passo e' corretto. */
+    bool bombQueued;    /* SPACE: piazzare una bomba al prossimo passo */
+    bool resetQueued;   /* R (senza melting-gen): reset rapido della run */
     GamePhase phase;
     unsigned int rng;
     int floor;
