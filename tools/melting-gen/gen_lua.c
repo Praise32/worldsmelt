@@ -16,6 +16,8 @@
 
 #include "gen_lua.h"
 
+#include "gen_corpus.h"
+
 #include "core/game_types.h"
 #include "script/script_sandbox.h"
 
@@ -691,6 +693,7 @@ static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, c
         if (rc != 0)
         {
             snprintf(err, sizeof(err), "generazione fallita (decodifica o token troncati)");
+            GenCorpusRecordLua(floorTheme, item->name, isStatUp, attempt + 1, "decode-failed", err, NULL);
             continue;
         }
 
@@ -699,6 +702,9 @@ static void GenLuaGenerateOneItem(GenLlmSession *sess, const char *promptsDir, c
 
         bool anyCallback = false;
         bool valid = GenLuaValidate(extracted, runSeed + (unsigned int)itemNum, isStatUp, &anyCallback, err, sizeof(err));
+        GenCorpusRecordLua(floorTheme, item->name, isStatUp, attempt + 1,
+                            valid ? (anyCallback ? "ok" : "opted-out") : "invalid",
+                            valid ? NULL : err, extracted);
         if (valid && !anyCallback)
         {
             optedOut = true;   /* sintassi ok, ma nessuna callback: il modello ha scelto di non proporre nulla */

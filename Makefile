@@ -93,7 +93,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics clean
 
 all: game gen sprites
 
@@ -153,6 +153,11 @@ test-script: game
 
 test-llm: all
 	bash scripts/test-llm.sh
+
+# Metriche di generazione (validita' Lua + varieta' fra run): ~2-3 min a run
+# col 7B, 3 run di default. Vedi scripts/gen-metrics.sh e gen_metrics.py.
+gen-metrics: all
+	bash scripts/gen-metrics.sh
 
 clean:
 	rm -rf bin

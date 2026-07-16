@@ -1,5 +1,6 @@
 #include "melting_gen.h"
 
+#include "gen_corpus.h"
 #include "gen_lua.h"
 
 #include "cJSON.h"
@@ -190,6 +191,7 @@ int main(int argc, char **argv)
     double processStart = GenNowSeconds();
     GenArgs args;
     if (ParseArgs(argc, argv, &args) != 0) return 2;
+    GenCorpusConfigure(args.seed, args.resume ? "resume" : (args.fallback ? "fallback" : "gen"));
     if (GenEnsureDir(args.outDir) != 0)
     {
         fprintf(stderr, "melting-gen: impossibile creare %s\n", args.outDir);
@@ -230,6 +232,7 @@ int main(int argc, char **argv)
             {
                 GenLogLine("resume: uso il seed del JSON (%u) invece di quello passato (%u)", jsonSeed, args.seed);
                 args.seed = jsonSeed;
+                GenCorpusConfigure(args.seed, "resume");   /* il corpus riporta il seed VERO della run */
             }
         }
 
@@ -254,6 +257,7 @@ int main(int argc, char **argv)
             GenLlmSession *sess = OpenModelSession(&args, &modelPath);
             if (sess)
             {
+                GenCorpusRecordSession(modelPath, args.ngl);
                 GenLuaStats luaStats;
                 double deadline = processStart + GEN_LUA_RESUME_BUDGET_SEC;
                 GenLuaGenerateForRun(sess, &run, args.promptsDir, args.outDir, deadline,
@@ -288,6 +292,7 @@ int main(int argc, char **argv)
             GenLlmSession *sess = OpenModelSession(&args, &modelPath);
             if (sess)
             {
+                GenCorpusRecordSession(modelPath, args.ngl);
                 char *grammar = GenReadFile(args.grammarPath);
                 for (int attempt = 0; attempt < 2 && !haveRun && grammar; attempt++)
                 {
@@ -296,6 +301,7 @@ int main(int argc, char **argv)
                     if (!prompt)
                     {
                         GenLogLine("tentativo %d: prompt JSON non costruibile (file mancanti in %s?)", attempt + 1, args.promptsDir);
+                        GenCorpusRecordJson(attempt + 1, false, "prompt non costruibile", 0.0, 0, NULL);
                         continue;
                     }
                     double t0 = GenNowSeconds();
@@ -307,14 +313,17 @@ int main(int argc, char **argv)
                     if (rc != 0)
                     {
                         GenLogLine("tentativo %d: generazione fallita", attempt + 1);
+                        GenCorpusRecordJson(attempt + 1, false, "generazione fallita", genSecs, tokens, NULL);
                         continue;
                     }
                     cJSON *root = cJSON_Parse(json);
                     if (!root)
                     {
                         GenLogLine("tentativo %d: JSON troncato o non parsabile (%d token)", attempt + 1, tokens);
+                        GenCorpusRecordJson(attempt + 1, false, "json non parsabile", genSecs, tokens, json);
                         continue;
                     }
+                    GenCorpusRecordJson(attempt + 1, true, NULL, genSecs, tokens, json);
                     GenProgressWrite(args.outDir, "valido", 92, "valido e normalizzo");
                     GenNormalizeRun(root, args.seed, &run);
                     cJSON_Delete(root);
@@ -346,6 +355,11 @@ int main(int argc, char **argv)
             }
         }
     }
-    if (!haveRun) GenFallbackRun(&run, args.seed);
+    if (!haveRun)
+    {
+        GenCorpusRecordFallback(args.fallback ? "richiesto con --fallback" : "modello assente o tentativi JSON esauriti",
+                                 args.fallback != 0);
+        GenFallbackRun(&run, args.seed);
+    }
     return WriteOutputs(&run, &args);
 }

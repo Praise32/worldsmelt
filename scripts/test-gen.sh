@@ -19,6 +19,26 @@ GEN=bin/melting-gen
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+echo "-- corpus delle generazioni: una riga JSONL valida per il ramo fallback --"
+# gen_corpus.c scrive in logs/gen-corpus/ una riga per ogni evento del modello
+# (tentativi JSON, tentativi Lua, ripieghi). Senza modello si esercita il ramo
+# fallback: file creato, JSON valido, campi giusti. La riga di prova viene poi
+# rimossa: il corpus di un run di test non e' un dato.
+"$GEN" --fallback --seed 424241 --out "$TMP/corpus" > /dev/null
+newest="logs/gen-corpus/$(ls -t logs/gen-corpus | head -1)"
+python3 - "$newest" <<'PYEOF'
+import json, sys
+lines = [l for l in open(sys.argv[1]) if l.strip()]
+assert lines, "corpus vuoto"
+rec = json.loads(lines[0])
+assert rec["kind"] == "fallback" and rec["explicit"] is True and rec["seed"] == 424241, rec
+PYEOF
+rm -f "$newest"
+
+# Da qui in giu' la suite lancia melting-gen decine di volte: il corpus va
+# spento o riempirebbe logs/gen-corpus di run finte (vedi gen_corpus.c).
+export MELTING_GEN_NO_CORPUS=1
+
 echo "-- il binario del gioco non deve linkare llama.cpp o cJSON --"
 ! nm bin/melting_run_gpu | grep -qi -e llama -e cJSON
 
