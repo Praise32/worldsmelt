@@ -544,7 +544,11 @@ int AppRun(int argc, char **argv)
     }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    SetTextureFilter(gameCanvas.texture, TEXTURE_FILTER_BILINEAR);
+    /* POINT, non BILINEAR: gli sprite sono pixel art a 16 colori e il filtro
+       bilineare li sfocava nello scaling del canvas. La scala del layout e'
+       agganciata a passi di 1/8 (UiComputeLayout) apposta per rendere
+       regolare la cadenza dei pixel raddoppiati con questo filtro. */
+    SetTextureFilter(gameCanvas.texture, TEXTURE_FILTER_POINT);
     AppMode appMode = (smokeTest && !menuScreenshotTest) ? APP_PLAY : APP_MENU;
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;

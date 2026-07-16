@@ -44,7 +44,14 @@ UiLayout UiComputeLayout(void)
     float maxW = sw - leftW - rightW - pad*4.0f;
     float maxH = sh - bottomH - pad*3.0f;
     float scale = fminf(maxW/(float)SCREEN_WIDTH, maxH/(float)SCREEN_HEIGHT);
-    scale = GameMathClampFloat(scale, 0.72f, 1.45f);
+    /* Scala AGGANCIATA a passi di 1/8 (mai continua): il canvas e' campionato
+       con filtro POINT (vedi app.c), e a scala continua i pixel raddoppiati
+       cadrebbero a distanze irregolari che "brillano" quando la finestra
+       cambia o la camera si muove. A passi di 1/8 la cadenza dei pixel
+       raddoppiati e' fissa e regolare. Il floor sceglie il passo INFERIORE:
+       meglio un bordo di margine in piu' che tagliare il canvas. */
+    scale = floorf(scale*8.0f)/8.0f;
+    scale = GameMathClampFloat(scale, 0.75f, 1.375f);
     float gw = (float)SCREEN_WIDTH*scale;
     float gh = (float)SCREEN_HEIGHT*scale;
     float gx = leftW + pad*2.0f + (maxW - gw)*0.5f;
