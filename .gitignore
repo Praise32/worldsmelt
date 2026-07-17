@@ -24,6 +24,10 @@ deps/
 cache/
 node_modules/
 
+# Dataset grezzo di terzi (pack CC0 scaricati): non si versiona, la
+# provenienza vive in docs/dataset/ledger.jsonl (vedi docs/dataset/README.md).
+dataset-raw/
+
 # Segreti e configurazioni locali
 .env
 .env.*
