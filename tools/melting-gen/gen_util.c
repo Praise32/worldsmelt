@@ -128,6 +128,11 @@ int GenFileExists(const char *path)
 
 void GenProgressWrite(const char *outDir, const char *phase, int percent, const char *message)
 {
+    /* outDir NULL = "non scrivere" (--bench, tools/melting-gen/main.c: non deve
+     * toccare generated/, nemmeno tramite il progress callback di caricamento
+     * del modello). Ogni altro chiamante passa sempre un outDir vero, quindi
+     * questa guardia non cambia nulla per loro. */
+    if (!outDir) return;
     char tmp[512], fin[512];
     snprintf(fin, sizeof(fin), "%s/gen_progress.txt", outDir);
     snprintf(tmp, sizeof(tmp), "%s/gen_progress.tmp", outDir);

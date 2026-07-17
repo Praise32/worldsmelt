@@ -56,4 +56,10 @@ bool ScriptSandboxDeterminismProbe(unsigned int seed, char *out, size_t outSize)
    quindi src/app/app.c la richiama PRIMA di InitWindow. */
 bool ScriptItemsSelfTest(void);
 
+/* Piano strategico 16/07/2026, sezione tier: AppReadBenchmarkPreset
+   (src/app/app.h) e' solo I/O di file (nessun Game, nessuna finestra),
+   quindi questo test gira prima di InitWindow come i tre sopra. Vedi
+   src/tests/game_tests.c per i dettagli degli scenari coperti. */
+bool AppBenchmarkPresetSelfTest(void);
+
 #endif

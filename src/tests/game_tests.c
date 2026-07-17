@@ -1,5 +1,6 @@
 #include "tests/game_tests.h"
 
+#include "app/app.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
@@ -590,3 +591,127 @@ bool GenRunnerSelfTest(void)
     return true;   /* la generazione in-game non esiste su Windows */
 }
 #endif
+
+/* Piano strategico 16/07/2026, sezione tier: scrive un finto
+   logs/benchmark.txt per ciascuno scenario e verifica AppReadBenchmarkPreset
+   (src/app/app.c) -- niente Game ne' finestra, e' solo I/O di file. Il file
+   di prova vive in logs/ (gia' creato dal target 'game' del Makefile) con un
+   nome che non collide con quello vero scritto da scripts/benchmark.sh, e
+   viene rimosso alla fine. */
+bool AppBenchmarkPresetSelfTest(void)
+{
+    const char *path = "logs/bench-preset-selftest.tmp";
+    bool ok = true;
+
+    /* tier=lowspec, nessun override manuale: il preset si applica e il
+       messaggio dice da dove viene. */
+    {
+        FILE *f = fopen(path, "w");
+        if (!f) return false;
+        fputs("benchSchema=1\ntokS=8.00\nimgS=0\ntier=lowspec\nmeasuredAt=1\n", f);
+        fclose(f);
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, false, &lowSpec, msg, sizeof(msg));
+        if (!lowSpec || !strstr(msg, "preset low-spec dal benchmark"))
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: tier=lowspec non applicato (lowSpec=%d msg=\"%s\")\n", lowSpec, msg);
+            ok = false;
+        }
+    }
+
+    /* tier=unsupported: nessun preset (non blocca niente), ma un avviso. */
+    {
+        FILE *f = fopen(path, "w");
+        if (!f) return false;
+        fputs("benchSchema=1\ntokS=2.00\nimgS=0\ntier=unsupported\nmeasuredAt=1\n", f);
+        fclose(f);
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, false, &lowSpec, msg, sizeof(msg));
+        if (lowSpec || msg[0] == '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: tier=unsupported non gestito (lowSpec=%d msg vuoto=%d)\n", lowSpec, msg[0] == '\0');
+            ok = false;
+        }
+    }
+
+    /* tier=full: nessuna azione, nessun messaggio. */
+    {
+        FILE *f = fopen(path, "w");
+        if (!f) return false;
+        fputs("benchSchema=1\ntokS=20.00\nimgS=3.00\ntier=full\nmeasuredAt=1\n", f);
+        fclose(f);
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, false, &lowSpec, msg, sizeof(msg));
+        if (lowSpec || msg[0] != '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: tier=full ha toccato qualcosa (lowSpec=%d msg=\"%s\")\n", lowSpec, msg);
+            ok = false;
+        }
+    }
+
+    /* Override manuale --low-spec: il file (tier=lowspec) va ignorato del
+       tutto -- ne' un secondo messaggio ne' un cambiamento del preset, che
+       resta quello gia' scelto a mano dal chiamante. */
+    {
+        FILE *f = fopen(path, "w");
+        if (!f) return false;
+        fputs("benchSchema=1\ntokS=8.00\nimgS=0\ntier=lowspec\nmeasuredAt=1\n", f);
+        fclose(f);
+        bool lowSpec = true;   /* il chiamante lo inizializza al valore manuale */
+        char msg[160];
+        AppReadBenchmarkPreset(path, true, false, &lowSpec, msg, sizeof(msg));
+        if (!lowSpec || msg[0] != '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: --low-spec manuale non ha ignorato il file (lowSpec=%d msg=\"%s\")\n", lowSpec, msg);
+            ok = false;
+        }
+    }
+
+    /* Override manuale --full-spec: idem, anche con tier=lowspec nel file. */
+    {
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, true, &lowSpec, msg, sizeof(msg));
+        if (lowSpec || msg[0] != '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: --full-spec manuale non ha ignorato il file (lowSpec=%d msg=\"%s\")\n", lowSpec, msg);
+            ok = false;
+        }
+    }
+
+    /* File assente: comportamento di sempre, nessuna azione. */
+    remove(path);
+    {
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, false, &lowSpec, msg, sizeof(msg));
+        if (lowSpec || msg[0] != '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: file assente ha comunque prodotto un effetto\n");
+            ok = false;
+        }
+    }
+
+    /* benchSchema sconosciuto: mai fidarsi di un formato che non riconosciamo,
+       anche se tier=lowspec e' scritto alla lettera. */
+    {
+        FILE *f = fopen(path, "w");
+        if (!f) return false;
+        fputs("benchSchema=2\ntokS=8.00\nimgS=0\ntier=lowspec\nmeasuredAt=1\n", f);
+        fclose(f);
+        bool lowSpec = false;
+        char msg[160];
+        AppReadBenchmarkPreset(path, false, false, &lowSpec, msg, sizeof(msg));
+        if (lowSpec || msg[0] != '\0')
+        {
+            fprintf(stderr, "AppBenchmarkPresetSelfTest: benchSchema sconosciuto non e' stato ignorato\n");
+            ok = false;
+        }
+    }
+
+    remove(path);
+    return ok;
+}

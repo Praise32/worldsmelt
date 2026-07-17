@@ -45,6 +45,9 @@ typedef struct GenArgs {
      * verificare il prompt (placeholder sostituiti, blocco ispirazioni
      * presente, determinismo sul seed) senza aspettare una generazione vera. */
     int printJsonPrompt;
+    /* --bench (piano 16/07/2026, sezione tier): misura il throughput REALE
+     * della macchina invece di dedurlo dal nome della GPU. Vedi RunBench. */
+    int bench;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -75,6 +78,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->luaFirst = GEN_FLOORS;   /* step B2: di default si generano tutti i piani, come sempre */
     args->resume = 0;
     args->printJsonPrompt = 0;
+    args->bench = 0;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -90,6 +94,15 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
         else if (strcmp(argv[i], "--from-json") == 0 && i + 1 < argc) args->fromJson = argv[++i];
         else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) args->model = argv[++i];
+        /* --model-fallback: normalmente il ripiego (1.5B) e' fisso, mai scelto a
+         * riga di comando -- questa opzione esiste SOLO per poter forzare "nessun
+         * modello disponibile" nei test (scripts/test-gen.sh, --bench senza
+         * modello), puntandola a un percorso inesistente ANCHE quando i modelli
+         * veri sono scaricati in models/ (come nell'ambiente di sviluppo). Senza,
+         * --model su un percorso inesistente da solo non basterebbe a testare
+         * quel caso: OpenModelSession ripiegherebbe comunque sul modello piccolo
+         * vero. */
+        else if (strcmp(argv[i], "--model-fallback") == 0 && i + 1 < argc) args->modelFallback = argv[++i];
         else if (strcmp(argv[i], "--model-text") == 0 && i + 1 < argc) args->modelText = argv[++i];
         else if (strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) args->ngl = atoi(argv[++i]);
         else if (strcmp(argv[i], "--temp") == 0 && i + 1 < argc) args->temp = (float)atof(argv[++i]);
@@ -99,6 +112,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--lua-first") == 0 && i + 1 < argc) args->luaFirst = atoi(argv[++i]);
         else if (strcmp(argv[i], "--resume") == 0) args->resume = 1;
         else if (strcmp(argv[i], "--print-json-prompt") == 0) args->printJsonPrompt = 1;
+        else if (strcmp(argv[i], "--bench") == 0) args->bench = 1;
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -221,6 +235,88 @@ static GenLlmSession *OpenModelSession(const GenArgs *args, const char **modelPa
     return GenLlmSessionOpen(modelPath, args->ngl, args->outDir);
 }
 
+/* Prompt fisso del bench (piano 16/07/2026, sezione tier): scritto qui, non in
+ * un file di prompts/, apposta -- il bench deve misurare la VELOCITA' della
+ * macchina, non dipendere dal contenuto o dalla cartella prompts/ (che un
+ * utente potrebbe aver modificato, spostato, o non avere affatto se sta solo
+ * misurando l'hardware prima ancora di scaricare i prompt di produzione).
+ * Stesso schema ChatML di ogni altro prompt di questo tool (GenChatMlWrap). */
+static const char *GEN_BENCH_SYSTEM = "Sei un assistente che scrive brevi descrizioni di fantasia in italiano.";
+static const char *GEN_BENCH_USER = "Descrivi in due o tre frasi una torre magica misteriosa, come l'inizio di una fiaba.";
+#define GEN_BENCH_TOKENS 128
+#define GEN_BENCH_SEED 20260717u
+
+/* --bench (piano 16/07/2026, sezione tier: il tier va per THROUGHPUT MISURATO,
+ * mai per nome GPU -- la n.1 su Steam e' una 4060 Laptop, ~2x piu' lenta della
+ * desktop omonima). Carica lo STESSO modello di una generazione vera
+ * (OpenModelSession sopra, rispetta --model/--model-fallback/--ngl), genera
+ * GEN_BENCH_TOKENS token da un prompt FISSO hardcoded (vedi sopra: nessuna
+ * dipendenza da prompts/) e stampa una riga machine-readable su stdout.
+ *
+ * NON tocca generated/ (ne' manifest, ne' progresso, ne' corpus): 'benchArgs'
+ * e' una copia di 'args' con outDir=NULL, che rende innocuo il progress
+ * callback di caricamento del modello (GenProgressWrite/LoadProgressCb, vedi
+ * la guardia su outDir NULL in gen_util.c) e ogni chiamata di GenProgressWrite
+ * dentro GenLlmComplete (gia' guardata su outDir/progressPhase non-NULL,
+ * invariata). Nessuna GenCorpusRecord* viene mai chiamata da questa funzione:
+ * il file di corpus si apre pigramente alla prima scrittura (gen_corpus.c),
+ * quindi se non scriviamo non si crea nulla.
+ *
+ * Ritorna 0 e stampa "bench: tok_s=... load_s=...\n" su successo, 1 su
+ * qualunque fallimento (nessun modello disponibile, o la generazione stessa
+ * fallisce), con un messaggio su stderr in entrambi i casi. */
+static int RunBench(const GenArgs *args)
+{
+    GenArgs benchArgs = *args;
+    benchArgs.outDir = NULL;
+
+    double tLoad0 = GenNowSeconds();
+    const char *modelPath = NULL;
+    GenLlmSession *sess = OpenModelSession(&benchArgs, &modelPath);
+    double loadSecs = GenNowSeconds() - tLoad0;
+    if (!sess)
+    {
+        fprintf(stderr, "melting-gen: --bench, nessun modello disponibile (%s)\n", args->model);
+        return 1;
+    }
+
+    char *prompt = GenChatMlWrap(GEN_BENCH_SYSTEM, GEN_BENCH_USER);
+    if (!prompt)
+    {
+        fprintf(stderr, "melting-gen: --bench, prompt fisso non costruibile\n");
+        GenLlmSessionClose(sess);
+        return 1;
+    }
+
+    static char out[8192];
+    int tokens = 0;
+    double tGen0 = GenNowSeconds();
+    /* Nessuna grammatica (grammarText=NULL, lo stesso percorso a campionamento
+     * libero del ramo Lua): il bench misura la velocita' pura del modello, non
+     * anche quella del parser della grammatica GBNF del JSON. */
+    int rc = GenLlmComplete(sess, prompt, NULL, GEN_BENCH_TOKENS, args->temp, GEN_BENCH_SEED,
+                             NULL, NULL, 0, 0, out, sizeof(out), &tokens);
+    double genSecs = GenNowSeconds() - tGen0;
+    free(prompt);
+    GenLlmSessionClose(sess);
+
+    if (rc != 0 || tokens <= 0)
+    {
+        fprintf(stderr, "melting-gen: --bench, generazione fallita\n");
+        return 1;
+    }
+
+    /* tok/s misurato sull'INTERA chiamata (decodifica del prompt fisso, breve,
+     * piu' i GEN_BENCH_TOKENS generati uno alla volta): il prompt fisso e' cosi'
+     * corto (poche decine di token, decodificati in un solo batch parallelo,
+     * non uno alla volta come la generazione) che il suo costo e' una frazione
+     * trascurabile del tempo totale. Non vale la pena separare le due fasi per
+     * soglie grossolane come quelle del tier (12/6 tok/s). */
+    double tokS = genSecs > 0.0 ? (double)tokens/genSecs : 0.0;
+    printf("bench: tok_s=%.2f load_s=%.2f\n", tokS, loadSecs);
+    return 0;
+}
+
 /* Tentativi di generazione JSON (fino a 2, grammatica GBNF): estratta da
  * main perche' ora la chiamano DUE percorsi -- la sessione condivisa di
  * sempre e, nell'esperimento due-modelli (--model-text, roadmap 17/07/2026),
@@ -302,6 +398,12 @@ int main(int argc, char **argv)
     double processStart = GenNowSeconds();
     GenArgs args;
     if (ParseArgs(argc, argv, &args) != 0) return 2;
+
+    /* --bench (piano 16/07/2026, sezione tier): esce PRIMA di GenCorpusConfigure/
+     * GenEnsureDir/GenProgressWrite -- non deve toccare generated/ in alcun modo
+     * (vedi il commento su RunBench sopra). */
+    if (args.bench) return RunBench(&args);
+
     GenCorpusConfigure(args.seed, args.resume ? "resume" : (args.fallback ? "fallback" : "gen"));
     if (GenEnsureDir(args.outDir) != 0)
     {

@@ -44,6 +44,7 @@ typedef struct SpritesArgs {
     const char *promptsDir;
     int dryRunBadBorder;   /* --dry-run-bad-border: solo per test, vedi sotto */
     int genSize;           /* --gen-size: 256 o 512, vedi ParseArgs. La cella finale resta 128x128. */
+    int bench;              /* --bench (piano 16/07/2026, sezione tier): vedi RunBench */
 } SpritesArgs;
 
 static int ParseArgs(int argc, char **argv, SpritesArgs *args)
@@ -66,6 +67,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     args->promptsDir = "tools/melting-sprites/prompts";
     args->dryRunBadBorder = 0;
     args->genSize = SPRITE_SRC;   /* 512: default, scheda di riferimento 5600 XT */
+    args->bench = 0;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
@@ -81,6 +83,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
         else if (strcmp(argv[i], "--cfg") == 0 && i + 1 < argc) args->cfg = (float)atof(argv[++i]);
         else if (strcmp(argv[i], "--prompts") == 0 && i + 1 < argc) args->promptsDir = argv[++i];
         else if (strcmp(argv[i], "--gen-size") == 0 && i + 1 < argc) args->genSize = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--bench") == 0) args->bench = 1;
         else
         {
             fprintf(stderr, "melting-sprites: opzione sconosciuta: %s\n", argv[i]);
@@ -581,10 +584,93 @@ static int RunCheck(const SpritesArgs *args)
     return 0;
 }
 
+/* Prompt fisso del bench (piano 16/07/2026, sezione tier), stesso motivo del
+ * gemello in tools/melting-gen/main.c: scritto qui, non letto da
+ * tools/melting-sprites/prompts/, perche' il bench misura la VELOCITA' della
+ * macchina, non il contenuto ne' la presenza della cartella prompts/. */
+static const char *SPRITES_BENCH_PROMPT =
+    "pixel art icon of a small round fantasy creature, flat colors, simple shading, plain background";
+static const char *SPRITES_BENCH_NEG_PROMPT = "blurry, text, watermark, photo, 3d render";
+#define SPRITES_BENCH_SEED 20260717u
+
+/* --bench (piano 16/07/2026, sezione tier): genera UNA immagine 512px con la
+ * pipeline di sempre (LCM, stessi step/cfg di ParseArgs, eventualmente
+ * ritoccati da --steps/--cfg/--taesd come una generazione vera) da un
+ * prompt FISSO hardcoded (vedi sopra), e stampa una riga machine-readable su
+ * stdout. Sempre 512px (SPRITE_SRC), indipendente da --gen-size: il bench
+ * misura la pipeline di RIFERIMENTO, la stessa che --gen-size 256 (preset
+ * --low-spec) alleggerisce SOLO quando il tier misurato lo richiede -- vedi
+ * scripts/benchmark.sh.
+ *
+ * NON scrive l'atlas ne' tocca 'args->outDir' in alcun modo: sdCfg.outDir e'
+ * NULL apposta, che rende innocuo il progress callback di caricamento del
+ * modello (SpritesProgressWrite, vedi la guardia su outDir NULL in
+ * sprite_util.c). Ritorna 0 e stampa "bench: img_s=... load_s=...\n" su
+ * successo, 1 su qualunque fallimento (nessun modello disponibile, o la
+ * generazione fallisce), con un messaggio su stderr in entrambi i casi. */
+static int RunBench(const SpritesArgs *args)
+{
+    if (!SpritesFileExists(args->model))
+    {
+        fprintf(stderr, "melting-sprites: --bench, modello assente (%s)\n", args->model);
+        return 1;
+    }
+
+    SpriteSdConfig sdCfg;
+    sdCfg.modelPath = args->model;
+    sdCfg.loraPath = args->lora;
+    sdCfg.taesdPath = args->useTaesd ? "models/taesd.safetensors" : NULL;
+    sdCfg.steps = args->steps;
+    sdCfg.cfg = args->cfg;
+    sdCfg.outDir = NULL;
+
+    double loadSecs = 0;
+    SpriteSdCtx *sdCtx = SpriteSdLoad(&sdCfg, &loadSecs);
+    if (!sdCtx)
+    {
+        fprintf(stderr, "melting-sprites: --bench, caricamento del modello fallito\n");
+        return 1;
+    }
+
+    unsigned char *src512 = malloc((size_t)SPRITE_SRC*SPRITE_SRC*3);
+    if (!src512)
+    {
+        fprintf(stderr, "melting-sprites: --bench, memoria esaurita\n");
+        SpriteSdFree(sdCtx);
+        return 1;
+    }
+
+    /* DUE generazioni: la prima paga il warmup Vulkan (compilazione delle
+       pipeline/shader) e viene scartata, la misura e' la SECONDA, a regime.
+       E' cio' che vive davvero il giocatore: la pipeline genera 13 sprite e
+       il warmup si ammortizza sul primo. Misurato sulla scheda di
+       riferimento: prima immagine ~14.9s, seconda ~5.7s -- contare il
+       warmup mandava una 5600 XT (che regge il full) nel tier lowspec. */
+    double warmupSecs = 0;
+    int rc = SpriteSdGenerate(sdCtx, SPRITES_BENCH_PROMPT, SPRITES_BENCH_NEG_PROMPT,
+                               SPRITES_BENCH_SEED, src512, &warmupSecs, SPRITE_SRC);
+    double genSecs = 0;
+    if (rc == 0)
+        rc = SpriteSdGenerate(sdCtx, SPRITES_BENCH_PROMPT, SPRITES_BENCH_NEG_PROMPT,
+                               SPRITES_BENCH_SEED + 1u, src512, &genSecs, SPRITE_SRC);
+    free(src512);
+    SpriteSdFree(sdCtx);
+    if (rc != 0)
+    {
+        fprintf(stderr, "melting-sprites: --bench, generazione fallita\n");
+        return 1;
+    }
+
+    printf("bench: img_s=%.2f load_s=%.2f warmup_s=%.2f\n", genSecs, loadSecs, warmupSecs);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     SpritesArgs args;
     if (ParseArgs(argc, argv, &args) != 0) return 2;
+
+    if (args.bench) return RunBench(&args);
 
     if (args.check) return RunCheck(&args);
 

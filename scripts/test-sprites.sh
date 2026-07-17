@@ -159,4 +159,22 @@ printf 'floor1.theme=Tema di Prova\nfloor1.style=pixel semplice\natlas.path=gene
 printf 'floor1.theme=Tema di Prova\nfloor1.style=pixel semplice\natlas.path=generated/current_atlas.png\nextra.campo=invariato\n' > "$TMP/manifest_expected.txt"
 diff "$TMP/manifest_expected.txt" "$TMP/manifest/current_run.txt"
 
+echo "-- --bench senza modello: exit 1, la cartella --out resta byte per byte identica --"
+# Piano strategico 16/07/2026, sezione tier: melting-sprites non ha un modello
+# di ripiego (a differenza di melting-gen), quindi un solo --model su un
+# percorso inesistente basta a esercitare il ramo "nessun modello disponibile".
+mkdir -p "$TMP/bench-nomodel"
+echo marker > "$TMP/bench-nomodel/marker.txt"
+before=$(find "$TMP/bench-nomodel" -type f -exec sha256sum {} \; | sort)
+set +e
+"$SPR" --bench --model "$TMP/nonexistent.ckpt" --out "$TMP/bench-nomodel" \
+       >"$TMP/bench-nomodel.out" 2>"$TMP/bench-nomodel.err"
+rc=$?
+set -e
+[ "$rc" -eq 1 ]
+[ -z "$(cat "$TMP/bench-nomodel.out")" ]   # niente riga "bench: ..." su stdout quando fallisce
+after=$(find "$TMP/bench-nomodel" -type f -exec sha256sum {} \; | sort)
+[ "$before" = "$after" ]
+grep -q "modello assente" "$TMP/bench-nomodel.err"
+
 echo "TEST-SPRITES: OK"

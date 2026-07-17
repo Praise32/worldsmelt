@@ -93,7 +93,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark clean
 
 all: game gen sprites
 
@@ -138,6 +138,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --bench-preset-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --shot-forms-screenshot-test
@@ -165,6 +166,15 @@ gen-metrics: all
 # Vedi scripts/sprite-baseline.sh e docs/dataset/baseline-prompts.txt.
 sprite-baseline: sprites
 	bash scripts/sprite-baseline.sh
+
+# Benchmark della macchina (piano strategico 16/07/2026, sezione tier): esegue
+# in sequenza melting-gen --bench e melting-sprites --bench (mai insieme:
+# VRAM) e scrive logs/benchmark.txt, che il gioco rilegge al prossimo
+# --generate per applicare da solo il preset --low-spec quando serve. Vedi
+# scripts/benchmark.sh. NON parte da solo al primo avvio del gioco (v1: solo
+# manuale, via questo target); l'auto-run arrivera' con la UI dedicata.
+benchmark: gen sprites
+	bash scripts/benchmark.sh
 
 clean:
 	rm -rf bin

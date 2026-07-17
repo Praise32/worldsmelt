@@ -598,4 +598,25 @@ done
 echo "-- guardia byte-budget del prompt Lua: il prompt piu' grande di oggi sta sotto il ceiling --"
 "$GEN" --prompt-budget-check
 
+# Piano strategico 16/07/2026, sezione tier: --bench senza modello. --model-fallback
+# esiste SOLO per questo test (vedi il commento su ParseArgs in main.c): senza,
+# un --model su un percorso inesistente ripiegherebbe comunque sul modello
+# piccolo vero se e' scaricato in models/ (come nell'ambiente di sviluppo), e il
+# test finirebbe per caricare davvero un modello sulla GPU invece di esercitare
+# il ramo "nessun modello disponibile".
+echo "-- --bench senza modello: exit 1, la cartella --out resta byte per byte identica --"
+mkdir -p "$TMP/bench-nomodel"
+echo marker > "$TMP/bench-nomodel/marker.txt"
+before=$(find "$TMP/bench-nomodel" -type f -exec sha256sum {} \; | sort)
+set +e
+"$GEN" --bench --model "$TMP/nonexistent-main.gguf" --model-fallback "$TMP/nonexistent-fallback.gguf" \
+       --out "$TMP/bench-nomodel" >"$TMP/bench-nomodel.out" 2>"$TMP/bench-nomodel.err"
+rc=$?
+set -e
+[ "$rc" -eq 1 ]
+[ -z "$(cat "$TMP/bench-nomodel.out")" ]   # niente riga "bench: ..." su stdout quando fallisce
+after=$(find "$TMP/bench-nomodel" -type f -exec sha256sum {} \; | sort)
+[ "$before" = "$after" ]
+grep -q "nessun modello disponibile" "$TMP/bench-nomodel.err"
+
 echo "TEST-GEN: OK"

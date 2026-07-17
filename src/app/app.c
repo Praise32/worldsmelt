@@ -13,6 +13,63 @@
 #include <string.h>
 #include <time.h>
 
+/* Lettura "chiave=valore" per riga: stesso schema/stessa reimplementazione
+ * locale di ReadManifestValue in src/content/run_content.c e
+ * tools/melting-sprites/sprite_manifest.c (vedi il commento li' sul perche'
+ * non e' condivisa: moduli diversi, ognuno coi propri file da leggere -- qui
+ * e' logs/benchmark.txt, vedi AppReadBenchmarkPreset sotto). */
+static void ReadAppManifestValue(const char *text, const char *key, char *out, size_t outSize)
+{
+    out[0] = '\0';
+    if (!text || !key || outSize == 0) return;
+    const char *start = strstr(text, key);
+    if (!start) return;
+    start += strlen(key);
+    size_t i = 0;
+    while (start[i] && start[i] != '\r' && start[i] != '\n' && i < outSize - 1)
+    {
+        out[i] = start[i];
+        i++;
+    }
+    out[i] = '\0';
+}
+
+void AppReadBenchmarkPreset(const char *path, bool manualLowSpec, bool manualFullSpec,
+                             bool *lowSpecOut, char *msgOut, size_t msgCap)
+{
+    if (msgCap > 0) msgOut[0] = '\0';
+    /* Override manuale: l'utente ha gia' scelto (--low-spec o --full-spec),
+     * il benchmark si ignora del tutto -- ne' preset ne' messaggio. */
+    if (manualLowSpec || manualFullSpec) return;
+
+    char *text = LoadFileText(path);
+    if (!text) return;   /* nessun benchmark.txt: comportamento di sempre */
+
+    char schema[8] = { 0 };
+    char tier[16] = { 0 };
+    ReadAppManifestValue(text, "benchSchema=", schema, sizeof(schema));
+    ReadAppManifestValue(text, "tier=", tier, sizeof(tier));
+    UnloadFileText(text);
+
+    /* benchSchema diverso da "1" (assente, o un formato futuro che non
+     * riconosciamo): meglio non toccare nulla che fidarsi di un file che non
+     * capiamo. */
+    if (strcmp(schema, "1") != 0) return;
+
+    if (strcmp(tier, "lowspec") == 0)
+    {
+        if (lowSpecOut) *lowSpecOut = true;
+        snprintf(msgOut, msgCap, "preset low-spec dal benchmark");
+    }
+    else if (strcmp(tier, "unsupported") == 0)
+    {
+        /* NON blocca niente (il fallback procedurale esiste sempre): solo un
+         * avviso, mai un impedimento a giocare. */
+        snprintf(msgOut, msgCap, "Hardware sotto la soglia minima misurata: generazione IA lenta o assente, si gioca con i contenuti di riserva");
+    }
+    /* tier=full (o un valore sconosciuto): nessuna azione, nessun messaggio -- e' il comportamento di sempre. */
+}
+
 /* Contesto della generazione in-game: se abilitata (flag --generate), il
  * gioco avvia due processi esterni IN SEQUENZA (melting-gen per il testo,
  * poi melting-sprites per gli sprite) invece di limitarsi a rileggere il
@@ -402,7 +459,15 @@ int AppRun(int argc, char **argv)
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
+    bool benchPresetTest = false;
     unsigned int scriptSeed = 12345u;
+    /* --full-spec: override manuale gemello di --low-spec (vedi
+       AppReadBenchmarkPreset in app.h/qui sopra) -- forza il preset di
+       default anche quando logs/benchmark.txt dice tier=lowspec, ignorando
+       il benchmark del tutto. Non e' un campo di AppGen: non serve dopo
+       l'avvio, a differenza di gen.lowSpec che i due AppStart* rileggono a
+       ogni chiamata. */
+    bool fullSpec = false;
     AppGen gen = { 0 };
     gen.command = "bin/melting-gen";
     gen.spritesCommand = "bin/melting-sprites";
@@ -470,6 +535,7 @@ int AppRun(int argc, char **argv)
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
         if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
+        if (strcmp(argv[i], "--bench-preset-test") == 0) benchPresetTest = true;
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) scriptSeed = (unsigned int)strtoul(argv[++i], NULL, 10);
         if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
         if (strcmp(argv[i], "--no-sprites") == 0) gen.noSprites = true;
@@ -477,8 +543,27 @@ int AppRun(int argc, char **argv)
            il commento su AppGen.lowSpec): melting-gen col modello 1.5B,
            melting-sprites a 256px. Nessun effetto sui default se assente. */
         if (strcmp(argv[i], "--low-spec") == 0) gen.lowSpec = true;
+        /* Override manuale gemello: ignora il benchmark, forza il preset di
+           default anche se logs/benchmark.txt dice tier=lowspec (vedi
+           AppReadBenchmarkPreset). */
+        if (strcmp(argv[i], "--full-spec") == 0) fullSpec = true;
         if (strcmp(argv[i], "--gen-cmd") == 0 && i + 1 < argc) gen.command = argv[++i];
         if (strcmp(argv[i], "--sprites-cmd") == 0 && i + 1 < argc) gen.spritesCommand = argv[++i];
+    }
+
+    /* Piano strategico 16/07/2026, sezione tier: solo con --generate, solo se
+       l'utente non ha gia' scelto (--low-spec/--full-spec, vedi sopra). Prima
+       di InitWindow: e' solo I/O di file, il messaggio (se c'e') si applica
+       al Game piu' sotto, appena esiste (GameResetRun). NIENTE esecuzione
+       automatica del benchmark qui (v1): si legge solo logs/benchmark.txt se
+       gia' scritto da "make benchmark" (scripts/benchmark.sh); se manca, il
+       comportamento resta quello di sempre. */
+    char benchMsg[160] = { 0 };
+    if (gen.enabled)
+    {
+        bool lowSpecFromBench = gen.lowSpec;
+        AppReadBenchmarkPreset("logs/benchmark.txt", gen.lowSpec, fullSpec, &lowSpecFromBench, benchMsg, sizeof(benchMsg));
+        gen.lowSpec = lowSpecFromBench;
     }
 
     if (genTest)
@@ -516,6 +601,14 @@ int AppRun(int argc, char **argv)
         printf("Script items test: %s\n", ok ? "ok" : "failed");
         return ok ? 0 : 10;
     }
+    /* Piano strategico 16/07/2026, sezione tier: AppReadBenchmarkPreset e'
+       solo I/O di file (nessuna finestra), stessa famiglia dei tre test sopra. */
+    if (benchPresetTest)
+    {
+        bool ok = AppBenchmarkPresetSelfTest();
+        printf("Benchmark preset test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 14;   /* 14: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
 
     /* --rarity-screenshot-test vuole la finestra GRANDE (non compatta) come
        --screenshot-test: a differenza di --layer-test (dove il personaggio
@@ -538,6 +631,10 @@ int AppRun(int argc, char **argv)
 
     Game game = { 0 };
     GameResetRun(&game);
+    /* Messaggio del preset da benchmark (se c'e', vedi AppReadBenchmarkPreset
+       piu' sopra): il Game esiste solo da qui in poi, prima non c'era nulla a
+       cui passare GameSetMessage. */
+    if (benchMsg[0]) GameSetMessage(&game, benchMsg);
     if (portalTest)
     {
         bool ok = GamePortalRespawnTest(&game);
