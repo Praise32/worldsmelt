@@ -35,6 +35,33 @@ assert rec["kind"] == "fallback" and rec["explicit"] is True and rec["seed"] == 
 PYEOF
 rm -f "$newest"
 
+# Semi d'ispirazione (roadmap 16/07/2026, settimana 1): --print-json-prompt
+# costruisce il prompt JSON completo e lo stampa su stdout senza caricare
+# alcun modello -- il modo giusto per verificare il blocco "Ispirazioni per
+# QUESTA run" (placeholder sostituito, deterministico sul seed, diverso fra
+# semi) senza aspettare una generazione vera.
+echo "-- semi d'ispirazione: --print-json-prompt espone il blocco nel prompt --"
+"$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-a" > "$TMP/prompt-a.txt"
+grep -q "Ispirazioni per QUESTA run" "$TMP/prompt-a.txt" || {
+  echo "FALLITO: il prompt stampato non contiene il blocco ispirazioni"; exit 1; }
+
+echo "-- semi d'ispirazione: stesso seed due volte -> prompt identico --"
+"$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-b" > "$TMP/prompt-b.txt"
+cmp "$TMP/prompt-a.txt" "$TMP/prompt-b.txt" || {
+  echo "FALLITO: stesso seed ha prodotto prompt diversi (le ispirazioni non sono deterministiche)"; exit 1; }
+
+echo "-- semi d'ispirazione: semi diversi -> prompt diversi --"
+"$GEN" --print-json-prompt --seed 1111 --out "$TMP/prompt-c" > "$TMP/prompt-c.txt"
+"$GEN" --print-json-prompt --seed 2222 --out "$TMP/prompt-d" > "$TMP/prompt-d.txt"
+if cmp -s "$TMP/prompt-c.txt" "$TMP/prompt-d.txt"; then
+  echo "FALLITO: semi diversi (1111 vs 2222) hanno prodotto lo stesso prompt"; exit 1
+fi
+
+echo "-- semi d'ispirazione: il placeholder {ISPIRAZIONI} non compare mai nel prompt stampato --"
+if grep -q '{ISPIRAZIONI}' "$TMP/prompt-a.txt"; then
+  echo "FALLITO: il placeholder {ISPIRAZIONI} e' rimasto nel prompt (sostituzione mancata)"; exit 1
+fi
+
 # Da qui in giu' la suite lancia melting-gen decine di volte: il corpus va
 # spento o riempirebbe logs/gen-corpus di run finte (vedi gen_corpus.c).
 export MELTING_GEN_NO_CORPUS=1

@@ -31,6 +31,11 @@ typedef struct GenArgs {
     int luaFirst;
     int resume;
     const char *grammarPath;
+    /* Semi d'ispirazione (roadmap 16/07/2026): stampa il prompt JSON completo
+     * su stdout e basta, nessun modello caricato -- serve ai test per
+     * verificare il prompt (placeholder sostituiti, blocco ispirazioni
+     * presente, determinismo sul seed) senza aspettare una generazione vera. */
+    int printJsonPrompt;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -59,6 +64,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->grammarPath = "tools/melting-gen/run.gbnf";
     args->luaFirst = GEN_FLOORS;   /* step B2: di default si generano tutti i piani, come sempre */
     args->resume = 0;
+    args->printJsonPrompt = 0;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -81,6 +87,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) args->grammarPath = argv[++i];
         else if (strcmp(argv[i], "--lua-first") == 0 && i + 1 < argc) args->luaFirst = atoi(argv[++i]);
         else if (strcmp(argv[i], "--resume") == 0) args->resume = 1;
+        else if (strcmp(argv[i], "--print-json-prompt") == 0) args->printJsonPrompt = 1;
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -198,6 +205,24 @@ int main(int argc, char **argv)
         return 3;
     }
     GenProgressWrite(args.outDir, "avvio", 0, "melting-gen avviato");
+
+    /* Semi d'ispirazione: costruisce il prompt JSON e lo stampa, PRIMA di
+     * qualunque caricamento modello -- serve ai test per verificare il
+     * prompt (placeholder sostituiti, determinismo sul seed) senza aspettare
+     * una generazione vera. */
+    if (args.printJsonPrompt)
+    {
+        char *prompt = GenLlmBuildJsonPrompt(args.promptsDir, args.seed);
+        if (!prompt)
+        {
+            fprintf(stderr, "melting-gen: prompt JSON non costruibile (file mancanti in %s?)\n", args.promptsDir);
+            return 6;
+        }
+        printf("%s", prompt);
+        free(prompt);
+        return 0;
+    }
+
     /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
      * scripts/ pulita. Senza, gli script della run precedente restavano sul disco
      * e la RIPRESA in sottofondo (--resume, GenLuaLoadExisting) li adottava,

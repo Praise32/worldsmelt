@@ -1,5 +1,7 @@
 #include "melting_gen.h"
 
+#include "gen_inspire.h"
+
 #include "llama.h"
 
 #include <stdio.h>
@@ -36,8 +38,19 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
 
     char seedText[32];
     snprintf(seedText, sizeof(seedText), "%u", seed);
-    char *userFinal = GenReplaceAll(user, "{SEED}", seedText);
+    char *userSeeded = GenReplaceAll(user, "{SEED}", seedText);
     free(user);
+    if (!userSeeded) { free(sys); return NULL; }
+
+    /* Semi d'ispirazione (roadmap 16/07/2026): 'seed' qui e' l'attemptSeed di
+       chi chiama (seed + attempt*7919, vedi main.c), non il seed della run --
+       quindi un retry riceve ispirazioni DIVERSE dal primo tentativo. E'
+       voluto: se il primo giro produce un piano-fotocopia, il retry deve
+       poter ripartire da un ancoraggio creativo diverso, non dallo stesso. */
+    char inspire[1024];
+    GenInspireBuild(seed, inspire, sizeof(inspire));
+    char *userFinal = GenReplaceAll(userSeeded, "{ISPIRAZIONI}", inspire);
+    free(userSeeded);
     if (!userFinal) { free(sys); return NULL; }
 
     char *prompt = GenChatMlWrap(sys, userFinal);
