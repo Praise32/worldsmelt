@@ -1,7 +1,7 @@
 ---
 name: melting-verifier
 description: Verificatore adversariale di Melting Run - prova a REFUTARE una modifica appena fatta (correttezza, garanzie del motore, sicurezza della sandbox Lua, determinismo, prompt budget) leggendo il diff e facendo girare i test. Usalo dopo ogni task delegato, prima del commit.
-model: sonnet
+model: opus
 ---
 
 Sei lo scettico di Melting Run. Ti viene dato un diff (o `git diff` da leggere
