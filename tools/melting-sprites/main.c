@@ -10,7 +10,15 @@
    scrivere l'atlas ne' toccare il manifest (vedi RunGenerate piu' sotto):
    le celle sintetiche di --dry-run restano disponibili solo dietro quel
    flag esplicito, mai come ripiego silenzioso (vedi
-   docs/superpowers/specs/2026-07-13-local-sprites-design.md). */
+   docs/superpowers/specs/2026-07-13-local-sprites-design.md).
+
+   --gen-size <px> (256 o 512, default 512, vedi ParseArgs): dimensione a cui
+   Stable Diffusion genera ogni cella prima del post-processing. E' il
+   mattone del preset --low-spec del gioco (roadmap 16/07/2026, hardware
+   sotto la scheda di riferimento 5600 XT): a 256px il downscale modale in
+   sprite_post.c usa un fattore 2 invece di 4, generazione piu' leggera. La
+   cella finale nell'atlas resta SEMPRE 128x128: il gioco non vede alcuna
+   differenza tra i due valori. */
 #include "melting_sprites.h"
 
 #include "stb_image.h"
@@ -35,6 +43,7 @@ typedef struct SpritesArgs {
     float cfg;
     const char *promptsDir;
     int dryRunBadBorder;   /* --dry-run-bad-border: solo per test, vedi sotto */
+    int genSize;           /* --gen-size: 256 o 512, vedi ParseArgs. La cella finale resta 128x128. */
 } SpritesArgs;
 
 static int ParseArgs(int argc, char **argv, SpritesArgs *args)
@@ -56,6 +65,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     args->cfg = 1.8f;
     args->promptsDir = "tools/melting-sprites/prompts";
     args->dryRunBadBorder = 0;
+    args->genSize = SPRITE_SRC;   /* 512: default, scheda di riferimento 5600 XT */
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
@@ -70,6 +80,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
         else if (strcmp(argv[i], "--steps") == 0 && i + 1 < argc) args->steps = atoi(argv[++i]);
         else if (strcmp(argv[i], "--cfg") == 0 && i + 1 < argc) args->cfg = (float)atof(argv[++i]);
         else if (strcmp(argv[i], "--prompts") == 0 && i + 1 < argc) args->promptsDir = argv[++i];
+        else if (strcmp(argv[i], "--gen-size") == 0 && i + 1 < argc) args->genSize = atoi(argv[++i]);
         else
         {
             fprintf(stderr, "melting-sprites: opzione sconosciuta: %s\n", argv[i]);
@@ -79,6 +90,17 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     if (args->cells < 1) args->cells = 1;
     if (args->cells > SPRITE_CELLS) args->cells = SPRITE_CELLS;
     if (args->steps < 1) args->steps = 1;
+    /* Solo 256 o 512 (vedi melting_sprites.h): la cella finale nell'atlas
+       resta SEMPRE 128x128, ma il downscale modale ha bisogno che genSize
+       sia un multiplo esatto di SPRITE_CELL con fattore intero piccolo (4 o
+       2). Qualunque altro valore si rifiuta con un messaggio chiaro invece
+       di produrre un downscale storto o un crash su una divisione non esatta. */
+    if (args->genSize != 256 && args->genSize != SPRITE_SRC)
+    {
+        fprintf(stderr, "melting-sprites: --gen-size deve essere 256 o %d (ricevuto %d)\n",
+                SPRITE_SRC, args->genSize);
+        return -1;
+    }
     return 0;
 }
 
@@ -141,8 +163,9 @@ static void DryPickColor(unsigned int *rng, int lo, int hi, unsigned char out[3]
     for (int k = 0; k < 3; k++) out[k] = (unsigned char)DryRngRange(rng, lo, hi);
 }
 
-/* src512: buffer SPRITE_SRC*SPRITE_SRC*3 (RGB) gia' allocato dal chiamante. */
-static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src512)
+/* src512: buffer SPRITE_SRC*SPRITE_SRC*3 (RGB, dimensione MASSIMA) gia'
+   allocato dal chiamante; scrive solo i primi genSize*genSize*3 byte. */
+static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src512, int genSize)
 {
     unsigned int rng = seed ^ ((unsigned int)cellIndex*0x9E3779B1u) ^ 0xC2B2AE35u;
     for (int i = 0; i < 4; i++) DryRngNext(&rng);   /* mescola un seme debole */
@@ -180,9 +203,9 @@ static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src5
         memcpy(logical + (size_t)(y*SPRITE_CELL + x)*3, c, 3);
     }
 
-    const int f = SPRITE_DOWNSCALE_F;
-    for (int y = 0; y < SPRITE_SRC; y++)
-    for (int x = 0; x < SPRITE_SRC; x++)
+    const int f = genSize / SPRITE_CELL;
+    for (int y = 0; y < genSize; y++)
+    for (int x = 0; x < genSize; x++)
     {
         int lx = x/f, ly = y/f;
         const unsigned char *c = logical + (size_t)(ly*SPRITE_CELL + lx)*3;
@@ -198,7 +221,7 @@ static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src5
             }
         }
         else memcpy(out, c, 3);
-        memcpy(src512 + ((size_t)y*SPRITE_SRC + (size_t)x)*3, out, 3);
+        memcpy(src512 + ((size_t)y*(size_t)genSize + (size_t)x)*3, out, 3);
     }
 }
 
@@ -211,7 +234,7 @@ static void SynthesizeCell(unsigned int seed, int cellIndex, unsigned char *src5
    il bordo" di CellPassesQualityGate (vedi il gap di copertura in
    scripts/test-sprites.sh): --dry-run normale sintetizza sempre celle con
    margine di sfondo su tutti i lati, quindi non lo esercita mai. */
-static void SynthesizeCellBadBorder(unsigned int seed, int cellIndex, unsigned char *src512)
+static void SynthesizeCellBadBorder(unsigned int seed, int cellIndex, unsigned char *src512, int genSize)
 {
     unsigned int rng = seed ^ ((unsigned int)cellIndex*0x9E3779B1u) ^ 0xC2B2AE35u;
     for (int i = 0; i < 4; i++) DryRngNext(&rng);
@@ -235,12 +258,12 @@ static void SynthesizeCellBadBorder(unsigned int seed, int cellIndex, unsigned c
         memcpy(logical + (size_t)(y*SPRITE_CELL + x)*3, c, 3);
     }
 
-    const int f = SPRITE_DOWNSCALE_F;
-    for (int y = 0; y < SPRITE_SRC; y++)
-    for (int x = 0; x < SPRITE_SRC; x++)
+    const int f = genSize / SPRITE_CELL;
+    for (int y = 0; y < genSize; y++)
+    for (int x = 0; x < genSize; x++)
     {
         int lx = x/f, ly = y/f;
-        memcpy(src512 + ((size_t)y*SPRITE_SRC + (size_t)x)*3, logical + (size_t)(ly*SPRITE_CELL + lx)*3, 3);
+        memcpy(src512 + ((size_t)y*(size_t)genSize + (size_t)x)*3, logical + (size_t)(ly*SPRITE_CELL + lx)*3, 3);
     }
 }
 
@@ -285,7 +308,7 @@ static int GenerateCellReal(SpriteSdCtx *sdCtx, const SpritesArgs *args, const S
     {
         unsigned int seed = attempt == 0 ? seed0 : (seed0 ^ 0x9E3779B9u) + 1u;
         double genSecs = 0;
-        if (SpriteSdGenerate(sdCtx, prompt, neg ? neg : "", seed, src512, &genSecs) != 0)
+        if (SpriteSdGenerate(sdCtx, prompt, neg ? neg : "", seed, src512, &genSecs, args->genSize) != 0)
         {
             *genSecsOut += genSecs;
             SpritesLogLine("cella %s: generazione fallita (tentativo %d, seed=%u)",
@@ -294,7 +317,7 @@ static int GenerateCellReal(SpriteSdCtx *sdCtx, const SpritesArgs *args, const S
         }
         *genSecsOut += genSecs;
         SpritePostStats stats;
-        SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
+        SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats, args->genSize);
         const char *reason = NULL;
         if (CellPassesQualityGate(&stats, cellBuf, &reason)) { ok = 1; break; }
         SpritesLogLine("cella %s: SCARTATA (tentativo %d, seed=%u): %s (opachi=%d/%d)",
@@ -427,8 +450,8 @@ static int RunGenerate(const SpritesArgs *args)
             int ok = 0;
             for (int attempt = 0; attempt < 2 && !ok; attempt++)
             {
-                SynthesizeCellBadBorder(args->seed + (unsigned int)attempt, i, src512);
-                SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
+                SynthesizeCellBadBorder(args->seed + (unsigned int)attempt, i, src512, args->genSize);
+                SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats, args->genSize);
                 const char *reason = NULL;
                 if (CellPassesQualityGate(&stats, cellBuf, &reason)) { ok = 1; break; }
                 SpritesLogLine("cella %s: SCARTATA (dry-run-bad-border, tentativo %d): %s (opachi=%d/%d)",
@@ -450,9 +473,9 @@ static int RunGenerate(const SpritesArgs *args)
                testare il post-processing su tutte e 12 le celle (vedi
                scripts/test-sprites.sh), non a rispecchiare l'atlas finale
                di una run vera. */
-            SynthesizeCell(args->seed, i, src512);
+            SynthesizeCell(args->seed, i, src512, args->genSize);
             SpritePostStats stats;
-            SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats);
+            SpritesPostProcessCell(src512, cellBuf, SPRITE_PALETTE_COLORS, &stats, args->genSize);
             fprintf(stderr, "melting-sprites: cella %2d/%d (%-13s) tagliati=%5d opachi=%5d a-rischio=%d\n",
                     i + 1, args->cells, SPRITE_CELL_NAMES[i], stats.cutPixels, stats.opaquePixels, stats.keyRiskPixels);
         }
@@ -498,8 +521,8 @@ static int RunGenerate(const SpritesArgs *args)
     SpritesProgressWrite(args->outDir, "fine", 100, "atlas pronto");
 
     double totalSecs = SpritesNowSeconds() - tRunStart;
-    SpritesLogLine("run: modo=%s celle=%d scartate=%d caricamento=%.1fs generazione=%.1fs totale=%.1fs seed=%u",
-                   useDryRun ? "dry-run" : "stable-diffusion", args->cells, rejectedCells,
+    SpritesLogLine("run: modo=%s gen-size=%d celle=%d scartate=%d caricamento=%.1fs generazione=%.1fs totale=%.1fs seed=%u",
+                   useDryRun ? "dry-run" : "stable-diffusion", args->genSize, args->cells, rejectedCells,
                    loadSecs, totalGenSecs, totalSecs, args->seed);
 
     printf("melting-sprites: atlas scritto in %s/current_atlas.png (%d celle, seed=%u, modo=%s, %.1fs totali)\n",

@@ -8,7 +8,9 @@
 
    Parametri (modello, LoRA, 512x512, 8 passi, LCM, cfg 1.8, vae_conv_direct,
    flash-attn OFF) misurati nello spike, vedi docs/SPRITES-SPIKE.md: non
-   ridiscussi qui. */
+   ridiscussi qui. La dimensione 512x512 e' il default; --gen-size in main.c
+   permette 256x256 (preset --low-spec del gioco) passando "genSize" a
+   SpriteSdGenerate qui sotto. */
 #include "melting_sprites.h"
 
 #include "stable-diffusion.h"
@@ -126,7 +128,7 @@ void SpriteSdFree(SpriteSdCtx *ctx)
 }
 
 int SpriteSdGenerate(SpriteSdCtx *ctx, const char *prompt, const char *negPrompt,
-                     unsigned int seed, unsigned char *outRgb512, double *genSecs)
+                     unsigned int seed, unsigned char *outRgb512, double *genSecs, int genSize)
 {
     *genSecs = 0;
     if (!ctx || !ctx->ctx || !prompt) return -1;
@@ -135,8 +137,8 @@ int SpriteSdGenerate(SpriteSdCtx *ctx, const char *prompt, const char *negPrompt
     sd_img_gen_params_init(&p);   /* obbligatorio: inizializza anche sample_params, cache, hires ecc. */
     p.prompt = prompt;
     p.negative_prompt = negPrompt ? negPrompt : "";
-    p.width = SPRITE_SRC;
-    p.height = SPRITE_SRC;
+    p.width = genSize;
+    p.height = genSize;
     p.seed = (int64_t)seed;
     p.batch_count = 1;
     p.sample_params.sample_method = LCM_SAMPLE_METHOD;
@@ -163,14 +165,14 @@ int SpriteSdGenerate(SpriteSdCtx *ctx, const char *prompt, const char *negPrompt
     }
 
     sd_image_t img = images[0];
-    if (img.width != SPRITE_SRC || img.height != SPRITE_SRC || img.channel != 3)
+    if ((int)img.width != genSize || (int)img.height != genSize || img.channel != 3)
     {
         SpritesLogLine("sd: immagine inattesa %ux%u canali=%u (atteso %dx%d RGB)",
-                       img.width, img.height, img.channel, SPRITE_SRC, SPRITE_SRC);
+                       img.width, img.height, img.channel, genSize, genSize);
         free_sd_images(images, numImages);
         return -1;
     }
-    memcpy(outRgb512, img.data, (size_t)SPRITE_SRC*SPRITE_SRC*3);
+    memcpy(outRgb512, img.data, (size_t)genSize*genSize*3);
     free_sd_images(images, numImages);
     return 0;
 }

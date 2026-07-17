@@ -24,6 +24,15 @@
 typedef struct AppGen {
     bool enabled;
     bool noSprites;              /* --no-sprites: salta sempre il passo sprite */
+    /* --low-spec: preset MANUALE per hardware sotto la scheda di riferimento
+       (5600 XT, che resta il default: senza questo flag non cambia nulla).
+       Ricerca verificata nel piano del 16/07: sullo Steam Deck la pipeline
+       attuale genera una run in ~8-10 minuti, con LLM 1.5B + sprite a 256px
+       scenderebbe a ~3-4. Qui si limita a passare due argomenti in piu' ai
+       processi figli (vedi AppStartGeneration/AppStartSpritesGeneration piu'
+       sotto): NESSUN benchmark o rilevamento automatico del tier hardware,
+       quello arrivera' dopo. */
+    bool lowSpec;
     const char *command;         /* melting-gen (passo 1: testo) */
     const char *spritesCommand;  /* melting-sprites (passo 2: sprite) */
     GenRunner runner;            /* passo 1 */
@@ -50,6 +59,17 @@ typedef struct AppGen {
     bool lazyRunning;
     unsigned int lastGenSeed;   /* il seed della generazione in corso: la ripresa DEVE usare lo stesso, o ricostruirebbe un'altra run */
 } AppGen;
+
+/* Modello LLM piccolo del preset --low-spec (vedi AppGen.lowSpec). Estratto in
+ * una costante condivisa perche' DUE punti lo devono passare con lo stesso
+ * valore: il passo bloccante (AppStartGeneration) e la ripresa in sottofondo
+ * (AppStartLazyGeneration). La ripresa DEVE usare lo stesso modello del passo
+ * bloccante -- stesso ragionamento del seed (vedi AppGen.lastGenSeed): se i due
+ * divergessero, i 16 script Lua dei piani 2-5 uscirebbero da un modello diverso
+ * dai 4 del piano 1, e la run cambierebbe contenuto a meta'; peggio, su hardware
+ * sotto la scheda di riferimento (il caso d'uso del flag) caricare il 7B in
+ * sottofondo mentre si gioca e' proprio il carico che --low-spec deve evitare. */
+#define APP_LOW_SPEC_MODEL "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 
 /* Stessi percorsi di default dei modelli SD di tools/melting-sprites/main.c
  * (ParseArgs): il gioco non linka stable-diffusion.cpp (vedi AGENTS.md), si
@@ -99,10 +119,18 @@ static void AppStartLazyGeneration(AppGen *gen)
        invece di inventarne un'altra (stesso seed + stesso JSON = stessa run). */
     if (!FileExists("generated/current_run.json")) return;
 
-    static const char *kArgs[] = {
+    /* Non e' un array static: come in AppStartGeneration, gli ultimi due slot
+       dipendono da gen->lowSpec e vanno valutati a ogni chiamata. Con lowSpec
+       false quei due slot sono NULL e GenRunnerStartWithArgs si ferma al primo
+       NULL (vedi gen_runner.c), quindi senza il flag il comportamento resta
+       IDENTICO a prima. Con lowSpec true passa lo STESSO modello del passo
+       bloccante (APP_LOW_SPEC_MODEL): vedi il commento sulla costante. */
+    const char *kArgs[] = {
         "--from-json", "generated/current_run.json",
         "--resume",
         "--out", "generated",
+        gen->lowSpec ? "--model" : NULL,
+        gen->lowSpec ? APP_LOW_SPEC_MODEL : NULL,
         NULL
     };
     /* Progresso su un file DIVERSO da quello della generazione bloccante: la barra
@@ -137,7 +165,18 @@ static bool AppStartGeneration(AppGen *gen)
        del prefisso condiviso, step B1, sono ~50-80s risparmiati). Gli altri 16 li
        scrive AppStartLazyGeneration in sottofondo, quando la partita e' gia'
        cominciata. */
-    static const char *kArgs[] = { "--lua-first", "1", NULL };
+    /* --low-spec (preset manuale, vedi AppGen.lowSpec): forza il modello
+       piccolo invece del default 7B. Non e' un array static: il terzo/quarto
+       slot dipendono da gen->lowSpec, valutato a ogni chiamata. Con lowSpec
+       false kArgs[2] e' NULL e GenRunnerStartWithArgs si ferma li' (vedi
+       gen_runner.c), quindi il comportamento senza il flag resta IDENTICO a
+       prima. */
+    const char *kArgs[] = {
+        "--lua-first", "1",
+        gen->lowSpec ? "--model" : NULL,
+        gen->lowSpec ? APP_LOW_SPEC_MODEL : NULL,
+        NULL
+    };
     return GenRunnerStartWithArgs(&gen->runner, gen->command, seed, 420.0,
                                   "generated/gen_progress.txt", kArgs);
 }
@@ -145,7 +184,16 @@ static bool AppStartGeneration(AppGen *gen)
 static bool AppStartSpritesGeneration(AppGen *gen)
 {
     unsigned int seed = NextGenSeed(0x5F3759DFu);
-    return GenRunnerStart(&gen->spritesRunner, gen->spritesCommand, seed, 240.0, "generated/gen_progress.txt");
+    /* --low-spec: --gen-size 256 invece del default 512 (vedi
+       tools/melting-sprites/main.c). Stesso schema di AppStartGeneration
+       sopra: senza il flag kArgs[0] e' NULL, nessun argomento in piu'. */
+    const char *kArgs[] = {
+        gen->lowSpec ? "--gen-size" : NULL,
+        gen->lowSpec ? "256" : NULL,
+        NULL
+    };
+    return GenRunnerStartWithArgs(&gen->spritesRunner, gen->spritesCommand, seed, 240.0,
+                                  "generated/gen_progress.txt", kArgs);
 }
 
 /* Combina il progresso del passo attivo in un'unica barra continua 0-100%:
@@ -425,6 +473,10 @@ int AppRun(int argc, char **argv)
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) scriptSeed = (unsigned int)strtoul(argv[++i], NULL, 10);
         if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
         if (strcmp(argv[i], "--no-sprites") == 0) gen.noSprites = true;
+        /* Preset manuale per hardware sotto la scheda di riferimento (vedi
+           il commento su AppGen.lowSpec): melting-gen col modello 1.5B,
+           melting-sprites a 256px. Nessun effetto sui default se assente. */
+        if (strcmp(argv[i], "--low-spec") == 0) gen.lowSpec = true;
         if (strcmp(argv[i], "--gen-cmd") == 0 && i + 1 < argc) gen.command = argv[++i];
         if (strcmp(argv[i], "--sprites-cmd") == 0 && i + 1 < argc) gen.spritesCommand = argv[++i];
     }

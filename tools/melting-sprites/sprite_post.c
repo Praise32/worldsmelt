@@ -17,17 +17,26 @@ static int ColorDist2(const unsigned char *a, const unsigned char *b)
     return 2*dr*dr + 4*dg*dg + 3*db*db;
 }
 
-void SpritesModalDownscale(const unsigned char *src, unsigned char *dst)
+void SpritesModalDownscale(const unsigned char *src, unsigned char *dst, int genSize)
 {
-    const int f = SPRITE_DOWNSCALE_F;
+    /* f e' oggi 4 (genSize=512) o 2 (genSize=256, --gen-size): il fattore
+       era un #define fisso prima del preset --low-spec, ora e' derivato a
+       runtime da genSize. key[] resta dimensionato al PIU' GRANDE f
+       possibile (SPRITE_DOWNSCALE_F_MAX=4) e ne usa solo i primi f*f slot. */
+    const int f = genSize / SPRITE_CELL;
     for (int cy = 0; cy < SPRITE_CELL; cy++)
     for (int cx = 0; cx < SPRITE_CELL; cx++)
     {
-        int key[SPRITE_DOWNSCALE_F*SPRITE_DOWNSCALE_F];
+        /* Inizializzato a zero: con f runtime (non piu' una costante di
+           compilazione come prima del preset --gen-size) gcc non riesce a
+           provare da solo che i due loop qui sotto riempiono sempre tutti e
+           soli i primi f*f slot usati piu' avanti, e segnala un falso
+           positivo -Wmaybe-uninitialized. */
+        int key[SPRITE_DOWNSCALE_F_MAX*SPRITE_DOWNSCALE_F_MAX] = {0};
         for (int y = 0; y < f; y++)
             for (int x = 0; x < f; x++)
             {
-                const unsigned char *p = src + (((size_t)(cy*f + y))*SPRITE_SRC + (size_t)(cx*f + x))*3;
+                const unsigned char *p = src + (((size_t)(cy*f + y))*(size_t)genSize + (size_t)(cx*f + x))*3;
                 key[y*f + x] = ((p[0] >> 3) << 10) | ((p[1] >> 3) << 5) | (p[2] >> 3);
             }
         /* Colore dominante del tassello f*f: meglio del nearest, che
@@ -43,7 +52,7 @@ void SpritesModalDownscale(const unsigned char *src, unsigned char *dst)
         for (int y = 0; y < f; y++)
             for (int x = 0; x < f; x++)
             {
-                const unsigned char *p = src + (((size_t)(cy*f + y))*SPRITE_SRC + (size_t)(cx*f + x))*3;
+                const unsigned char *p = src + (((size_t)(cy*f + y))*(size_t)genSize + (size_t)(cx*f + x))*3;
                 if ((((p[0] >> 3) << 10) | ((p[1] >> 3) << 5) | (p[2] >> 3)) == best)
                 { r += p[0]; g += p[1]; b += p[2]; n++; }
             }
@@ -213,10 +222,10 @@ void SpritesQuantize(unsigned char *cellRgba, int ncolors)
 }
 
 void SpritesPostProcessCell(const unsigned char *src512Rgb, unsigned char *outCellRgba,
-                             int ncolors, SpritePostStats *statsOut)
+                             int ncolors, SpritePostStats *statsOut, int genSize)
 {
     unsigned char small[SPRITE_CELL*SPRITE_CELL*3];
-    SpritesModalDownscale(src512Rgb, small);
+    SpritesModalDownscale(src512Rgb, small, genSize);
 
     for (int p = 0; p < SPRITE_CELL*SPRITE_CELL; p++)
     {

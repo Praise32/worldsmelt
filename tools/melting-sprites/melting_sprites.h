@@ -5,12 +5,25 @@
 #include <stdio.h>
 
 /* Dimensioni fisse della pipeline, misurate nello spike (docs/SPRITES-SPIKE.md):
-   Stable Diffusion genera a 512x512, il gioco usa celle da 128x128 in un
-   atlas 1024x1024 a 8 colonne (stesso layout di AtlasSprite in
-   src/core/game_types.h: cella i alla colonna i%8, riga i/8). */
+   Stable Diffusion genera di default a 512x512, il gioco usa celle da
+   128x128 in un atlas 1024x1024 a 8 colonne (stesso layout di AtlasSprite in
+   src/core/game_types.h: cella i alla colonna i%8, riga i/8).
+
+   Dalla fase --gen-size (preset --low-spec del gioco, roadmap 16/07/2026) la
+   dimensione di generazione e' un parametro a riga di comando: 512 (default,
+   scheda di riferimento 5600 XT) o 256 (hardware sotto la scheda di
+   riferimento). SPRITE_SRC resta la dimensione MASSIMA/di default, usata per
+   dimensionare i buffer sorgente allocati una sola volta: la dimensione
+   EFFETTIVA di ogni run gira come parametro "genSize" nelle funzioni di
+   sprite_post.c/sprite_sd.c/main.c. La cella finale nell'atlas resta SEMPRE
+   128x128 qualunque sia genSize: cambia solo il fattore del downscale modale
+   (genSize/SPRITE_CELL, oggi 4 o 2), il gioco non vede alcuna differenza. */
 #define SPRITE_SRC 512
 #define SPRITE_CELL 128
-#define SPRITE_DOWNSCALE_F (SPRITE_SRC / SPRITE_CELL)
+/* Il piu' grande fattore di downscale modale possibile (genSize=512 ->
+   512/128=4): serve solo a dimensionare l'array di appoggio "key" in
+   SpritesModalDownscale, che a runtime ne usa solo f*f con f=genSize/128. */
+#define SPRITE_DOWNSCALE_F_MAX (SPRITE_SRC / SPRITE_CELL)
 #define SPRITE_ATLAS_COLS 8
 #define SPRITE_ATLAS_W (SPRITE_ATLAS_COLS * SPRITE_CELL)
 /* Le celle note dell'atlas (vedi AtlasSprite in src/core/game_types.h):
@@ -43,8 +56,9 @@ typedef struct SpritePostStats {
    docs/SPRITES-SPIKE.md). Operano su un buffer di cella SPRITE_CELL x
    SPRITE_CELL, RGBA a meno che sia specificato altrimenti. */
 
-/* src: SPRITE_SRC*SPRITE_SRC*3 (RGB). dst: SPRITE_CELL*SPRITE_CELL*3 (RGB). */
-void SpritesModalDownscale(const unsigned char *src, unsigned char *dst);
+/* src: genSize*genSize*3 (RGB), genSize deve essere 256 o 512 (vedi
+   --gen-size in main.c). dst: SPRITE_CELL*SPRITE_CELL*3 (RGB). */
+void SpritesModalDownscale(const unsigned char *src, unsigned char *dst, int genSize);
 
 /* cellRgba: SPRITE_CELL*SPRITE_CELL*4, alpha gia' impostato a 255 in ingresso.
    Ritaglia lo sfondo (colore preso dal bordo dell'immagine) con un flood
@@ -57,11 +71,12 @@ int SpritesCutBackground(unsigned char *cellRgba, int tol, int tolHalo);
    SPRITE_KEY_FLOOR ai colori troppo scuri della palette risultante. */
 void SpritesQuantize(unsigned char *cellRgba, int ncolors);
 
-/* Orchestrazione dei tre passi sopra: da sorgente 512x512 RGB a cella
-   128x128 RGBA pronta per l'atlas. outCellRgba deve avere spazio per
-   SPRITE_CELL*SPRITE_CELL*4 byte. statsOut puo' essere NULL. */
+/* Orchestrazione dei tre passi sopra: da sorgente genSize*genSize RGB a
+   cella 128x128 RGBA pronta per l'atlas (genSize 256 o 512, vedi --gen-size
+   in main.c). outCellRgba deve avere spazio per SPRITE_CELL*SPRITE_CELL*4
+   byte. statsOut puo' essere NULL. */
 void SpritesPostProcessCell(const unsigned char *src512Rgb, unsigned char *outCellRgba,
-                             int ncolors, SpritePostStats *statsOut);
+                             int ncolors, SpritePostStats *statsOut, int genSize);
 
 /* sprite_atlas.c: composizione dell'atlas 1024x1024 RGBA e scrittura PNG. */
 
@@ -193,10 +208,13 @@ void SpriteSdFree(SpriteSdCtx *ctx);
    NULL, o una versione futura di sd.cpp che logga diversamente). */
 double SpriteSdVramMB(const SpriteSdCtx *ctx);
 
-/* Genera un'immagine SPRITE_SRC x SPRITE_SRC RGB (outRgb512 ha gia'
-   SPRITE_SRC*SPRITE_SRC*3 byte allocati dal chiamante). 0 se ok, -1 su errore
-   (il chiamante puo' ritentare con un altro seed o rinunciare alla cella). */
+/* Genera un'immagine genSize x genSize RGB (genSize 256 o 512, vedi
+   --gen-size in main.c; outRgb512 ha gia' SPRITE_SRC*SPRITE_SRC*3 byte
+   allocati dal chiamante, cioe' la dimensione MASSIMA: con genSize=256 solo
+   la porzione iniziale del buffer viene scritta/letta). 0 se ok, -1 su
+   errore (il chiamante puo' ritentare con un altro seed o rinunciare alla
+   cella). */
 int SpriteSdGenerate(SpriteSdCtx *ctx, const char *prompt, const char *negPrompt,
-                     unsigned int seed, unsigned char *outRgb512, double *genSecs);
+                     unsigned int seed, unsigned char *outRgb512, double *genSecs, int genSize);
 
 #endif

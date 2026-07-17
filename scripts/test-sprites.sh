@@ -89,6 +89,41 @@ echo "-- determinismo: stesso seed = atlas identico byte per byte --"
 "$SPR" --dry-run --seed 12345 --out "$TMP/b" >/dev/null
 cmp "$TMP/a/current_atlas.png" "$TMP/b/current_atlas.png"
 
+echo "-- --gen-size 256 (preset --low-spec, roadmap 16/07/2026) produce comunque un atlas 1024x1024 con celle 128x128 --"
+# La cella finale nell'atlas NON deve cambiare: solo il downscale modale
+# interno cambia fattore (genSize/128, oggi 2 invece di 4). Stesso controllo
+# IHDR grezzo usato sopra per il default 512, cosi' un eventuale regressione
+# che facesse trapelare genSize nella dimensione dell'atlas o della cella
+# verrebbe presa qui.
+"$SPR" --dry-run --seed 12345 --gen-size 256 --out "$TMP/e" >/dev/null
+[ -f "$TMP/e/current_atlas.png" ]
+read -r width256 height256 bitdepth256 colortype256 < <(od -An -tu1 -j16 -N10 "$TMP/e/current_atlas.png" | awk '{
+  w = $1*16777216 + $2*65536 + $3*256 + $4
+  h = $5*16777216 + $6*65536 + $7*256 + $8
+  print w, h, $9, $10
+}')
+[ "$width256" -eq 1024 ]
+[ "$height256" -eq 1024 ]
+[ "$bitdepth256" -eq 8 ]
+[ "$colortype256" -eq 6 ]
+"$SPR" --check --out "$TMP/e" --cells 12 > "$TMP/check256.txt"
+[ "$(wc -l < "$TMP/check256.txt")" -eq 12 ]
+if grep -qv "eyeOpaque=1" "$TMP/check256.txt"; then
+  echo "FALLITO (gen-size 256): un pixel nero interno e' stato mangiato dal ritaglio"; exit 1
+fi
+if grep -qv "keyRisk=0" "$TMP/check256.txt"; then
+  echo "FALLITO (gen-size 256): pixel opachi con max(r,g,b) < 16 sopravvivono alla quantizzazione"; exit 1
+fi
+
+echo "-- --gen-size 300 e' rifiutato (solo 256 o 512 sono ammessi) --"
+set +e
+"$SPR" --dry-run --seed 1 --gen-size 300 --out "$TMP/badgensize" >/dev/null 2>"$TMP/badgensize.err"
+rc=$?
+set -e
+[ "$rc" -ne 0 ]
+[ ! -f "$TMP/badgensize/current_atlas.png" ]
+grep -q -- "--gen-size deve essere 256 o 512" "$TMP/badgensize.err"
+
 echo "-- semi diversi = atlas diversi --"
 "$SPR" --dry-run --seed 999 --out "$TMP/c" >/dev/null
 if cmp -s "$TMP/a/current_atlas.png" "$TMP/c/current_atlas.png"; then
