@@ -14,6 +14,10 @@ out/
 generated/
 logs/
 
+# RunBundle v1 (scripts/bundle-export.sh/-import.sh): tar.gz esportati e la
+# cartella di lavoro temporanea usata durante l'import (.import-tmp.*).
+bundles/
+
 # Modelli e cache locali
 models/
 deps/

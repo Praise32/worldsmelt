@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Vedi il commento su "shot" in RunToJson piu' sotto: serve a tenere il JSON del
    writer dentro la regola 'mul' di run.gbnf (al massimo 2 decimali). */
@@ -494,5 +495,44 @@ int GenWriteRunFiles(const GenRun *run, const char *outDir)
         "  }\n"
         "}\n",
         atlasPath);
+    return GenPublishFile(f, tmpPath, finalPath);
+}
+
+/* RunBundle v1 (roadmap 16/07/2026 settimana 4): vedi il commento lungo su
+ * questa funzione in melting_gen.h -- MAI chiamata sul percorso --resume
+ * (main.c semplicemente non la invoca li'). Formato chiave=valore, come
+ * current_run.txt, cosi' si legge e si fa il grep allo stesso modo. */
+int GenWriteProvenance(const GenRun *run, const char *outDir, const char *promptsDir,
+                        const char *modelJsonField, const char *modelLuaField)
+{
+    if (GenEnsureDir(outDir) != 0) return -1;
+
+    /* Un promptsDir mancante non deve far fallire l'intera generazione per un
+       campo diagnostico: si scrive comunque il file, con un hash a zero, e si
+       logga il perche' (GenLogLine, mai silenzioso). */
+    unsigned long long fnv = 0;
+    if (GenPromptsFnv(promptsDir, &fnv) != 0)
+    {
+        GenLogLine("provenance: promptsFnv non calcolabile (cartella prompt mancante o vuota: %s)",
+                   promptsDir ? promptsDir : "(null)");
+    }
+
+    char tmpPath[512], finalPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/provenance.txt", outDir);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/provenance.txt.tmp", outDir);
+    FILE *f = fopen(tmpPath, "w");
+    if (!f) return -1;
+    fprintf(f, "bundleSchema=1\n");
+    fprintf(f, "seed=%u\n", run->seed);
+    fprintf(f, "source=%s\n", run->source);
+    fprintf(f, "modelJson=%s\n", modelJsonField ? modelJsonField : "fallback");
+    fprintf(f, "modelLua=%s\n", modelLuaField ? modelLuaField : "-");
+    /* Costante, non una define: vive qui e in AGENTS.md/scripts/setup-deps.sh
+       (LLAMA_TAG) come lo stesso valore tenuto sincronizzato a mano -- non
+       vale la pena di una define condivisa per un singolo letterale che
+       cambia solo quando si aggiorna deliberatamente la dipendenza. */
+    fprintf(f, "llamaTag=b9979\n");
+    fprintf(f, "promptsFnv=%016llx\n", fnv);
+    fprintf(f, "createdAt=%lld\n", (long long)time(NULL));
     return GenPublishFile(f, tmpPath, finalPath);
 }

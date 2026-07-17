@@ -1,5 +1,6 @@
 #include "melting_gen.h"
 
+#include <dirent.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -304,4 +305,102 @@ int GenRarityIndexFromText(const char *text)
         if (text && strcmp(GEN_RARITIES[i], text) == 0) return i;
     }
     return -1;
+}
+
+/* ============================================================
+   FNV-1a 64 bit (RunBundle v1): vedi il commento su GEN_FNV1A64_OFFSET in
+   melting_gen.h -- NON e' un hash di sicurezza, solo una checksum veloce per
+   sapere "con quali prompt e' nata questa run".
+   ============================================================ */
+
+unsigned long long GenFnv1a64(unsigned long long hash, const void *data, size_t len)
+{
+    const unsigned char *p = (const unsigned char *)data;
+    for (size_t i = 0; i < len; i++)
+    {
+        hash ^= (unsigned long long)p[i];
+        hash *= 1099511628211ULL;   /* prima FNV-1a a 64 bit */
+    }
+    return hash;
+}
+
+/* Comparatore per qsort: ordine alfabetico semplice (strcmp), le voci sono
+   array a lunghezza fissa (vedi GenPromptsFnv sotto). */
+static int CompareFilenames(const void *a, const void *b)
+{
+    return strcmp((const char *)a, (const char *)b);
+}
+
+/* 'dir'/'name' sono di lunghezza arbitraria (promptsDir arriva da --prompts
+   sulla riga di comando): un buffer a dimensione dichiarata ("%s/%s" dentro
+   char[512]) farebbe scattare -Wformat-truncation, e stavolta NON sarebbe un
+   falso positivo (vedi il commento analogo in gen_manifest.c per il caso
+   opposto, dove lo e'): gcc non puo' sapere che promptsDir resta corto in
+   pratica. Un buffer malloc a dimensione ESATTA elimina il warning invece di
+   sopprimerlo, ed e' corretto per qualunque lunghezza in ingresso. NULL su
+   fallimento di allocazione. */
+static char *JoinPath(const char *dir, const char *name)
+{
+    size_t dirLen = strlen(dir);
+    size_t nameLen = strlen(name);
+    char *path = malloc(dirLen + 1 + nameLen + 1);
+    if (!path) return NULL;
+    memcpy(path, dir, dirLen);
+    path[dirLen] = '/';
+    memcpy(path + dirLen + 1, name, nameLen);
+    path[dirLen + 1 + nameLen] = '\0';
+    return path;
+}
+
+/* Limite di file dentro promptsDir: la cartella vera (tools/melting-gen/prompts/)
+   ne ha 5 (system.txt, user.txt, lua_system.txt, lua_user.txt,
+   lua_statup_user.txt). 128 e' un tetto largo e fisso, coerente con lo stile
+   del resto di questo file (buffer a dimensione dichiarata) -- file oltre il
+   tetto vengono ignorati in silenzio, non e' pensato per cartelle enormi. I
+   NOMI restano in buffer a dimensione dichiarata (256, ampiamente sufficiente
+   per un nome di file): solo il PATH completo (dir+nome, vedi JoinPath sopra)
+   ha lunghezza davvero arbitraria. */
+#define GEN_PROMPTS_FNV_MAX_FILES 128
+
+int GenPromptsFnv(const char *promptsDir, unsigned long long *out)
+{
+    if (!promptsDir || !out) return -1;
+    DIR *dir = opendir(promptsDir);
+    if (!dir) return -1;
+
+    /* Nomi soltanto (mai il percorso intero): qsort li ordina, poi si
+       ricostruisce il path file per file nel giro di lettura sotto. */
+    char names[GEN_PROMPTS_FNV_MAX_FILES][256];
+    int count = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL && count < GEN_PROMPTS_FNV_MAX_FILES)
+    {
+        if (entry->d_name[0] == '.') continue;   /* salta "." ".." e i nascosti */
+        char *path = JoinPath(promptsDir, entry->d_name);
+        if (!path) { closedir(dir); return -1; }
+        struct stat st;
+        int isRegular = (stat(path, &st) == 0 && S_ISREG(st.st_mode));
+        free(path);
+        if (!isRegular) continue;
+        snprintf(names[count], sizeof(names[count]), "%s", entry->d_name);
+        count++;
+    }
+    closedir(dir);
+    if (count == 0) return -1;
+
+    qsort(names, (size_t)count, sizeof(names[0]), CompareFilenames);
+
+    unsigned long long hash = GEN_FNV1A64_OFFSET;
+    for (int i = 0; i < count; i++)
+    {
+        char *path = JoinPath(promptsDir, names[i]);
+        if (!path) return -1;
+        char *text = GenReadFile(path);
+        free(path);
+        if (!text) return -1;
+        hash = GenFnv1a64(hash, text, strlen(text));
+        free(text);
+    }
+    *out = hash;
+    return 0;
 }

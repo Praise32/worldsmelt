@@ -250,6 +250,28 @@ int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath);
  * commento nel .c per il bug silenzioso che chiude (una run nuova che adotta gli
  * script della run di ieri). */
 void GenRemoveOldScripts(const char *outDir);
+
+/* FNV-1a 64 bit (RunBundle v1, roadmap 16/07/2026 settimana 4): NON e' un
+ * hash crittografico, e' una checksum veloce. Usata SOLO per la provenienza
+ * (generated/provenance.txt, chiave promptsFnv=...): capire "con quali
+ * prompt e' nata questa run", non per verificarne l'integrita' -- quella la
+ * fa scripts/bundle-export.sh/-import.sh con sha256sum, molto piu' robusto
+ * contro corruzione o manomissione. 'hash' e' lo stato corrente
+ * (GEN_FNV1A64_OFFSET per iniziare una sequenza nuova); incatenando piu'
+ * chiamate su pezzi consecutivi si ottiene lo STESSO risultato di un'unica
+ * chiamata sul buffer concatenato (e' la proprieta' che rende FNV-1a
+ * "streamabile": lo sfrutta GenPromptsFnv sotto per non dover concatenare i
+ * file dei prompt in un unico buffer malloc). */
+#define GEN_FNV1A64_OFFSET 14695981039346656037ULL
+unsigned long long GenFnv1a64(unsigned long long hash, const void *data, size_t len);
+/* Concatena, in ORDINE ALFABETICO di nome file (requisito del formato di
+ * provenance.txt: la stessa cartella prompts/ deve produrre sempre lo stesso
+ * hash, indipendentemente dall'ordine con cui il filesystem restituisce
+ * readdir()), il contenuto di ogni file REGOLARE dentro 'promptsDir' e ne
+ * calcola l'FNV-1a 64 con GenFnv1a64 sopra. Scrive il risultato in '*out'.
+ * Ritorna 0 su successo, -1 se la cartella non esiste, e' vuota, o un file
+ * non si legge. */
+int GenPromptsFnv(const char *promptsDir, unsigned long long *out);
 extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
 extern const char *GEN_KINDS[2];   /* "active", "statup": vedi il commento su GenItem.kind sopra */
@@ -292,6 +314,28 @@ void GenFallbackRun(GenRun *run, unsigned int seed);
 int GenWriteRunFiles(const GenRun *run, const char *outDir);
 int GenWriteRunFilesResume(const GenRun *run, const char *outDir);   /* step B2: vedi il commento nel .c */
 int GenWriteLlmJson(const GenRun *run, const char *path);
+/* generated/provenance.txt (RunBundle v1, roadmap 16/07/2026 settimana 4):
+ * scrittura atomica (tmp+rename via GenPublishFile) come tutti gli altri
+ * file di outDir. Il chiamante (main.c) la invoca SOLO a fine di una
+ * generazione NORMALE o FALLBACK, MAI in --resume: la ripresa appartiene
+ * alla STESSA run del processo che l'ha aperta, provenance.txt esiste gia'
+ * (scritto la prima volta) e NON va toccato -- vedi il blocco --resume in
+ * main.c, che semplicemente non chiama questa funzione.
+ * 'modelJsonField'/'modelLuaField' sono gia' risolti dal chiamante (main.c
+ * e' l'unico punto che sa quale ramo -- sessione unica, esperimento
+ * due-modelli, --from-json, o ripiego procedurale -- ha prodotto la run):
+ * il percorso del modello .gguf usato, il percorso del file --from-json
+ * quando il JSON viene da li' e non da un modello vivo in questo processo,
+ * oppure i letterali "fallback" (modelJson, nessun modello: GenFallbackRun)
+ * o "-" (modelLua, nessuna fase Lua eseguita in questo processo).
+ * 'promptsDir' e' la cartella di cui si calcola promptsFnv (GenPromptsFnv
+ * sopra): se il calcolo fallisce (cartella prompt mancante) si scrive
+ * comunque il file, con promptsFnv=0000000000000000, piuttosto che far
+ * fallire un'intera generazione per un dettaglio diagnostico -- e' loggato
+ * (GenLogLine), non silenzioso. Ritorna 0 su successo, -1 su errore di
+ * scrittura (outDir non creabile, disco pieno...). */
+int GenWriteProvenance(const GenRun *run, const char *outDir, const char *promptsDir,
+                        const char *modelJsonField, const char *modelLuaField);
 
 /* gen_atlas.c */
 int GenWriteAtlasBmp(const GenRun *run, const char *outDir);

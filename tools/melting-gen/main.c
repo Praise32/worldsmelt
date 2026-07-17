@@ -154,7 +154,12 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     return 0;
 }
 
-static int WriteOutputs(const GenRun *run, const GenArgs *args)
+/* 'modelJsonField'/'modelLuaField': vedi il commento su GenWriteProvenance in
+ * melting_gen.h -- gia' risolti dal chiamante (main.c sa quale ramo ha
+ * prodotto la run), ignorati del tutto quando args->resume (la provenienza
+ * non si scrive in ripresa, vedi sotto). */
+static int WriteOutputs(const GenRun *run, const GenArgs *args,
+                         const char *modelJsonField, const char *modelLuaField)
 {
     /* 99, non 85: la fase Lua (fase 3a-L3, quando c'e' un modello) scrive
      * progresso fino al 98% (vedi GenLuaGenerateForRun in gen_lua.c), la
@@ -170,6 +175,18 @@ static int WriteOutputs(const GenRun *run, const GenArgs *args)
     {
         GenProgressWrite(args->outDir, "errore", 100, "scrittura file fallita");
         return 3;
+    }
+    if (!args->resume)
+    {
+        /* RunBundle v1 (roadmap 16/07/2026 settimana 4): la PROVENIENZA si
+         * scrive SOLO a fine di una generazione normale o fallback -- MAI in
+         * --resume, che appartiene alla STESSA run del processo che l'ha
+         * aperta: provenance.txt esiste gia' e non va toccato. */
+        if (GenWriteProvenance(run, args->outDir, args->promptsDir, modelJsonField, modelLuaField) != 0)
+        {
+            GenProgressWrite(args->outDir, "errore", 100, "scrittura provenienza fallita");
+            return 3;
+        }
     }
     if (args->emitLlmJson)
     {
@@ -379,11 +396,27 @@ int main(int argc, char **argv)
             }
             else GenLogLine("resume: nessun modello disponibile, niente da fare");
         }
-        return WriteOutputs(&run, &args);
+        /* modelJsonField/modelLuaField contano solo quando !args.resume (vedi
+         * WriteOutputs): qui e' il caso --from-json SENZA --resume (usato dai
+         * test di normalizzazione, scripts/test-gen.sh) -- nessun modello gira
+         * in QUESTO processo, il JSON arriva dal file indicato da --from-json,
+         * e nessuna fase Lua viene eseguita (parte solo sotto args.resume qui
+         * sopra). Quando args.resume E' vero questi due valori sono ignorati
+         * del tutto: provenance.txt esiste gia' e non va toccato. */
+        return WriteOutputs(&run, &args, args.fromJson, "-");
     }
 
     GenRun run;
     int haveRun = 0;
+    /* Provenienza (RunBundle v1): il percorso del modello che ha DAVVERO
+     * prodotto il JSON/gli script Lua di questa run, o NULL se nessun
+     * modello e' stato usato per quella fase (WriteOutputs sostituisce NULL
+     * coi letterali "fallback"/"-"). Popolati mano a mano nei rami sotto,
+     * mai retroattivamente: se un ramo fallisce a meta' (es. haveRun resta 0)
+     * i valori restano NULL, ed e' la cosa giusta -- la run che si scrive
+     * davvero e' quella del ripiego procedurale. */
+    const char *provModelJson = NULL;
+    const char *provModelLua = NULL;
     if (!args.fallback)
     {
         /* Limite tentativi JSON legato al timeout del genitore: src/app/app.c
@@ -420,6 +453,7 @@ int main(int argc, char **argv)
             {
                 GenCorpusRecordSession(args.modelText, args.ngl);
                 haveRun = RunJsonAttempts(jsonSess, args.modelText, &args, &run, json, sizeof(json));
+                if (haveRun) provModelJson = args.modelText;
                 GenLlmSessionClose(jsonSess);
             }
             else GenLogLine("llm: sessione testo non apribile (%s), nessun JSON dal modello", args.modelText);
@@ -441,6 +475,7 @@ int main(int argc, char **argv)
                 {
                     GenCorpusRecordSession(luaModelPath, args.ngl);
                     RunLuaPhase(luaSess, &run, &args, processStart);
+                    provModelLua = luaModelPath;
                     GenLlmSessionClose(luaSess);
                 }
                 else GenLogLine("llm: JSON dal modello testo accettato ma Coder non apribile: "
@@ -459,16 +494,29 @@ int main(int argc, char **argv)
             {
                 GenCorpusRecordSession(modelPath, args.ngl);
                 haveRun = RunJsonAttempts(sess, modelPath, &args, &run, json, sizeof(json));
-                if (haveRun) RunLuaPhase(sess, &run, &args, processStart);
+                if (haveRun)
+                {
+                    /* Stessa sessione per JSON e Lua su questo percorso (fase
+                     * 3a-L3): un solo modello, quindi la stessa provenienza per
+                     * entrambi i campi. */
+                    provModelJson = modelPath;
+                    RunLuaPhase(sess, &run, &args, processStart);
+                    provModelLua = modelPath;
+                }
                 GenLlmSessionClose(sess);
             }
         }
     }
     if (!haveRun)
     {
+        /* Ripiego procedurale: nessun modello ha prodotto questa run.
+         * provModelJson/provModelLua sono gia' NULL qui (si valorizzano SOLO
+         * dentro i rami "if (haveRun)" sopra, mai fuori), quindi WriteOutputs
+         * scrivera' la provenienza coi letterali "fallback"/"-" -- niente da
+         * fare qui, e' la cosa giusta per costruzione. */
         GenCorpusRecordFallback(args.fallback ? "richiesto con --fallback" : "modello assente o tentativi JSON esauriti",
                                  args.fallback != 0);
         GenFallbackRun(&run, args.seed);
     }
-    return WriteOutputs(&run, &args);
+    return WriteOutputs(&run, &args, provModelJson, provModelLua);
 }

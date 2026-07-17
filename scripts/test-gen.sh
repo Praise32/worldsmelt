@@ -105,6 +105,179 @@ nColpi=$(grep -c '"pierce":[0-9]' "$TMP/prompt-a.txt")
 # spento o riempirebbe logs/gen-corpus di run finte (vedi gen_corpus.c).
 export MELTING_GEN_NO_CORPUS=1
 
+# ============================================================
+# RunBundle v1 (roadmap 16/07/2026, settimana 4 anticipata): la provenienza
+# scritta a fine generazione (tools/melting-gen/gen_manifest.c,
+# GenWriteProvenance) e il bundle esportabile/importabile con verifica
+# d'integrita' sha256 (scripts/bundle-export.sh, scripts/bundle-import.sh).
+# Nessun modello coinvolto: come il resto di questa suite, si esercita il
+# ramo fallback e, per lo script Lua, lo stesso trucco delle prove B2 sopra
+# (un file .lua scritto a mano, nessun LLM).
+# ============================================================
+
+echo "-- RunBundle: provenance.txt su una generazione fallback --"
+"$GEN" --fallback --seed 777 --out "$TMP/bundle-src" >/dev/null
+[ -f "$TMP/bundle-src/provenance.txt" ] || {
+  echo "FALLITO: provenance.txt non scritto da una generazione fallback"; exit 1; }
+grep -q '^bundleSchema=1$' "$TMP/bundle-src/provenance.txt" || {
+  echo "FALLITO: bundleSchema=1 mancante in provenance.txt"; exit 1; }
+grep -q '^seed=777$' "$TMP/bundle-src/provenance.txt" || {
+  echo "FALLITO: seed=777 mancante in provenance.txt"; exit 1; }
+grep -q '^source=fallback$' "$TMP/bundle-src/provenance.txt" || {
+  echo "FALLITO: source=fallback mancante in provenance.txt"; exit 1; }
+fnvLine=$(grep '^promptsFnv=' "$TMP/bundle-src/provenance.txt" || true)
+fnvValue="${fnvLine#promptsFnv=}"
+[ -n "$fnvValue" ] || { echo "FALLITO: promptsFnv assente in provenance.txt"; exit 1; }
+echo "$fnvValue" | grep -Eq '^[0-9a-f]{16}$' || {
+  echo "FALLITO: promptsFnv=$fnvValue non e' un hash esadecimale a 16 cifre"; exit 1; }
+
+# Uno script Lua finto (nessun modello in questa suite): serve un file .lua
+# VERO dentro il bundle per poterlo corrompere nella prova (c) piu' sotto.
+mkdir -p "$TMP/bundle-src/scripts"
+printf 'function on_fire(x, y, dx, dy)\n  spawn_shot(x, y, dx, dy, 300, 3, 4, 0)\nend\n' \
+  > "$TMP/bundle-src/scripts/floor1_item1.lua"
+
+echo "-- RunBundle: l'export rifiuta una cartella senza i file essenziali --"
+mkdir -p "$TMP/bundle-empty"
+if scripts/bundle-export.sh "$TMP/bundle-empty" 2>"$TMP/bundle-empty-err.txt"; then
+  echo "FALLITO: l'export ha accettato una cartella senza current_run.txt/current_run.json/provenance.txt"; exit 1
+fi
+grep -qi "manca" "$TMP/bundle-empty-err.txt" || {
+  echo "FALLITO: l'export ha rifiutato la cartella incompleta senza un messaggio chiaro"; exit 1; }
+
+echo "-- RunBundle: export + import round-trip, stessi byte --"
+rm -rf bundles
+scripts/bundle-export.sh "$TMP/bundle-src" >/dev/null
+bundleFile=$(ls bundles/melting-bundle-seed777-*.tar.gz 2>/dev/null | head -1)
+[ -n "$bundleFile" ] || { echo "FALLITO: bundle-export non ha scritto nessun tar.gz in bundles/"; exit 1; }
+
+scripts/bundle-import.sh "$bundleFile" "$TMP/bundle-dst" >/dev/null
+
+# BUNDLE_MANIFEST.txt esiste SOLO nella destinazione importata (fa parte del
+# bundle, non della run originale); gen_progress.txt esiste SOLO nella
+# sorgente (escluso di proposito dall'export: e' lo stato effimero della
+# barra di avanzamento). Il confronto file-per-file esclude solo questi due,
+# tutto il resto deve tornare byte-a-byte.
+for f in $(cd "$TMP/bundle-src" && find . -type f ! -name gen_progress.txt | sed 's#^\./##' | sort); do
+  cmp "$TMP/bundle-src/$f" "$TMP/bundle-dst/$f" || {
+    echo "FALLITO: $f differisce fra sorgente e bundle importato"; exit 1; }
+done
+[ -f "$TMP/bundle-dst/BUNDLE_MANIFEST.txt" ] || {
+  echo "FALLITO: BUNDLE_MANIFEST.txt mancante nella destinazione importata"; exit 1; }
+
+echo "-- RunBundle: l'import rifiuta un bundle con un file .lua corrotto --"
+WORK="$TMP/bundle-corrupt-work"
+mkdir -p "$WORK"
+tar xzf "$bundleFile" -C "$WORK"
+# Corrompe UN byte del file .lua gia' estratto, poi ricompone il tar SENZA
+# toccare BUNDLE_MANIFEST.txt: il file sul disco non corrisponde piu' al
+# proprio sha256 registrato nel manifest.
+printf 'X' | dd of="$WORK/scripts/floor1_item1.lua" bs=1 seek=0 count=1 conv=notrunc status=none
+corruptFile="$TMP/bundle-corrupt.tar.gz"
+tar czf "$corruptFile" -C "$WORK" .
+
+set +e
+scripts/bundle-import.sh "$corruptFile" "$TMP/bundle-dst2" >"$TMP/bundle-corrupt-out.txt" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 1 ] || {
+  echo "FALLITO: l'import di un bundle corrotto non e' uscito con exit 1 (rc=$rc)"; exit 1; }
+[ ! -e "$TMP/bundle-dst2" ] || {
+  echo "FALLITO: l'import di un bundle corrotto ha comunque creato la destinazione"; exit 1; }
+grep -qi "sha256\|corrotto" "$TMP/bundle-corrupt-out.txt" || {
+  echo "FALLITO: il rifiuto dell'import corrotto non ha un messaggio chiaro"; exit 1; }
+
+echo "-- RunBundle: l'import rifiuta un bundle con un membro symlink --"
+# La verifica sha256 da sola NON protegge da un membro symlink: sha256sum SEGUE
+# il link, quindi un `evil -> <file dal contenuto noto>` supera sia sha256sum -c
+# sia il bundleHash (l'attaccante calcola in anticipo l'hash del bersaglio e lo
+# mette nel manifest) e resterebbe vivo in destDir, puntando FUORI -- un
+# successivo bundle-export.sh lo dereferenzierebbe, impacchettando il contenuto
+# del bersaglio (catena di exfiltrazione). Qui si costruisce ESATTAMENTE quel
+# caso: un bundle valido in cui un membro .lua e' sostituito da un symlink verso
+# un file ESTERNO col CONTENUTO IDENTICO all'originale -- cosi' lo sha256 nel
+# manifest resta corretto e a decidere il rifiuto e' solo la difesa
+# anti-symlink, non la verifica di contenuto. L'import deve uscire 1 e NON
+# toccare la destinazione.
+SYMWORK="$TMP/bundle-sym-work"
+mkdir -p "$SYMWORK"
+tar xzf "$bundleFile" -C "$SYMWORK"
+external="$TMP/bundle-sym-target.lua"
+cp "$SYMWORK/scripts/floor1_item1.lua" "$external"
+rm "$SYMWORK/scripts/floor1_item1.lua"
+ln -s "$external" "$SYMWORK/scripts/floor1_item1.lua"
+symFile="$TMP/bundle-sym.tar.gz"
+# tar di default NON segue i symlink: li archivia come membri link, che e'
+# proprio cio' che serve per riprodurre il bundle malevolo.
+tar czf "$symFile" -C "$SYMWORK" .
+
+set +e
+scripts/bundle-import.sh "$symFile" "$TMP/bundle-dst-sym" >"$TMP/bundle-sym-out.txt" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 1 ] || {
+  echo "FALLITO: l'import di un bundle con un symlink non e' uscito con exit 1 (rc=$rc)"; cat "$TMP/bundle-sym-out.txt"; exit 1; }
+[ ! -e "$TMP/bundle-dst-sym" ] || {
+  echo "FALLITO: l'import di un bundle con un symlink ha comunque creato/toccato la destinazione"; exit 1; }
+grep -qi "non regolar\|symlink" "$TMP/bundle-sym-out.txt" || {
+  echo "FALLITO: il rifiuto del symlink non ha un messaggio chiaro"; cat "$TMP/bundle-sym-out.txt"; exit 1; }
+
+echo "-- RunBundle: l'import rifiuta un membro con path traversal (../) --"
+# Il GNU tar di sistema rifiuta gia' da solo i membri con ".." in estrazione,
+# ma quella e' una proprieta' del binario installato: bundle-import.sh ha ora
+# una guardia PROPRIA (tar -tzf + filtro sui membri) che deve scattare
+# QUALUNQUE tar ci sia sotto. Il tar malevolo si costruisce con Python
+# (tarfile non sanifica in creazione, a differenza di GNU tar).
+travFile="$TMP/bundle-trav.tar.gz"
+python3 - "$travFile" <<'PYEOF'
+import io, sys, tarfile
+with tarfile.open(sys.argv[1], "w:gz") as t:
+    data = b"pwned\n"
+    info = tarfile.TarInfo(name="../evil-traversal.txt")
+    info.size = len(data)
+    t.addfile(info, io.BytesIO(data))
+PYEOF
+set +e
+scripts/bundle-import.sh "$travFile" "$TMP/bundle-dst-trav" >"$TMP/bundle-trav-out.txt" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 1 ] || {
+  echo "FALLITO: l'import di un bundle con ../ non e' uscito con exit 1 (rc=$rc)"; cat "$TMP/bundle-trav-out.txt"; exit 1; }
+[ ! -e "$TMP/bundle-dst-trav" ] || {
+  echo "FALLITO: l'import con path traversal ha comunque creato la destinazione"; exit 1; }
+[ ! -e "$TMP/evil-traversal.txt" ] && [ ! -e "bundles/evil-traversal.txt" ] || {
+  echo "FALLITO: il membro ../evil-traversal.txt e' stato scritto fuori dalla dir di estrazione"; exit 1; }
+grep -q "percorso pericoloso" "$TMP/bundle-trav-out.txt" || {
+  echo "FALLITO: il rifiuto del path traversal non ha il messaggio della guardia propria dello script"; cat "$TMP/bundle-trav-out.txt"; exit 1; }
+
+echo "-- RunBundle: due export dello stesso contenuto = stesso tar.gz (LC_ALL=C) --"
+# bundleHash deriva dall'ordine delle righe sha256, e quell'ordine deriva dal
+# sort dell'export: senza LC_ALL=C due macchine con locale diverse (o la
+# stessa macchina in locale it_IT.UTF-8) possono ordinare in modo diverso i
+# nomi che differiscono per maiuscole -- trovato dalla verifica adversariale.
+# Due export consecutivi (la locale qui e' costante) devono comunque produrre
+# lo STESSO file byte-per-byte; il nome contiene hash8, quindi basta un cmp.
+exp1=$(LC_ALL=it_IT.UTF-8 scripts/bundle-export.sh "$TMP/bundle-src" | sed -n 's/^bundle-export: scritto //p')
+exp2=$(LC_ALL=C scripts/bundle-export.sh "$TMP/bundle-src" | sed -n 's/^bundle-export: scritto //p')
+[ "$exp1" = "$exp2" ] || {
+  echo "FALLITO: lo stesso contenuto esportato sotto locale diverse ha prodotto file diversi ($exp1 vs $exp2)"; exit 1; }
+cmp "$exp1" "$exp2" || {
+  echo "FALLITO: due export dello stesso contenuto non sono byte-identici"; exit 1; }
+
+echo "-- RunBundle: --resume NON riscrive provenance.txt (appartiene alla stessa run) --"
+# Nessun override di --model qui (stesso stile delle altre prove di ripresa
+# di questa suite, vedi step B2 sopra): se un modello e' presente in models/
+# la ripresa lo userebbe per gli script Lua mancanti, ma NON per riscrivere
+# la provenienza -- e' esattamente quello che questa prova verifica, non
+# quanti modelli sono installati sulla macchina che esegue il test.
+before=$(md5sum "$TMP/bundle-src/provenance.txt" | cut -d' ' -f1)
+"$GEN" --from-json "$TMP/bundle-src/current_run.json" --resume --out "$TMP/bundle-src" >/dev/null
+after=$(md5sum "$TMP/bundle-src/provenance.txt" | cut -d' ' -f1)
+[ "$before" = "$after" ] || {
+  echo "FALLITO: --resume ha riscritto provenance.txt (md5 prima=$before dopo=$after)"; exit 1; }
+
+rm -rf bundles
+
 echo "-- il binario del gioco non deve linkare llama.cpp o cJSON --"
 ! nm bin/melting_run_gpu | grep -qi -e llama -e cJSON
 
