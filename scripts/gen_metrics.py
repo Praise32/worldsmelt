@@ -26,6 +26,53 @@ def norm(s):
     return " ".join(str(s).lower().split())
 
 
+# Stopword italiane: articoli, preposizioni semplici e articolate,
+# congiunzioni piu' comuni nei nomi generati (temi/colpi/nemici/boss/stanze/
+# oggetti). Scartate insieme alle parole < 3 caratteri prima di contare le
+# parole-contenuto ricorrenti (vedi word_report sotto).
+ITALIAN_STOPWORDS = {
+    "di", "del", "della", "dei", "delle", "in", "a", "al", "alla", "la", "il",
+    "le", "i", "lo", "gli", "un", "una", "e", "che", "con", "per", "da", "su",
+    "tra", "fra",
+}
+
+
+def word_report(per_run, cat):
+    """Parole-contenuto per categoria: quante ricompaiono in run diverse.
+
+    Perche' esiste, oltre alla misura "unici su totale" qui sopra: su una
+    baseline abbiamo misurato 14/15 nomi unici in "temi" eppure il
+    vocabolario di fondo era sempre lo stesso -- 'cattedrale', 'caverna',
+    'deserto' spuntavano in ogni run sotto un aggettivo diverso
+    ('cattedrale ghiacciata', 'cattedrale sommersa', ...). Il conteggio sui
+    nomi INTERI non lo vede: sono stringhe diverse. Solo un occhio umano che
+    legge il campione se n'e' accorto. Qui si scompone ogni nome in parole,
+    si scartano le stopword italiane e le parole troppo corte (< 3
+    caratteri), e si conta quante parole-contenuto ricorrono in PIU' RUN
+    DIVERSE (non solo ripetute piu' volte nella stessa run): e' quella
+    ripetizione fra run, non l'unicita' dei nomi, il segnale che il modello
+    sta convergendo su un vocabolario fisso.
+    """
+    run_word_sets = []
+    word_total_occ = Counter()
+    for pr in per_run:
+        words_here = Counter()
+        for name in pr[cat]:
+            for w in name.split():
+                if w in ITALIAN_STOPWORDS or len(w) < 3:
+                    continue
+                words_here[w] += 1
+        run_word_sets.append(set(words_here))
+        word_total_occ.update(words_here)
+    run_count = Counter()
+    for s in run_word_sets:
+        run_count.update(s)
+    shared = {w: c for w, c in run_count.items() if c >= 2}
+    top5 = sorted(shared.items(),
+                  key=lambda kv: (-kv[1], -word_total_occ[kv[0]], kv[0]))[:5]
+    return len(word_total_occ), len(shared), top5, word_total_occ
+
+
 def load_runs(outdir):
     runs = []
     for mf in sorted(outdir.glob("manifest-*.json")):
@@ -133,6 +180,21 @@ def main():
             print(f"  {cat:9s} {uniq:3d} unici su {len(allvals):3d}  "
                   f"(duplicati {dup:2d}, jaccard medio fra run {jac:4.2f})"
                   f"{'  peggiori: ' + worst if worst else ''}")
+        print()
+
+        # -- 2b. parole ricorrenti fra run --------------------------------
+        # (vedi word_report per il motivo: i nomi interi possono essere
+        # tutti "unici" mentre il vocabolario di fondo converge lo stesso.)
+        print("-- parole ricorrenti fra run (vocabolario, non nomi interi) --")
+        for cat in ("temi", "colpi", "nemici", "boss", "stanze", "oggetti"):
+            total_words, shared_n, top5, word_total_occ = word_report(per_run, cat)
+            print(f"  {cat:9s} {total_words:3d} parole-contenuto totali, "
+                  f"{shared_n:3d} condivise fra >=2 run")
+            if top5:
+                items = ", ".join(
+                    f"'{w}' in {c}/{len(per_run)} run ({word_total_occ[w]} occ.)"
+                    for w, c in top5)
+                print(f"    piu' ricorrenti: {items}")
     else:
         print("  servono almeno 2 run dal modello per misurare la varieta'")
     print()

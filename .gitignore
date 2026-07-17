@@ -28,6 +28,10 @@ node_modules/
 # provenienza vive in docs/dataset/ledger.jsonl (vedi docs/dataset/README.md).
 dataset-raw/
 
+# Dataset derivato per il QLoRA (scripts/corpus_to_dataset.py): rigenerabile
+# in ogni momento dal corpus in logs/gen-corpus/, non e' sorgente.
+dataset/
+
 # Segreti e configurazioni locali
 .env
 .env.*
