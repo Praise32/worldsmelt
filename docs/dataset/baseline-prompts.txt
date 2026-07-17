@@ -1,0 +1,34 @@
+# Esperimento 0 (roadmap 16/07/2026, settimana 2; vedi
+# roguelike-ai-appunti/06-training-hardware-costi.md, "Piano di
+# addestramento SD"): baseline sprite SENZA training, con la pipeline
+# attuale (bin/melting-sprites + checkpoint/LoRA gia' in models/). Queste 15
+# coppie tema|stile e i seed fissi di scripts/sprite-baseline.sh sono il
+# metro di paragone per OGNI Style/Item LoRA futura: confrontare una LoRA
+# nuova contro una baseline che cambia non misura niente.
+#
+# QUESTE 15 RIGHE NON VANNO MAI CAMBIATE. Se serve coprire un altro spazio
+# tematico, si aggiunge un esperimento nuovo con un file nuovo (o si aumenta
+# MAX_PAIRS in uno script diverso): non si editano ne' riordina le righe
+# esistenti, altrimenti ogni confronto con una baseline precedente diventa
+# invalido.
+#
+# Formato: una riga per coppia, "tema|stile" (nessun altro carattere "|"
+# nella riga). Coprono 15 famiglie materiche/atmosferiche ortogonali fra
+# loro: ghiaccio, fuoco, vegetale, meccanico, osseo, acquatico, celeste,
+# tossico, dolciario, tessile, minerale, spettrale, desertico, festivo,
+# notturno.
+Cattedrale di Ghiaccio Perenne|pixel art fredda, cristalli blu e riflessi taglienti
+Cratere in Eruzione|pixel art incandescente, lava viva e cenere che cade
+Giardino Pensile Inselvatichito|pixel art verde smeraldo, rampicanti e licheni luminosi
+Officina degli Automi Dimenticati|pixel art metallica, ingranaggi arrugginiti e scintille elettriche
+Catacomba degli Ossari|pixel art ossuta, avorio ingiallito e polvere di calce
+Relitto negli Abissi|pixel art acquatica, corallo bioluminescente e correnti scure
+Osservatorio tra le Nuvole|pixel art celeste, oro pallido e nebulose lontane
+Palude delle Scorie|pixel art tossica, verde acido e vapori corrosivi
+Pasticceria Stregata|pixel art zuccherina, glassa rosa e caramello colante
+Telaio della Regina Ragno|pixel art tessile, sete intrecciate e nappe scarlatte
+Cava di Quarzo Nero|pixel art minerale, faccette scure e polvere scintillante
+Maniero degli Echi Sepolti|pixel art spettrale, grigi diafani e luce lunare fredda
+Rovine sotto le Dune|pixel art desertica, sabbia ocra e ombre lunghe al tramonto
+Fiera delle Lanterne|pixel art festosa, lampioncini di carta e coriandoli dorati
+Vicolo sotto la Luna Nuova|pixel art notturna, blu inchiostro e insegne al neon fioco

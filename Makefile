@@ -93,7 +93,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline clean
 
 all: game gen sprites
 
@@ -158,6 +158,13 @@ test-llm: all
 # col 7B, 3 run di default. Vedi scripts/gen-metrics.sh e gen_metrics.py.
 gen-metrics: all
 	bash scripts/gen-metrics.sh
+
+# Baseline sprite "Esperimento 0" (roadmap 16/07/2026, settimana 2): 15
+# coppie tema/stile fisse x 2 seed fissi con la pipeline ATTUALE, senza
+# alcun training -- il metro di paragone per ogni Style/Item LoRA futura.
+# Vedi scripts/sprite-baseline.sh e docs/dataset/baseline-prompts.txt.
+sprite-baseline: sprites
+	bash scripts/sprite-baseline.sh
 
 clean:
 	rm -rf bin
