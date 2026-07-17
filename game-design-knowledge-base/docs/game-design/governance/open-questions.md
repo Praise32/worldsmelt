@@ -23,7 +23,7 @@ elenco; restano solo le domande davvero aperte.
 
 ## Multiplayer
 
-9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata?
+9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e soprattutto il criterio di normalizzazione della difficoltà per la Classificata a seed diversi?
 
 ## Produzione
 

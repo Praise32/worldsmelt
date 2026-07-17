@@ -2,8 +2,8 @@
 id: gd-multiplayer
 status: experimental
 owner: design
-last_reviewed: 2026-07-17
-summary: "Gare tra giocatori e classifiche."
+last_reviewed: 2026-07-18
+summary: "Gare tra giocatori e classifiche: due assi approvati (Leggera/Classificata × stesso seed/seed diversi), dettagli experimental."
 ---
 
 # Multiplayer and Competition
@@ -22,7 +22,22 @@ una decisione approvata dal proprietario il 2026-07-17:
   ogni giocatore affronta la run competitiva con gli stessi pool di base (vedi
   [Core Loop](03-core-loop.md), loop metagioco, DEC-015).
 
-Ogni altro dettaglio del multiplayer (modalità simultanee, informazioni visibili durante la
+## Struttura del menu multiplayer (DEC-021, approved 2026-07-18)
+
+Il menu multiplayer offre due scelte indipendenti, entrambe approvate dal proprietario:
+
+1. **Modalità**: **Leggera** (non classificata, senza vincoli di classifica) oppure
+   **Classificata** (valida per le classifiche, con le regole di correttezza di DEC-016).
+2. **Tipo di gara**: **Stesso seed** (tutti i partecipanti affrontano la stessa run
+   esatta, stesso seed/manifest, sfruttando il determinismo esistente) oppure
+   **Seed diversi** (ogni giocatore ha una run propria).
+
+Le quattro combinazioni sono tutte previste. Per la combinazione Classificata + Seed
+diversi la confrontabilità dei risultati (pillar "Competizione verificabile") richiede
+un'equivalenza di difficoltà tra run diverse: il criterio di normalizzazione è una
+domanda aperta (vedi `governance/open-questions.md`).
+
+Ogni altro dettaglio del multiplayer (informazioni visibili durante la
 gara, assistenze consentite, dettagli implementativi) resta `experimental` e non è ancora
 deciso.
 
@@ -30,23 +45,22 @@ deciso.
 
 Permettere a due o più giocatori di affrontare una sfida confrontabile e competere su tempo, punteggio o completamento.
 
-## Modalità proposta: Shared Run Race (experimental)
+## Gara a stesso seed (asse "Tipo di gara", DEC-021)
 
 - I giocatori ricevono lo stesso manifest di run (stesso seed), coerentemente con la
   visione approvata sopra.
-- Contenuti, pool, ordine dei piani e principali opportunità sono equivalenti.
+- Contenuti, pool, ordine dei piani e principali opportunità sono identici.
 - Il risultato considera tempo, completamento e possibili penalità.
 - La run deve essere riproducibile per verifica e replay.
 - Poiché la gara è asincrona, ogni giocatore affronta la run separatamente: non è previsto
-  un incontro in tempo reale nella stessa sessione (vedi Decisioni aperte per i dettagli
-  ancora da chiarire).
+  un incontro in tempo reale nella stessa sessione.
 
-## Modalità non classificata proposta: Unique Run Duel (experimental)
+## Gara a seed diversi (asse "Tipo di gara", DEC-021)
 
-Ogni giocatore affronta una run differente ma con budget di difficoltà equivalente. È più
-spettacolare ma meno adatta a classifiche rigorose. Questa modalità non è coperta dalla
-visione approvata (DEC-016 riguarda la modalità classificata a stessa run/seed) e resta
-un'idea `experimental`.
+Ogni giocatore affronta una run propria. In modalità Leggera non serve alcuna garanzia di
+equivalenza. In modalità Classificata le run diverse devono avere budget di difficoltà
+equivalente: il criterio di normalizzazione (come si dichiara che due run sono
+confrontabili) è una domanda aperta e resta `experimental`.
 
 ## Informazioni visibili (experimental)
 
@@ -75,12 +89,11 @@ Le classifiche richiedono regole stabili, identificazione della versione di gioc
 
 ## Decisioni aperte
 
-Risolte da DEC-016 (non più aperte per la modalità classificata): multiplayer simultaneo o
-asincrono → **asincrono**; stessa run esatta o equivalenza statistica → **stessa run
-esatta, stesso seed**.
+Risolte da DEC-016 e DEC-021 (non più aperte): multiplayer simultaneo o asincrono →
+**asincrono**; struttura del menu → **Leggera/Classificata × stesso seed/seed diversi**.
 
 Ancora aperte, tutte `experimental`:
 
 - Quali assistenze e mod sono consentite.
-- Se e come implementare la modalità non classificata Unique Run Duel.
+- Il criterio di normalizzazione per la Classificata a seed diversi.
 - Quali informazioni della run di un avversario mostrare e quando.
