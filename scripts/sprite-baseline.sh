@@ -19,14 +19,23 @@
 #
 # Uso:      scripts/sprite-baseline.sh
 # Variabili:
-#   MAX_PAIRS  quante coppie usare dal file, in ordine (default: 15, tutte)
+#   START_PAIR prima coppia da usare, 1-based (default: 1) -- per riprendere
+#              una baseline interrotta o girare a tranche (una corsa intera
+#              sono ~40 min di GPU: piu' di quanto un task in background possa
+#              restare vivo, misurato stanotte). La numerazione NN degli atlas
+#              resta quella ASSOLUTA della coppia nel file, cosi' le tranche
+#              si ricompongono in una cartella sola senza collisioni.
+#   MAX_PAIRS  quante coppie usare da START_PAIR in poi (default: tutte)
 #   SEEDS      lista di seed separati da spazi (default: "5 17")
 #   MODEL      checkpoint SD (default: quello di tools/melting-sprites/main.c)
+#   OUT_DIR    cartella di uscita (default: logs/sprite-baseline/<timestamp>)
+#              -- per accodare una tranche alla cartella di una precedente.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SPR="bin/melting-sprites"
 PROMPTS_FILE="docs/dataset/baseline-prompts.txt"
+START_PAIR="${START_PAIR:-1}"
 MAX_PAIRS="${MAX_PAIRS:-15}"
 SEEDS="${SEEDS:-5 17}"
 SECS_PER_ATLAS=85   # misurato nello spike (docs/SPRITES-SPIKE.md); solo una stima
@@ -47,9 +56,11 @@ if [ "${#PAIRS[@]}" -eq 0 ]; then
   echo "Nessuna coppia tema|stile trovata in $PROMPTS_FILE"
   exit 1
 fi
-if [ "$MAX_PAIRS" -lt "${#PAIRS[@]}" ]; then
-  PAIRS=("${PAIRS[@]:0:$MAX_PAIRS}")
+if [ "$START_PAIR" -lt 1 ] || [ "$START_PAIR" -gt "${#PAIRS[@]}" ]; then
+  echo "START_PAIR=$START_PAIR fuori dall'intervallo 1..${#PAIRS[@]}"
+  exit 1
 fi
+PAIRS=("${PAIRS[@]:$((START_PAIR - 1)):$MAX_PAIRS}")
 
 read -r -a SEED_LIST <<< "$SEEDS"
 if [ "${#SEED_LIST[@]}" -eq 0 ]; then
@@ -66,15 +77,18 @@ echo "== sprite-baseline: $N_PAIRS coppie x $N_SEEDS seed (${SEED_LIST[*]}) = $N
 echo "== stima: ~${EST_MIN} min (~${SECS_PER_ATLAS}s/atlas, misurato nello spike) =="
 
 STAMP=$(date +%Y%m%d-%H%M%S)
-OUT="logs/sprite-baseline/$STAMP"
+OUT="${OUT_DIR:-logs/sprite-baseline/$STAMP}"
 mkdir -p "$OUT"
 INDEX="$OUT/index.txt"
-echo "# atlas | tema | stile | seed | tempo(s)" > "$INDEX"
+[ -f "$INDEX" ] || echo "# atlas | tema | stile | seed | tempo(s)" > "$INDEX"
 
 TMP_ROOT=$(mktemp -d)
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
-i=0
+# NN degli atlas = numero ASSOLUTO della coppia nel file dei prompt (non la
+# posizione nella tranche): due tranche con START_PAIR diversi si accodano
+# nella stessa OUT_DIR senza sovrascriversi.
+i=$((START_PAIR - 1))
 for pair in "${PAIRS[@]}"; do
   i=$((i + 1))
   pair="${pair%$'\r'}"          # tolleranza a un eventuale CRLF nel file
