@@ -88,9 +88,24 @@ bug report riproducibili, daily challenge.
   adversariale ha beccato (e fatto correggere a Opus) la ripresa B2 che avrebbe
   caricato il 7B a meta' run anche in low-spec.
 
+### Seconda sessione fuori-casa (mi hai detto di continuare ancora)
+- **Benchmark misurato + tier automatico** (`70a9d06`): `make benchmark` misura la
+  macchina coi processi figli (`--bench`, isolato: non tocca mai `generated/`) e
+  scrive `logs/benchmark.txt`; il gioco lo legge a `--generate` e applica il preset
+  low-spec da solo (override: `--full-spec`; i flag espliciti vincono sempre; mai
+  bloccato il gioco, nemmeno su `unsupported`). Taratura trovata col benchmark VERO:
+  la prima immagine paga il warmup Vulkan (14,9 s!) e mandava la tua 5600 XT in
+  lowspec; ora si misura la seconda, a regime (5,6 s) → la tua scheda esce `full`.
+- **Novelty ledger fra run** (`01e2ca6`): il generatore ricorda le parole-contenuto
+  delle ultime 20 run (`logs/novelty-ledger.txt`, mai avvelenato da fallback/resume)
+  e inietta nel prompt le parole viste in ≥2 run come blocco «EVITA». È la difesa
+  della varietà sul lungo periodo, misurabile con la nuova metrica delle parole.
+  Qui la scala di verifica ha reso il massimo: due bocciature (buffer che troncava
+  l'ultima parola; parser che non faceva mai convergere le parole oltre i 31 char),
+  due correzioni, test di regressione per entrambe.
+
 ### Sistema
-- Sospensione automatica: disattivata a inizio nottata, ripristinata, poi
-  **ri-disattivata e ri-ripristinata** su tua richiesta mentre eri fuori.
+- Sospensione automatica: disattivata/ripristinata a ogni sessione di lavoro.
   Stato finale: `suspend` (verifica: `gsettings get
   org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type`).
 - Scaricato `models/qwen2.5-7b-instruct-q4_k_m.gguf` (4,7 GB) per l'esperimento D.
