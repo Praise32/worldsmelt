@@ -1,8 +1,12 @@
-# Game Design Knowledge Base — Starter
+# Game Design Knowledge Base
 
-Questa cartella è la fonte canonica del comportamento del gioco.
+Questa cartella è il **documento di game design unico e canonico** del progetto: non esiste
+un'altra fonte di verità per comportamento, contenuti, flussi e interfaccia del gioco. Ogni
+decisione sul gioco va cercata, verificata e registrata qui.
 
-Il progetto descrive un action roguelite a stanze, ispirato al genere di *The Binding of Isaac* ma progettato come proprietà originale, nel quale gran parte dei contenuti di ogni run viene generata da un'IA locale entro regole, pool, rarità e vincoli di qualità definiti dal game design.
+Il progetto descrive un action roguelite a stanze, proprietà originale, nel quale gran parte
+dei contenuti di ogni run viene generata da un'IA locale entro regole, pool, rarità e vincoli
+di qualità definiti dal game design.
 
 ## Come iniziare
 

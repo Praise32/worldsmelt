@@ -1,7 +1,7 @@
 ---
 id: gd-enemy-<slug>
 status: draft
-origin: curated|generated|composed
+origin: curato | composto | variato | nuovo
 ---
 
 # Nome nemico
@@ -25,5 +25,7 @@ origin: curated|generated|composed
 ## Ricompensa
 
 ## Varianti
+
+Includere, se prevista, la variante Veterano (nemico potenziato non-boss).
 
 ## Test di validazione

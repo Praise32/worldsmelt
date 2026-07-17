@@ -20,9 +20,16 @@ Entrare in un ecosistema che si reinventa davanti al giocatore: nuovi avversari,
 
 - Action roguelite a stanze.
 - Combattimento in tempo reale.
-- Progressione attraverso oggetti e sinergie.
+- Progressione attraverso oggetti e sinergie, incluse fusioni esplicite tra oggetti
+  (meccanica-firma del progetto; vedi [Core Loop](03-core-loop.md)).
+- Ogni run parte da **Piano 0**, un hub sempre giocabile che fa da spazio di attesa mentre
+  l'IA genera il primo piano (vedi [Run Structure](04-run-structure.md)).
+- Il giocatore sceglie nel Piano 0 un tema tra quelli proposti dall'IA; il tema evolve o
+  degenera piano dopo piano.
 - Forte rigiocabilità.
 - Contenuto generato localmente entro vincoli canonici.
+- Durata obiettivo di una run completa vinta: 30–45 minuti (dettagli e curve in
+  [Difficulty and Progression](07-difficulty-and-progression.md)).
 
 ## Obiettivi
 

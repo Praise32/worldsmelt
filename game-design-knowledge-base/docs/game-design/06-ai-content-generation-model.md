@@ -1,53 +1,132 @@
 ---
 id: gd-ai-content-model
-status: draft
+status: approved
 owner: design
 last_reviewed: 2026-07-17
-summary: "Ruolo concettuale dell’IA locale nella creazione dei contenuti."
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato."
 ---
 
 # AI Content Generation Model
 
-## Principio
+## Principio (DEC-020)
 
-L'IA locale propone contenuti entro un contratto. Il gioco decide se tali contenuti sono validi, coerenti e utilizzabili.
+L'IA locale non "sceglie da un menu": **inventa** contenuti. Il modo in cui inventa dipende
+dal tipo di contenuto:
+
+1. Per contenuti **parametrici** (tipi di colpo, nemici, layout di stanze), l'IA genera
+   valori e combinazioni nuovi ma vincolati dentro **bande di garanzia** numeriche definite
+   dal game design (vedi ad esempio le bande di potenza in
+   [Difficulty and Progression](07-difficulty-and-progression.md)).
+2. Per contenuti **comportamentali** (oggetti, sinergie, fusioni), l'IA scrive un
+   comportamento che viene **validato in sandbox** prima di entrare in run, con un
+   **fallback curato sempre presente** in caso di rifiuto.
+
+In entrambi i casi vale la stessa garanzia: mai un contenuto rotto arriva al giocatore, mai
+la generazione blocca la partita.
 
 ## Tipi di contenuto
 
-- Varianti di oggetti.
-- Nemici e boss.
-- Pattern di attacco.
+- Tipi di colpo (parametrico, entro bande).
+- Nemici e boss (parametrico per statistiche/pattern, entro bande).
+- Layout di stanze (parametrico, entro bande e vincoli strutturali).
+- Oggetti, inclusi gli oggetti di fusione (comportamentale, validato in sandbox; vedi
+  [Item Fusion](systems/item-fusion.md)).
+- Sinergie tra effetti (comportamentale).
+- Temi di piano e la loro evoluzione/degenerazione (composizione + variazione).
 - Aspetto e composizione degli sprite.
-- Sinergie tra effetti.
-- Temi di piano.
-- Stanze e ricompense.
 - Nomi e descrizioni coerenti con la tassonomia.
 
-## Livelli di generazione
+## Origine del contenuto — tassonomia unica
 
-1. **Selezione:** scegliere e combinare elementi già validati.
-2. **Composizione:** creare una nuova combinazione da moduli conosciuti.
-3. **Variazione:** modificare parametri entro intervalli sicuri.
-4. **Nuovo archetipo:** introdurre una regola nuova; richiede validazione più severa.
+Ogni contenuto generato dichiara un'origine tra esattamente **quattro valori**. Questa è la
+fonte unica della tassonomia di origine; altri documenti (template, glossario, tassonomia
+dei contenuti) devono usare questi stessi quattro valori, senza sinonimi:
+
+| Origine | Significato |
+|---|---|
+| `curato` | Contenuto creato e approvato manualmente, nessuna generazione. |
+| `composto` | Nuova combinazione di moduli già validati e conosciuti. |
+| `variato` | Contenuto esistente con parametri modificati entro bande di garanzia sicure. |
+| `nuovo` | Introduce una regola o un archetipo non ancora visto; richiede validazione più severa. |
 
 ## Vincoli obbligatori
 
-Ogni contenuto deve avere:
+Ogni contenuto generato deve avere:
 
 - identità univoca nella run;
 - categoria e tag;
-- budget di potenza o pericolo;
+- origine dichiarata (uno dei quattro valori sopra);
+- budget di potenza o pericolo, rispettato entro le bande di garanzia applicabili;
 - segnali visivi e audio;
 - descrizione comprensibile;
 - dipendenze dichiarate;
-- condizioni di esclusione;
-- fallback;
-- test di giocabilità.
+- incompatibilità dichiarate;
+- fallback curato;
+- test di giocabilità (simulazione o validazione in sandbox per i contenuti
+  comportamentali).
 
-## Trasparenza al giocatore
+## Processo per contenuti comportamentali (oggetti, sinergie, fusioni)
 
-Il gioco può comunicare che la run è stata generata, ma non deve mostrare prompt, errori interni o dettagli tecnici durante l'esperienza normale.
+1. L'IA scrive il comportamento proposto.
+2. Il comportamento passa attraverso gli stati di validazione definiti in
+   [Generated Content Validation](systems/generated-content-validation.md) (fonte unica per
+   quel processo; questo documento non lo ripete).
+3. Se il contenuto non supera la validazione, il fallback curato prende il suo posto senza
+   interrompere la run.
+
+## Processo per contenuti parametrici (colpi, nemici, layout)
+
+1. L'IA genera valori e combinazioni nuovi dentro le bande di garanzia numeriche vigenti
+   (rarità, potenza, densità, dimensione minima di stanza).
+2. Non è richiesta una sandbox comportamentale separata: il rispetto delle bande è di per sé
+   la garanzia di sicurezza, verificata da controlli strutturali minimi.
+
+## Trasparenza al giocatore (fonte unica)
+
+Questa è la fonte unica della regola: il gioco può comunicare che la run è stata generata,
+ma **non deve mostrare prompt, errori interni o altri dettagli tecnici** durante
+l'esperienza normale. Ogni altro documento che tocchi questo argomento (ad esempio
+[Run Structure](04-run-structure.md) o [Generation Status](ui/generation-status.md)) rimanda
+qui invece di riformulare la regola.
 
 ## Limite
 
-L'IA non può modificare arbitrariamente regole fondamentali come input, condizioni di vittoria, significato delle risorse o segnali di pericolo senza una modalità esplicitamente dedicata.
+L'IA non può modificare arbitrariamente regole fondamentali come input, condizioni di
+vittoria, significato delle risorse o segnali di pericolo senza una modalità esplicitamente
+dedicata.
+
+## Casi limite
+
+- Un contenuto `variato` supera la banda di garanzia per un errore di generazione: viene
+  trattato come `rejected` nel processo di validazione e sostituito dal fallback curato.
+- Un contenuto `nuovo` introduce una regola che confligge con un vincolo fondamentale (es.
+  altera il significato di una risorsa): viene respinto a prescindere dal risultato della
+  simulazione.
+
+## Non-obiettivi
+
+- Questo documento non definisce gli stati di validazione né i controlli minimi: quelli
+  sono in [Generated Content Validation](systems/generated-content-validation.md).
+- Non definisce i valori numerici delle bande di garanzia: quelli sono default
+  d'implementazione `draft`, vedi [Difficulty and Progression](07-difficulty-and-progression.md)
+  (DEC-019).
+
+## Domande aperte residue
+
+- Se i layout di stanza generati richiedano una categoria di validazione strutturale
+  dedicata, separata dai controlli minimi generali.
+
+## Scenari
+
+- **Dato** che l'IA genera una variazione di un tipo di colpo esistente, **quando** i suoi
+  parametri restano dentro la banda di garanzia definita, **allora** il contenuto è
+  utilizzabile in run senza passare per la sandbox comportamentale.
+- **Dato** che l'IA scrive il comportamento di un nuovo oggetto di fusione, **quando** il
+  comportamento non supera la validazione in sandbox, **allora** il fallback curato prende
+  il suo posto e il giocatore non vede alcun errore né dettaglio tecnico.
+- **Dato** che un contenuto dichiara origine `nuovo`, **quando** entra nel processo di
+  validazione, **allora** è soggetto a controlli più severi rispetto a un contenuto
+  `variato` o `composto`.
+- **Dato** che il gioco comunica che la run è stata generata, **quando** mostra
+  quell'informazione al giocatore, **allora** non include mai prompt, log o messaggi di
+  errore interni.

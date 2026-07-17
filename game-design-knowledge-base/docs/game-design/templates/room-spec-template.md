@@ -1,7 +1,8 @@
 ---
 id: gd-room-<slug>
 status: draft
-room_type: combat|reward|special|secret|boss|event
+origin: curato | composto | variato | nuovo
+room_type: partenza | combattimento | tesoro | negozio | boss | fusione | segreta | arena-di-sfida | scambio-alto-rischio
 ---
 
 # Nome stanza

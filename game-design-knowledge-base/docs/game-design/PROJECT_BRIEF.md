@@ -14,18 +14,47 @@ Action roguelite a stanze con run uniche, nel quale un'IA locale genera durante 
 
 ## Concetti già dichiarati
 
-- Una run standard è composta inizialmente da cinque piani.
-- Il primo piano è sempre giocabile e usa contenuti preesistenti, verificati e appartenenti a pool curati.
-- Durante il primo piano vengono generati i piani successivi.
-- Se le risorse e il tempo lo consentono, il gioco può preparare contenuti per una run futura.
-- Oggetti, nemici, boss, sprite e sinergie possono essere generati o composti dall'IA locale.
-- Le sinergie devono modificare sia il comportamento sia la presentazione visiva.
-- Gli oggetti appartengono a pool e possiedono rarità o pesi di estrazione.
-- Il gioco deve permettere apprendimento e miglioramento del giocatore, evitando il caos totale come unica esperienza.
-- Una modalità separata può massimizzare la casualità.
-- Sono previste risorse e stanze speciali: salute, chiavi, bombe, tesori, segreti, ostacoli e ricompense speciali.
-- Sono previste categorie quali oggetti passivi, oggetti attivi e trinket.
-- È desiderato un multiplayer competitivo basato su corse e classifiche.
+Aggiornato il 2026-07-17 in base alle decisioni approvate nel registro delle decisioni
+(`DEC-001`…`DEC-020`). Il dettaglio operativo di ciascun punto vive nel documento specifico
+linkato; questa sezione è solo una sintesi orientativa.
+
+- Una run è composta da **Piano 0** più cinque piani (`DEC-001`). Il Piano 0 è un hub sempre
+  giocabile — rifugio, museo delle creazioni migliori, scelta di tema e personaggio — che fa
+  da spazio di attesa mentre l'IA genera il primo piano vero e proprio (`DEC-002`, `DEC-004`;
+  vedi [Run Structure](04-run-structure.md)).
+- Il giocatore sceglie un tema tra 2–3 proposti dall'IA nel Piano 0; il tema evolve o
+  degenera piano dopo piano fino al boss del piano 5 (`DEC-005`).
+- Oggetti, nemici, boss, sprite, layout di stanza e sinergie possono essere generati o
+  composti dall'IA locale entro bande di garanzia, con validazione in sandbox e fallback
+  curato sempre presente (`DEC-020`; vedi [AI Content Model](06-ai-content-generation-model.md)).
+- Le sinergie hanno doppio binario: implicite/automatiche tra oggetti compatibili, e
+  **fusione esplicita** — la meccanica-firma del progetto — nella quale il giocatore consuma
+  due oggetti nella stanza di fusione e ottiene un oggetto nuovo generato dall'IA che eredita
+  comportamento e presentazione da entrambi (`DEC-012`; vedi [Synergies](systems/synergies.md)
+  e [Item Fusion](systems/item-fusion.md)).
+- Gli oggetti appartengono a pool e possiedono rarità o pesi di estrazione; la tassonomia
+  completa è attivi, passivi, stat-up, Innesti (`DEC-011`; vedi
+  [Items, Pools and Rarity](systems/items-pools-and-rarity.md) e [Innesti](systems/grafts.md)).
+- Esiste un personaggio base sempre disponibile; ogni run l'IA genera un personaggio
+  alternativo con un tratto unico e statistiche casuali entro bande, selezionabile nel
+  Piano 0 (`DEC-014`; vedi [Characters](systems/characters.md)).
+- Le risorse sono ri-tematizzate e definite per funzione, non per nome preso da altri
+  giochi: salute stratificata, valuta principale, strumento di breccia, strumento di
+  apertura, catalizzatore di fusione (`DEC-013`; vedi
+  [Health and Resources](systems/health-and-resources.md)).
+- Il gioco deve permettere apprendimento e miglioramento del giocatore, evitando il caos
+  totale come unica esperienza.
+- Sconfiggere il boss del piano 5 chiude la run ufficiale (valida per classifiche); il
+  giocatore può proseguire in piani extra sempre più degenerati finché non muore
+  (`DEC-006`).
+- Durata obiettivo di una run completa vinta (Piano 0 + 5 piani): 30–45 minuti (`DEC-017`).
+- Meta-progressione: persistono il catalogo di tutti i contenuti generati, il museo del
+  Piano 0 e punti guadagnati in singleplayer per sbloccare contenuti nei pool delle run
+  future; nessun potenziamento permanente del personaggio; sblocchi disattivati nelle
+  modalità competitive (`DEC-015`).
+- È desiderato un multiplayer competitivo: la visione fissata è quella di gare asincrone
+  sulla stessa run/seed con classifiche a tempo/punteggio (`DEC-016`; vedi
+  [Multiplayer and Competition](08-multiplayer-and-competition.md)).
 
 ## Principale rischio di design
 
@@ -33,4 +62,8 @@ La generazione infinita può produrre contenuti incoerenti, illeggibili, sbilanc
 
 ## Stato
 
-Questo brief registra l'intenzione iniziale. I dettagli mancanti devono essere risolti nei documenti specifici e nel registro delle decisioni.
+Questo brief registra l'intenzione iniziale e resta `draft` come **registro storico**: non è
+la fonte canonica del comportamento del gioco. Il canone vive nei documenti specifici
+(`00`–`09` e `systems/`) e nel [registro delle decisioni](governance/decision-log.md); in
+caso di divergenza tra questo brief e un documento specifico, prevale il documento
+specifico.

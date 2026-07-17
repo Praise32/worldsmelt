@@ -18,14 +18,17 @@ Questa cartella definisce l'esperienza e il comportamento previsto del gioco.
 
 ## Sistemi
 
+- [Floor Zero](systems/floor-zero.md)
 - [Player](systems/player.md)
+- [Characters](systems/characters.md)
 - [Combat and Projectiles](systems/combat-and-projectiles.md)
 - [Health and Resources](systems/health-and-resources.md)
 - [Items, Pools and Rarity](systems/items-pools-and-rarity.md)
 - [Synergies](systems/synergies.md)
+- [Item Fusion](systems/item-fusion.md)
 - [Active Items](systems/active-items.md)
 - [Passive Items](systems/passive-items.md)
-- [Trinkets](systems/trinkets.md)
+- [Innesti](systems/grafts.md)
 - [Enemies](systems/enemies.md)
 - [Bosses](systems/bosses.md)
 - [Rooms and Floors](systems/rooms-and-floor-generation.md)

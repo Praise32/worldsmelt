@@ -10,4 +10,5 @@ Una modifica è completa quando:
 - il documento di design è aggiornato;
 - le decisioni nuove sono registrate;
 - non sono stati introdotti riferimenti copiati da altre proprietà;
+- il vocabolario canonico di `governance/glossary.md` è rispettato (nomi degli stati, "Innesto" non "trinket", "incompatibilità" non "esclusioni", nessun termine vietato);
 - la modalità classificata registra versione e manifest, quando coinvolta.

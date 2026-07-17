@@ -10,5 +10,5 @@ Una feature è pronta per essere pianificata tecnicamente quando:
 - distingue regole approvate e domande aperte;
 - contiene almeno tre scenari verificabili;
 - descrive fallback o comportamento in errore;
-- rispetta tassonomia e originalità;
+- rispetta tassonomia e originalità, incluso il vocabolario canonico di `governance/glossary.md` (nessun termine vietato come "trinket" o "pity");
 - indica come interagisce con contenuti generati.

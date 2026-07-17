@@ -5,6 +5,12 @@ status: draft
 
 # Contratto contenuto generato: tipo
 
+## Stati di validazione
+
+Stati ufficiali, in ordine di pipeline: `proposto`, `strutturalmente-valido`, `simulato`,
+`approvato-per-run`, `respinto`, `fallback-usato` (fonte:
+systems/generated-content-validation.md).
+
 ## Campi obbligatori
 
 ## Tassonomie e tag ammessi
@@ -15,7 +21,7 @@ status: draft
 
 ## Dipendenze
 
-## Esclusioni
+## Incompatibilità
 
 ## Regole di originalità
 

@@ -18,12 +18,16 @@ summary: "Esperienza emotiva, ritmo e chiarezza."
 
 ## Ritmo
 
-1. Orientamento e primo combattimento leggibile.
-2. Prima scelta significativa.
-3. Aumento della complessità.
-4. Picco di potere o rischio.
-5. Boss e ricompensa.
-6. Transizione al piano successivo.
+1. Piano 0: orientamento, scelta del tema tra le proposte dell'IA, scelta del personaggio,
+   attesa percepita ridotta da un hub già giocabile (vedi [Run Structure](04-run-structure.md)).
+2. Orientamento e primo combattimento leggibile nel piano 1.
+3. Prima scelta significativa, inclusa un'eventuale prima fusione esplicita in stanza di
+   fusione.
+4. Aumento della complessità, con il tema che evolve o degenera piano dopo piano.
+5. Picco di potere o rischio.
+6. Boss e ricompensa.
+7. Transizione al piano successivo, fino al boss del piano 5 e all'eventuale scelta di
+   proseguire in piani extra sempre più degenerati.
 
 ## Principio di chiarezza
 
@@ -33,7 +37,8 @@ Il giocatore non deve conoscere in anticipo ogni oggetto, ma deve poter dedurre:
 - quale rischio introduce;
 - perché è morto;
 - quale scelta ha modificato la build;
-- quali componenti della sinergia sono attive.
+- quali componenti della sinergia sono attive;
+- quali due oggetti hanno generato un oggetto di fusione, quando presente.
 
 ## Evitare
 

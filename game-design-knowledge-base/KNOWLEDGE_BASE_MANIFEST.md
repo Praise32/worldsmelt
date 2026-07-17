@@ -8,4 +8,11 @@
 
 ## Contents
 
-This package contains 63 Markdown documents, including project instructions, game-design foundations, system specifications, UI flows, governance documents and reusable templates.
+This package contains 66 Markdown documents, including project instructions, game-design
+foundations, system specifications, UI flows, governance documents and reusable templates.
+
+The system specifications now include four documents added on 2026-07-17 to reflect the
+approved design decisions from that date: `systems/floor-zero.md` (Piano 0, the playable
+hub/loading space), `systems/item-fusion.md` (explicit fusion, the signature mechanic),
+`systems/characters.md` (base character plus one AI-generated alternate per run), and
+`systems/grafts.md` (Innesti, the small situational item category).

@@ -1,7 +1,7 @@
 ---
 id: gd-boss-<slug>
 status: draft
-origin: curated|generated|composed
+origin: curato | composto | variato | nuovo
 ---
 
 # Nome boss
@@ -23,6 +23,9 @@ origin: curated|generated|composed
 ## Ricompensa
 
 ## Budget di difficoltà
+
+Le bande numeriche attuali sono default di implementazione in stato `draft` (fonte:
+systems/bosses.md); non duplicarle qui.
 
 ## Fallback
 
