@@ -2,6 +2,7 @@
 
 #include "gen_corpus.h"
 #include "gen_lua.h"
+#include "gen_novelty.h"
 
 #include "cJSON.h"
 #include "llama.h"
@@ -620,5 +621,15 @@ int main(int argc, char **argv)
                                  args.fallback != 0);
         GenFallbackRun(&run, args.seed);
     }
-    return WriteOutputs(&run, &args, provModelJson, provModelLua);
+    int rc = WriteOutputs(&run, &args, provModelJson, provModelLua);
+    /* Ledger di novita' fra run (gen_novelty.c): SOLO qui, MAI nel ramo
+     * --resume/--from-json sopra (che ritorna prima di arrivare fin qui) e
+     * MAI quando 'haveRun' e' rimasto 0 (run->source e' "fallback", lo
+     * stesso vocabolario procedurale di sempre -- registrarlo avvelenerebbe
+     * la lista "da evitare" con parole che il modello non ha mai scelto).
+     * Anche il rc di WriteOutputs conta: una scrittura fallita a meta' (disco
+     * pieno, permessi) non e' la run che il giocatore vedra' davvero, quindi
+     * non deve entrare nella memoria delle run passate. */
+    if (rc == 0 && haveRun) GenNoveltyAppend(&run);
+    return rc;
 }

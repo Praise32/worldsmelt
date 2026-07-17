@@ -1,6 +1,7 @@
 #include "melting_gen.h"
 
 #include "gen_inspire.h"
+#include "gen_novelty.h"
 
 #include "llama.h"
 
@@ -49,8 +50,28 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
        poter ripartire da un ancoraggio creativo diverso, non dallo stesso. */
     char inspire[1024];
     GenInspireBuild(seed, inspire, sizeof(inspire));
-    char *userFinal = GenReplaceAll(userSeeded, "{ISPIRAZIONI}", inspire);
+    char *userInspired = GenReplaceAll(userSeeded, "{ISPIRAZIONI}", inspire);
     free(userSeeded);
+    if (!userInspired) { free(sys); return NULL; }
+
+    /* Ledger di novita' fra RUN (gen_novelty.c, piano strategico "check contro
+       le ultime ~20 run"): a differenza delle ispirazioni sopra, deterministiche
+       sul seed, questo blocco dipende dalla STORIA su disco -- stesso elenco per
+       ogni attemptSeed della stessa run (i due tentativi leggono lo stesso
+       ledger, ed e' l'effetto giusto: il vocabolario da evitare non cambia a
+       meta' run). Nessun blocco monco: elenco vuoto (ledger assente o nessuna
+       parola ripetuta in almeno 2 delle ultime 20 run) = placeholder sostituito
+       con la stringa vuota, mai con la frase introduttiva senza seguito. */
+    char avoidWords[GEN_NOVELTY_AVOID_BUF_SIZE];
+    GenNoveltyAvoidList(avoidWords, sizeof(avoidWords));
+    char evita[GEN_NOVELTY_AVOID_BUF_SIZE + 128];
+    if (avoidWords[0])
+        snprintf(evita, sizeof(evita),
+                 "Parole gia' viste nelle tue run recenti, NON usarle (ne' i loro derivati ovvi): %s",
+                 avoidWords);
+    else evita[0] = '\0';
+    char *userFinal = GenReplaceAll(userInspired, "{EVITA}", evita);
+    free(userInspired);
     if (!userFinal) { free(sys); return NULL; }
 
     /* Esempi rotanti nel SYSTEM prompt (stesso seed delle ispirazioni sopra,

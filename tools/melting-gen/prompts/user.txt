@@ -2,6 +2,8 @@ Seed della run: {SEED}. Usa il seed come spinta creativa: run diverse devono dar
 
 {ISPIRAZIONI}
 
+{EVITA}
+
 Genera 5 piani con temi molto diversi tra loro e una progressione di difficolta'. Il boss del piano 5 deve essere il piu' minaccioso.
 
 Regole sui nomi, importanti:

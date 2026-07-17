@@ -17,7 +17,27 @@ fi
 
 GEN=bin/melting-gen
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+
+# Ledger di novita' fra run (gen_novelty.c, piano strategico "check contro le
+# ultime ~20 run"): logs/novelty-ledger.txt e' un file PERSISTENTE e condiviso
+# con le run vere del giocatore, non uno scratch di processo come gen-corpus/
+# (che ha il pid nel nome). I test che lo toccano (piu' sotto) salvano
+# l'eventuale ledger preesistente qui e lo ripristinano ALLA FINE DELLA
+# SUITE, qualunque sia l'esito (trap EXIT, non un cleanup a fondo pagina):
+# altrimenti un test fallito a meta' lascerebbe il ledger sintetico al posto
+# di quello vero.
+NOVELTY_LEDGER="logs/novelty-ledger.txt"
+NOVELTY_LEDGER_BACKUP="$TMP/.novelty-ledger-backup.txt"
+[ -f "$NOVELTY_LEDGER" ] && cp "$NOVELTY_LEDGER" "$NOVELTY_LEDGER_BACKUP"
+restore_novelty_ledger() {
+  if [ -f "$NOVELTY_LEDGER_BACKUP" ]; then
+    mkdir -p "$(dirname "$NOVELTY_LEDGER")"
+    cp "$NOVELTY_LEDGER_BACKUP" "$NOVELTY_LEDGER"
+  else
+    rm -f "$NOVELTY_LEDGER"
+  fi
+}
+trap 'restore_novelty_ledger; rm -rf "$TMP"' EXIT
 
 echo "-- corpus delle generazioni: una riga JSONL valida per il ramo fallback --"
 # gen_corpus.c scrive in logs/gen-corpus/ una riga per ogni evento del modello
@@ -100,6 +120,107 @@ nColpi=$(grep -c '"pierce":[0-9]' "$TMP/prompt-a.txt")
 # ChatML intero (system + user), quindi quel cmp confronta i byte del
 # system prompt tanto quanto quelli dello user prompt -- non serve un
 # secondo cmp dedicato.
+
+# ============================================================
+# Ledger di novita' fra RUN (gen_novelty.c, piano strategico "check contro le
+# ultime ~20 run"): a differenza dei semi d'ispirazione sopra (che risolvono
+# la varieta' DENTRO una run) questo blocco dipende dalla STORIA su disco --
+# --print-json-prompt e' di nuovo il modo giusto per verificarlo senza un
+# modello vero. Le parole del ledger sintetico qui sotto sono INVENTATE
+# apposta (mai una delle liste d'ispirazione di gen_inspire.c, es.
+# "cattedrale"/"palude"/"vulcano" sono gia' possibili LUOGHI: userle come
+# prova avrebbe reso i controlli di presenza/assenza dei falsi verdi/rossi a
+# seconda del seed).
+# ============================================================
+
+echo "-- ledger di novita': con un ledger sintetico, {EVITA} mostra solo le parole viste in >=2 run --"
+mkdir -p "$(dirname "$NOVELTY_LEDGER")"
+cat > "$NOVELTY_LEDGER" <<'EOF'
+seed=1001 words=convergenza1 convergenza2 unicauno
+seed=1002 words=convergenza1 unicadue
+seed=1003 words=convergenza1 convergenza2
+EOF
+"$GEN" --print-json-prompt --seed 5555 --out "$TMP/prompt-evita" > "$TMP/prompt-evita.txt"
+evitaLine=$(grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-evita.txt") || {
+  echo "FALLITO: il blocco EVITA non compare col ledger sintetico presente"; exit 1; }
+# convergenza1 e' in 3/3 righe, convergenza2 in 2/3: entrambe convergono
+# (viste in ALMENO 2 run diverse), quindi devono comparire, in quest'ordine
+# (frequenza decrescente: 3 prima di 2).
+echo "$evitaLine" | grep -q "convergenza1.*convergenza2" || {
+  echo "FALLITO: 'convergenza1'/'convergenza2' assenti dal blocco EVITA o fuori ordine (atteso per frequenza decrescente): $evitaLine"; exit 1; }
+# unicauno e unicadue compaiono ciascuna in UNA sola riga: una parola usata
+# una volta sola non e' convergenza, non deve finire nella lista da evitare.
+for w in unicauno unicadue; do
+  if echo "$evitaLine" | grep -q "$w"; then
+    echo "FALLITO: '$w' (vista in una sola run) compare nel blocco EVITA: $evitaLine"; exit 1
+  fi
+done
+if grep -q '{EVITA}' "$TMP/prompt-evita.txt"; then
+  echo "FALLITO: il placeholder {EVITA} e' rimasto nel prompt (sostituzione mancata)"; exit 1
+fi
+
+echo "-- ledger di novita': senza ledger, nessun blocco EVITA e nessun placeholder residuo --"
+rm -f "$NOVELTY_LEDGER"
+"$GEN" --print-json-prompt --seed 5555 --out "$TMP/prompt-noevita" > "$TMP/prompt-noevita.txt"
+if grep -q "Parole gia' viste" "$TMP/prompt-noevita.txt"; then
+  echo "FALLITO: il blocco EVITA compare senza alcun ledger su disco"; exit 1
+fi
+if grep -q '{EVITA}' "$TMP/prompt-noevita.txt"; then
+  echo "FALLITO: il placeholder {EVITA} e' rimasto nel prompt (sostituzione mancata) senza ledger"; exit 1
+fi
+
+echo "-- ledger di novita': una generazione --fallback NON scrive nel ledger --"
+rm -f "$NOVELTY_LEDGER"
+"$GEN" --fallback --seed 9090 --out "$TMP/novelty-fallback" >/dev/null
+if [ -f "$NOVELTY_LEDGER" ]; then
+  echo "FALLITO: una generazione --fallback ha scritto nel ledger (il vocabolario procedurale avvelenerebbe la lista 'da evitare')"; exit 1
+fi
+
+echo "-- ledger di novita': parole lunghissime (31 char), l'ultima non viene troncata a meta' --"
+# Caso peggiore del dimensionamento del buffer C dell'elenco EVITA: 24 parole
+# di 31 caratteri (il tetto reale degli slot a 32 byte del tally) separate da
+# ", " sono ~790 byte, oltre i 768 di un buffer dimensionato "a spanne" a
+# MAX*32. Con quel buffer l'ULTIMA parola finiva troncata a meta' e spedita
+# spazzatura nel prompt LLM; con GEN_NOVELTY_AVOID_BUF_SIZE (e l'omissione a
+# parola intera in GenNoveltyAvoidList) deve arrivare INTERA. Due run che
+# condividono le stesse 24 parole: tutte convergono (viste in >=2 run).
+rm -f "$NOVELTY_LEDGER"
+mkdir -p "$(dirname "$NOVELTY_LEDGER")"
+xpad=$(printf '%028d' 0 | tr '0' 'x')   # 28 'x' -> "wNN"(3) + 28 = 31 caratteri
+longWords=""
+for i in $(seq 0 23); do
+  longWords="$longWords w$(printf '%02d' "$i")$xpad"
+done
+printf 'seed=7001 words=%s\n' "$longWords" >> "$NOVELTY_LEDGER"
+printf 'seed=7002 words=%s\n' "$longWords" >> "$NOVELTY_LEDGER"
+"$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-long" > "$TMP/prompt-long.txt"
+evitaLong=$(grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-long.txt") || {
+  echo "FALLITO: il blocco EVITA non compare col ledger di parole lunghe"; exit 1; }
+lastLong="w23$xpad"   # l'ultima parola, per intero (31 caratteri)
+echo "$evitaLong" | grep -q "$lastLong" || {
+  echo "FALLITO: l'ultima parola lunga (31 char) e' stata troncata a meta' o omessa dal blocco EVITA (bug di dimensionamento del buffer): $evitaLong"; exit 1; }
+
+echo "-- ledger di novita': una parola OLTRE il cap (35 char) converge sulla forma troncata --"
+# Bug reale trovato dalla verifica adversariale: TallyLine confrontava il
+# token GREZZO con la copia gia' troncata a 31 caratteri salvata nel tally,
+# quindi una parola oltre il cap non faceva mai match con se stessa e non
+# "convergeva" MAI (ledger editato a mano o scritto da una versione con un
+# cap diverso). Ora il confronto avviene sulla forma troncata: la stessa
+# parola di 35 caratteri ripetuta in 3 run deve comparire nel blocco EVITA
+# (nella sua forma a 31 caratteri).
+rm -f "$NOVELTY_LEDGER"
+overWord="$(printf '%035d' 0 | tr '0' 'z')"   # 35 'z', oltre il cap di 31
+printf 'seed=7101 words=%s\nseed=7102 words=%s\nseed=7103 words=%s\n' \
+  "$overWord" "$overWord" "$overWord" >> "$NOVELTY_LEDGER"
+"$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-over" > "$TMP/prompt-over.txt"
+cutWord="${overWord:0:31}"
+grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-over.txt" | grep -q "$cutWord" || {
+  echo "FALLITO: una parola oltre il cap (35 char, 3 run su 3) non converge nel blocco EVITA"; exit 1; }
+
+# Il ledger sintetico ha fatto il suo lavoro: da qui in giu' non serve piu' (e
+# restore_novelty_ledger, gia' agganciato al trap EXIT in cima allo script,
+# ripristina comunque il ledger vero del giocatore alla fine della suite).
+rm -f "$NOVELTY_LEDGER"
 
 # Da qui in giu' la suite lancia melting-gen decine di volte: il corpus va
 # spento o riempirebbe logs/gen-corpus di run finte (vedi gen_corpus.c).
