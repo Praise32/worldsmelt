@@ -69,10 +69,30 @@ bug report riproducibili, daily challenge.
 3. **Guarda a occhio**: la resa POINT del canvas (gusto tuo), i temi delle run nuove
    (`make run-gen`), e gli atlanti della baseline sprite.
 
+### Aggiunte della mattina (mi hai detto di continuare mentre eri fuori)
+- **Campagna LoRA pronta al 100%** (`84ba041`): 2.768 immagini CC0 scaricate in
+  `dataset-raw/` (5 pack Kenney + superpowers-asset-packs, che include gia'
+  Ninja Adventure; Urizen va preso a mano da itch.io), 3.158 voci nel ledger,
+  e **`docs/dataset/TRAINING-RUNBOOK.md`**: il passo-passo RunPod+kohya per chi
+  non ha mai noleggiato una GPU. Ti serve solo l'account.
+- **Preparazione QLoRA** (`4181e97`): `scripts/corpus_to_dataset.py` distilla il
+  corpus in dataset (oggi: 104 script Lua validati, 6 coppie manifest, 2 coppie
+  errore→correzione — crescera' da solo giocando). E `gen_metrics.py` ora misura
+  anche le **parole ricorrenti fra run**: la baseline nascondeva 8/19 parole
+  condivise («caverna» e «deserto» in 3 run su 3) dietro nomi "unici"; l'ultima
+  misura e' a 2/31.
+- **Preset `--low-spec`** (`fcab206`): il gioco avviato con questo flag usa il
+  1.5B per il testo e sprite generati a 256px (`--gen-size` in melting-sprites).
+  Misurato sulla tua scheda: sprite 49s invece di 80s, testo 127s invece di
+  ~155s. E' il mattone del futuro sistema a tier per Deck/portatili. La verifica
+  adversariale ha beccato (e fatto correggere a Opus) la ripresa B2 che avrebbe
+  caricato il 7B a meta' run anche in low-spec.
+
 ### Sistema
-- Sospensione automatica: disattivata a inizio nottata, **ripristinata** a `suspend`
-  a fine lavori (verifica: `gsettings get org.gnome.settings-daemon.plugins.power
-  sleep-inactive-ac-type`).
+- Sospensione automatica: disattivata a inizio nottata, ripristinata, poi
+  **ri-disattivata e ri-ripristinata** su tua richiesta mentre eri fuori.
+  Stato finale: `suspend` (verifica: `gsettings get
+  org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type`).
 - Scaricato `models/qwen2.5-7b-instruct-q4_k_m.gguf` (4,7 GB) per l'esperimento D.
 - Nessun tocco a GRUB/partizioni/root. Le suite (`make test`, `test-gen`, `test-script`,
   `test-sprites`) sono verdi su ogni commit della notte.
