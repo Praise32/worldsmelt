@@ -57,6 +57,16 @@ if cmp -s "$TMP/prompt-c.txt" "$TMP/prompt-d.txt"; then
   echo "FALLITO: semi diversi (1111 vs 2222) hanno prodotto lo stesso prompt"; exit 1
 fi
 
+echo "-- esperimento due-modelli: --model-text con file inesistente non tocca la costruzione del prompt --"
+# --model-text riguarda SOLO il caricamento del modello (main.c, il blocco
+# 'useTextModel'), mai raggiunto da --print-json-prompt (che ritorna prima di
+# qualunque caricamento, vedi il commento in main.c): un percorso inesistente
+# deve comportarsi esattamente come nessun flag, exit 0 incluso.
+"$GEN" --print-json-prompt --model-text /percorso/inesistente --seed 99 --out "$TMP/prompt-text" > "$TMP/prompt-text.txt"
+"$GEN" --print-json-prompt --seed 99 --out "$TMP/prompt-text-ref" > "$TMP/prompt-text-ref.txt"
+cmp "$TMP/prompt-text.txt" "$TMP/prompt-text-ref.txt" || {
+  echo "FALLITO: --model-text (con file inesistente) ha cambiato il prompt stampato"; exit 1; }
+
 echo "-- semi d'ispirazione: il placeholder {ISPIRAZIONI} non compare mai nel prompt stampato --"
 if grep -q '{ISPIRAZIONI}' "$TMP/prompt-a.txt"; then
   echo "FALLITO: il placeholder {ISPIRAZIONI} e' rimasto nel prompt (sostituzione mancata)"; exit 1
@@ -97,6 +107,15 @@ export MELTING_GEN_NO_CORPUS=1
 
 echo "-- il binario del gioco non deve linkare llama.cpp o cJSON --"
 ! nm bin/melting_run_gpu | grep -qi -e llama -e cJSON
+
+echo "-- esperimento due-modelli: --model-text non rompe --fallback --"
+# --fallback salta a monte l'intero blocco di caricamento modello (main.c:
+# 'if (!args.fallback)'), quindi --model-text qui non deve avere ALCUN
+# effetto -- ne' un crash, ne' il tentativo di aprire un modello che non
+# esiste: exit 0 e manifest scritto, come senza il flag.
+"$GEN" --fallback --model-text qualunque --seed 12345 --out "$TMP/model-text-fallback"
+grep -q "^floor5.item3.script=" "$TMP/model-text-fallback/current_run.txt" || {
+  echo "FALLITO: --fallback --model-text non ha scritto un manifest completo"; exit 1; }
 
 echo "-- determinismo fallback: stesso seed = stessi byte --"
 "$GEN" --fallback --seed 12345 --out "$TMP/a"

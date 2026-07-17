@@ -19,6 +19,15 @@ typedef struct GenArgs {
     const char *fromJson;
     const char *model;
     const char *modelFallback;
+    /* Esperimento due-modelli (roadmap 17/07/2026): un modello Instruct
+     * generalista (qwen2.5-7b-instruct, migliore in prosa/nomi italiani del
+     * 7B Coder) usato SOLO per i tentativi JSON, in una sessione separata da
+     * quella del Coder -- i due non stanno insieme nei 6 GB di VRAM (vedi
+     * OpenModelSession sotto e il blocco di generazione in main()).
+     * NULL = comportamento di sempre (una sessione sola, il Coder, per
+     * JSON+Lua). Riguarda solo il percorso di generazione normale: --resume
+     * usa sempre e solo il Coder. */
+    const char *modelText;
     int ngl;
     float temp;
     int nPredict;
@@ -51,6 +60,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
      * dell'intera matrice misurata (batte anche il fallback 1.5B). */
     args->model = "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf";
     args->modelFallback = "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
+    args->modelText = NULL;
     args->ngl = 99;
     args->temp = 0.8f;
     /* 2560 (step C review): il JSON di una run e' cresciuto ~25% con i tipi di
@@ -80,6 +90,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) args->outDir = argv[++i];
         else if (strcmp(argv[i], "--from-json") == 0 && i + 1 < argc) args->fromJson = argv[++i];
         else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) args->model = argv[++i];
+        else if (strcmp(argv[i], "--model-text") == 0 && i + 1 < argc) args->modelText = argv[++i];
         else if (strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) args->ngl = atoi(argv[++i]);
         else if (strcmp(argv[i], "--temp") == 0 && i + 1 < argc) args->temp = (float)atof(argv[++i]);
         else if (strcmp(argv[i], "--n-predict") == 0 && i + 1 < argc) args->nPredict = atoi(argv[++i]);
@@ -193,6 +204,82 @@ static GenLlmSession *OpenModelSession(const GenArgs *args, const char **modelPa
     return GenLlmSessionOpen(modelPath, args->ngl, args->outDir);
 }
 
+/* Tentativi di generazione JSON (fino a 2, grammatica GBNF): estratta da
+ * main perche' ora la chiamano DUE percorsi -- la sessione condivisa di
+ * sempre e, nell'esperimento due-modelli (--model-text, roadmap 17/07/2026),
+ * la sessione SEPARATA aperta solo per il JSON. 'sess' e' gia' aperta,
+ * 'modelPath' serve solo per il log e per run->source. Non chiude 'sess':
+ * quello resta compito del chiamante (le due sessioni hanno vite diverse a
+ * seconda del percorso). Ritorna 1 se un tentativo e' andato a buon fine
+ * (run popolato, run->source impostato), 0 altrimenti (*run non toccato). */
+static int RunJsonAttempts(GenLlmSession *sess, const char *modelPath, const GenArgs *args,
+                            GenRun *run, char *json, size_t jsonCap)
+{
+    int haveRun = 0;
+    char *grammar = GenReadFile(args->grammarPath);
+    for (int attempt = 0; attempt < 2 && !haveRun && grammar; attempt++)
+    {
+        unsigned int attemptSeed = args->seed + (unsigned int)attempt*7919u;
+        char *prompt = GenLlmBuildJsonPrompt(args->promptsDir, attemptSeed);
+        if (!prompt)
+        {
+            GenLogLine("tentativo %d: prompt JSON non costruibile (file mancanti in %s?)", attempt + 1, args->promptsDir);
+            GenCorpusRecordJson(attempt + 1, false, "prompt non costruibile", 0.0, 0, NULL);
+            continue;
+        }
+        double t0 = GenNowSeconds();
+        int tokens = 0;
+        int rc = GenLlmComplete(sess, prompt, grammar, args->nPredict, args->temp, attemptSeed,
+                                 args->outDir, "genero", 62, 30, json, jsonCap, &tokens);
+        double genSecs = GenNowSeconds() - t0;
+        free(prompt);
+        if (rc != 0)
+        {
+            GenLogLine("tentativo %d: generazione fallita", attempt + 1);
+            GenCorpusRecordJson(attempt + 1, false, "generazione fallita", genSecs, tokens, NULL);
+            continue;
+        }
+        cJSON *root = cJSON_Parse(json);
+        if (!root)
+        {
+            GenLogLine("tentativo %d: JSON troncato o non parsabile (%d token)", attempt + 1, tokens);
+            GenCorpusRecordJson(attempt + 1, false, "json non parsabile", genSecs, tokens, json);
+            continue;
+        }
+        GenCorpusRecordJson(attempt + 1, true, NULL, genSecs, tokens, json);
+        GenProgressWrite(args->outDir, "valido", 92, "valido e normalizzo");
+        GenNormalizeRun(root, args->seed, run);
+        cJSON_Delete(root);
+        const char *base = strrchr(modelPath, '/');
+        snprintf(run->source, sizeof(run->source), "local:%s", base ? base + 1 : modelPath);
+        GenLogLine("ok: model=%s ngl=%d gen=%.1fs token=%d (%.1f tok/s)",
+                   modelPath, args->ngl, genSecs, tokens, genSecs > 0 ? tokens/genSecs : 0.0);
+        haveRun = 1;
+    }
+    free(grammar);
+    return haveRun;
+}
+
+/* Fase Lua (fase 3a-L3): estratta per lo stesso motivo di RunJsonAttempts qui
+ * sopra -- nell'esperimento due-modelli gira SEMPRE sulla sessione del Coder
+ * (mai sul modello testo, che a quel punto e' gia' chiuso), su una sessione
+ * diversa da quella usata per il JSON. */
+static void RunLuaPhase(GenLlmSession *sess, GenRun *run, const GenArgs *args, double processStart)
+{
+    double luaDeadline = processStart + GEN_LUA_PHASE_BUDGET_SEC;
+    GenLuaStats luaStats;
+    /* Step B2: 'args->luaFirst' piani soltanto (di default tutti e cinque; il
+     * gioco passa 1 per far partire la run prima e lasciare i piani 2-5 al
+     * processo di ripresa in sottofondo). Nessuna pubblicazione per-piano
+     * qui: questo processo blocca ancora la partenza della run, il manifest
+     * lo scrive una volta sola alla fine (WriteOutputs). */
+    GenLuaGenerateForRun(sess, run, args->promptsDir, args->outDir, luaDeadline,
+                          args->luaFirst, false, &luaStats);
+    GenLogLine("lua: %d primo tentativo, %d dopo retry, %d senza comportamento, %d ripiegati su mini-VM, %d saltati per budget (piani generati: %d/%d)",
+               luaStats.firstTry, luaStats.afterRetry, luaStats.optedOut, luaStats.fellBack, luaStats.skippedBudget,
+               args->luaFirst, GEN_FLOORS);
+}
+
 int main(int argc, char **argv)
 {
     double processStart = GenNowSeconds();
@@ -299,12 +386,7 @@ int main(int argc, char **argv)
     int haveRun = 0;
     if (!args.fallback)
     {
-        const char *modelPath = NULL;
-
-        /* Sessione condivisa (fase 3a-L3): il modello si carica UNA VOLTA
-         * sola per l'intero processo e serve sia i tentativi JSON sotto sia,
-         * a valle, i 15 script Lua (GenLuaGenerateForRun). Limite tentativi
-         * JSON legato al timeout del genitore: src/app/app.c
+        /* Limite tentativi JSON legato al timeout del genitore: src/app/app.c
          * (AppStartGeneration) manda SIGTERM a questo processo dopo 420s
          * (alzato da 180s proprio per fare posto alla fase Lua, vedi il
          * commento li'). Un tentativo JSON costa fino a ~76s (nPredict=2048
@@ -313,69 +395,71 @@ int main(int argc, char **argv)
          * (300s assoluti dall'avvio del processo, vedi melting_gen.h) sia
          * per la scrittura finale se anche il secondo tentativo fallisce. */
         static char json[65536];
+
+        /* Esperimento due-modelli (roadmap 17/07/2026): stessa logica di
+         * esistenza degli altri modelli (GenFileExists). Un --model-text
+         * passato ma mancante e' un avviso, non un errore: si prosegue col
+         * comportamento di sempre, una sessione sola per JSON+Lua. */
+        int useTextModel = 0;
+        if (args.modelText)
         {
+            if (GenFileExists(args.modelText)) useTextModel = 1;
+            else GenLogLine("--model-text indicato ma assente: %s, uso una sessione sola come sempre", args.modelText);
+        }
+
+        if (useTextModel)
+        {
+            /* Sessione SEPARATA solo per il JSON (modello generalista,
+             * migliore in prosa/nomi italiani del 7B Coder): i due modelli
+             * non stanno insieme nei 6 GB di VRAM di riferimento, quindi
+             * questa sessione si chiude SEMPRE prima di aprire quella del
+             * Coder sotto -- anche quando il JSON e' fallito, cosi' il
+             * ripiego procedurale non trova due sessioni aperte insieme. */
+            GenLlmSession *jsonSess = GenLlmSessionOpen(args.modelText, args.ngl, args.outDir);
+            if (jsonSess)
+            {
+                GenCorpusRecordSession(args.modelText, args.ngl);
+                haveRun = RunJsonAttempts(jsonSess, args.modelText, &args, &run, json, sizeof(json));
+                GenLlmSessionClose(jsonSess);
+            }
+            else GenLogLine("llm: sessione testo non apribile (%s), nessun JSON dal modello", args.modelText);
+
+            if (haveRun)
+            {
+                /* Fase Lua: SEMPRE il Coder di sempre, mai il modello testo
+                 * (gia' chiuso qui sopra). NOTA (dalla review adversariale):
+                 * a differenza del percorso a sessione unica — dove un
+                 * OpenModelSession fallito fa cadere l'INTERA run sul
+                 * fallback procedurale — qui il JSON del modello testo e'
+                 * gia' accettato, quindi la run viene scritta con TUTTI gli
+                 * oggetti senza script Lua (item->lua vuoto = mini-VM). E'
+                 * uno stato lecito ma nuovo: va dichiarato a voce alta nei
+                 * log, non lasciato accadere in silenzio. */
+                const char *luaModelPath = NULL;
+                GenLlmSession *luaSess = OpenModelSession(&args, &luaModelPath);
+                if (luaSess)
+                {
+                    GenCorpusRecordSession(luaModelPath, args.ngl);
+                    RunLuaPhase(luaSess, &run, &args, processStart);
+                    GenLlmSessionClose(luaSess);
+                }
+                else GenLogLine("llm: JSON dal modello testo accettato ma Coder non apribile: "
+                                "run scritta SENZA script Lua (tutti gli oggetti su mini-VM)");
+            }
+        }
+        else
+        {
+            /* Percorso di sempre: sessione condivisa (fase 3a-L3), il
+             * modello si carica UNA VOLTA sola per l'intero processo e serve
+             * sia i tentativi JSON sotto sia, a valle, i 20 script Lua
+             * (GenLuaGenerateForRun). */
+            const char *modelPath = NULL;
             GenLlmSession *sess = OpenModelSession(&args, &modelPath);
             if (sess)
             {
                 GenCorpusRecordSession(modelPath, args.ngl);
-                char *grammar = GenReadFile(args.grammarPath);
-                for (int attempt = 0; attempt < 2 && !haveRun && grammar; attempt++)
-                {
-                    unsigned int attemptSeed = args.seed + (unsigned int)attempt*7919u;
-                    char *prompt = GenLlmBuildJsonPrompt(args.promptsDir, attemptSeed);
-                    if (!prompt)
-                    {
-                        GenLogLine("tentativo %d: prompt JSON non costruibile (file mancanti in %s?)", attempt + 1, args.promptsDir);
-                        GenCorpusRecordJson(attempt + 1, false, "prompt non costruibile", 0.0, 0, NULL);
-                        continue;
-                    }
-                    double t0 = GenNowSeconds();
-                    int tokens = 0;
-                    int rc = GenLlmComplete(sess, prompt, grammar, args.nPredict, args.temp, attemptSeed,
-                                             args.outDir, "genero", 62, 30, json, sizeof(json), &tokens);
-                    double genSecs = GenNowSeconds() - t0;
-                    free(prompt);
-                    if (rc != 0)
-                    {
-                        GenLogLine("tentativo %d: generazione fallita", attempt + 1);
-                        GenCorpusRecordJson(attempt + 1, false, "generazione fallita", genSecs, tokens, NULL);
-                        continue;
-                    }
-                    cJSON *root = cJSON_Parse(json);
-                    if (!root)
-                    {
-                        GenLogLine("tentativo %d: JSON troncato o non parsabile (%d token)", attempt + 1, tokens);
-                        GenCorpusRecordJson(attempt + 1, false, "json non parsabile", genSecs, tokens, json);
-                        continue;
-                    }
-                    GenCorpusRecordJson(attempt + 1, true, NULL, genSecs, tokens, json);
-                    GenProgressWrite(args.outDir, "valido", 92, "valido e normalizzo");
-                    GenNormalizeRun(root, args.seed, &run);
-                    cJSON_Delete(root);
-                    const char *base = strrchr(modelPath, '/');
-                    snprintf(run.source, sizeof(run.source), "local:%s", base ? base + 1 : modelPath);
-                    GenLogLine("ok: model=%s ngl=%d gen=%.1fs token=%d (%.1f tok/s)",
-                               modelPath, args.ngl, genSecs, tokens, genSecs > 0 ? tokens/genSecs : 0.0);
-                    haveRun = 1;
-                }
-                free(grammar);
-
-                if (haveRun)
-                {
-                    double luaDeadline = processStart + GEN_LUA_PHASE_BUDGET_SEC;
-                    GenLuaStats luaStats;
-                    /* Step B2: 'args.luaFirst' piani soltanto (di default tutti e
-                     * cinque; il gioco passa 1 per far partire la run prima e
-                     * lasciare i piani 2-5 al processo di ripresa in sottofondo).
-                     * Nessuna pubblicazione per-piano qui: questo processo blocca
-                     * ancora la partenza della run, il manifest lo scrive una volta
-                     * sola alla fine (WriteOutputs). */
-                    GenLuaGenerateForRun(sess, &run, args.promptsDir, args.outDir, luaDeadline,
-                                          args.luaFirst, false, &luaStats);
-                    GenLogLine("lua: %d primo tentativo, %d dopo retry, %d senza comportamento, %d ripiegati su mini-VM, %d saltati per budget (piani generati: %d/%d)",
-                               luaStats.firstTry, luaStats.afterRetry, luaStats.optedOut, luaStats.fellBack, luaStats.skippedBudget,
-                               args.luaFirst, GEN_FLOORS);
-                }
+                haveRun = RunJsonAttempts(sess, modelPath, &args, &run, json, sizeof(json));
+                if (haveRun) RunLuaPhase(sess, &run, &args, processStart);
                 GenLlmSessionClose(sess);
             }
         }
