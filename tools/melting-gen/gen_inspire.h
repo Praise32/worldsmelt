@@ -17,4 +17,25 @@
    gia' formattato per il prompt utente). Ritorna buf. */
 char *GenInspireBuild(unsigned int seed, char *buf, size_t size);
 
+/* Esempi rotanti per il SYSTEM prompt (fase successiva alla misura A/B che ha
+   trovato "Colonnato Sacro" duplicato x2 in due run diverse: l'unico
+   ancoraggio residuo dopo le ispirazioni sopra era proprio l'esempio fisso di
+   system.txt, che il modello copiava nonostante il "NON copiarlo"). Stessa
+   contromossa delle ispirazioni -- campionamento deterministico sul seed --
+   ma su un POOL di esempi scritti a mano invece che su un blocco generato:
+   qui il testo restituito deve essere JSON valido e dentro le bande numeriche
+   che il prompt documenta, quindi resta materiale d'autore, non
+   combinatoria libera.
+   kind seleziona il pool e la forma del blocco:
+   - "room": un esempio, riga JSON compatta (nessun newline).
+   - "enemies": due esempi indentati di due spazi, separati da '\n', SEMPRE
+     uno "da mischia" e uno "da distanza" (pool distinti per costruzione, non
+     per estrazione casuale su un pool unico): garantisce il contrasto di
+     strategia richiesto dal prompt ("i due nemici devono essere DIVERSI"),
+     non solo indici diversi.
+   - "shots": tre esempi indentati di due spazi, separati da '\n', indici
+     DISTINTI dallo stesso pool.
+   Ritorna buf. */
+char *GenInspireExamples(unsigned int seed, const char *kind, char *buf, size_t size);
+
 #endif

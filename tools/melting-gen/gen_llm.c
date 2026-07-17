@@ -53,8 +53,27 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
     free(userSeeded);
     if (!userFinal) { free(sys); return NULL; }
 
-    char *prompt = GenChatMlWrap(sys, userFinal);
+    /* Esempi rotanti nel SYSTEM prompt (stesso seed delle ispirazioni sopra,
+       stream RNG diverso -- vedi gen_inspire.c): l'esempio letterale di
+       "room" ("Colonnato Sacro") era l'unico ancoraggio residuo dopo le
+       ispirazioni, misurato duplicato x2 dalla A/B. NB: questi placeholder
+       stanno nel SYSTEM prompt ('sys'), non nello USER ('userFinal'). */
+    char esRoom[256], esNemici[512], esColpi[768];
+    GenInspireExamples(seed, "room", esRoom, sizeof(esRoom));
+    GenInspireExamples(seed, "enemies", esNemici, sizeof(esNemici));
+    GenInspireExamples(seed, "shots", esColpi, sizeof(esColpi));
+    char *sys1 = GenReplaceAll(sys, "{ESEMPIO_ROOM}", esRoom);
     free(sys);
+    if (!sys1) { free(userFinal); return NULL; }
+    char *sys2 = GenReplaceAll(sys1, "{ESEMPIO_NEMICI}", esNemici);
+    free(sys1);
+    if (!sys2) { free(userFinal); return NULL; }
+    char *sysFinal = GenReplaceAll(sys2, "{ESEMPIO_COLPI}", esColpi);
+    free(sys2);
+    if (!sysFinal) { free(userFinal); return NULL; }
+
+    char *prompt = GenChatMlWrap(sysFinal, userFinal);
+    free(sysFinal);
     free(userFinal);
     return prompt;
 }

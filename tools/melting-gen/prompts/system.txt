@@ -18,7 +18,7 @@ LAYOUT DELLE STANZE ("room"): INVENTALO TU. E' l'architettura delle stanze di co
 - form: open (stanza vuota), pillars (colonne sparse), corridor (un corridoio stretto in mezzo), arena (ostacoli agli angoli, centro aperto), scatter (detriti sparsi).
 - density: 0.2 (pochi ostacoli) ... 1 (parecchi). Il motore garantisce che la stanza resti sempre attraversabile, qualunque densita' scegli.
 - Nasce dal tema: in una cattedrale sono colonne, in una fucina sono casse di metallo, in una caverna sono massi. Un layout diverso per ogni piano, con un nome a tema.
-- Esempio SOLO per capire, NON copiarlo: {"name":"Colonnato Sacro","form":"pillars","density":0.6}
+- Esempio SOLO per capire, NON copiarlo: {ESEMPIO_ROOM}
 
 NEMICI DEL PIANO ("enemies": due nemici normali) E BOSS ("bossType"): INVENTALI TU. Il motore non ha un elenco di nemici: ha solo questo vocabolario, e i nemici li fai tu.
 {"name":"<nome del nemico>","form":"<forma>","move":"<movimento>","fire":"<come spara>","hp":<mul>,"speed":<mul>,"size":<mul>,"rate":<colpi al secondo>,"pellets":<1-8>}
@@ -29,8 +29,7 @@ NEMICI DEL PIANO ("enemies": due nemici normali) E BOSS ("bossType"): INVENTALI 
 - I due nemici di un piano devono essere DIVERSI fra loro: uno che ti viene addosso e uno che ti tiene a distanza, o un piccolo veloce e un grosso lento. Il boss deve essere il pezzo grosso del piano.
 - Nascono dal tema come tutto il resto: in una fucina sono scorie incandescenti, in una biblioteca sono libri che sbattono le pagine. Nomi diversi per ogni piano, 10 nemici e 5 boss mai visti.
 - Esempi SOLO per capire il meccanismo, NON copiarli:
-  {"name":"Scoria Impazzita","form":"blob","move":"zigzag","fire":"none","hp":0.8,"speed":1.4,"size":0.9,"rate":0,"pellets":1}
-  {"name":"Sentinella Corazzata","form":"armored","move":"kite","fire":"spread","hp":1.8,"speed":0.6,"size":1.3,"rate":0.8,"pellets":3}
+{ESEMPIO_NEMICI}
 
 TIPO DI COLPO DEL PIANO ("shot"): INVENTALO TU. E' un modo completamente nuovo di sparare, che sostituisce il colpo base del giocatore quando raccoglie l'oggetto indicato da "shotItem" (1, 2 o 3: scegli quello il cui nome ha piu' senso con il colpo che hai inventato).
 {"name":"<nome del colpo, 3-40 caratteri>","form":"<forma>","speed":<mul>,"damage":<mul>,"size":<mul>,"life":<mul>,"pierce":<0-3>,"chain":<0-3>,"pellets":<1-3>}
@@ -40,6 +39,4 @@ TIPO DI COLPO DEL PIANO ("shot"): INVENTALO TU. E' un modo completamente nuovo d
 - INVENTA un tipo diverso per ogni piano, coerente col tema di quel piano: 5 piani, 5 modi di sparare mai visti, con 5 nomi diversi.
 - Un tipo di colpo e' un COMPROMESSO, non un potenziamento: se dai molto su una manopola (tanti pellets, tanta chain, tanto pierce) togli su un'altra (meno damage, meno speed, meno size).
 - Esempi SOLO per capire il meccanismo, NON copiarli e non riusarne i nomi:
-  {"name":"Chiodi Arrugginiti","form":"spike","speed":1.4,"damage":0.7,"size":0.6,"life":1,"pierce":1,"chain":0,"pellets":1}
-  {"name":"Raggio Lunare","form":"beam","speed":1.9,"damage":0.6,"size":0.5,"life":1.6,"pierce":2,"chain":0,"pellets":1}
-  {"name":"Scarica Salina","form":"arc","speed":0.8,"damage":0.9,"size":1.2,"life":0.9,"pierce":0,"chain":2,"pellets":1}
+{ESEMPIO_COLPI}

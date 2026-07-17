@@ -62,6 +62,35 @@ if grep -q '{ISPIRAZIONI}' "$TMP/prompt-a.txt"; then
   echo "FALLITO: il placeholder {ISPIRAZIONI} e' rimasto nel prompt (sostituzione mancata)"; exit 1
 fi
 
+# Esempi rotanti nel SYSTEM prompt (contromossa alla misura A/B: "Colonnato
+# Sacro" duplicato x2 fra due run era l'esempio letterale fisso di
+# system.txt, l'unico ancoraggio residuo dopo le ispirazioni sopra --
+# gen_inspire.c). Stessa via di verifica: --print-json-prompt senza modello.
+echo "-- esempi rotanti: nessun placeholder {ESEMPIO_*} residuo nel prompt stampato --"
+if grep -q '{ESEMPIO_ROOM}\|{ESEMPIO_NEMICI}\|{ESEMPIO_COLPI}' "$TMP/prompt-a.txt"; then
+  echo "FALLITO: un placeholder {ESEMPIO_*} e' rimasto nel prompt (sostituzione mancata)"; exit 1
+fi
+
+# Marcatori stabili per contare le righe JSON d'esempio senza dipendere dal
+# loro contenuto (che cambia per seed): le uniche righe con questi tre campi
+# seguiti DA UNA CIFRA sono gli esempi veri -- le righe di schema nel resto
+# del prompt usano placeholder fra parentesi angolari ("density":<0.2-1>,
+# "hp":<mul>, "pierce":<0-3>), mai una cifra dopo i due punti. Verificato a
+# mano su un prompt reale prima di fissare i marcatori.
+echo "-- esempi rotanti: ESATTAMENTE 1 esempio room + 2 nemici + 3 colpi --"
+nRoom=$(grep -c '"density":[0-9]' "$TMP/prompt-a.txt")
+nNemici=$(grep -c '"hp":[0-9]' "$TMP/prompt-a.txt")
+nColpi=$(grep -c '"pierce":[0-9]' "$TMP/prompt-a.txt")
+[ "$nRoom" = "1" ] || { echo "FALLITO: attesi 1 esempio room, trovati $nRoom"; exit 1; }
+[ "$nNemici" = "2" ] || { echo "FALLITO: attesi 2 esempi nemici, trovati $nNemici"; exit 1; }
+[ "$nColpi" = "3" ] || { echo "FALLITO: attesi 3 esempi colpi, trovati $nColpi"; exit 1; }
+
+# Il determinismo stesso-seed (cmp prompt-a/prompt-b sopra) copre GIA' anche
+# gli esempi rotanti del SYSTEM prompt: --print-json-prompt stampa il prompt
+# ChatML intero (system + user), quindi quel cmp confronta i byte del
+# system prompt tanto quanto quelli dello user prompt -- non serve un
+# secondo cmp dedicato.
+
 # Da qui in giu' la suite lancia melting-gen decine di volte: il corpus va
 # spento o riempirebbe logs/gen-corpus di run finte (vedi gen_corpus.c).
 export MELTING_GEN_NO_CORPUS=1
