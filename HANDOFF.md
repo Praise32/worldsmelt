@@ -1,6 +1,81 @@
 # Cosa fare quando torni
 
-Scritto da Claude mentre eri via. **Prima la sezione 1** (dieci minuti, ti fa vedere tutto), il resto con calma.
+Scritto da Claude mentre eri via. **Prima la sezione 0-ter** (la notte appena passata), il resto con calma.
+
+---
+
+## 0-ter. La notte del 17 luglio: dal piano approvato al lavoro fatto
+
+Hai approvato il piano (`/home/meri/.claude/plans/ti-ho-messo-una-gleaming-riddle.md`,
+basato sui tuoi appunti `roguelike-ai-appunti/` + ricerca verificata), poi mi hai detto
+di proseguire da solo. Tutto quello che segue e' **gia' su `main` e pushato su GitHub**
+(come hai chiesto: da ora ogni cambiamento va diretto su main). Ho lavorato con lo
+schema che hai voluto: io orchestro, i task li implementano sottoagenti Sonnet dedicati
+(`.claude/agents/`), uno scettico Sonnet prova a demolirli prima di ogni commit, Opus
+interviene sui bocciati, io solo sui casi estremi. Lo schema ha funzionato per davvero:
+la verifica ha trovato e fatto correggere una vulnerabilita' vera (symlink nell'import
+dei bundle) e un bug vero (hash dipendente dalla locale).
+
+### Il gioco base (settimana 1 del piano)
+- **Simulazione a passo fisso 60 Hz** (`4cb4232`): il gameplay non dipende piu' dal
+  framerate; gli input a evento (bomba, reset) sono latchati per frame, mai persi ne'
+  raddoppiati. Prerequisito del determinismo/replay futuri.
+- **Resa pixel-perfect** (`c144e6d`): canvas campionato POINT + scala a passi di 1/8 —
+  gli sprite pixel-art non sono piu' sfocati dal filtro bilineare.
+
+### La macchina della misura (il pezzo piu' importante della notte)
+- **Corpus delle generazioni** (`8946e61`): ogni passaggio del modello (tentativi JSON,
+  tentativi Lua con le coppie errore→correzione, ripieghi) finisce in
+  `logs/gen-corpus/*.jsonl`. E' telemetria OGGI e il dataset del QLoRA DOMANI, gratis.
+- **`make gen-metrics`**: 3 generazioni vere su seed fissi → validita' Lua, varieta'
+  fra run, campione d'italiano. Quattro misure fatte stanotte (stessi seed, confrontabili):
+
+| Misura | Lua 1° colpo | Senza comportamento | Nomi unici | Note |
+|---|---|---|---|---|
+| A. Baseline | 78,3% | 20,0% | temi 14/15, nemici 29/30 | vocabolario convergente (cattedrale/caverna/deserto ovunque), «Bosco Uriante» |
+| B. + Semi d'ispirazione | 85,0% | 15,0% | tutto 15/15 tranne stanze | unico dup: «Colonnato Sacro» = l'esempio fisso del prompt, copiato |
+| C. + Esempi rotanti | 85,0% | 13,3% | **100% ovunque** | vocabolario fresco a ogni run |
+| D. Due modelli (Instruct per JSON) | 80,0% | 20,0% | 100% | italiano NON migliore («Fratteio», «Etterno»), +15 s/run |
+
+- **Decisioni prese sui numeri**: semi d'ispirazione (`3787033`) ed esempi rotanti
+  (`fcb510e`) restano; il due-modelli (`4e90f98`) resta come flag `--model-text` ma NON
+  e' il default (non paga). Per l'italiano la leva vera sara' il QLoRA quando il corpus
+  sara' maturo — e il corpus si sta gia' riempiendo da solo.
+
+### RunBundle v1 (`ad42389`)
+`generated/` ora porta la sua provenienza (`provenance.txt`: seed, modelli, hash dei
+prompt) e si esporta/importa con verifica: `scripts/bundle-export.sh` →
+`bundles/melting-bundle-seed<seed>-<hash8>.tar.gz`, `scripts/bundle-import.sh` verifica
+ogni sha256 + hash aggregato e sostituisce atomicamente. Rifiuta symlink/hardlink e
+path traversal (testato con tar forgiati ad arte). E' il mattone di: condivisione run,
+bug report riproducibili, daily challenge.
+
+### Dataset e sprite (preparazione della campagna LoRA, settimana 2)
+- **Registro di provenienza** (`11ff49a`): `docs/dataset/README.md` (regole dalla tua
+  nota 05) + `scripts/dataset_ledger.py` (add/check/stats su `ledger.jsonl`).
+- **Baseline sprite «Esperimento 0»**: 15 coppie tema/stile CONGELATE in
+  `docs/dataset/baseline-prompts.txt` + `make sprite-baseline` → atlanti in
+  `logs/sprite-baseline/<timestamp>/` (30 atlanti, ~40 min di GPU, lanciata stanotte:
+  guarda `index.txt` li' dentro). Ogni LoRA futura si confronta ALLA CIECA con questi.
+
+### Cosa aspetta TE (non potevo farlo io)
+1. **Campagna Style LoRA su cloud** (~€40 per eccesso dei tuoi ~€200): apri un account
+   RunPod (o Vast), il piano e la checklist sono nella tua nota 06 + il piano approvato.
+   Il dataset va curato con i tuoi occhi: le fonti CC0 candidate sono in
+   `docs/dataset/README.md`, registrale con `scripts/dataset_ledger.py`.
+2. **Retro Diffusion**: se vuoi davvero i loro output come dataset, serve il permesso
+   scritto (ToS §6 «Competing with us» + tracciabilita' server-side: possono sempre
+   risalire). La mail da mandare: support@retrodiffusion.com. Altrimenti: via CC0.
+3. **Guarda a occhio**: la resa POINT del canvas (gusto tuo), i temi delle run nuove
+   (`make run-gen`), e gli atlanti della baseline sprite.
+
+### Sistema
+- Sospensione automatica: disattivata a inizio nottata, **ripristinata** a `suspend`
+  a fine lavori (verifica: `gsettings get org.gnome.settings-daemon.plugins.power
+  sleep-inactive-ac-type`).
+- Scaricato `models/qwen2.5-7b-instruct-q4_k_m.gguf` (4,7 GB) per l'esperimento D.
+- Nessun tocco a GRUB/partizioni/root. Le suite (`make test`, `test-gen`, `test-script`,
+  `test-sprites`) sono verdi su ogni commit della notte.
 
 ---
 
