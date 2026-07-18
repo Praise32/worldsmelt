@@ -134,14 +134,23 @@ trap - EXIT
 # personaggio VERA (make test-gen resta "senza modello", vede solo
 # l'assenza della carta). Riusa generated/ (gia' validata sopra dai
 # controlli sul JSON dei piani): --propose-themes non tocca current_run.txt.
-echo "--- M6b-1: --propose-themes con un modello vero -- personaggio generato campionato ---"
-rm -f generated/character_proposal.json
+#
+# M6b-2 (DEC-037): da questa fetta, l'ASSENZA di character_proposal.json e'
+# un esito LEGITTIMO anche con un modello vero e sano -- non solo "schema
+# JSON non valido" come prima di M6b-2, ma anche "il trait Lua non ha
+# validato entro i ritenti" (KB: trait invalido = personaggio invalido =
+# carta assente, characters.md). Questo blocco quindi non fallisce piu' se
+# il file manca: riporta l'esito (con o senza carta) e verifica quello che
+# c'e' davvero -- il campionamento vero del trait e' il punto di questo test
+# per M6b-2, non solo la sua eventuale assenza.
+echo "--- M6b-1/M6b-2: --propose-themes con un modello vero -- personaggio generato + trait campionati ---"
+rm -f generated/character_proposal.json generated/scripts/character_trait.lua
 bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$((SEED + 2))" --propose-themes 3 --out generated
 if [ ! -f generated/character_proposal.json ]; then
-  echo "FALLITO: generated/character_proposal.json non scritto da --propose-themes con un modello vero"
-  exit 1
-fi
-python3 - generated/character_proposal.json <<'PYEOF'
+  echo "   nessuna carta questa run: il trait non ha validato entro i ritenti (fallback canonico DEC-037, vedi logs/melting-gen.log)"
+  grep "propose-character:" logs/melting-gen.log | tail -5 || true
+else
+  python3 - generated/character_proposal.json <<'PYEOF'
 import json, sys
 d = json.load(open(sys.argv[1]))
 assert d["name"], d
@@ -157,15 +166,35 @@ assert 0.0 <= s["luck"] <= 1.5, s
 pal = d["palette"]
 assert pal.startswith("#") and len(pal) == 7, pal
 assert d["source"].startswith("local:"), d["source"]
+assert d["lua"] is True, d   # M6b-2: la proposta esiste SOLO se il trait ha validato
 PYEOF
-charName=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['name'])")
-charBlurb=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['blurb'])")
-charHit=$(printf '%s\n%s\n' "$charName" "$charBlurb" | grep -Ei "$italianWordPattern" || true)
-if [ -n "$charHit" ]; then
-  echo "FALLITO: parola-funzione italiana nel personaggio generato (DEC-052 richiede inglese):"
-  echo "$charHit"
-  exit 1
+  charName=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['name'])")
+  charBlurb=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['blurb'])")
+  charHit=$(printf '%s\n%s\n' "$charName" "$charBlurb" | grep -Ei "$italianWordPattern" || true)
+  if [ -n "$charHit" ]; then
+    echo "FALLITO: parola-funzione italiana nel personaggio generato (DEC-052 richiede inglese):"
+    echo "$charHit"
+    exit 1
+  fi
+  echo "   personaggio generato: $charName -- $charBlurb"
+
+  if [ ! -f generated/scripts/character_trait.lua ]; then
+    echo "FALLITO: character_proposal.json dice \"lua\":true ma generated/scripts/character_trait.lua non esiste"
+    exit 1
+  fi
+  echo "   trait Lua generato (generated/scripts/character_trait.lua):"
+  sed 's/^/     /' generated/scripts/character_trait.lua
+  # Stessa validazione che il gioco applicherebbe a runtime, ma senza
+  # caricare la finestra: --lua-check non esiste per il trait (il gate e'
+  # diverso da quello degli oggetti, vedi gen_lua.c
+  # GenLuaValidateCharacterTrait), quindi qui si verifica solo che il file
+  # non sia vuoto e definisca esattamente una callback riconosciuta -- una
+  # ripetizione leggera, non un secondo validatore.
+  traitHookCount=$(grep -cE "^function on_(evaluate|fire|hit|tick)" generated/scripts/character_trait.lua || true)
+  if [ "$traitHookCount" != "1" ]; then
+    echo "FALLITO: il trait generato non definisce ESATTAMENTE una callback riconosciuta (trovate: $traitHookCount)"
+    exit 1
+  fi
 fi
-echo "   personaggio generato: $charName -- $charBlurb"
 
 echo "TEST-LLM: OK"

@@ -53,7 +53,7 @@ static Game MakeBaseGame(unsigned int seed)
     game.player.baseShotRadius = 5.0f;
     game.player.baseSpeed = 224.0f;
     game.player.baseMaxHp = 6;
-    ScriptItemsInit(&game);
+    ScriptItemsInit(&game, NULL);   /* nessun personaggio applicato: comportamento storico */
     return game;
 }
 

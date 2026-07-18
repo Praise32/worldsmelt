@@ -42,6 +42,36 @@ static void SanitizeAscii(char *text)
         if ((unsigned char)*p < 0x20 || (unsigned char)*p > 0x7E) *p = '?';
 }
 
+/* M6b-2 (DEC-037): il nome della callback ("on_fire"/"on_hit"/"on_tick"/
+ * "on_evaluate") che generated/scripts/character_trait.lua definisce -- UN
+ * scan di testo, non un parse Lua vero (questo modulo non linka Lua, vedi
+ * AGENTS.md: solo bin/melting-gen e il gioco a runtime lo fanno). Cerca
+ * "function <hook>" nell'ordine sotto (lo stesso ordine di validazione di
+ * GenLuaValidateCharacterTrait, tools/melting-gen/gen_lua.c: la generazione
+ * garantisce ESATTAMENTE una corrispondenza, ma un file forgiato a mano
+ * potrebbe averne piu' d'una -- prendere la prima e' una scelta onesta
+ * quanto qualunque altra, mai un crash). 'out' resta stringa vuota se il
+ * file non esiste/e' illeggibile o non contiene nessuno dei quattro nomi:
+ * "niente di leggibile, niente riga sulla carta" (spec). Il caricamento VERO
+ * del comportamento (src/script/script_character.c) rilegge lo stesso file
+ * per conto suo, indipendentemente da questa funzione -- due letture
+ * separate, mai una a cascata dell'altra. */
+static void DetectTraitHook(char *out, size_t outSize)
+{
+    out[0] = '\0';
+    char *lua = LoadFileText("generated/scripts/character_trait.lua");
+    if (!lua) return;
+
+    static const char *hooks[] = { "on_evaluate", "on_fire", "on_hit", "on_tick" };
+    for (int i = 0; i < 4; i++)
+    {
+        char needle[32];
+        snprintf(needle, sizeof(needle), "function %s", hooks[i]);
+        if (strstr(lua, needle)) { snprintf(out, outSize, "%s", hooks[i]); break; }
+    }
+    UnloadFileText(lua);
+}
+
 /* Ritorna il puntatore SUBITO DOPO 'key' (letterale, virgolette e due punti
  * gia' dentro, es. "\"name\":\"" per una stringa o "\"damage\":" per un
  * numero), o NULL se 'key' non compare in 'text'. Stesso schema di
@@ -121,6 +151,12 @@ bool RunContentLoadCharacterProposal(const char *path, CharacterDef *out)
         }
     }
 
+    /* M6b-2 (DEC-037): il campo "lua" va letto QUI, mentre 'text' e' ancora
+     * vivo (viene liberato subito sotto) -- vedi il commento sopra
+     * DetectTraitHook per il perche' e' OPZIONALE (non entra nella catena
+     * 'ok'). */
+    bool hasLua = strstr(text, "\"lua\":true") != NULL;
+
     UnloadFileText(text);
     if (!ok) return false;
 
@@ -167,5 +203,21 @@ bool RunContentLoadCharacterProposal(const char *path, CharacterDef *out)
     out->hpCap = def.hpCap;
     out->baseLuck = def.luck;
     out->palette = ParseHexColor(def.palette, WHITE);
+
+    /* M6b-2 (DEC-037): campo "lua" OPZIONALE (assente su una proposta di
+     * un'M6b-1 vecchia, o su un file forgiato a mano senza trait) -- a
+     * differenza di name/blurb/stats/palette sopra, la sua assenza NON
+     * invalida l'intera proposta ('ok' resta quello gia' deciso sopra): un
+     * personaggio generato senza trait e' comunque un personaggio valido
+     * (le stats/la carta restano), semplicemente senza quella riga in piu'.
+     * Se il campo dice true, si prova a leggere/scandire il file vero
+     * (DetectTraitHook sopra): un "lua":true con il file assente o
+     * illeggibile (caso anomalo esplicito della spec M6b-2) lascia
+     * semplicemente traitHook vuoto, mai un fallimento di QUESTA funzione --
+     * il caricamento VERO (script_character.c) e' quello che decide davvero
+     * se il trait gira, e gia' fallisce in silenzio da solo. */
+    out->traitHook[0] = '\0';
+    if (hasLua) DetectTraitHook(out->traitHook, sizeof(out->traitHook));
+
     return true;
 }

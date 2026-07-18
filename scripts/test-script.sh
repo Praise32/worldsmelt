@@ -72,4 +72,18 @@ ITEMS_OUT=$(timeout -s KILL 30 "$GAME" --script-items-test)
 echo "$ITEMS_OUT"
 echo "$ITEMS_OUT" | grep -q "^Script items test: ok$"
 
+# ============================================================
+# M6b-2 (DEC-037): il trait UNICO del personaggio generato
+# (src/script/script_character.c) -- UNA sandbox dietro la STESSA facciata
+# di ScriptItems* (combat.c continua a non vederla mai). Vedi
+# src/tests/script_character_tests.c: lifecycle, ordine del ricalcolo
+# (base -> trait -> oggetti, valori noti), sopravvivenza a un reset/una
+# riselezione, fallimento di caricamento/compilazione -> inattivo. Stesso
+# motivo dei due blocchi sopra: gira PRIMA di InitWindow.
+# ============================================================
+echo "-- trait del personaggio generato: lifecycle + ordine del ricalcolo + reset survival (--script-character-test) --"
+CHARACTER_OUT=$(timeout -s KILL 30 "$GAME" --script-character-test)
+echo "$CHARACTER_OUT"
+echo "$CHARACTER_OUT" | grep -q "^Script character test: ok$"
+
 echo "TEST-SCRIPT: OK"

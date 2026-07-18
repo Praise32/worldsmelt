@@ -97,7 +97,7 @@ void GameResetRun(Game *game)
        sovrascrive questo campo SUBITO dopo la chiamata, quando davvero
        arriva da un attraversamento del Piano 0. */
     game->characterChosenIndex = -1;
-    ScriptItemsInit(game);
+    ScriptItemsInit(game, NULL);   /* nessun personaggio applicato per costruzione, vedi sopra */
     WorldStartFloor(game, 1);
 }
 
@@ -133,7 +133,7 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
         if (resolved)
         {
             GamePlayerResetBaseStatsFor(&game->player, resolved);
-            ScriptItemsInit(game);
+            ScriptItemsInit(game, resolved);
         }
     }
     if (game->messageTimer > 0.0f) game->messageTimer -= dt;

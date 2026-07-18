@@ -476,7 +476,7 @@ static void AppConfirmCharacterChoice(Game *game, int index)
     if (!character) return;
     game->characterChosenIndex = index;
     GamePlayerResetBaseStatsFor(&game->player, character);
-    ScriptItemsInit(game);
+    ScriptItemsInit(game, character);
 }
 
 /* M6b-1 (DEC-014, prima fetta): legge generated/character_proposal.json in
@@ -804,7 +804,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 }
                 const CharacterDef *chosenDef = GameResolveCharacterDef(game, chosenCharacter);
                 if (chosenDef) GamePlayerResetBaseStatsFor(&game->player, chosenDef);
-                ScriptItemsInit(game);
+                ScriptItemsInit(game, chosenDef);
                 *mode = APP_GAMEPLAY;
                 if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
                 break;
@@ -991,6 +991,7 @@ int AppRun(int argc, char **argv)
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
+    bool scriptCharacterTest = false;
     bool benchPresetTest = false;
     bool statesTest = false;
     bool floorZeroTest = false;
@@ -1116,6 +1117,7 @@ int AppRun(int argc, char **argv)
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
         if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
+        if (strcmp(argv[i], "--script-character-test") == 0) scriptCharacterTest = true;
         if (strcmp(argv[i], "--bench-preset-test") == 0) benchPresetTest = true;
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) scriptSeed = (unsigned int)strtoul(argv[++i], NULL, 10);
         if (strcmp(argv[i], "--generate") == 0) gen.enabled = true;
@@ -1192,6 +1194,17 @@ int AppRun(int argc, char **argv)
         bool ok = ScriptItemsSelfTest();
         printf("Script items test: %s\n", ok ? "ok" : "failed");
         return ok ? 0 : 10;
+    }
+    /* M6b-2 (DEC-037): come sopra, il runtime del trait del personaggio
+       (src/script/script_character.c) non tocca raylib direttamente, quindi
+       gira prima di InitWindow. Codice di uscita 21: il primo libero fra
+       TUTTI i codici gia' usati in questo file (20 e' gia' di
+       --fullscreen-screenshot-test, piu' in basso). */
+    if (scriptCharacterTest)
+    {
+        bool ok = ScriptCharacterSelfTest();
+        printf("Script character test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 21;
     }
     /* Piano strategico 16/07/2026, sezione tier: AppReadBenchmarkPreset e'
        solo I/O di file (nessuna finestra), stessa famiglia dei tre test sopra. */

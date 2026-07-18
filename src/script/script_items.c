@@ -3,6 +3,7 @@
 #include "core/game_math.h"
 #include "gameplay/synergies.h"
 #include "script/script_api.h"
+#include "script/script_character.h"
 #include "script/script_sandbox.h"
 
 #include "lauxlib.h"
@@ -27,11 +28,16 @@ static void ScriptItemsResetSlot(ScriptItemRuntime *rt)
     rt->statsTableRef = SCRIPT_ITEMS_NO_REF;
 }
 
-void ScriptItemsInit(Game *game)
+void ScriptItemsInit(Game *game, const CharacterDef *character)
 {
     for (int i = 0; i < MAX_ITEMS; i++) ScriptItemsResetSlot(&game->itemScripts[i]);
     game->statsDirty = false;
-    ScriptItemsRecomputeStats(game);   /* 0 oggetti -> player.* = player.base* */
+    /* M6b-2 (DEC-037), facciata: applica/scarica il trait Lua del
+       personaggio PRIMA del ricalcolo, cosi' la prima ScriptItemsRecomputeStats
+       qui sotto lo vede gia' attivo (0 oggetti posseduti, ma il trait conta:
+       vedi il commento su quella funzione). */
+    ScriptCharacterSetActive(game, character);
+    ScriptItemsRecomputeStats(game);   /* 0 oggetti -> player.* = player.base* + trait */
 }
 
 void ScriptItemsShutdown(Game *game)
@@ -42,6 +48,7 @@ void ScriptItemsShutdown(Game *game)
         if (rt->sandbox != NULL) ScriptSandboxDestroy((ScriptSandbox *)rt->sandbox);
         ScriptItemsResetSlot(rt);
     }
+    ScriptCharacterShutdown(game);   /* M6b-2, facciata: stessa vita/morte degli oggetti */
 }
 
 static int ScriptItemsCacheGlobalRef(lua_State *L, const char *name)
@@ -148,6 +155,7 @@ static void ScriptItemsCallCachedVoid(ScriptSandbox *sb, int ref, const double *
 
 void ScriptItemsOnFire(Game *game, Vector2 pos, Vector2 dir)
 {
+    ScriptCharacterOnFire(game, pos, dir);   /* M6b-2, facciata: il trait prima o dopo gli oggetti non importa, sono chiamate indipendenti */
     for (int i = 0; i < game->player.itemCount; i++)
     {
         ScriptItemRuntime *rt = &game->itemScripts[i];
@@ -161,6 +169,7 @@ void ScriptItemsOnFire(Game *game, Vector2 pos, Vector2 dir)
 void ScriptItemsOnHit(Game *game, int shotIndex, int enemyIndex)
 {
     if (shotIndex < 0 || shotIndex >= MAX_SHOTS || enemyIndex < 0 || enemyIndex >= MAX_ENEMIES) return;
+    ScriptCharacterOnHit(game, shotIndex, enemyIndex);   /* M6b-2, facciata */
     double shotHandle = ScriptApiPackShotHandle(game, shotIndex);
     double enemyHandle = ScriptApiPackEnemyHandle(game, enemyIndex);
     for (int i = 0; i < game->player.itemCount; i++)
@@ -175,6 +184,7 @@ void ScriptItemsOnHit(Game *game, int shotIndex, int enemyIndex)
 
 void ScriptItemsOnTick(Game *game, float dt)
 {
+    ScriptCharacterOnTick(game, dt);   /* M6b-2, facciata */
     for (int i = 0; i < game->player.itemCount; i++)
     {
         ScriptItemRuntime *rt = &game->itemScripts[i];
@@ -527,6 +537,23 @@ void ScriptItemsRecomputeStats(Game *game)
         p->baseDamage, p->baseFireDelay, p->baseShotSpeed, p->baseShotRadius, p->baseSpeed, (float)p->baseMaxHp,
         p->baseLuck
     };
+
+    /* M6b-2 (DEC-037): il trait del personaggio generato, applicato SUBITO
+       dopo i base*, PRIMA di qualunque oggetto -- e' "parte del personaggio",
+       non un oggetto raccolto durante la run (il commento su
+       ScriptCharacterEvaluate in script_character.h spiega perche' i due
+       moduli non condividono ScriptItemsStatsAccum). Nessun budget
+       per-oggetto qui (quello e' riservato agli ITEM_STATUP, vedi
+       SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION sopra): il trait passa SOLO
+       dal tetto GLOBALE, come un oggetto ATTIVO con on_evaluate -- stesso
+       principio (e' generato una volta sola con la STESSA pipeline di
+       validazione degli oggetti, mai in corsa contro un budget di run
+       intera). Nessun effetto se il trait non c'e'/non e' attivo/fallisce:
+       'acc' resta quello che era, esattamente come un oggetto senza
+       on_evaluate. */
+    ScriptCharacterEvaluate(game, &acc.damage, &acc.fireDelay, &acc.shotSpeed, &acc.shotRadius,
+                             &acc.speed, &acc.maxHp, &acc.luck);
+    ScriptItemsClampStats(&acc, hpCap);
 
     /* Tipo di colpo (step C): stesso identico principio delle statistiche --
        si riparte da ZERO (nessun tipo = il colpo base) e si riscorrono gli

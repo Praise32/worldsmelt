@@ -230,39 +230,101 @@ static void GenLuaStubRegister(ScriptSandbox *sb)
    definita, una volta, con argomenti plausibili.
    ============================================================ */
 
-bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize)
+/* Core condiviso fra GenLuaValidate (oggetti, sotto) e
+   GenLuaValidateCharacterTrait (il trait del personaggio, M6b-2, piu' in
+   basso): crea la sandbox, applica lo stub API, compila (ScriptSandboxLoad)
+   e rileva quali delle quattro callback lo script definisce. NON applica
+   nessun gate di dominio (quello resta specifico di ogni chiamante: gli
+   oggetti hanno due categorie con regole opposte, il trait ne ha una terza,
+   "esattamente una fra le quattro") e NON fa il dry-run (idem: un chiamante
+   deve poter rifiutare uno script PRIMA di eseguirlo, se il suo gate lo
+   boccia). Ritorna NULL su qualunque fallimento di caricamento (err gia'
+   riempito), altrimenti la sandbox CARICATA (mai distrutta qui: il
+   chiamante decide quando, dopo il proprio gate/dry-run). */
+static ScriptSandbox *GenLuaValidateLoad(const char *source, unsigned int seed,
+                                          bool *hasEval, bool *hasFire, bool *hasHit, bool *hasTick,
+                                          char *err, size_t errSize)
 {
+    *hasEval = *hasFire = *hasHit = *hasTick = false;
     if (err && errSize) err[0] = '\0';
-    if (anyCallback) *anyCallback = false;
     if (!source || !source[0])
     {
         if (err) snprintf(err, errSize, "empty script");
-        return false;
+        return NULL;
     }
     if (strlen(source) >= (size_t)GEN_LUA_LEN - 1)
     {
         if (err) snprintf(err, errSize, "script too long (limit %d characters)", GEN_LUA_LEN - 2);
-        return false;
+        return NULL;
     }
 
     ScriptSandbox *sb = ScriptSandboxCreate(seed ? seed : 1u, SCRIPT_SANDBOX_DEFAULT_MEMORY_CAP);
     if (!sb)
     {
         if (err) snprintf(err, errSize, "could not create the validation sandbox (out of memory?)");
-        return false;
+        return NULL;
     }
     GenLuaStubRegister(sb);
 
     if (!ScriptSandboxLoad(sb, "item-lua", source, err, errSize))
     {
         ScriptSandboxDestroy(sb);
-        return false;
+        return NULL;
     }
 
-    bool hasEval = ScriptSandboxHasFunction(sb, "on_evaluate");
-    bool hasFire = ScriptSandboxHasFunction(sb, "on_fire");
-    bool hasHit  = ScriptSandboxHasFunction(sb, "on_hit");
-    bool hasTick = ScriptSandboxHasFunction(sb, "on_tick");
+    *hasEval = ScriptSandboxHasFunction(sb, "on_evaluate");
+    *hasFire = ScriptSandboxHasFunction(sb, "on_fire");
+    *hasHit  = ScriptSandboxHasFunction(sb, "on_hit");
+    *hasTick = ScriptSandboxHasFunction(sb, "on_tick");
+    return sb;
+}
+
+/* Dry-run delle sole callback che il chiamante lascia passare (hasX=false =
+   "non chiamarla", che sia perche' lo script non la definisce o perche' il
+   gate del chiamante l'ha gia' scartata): stessi argomenti plausibili per
+   ognuna, condivisi fra GenLuaValidate e GenLuaValidateCharacterTrait cosi'
+   una futura modifica ai valori di prova (es. i sei campi di 'stats') non
+   deve essere tenuta sincronizzata a mano in due punti. Non distrugge 'sb':
+   il chiamante lo fa, dopo aver letto 'err' se ok e' falso. */
+static bool GenLuaDryRun(ScriptSandbox *sb, bool hasEval, bool hasFire, bool hasHit, bool hasTick,
+                          char *err, size_t errSize)
+{
+    bool ok = true;
+    if (hasEval)
+    {
+        /* Stessi valori di partenza di GameResetRun/MakeBaseGame (vedi
+           src/tests/script_items_tests.c): plausibili, non i valori VERI di
+           una run reale (che melting-gen non conosce), ma nello stesso
+           ordine di grandezza che uno script scritto per questo gioco si
+           aspetta di leggere. */
+        lua_State *L = ScriptSandboxRawState(sb);
+        lua_getglobal(L, "on_evaluate");
+        lua_newtable(L);
+        lua_pushnumber(L, 8.0);   lua_setfield(L, -2, "damage");
+        lua_pushnumber(L, 0.23);  lua_setfield(L, -2, "fire_delay");
+        lua_pushnumber(L, 520.0); lua_setfield(L, -2, "shot_speed");
+        lua_pushnumber(L, 5.0);   lua_setfield(L, -2, "shot_radius");
+        lua_pushnumber(L, 224.0); lua_setfield(L, -2, "speed");
+        lua_pushnumber(L, 6.0);   lua_setfield(L, -2, "max_hp");
+        lua_pushnumber(L, 0.0);   lua_setfield(L, -2, "luck");   /* step C: stessa tabella che il gioco passa davvero (script_items.c) */
+        ok = ScriptSandboxProtectedCall(sb, 1, 0);
+    }
+    if (ok && hasFire) ok = ScriptSandboxCallVoid(sb, "on_fire", 4, 480.0, 300.0, 1.0, 0.0);
+    if (ok && hasHit)  ok = ScriptSandboxCallVoid(sb, "on_hit", 2, GenLuaFakeHandle(), GenLuaFakeHandle());
+    if (ok && hasTick) ok = ScriptSandboxCallVoid(sb, "on_tick", 1, 0.016);
+
+    if (!ok && err) snprintf(err, errSize, "%s", ScriptSandboxDisabledReason(sb));
+    return ok;
+}
+
+bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize)
+{
+    if (anyCallback) *anyCallback = false;
+
+    bool hasEval, hasFire, hasHit, hasTick;
+    ScriptSandbox *sb = GenLuaValidateLoad(source, seed, &hasEval, &hasFire, &hasHit, &hasTick, err, errSize);
+    if (!sb) return false;
+
     if (anyCallback) *anyCallback = hasEval || hasFire || hasHit || hasTick;
 
     /* Gate di dominio per gli oggetti stat-up (fase 3, vedi gen_lua.h sopra):
@@ -305,31 +367,48 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
         return false;
     }
 
-    bool ok = true;
-    if (hasEval)
-    {
-        /* Stessi valori di partenza di GameResetRun/MakeBaseGame (vedi
-           src/tests/script_items_tests.c): plausibili, non i valori VERI di
-           una run reale (che melting-gen non conosce), ma nello stesso
-           ordine di grandezza che uno script scritto per questo gioco si
-           aspetta di leggere. */
-        lua_State *L = ScriptSandboxRawState(sb);
-        lua_getglobal(L, "on_evaluate");
-        lua_newtable(L);
-        lua_pushnumber(L, 8.0);   lua_setfield(L, -2, "damage");
-        lua_pushnumber(L, 0.23);  lua_setfield(L, -2, "fire_delay");
-        lua_pushnumber(L, 520.0); lua_setfield(L, -2, "shot_speed");
-        lua_pushnumber(L, 5.0);   lua_setfield(L, -2, "shot_radius");
-        lua_pushnumber(L, 224.0); lua_setfield(L, -2, "speed");
-        lua_pushnumber(L, 6.0);   lua_setfield(L, -2, "max_hp");
-        lua_pushnumber(L, 0.0);   lua_setfield(L, -2, "luck");   /* step C: stessa tabella che il gioco passa davvero (script_items.c) */
-        ok = ScriptSandboxProtectedCall(sb, 1, 0);
-    }
-    if (ok && hasFire) ok = ScriptSandboxCallVoid(sb, "on_fire", 4, 480.0, 300.0, 1.0, 0.0);
-    if (ok && hasHit)  ok = ScriptSandboxCallVoid(sb, "on_hit", 2, GenLuaFakeHandle(), GenLuaFakeHandle());
-    if (ok && hasTick) ok = ScriptSandboxCallVoid(sb, "on_tick", 1, 0.016);
+    bool ok = GenLuaDryRun(sb, hasEval, hasFire, hasHit, hasTick, err, errSize);
+    ScriptSandboxDestroy(sb);
+    return ok;
+}
 
-    if (!ok && err) snprintf(err, errSize, "%s", ScriptSandboxDisabledReason(sb));
+/* M6b-2 (DEC-037): il trait UNICO del personaggio generato -- STESSA
+   pipeline di validazione degli oggetti (GenLuaValidateLoad/GenLuaDryRun
+   sopra, la sandbox VERA del gioco, l'API stub, nessun ampliamento
+   dell'allowlist _ENV), ma con un gate di dominio DIVERSO da statUpOnly
+   vero/falso: la KB (characters.md, DEC-037) descrive il trait come "una
+   sola fra on_fire/on_hit/on_tick, OPPURE un on_evaluate moderato" -- ne'
+   il gate "solo on_evaluate" (statUpOnly=true, pensato per un bossItem che
+   NON puo' mai avere un comportamento vero) ne' il suo opposto
+   (statUpOnly=false, che vieta on_evaluate del tutto) esprimono questa
+   forma: servono ENTRAMBE le famiglie, ma MAI piu' di una callback insieme
+   (il trait e' "UNICO", non una lista). Il gate piu' adatto e' quindi un
+   terzo, dedicato: "conta quante delle quattro callback lo script
+   definisce, accetta solo esattamente 1" -- ne' 0 (un personaggio generato
+   ha SEMPRE un tratto, a differenza di un oggetto: "nessuna idea buona,
+   nessuna callback" non e' un'opzione valida qui) ne' 2+ (una combinazione
+   sarebbe "un piccolo elenco di piccoli oggetti", esattamente cio' che la
+   KB vuole evitare per il personaggio). */
+bool GenLuaValidateCharacterTrait(const char *source, unsigned int seed, bool *anyCallback, char *err, size_t errSize)
+{
+    if (anyCallback) *anyCallback = false;
+
+    bool hasEval, hasFire, hasHit, hasTick;
+    ScriptSandbox *sb = GenLuaValidateLoad(source, seed, &hasEval, &hasFire, &hasHit, &hasTick, err, errSize);
+    if (!sb) return false;
+
+    int callbackCount = (hasEval ? 1 : 0) + (hasFire ? 1 : 0) + (hasHit ? 1 : 0) + (hasTick ? 1 : 0);
+    if (anyCallback) *anyCallback = callbackCount > 0;
+    if (callbackCount != 1)
+    {
+        ScriptSandboxDestroy(sb);
+        if (err) snprintf(err, errSize, callbackCount == 0
+            ? "the character trait must define exactly one behavior (on_evaluate, or exactly one of on_fire/on_hit/on_tick): none was found"
+            : "the character trait must define exactly ONE behavior, never a combination (on_evaluate, or exactly one of on_fire/on_hit/on_tick)");
+        return false;
+    }
+
+    bool ok = GenLuaDryRun(sb, hasEval, hasFire, hasHit, hasTick, err, errSize);
     ScriptSandboxDestroy(sb);
     return ok;
 }
@@ -526,6 +605,73 @@ static char *BuildLuaSuffix(const char *promptsDir, const char *floorTheme, cons
     return suffix;
 }
 
+/* ============================================================
+   M6b-2 (DEC-037): il prompt del trait del personaggio -- STESSO cheat-sheet
+   di sistema (lua_system.txt, condiviso con gli oggetti: l'API della
+   sandbox e le funzioni proibite sono le stesse), ma un template utente
+   NUOVO e dedicato (prompts/lua_character_user.txt, placeholder
+   {CHAR_NAME}/{CHAR_BLURB}) -- il trait non e' "un oggetto ATTIVO" ne' "un
+   oggetto STAT-UP", e' il personaggio stesso, sempre attivo dall'inizio
+   della run senza bisogno di raccoglierlo. Un solo oggetto alla volta (mai
+   una run intera come per gli item Lua), quindi niente ottimizzazione
+   prefisso/suffisso in KV-cache qui: GenLuaGenerateCharacterTrait sotto usa
+   GenLlmComplete "a prompt intero", come RunProposeCharacter fa gia' per il
+   JSON del personaggio (main.c) -- stesso stile del resto della fase
+   propose, che non e' quella che genera i 20 script Lua di una run intera. */
+static char *BuildCharacterTraitUserFinal(const char *promptsDir, const char *charName, const char *charBlurb, const char *prevError)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/lua_character_user.txt", promptsDir);
+    char *userTpl = GenReadFile(path);
+    if (!userTpl) return NULL;
+
+    char *step1 = GenReplaceAll(userTpl, "{CHAR_NAME}", charName);
+    free(userTpl);
+    char *userFinal = step1 ? GenReplaceAll(step1, "{CHAR_BLURB}", charBlurb) : NULL;
+    free(step1);
+    if (!userFinal) return NULL;
+
+    /* Stesso schema di ritenti di BuildLuaUserFinal sopra (l'errore
+       dell'ultimo tentativo rimandato al modello, invece di un secondo
+       prompt duplicato da tenere sincronizzato). */
+    if (prevError && prevError[0])
+    {
+        size_t cap = strlen(userFinal) + strlen(prevError) + 256;
+        char *withRetry = malloc(cap);
+        if (withRetry)
+        {
+            snprintf(withRetry, cap,
+                "%s\n\nYour previous script failed validation:\n%s\n"
+                "Fix ONLY the reported problem and rewrite the complete Lua script from scratch, "
+                "following the same rules from the cheat-sheet above.",
+                userFinal, prevError);
+            free(userFinal);
+            userFinal = withRetry;
+        }
+    }
+    return userFinal;
+}
+
+/* Prompt ChatML combinato (system+cheat-sheet+scheda del personaggio): usato
+   sia da GenLuaGenerateCharacterTrait sotto (un prompt intero per tentativo,
+   vedi il commento sopra) sia da GenLuaPromptBudgetCheck (guardia
+   byte-budget, worst-case). */
+static char *BuildCharacterTraitPrompt(const char *promptsDir, const char *charName, const char *charBlurb, const char *prevError)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/lua_system.txt", promptsDir);
+    char *sys = GenReadFile(path);
+    if (!sys) return NULL;
+
+    char *userFinal = BuildCharacterTraitUserFinal(promptsDir, charName, charBlurb, prevError);
+    if (!userFinal) { free(sys); return NULL; }
+
+    char *prompt = GenChatMlWrap(sys, userFinal);
+    free(sys);
+    free(userFinal);
+    return prompt;
+}
+
 /* Vedi gen_lua.h per la spiegazione completa (perche' esiste, il bug reale
    che previene, la derivazione del ceiling). Riusa BuildLuaPrompt sopra
    (la STESSA funzione della generazione vera, non una reimplementazione)
@@ -583,6 +729,25 @@ bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
         if (len > worstBytes) worstBytes = len;
     }
 
+    /* M6b-2: worst-case anche per il trait del personaggio (nuovo template
+       lua_character_user.txt, stesso cheat-sheet condiviso lua_system.txt
+       di sopra) -- stesso principio del blocco appena sopra: un nome/blurb
+       rappresentativo, non i limiti di campo estremi
+       (CHARACTER_GEN_NAME_LEN=32/CHARACTER_GEN_BLURB_LEN=160, core/
+       character_type.h). */
+    char *charPrompt = BuildCharacterTraitPrompt(promptsDir,
+        "The Radioactive Sugar Cartographer",
+        "Grew up mapping molten caves nobody else dared enter, and still hums old work songs mid-fight.",
+        NULL);
+    if (!charPrompt)
+    {
+        if (err) snprintf(err, errSize, "prompt Lua del personaggio non costruibile (file mancanti in %s?)", promptsDir);
+        return false;
+    }
+    size_t charBytes = strlen(charPrompt);
+    free(charPrompt);
+    if (charBytes > worstBytes) worstBytes = charBytes;
+
     if (worstBytes > (size_t)GEN_LUA_PROMPT_BYTE_CEILING)
     {
         if (err) snprintf(err, errSize,
@@ -591,6 +756,82 @@ bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
         return false;
     }
     return true;
+}
+
+/* M6b-2 (DEC-037): il ciclo prompt->modello->valida->ritenta per il trait
+   UNICO del personaggio generato -- stesso schema di
+   GenLuaGenerateOneItem sotto (fino a GEN_LUA_MAX_ATTEMPTS tentativi,
+   errore rimandato al modello ad ogni ritento), ma per UN solo script (non
+   20 per una run intera), quindi GenLlmComplete "a prompt intero" invece
+   della coppia prefix-prime/complete-from-prefix (vedi il commento sopra
+   BuildCharacterTraitPrompt) -- e senza alcun ripiego C: se lo script non
+   valida entro i tentativi, o il budget di tempo scade, la funzione ritorna
+   false e 'outLua' resta vuoto -- il chiamante (RunProposeCharacter, main.c)
+   NON scrive character_proposal.json in quel caso (KB: trait invalido =
+   personaggio invalido, carta assente).
+
+   Corpus (fase 3, gen_corpus.h): NON registrato qui, di proposito, stesso
+   motivo per cui l'intera fase propose non lo fa (vedi il commento su
+   RunProposeThemes in main.c, "MAI corpus/manifest/atlas/provenienza"):
+   propose-themes esiste per essere leggero e non-bloccante mentre il
+   giocatore gira nell'hub, non per popolare il corpus di training. */
+bool GenLuaGenerateCharacterTrait(GenLlmSession *sess, const char *promptsDir, unsigned int seed,
+                                   const char *charName, const char *charBlurb, double deadline,
+                                   char *outLua, size_t outLuaSize, GenLuaStats *stats)
+{
+    memset(stats, 0, sizeof(*stats));
+    if (outLuaSize) outLua[0] = '\0';
+    if (!sess) return false;
+
+    char err[192];
+    err[0] = '\0';
+    for (int attempt = 0; attempt < GEN_LUA_MAX_ATTEMPTS; attempt++)
+    {
+        if (GenNowSeconds() >= deadline)
+        {
+            stats->skippedBudget++;
+            GenLogLine("lua-character: budget di fase esaurito al tentativo %d/%d, nessun trait", attempt + 1, GEN_LUA_MAX_ATTEMPTS);
+            return false;
+        }
+
+        char *prompt = BuildCharacterTraitPrompt(promptsDir, charName, charBlurb, attempt > 0 ? err : NULL);
+        if (!prompt)
+        {
+            snprintf(err, sizeof(err), "prompt Lua del personaggio non costruibile (file mancanti in %s?)", promptsDir);
+            break;
+        }
+
+        char raw[4096];
+        int tokens = 0;
+        unsigned int callSeed = seed + (unsigned int)attempt*17u + 1u;
+        int rc = GenLlmComplete(sess, prompt, NULL, GEN_LUA_N_PREDICT, GEN_LUA_TEMP, callSeed,
+                                 NULL, NULL, 0, 0, raw, sizeof(raw), &tokens);
+        free(prompt);
+        if (rc != 0)
+        {
+            snprintf(err, sizeof(err), "generazione fallita (decodifica o token troncati)");
+            GenLogLine("lua-character: tentativo %d/%d fallito: %s", attempt + 1, GEN_LUA_MAX_ATTEMPTS, err);
+            continue;
+        }
+
+        char extracted[GEN_LUA_LEN];
+        ExtractLuaCode(raw, extracted, sizeof(extracted));
+
+        bool anyCallback = false;
+        bool valid = GenLuaValidateCharacterTrait(extracted, seed, &anyCallback, err, sizeof(err));
+        if (valid)
+        {
+            snprintf(outLua, outLuaSize, "%s", extracted);
+            if (attempt == 0) stats->firstTry++; else stats->afterRetry++;
+            GenLogLine("lua-character: trait ok al tentativo %d/%d", attempt + 1, GEN_LUA_MAX_ATTEMPTS);
+            return true;
+        }
+        GenLogLine("lua-character: tentativo %d/%d respinto: %s", attempt + 1, GEN_LUA_MAX_ATTEMPTS, err);
+    }
+
+    stats->fellBack++;
+    GenLogLine("lua-character: nessun trait valido dopo %d tentativi (%s): nessuna carta questa run", GEN_LUA_MAX_ATTEMPTS, err);
+    return false;
 }
 
 /* Corpo del ciclo prompt->modello->valida->ritenta per UN oggetto (attivo o

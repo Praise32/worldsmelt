@@ -97,7 +97,7 @@ void FloorZeroEnter(Game *game)
     game->characterChosenIndex = 0;
     game->characterCardFocus = 0;
     GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(game->characterChosenIndex));
-    ScriptItemsInit(game);   /* deriva damage/fireDelay/... dai base* con zero oggetti posseduti */
+    ScriptItemsInit(game, CharacterRosterGet(game->characterChosenIndex));   /* deriva damage/fireDelay/... dai base* con zero oggetti posseduti (Wayfinder non ha trait: traitHook vuoto) */
 
     game->phase = PHASE_PLAY;
     game->floor = 0;

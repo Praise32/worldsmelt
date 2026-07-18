@@ -579,6 +579,31 @@ int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const c
     return GenPublishFile(f, tmpPath, finalPath);
 }
 
+/* M6b-2 (DEC-037): generated/scripts/character_trait.lua, scritto PRIMA di
+ * character_proposal.json che lo referenzia (campo "lua", vedi
+ * GenWriteCharacterProposal sotto) -- STESSA garanzia d'ordine di
+ * WriteItemLua sopra per il manifest degli oggetti: un lettore (il gioco)
+ * non deve mai trovare un json che dice "lua":true con il file ancora
+ * assente per una scrittura a meta'. Nessun 'itemTag'/floor a differenza di
+ * WriteItemLua: UN solo file per personaggio generato (un solo trait per
+ * run), non uno per oggetto. Tmp+rename come ogni altro file pubblicato qui. */
+int GenWriteCharacterTraitLua(const char *lua, const char *outDir)
+{
+    if (!lua || !lua[0]) return -1;
+
+    char scriptDir[280];
+    snprintf(scriptDir, sizeof(scriptDir), "%s/scripts", outDir);
+    if (GenEnsureDir(scriptDir) != 0) return -1;
+
+    char finalPath[512], tmpPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/character_trait.lua", scriptDir);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/character_trait.lua.tmp", scriptDir);
+    FILE *lf = fopen(tmpPath, "w");
+    if (!lf) return -1;
+    fputs(lua, lf);
+    return GenPublishFile(lf, tmpPath, finalPath);
+}
+
 /* M6b-1 (DEC-014, prima fetta): generated/character_proposal.json, letto dal
  * gioco SENZA cJSON (src/content/character_proposal.c) -- stesso spirito di
  * GenWriteThemeProposals sopra: schema fisso, charset ASCII senza
@@ -586,8 +611,18 @@ int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const c
  * percorso modello sia -- per costruzione -- su ogni scrittore di questo
  * file), tmp+rename. 'def' e' gia' CLAMPATO da chi chiama
  * (CharacterGenDefClamp, prima rete di sicurezza -- la seconda gira alla
- * lettura lato gioco). */
-int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir)
+ * lettura lato gioco).
+ * 'hasLua' (M6b-2, DEC-037): vero SOLO quando il chiamante ha GIA' scritto
+ * generated/scripts/character_trait.lua con successo (GenWriteCharacterTraitLua
+ * sopra, chiamata PRIMA di questa funzione) -- scrive il campo booleano
+ * "lua" nel json, che il gioco legge per decidere se vale la pena provare a
+ * caricare il file (src/content/character_proposal.c). Il chiamante reale
+ * (RunProposeCharacter, main.c) non arriva mai qui con hasLua=false: se il
+ * trait non valida, la proposta INTERA non si scrive (KB: trait invalido =
+ * personaggio invalido) -- il parametro esiste comunque esplicito, non un
+ * default nascosto, cosi' questa funzione non deve indovinare la regola di
+ * dominio di chi la chiama. */
+int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir, bool hasLua)
 {
     if (!def) return -1;
     if (GenEnsureDir(outDir) != 0) return -1;
@@ -604,6 +639,7 @@ int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, co
     cJSON_AddNumberToObject(stats, "luck", def->luck);
     cJSON_AddStringToObject(root, "palette", def->palette);
     cJSON_AddStringToObject(root, "source", source ? source : "local:unknown");
+    cJSON_AddBoolToObject(root, "lua", hasLua);
     char *text = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!text) return -1;

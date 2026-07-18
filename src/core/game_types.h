@@ -294,6 +294,20 @@ typedef struct CharacterDef {
     int hpCap;
     float baseLuck;
     Color palette;
+    /* M6b-2 (DEC-037): SOLO per il personaggio GENERATO -- il nome della
+       callback che il suo trait Lua definisce ("on_fire"/"on_hit"/"on_tick"/
+       "on_evaluate"), letto per-testo dal file .lua stesso al momento del
+       caricamento della proposta (RunContentLoadCharacterProposal, src/
+       content/character_proposal.c), MAI inventato: stringa vuota se non
+       c'e' nessun trait (rosa curata, proposta senza campo "lua", o file
+       assente/illeggibile -- stesso fallback silenzioso di ogni altro punto
+       di questa fetta, vedi il commento su ScriptCharacterSetActive in src/
+       script/script_character.h). Usato SOLO per la riga onesta e sobria
+       sulla carta (DrawCharacterCards, src/render/game_renderer.c): il
+       caricamento VERO del comportamento rilegge lo stesso file per conto
+       suo quando il personaggio viene selezionato, indipendentemente da
+       questo campo (due letture separate, mai una a cascata dell'altra). */
+    char traitHook[16];
 } CharacterDef;
 
 typedef struct Theme {
@@ -588,6 +602,27 @@ typedef struct ScriptItemRuntime {
     int statsTableRef;
 } ScriptItemRuntime;
 
+/* M6b-2 (DEC-037): stato di runtime Lua per il trait UNICO del personaggio
+   GENERATO -- stessa idea/stessi campi di ScriptItemRuntime sopra, ma per
+   UNA sola sandbox indipendente dagli oggetti: il trait non occupa uno slot
+   di Player.items[], non ha layer visivi di build screen, e vive/muore con
+   la SELEZIONE del personaggio (vedi src/script/script_character.h), non
+   con l'acquisto di un oggetto durante la run. Tipo separato invece di
+   riusare ScriptItemRuntime apposta: quel tipo e' documentato "per l'oggetto
+   nello slot i-esimo", e un campo Game.characterTrait di quel tipo avrebbe
+   confuso chi legge (un solo trait non e' "uno slot d'inventario in piu'").
+   'sandbox' void* per lo stesso motivo di ScriptItemRuntime.sandbox:
+   game_types.h resta "core", solo script_character.c lo interpreta con un
+   cast. */
+typedef struct ScriptCharacterRuntime {
+    void *sandbox;
+    int evalRef;
+    int fireRef;
+    int hitRef;
+    int tickRef;
+    int statsTableRef;
+} ScriptCharacterRuntime;
+
 typedef struct Game {
     RunContent content;
     Theme theme;
@@ -629,6 +664,14 @@ typedef struct Game {
     /* Runtime Lua per ciascuno slot di player.items[] (stesso indice). Vedi
        il commento su ScriptItemRuntime sopra. */
     ScriptItemRuntime itemScripts[MAX_ITEMS];
+    /* M6b-2 (DEC-037): runtime Lua del trait UNICO del personaggio generato
+       -- vedi il commento su ScriptCharacterRuntime sopra. Vive/muore con la
+       selezione del personaggio generato (ScriptItemsInit lo pilota dietro
+       la facciata quando riceve un CharacterDef con traitHook non vuoto),
+       non con l'inventario: per questo NON e' dentro itemScripts[]. Distrutto
+       da ScriptItemsShutdown insieme alle sandbox degli oggetti (stesso
+       ordine "prima del memset" di GameResetRun/FloorZeroEnter). */
+    ScriptCharacterRuntime characterTrait;
     /* Bandiera sporca del sistema delle cache (spec, sezione 7): impostata
        da CombatApplyItem quando un oggetto viene acquisito, consumata una
        volta per frame da GameUpdate (ScriptItemsProcessDirty), che chiama

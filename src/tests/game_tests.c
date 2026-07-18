@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "app/app_internal.h"
+#include "content/character_roster.h"
 #include "core/character_type.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
@@ -1295,14 +1296,21 @@ bool GameFloorZeroTest(Game *game)
     }
 
     /* --- scenario 8 (M6b-1, DEC-014 prima fetta -- spec floor-zero-test
-       (a)+(c)): il quarto slot dinamico del pannello PERSONAGGI, la carta
-       del personaggio generato per QUESTA run, letta da
+       (a)+(c); esteso da M6b-2, DEC-037, requisito 3, floor-zero-test (a)):
+       il quarto slot dinamico del pannello PERSONAGGI, la carta del
+       personaggio generato per QUESTA run, letta da
        generated/character_proposal.json (fake propose esteso, vedi
-       tests/fake-gen.sh FAKE_GEN_CHARACTER_MODE). Le sue stats applicate
-       sono quelle DEL FILE (in banda qui: il clamp fuori banda e' lo
-       scenario 10 sotto), e sopravvivono all'attraversamento -- GameResetRun
-       le azzererebbe se la def generata non venisse ricatturata a parte,
-       vedi il commento sul case APP_FLOOR_ZERO in src/app/app.c. --- */
+       tests/fake-gen.sh FAKE_GEN_CHARACTER_MODE/FAKE_GEN_CHARACTER_LUA_MODE).
+       Le sue stats applicate sono quelle DEL FILE (in banda qui: il clamp
+       fuori banda e' lo scenario 10 sotto), e sopravvivono
+       all'attraversamento -- GameResetRun le azzererebbe se la def generata
+       non venisse ricatturata a parte, vedi il commento sul case
+       APP_FLOOR_ZERO in src/app/app.c. Il fake propose (modalita' default
+       "ok") scrive ANCHE un trait valido (on_evaluate: stats.max_hp += 1,
+       un effetto OSSERVABILE e noto): maxHp atteso e' quindi 7 (dal file) +
+       1 (dal trait) = 8, non 7 -- e' esattamente l'asserzione che prova che
+       il trait e' ATTIVO dopo l'attraversamento (spec floor-zero-test,
+       scenario a). --- */
     memset(&ui, 0, sizeof(ui));
     memset(&gen, 0, sizeof(gen));
     gen.enabled = true;
@@ -1347,9 +1355,9 @@ bool GameFloorZeroTest(Game *game)
         fprintf(stderr, "GameFloorZeroTest: (8a) confirm non sceglie il personaggio generato\n");
         return false;
     }
-    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 7)
+    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 8)
     {
-        fprintf(stderr, "GameFloorZeroTest: (8a) le stats applicate non sono quelle del file (damage=%.1f speed=%.1f hpCap=%d maxHp=%d)\n",
+        fprintf(stderr, "GameFloorZeroTest: (8a) le stats applicate non sono quelle del file + il trait (damage=%.1f speed=%.1f hpCap=%d maxHp=%d, atteso maxHp=8=7+1)\n",
                 game->player.damage, game->player.speed, game->player.hpCap, game->player.maxHp);
         return false;
     }
@@ -1372,9 +1380,9 @@ bool GameFloorZeroTest(Game *game)
         fprintf(stderr, "GameFloorZeroTest: (8c) la run non ricorda il personaggio generato scelto\n");
         return false;
     }
-    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 7)
+    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 8)
     {
-        fprintf(stderr, "GameFloorZeroTest: (8c) la run non parte con le stats/hpCap del personaggio generato (damage=%.1f speed=%.1f hpCap=%d maxHp=%d)\n",
+        fprintf(stderr, "GameFloorZeroTest: (8c) la run non parte con le stats/hpCap/trait del personaggio generato (damage=%.1f speed=%.1f hpCap=%d maxHp=%d, atteso maxHp=8=7+1)\n",
                 game->player.damage, game->player.speed, game->player.hpCap, game->player.maxHp);
         return false;
     }
@@ -1383,6 +1391,51 @@ bool GameFloorZeroTest(Game *game)
         fprintf(stderr, "GameFloorZeroTest: (8c) la def generata non sopravvive a GameResetRun (valid=%d nome='%s')\n",
                 game->generatedCharacterValid, game->generatedCharacter.name);
         return false;
+    }
+    if (game->generatedCharacter.traitHook[0] == '\0' || strcmp(game->generatedCharacter.traitHook, "on_evaluate") != 0)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8c) traitHook inatteso ('%s', atteso 'on_evaluate')\n", game->generatedCharacter.traitHook);
+        return false;
+    }
+
+    /* --- scenario 8d (M6b-2, requisito 3, floor-zero-test (c)): switch
+       generato -> base -> generato, sandbox del trait scaricata/ricaricata
+       senza leak. Un solo slot (Game.characterTrait), quindi "senza leak"
+       qui vuol dire "lo stato torna esattamente quello atteso ad ogni
+       passo" -- se ScriptCharacterShutdown non liberasse la sandbox
+       precedente prima di ScriptCharacterLoad, valgrind lo vedrebbe, ma
+       anche un semplice crash/hang sotto lo stress di tre cicli di
+       selezione lo rivelerebbe (nessuno dei due qui sotto). --- */
+    /* Siamo gia' in Gameplay (post-attraversamento): il pannello del Piano 0
+       non e' piu' raggiungibile da qui, quindi lo switch si esercita
+       direttamente con le stesse due chiamate che AppConfirmCharacterChoice
+       fa davvero (GamePlayerResetBaseStatsFor + ScriptItemsInit), non una
+       reimplementazione -- e' cio' che il pannello chiamerebbe comunque. */
+    game->resetQueued = true;
+    GameUpdate(game, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);   /* il reset rapido mantiene il personaggio generato scelto: maxHp resta 8 */
+    if (game->player.maxHp != 8)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8d) il reset rapido non mantiene il trait del personaggio generato (maxHp=%d, atteso 8)\n", game->player.maxHp);
+        return false;
+    }
+    for (int cycle = 0; cycle < 3; cycle++)
+    {
+        GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(0));
+        ScriptItemsInit(game, CharacterRosterGet(0));   /* -> base (Wayfinder): nessun trait, il trait generato va SCARICATO */
+        if (game->player.maxHp != 6)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (8d) switch verso il base non scarica il trait (ciclo %d, maxHp=%d, atteso 6)\n", cycle, game->player.maxHp);
+            return false;
+        }
+        const CharacterDef *generated = GameResolveCharacterDef(game, CHARACTER_COUNT);
+        if (!generated) { fprintf(stderr, "GameFloorZeroTest: (8d) la carta generata e' sparita a meta' del ciclo %d\n", cycle); return false; }
+        GamePlayerResetBaseStatsFor(&game->player, generated);
+        ScriptItemsInit(game, generated);   /* -> generato: il trait va RICARICATO */
+        if (game->player.maxHp != 8)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (8d) switch di ritorno al generato non ricarica il trait (ciclo %d, maxHp=%d, atteso 8)\n", cycle, game->player.maxHp);
+            return false;
+        }
     }
 
     /* --- scenario 9 (spec floor-zero-test (b)): file assente -- solo le tre
@@ -1462,6 +1515,80 @@ bool GameFloorZeroTest(Game *game)
         return false;
     }
     if (gen.proposeRunner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.proposeRunner);
+
+    /* --- scenario 11 (M6b-2, DEC-037, requisito 3, floor-zero-test (b)):
+       "proposta senza trait (file lua assente ma json presente, caso
+       anomalo)" -- il json dice "lua":true ma generated/scripts/
+       character_trait.lua NON esiste (FAKE_GEN_CHARACTER_LUA_MODE=missing)
+       o esiste ma non compila (=broken): in ENTRAMBI i casi la carta resta
+       presente e selezionabile (il fallimento e' del CARICAMENTO a run
+       gia' iniziata, non della proposta), il trait resta silenziosamente
+       INATTIVO (nessun +1 a maxHp: resta 7, il valore del file), e non c'e'
+       alcun crash. --- */
+    for (int lm = 0; lm < 2; lm++)
+    {
+        const char *luaMode = (lm == 0) ? "missing" : "broken";
+
+        memset(&ui, 0, sizeof(ui));
+        memset(&gen, 0, sizeof(gen));
+        gen.enabled = true;
+        gen.noSprites = true;
+        gen.command = "tests/fake-gen.sh";
+        mode = APP_MAIN_MENU;
+
+        remove("generated/character_proposal.json");
+        remove("generated/scripts/character_trait.lua");
+        setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+        setenv("FAKE_GEN_CHARACTER_MODE", "ok", 1);
+        setenv("FAKE_GEN_CHARACTER_LUA_MODE", luaMode, 1);
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (11-%s) Avvia non porta a FloorZero\n", luaMode); return false; }
+        if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) il finto propose non e' mai terminato\n", luaMode);
+            return false;
+        }
+        if (!game->generatedCharacterValid)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) la carta e' sparita per un trait anomalo (deve restare presente)\n", luaMode);
+            return false;
+        }
+
+        { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputUp();  UpdateApp(game, &mode, &gen, &ui, &in); }
+        for (int i = 0; i < CHARACTER_COUNT; i++) { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (game->characterChosenIndex != CHARACTER_COUNT)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) confirm non sceglie il personaggio generato\n", luaMode);
+            return false;
+        }
+        if (game->player.maxHp != 7)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) maxHp=%d, atteso 7 (trait inattivo, nessun +1)\n", luaMode, game->player.maxHp);
+            return false;
+        }
+
+        { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.runner.state, 5.0))
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) la generazione completa (fake) non e' mai terminata\n", luaMode);
+            return false;
+        }
+        if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (11-%s) l'uscita non si apre\n", luaMode); return false; }
+
+        game->floorZeroExitCrossed = true;
+        { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (11-%s) l'attraversamento non porta a Gameplay\n", luaMode); return false; }
+        if (game->player.maxHp != 7)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (11-%s) dopo l'attraversamento maxHp=%d, atteso 7 (trait ancora inattivo, mai un crash)\n", luaMode, game->player.maxHp);
+            return false;
+        }
+    }
 
     return true;
 }

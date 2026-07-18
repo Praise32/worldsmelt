@@ -47,9 +47,19 @@
   cache "alla Isaac": ricalcola SEMPRE da zero da `Player.base*`, mai in
   place, cosi' un oggetto generato male non fa accumulare un modificatore e
   rimuoverlo è banale). `src/gameplay/combat.c` chiama solo `ScriptItems*`.
+  M6b-2 (DEC-037) aggiunge un quarto file dietro la STESSA facciata:
+  `script_character.{h,c}` (`ScriptCharacter*`), UNA sola sandbox per il
+  trait UNICO del personaggio GENERATO per la run (non un oggetto: niente
+  slot d'inventario, niente layer visivi). `ScriptItems*` la pilota
+  internamente (`ScriptItemsInit`/`ScriptItemsShutdown` per il ciclo di
+  vita, `ScriptItemsOnFire/OnHit/OnTick`/`ScriptItemsRecomputeStats` per le
+  callback) — `combat.c` (e ogni altro chiamante fuori da `src/script/`)
+  continua a non vedere mai `ScriptCharacter*` direttamente. Ordine del
+  ricalcolo: `Player.base*` → `on_evaluate` del TRAIT (se attivo) → oggetti
+  → clamp, sempre da zero come per gli oggetti.
 - `src/tests`: test interni eseguibili da riga di comando.
 - `src/world`: stanze, mappe, transizioni e ricompense.
-- `tools/melting-gen`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico). Scrive gli stessi file del sidecar Node. `gen_lua.c` (fase 3a-L3) genera e valida lo script Lua opzionale di ogni oggetto: prompt cheat-sheet + few-shot (`prompts/lua_system.txt`/`lua_user.txt`), nessuna grammatica (un Lua completo non si esprime in GBNF), dry-run nella sandbox vera con un'API di gioco finta (`GenLuaStubRegister`, nessun `Game*`), fino a 2 ritenti con l'errore rimandato al modello; su fallimento l'oggetto resta sulla mini-VM.
+- `tools/melting-gen`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico). Scrive gli stessi file del sidecar Node. `gen_lua.c` (fase 3a-L3) genera e valida lo script Lua opzionale di ogni oggetto: prompt cheat-sheet + few-shot (`prompts/lua_system.txt`/`lua_user.txt`), nessuna grammatica (un Lua completo non si esprime in GBNF), dry-run nella sandbox vera con un'API di gioco finta (`GenLuaStubRegister`, nessun `Game*`), fino a 2 ritenti con l'errore rimandato al modello; su fallimento l'oggetto resta sulla mini-VM. M6b-2 (DEC-037) aggiunge lo stesso ciclo per il trait UNICO del personaggio generato (`GenLuaValidateCharacterTrait`/`GenLuaGenerateCharacterTrait`, template `prompts/lua_character_user.txt`): gate di dominio diverso (esattamente una fra le quattro callback, mai zero), e su fallimento NESSUN ripiego — l'intera proposta di personaggio non si scrive (carta assente, mai un personaggio-curato-di-riserva).
 
 ## Verifiche obbligatorie
 

@@ -50,15 +50,53 @@ EOF
       case "${FAKE_GEN_CHARACTER_MODE:-ok}" in
         none)
           rm -f "$out/character_proposal.json"
+          rm -f "$out/scripts/character_trait.lua"
           ;;
         outofband)
+          rm -f "$out/scripts/character_trait.lua"
           cat > "$out/character_proposal.json" <<'EOF'
-{"name":"Fake Overclock","blurb":"A test blurb for an out-of-band fake character proposal.","stats":{"damage":99,"fireDelay":0.05,"shotSpeed":900,"speed":50,"maxHp":40,"luck":9},"palette":"#ff00aa","source":"local:fake-model.gguf"}
+{"name":"Fake Overclock","blurb":"A test blurb for an out-of-band fake character proposal.","stats":{"damage":99,"fireDelay":0.05,"shotSpeed":900,"speed":50,"maxHp":40,"luck":9},"palette":"#ff00aa","source":"local:fake-model.gguf","lua":false}
 EOF
           ;;
         *)
-          cat > "$out/character_proposal.json" <<'EOF'
-{"name":"Fake Ember Twin","blurb":"A test blurb for the fake generated character in this scenario.","stats":{"damage":9,"fireDelay":0.22,"shotSpeed":520,"speed":215,"maxHp":7,"luck":0.8},"palette":"#cc7733","source":"local:fake-model.gguf"}
+          # M6b-2 (DEC-037): il trait Lua del personaggio generato -- TRE
+          # modalita' indipendenti (FAKE_GEN_CHARACTER_LUA_MODE), come
+          # FAKE_GEN_CHARACTER_MODE lo e' da FAKE_GEN_PROPOSE_MODE sopra:
+          # "ok" (default, script valido con un effetto OSSERVABILE: alza
+          # max_hp di ESATTAMENTE 1, cosi' i test possono verificare un
+          # numero noto senza leggere il file), "broken" (il file c'e' ma
+          # con una sintassi Lua non valida: il gioco deve caricarlo,
+          # fallire silenziosamente, trait inattivo, MAI un crash),
+          # "missing" (il json dice "lua":true ma il file NON esiste
+          # affatto -- il caso anomalo esplicito della spec M6b-2, "file lua
+          # assente ma json presente").
+          mkdir -p "$out/scripts"
+          luaMode="${FAKE_GEN_CHARACTER_LUA_MODE:-ok}"
+          hasLua="false"
+          case "$luaMode" in
+            ok)
+              cat > "$out/scripts/character_trait.lua" <<'EOF'
+function on_evaluate(stats)
+  stats.max_hp = stats.max_hp + 1
+end
+EOF
+              hasLua="true"
+              ;;
+            broken)
+              cat > "$out/scripts/character_trait.lua" <<'EOF'
+function on_evaluate(stats
+  stats.max_hp = stats.max_hp + 1
+end
+EOF
+              hasLua="true"
+              ;;
+            missing)
+              rm -f "$out/scripts/character_trait.lua"
+              hasLua="true"
+              ;;
+          esac
+          cat > "$out/character_proposal.json" <<EOF
+{"name":"Fake Ember Twin","blurb":"A test blurb for the fake generated character in this scenario.","stats":{"damage":9,"fireDelay":0.22,"shotSpeed":520,"speed":215,"maxHp":7,"luck":0.8},"palette":"#cc7733","source":"local:fake-model.gguf","lua":$hasLua}
 EOF
           ;;
       esac

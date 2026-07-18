@@ -1853,9 +1853,26 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
             DrawText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(48.0f*uiScale),
                      UiRound(11.0f*uiScale), GOLD);
 
+        /* M6b-2 (DEC-037): riga onesta e sobria sul trait Lua del personaggio
+           GENERATO -- SOLO se c->traitHook non e' vuoto (nessun testo
+           inventato, vedi il commento sul campo in core/game_types.h): il
+           nome LETTERALE della callback che lo script definisce
+           ("on_fire"/"on_hit"/"on_tick"/"on_evaluate"), mai una descrizione
+           immaginata del suo effetto. La rosa curata non imposta mai questo
+           campo, quindi questa riga compare solo sul quarto slot dinamico. */
+        int blurbOffset = UiRound((selected ? 66.0f : 50.0f)*uiScale);
+        if (c->traitHook[0])
+        {
+            char traitText[32];
+            snprintf(traitText, sizeof(traitText), "Trait: %s", c->traitHook);
+            DrawText(traitText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
+                     UiRound(11.0f*uiScale), game->theme.accent2);
+            blurbOffset += UiRound(15.0f*uiScale);
+        }
+
         char lines[3][160];
         int n = WrapTextLines(c->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 3);
-        int ly = (int)card.y + UiRound((selected ? 66.0f : 50.0f)*uiScale);
+        int ly = (int)card.y + blurbOffset;
         int lineStep = UiRound(15.0f*uiScale);
         for (int l = 0; l < n; l++)
             DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });

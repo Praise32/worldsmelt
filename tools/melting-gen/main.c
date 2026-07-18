@@ -433,6 +433,14 @@ static void RunLuaPhase(GenLlmSession *sess, GenRun *run, const GenArgs *args, d
 #define GEN_CHARACTER_GRAMMAR_PATH "tools/melting-gen/character.gbnf"
 #define GEN_CHARACTER_N_PREDICT 220
 
+/* M6b-2 (DEC-037): budget di TEMPO dedicato al passo trait, contato
+ * dall'INIZIO di quel passo (non dall'inizio del processo, a differenza di
+ * GEN_LUA_PHASE_BUDGET_SEC che governa i 20 script Lua di una run intera) --
+ * la fase propose resta "mentre giri nell'hub", mai bloccante: 60s bastano
+ * per GEN_LUA_MAX_ATTEMPTS tentativi di un singolo script piccolo (vedi
+ * gen_lua.h) senza rischiare di far percepire il Piano 0 come appeso. */
+#define GEN_CHARACTER_TRAIT_BUDGET_SEC 60.0
+
 /* M6b-1 (DEC-014, prima fetta): genera la proposta di personaggio
  * alternativo per questa run, dentro la STESSA sessione/lo stesso processo
  * gia' aperto da RunProposeThemes per i temi -- mai un secondo modello
@@ -526,13 +534,53 @@ static void RunProposeCharacter(GenLlmSession *sess, const GenArgs *args, const 
 
     CharacterGenDefClamp(&def);   /* prima rete di clamp: qui, prima di scrivere il json */
 
+    /* M6b-2 (DEC-037), seconda fetta: il trait Lua UNICO del personaggio,
+     * STESSA sessione modello gia' aperta (mai un secondo caricamento, vedi
+     * il commento in cima a questa funzione), STESSA pipeline degli oggetti
+     * (gen_lua.c: sandbox vera, dry-run, ritenti con l'errore rimandato).
+     * Budget di fase dedicato, contato da QUI (non dall'inizio del
+     * processo): la generazione delle stats sopra e' gia' rapida (un
+     * singolo JSON piccolo a grammatica), il tempo che conta per "non
+     * bloccare l'hub" e' quello del passo trait.
+     * KB (characters.md, DEC-037): trait non valido dopo i ritenti =
+     * personaggio INTERO non valido = carta assente, NESSUN
+     * character_proposal.json -- si esce qui SENZA scrivere nulla (il file
+     * e' gia' stato rimosso in testa a RunProposeThemes, prima di questo
+     * tentativo), esattamente come ogni altro fallimento di questa funzione
+     * sopra. */
+    double traitDeadline = GenNowSeconds() + GEN_CHARACTER_TRAIT_BUDGET_SEC;
+    char traitLua[GEN_LUA_LEN];
+    GenLuaStats traitStats;
+    bool haveTrait = GenLuaGenerateCharacterTrait(sess, args->promptsDir, args->seed, def.name, def.blurb,
+                                                   traitDeadline, traitLua, sizeof(traitLua), &traitStats);
+    if (!haveTrait)
+    {
+        GenLogLine("propose-character: trait non validato dopo i tentativi, nessuna carta (DEC-037)");
+        return;
+    }
+
     char srcBuf[128];
     const char *base = strrchr(modelPath, '/');
     snprintf(srcBuf, sizeof(srcBuf), "local:%s", base ? base + 1 : modelPath);
-    if (GenWriteCharacterProposal(&def, srcBuf, args->outDir) != 0)
+
+    /* Ordine non negoziabile (spec): il .lua PRIMA del .json che lo
+     * referenzia, stessa garanzia d'ordine del manifest degli oggetti (vedi
+     * il commento su GenWriteCharacterTraitLua in melting_gen.h). Se la
+     * scrittura del .lua fallisce (disco pieno, rename impossibile...), il
+     * json NON si scrive affatto -- mai un "lua":true che punta a un file
+     * che non esiste per davvero (a differenza dell'anomalia di lettura che
+     * la spec chiede di tollerare a RUN GIA' INIZIATA, qui e' ancora sotto
+     * il nostro controllo, quindi si evita di scriverla). */
+    if (GenWriteCharacterTraitLua(traitLua, args->outDir) != 0)
+    {
+        GenLogLine("propose-character: scrittura del trait fallita, nessuna carta");
+        return;
+    }
+
+    if (GenWriteCharacterProposal(&def, srcBuf, args->outDir, true) != 0)
         GenLogLine("propose-character: scrittura fallita");
     else
-        GenLogLine("propose-character: source=%s name=%s", srcBuf, def.name);
+        GenLogLine("propose-character: source=%s name=%s trait=ok", srcBuf, def.name);
 }
 
 /* --propose-themes N (M5, requisito 1): ramo di uscita anticipata come
@@ -567,6 +615,17 @@ static int RunProposeThemes(const GenArgs *args, int requestedCount, int include
     char characterPath[512];
     snprintf(characterPath, sizeof(characterPath), "%s/character_proposal.json", args->outDir);
     remove(characterPath);
+    /* M6b-2 (DEC-037): stesso ragionamento per il trait -- un
+     * character_trait.lua di ieri, lasciato sul disco, non deve MAI
+     * sopravvivere a una generazione (con o senza modello) che non lo
+     * riscrive: senza questa rimozione un fallimento del passo trait di
+     * OGGI lascerebbe comunque un file valido di IERI sul disco, e un
+     * eventuale "lua":true scritto da un json vecchio residuo (che qui
+     * sopra viene gia' rimosso) punterebbe a un trait che non e' di questa
+     * run. test-gen (senza modello) verifica proprio l'assenza di residui. */
+    char traitPath[512];
+    snprintf(traitPath, sizeof(traitPath), "%s/scripts/character_trait.lua", args->outDir);
+    remove(traitPath);
 
     GenThemeProposal proposals[GEN_THEME_PROPOSALS];
     memset(proposals, 0, sizeof(proposals));

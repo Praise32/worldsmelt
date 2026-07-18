@@ -11,17 +11,25 @@
 
 #include "core/game_types.h"
 
-/* Da chiamare una volta per run, DOPO che Game e' gia' stato azzerato e i
-   valori player.base* sono gia' impostati (vedi game.c, GameResetRun):
-   azzera i riferimenti cache di ogni slot e deriva player.damage/fireDelay/
-   shotSpeed/shotRadius/speed/maxHp dai base* (0 oggetti posseduti). */
-void ScriptItemsInit(Game *game);
+/* Da chiamare ogni volta che il personaggio applicato al player e'
+   (ri)deciso, DOPO che player.base* sono gia' impostati per quel personaggio
+   (GamePlayerResetBaseStatsFor(player, character), vedi il chiamante):
+   azzera i riferimenti cache di ogni slot oggetto, applica/scarica dietro la
+   facciata il trait Lua del personaggio (M6b-2, DEC-037 --
+   ScriptCharacterSetActive, src/script/script_character.h: 'character' NULL
+   o senza trait = nessun trait attivo) e deriva player.damage/fireDelay/
+   shotSpeed/shotRadius/speed/maxHp dai base* (0 oggetti posseduti, ma il
+   trait SI' che gira, vedi ScriptItemsRecomputeStats sotto). 'character'
+   deve essere lo STESSO passato a GamePlayerResetBaseStatsFor appena prima
+   (NULL quando nessun personaggio e' applicato, come in GameResetRun). */
+void ScriptItemsInit(Game *game, const CharacterDef *character);
 
-/* Distrugge ogni ScriptSandbox viva. Chiamata da GameUnloadAssets (vedi
-   src/assets/game_assets.c): GameResetRun la richiama gia' come primissima
-   riga, PRIMA del memset che azzererebbe altrimenti i puntatori senza
-   liberare la memoria di Lua. Sicura da chiamare piu' volte/su uno stato
-   gia' vuoto. */
+/* Distrugge ogni ScriptSandbox viva, oggetti E il trait del personaggio
+   (M6b-2: facciata su ScriptCharacterShutdown). Chiamata da GameUnloadAssets
+   (vedi src/assets/game_assets.c): GameResetRun la richiama gia' come
+   primissima riga, PRIMA del memset che azzererebbe altrimenti i puntatori
+   senza liberare la memoria di Lua. Sicura da chiamare piu' volte/su uno
+   stato gia' vuoto. */
 void ScriptItemsShutdown(Game *game);
 
 /* Da chiamare da CombatApplyItem subito dopo aver copiato l'oggetto in
@@ -45,13 +53,16 @@ bool ScriptItemsHasActiveLua(const Game *game, int itemIndex);
 
 /* Le tre callback per-evento (spec, sezione 7, "on_fire"/"on_hit"/
    "on_tick"): chiamano l'omonima funzione Lua di OGNI oggetto con Lua
-   attivo (chi non la definisce viene saltato, non e' un errore). Chiamate
-   ADDITIVAMENTE dal codice che gia' chiama ScriptVmExecutePlayer per la
-   mini-VM (vedi src/gameplay/combat.c): non sostituiscono quella chiamata,
-   la mini-VM continua a girare per gli oggetti che non hanno Lua attivo.
-   shotIndex/enemyIndex sono indici grezzi nell'array C di Game: questo
-   modulo li impacchetta in handle (script_api.h) prima di passarli allo
-   script, cosi' combat.c non deve mai conoscere quell'encoding. */
+   attivo (chi non la definisce viene saltato, non e' un errore), E -- M6b-2,
+   facciata -- l'omonima callback del trait del personaggio, se attivo:
+   combat.c non chiama mai ScriptCharacter* direttamente, solo queste tre
+   funzioni. Chiamate ADDITIVAMENTE dal codice che gia' chiama
+   ScriptVmExecutePlayer per la mini-VM (vedi src/gameplay/combat.c): non
+   sostituiscono quella chiamata, la mini-VM continua a girare per gli
+   oggetti che non hanno Lua attivo. shotIndex/enemyIndex sono indici grezzi
+   nell'array C di Game: questo modulo li impacchetta in handle
+   (script_api.h) prima di passarli allo script, cosi' combat.c non deve mai
+   conoscere quell'encoding. */
 void ScriptItemsOnFire(Game *game, Vector2 pos, Vector2 dir);
 void ScriptItemsOnHit(Game *game, int shotIndex, int enemyIndex);
 void ScriptItemsOnTick(Game *game, float dt);
@@ -63,14 +74,16 @@ void ScriptItemsOnTick(Game *game, float dt);
 void ScriptItemsProcessDirty(Game *game);
 
 /* Il sistema delle cache (spec, sezione 7, l'idea rubata a Isaac
-   MC_EVALUATE_CACHE): riparte SEMPRE da player.base* e riapplica, in
-   ordine, per ciascun oggetto posseduto, prima i suoi modificatori
-   "built-in" (trait/slot, la stessa matematica che prima viveva una tantum
-   in CombatApplyItem) poi, se l'oggetto ha Lua attivo con on_evaluate, la
-   tabella delle statistiche che lo script puo' modificare. Ogni passo e'
-   seguito da un clamp ai confini di sicurezza, cosi' nessun oggetto -
-   built-in o generato da un 7B che sbaglia i conti - puo' produrre un
-   giocatore non giocabile, e nessuno script puo' far "accumulare" un
+   MC_EVALUATE_CACHE): riparte SEMPRE da player.base*, applica SUBITO -- M6b-2
+   -- l'on_evaluate del trait del personaggio (se attivo: "parte del
+   personaggio", prima di qualunque oggetto raccolto durante la run), poi
+   riapplica, in ordine, per ciascun oggetto posseduto, prima i suoi
+   modificatori "built-in" (trait/slot, la stessa matematica che prima viveva
+   una tantum in CombatApplyItem) poi, se l'oggetto ha Lua attivo con
+   on_evaluate, la tabella delle statistiche che lo script puo' modificare.
+   Ogni passo e' seguito da un clamp ai confini di sicurezza, cosi' nessun
+   oggetto - built-in o generato da un 7B che sbaglia i conti - puo' produrre
+   un giocatore non giocabile, e nessuno script puo' far "accumulare" un
    modificatore ricalcolo dopo ricalcolo. Non 'static': i test dedicati del
    sistema delle cache la chiamano direttamente. */
 void ScriptItemsRecomputeStats(Game *game);

@@ -807,13 +807,23 @@ fi
 cmp "$TMP/propose-nochar/theme_proposals.json" tests/melting-gen/golden-theme-proposals-seed12345.txt
 
 echo "-- --propose-themes: un character_proposal.json residuo viene rimosso anche senza rigenerarlo --"
-mkdir -p "$TMP/propose-stale"
-echo '{"name":"Stale Leftover","blurb":"a leftover from yesterday","stats":{"damage":8,"fireDelay":0.2,"shotSpeed":500,"speed":220,"maxHp":6,"luck":0.3},"palette":"#112233","source":"local:yesterday.gguf"}' \
+mkdir -p "$TMP/propose-stale/scripts"
+echo '{"name":"Stale Leftover","blurb":"a leftover from yesterday","stats":{"damage":8,"fireDelay":0.2,"shotSpeed":500,"speed":220,"maxHp":6,"luck":0.3},"palette":"#112233","source":"local:yesterday.gguf","lua":true}' \
   > "$TMP/propose-stale/character_proposal.json"
+# M6b-2 (DEC-037): un character_trait.lua residuo di IERI deve sparire allo
+# stesso modo, senza modello -- vedi il commento in testa a RunProposeThemes
+# (main.c): un trait vecchio lasciato sul disco, con o senza un json vecchio
+# a puntarlo, non deve mai sopravvivere a una generazione di OGGI.
+echo 'function on_evaluate(stats) stats.max_hp = stats.max_hp + 1 end' \
+  > "$TMP/propose-stale/scripts/character_trait.lua"
 "$GEN" --propose-themes 3 --seed 12345 --model "$TMP/nonexistent-main.gguf" \
        --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-stale"
 if [ -f "$TMP/propose-stale/character_proposal.json" ]; then
   echo "FALLITO: un character_proposal.json di una generazione precedente non e' stato rimosso senza un modello"
+  exit 1
+fi
+if [ -f "$TMP/propose-stale/scripts/character_trait.lua" ]; then
+  echo "FALLITO: un character_trait.lua di una generazione precedente non e' stato rimosso senza un modello"
   exit 1
 fi
 

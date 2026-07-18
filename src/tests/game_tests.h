@@ -99,6 +99,13 @@ bool ScriptSandboxDeterminismProbe(unsigned int seed, char *out, size_t outSize)
    quindi src/app/app.c la richiama PRIMA di InitWindow. */
 bool ScriptItemsSelfTest(void);
 
+/* M6b-2 (DEC-037): suite di test del runtime del trait del personaggio
+   generato (src/script/script_character.c): vedi
+   src/tests/script_character_tests.c. Come ScriptItemsSelfTest, non
+   richiede una finestra raylib, quindi src/app/app.c la richiama PRIMA di
+   InitWindow. */
+bool ScriptCharacterSelfTest(void);
+
 /* Piano strategico 16/07/2026, sezione tier: AppReadBenchmarkPreset
    (src/app/app.h) e' solo I/O di file (nessun Game, nessuna finestra),
    quindi questo test gira prima di InitWindow come i tre sopra. Vedi

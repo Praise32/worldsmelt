@@ -122,16 +122,17 @@ dedicato.
   validato in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037,
   rimando, non riformulato qui).
 
-## Personaggio generato: stato dell'implementazione (M6b-1)
+## Personaggio generato: stato dell'implementazione (M6b-1, M6b-2)
 
 Nota di stato della fetta (stile delle note di gap già presenti in questo documento e nella
-KB): l'implementazione M6b-1 copre SOLO nome/blurb, statistiche in bande e palette del
+KB): l'implementazione M6b-1 ha coperto nome/blurb, statistiche in bande e palette del
 personaggio alternativo generato per run, più la sua carta nel Piano 0 (quarto slot dinamico
-accanto alla rosa base). Il **trait unico come comportamento Lua (DEC-037)** e il **colpo
-firmato (DEC-068)** sono gap di implementazione espliciti, non ancora presenti: arriveranno
-con le fette successive (M6b-2 per il trait, M6b-3 per il colpo firmato). Fino ad allora il
-personaggio generato ha statistiche e palette proprie ma nessun comportamento unico e usa
-sempre il colpo standard, esattamente come un personaggio della rosa base senza colpo firmato
+accanto alla rosa base). Da M6b-2 il **trait unico come comportamento Lua (DEC-037)** è
+implementato: generato e validato in sandbox nella stessa sessione modello della proposta,
+attivo dalla selezione del personaggio generato. Resta il **colpo firmato (DEC-068, M6b-3)**
+come gap di implementazione esplicito: fino ad allora il personaggio generato ha statistiche,
+palette e trait propri ma usa sempre il colpo standard, esattamente come un personaggio della
+rosa base senza colpo firmato
 (DEC-068, "un personaggio alternativo senza colpo firmato non è penalizzato").
 
 ### Default proposti dall'implementazione (stile DEC-019, M6b-1)

@@ -410,6 +410,15 @@ int GenWriteProvenance(const GenRun *run, const char *outDir, const char *prompt
  * scrittura. */
 int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const char *source, const char *outDir);
 
+/* M6b-2 (DEC-037): scrive generated/scripts/character_trait.lua (tmp+rename)
+ * -- 'lua' e' lo script GIA' validato (GenLuaValidateCharacterTrait,
+ * gen_lua.h), non testo grezzo del modello. Va chiamata PRIMA di
+ * GenWriteCharacterProposal sotto (stessa garanzia d'ordine di WriteItemLua/
+ * il manifest degli oggetti, gen_manifest.c): il json referenzia questo file
+ * per convenzione fissa (campo "lua"), mai per un percorso esplicito al suo
+ * interno. Ritorna 0 su successo, -1 su errore di scrittura o 'lua' vuoto. */
+int GenWriteCharacterTraitLua(const char *lua, const char *outDir);
+
 /* M6b-1 (DEC-014, prima fetta): scrive generated/character_proposal.json
  * (tmp+rename, come ogni altro output di questo modulo) col personaggio
  * alternativo per-run gia' CLAMPATO (CharacterGenDefClamp, prima rete di
@@ -418,8 +427,11 @@ int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const c
  * GenWriteThemeProposals: "local:<modello>"). Ritorna 0 su successo, -1 su
  * errore di scrittura. Chiamata SOLO su successo della generazione: il
  * fallback canonico e' l'ASSENZA del file (characters.md, "Fallback"), mai
- * un personaggio curato di riserva -- vedi RunProposeCharacter in main.c. */
-int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir);
+ * un personaggio curato di riserva -- vedi RunProposeCharacter in main.c.
+ * 'hasLua' (M6b-2, DEC-037): vero SOLO dopo che GenWriteCharacterTraitLua
+ * sopra ha gia' scritto con successo il trait -- scrive il campo booleano
+ * "lua" nel json (vedi il commento sopra quella funzione). */
+int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir, bool hasLua);
 
 /* gen_atlas.c */
 int GenWriteAtlasBmp(const GenRun *run, const char *outDir);

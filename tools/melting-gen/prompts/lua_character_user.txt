@@ -1,0 +1,8 @@
+Generated character for this run: {CHAR_NAME}
+Description: {CHAR_BLURB}
+
+This is NOT an item (no treasure, no shop, no boss stat-up): it is the character's own UNIQUE trait, always active from the start of the run, never picked up. Write EXACTLY ONE behavior, coherent with the name and description above, in ONE of these two forms (pick whichever fits your idea best):
+  (a) a concrete behavior: define EXACTLY ONE of on_fire/on_hit/on_tick (never two together, never together with on_evaluate) -- same rules/palette of archetypes as the cheat-sheet above for an ACTIVE item;
+  (b) a moderate passive trait: define ONLY on_evaluate, nudging 1 or 2 fields of 'stats' by a SMALL margin -- a character trait, not a rare item: think about a third of the margin you would use for a legendary item -- same rules as the cheat-sheet above for a STAT-UP item.
+
+Never define more than one callback in total, and never leave the script with none: a generated character ALWAYS has a trait, it is not optional the way it is for an item. Respond with Lua code only: no explanations, no markdown.

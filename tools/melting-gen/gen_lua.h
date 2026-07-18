@@ -114,6 +114,40 @@ int GenLuaLoadExisting(GenRun *run, const char *outDir);
    su un oggetto attivo. */
 bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool *anyCallback, char *err, size_t errSize);
 
+/* M6b-2 (DEC-037): validazione del trait UNICO del personaggio generato --
+   stessa sandbox/stub/nessuna grammatica di GenLuaValidate sopra, ma un
+   terzo gate di dominio (nessuno dei due statUpOnly esprime "una sola fra
+   le quattro callback, mai zero, mai una combinazione"): vedi il commento
+   completo sopra l'implementazione in gen_lua.c per il "perche'" di un gate
+   dedicato invece di riusare uno dei due esistenti. 'anyCallback' (puo'
+   essere NULL) e' vero se lo script compila e definisce ALMENO una
+   callback, anche quando il gate la respinge per "troppe insieme" -- utile
+   solo per diagnostica, il chiamante deve comunque guardare il valore di
+   ritorno per sapere se il trait e' valido. */
+bool GenLuaValidateCharacterTrait(const char *source, unsigned int seed, bool *anyCallback, char *err, size_t errSize);
+
+/* M6b-2 (DEC-037): il ciclo prompt->modello->valida->ritenta (fino a
+   GEN_LUA_MAX_ATTEMPTS tentativi, vedi gen_lua.c) per il trait UNICO del
+   personaggio generato -- UN solo script, non i 20 di una run intera, quindi
+   nessun prefix-priming (a differenza di GenLuaGenerateForRun sotto): un
+   GenLlmComplete "a prompt intero" per tentativo, come RunProposeCharacter
+   fa gia' per il JSON del personaggio (main.c). 'sess' GIA' aperta (riusata
+   dalla stessa sessione della proposta di temi+personaggio: mai un secondo
+   caricamento, vedi RunProposeThemes in main.c). 'deadline' e' un
+   GenNowSeconds() assoluto (calcolato dal chiamante all'INIZIO del passo
+   trait, non dall'inizio del processo): oltre quella soglia la funzione
+   ritorna false senza tentare oltre, cosi' la fase propose resta
+   non-bloccante (vedi il task brief, "60s dall'inizio del passo trait").
+   Ritorna true e scrive 'outLua' (terminato da zero) SOLO se uno script
+   valida entro i tentativi/il budget; false altrimenti con 'outLua' vuoto e
+   'stats' aggiornato per il log -- nessun ripiego C qui: il chiamante non
+   scrive character_proposal.json quando questa funzione ritorna false (KB:
+   trait invalido = personaggio invalido, carta assente, mai un
+   personaggio-curato-di-riserva). */
+bool GenLuaGenerateCharacterTrait(GenLlmSession *sess, const char *promptsDir, unsigned int seed,
+                                   const char *charName, const char *charBlurb, double deadline,
+                                   char *outLua, size_t outLuaSize, GenLuaStats *stats);
+
 /* ============================================================
    Guardia byte-budget del prompt Lua (fase 3b review, "un guard automatico
    contro una futura re-inflazione"): vedi il commento sopra
