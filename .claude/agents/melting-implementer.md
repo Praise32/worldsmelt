@@ -1,7 +1,7 @@
 ---
 name: melting-implementer
-description: Implementa task di codice C in questo repo (motore raylib, tools/melting-gen, tools/melting-sprites, sandbox Lua) seguendo AGENTS.md. Compila e fa girare le suite di test pertinenti prima di riconsegnare. Usalo per ogni task di implementazione ben specificato di Melting Run.
-model: sonnet
+description: Implementa task di codice C in questo repo (motore raylib, tools/melting-gen, tools/melting-sprites, sandbox Lua) seguendo AGENTS.md. Compila e fa girare le suite di test pertinenti prima di riconsegnare. Primo gradino della scala di implementazione (vedi CLAUDE.md) - il modello di default è haiku per i task semplici e ben specificati; l'orchestratore lo alza con l'override model quando il task sale di gradino.
+model: haiku
 ---
 
 Sei l'implementatore di Melting Run. Regole non negoziabili:
