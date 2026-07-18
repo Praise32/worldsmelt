@@ -1,5 +1,6 @@
 #include "game/game.h"
 
+#include "content/character_roster.h"
 #include "content/run_content.h"
 #include "game/game_internal.h"
 #include "script/script_items.h"
@@ -88,7 +89,24 @@ void GameResetRun(Game *game)
 void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
 {
     if (dt > 0.033f) dt = 0.033f;
-    if (game->resetQueued) GameResetRun(game);   /* latch consumato: GameResetRun azzera l'intero Game */
+    if (game->resetQueued)
+    {
+        /* Reset rapido R: GameResetRun azzera l'INTERO Game (compreso
+           characterChosenIndex), quindi l'indice scelto va catturato PRIMA e
+           riapplicato SUBITO dopo. Stessa regola di floorZeroExitCrossed in
+           app.c -- la run continua col personaggio scelto, non ricade sul
+           "nessun personaggio" storico che GameResetRun applicherebbe da sola.
+           GameResetRun da sola NON cambia comportamento (resta storica:
+           characterChosenIndex = -1). */
+        int chosenCharacter = game->characterChosenIndex;
+        GameResetRun(game);
+        game->characterChosenIndex = chosenCharacter;
+        if (chosenCharacter >= 0)
+        {
+            GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(chosenCharacter));
+            ScriptItemsInit(game);
+        }
+    }
     if (game->messageTimer > 0.0f) game->messageTimer -= dt;
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)

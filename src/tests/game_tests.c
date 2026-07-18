@@ -1245,6 +1245,28 @@ bool GameFloorZeroTest(Game *game)
         return false;
     }
 
+    /* FIX B: reset rapido R mantiene il personaggio scelto. */
+    float speedBeforeReset = game->player.speed;
+    int chosenCharacterBeforeReset = game->characterChosenIndex;
+    int hpCapBeforeReset = game->player.hpCap;
+    int maxHpBeforeReset = game->player.maxHp;
+
+    game->resetQueued = true;
+    GameUpdate(game, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+
+    if (game->characterChosenIndex != chosenCharacterBeforeReset)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7e) reset rapido ha perso il personaggio scelto (era %d, ora %d)\n",
+                chosenCharacterBeforeReset, game->characterChosenIndex);
+        return false;
+    }
+    if (game->player.speed != speedBeforeReset || game->player.hpCap != hpCapBeforeReset || game->player.maxHp != maxHpBeforeReset)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7e) reset rapido ha modificato le stats/hpCap del personaggio (speed %.1f->%.1f hpCap %d->%d maxHp %d->%d)\n",
+                speedBeforeReset, game->player.speed, hpCapBeforeReset, game->player.hpCap, maxHpBeforeReset, game->player.maxHp);
+        return false;
+    }
+
     return true;
 }
 #else

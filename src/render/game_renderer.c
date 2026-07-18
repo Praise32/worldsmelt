@@ -1318,10 +1318,17 @@ static void DrawOuterUi(Game *game, UiLayout layout)
        personaggio"): valido in OGNI stato che disegna questo pannello
        (FloorZero E Gameplay, DrawOuterUi non distingue), non solo nel
        pannello di selezione -- il giocatore deve poter controllare "chi sto
-       giocando" anche a meta' run senza riaprire il pannello TAB. */
-    const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
-    DrawText(TextFormat("%s -- %s", character->name, character->role), rx, ry, UiRound(14.0f*s), character->palette);
-    ry += UiRound(20.0f*s);
+       giocando" anche a meta' run senza riaprire il pannello TAB.
+       Mostra la riga SOLO se un personaggio e' davvero stato scelto
+       (characterChosenIndex >= 0): con -1 (nessun personaggio, es. reset
+       rapido o test senza Piano 0) non mostra nulla, come il comportamento
+       pre-M6a. Lo stickman gia' fa cosi' (WHITE con indice -1). */
+    if (game->characterChosenIndex >= 0)
+    {
+        const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
+        DrawText(TextFormat("%s -- %s", character->name, character->role), rx, ry, UiRound(14.0f*s), character->palette);
+        ry += UiRound(20.0f*s);
+    }
 
     /* Vita come cuori (fase 4). */
     DrawHearts(p, rx, ry, s);
