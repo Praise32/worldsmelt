@@ -741,4 +741,93 @@ after=$(find "$TMP/bench-nomodel" -type f -exec sha256sum {} \; | sort)
 [ "$before" = "$after" ]
 grep -q "nessun modello disponibile" "$TMP/bench-nomodel.err"
 
+# M5 (DEC-005, scelta del tema nel Piano 0): --propose-themes senza modello e'
+# deterministico e valido (schema JSON minimo, source=fallback), e stabile su
+# un golden file di riferimento -- stesso schema del golden-fallback sopra:
+# blocca cambi silenziosi al pool/all'RNG di GenFallbackThemeProposals.
+echo "-- --propose-themes: senza modello e' deterministico e produce JSON valido --"
+"$GEN" --propose-themes 3 --seed 12345 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-golden"
+cmp "$TMP/propose-golden/theme_proposals.json" tests/melting-gen/golden-theme-proposals-seed12345.txt
+python3 - "$TMP/propose-golden/theme_proposals.json" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["source"] == "fallback", d["source"]
+props = d["proposals"]
+assert len(props) == 3, len(props)
+names = [p["name"] for p in props]
+assert len(set(n.lower() for n in names)) == 3, names   # 3 nomi distinti
+for p in props:
+    assert 3 <= len(p["name"]) <= 40, p["name"]
+    assert p["blurb"], p
+    assert all(ord(c) < 128 for c in p["name"] + p["blurb"])   # ASCII puro (DEC-052)
+PYEOF
+
+echo "-- --propose-themes: N=2 scrive solo 2 proposte --"
+"$GEN" --propose-themes 2 --seed 12345 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-n2"
+python3 -c "
+import json
+d = json.load(open('$TMP/propose-n2/theme_proposals.json'))
+assert len(d['proposals']) == 2, d['proposals']
+"
+
+echo "-- --propose-themes: stesso seed due volte -> proposte identiche --"
+"$GEN" --propose-themes 3 --seed 777 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-a"
+"$GEN" --propose-themes 3 --seed 777 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-b"
+cmp "$TMP/propose-a/theme_proposals.json" "$TMP/propose-b/theme_proposals.json"
+
+# --theme-file + --print-json-prompt: entrambi i rami di {CHOSEN_THEME}
+# sostituiti (requisito 4), MAI il placeholder grezzo nel prompt stampato.
+echo "-- --theme-file: {CHOSEN_THEME} sostituito col tema scelto --"
+printf 'Foundry of Glass -- a cathedral of molten glass where the choir never stops singing.' > "$TMP/chosen-theme.txt"
+"$GEN" --print-json-prompt --seed 42 --theme-file "$TMP/chosen-theme.txt" --out "$TMP/theme-prompt" \
+       > "$TMP/theme-prompt.txt"
+grep -q "{CHOSEN_THEME}" "$TMP/theme-prompt.txt" && {
+  echo "FALLITO: {CHOSEN_THEME} non sostituito con --theme-file"; exit 1; }
+grep -q "This run's world: Foundry of Glass -- a cathedral of molten glass" "$TMP/theme-prompt.txt" || {
+  echo "FALLITO: il testo del tema scelto non compare nel prompt"; exit 1; }
+grep -q "Stay inside this world" "$TMP/theme-prompt.txt" || {
+  echo "FALLITO: manca la frase di rinforzo del tema scelto"; exit 1; }
+
+echo "-- senza --theme-file: {CHOSEN_THEME} degrada in modo pulito --"
+"$GEN" --print-json-prompt --seed 42 --out "$TMP/notheme-prompt" > "$TMP/notheme-prompt.txt"
+grep -q "{CHOSEN_THEME}" "$TMP/notheme-prompt.txt" && {
+  echo "FALLITO: {CHOSEN_THEME} non sostituito senza --theme-file"; exit 1; }
+grep -q "not chosen this time" "$TMP/notheme-prompt.txt" || {
+  echo "FALLITO: manca il ramo di degrado di {CHOSEN_THEME}"; exit 1; }
+
+echo "-- --theme-file: file inesistente si comporta come flag assente --"
+"$GEN" --print-json-prompt --seed 42 --theme-file "$TMP/does-not-exist.txt" --out "$TMP/theme-missing" \
+       > "$TMP/theme-missing.txt"
+cmp "$TMP/theme-missing.txt" "$TMP/notheme-prompt.txt" || {
+  echo "FALLITO: --theme-file su un file mancante ha cambiato il prompt"; exit 1; }
+
+# --fallback con tema scelto: onora il tema su tutti e 5 i piani, con nomi
+# distinti (la guardia anti-fotocopia resta valida: 5 STRINGHE diverse anche
+# se il "place" e' lo stesso, vedi prompts/user.txt).
+echo "-- --fallback con tema scelto: 5 piani, tutti derivati dal tema, tutti distinti --"
+"$GEN" --fallback --seed 999 --theme-file "$TMP/chosen-theme.txt" --out "$TMP/theme-fallback"
+themes=$(grep -E "^floor[0-9]\.theme=" "$TMP/theme-fallback/current_run.txt" | cut -d= -f2)
+echo "$themes" | grep -q "^Foundry of Glass$" || {
+  echo "FALLITO: floor1.theme non e' il tema scelto alla lettera"; exit 1; }
+[ "$(echo "$themes" | wc -l)" -eq 5 ] || { echo "FALLITO: non ci sono 5 righe floorN.theme"; exit 1; }
+[ "$(echo "$themes" | sort -u | wc -l)" -eq 5 ] || {
+  echo "FALLITO: i 5 floorN.theme col tema scelto non sono tutti distinti"; exit 1; }
+echo "$themes" | tail -n +2 | while IFS= read -r t; do
+  case "$t" in
+    "Foundry of Glass, "*) ;;
+    *) echo "FALLITO: '$t' non porta il place del tema scelto come prefisso"; exit 1 ;;
+  esac
+done
+grep -q "^chosenTheme=Foundry of Glass -- a cathedral of molten glass" "$TMP/theme-fallback/provenance.txt" || {
+  echo "FALLITO: provenance.txt non porta chosenTheme"; exit 1; }
+
+echo "-- --fallback SENZA tema: provenance.txt porta chosenTheme=none (nessuna regressione) --"
+"$GEN" --fallback --seed 999 --out "$TMP/no-theme-fallback"
+grep -q "^chosenTheme=none$" "$TMP/no-theme-fallback/provenance.txt" || {
+  echo "FALLITO: provenance.txt senza --theme-file non riporta chosenTheme=none"; exit 1; }
+
 echo "TEST-GEN: OK"

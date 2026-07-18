@@ -62,6 +62,15 @@ void FloorZeroEnter(Game *game)
     game->roomNumber = 0;
     game->floorZeroExitOpen = false;
     game->floorZeroExitCrossed = false;
+    /* M5: azzeramento MIRATO delle carte-proposta, stesso spirito del resto
+       di questa funzione -- ogni nuovo ingresso in FloorZero riparte da
+       "nessuna proposta, nessun tema scelto" (AppEnterFloorZero, src/app/
+       app.c, le ripopola subito dopo aver chiamato questa funzione). */
+    memset(game->themeCards, 0, sizeof(game->themeCards));
+    game->themeCardCount = 0;
+    game->themeCardFocus = 0;
+    game->themeCardsPanelOpen = false;
+    game->themeChosenIndex = -1;
 
     /* Il Piano 0 non eredita hp/oggetti/statistiche della run precedente, ne'
        anticipa quelli della prossima (la scelta del personaggio, DEC-005/

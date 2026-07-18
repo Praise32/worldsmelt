@@ -1,0 +1,24 @@
+# Grammatica minima per --propose-themes (M5, DEC-005): 3 proposte di tema
+# per il Piano 0. Root FISSA a 3 (vedi il commento su RunProposeThemes in
+# main.c): N (2..3, il parametro CLI) e' un dettaglio di quante ne scrive
+# GenWriteThemeProposals, non della grammatica -- il prompt propone sempre 3
+# alternative reali (propose_user.txt), il modello ne scrive sempre 3.
+#
+# File AUTOSUFFICIENTE (una grammatica GBNF non condivide regole con un altro
+# file caricato a parte): 'name'/'namechar' ripetono deliberatamente lo
+# stesso charset ASCII di run.gbnf (nessun accento, DEC-052), 'blurb' aggiunge
+# solo lo spazio/la punteggiatura di una frase. Nessuna virgoletta o
+# backslash in nessuna delle due regole: il testo prodotto non ha MAI bisogno
+# di escape JSON, e il gioco (che non linka cJSON, AGENTS.md) lo spezza con
+# un semplice strstr sul separatore letterale (vedi GenLoadChosenTheme).
+root ::= "{\"proposals\":[" proposal "," proposal "," proposal "]}"
+
+proposal ::= "{\"name\":" name ",\"blurb\":" blurb "}"
+
+name ::= "\"" namechar{3,40} "\""
+namechar ::= [A-Za-z0-9 .,'!-]
+
+# 20..150 caratteri: abbastanza per una riga da 10-18 parole (propose_system.txt/
+# propose_user.txt), non abbastanza per una divagazione.
+blurb ::= "\"" blurbchar{20,150} "\""
+blurbchar ::= [A-Za-z0-9 .,'!?-]

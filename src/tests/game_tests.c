@@ -60,11 +60,24 @@ static AppInput InputConfirm(void) { AppInput in = { 0 }; in.confirm = true; ret
 static AppInput InputBack(void)    { AppInput in = { 0 }; in.back = true; return in; }
 static AppInput InputDown(void)    { AppInput in = { 0 }; in.down = true; return in; }
 static AppInput InputTab(void)     { AppInput in = { 0 }; in.tab = true; return in; }
+static AppInput InputLeft(void)    { AppInput in = { 0 }; in.left = true; return in; }   /* M5: pannello di scelta del tema */
+static AppInput InputRight(void)   { AppInput in = { 0 }; in.right = true; return in; }
 static AppInput InputReroll(void)  { AppInput in = { 0 }; in.reroll = true; return in; }
 static AppInput InputPause(void)   { AppInput in = { 0 }; in.pause = true; return in; }
 
 #define STATES_CHECK(cond, msg) \
     do { if (!(cond)) { fprintf(stderr, "GameStatesTest: %s\n", (msg)); return false; } } while (0)
+
+/* M5 (DEC-005): un ingresso in FloorZero, con gen disabilitata (il caso di
+ * TUTTO GameStatesTest, vedi il commento sotto), ha gia' le carte pronte
+ * SUBITO (AppUseFallbackThemeCards, chiamata da AppEnterFloorZero): apre il
+ * pannello (TAB) e conferma la carta col focus di default (indice 0) -- la
+ * scelta sintetica richiesta dal requisito 13 della spec. */
+static void ChooseFirstThemeCard(Game *game, AppMode *mode, AppGen *gen, AppUi *ui)
+{
+    { AppInput in = InputTab();     UpdateApp(game, mode, gen, ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, mode, gen, ui, &in); }
+}
 
 bool GameStatesTest(Game *game)
 {
@@ -93,14 +106,25 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(ui.seed != seedBeforeReroll, "R in RunSetup non cambia il seed");
     STATES_CHECK(ui.focus == 0, "il reroll non deve spostare il focus da Seed");
 
-    /* RunSetup -> Avvia -> FloorZero (M1b: con gen disabilitata l'uscita si
-       apre SUBITO, ma si resta nella sala d'attesa finche' non si attraversa
-       il varco -- non piu' un salto diretto a Gameplay, vedi AppEnterFloorZero). */
+    /* RunSetup -> Avvia -> FloorZero (M1b: si resta nella sala d'attesa
+       finche' non si attraversa il varco, non piu' un salto diretto a
+       Gameplay -- M5: con gen disabilitata le carte curate compaiono SUBITO,
+       ma l'uscita si apre solo DOPO la scelta del tema, vedi
+       AppEnterFloorZero/AppConfirmThemeChoice). */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Seed -> Avvia */
     STATES_CHECK(ui.focus == 1, "down da Seed non porta il focus su Avvia");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_FLOOR_ZERO, "RunSetup/Avvia non porta a FloorZero");
-    STATES_CHECK(game->floorZeroExitOpen, "con gen disabilitata l'uscita del Piano 0 non si apre subito");
+    /* M5 (DEC-005): con gen disabilitata le carte curate compaiono SUBITO
+       (AppUseFallbackThemeCards), ma l'uscita resta chiusa finche' il tema
+       non e' scelto -- gating "tema scelto E pipeline terminale", requisito
+       10 della spec. */
+    STATES_CHECK(game->themeCardCount > 0, "con gen disabilitata le carte di tema non sono pronte subito");
+    STATES_CHECK(game->themeChosenIndex < 0, "un tema risulta gia' scelto prima di qualunque input");
+    STATES_CHECK(!game->floorZeroExitOpen, "l'uscita del Piano 0 e' aperta prima della scelta del tema");
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    STATES_CHECK(game->themeChosenIndex == 0, "la scelta sintetica (TAB+confirm) non ha scelto la carta 0");
+    STATES_CHECK(game->floorZeroExitOpen, "con gen disabilitata l'uscita del Piano 0 non si apre subito dopo la scelta");
     STATES_CHECK(game->floor == 0, "FloorZeroEnter non ha impostato floor a 0");
 
     /* ESC in FloorZero -> ExitConfirm (contesto "abbandona la preparazione")
@@ -126,7 +150,9 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }      /* Seed -> Avvia */
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Avvia -> FloorZero */
     STATES_CHECK(mode == APP_FLOOR_ZERO, "il secondo ingresso in FloorZero e' fallito");
-    STATES_CHECK(game->floorZeroExitOpen, "l'uscita del secondo ingresso in FloorZero non e' aperta");
+    STATES_CHECK(!game->floorZeroExitOpen, "l'uscita del secondo ingresso e' aperta prima della scelta del tema");
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    STATES_CHECK(game->floorZeroExitOpen, "l'uscita del secondo ingresso in FloorZero non e' aperta dopo la scelta");
 
     /* Attraversamento sintetico (il flag lo scriverebbe WorldHandleTransitions
        quando il giocatore preme contro il varco aperto): UpdateApp lo consuma
@@ -220,8 +246,9 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_MAIN_MENU, "RunResults/Menu principale non torna a MainMenu");
 
-    /* Fase Game sconfitta -> RunResults -> Nuova run subito -> FloorZero (M1b:
-       uscita aperta subito) -> attraversamento -> Gameplay */
+    /* Fase Game sconfitta -> RunResults -> Nuova run subito -> FloorZero (M5:
+       nuove proposte, nuova scelta -- l'uscita si apre solo dopo, requisito
+       10) -> attraversamento -> Gameplay */
     mode = APP_GAMEPLAY;
     ui.focus = 0;
     game->phase = PHASE_GAME_OVER;
@@ -229,7 +256,9 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_RUN_RESULTS, "PHASE_GAME_OVER in Gameplay non porta a RunResults");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus 0: Nuova run subito */
     STATES_CHECK(mode == APP_FLOOR_ZERO, "RunResults/Nuova run subito non porta a FloorZero");
-    STATES_CHECK(game->floorZeroExitOpen, "l'uscita del Piano 0 dopo RunResults non e' aperta subito");
+    STATES_CHECK(!game->floorZeroExitOpen, "l'uscita del Piano 0 dopo RunResults e' aperta prima della scelta del tema");
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    STATES_CHECK(game->floorZeroExitOpen, "l'uscita del Piano 0 dopo RunResults non e' aperta dopo la scelta del tema");
     game->floorZeroExitCrossed = true;
     { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_GAMEPLAY, "l'attraversamento dopo RunResults non porta a Gameplay");
@@ -712,14 +741,15 @@ bool GameShotFormsScreenshotTest(Game *game)
     return textureValid && game->player.shotType.active && game->player.synergies != 0u;
 }
 
-/* M1b, SOLO manuale (--floor-zero-screenshot-test, mai in make test: stessa
-   tradizione degli screenshot sopra, "per l'occhio del proprietario"). Gen
-   disabilitata: l'uscita si apre SUBITO all'ingresso (vedi AppEnterFloorZero
-   in src/app/app.c), cosi' lo screenshot mostra il varco gia' luminoso senza
-   dover aspettare un vero melting-gen. */
+/* M1b/M5, SOLO manuale (--floor-zero-screenshot-test, mai in make test:
+   stessa tradizione degli screenshot sopra, "per l'occhio del proprietario").
+   Gen disabilitata: le carte curate lato gioco compaiono SUBITO all'ingresso
+   (AppUseFallbackThemeCards, vedi AppEnterFloorZero in src/app/app.c) -- il
+   pannello si apre a mano (TAB) cosi' lo screenshot mostra DAVVERO le carte
+   (requisito 13 della spec M5), non solo l'indicatore testuale. */
 bool GameFloorZeroScreenshotTest(Game *game)
 {
-    AppGen gen = { 0 };   /* enabled=false: l'uscita del Piano 0 si apre subito */
+    AppGen gen = { 0 };   /* enabled=false: le carte curate compaiono subito */
     AppUi ui = { 0 };
     AppMode mode = APP_MAIN_MENU;
 
@@ -731,13 +761,19 @@ bool GameFloorZeroScreenshotTest(Game *game)
         fprintf(stderr, "GameFloorZeroScreenshotTest: Avvia non porta a FloorZero\n");
         return false;
     }
+    if (game->themeCardCount < 2)
+    {
+        fprintf(stderr, "GameFloorZeroScreenshotTest: le carte di riserva non sono pronte subito\n");
+        return false;
+    }
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* apre il pannello per lo screenshot */
 
-    /* Stesso messaggio che vedrebbe davvero il giocatore con l'uscita gia'
-       aperta (AppFloorZeroStatusText, src/app/app.c: 'static', non
-       esportata, quindi lo si ricostruisce qui identico -- e' solo testo per
-       lo screenshot, non una regola verificata da questo test). */
+    /* Stesso messaggio che vedrebbe davvero il giocatore prima della scelta
+       (AppFloorZeroStatusText, src/app/app.c: 'static', non esportata,
+       quindi lo si ricostruisce qui identico -- e' solo testo per lo
+       screenshot, non una regola verificata da questo test). */
     GenProgress status = { 0 };
-    snprintf(status.message, sizeof(status.message), "Primo piano pronto -- l'uscita e' aperta.");
+    snprintf(status.message, sizeof(status.message), "In attesa della scelta del mondo -- TAB per le carte.");
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-floorzero-screen.png");
@@ -848,47 +884,67 @@ bool GenRunnerSelfTest(void)
     return true;
 }
 
-/* M1b: la sala d'attesa giocabile del Piano 0 (systems/floor-zero.md,
-   ui/generation-status.md). Come GenRunnerSelfTest sopra, usa
-   tests/fake-gen.sh con FAKE_GEN_MODE per evitare un vero modello, ma questa
-   volta guidato attraverso UpdateApp (mai chiamando GenRunnerStart a mano):
-   e' la pipeline VERA di src/app/app.c che si vuole esercitare, non solo il
-   processo figlio. Quattro scenari indipendenti, ciascuno con un ingresso
-   pulito in FloorZero (stesso schema "un blocco, un AppGen fresco" del test
-   sopra) cosi' un fallimento in uno non trascina lo stato sporco nel
-   successivo. 'game' e' quello gia' pronto passato da AppRun (GameResetRun
-   gia' chiamata): FloorZeroEnter (chiamata da AppEnterFloorZero dentro
-   UpdateApp) lo riprepara da sola ad ogni ingresso, senza bisogno di
-   richiamare GameResetRun qui. */
+/* Attende che 'runner' esca da RUNNING (successo/fallimento), sondando con
+ * GenRunnerUpdate come farebbe UpdateApp -- usato dai poll ripetuti sotto
+ * (proposeRunner e runner) invece di un ciclo per-scenario scritto a mano
+ * ogni volta. Ritorna false se il runner e' ancora RUNNING dopo maxSeconds. */
+static bool FloorZeroRunnerSettle(AppGen *gen, AppMode *mode, AppUi *ui, Game *game,
+                                   GenRunnerState *watched, double maxSeconds)
+{
+    for (int i = 0; i < (int)(maxSeconds*100.0); i++)
+    {
+        AppInput in = InputNone();
+        UpdateApp(game, mode, gen, ui, &in);
+        if (*watched != GEN_RUNNER_RUNNING) return true;
+        struct timespec ts = { 0, 10L*1000L*1000L };
+        nanosleep(&ts, NULL);
+    }
+    return *watched != GEN_RUNNER_RUNNING;
+}
+
+/* M1b/M5 (DEC-005): la sala d'attesa giocabile del Piano 0, ORA con la
+ * scelta del tema in mezzo (systems/floor-zero.md, ui/generation-status.md).
+ * Come GenRunnerSelfTest sopra, usa tests/fake-gen.sh con FAKE_GEN_MODE
+ * (generazione completa) e FAKE_GEN_PROPOSE_MODE (--propose-themes, ora un
+ * comando SEPARATO dello stesso finto script) per evitare un vero modello,
+ * guidato attraverso UpdateApp (mai chiamando GenRunnerStart a mano). Sei
+ * scenari indipendenti (requisito 13 della spec M5), ciascuno con un
+ * ingresso pulito in FloorZero (stesso schema "un blocco, un AppGen fresco"
+ * del test sopra) cosi' un fallimento in uno non trascina lo stato sporco
+ * nel successivo. 'game' e' quello gia' pronto passato da AppRun
+ * (GameResetRun gia' chiamata): FloorZeroEnter (chiamata da AppEnterFloorZero
+ * dentro UpdateApp) lo riprepara da sola ad ogni ingresso. */
 bool GameFloorZeroTest(Game *game)
 {
     AppUi ui;
     AppMode mode;
     AppGen gen;
 
-    /* --- scenari 1+2+3: chiusa mentre il finto generatore gira, si apre da
-       sola al successo, l'attraversamento porta a Gameplay. --- */
+    /* --- scenario 1: le proposte sono ancora in corso -- carte non pronte,
+       uscita chiusa, il giocatore si muove liberamente nell'hub nel
+       frattempo (M1b, "il giocatore gira liberamente"). --- */
     memset(&ui, 0, sizeof(ui));
     memset(&gen, 0, sizeof(gen));
     gen.enabled = true;
-    gen.noSprites = true;   /* il passo sprite non serve a questo scenario: meno rumore, stesso principio di --no-sprites */
+    gen.noSprites = true;   /* il passo sprite non serve a questi scenari: meno rumore, stesso principio di --no-sprites */
     gen.command = "tests/fake-gen.sh";
     mode = APP_MAIN_MENU;
 
-    setenv("FAKE_GEN_MODE", "hang", 1);   /* scrive un progresso e poi dorme 30s: resta RUNNING per tutto lo scenario 1 */
+    setenv("FAKE_GEN_PROPOSE_MODE", "hang", 1);   /* scrive un progresso e poi dorme 30s: resta RUNNING per tutto lo scenario 1 */
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* MainMenu -> RunSetup */
     { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* Seed -> Avvia */
-    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Avvia -> FloorZero, avvia il finto generatore */
-    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: Avvia non porta a FloorZero\n"); return false; }
-    if (game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: l'uscita e' gia' aperta col generatore ancora in corso\n"); return false; }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Avvia -> FloorZero, avvia il finto propose */
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (1) Avvia non porta a FloorZero\n"); return false; }
+    if (game->themeCardCount != 0) { fprintf(stderr, "GameFloorZeroTest: (1) carte gia' pronte col propose ancora in corso\n"); return false; }
+    if (game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (1) l'uscita e' gia' aperta senza nemmeno un tema scelto\n"); return false; }
 
     /* Il movimento vero passa da IsKeyDown (mai simulabile senza una tastiera
        vera, vedi il commento su AppInput in app_internal.h): qui si sposta il
        giocatore A MANO, un piccolo passo per frame, e si chiama GameUpdate
        come farebbe AppSimStep (che tratta FloorZero come Gameplay, M1b) --
        la prova richiesta e' che nulla in quel percorso vada in crash o
-       resetti la posizione mentre la pipeline gira in sottofondo, non che il
-       movimento reale funzioni (gia' coperto altrove). */
+       resetti la posizione mentre le proposte girano in sottofondo, non che
+       il movimento reale funzioni (gia' coperto altrove). */
     Vector2 before = game->player.pos;
     for (int i = 0; i < 30; i++)
     {
@@ -897,11 +953,14 @@ bool GameFloorZeroTest(Game *game)
         GameUpdate(game, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
         game->player.pos.x += 2.0f;
     }
-    if (game->player.pos.x == before.x) { fprintf(stderr, "GameFloorZeroTest: il giocatore non si muove in FloorZero\n"); return false; }
-    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: FloorZero e' uscita da sola senza attraversamento\n"); return false; }
+    if (game->player.pos.x == before.x) { fprintf(stderr, "GameFloorZeroTest: (1) il giocatore non si muove in FloorZero\n"); return false; }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (1) FloorZero e' uscita da sola senza attraversamento\n"); return false; }
+    if (gen.proposeRunner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.proposeRunner);   /* "hang" dorme 30s: non finirebbe mai da solo qui */
 
-    if (gen.runner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.runner);   /* "hang" dorme 30s: non finirebbe mai da solo qui */
-
+    /* --- scenario 2: le proposte arrivano, le carte compaiono ma l'uscita
+       resta chiusa finche' non si sceglie -- la scelta sintetica (frecce +
+       conferma, requisito 9) fa partire la generazione completa (fake),
+       ancora "in corso" (hang) -> uscita ancora chiusa, movimento ok. --- */
     memset(&ui, 0, sizeof(ui));
     memset(&gen, 0, sizeof(gen));
     gen.enabled = true;
@@ -909,11 +968,67 @@ bool GameFloorZeroTest(Game *game)
     gen.command = "tests/fake-gen.sh";
     mode = APP_MAIN_MENU;
 
-    setenv("FAKE_GEN_MODE", "ok", 1);
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_MODE", "hang", 1);
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (2) Avvia non porta a FloorZero\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (2) il finto propose non e' mai terminato\n");
+        return false;
+    }
+    if (game->themeCardCount < 2) { fprintf(stderr, "GameFloorZeroTest: (2) le carte non sono pronte dopo il finto propose\n"); return false; }
+    if (game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (2) l'uscita e' aperta prima della scelta del tema\n"); return false; }
+
+    { AppInput in = InputTab();   UpdateApp(game, &mode, &gen, &ui, &in); }   /* apre il pannello */
+    if (!game->themeCardsPanelOpen) { fprintf(stderr, "GameFloorZeroTest: (2) TAB non apre il pannello delle carte\n"); return false; }
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* sposta il focus dalla carta 0 alla 1 */
+    if (game->themeCardFocus != 1) { fprintf(stderr, "GameFloorZeroTest: (2) destra non sposta il focus sulla carta 1\n"); return false; }
+    { AppInput in = InputLeft();  UpdateApp(game, &mode, &gen, &ui, &in); }   /* torna sulla 0 */
+    if (game->themeCardFocus != 0) { fprintf(stderr, "GameFloorZeroTest: (2) sinistra non riporta il focus sulla carta 0\n"); return false; }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* sceglie la carta 0 */
+    if (game->themeChosenIndex != 0) { fprintf(stderr, "GameFloorZeroTest: (2) confirm non sceglie la carta col focus\n"); return false; }
+    if (game->themeCardsPanelOpen) { fprintf(stderr, "GameFloorZeroTest: (2) il pannello resta aperto dopo la scelta\n"); return false; }
+    if (gen.runner.state != GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (2) la generazione completa non e' partita dopo la scelta\n"); return false; }
+
+    for (int i = 0; i < 30; i++)
+    {
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        GameUpdate(game, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+    }
+    if (game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (2) l'uscita e' aperta col finto generatore ancora in corso\n"); return false; }
+    if (gen.runner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.runner);   /* "hang" dorme 30s: non finirebbe mai da solo qui */
+
+    /* --- scenario 3: proposte + scelta + generazione completa, TUTTO a buon
+       fine -> uscita aperta -> attraversamento -> Gameplay. --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_MODE", "ok", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (3) Avvia non porta a FloorZero\n"); return false; }
+
+    bool cardsReady = false;
+    for (int i = 0; i < 1000 && !cardsReady; i++)
+    {
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        cardsReady = game->themeCardCount > 0;
+        if (!cardsReady) { struct timespec ts = { 0, 10L*1000L*1000L }; nanosleep(&ts, NULL); }
+    }
+    if (!cardsReady) { fprintf(stderr, "GameFloorZeroTest: (3) le carte non sono mai arrivate\n"); return false; }
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    if (game->themeChosenIndex != 0) { fprintf(stderr, "GameFloorZeroTest: (3) la scelta sintetica e' fallita\n"); return false; }
 
     bool opened = false;
     for (int i = 0; i < 1000 && !opened; i++)
@@ -921,26 +1036,39 @@ bool GameFloorZeroTest(Game *game)
         AppInput in = InputNone();
         UpdateApp(game, &mode, &gen, &ui, &in);
         opened = game->floorZeroExitOpen;
-        if (!opened)
-        {
-            struct timespec ts = { 0, 10L*1000L*1000L };
-            nanosleep(&ts, NULL);
-        }
+        if (!opened) { struct timespec ts = { 0, 10L*1000L*1000L }; nanosleep(&ts, NULL); }
     }
-    if (!opened) { fprintf(stderr, "GameFloorZeroTest: l'uscita non si apre dopo il successo del finto generatore\n"); return false; }
-    if (game->message[0] == '\0') { fprintf(stderr, "GameFloorZeroTest: nessun messaggio d'apertura emesso\n"); return false; }
+    if (!opened) { fprintf(stderr, "GameFloorZeroTest: (3) l'uscita non si apre dopo il successo del finto generatore\n"); return false; }
+    if (game->message[0] == '\0') { fprintf(stderr, "GameFloorZeroTest: (3) nessun messaggio d'apertura emesso\n"); return false; }
 
-    /* scenario 3: attraversamento del varco (il flag lo scriverebbe
-       WorldHandleTransitions quando il giocatore preme contro il muro di
-       fondo con l'uscita aperta -- qui si simula direttamente il segnale,
-       esattamente come farebbe il world). */
+    /* Attraversamento del varco (il flag lo scriverebbe WorldHandleTransitions
+       quando il giocatore preme contro il muro di fondo con l'uscita aperta
+       -- qui si simula direttamente il segnale, esattamente come farebbe il
+       world). */
     game->floorZeroExitCrossed = true;
     { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
-    if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: l'attraversamento non porta a Gameplay\n"); return false; }
-    if (game->floor != 1) { fprintf(stderr, "GameFloorZeroTest: il piano dopo l'attraversamento non e' 1 (e' %d)\n", game->floor); return false; }
+    if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (3) l'attraversamento non porta a Gameplay\n"); return false; }
+    if (game->floor != 1) { fprintf(stderr, "GameFloorZeroTest: (3) il piano dopo l'attraversamento non e' 1 (e' %d)\n", game->floor); return false; }
 
-    /* --- scenario 4: annullo dalla preparazione (ESC -> ExitConfirm ->
-       conferma -> MainMenu, generatore cancellato). --- */
+    /* --- scenario 4 (requisito 13): gen disabilitata -- carte curate lato
+       gioco IMMEDIATE (nessun processo), scelta, uscita aperta SUBITO dopo
+       (la pipeline e' gia' "terminale" per costruzione: DEC-002). --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = false;
+    mode = APP_MAIN_MENU;
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (4) Avvia non porta a FloorZero\n"); return false; }
+    if (game->themeCardCount < 2) { fprintf(stderr, "GameFloorZeroTest: (4) le carte di riserva non sono pronte subito con gen disabilitata\n"); return false; }
+    if (game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (4) l'uscita e' aperta prima della scelta, gen disabilitata\n"); return false; }
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (4) l'uscita non si apre subito dopo la scelta, gen disabilitata\n"); return false; }
+
+    /* --- scenario 5 (requisito 13): abbandono con proposeRunner ANCORA
+       attivo (prima che qualunque carta compaia) -> cancellato. --- */
     memset(&ui, 0, sizeof(ui));
     memset(&gen, 0, sizeof(gen));
     gen.enabled = true;
@@ -948,24 +1076,60 @@ bool GameFloorZeroTest(Game *game)
     gen.command = "tests/fake-gen.sh";
     mode = APP_MAIN_MENU;
 
-    setenv("FAKE_GEN_MODE", "hang", 1);
+    setenv("FAKE_GEN_PROPOSE_MODE", "hang", 1);
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
-    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (4) Avvia non porta a FloorZero\n"); return false; }
-    if (gen.runner.state != GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: il finto generatore non risulta in corso\n"); return false; }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (5) Avvia non porta a FloorZero\n"); return false; }
+    if (gen.proposeRunner.state != GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (5) il finto propose non risulta in corso\n"); return false; }
 
     { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* ESC -> ExitConfirm */
-    if (mode != APP_EXIT_CONFIRM) { fprintf(stderr, "GameFloorZeroTest: ESC in FloorZero non apre ExitConfirm\n"); return false; }
+    if (mode != APP_EXIT_CONFIRM) { fprintf(stderr, "GameFloorZeroTest: (5) ESC in FloorZero non apre ExitConfirm\n"); return false; }
     if (ui.openedFrom != APP_FLOOR_ZERO || !ui.exitAbandonsRun)
     {
-        fprintf(stderr, "GameFloorZeroTest: contesto di ExitConfirm da FloorZero sbagliato\n");
+        fprintf(stderr, "GameFloorZeroTest: (5) contesto di ExitConfirm da FloorZero sbagliato\n");
         return false;
     }
     { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla -> Conferma */
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
-    if (mode != APP_MAIN_MENU) { fprintf(stderr, "GameFloorZeroTest: conferma da ExitConfirm/FloorZero non torna a MainMenu\n"); return false; }
-    if (gen.runner.state == GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: il generatore non e' stato cancellato all'abbandono\n"); return false; }
+    if (mode != APP_MAIN_MENU) { fprintf(stderr, "GameFloorZeroTest: (5) conferma da ExitConfirm/FloorZero non torna a MainMenu\n"); return false; }
+    if (gen.proposeRunner.state == GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (5) proposeRunner non e' stato cancellato all'abbandono\n"); return false; }
+
+    /* --- scenario 6: annullo dalla preparazione DOPO la scelta del tema,
+       con la generazione completa (fake) ancora in corso -> cancellata
+       (stesso scenario del vecchio "4", ora dopo propose+scelta). --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_MODE", "hang", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (6) Avvia non porta a FloorZero\n"); return false; }
+
+    bool cardsReady6 = false;
+    for (int i = 0; i < 1000 && !cardsReady6; i++)
+    {
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        cardsReady6 = game->themeCardCount > 0;
+        if (!cardsReady6) { struct timespec ts = { 0, 10L*1000L*1000L }; nanosleep(&ts, NULL); }
+    }
+    if (!cardsReady6) { fprintf(stderr, "GameFloorZeroTest: (6) le carte non sono mai arrivate\n"); return false; }
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    if (gen.runner.state != GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (6) il finto generatore non risulta in corso dopo la scelta\n"); return false; }
+
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* ESC -> ExitConfirm */
+    if (mode != APP_EXIT_CONFIRM) { fprintf(stderr, "GameFloorZeroTest: (6) ESC in FloorZero non apre ExitConfirm\n"); return false; }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla -> Conferma */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_MAIN_MENU) { fprintf(stderr, "GameFloorZeroTest: (6) conferma da ExitConfirm/FloorZero non torna a MainMenu\n"); return false; }
+    if (gen.runner.state == GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (6) il generatore non e' stato cancellato all'abbandono\n"); return false; }
 
     return true;
 }

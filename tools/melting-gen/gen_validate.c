@@ -452,10 +452,10 @@ static void NormalizeRoomLayout(const cJSON *rawRoom, const RoomLayoutDef *fb, R
     *out = def;
 }
 
-void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, GenRun *out)
+void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, const GenChosenTheme *chosen, GenRun *out)
 {
     GenRun fb;
-    GenFallbackRun(&fb, seed);
+    GenFallbackRun(&fb, seed, chosen);
     memset(out, 0, sizeof(*out));
     snprintf(out->source, sizeof(out->source), "local");
     out->seed = seed;

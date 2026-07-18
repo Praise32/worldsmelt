@@ -128,6 +128,11 @@ avvenuti. La regola stessa è definita in `generated-content-validation.md`.
 - Che formato assume la condivisione di un manifest tra giocatori (experimental).
 - Se e come un manifest di run singleplayer può essere "promosso" a run competitiva dopo il
   fatto (non deciso).
+- Il codice breve (DEC-066: seed più versione di gioco) non porta la scelta del tema né
+  quella del personaggio fatte dal giocatore nel Piano 0 — come va esteso (se va esteso)
+  perché chi riceve un codice breve rigiochi esattamente la stessa run, non solo "una run
+  con lo stesso seed"? Stessa domanda, stesso testo, in
+  `governance/open-questions.md` (M5, 18/07/2026).
 
 ## Scenari
 

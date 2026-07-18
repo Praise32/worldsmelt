@@ -54,3 +54,9 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 ## Stati e flusso
 
 14. Abbandono del Piano 0: la mappa canonica non prevede un arco FloorZero → MainMenu; l'implementazione attuale usa ESC → ExitConfirm (abbandona la preparazione). Va sancito o sostituito?
+
+## Piano 0 e scelta del tema (M5, 18/07/2026)
+
+15. Il codice breve di condivisione run (DEC-066: seed più versione di gioco) non porta la scelta del tema né quella del personaggio fatte dal giocatore nel Piano 0 — solo il seed, da cui si rigenerano contenuti proposti, non necessariamente la STESSA scelta. Come va esteso (se va esteso) perché chi riceve un codice breve possa rigiocare esattamente la stessa run, tema e personaggio inclusi, e non solo "una run con lo stesso seed"?
+16. Il Piano 0 conta come "menu" ai fini dell'ammissione del mouse (DEC-057, "il mouse è ammesso solo nei menu")? La scelta del tema nel Piano 0 (carte selezionabili) è implementata solo con tastiera/pad per non prendere questa decisione in silenzio durante l'implementazione (M5): resta da stabilire se le carte tema debbano diventare cliccabili come le voci di menu degli altri stati, o se il Piano 0 resti un'eccezione dove il mouse non è ammesso.
+17. Quante carte tema curate di fallback mostrare quando nessuna proposta dell'IA supera la validazione: vedi la stessa domanda, con lo stesso default proposto (3), in `systems/floor-zero.md`, sezione "Domande aperte residue".

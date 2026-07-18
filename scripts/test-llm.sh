@@ -88,4 +88,44 @@ grep "lua: riepilogo run" logs/melting-gen.log | tail -1
 echo "--- script Lua scritti in generated/scripts/ ---"
 ls -1 generated/scripts/*.lua 2>/dev/null || echo "(nessuno: tutti gli oggetti sono ripiegati sulla mini-VM)"
 
+# M5 (DEC-005), requisito 12: --theme-file con un modello VERO -- floor1.theme
+# deriva dal tema scelto, i 5 temi restano distinti (guardia anti-fotocopia
+# invariata), la guardia di lingua vale anche qui. Cartella --out SEPARATA
+# (mai generated/, gia' verificata dai controlli sopra): un secondo processo
+# non deve toccare l'output della prima generazione.
+echo "--- M5: --theme-file con un modello vero -- il tema scelto guida i 5 piani ---"
+THEME_TMP=$(mktemp -d)
+trap 'rm -rf "$THEME_TMP"' EXIT
+printf 'Foundry of Glass -- a cathedral of molten glass where the choir never stops singing.' > "$THEME_TMP/chosen-theme.txt"
+bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$((SEED + 1))" \
+                 --theme-file "$THEME_TMP/chosen-theme.txt" --out "$THEME_TMP/run"
+grep -q "^floor1.theme=Foundry of Glass$" "$THEME_TMP/run/current_run.txt" || {
+  echo "FALLITO: floor1.theme non e' il tema scelto alla lettera"
+  grep '^floor1.theme=' "$THEME_TMP/run/current_run.txt"
+  exit 1
+}
+m5Themes=$(grep -E '^floor[0-9]\.theme=' "$THEME_TMP/run/current_run.txt" | sed 's/.*=//')
+m5DistinctThemes=$(echo "$m5Themes" | sort -u | wc -l)
+if [ "$m5DistinctThemes" -lt 5 ]; then
+  echo "FALLITO: solo $m5DistinctThemes temi distinti su 5 con --theme-file -- il modello sta ricopiando i piani"
+  echo "$m5Themes"
+  exit 1
+fi
+m5ItalianHit=$(grep -E '^floor[0-9]+\.(theme|style|boss|enemy[0-9]+\.name|bossType\.name|room\.name|item[0-9]+\.name|item[0-9]+\.shotName|bossItem\.name)=' \
+  "$THEME_TMP/run/current_run.txt" | grep -Ei "$italianWordPattern" || true)
+if [ -n "$m5ItalianHit" ]; then
+  echo "FALLITO: parola-funzione italiana a confine di parola in un campo generato dal modello con --theme-file:"
+  echo "$m5ItalianHit"
+  exit 1
+fi
+grep -q "^chosenTheme=Foundry of Glass -- a cathedral of molten glass" "$THEME_TMP/run/provenance.txt" || {
+  echo "FALLITO: provenance.txt non porta chosenTheme con --theme-file"
+  exit 1
+}
+echo "   floor1.theme (tema scelto alla lettera): $(grep '^floor1.theme=' "$THEME_TMP/run/current_run.txt" | sed 's/.*=//')"
+echo "   temi dei 5 piani (tutti derivati dal tema scelto, tutti distinti):"
+echo "$m5Themes" | sed 's/^/     /'
+rm -rf "$THEME_TMP"
+trap - EXIT
+
 echo "TEST-LLM: OK"

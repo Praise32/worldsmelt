@@ -32,4 +32,12 @@ Rarity RarityFromText(const char *text);
  * di quel piano. Nessun RNG, nessuna riallocazione, nessun altro campo. */
 void RunContentRefreshFloorScripts(RunContent *content, int floorIndex);
 
+/* M5 (DEC-005), requisito 8: carte-proposta di tema deterministiche sul seed,
+ * usate SOLO quando la generazione e' disabilitata o bin/melting-gen non c'e'
+ * (DEC-002 -- il gioco resta sempre avviabile senza il tool): niente
+ * processo, carte pronte nello stesso frame in cui si entra nel Piano 0.
+ * 'out' deve avere almeno 'count' slot (1..THEME_CARD_MAX, clampato dentro).
+ * Vedi AppUseFallbackThemeCards in src/app/app.c per il chiamante. */
+void RunContentMakeFallbackThemeCards(unsigned int seed, ThemeCard *out, int count);
+
 #endif

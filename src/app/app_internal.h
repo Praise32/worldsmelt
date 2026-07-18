@@ -24,6 +24,17 @@ typedef struct AppInput {
     bool pause;     /* P */
     bool up;
     bool down;
+    /* M5 (DEC-005): frecce SINISTRA/DESTRA, usate SOLO dal pannello di scelta
+       del tema nel Piano 0 (requisito 9 -- "sinistra/destra + conferma"). Le
+       stesse frecce servono ANCHE a mirare in combat.c (IsKeyDown, letto
+       fuori da questo AppInput, in continuo): un giocatore che tiene aperto
+       il pannello mentre preme sinistra/destra sposta il focus della carta E
+       mira in quella direzione nello stesso frame -- overlap accettato (mai
+       la stessa fisica pressione ruba i controlli di MOVIMENTO, che sono
+       WASD, mai le frecce), documentato qui perche' non e' ovvio dal solo
+       nome del campo. */
+    bool left;
+    bool right;
     bool tab;
     bool reroll;    /* R */
     bool quit;      /* Q */
@@ -74,6 +85,23 @@ typedef struct AppGen {
     GenRunner lazyRunner;
     bool lazyRunning;
     unsigned int lastGenSeed;   /* il seed della generazione in corso: la ripresa DEVE usare lo stesso, o ricostruirebbe un'altra run */
+    /* M5 (DEC-005): il processo "proponi N temi" (--propose-themes), avviato
+       da AppEnterFloorZero PRIMA della generazione completa (che ora parte
+       solo alla scelta della carta, mai piu' all'ingresso in FloorZero). Un
+       terzo GenRunner indipendente: mai insieme a 'runner'/'spritesRunner'
+       (sequenziale per costruzione, la generazione completa parte solo DOPO
+       che le carte sono pronte e il giocatore ne ha scelta una) ne' a
+       'lazyRunner' (quello parte solo all'attraversamento del varco, ben
+       oltre la scelta del tema). Nessun bool "running" a parte come
+       lazyRunning: il case APP_FLOOR_ZERO legge proposeRunner.state
+       direttamente, stesso stile di 'runner'/'spritesRunner'. */
+    GenRunner proposeRunner;
+    /* Il seed della run che AppEnterFloorZero ha gia' deciso (RunSetup/reroll/
+       RunResults, mai piu' generato qui): serve DUE VOLTE ora -- per avviare
+       proposeRunner subito, e per avviare la generazione completa PIU' TARDI,
+       alla scelta della carta (AppConfirmThemeChoice), quando l'ingresso in
+       FloorZero e' ormai un frame lontano. */
+    unsigned int pendingGenSeed;
 } AppGen;
 
 /* La macchina a stati canonica (9 stati, ui/navigation-map.md): un case per

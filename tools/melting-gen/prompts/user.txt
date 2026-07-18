@@ -4,7 +4,10 @@ Run seed: {SEED}. Use the seed as creative fuel: different runs must yield diffe
 
 {EVITA}
 
-Generate 5 floors with very different themes and a difficulty progression. Floor 5's boss must be the most threatening.
+This run's world: {CHOSEN_THEME} Floor 1 opens in this world, ordinary and stable. Floors
+2-5 do not invent a new place: each floor pushes the SAME world one step further into a more
+intense or corrupted state, along its look, its enemies, and its room rules. Floor 5 is the
+world at its most extreme, and its boss must be the most threatening thing in it.
 
 Rules for names, important:
 - Write all names in natural, evocative English. No Italian, no mangled invented words.
@@ -12,11 +15,15 @@ Rules for names, important:
 - No name repeats: 5 different themes, 5 different bosses, 15 items with 15 different names.
 - A theme is made of two words: a place plus a quality that makes it strange
   (a plain "desert" is not enough: it needs something like a place with a memorable adjective).
+- Every floor's theme keeps that two-word place-plus-quality shape, but the PLACE stays the
+  one floor 1 set: only the quality intensifies or corrupts floor after floor (for example
+  "Foundry of Glass" could sharpen into "Foundry of Cracking Glass", then "Foundry of
+  Shattering Glass"). Never swap the place itself once floor 1 has set it.
 - An item name is made of two words and hints at what it does: an object plus a quality or an effect.
 - The floor's theme infects its items: on a frozen floor, the items smell of ice.
-- The room layout ("room") grows out of the theme: columns in a cathedral, crates in a forge, boulders in a cavern. A different layout for every floor.
-- The enemies ("enemies") and the boss ("bossType") also grow out of the theme: two regular enemies, different from each other, for every floor, plus the boss. Ten enemies and five bosses, all with different names.
-- The floor's shot type ("shot") grows out of the theme like everything else: on a glass floor you shoot glass, in a forge you shoot sparks. Invent 5 different shots, one per floor, with names all different from each other and from the item names. The item marked by "shotItem" must have a name that matches the shot you give it.
+- The room layout ("room") grows out of the world: columns in a cathedral, crates in a forge, boulders in a cavern. A different corner of the SAME world for every floor, never a different building or a different place entirely.
+- The enemies ("enemies") and the boss ("bossType") also grow out of the world: two regular enemies, different from each other, for every floor, plus the boss. Keep them the SAME population from floor to floor, growing tougher and stranger each time, not a brand-new species every floor. Ten enemies and five bosses, all with different names.
+- The floor's shot type ("shot") grows out of the world like everything else: on a glass floor you shoot glass, in a forge you shoot sparks. Invent 5 different shots, one per floor, with names all different from each other and from the item names. The item marked by "shotItem" must have a name that matches the shot you give it.
 
 Field reminders. Values in angle brackets are placeholders: do NOT copy them, replace them with your own.
 

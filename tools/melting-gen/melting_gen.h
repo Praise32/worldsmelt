@@ -207,6 +207,38 @@ typedef struct GenRun {
     GenFloor floors[GEN_FLOORS];
 } GenRun;
 
+/* M5 (DEC-005, scelta del tema nel Piano 0): dimensioni condivise fra le
+ * proposte di tema (GenThemeProposal, scritte in generated/theme_proposals.json)
+ * e il tema SCELTO (GenChosenTheme, letto da --theme-file): stesso "name"
+ * (3-40 char, il charset di 'name' in propose.gbnf/run.gbnf) e stesso
+ * "blurb" (una riga ASCII, vedi propose.gbnf). GEN_THEME_PROPOSALS e' sia il
+ * numero di proposte che la grammatica genera SEMPRE (root fissa a 3, vedi
+ * propose.gbnf) sia la capacita' massima degli array di questo modulo -- N
+ * (2..3, il parametro di --propose-themes) sceglie solo quante di quelle 3
+ * il chiamante vuole vedere scritte su disco, vedi RunProposeThemes in main.c. */
+#define GEN_THEME_PROPOSALS 3
+#define GEN_THEME_NAME_LEN 48
+#define GEN_THEME_BLURB_LEN 200
+
+typedef struct GenThemeProposal {
+    char name[GEN_THEME_NAME_LEN];
+    char blurb[GEN_THEME_BLURB_LEN];
+} GenThemeProposal;
+
+/* Il tema scelto dal giocatore, letto da --theme-file (GenLoadChosenTheme,
+ * gen_util.c): 'raw' e' il testo INTERO cosi' com'e' nel file ("<name> --
+ * <blurb>", stesso formato di provenance.txt chosenTheme=), usato alla
+ * lettera per {CHOSEN_THEME} (gen_llm.c) e per provenance.txt; 'name'/'blurb'
+ * sono la stessa coppia spezzata, usata da GenFallbackRun (solo 'name': il
+ * blurb non entra mai nel contenuto procedurale, e' materiale di prompt).
+ * name[0]=='\0' = nessun tema (equivalente a un puntatore NULL per chi legge
+ * solo 'name', ma 'raw' resta la fonte di verita' per il testo completo). */
+typedef struct GenChosenTheme {
+    char name[GEN_THEME_NAME_LEN];
+    char blurb[GEN_THEME_BLURB_LEN];
+    char raw[GEN_THEME_NAME_LEN + GEN_THEME_BLURB_LEN + 8];
+} GenChosenTheme;
+
 typedef struct GenTraitRule {
     const char *trait;
     const char *trigger;
@@ -250,6 +282,16 @@ int GenPublishFile(FILE *f, const char *tmpPath, const char *finalPath);
  * commento nel .c per il bug silenzioso che chiude (una run nuova che adotta gli
  * script della run di ieri). */
 void GenRemoveOldScripts(const char *outDir);
+/* M5: legge 'path' (il file scritto dal gioco, generated/chosen_theme.txt,
+ * o qualunque altro passato a --theme-file) e lo spezza in name/blurb/raw.
+ * Formato atteso: UNA riga "<name> -- <blurb>" (lo stesso separatore " -- "
+ * usato da provenance.txt chosenTheme= e dal gioco, src/app/app.c
+ * AppWriteChosenThemeFile), newline finale opzionale. Ritorna false (out non
+ * garantito valido) se il file manca, e' vuoto, o non contiene " -- ": il
+ * chiamante (main.c) tratta questo esattamente come --theme-file assente,
+ * mai un errore fatale -- coerente con "se il flag manca, comportamento
+ * attuale" del requisito 3 della spec M5. */
+bool GenLoadChosenTheme(const char *path, GenChosenTheme *out);
 
 /* FNV-1a 64 bit (RunBundle v1, roadmap 16/07/2026 settimana 4): NON e' un
  * hash crittografico, e' una checksum veloce. Usata SOLO per la provenienza
@@ -299,8 +341,25 @@ int GenRollRarity(unsigned int *rng, int isBoss);
  * gen_lua.c per scegliere la frase giusta in GEN_RARITY_PROMPT_HINTS). */
 int GenRarityIndexFromText(const char *text);
 
-/* gen_fallback.c */
-void GenFallbackRun(GenRun *run, unsigned int seed);
+/* gen_fallback.c. 'chosen' (M5): NULL = comportamento di sempre, IDENTICO
+ * byte-per-byte (stesso stream RNG: il golden file di regressione non deve
+ * cambiare, vedi il commento sul parametro dentro il .c). Non-NULL:
+ * floor[0].theme = chosen->name; i piani 2-5 sono lo stesso nome piu' un
+ * suffisso di stadio curato (stageSuffixes, sotto), 4 estratti DISTINTI da
+ * un RNG DEDICATO che non tocca affatto lo stream usato quando chosen e'
+ * NULL. */
+void GenFallbackRun(GenRun *run, unsigned int seed, const GenChosenTheme *chosen);
+
+/* Proposte di tema deterministiche (M5, fallback permanente DEC-039/DEC-070):
+ * pesca 'count' (1..GEN_THEME_PROPOSALS) coppie name/blurb DISTINTE dal pool
+ * curato -- il "name" dal pool themeWords x weirdWords (lo stesso di
+ * GenFallbackRun quando chosen e' NULL, mai una lista a parte), il "blurb"
+ * dai 32 blurb curati dal content designer (logs/m5-content-notes.md,
+ * scritti per accompagnare QUALSIASI combinazione). RNG dedicato, seed-only:
+ * non tocca ne' e' toccato dallo stream di GenFallbackRun (stessa garanzia
+ * di 'chosen' sopra). 'out' deve avere almeno GEN_THEME_PROPOSALS slot
+ * (i primi 'count' vengono scritti, gli altri restano intoccati). */
+void GenFallbackThemeProposals(unsigned int seed, int count, GenThemeProposal out[GEN_THEME_PROPOSALS]);
 
 /* Budget di tempo della fase Lua in RIPRESA (step B2, processo in sottofondo
  * mentre si gioca): piu' largo di GEN_LUA_PHASE_BUDGET_SEC perche' qui nessuno
@@ -332,17 +391,34 @@ int GenWriteLlmJson(const GenRun *run, const char *path);
  * sopra): se il calcolo fallisce (cartella prompt mancante) si scrive
  * comunque il file, con promptsFnv=0000000000000000, piuttosto che far
  * fallire un'intera generazione per un dettaglio diagnostico -- e' loggato
- * (GenLogLine), non silenzioso. Ritorna 0 su successo, -1 su errore di
- * scrittura (outDir non creabile, disco pieno...). */
+ * (GenLogLine), non silenzioso. 'chosenThemeField' (M5, requisito 6): il
+ * testo intero del tema scelto (GenChosenTheme.raw) o NULL quando
+ * --theme-file non e' stato passato -- scritto sempre come riga
+ * "chosenTheme=<...>", col letterale "none" quando NULL (stessa scelta di
+ * modelJson/modelLua sopra: mai una riga assente, sempre un valore da
+ * fare grep). Ritorna 0 su successo, -1 su errore di scrittura (outDir non
+ * creabile, disco pieno...). */
 int GenWriteProvenance(const GenRun *run, const char *outDir, const char *promptsDir,
-                        const char *modelJsonField, const char *modelLuaField);
+                        const char *modelJsonField, const char *modelLuaField,
+                        const char *chosenThemeField);
+
+/* M5: scrive generated/theme_proposals.json (tmp+rename, come ogni altro
+ * output di questo modulo) con le prime 'count' proposte di 'proposals' e il
+ * campo "source" (letterale "local:<modello>" o "fallback", stesso
+ * vocabolario di GenRun.source). Ritorna 0 su successo, -1 su errore di
+ * scrittura. */
+int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const char *source, const char *outDir);
 
 /* gen_atlas.c */
 int GenWriteAtlasBmp(const GenRun *run, const char *outDir);
 
-/* gen_validate.c (Task 6) */
+/* gen_validate.c (Task 6). 'chosen' (M5): passato pari pari a GenFallbackRun
+ * (sotto forma del ripiego 'fb' interno usato per il riempimento per-campo):
+ * un JSON del modello che manca/rifiuta il tema su un piano ricade cosi'
+ * sul ripiego GIA' coerente col tema scelto, invece che su un nome
+ * procedurale slegato. */
 struct cJSON;
-void GenNormalizeRun(const struct cJSON *raw, unsigned int seed, GenRun *out);
+void GenNormalizeRun(const struct cJSON *raw, unsigned int seed, const GenChosenTheme *chosen, GenRun *out);
 
 /* gen_llm.c: sessione = modello + contesto caricati UNA SOLA VOLTA per
  * l'intero processo (fase 3a-L3). Prima di questa fase melting-gen faceva
@@ -378,9 +454,22 @@ int GenLlmComplete(GenLlmSession *sess, const char *prompt, const char *grammarT
                     char *out, size_t outCap, int *tokensOut);
 
 /* Prompt ChatML per il JSON dei piani: legge prompts/system.txt e
- * prompts/user.txt da 'promptsDir', sostituisce {SEED}. Buffer malloc, NULL
- * su fallimento (file mancanti). */
-char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed);
+ * prompts/user.txt da 'promptsDir', sostituisce {SEED}/{ISPIRAZIONI}/{EVITA}
+ * e, da M5, {CHOSEN_THEME} (prompts/user.txt riga 7): 'chosen' NULL o
+ * chosen->raw vuoto sostituisce con la frase di degrado "not chosen this
+ * time -- invent one yourself..."; non-NULL con "<name> -- <blurb>. Stay
+ * inside this world...". Il placeholder e' SEMPRE sostituito, mai lasciato
+ * nel prompt (vedi logs/m5-content-notes.md per il testo esatto dei due
+ * rami, scritto dal content designer). Buffer malloc, NULL su fallimento
+ * (file mancanti). */
+char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed, const GenChosenTheme *chosen);
+
+/* M5: prompt ChatML per --propose-themes, legge prompts/propose_system.txt e
+ * prompts/propose_user.txt (stesso schema di placeholder di
+ * GenLlmBuildJsonPrompt: {SEED}/{ISPIRAZIONI}/{EVITA}, MAI {CHOSEN_THEME} --
+ * qui non c'e' ancora un tema scelto, e' proprio questo prompt che ne
+ * propone). Buffer malloc, NULL su fallimento (file mancanti). */
+char *GenLlmBuildProposePrompt(const char *promptsDir, unsigned int seed);
 
 /* ============================================================
  * Riuso del prefisso condiviso nella KV cache (fase 3b step B1, misurato:

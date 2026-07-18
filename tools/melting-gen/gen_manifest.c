@@ -503,7 +503,8 @@ int GenWriteRunFiles(const GenRun *run, const char *outDir)
  * (main.c semplicemente non la invoca li'). Formato chiave=valore, come
  * current_run.txt, cosi' si legge e si fa il grep allo stesso modo. */
 int GenWriteProvenance(const GenRun *run, const char *outDir, const char *promptsDir,
-                        const char *modelJsonField, const char *modelLuaField)
+                        const char *modelJsonField, const char *modelLuaField,
+                        const char *chosenThemeField)
 {
     if (GenEnsureDir(outDir) != 0) return -1;
 
@@ -527,6 +528,10 @@ int GenWriteProvenance(const GenRun *run, const char *outDir, const char *prompt
     fprintf(f, "source=%s\n", run->source);
     fprintf(f, "modelJson=%s\n", modelJsonField ? modelJsonField : "fallback");
     fprintf(f, "modelLua=%s\n", modelLuaField ? modelLuaField : "-");
+    /* M5, requisito 6: SEMPRE una riga (mai omessa quando --theme-file manca),
+       stesso trattamento di modelJson/modelLua sopra -- "none" e' un valore
+       da fare grep, non un buco nel formato. */
+    fprintf(f, "chosenTheme=%s\n", chosenThemeField ? chosenThemeField : "none");
     /* Costante, non una define: vive qui e in AGENTS.md/scripts/setup-deps.sh
        (LLAMA_TAG) come lo stesso valore tenuto sincronizzato a mano -- non
        vale la pena di una define condivisa per un singolo letterale che
@@ -534,5 +539,42 @@ int GenWriteProvenance(const GenRun *run, const char *outDir, const char *prompt
     fprintf(f, "llamaTag=b9979\n");
     fprintf(f, "promptsFnv=%016llx\n", fnv);
     fprintf(f, "createdAt=%lld\n", (long long)time(NULL));
+    return GenPublishFile(f, tmpPath, finalPath);
+}
+
+/* M5 (DEC-005): generated/theme_proposals.json, letto dal gioco SENZA cJSON
+ * (AGENTS.md: il binario del gioco non linka mai cJSON) -- schema fisso e
+ * volutamente minimo, {"proposals":[{"name":...,"blurb":...}...],"source":...},
+ * charset ASCII puro senza virgolette/backslash interni (propose.gbnf lo
+ * impone sia sul percorso modello sia -- per costruzione -- su quello
+ * procedurale), cosi' il gioco puo' spezzarlo con un semplice strstr invece
+ * di un parser JSON vero. Stesso pattern tmp+rename di ogni altro output. */
+int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const char *source, const char *outDir)
+{
+    if (GenEnsureDir(outDir) != 0) return -1;
+    if (count < 1) count = 1;
+    if (count > GEN_THEME_PROPOSALS) count = GEN_THEME_PROPOSALS;
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *arr = cJSON_AddArrayToObject(root, "proposals");
+    for (int i = 0; i < count; i++)
+    {
+        cJSON *p = cJSON_CreateObject();
+        cJSON_AddStringToObject(p, "name", proposals[i].name);
+        cJSON_AddStringToObject(p, "blurb", proposals[i].blurb);
+        cJSON_AddItemToArray(arr, p);
+    }
+    cJSON_AddStringToObject(root, "source", source ? source : "fallback");
+    char *text = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!text) return -1;
+
+    char tmpPath[512], finalPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/theme_proposals.json", outDir);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/theme_proposals.json.tmp", outDir);
+    FILE *f = fopen(tmpPath, "w");
+    if (!f) { cJSON_free(text); return -1; }
+    fputs(text, f);
+    cJSON_free(text);
     return GenPublishFile(f, tmpPath, finalPath);
 }

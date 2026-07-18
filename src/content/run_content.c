@@ -320,6 +320,48 @@ static Theme MakeFallbackTheme(unsigned int *rng, int floor)
     return theme;
 }
 
+/* M5 (DEC-005), requisito 8: carte-proposta di tema quando la generazione e'
+ * disabilitata o bin/melting-gen non c'e' (DEC-002, il gioco resta sempre
+ * avviabile SENZA il tool) -- niente processo, niente attesa, le carte sono
+ * gia' pronte nello stesso frame in cui si entra nel Piano 0. 5 nomi (lo
+ * stesso pool di MakeFallbackTheme sopra, coerenza col resto del contenuto
+ * di riserva) + 5 blurb curati dal content designer (logs/m5-content-notes.md
+ * (c)-2, gli stessi 5 primi del pool piu' ampio scritto per melting-gen: qui
+ * ne bastano 5, un pool a parte in questo modulo sarebbe solo duplicazione).
+ * Salt diverso da GenerateFallbackContent sopra (0xBAD51DE): questa funzione
+ * NON deve consumare o essere consumata dallo stream della run vera. */
+void RunContentMakeFallbackThemeCards(unsigned int seed, ThemeCard *out, int count)
+{
+    static const char *names[] = {
+        "Neon Cellar", "Moldy Library", "Lunar Forge", "Radioactive Aquarium", "Cathedral of Sugar"
+    };
+    static const char *blurbs[] = {
+        "It looks abandoned, until something in the dark decides to notice you.",
+        "Every hallway loops back to somewhere it should not.",
+        "Something here remembers you, and it is not friendly.",
+        "The air hums like it is counting down to something.",
+        "Nothing moves until you stop looking directly at it.",
+    };
+    int poolSize = (int)(sizeof(names)/sizeof(names[0]));   /* == sizeof(blurbs)/sizeof(blurbs[0]) */
+    if (count < 1) count = 1;
+    if (count > THEME_CARD_MAX) count = THEME_CARD_MAX;
+    if (count > poolSize) count = poolSize;
+
+    unsigned int rng = seed ^ 0xF10A7EEDu;
+    /* Punto di partenza casuale sul seed, poi 'count' voci CONSECUTIVE
+       (ciclando sul pool): distinte per costruzione senza bisogno di
+       rejection sampling -- count <= poolSize per il clamp sopra. Nome e
+       blurb usano basi INDIPENDENTI (due tiri separati) cosi' la coppia
+       nome<->blurb non e' sempre la stessa a ogni run. */
+    int nameBase = GameRngRange(&rng, 0, poolSize - 1);
+    int blurbBase = GameRngRange(&rng, 0, poolSize - 1);
+    for (int i = 0; i < count; i++)
+    {
+        snprintf(out[i].name, sizeof(out[i].name), "%s", names[(nameBase + i)%poolSize]);
+        snprintf(out[i].blurb, sizeof(out[i].blurb), "%s", blurbs[(blurbBase + i)%poolSize]);
+    }
+}
+
 static void GenerateFallbackContent(RunContent *content, unsigned int seed)
 {
     unsigned int rng = seed ^ 0xBAD51DEu;

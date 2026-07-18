@@ -28,7 +28,37 @@ static bool LoadProgressCb(float progress, void *user)
     return true;   /* false interromperebbe il caricamento */
 }
 
-char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
+/* M5 (DEC-005): il testo di sostituzione per {CHOSEN_THEME} in prompts/user.txt
+ * riga 7 (vedi logs/m5-content-notes.md, sezione "Meccanismo di degradazione").
+ * SEMPRE non-vuoto: il placeholder non deve mai restare nel prompt. 'buf' e'
+ * del chiamante (dimensionato per il caso peggiore: raw + la frase fissa di
+ * rinforzo). */
+static void BuildChosenThemeText(const GenChosenTheme *chosen, char *buf, size_t bufSize)
+{
+    if (chosen && chosen->raw[0])
+    {
+        /* Il blurb della proposta (raw = "<name> -- <blurb>") a volte finisce
+           gia' con un segno di fine frase (l'esempio di propose_system.txt
+           ce l'ha; il prompt non lo vieta ne' lo impone) e a volte no: senza
+           questo controllo un blurb gia' terminato produrrebbe "...singing..
+           Stay inside" (doppio punto). Un solo punto garantito, sempre. */
+        size_t len = strlen(chosen->raw);
+        bool endsWithPunct = len > 0 &&
+            (chosen->raw[len - 1] == '.' || chosen->raw[len - 1] == '!' || chosen->raw[len - 1] == '?');
+        snprintf(buf, bufSize,
+                 "%s%s Stay inside this world: do not invent a different one, only escalate it floor after floor.",
+                 chosen->raw, endsWithPunct ? "" : ".");
+    }
+    else
+    {
+        snprintf(buf, bufSize,
+                 "not chosen this time -- invent one yourself, in the same two-word place-plus-quality "
+                 "shape used for every floor's theme below, and then treat your own invention exactly "
+                 "like a chosen world for the rest of this section.");
+    }
+}
+
+char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed, const GenChosenTheme *chosen)
 {
     char path[512];
     snprintf(path, sizeof(path), "%s/system.txt", promptsDir);
@@ -70,8 +100,21 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
                  "Words already seen in your recent runs, do NOT use them (nor obvious derivatives): %s",
                  avoidWords);
     else evita[0] = '\0';
-    char *userFinal = GenReplaceAll(userInspired, "{EVITA}", evita);
+    char *userFinal0 = GenReplaceAll(userInspired, "{EVITA}", evita);
     free(userInspired);
+    if (!userFinal0) { free(sys); return NULL; }
+
+    /* M5 (DEC-005): {CHOSEN_THEME} SEMPRE sostituito (mai lasciato nel
+       prompt, vedi BuildChosenThemeText sopra) -- il tema scelto dal
+       giocatore (--theme-file) o il ramo di degrado "invent one yourself". */
+    /* sizeof(...->raw): raw e' gia' il testo intero (name+" -- "+blurb), +128
+       per la frase fissa di rinforzo (92 char) o il ramo di degrado piu'
+       lungo (~230 char) -- margine ampio, verificato dal compilatore
+       (-Wformat-truncation, niente troncamenti silenziosi qui). */
+    char themeText[sizeof(((GenChosenTheme *)0)->raw) + 128];
+    BuildChosenThemeText(chosen, themeText, sizeof(themeText));
+    char *userFinal = GenReplaceAll(userFinal0, "{CHOSEN_THEME}", themeText);
+    free(userFinal0);
     if (!userFinal) { free(sys); return NULL; }
 
     /* Esempi rotanti nel SYSTEM prompt (stesso seed delle ispirazioni sopra,
@@ -95,6 +138,50 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
 
     char *prompt = GenChatMlWrap(sysFinal, userFinal);
     free(sysFinal);
+    free(userFinal);
+    return prompt;
+}
+
+/* M5: gemello di GenLlmBuildJsonPrompt per --propose-themes -- stesso schema
+ * di placeholder (SEED/ISPIRAZIONI/EVITA) ma su propose_system.txt/
+ * propose_user.txt, e SENZA {ESEMPIO_*}: quel prompt e' minuscolo (nPredict
+ * ~320, 3 coppie nome+blurb), un solo esempio marcato "do NOT copy it" nel
+ * system prompt gia' basta (vedi logs/m5-content-notes.md, sezione (a)). */
+char *GenLlmBuildProposePrompt(const char *promptsDir, unsigned int seed)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/propose_system.txt", promptsDir);
+    char *sys = GenReadFile(path);
+    snprintf(path, sizeof(path), "%s/propose_user.txt", promptsDir);
+    char *user = GenReadFile(path);
+    if (!sys || !user) { free(sys); free(user); return NULL; }
+
+    char seedText[32];
+    snprintf(seedText, sizeof(seedText), "%u", seed);
+    char *userSeeded = GenReplaceAll(user, "{SEED}", seedText);
+    free(user);
+    if (!userSeeded) { free(sys); return NULL; }
+
+    char inspire[1024];
+    GenInspireBuild(seed, inspire, sizeof(inspire));
+    char *userInspired = GenReplaceAll(userSeeded, "{ISPIRAZIONI}", inspire);
+    free(userSeeded);
+    if (!userInspired) { free(sys); return NULL; }
+
+    char avoidWords[GEN_NOVELTY_AVOID_BUF_SIZE];
+    GenNoveltyAvoidList(avoidWords, sizeof(avoidWords));
+    char evita[GEN_NOVELTY_AVOID_BUF_SIZE + 128];
+    if (avoidWords[0])
+        snprintf(evita, sizeof(evita),
+                 "Words already seen in your recent runs, do NOT use them (nor obvious derivatives): %s",
+                 avoidWords);
+    else evita[0] = '\0';
+    char *userFinal = GenReplaceAll(userInspired, "{EVITA}", evita);
+    free(userInspired);
+    if (!userFinal) { free(sys); return NULL; }
+
+    char *prompt = GenChatMlWrap(sys, userFinal);
+    free(sys);
     free(userFinal);
     return prompt;
 }

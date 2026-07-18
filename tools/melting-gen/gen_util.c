@@ -410,3 +410,37 @@ int GenPromptsFnv(const char *promptsDir, unsigned long long *out)
     *out = hash;
     return 0;
 }
+
+/* M5 (DEC-005): vedi il commento di dichiarazione in melting_gen.h. Formato
+ * atteso "<name> -- <blurb>" (stesso separatore " -- " di provenance.txt
+ * chosenTheme= e del file scritto dal gioco, src/app/app.c
+ * AppWriteChosenThemeFile). Nessuna virgoletta/backslash da spezzare (il
+ * testo viene da propose.gbnf, charset ASCII senza quei caratteri, vedi
+ * GenThemeProposal): uno strstr sul separatore letterale basta. */
+bool GenLoadChosenTheme(const char *path, GenChosenTheme *out)
+{
+    if (!path || !out) return false;
+    char *text = GenReadFile(path);
+    if (!text) return false;
+
+    size_t len = strlen(text);
+    while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) text[--len] = '\0';
+
+    const char *sep = strstr(text, " -- ");
+    if (!sep || len == 0)
+    {
+        free(text);
+        return false;
+    }
+
+    memset(out, 0, sizeof(*out));
+    size_t nameLen = (size_t)(sep - text);
+    if (nameLen >= sizeof(out->name)) nameLen = sizeof(out->name) - 1;
+    memcpy(out->name, text, nameLen);
+    out->name[nameLen] = '\0';
+
+    snprintf(out->blurb, sizeof(out->blurb), "%s", sep + 4);
+    snprintf(out->raw, sizeof(out->raw), "%s", text);
+    free(text);
+    return out->name[0] != '\0';
+}

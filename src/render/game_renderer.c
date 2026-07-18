@@ -1603,6 +1603,180 @@ static void DrawFloorZeroIndicator(Rectangle gameRect, float uiScale, const GenP
     DrawText(text, (int)box.x + UiRound(16.0f*uiScale), (int)box.y + UiRound(7.0f*uiScale), font, RAYWHITE);
 }
 
+/* M5 (DEC-005): spezza 'text' in righe che stanno entro 'maxWidth' pixel a
+ * 'fontSize' (word-wrap greedy, sugli spazi -- il blurb e' prosa inglese
+ * semplice, mai una singola parola piu' larga della carta a queste
+ * dimensioni). Scrive fino a 'maxLines' righe in 'out' (ciascuna fino a 159
+ * char), ritorna quante ne ha scritte davvero: l'ultima riga che non ci
+ * sta piu' viene TRONCATA con "..." invece di sparire silenziosamente (un
+ * blurb tagliato a meta' senza segno sarebbe peggio di uno tagliato con
+ * segno). */
+static int WrapTextLines(const char *text, int fontSize, float maxWidth, char out[][160], int maxLines)
+{
+    int lineCount = 0;
+    char line[160] = { 0 };
+    const char *word = text;
+    while (*word && lineCount < maxLines)
+    {
+        const char *spaceAt = strchr(word, ' ');
+        size_t wordLen = spaceAt ? (size_t)(spaceAt - word) : strlen(word);
+        char candidate[160];
+        if (line[0]) snprintf(candidate, sizeof(candidate), "%s %.*s", line, (int)wordLen, word);
+        else snprintf(candidate, sizeof(candidate), "%.*s", (int)wordLen, word);
+
+        if (MeasureText(candidate, fontSize) <= (int)maxWidth || !line[0])
+        {
+            snprintf(line, sizeof(line), "%s", candidate);
+        }
+        else
+        {
+            snprintf(out[lineCount++], 160, "%s", line);
+            line[0] = '\0';
+            continue;   /* riprova la stessa parola sulla riga nuova, senza avanzare 'word' */
+        }
+        word += wordLen;
+        while (*word == ' ') word++;
+    }
+    if (line[0] && lineCount < maxLines) snprintf(out[lineCount++], 160, "%s", line);
+    /* Testo residuo oltre 'maxLines': l'ultima riga scritta guadagna "..." --
+       mai un blurb che sparisce a meta' senza indicarlo. */
+    if (*word && lineCount == maxLines)
+    {
+        char *last = out[maxLines - 1];
+        char original[160];
+        snprintf(original, sizeof(original), "%s", last);
+        size_t len = strlen(original);
+        while (len > 0 && MeasureText(TextFormat("%.*s...", (int)len, original), fontSize) > (int)maxWidth) len--;
+        snprintf(last, 160, "%.*s...", (int)len, original);
+    }
+    return lineCount;
+}
+
+/* M5 (DEC-005), requisito 9: geometria PROPRIA del pannello di scelta del
+ * tema -- non MenuBoxForMode/MenuItemCountForMode (FloorZero non e' uno dei 7
+ * stati con overlay di menu canonico, quel conteggio ritorna 0 apposta per
+ * lui, vedi il commento sopra). Scala CENTRATA come MenuBoxForModeFor, stessa
+ * garanzia M4 (uiScale==1.0 alle risoluzioni di riferimento). */
+static Rectangle ThemeCardsPanelBoxFor(float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    float w = 760.0f*uiScale;
+    float h = 300.0f*uiScale;
+    return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
+}
+
+static Rectangle ThemeCardRectFor(Rectangle box, int index, int count, float uiScale)
+{
+    float pad = 22.0f*uiScale;
+    float gap = 16.0f*uiScale;
+    float titleH = 40.0f*uiScale;
+    float cardW = (box.width - pad*2.0f - gap*(float)(count - 1))/(float)count;
+    float cardH = box.height - pad*2.0f - titleH;
+    return (Rectangle){ box.x + pad + (float)index*(cardW + gap), box.y + pad + titleH, cardW, cardH };
+}
+
+/* Il pannello di scelta del tema (M5, requisito 9): TAB lo apre/chiude
+ * (src/app/app.c), sinistra/destra sposta il focus, conferma sceglie -- MAI
+ * il click (l'ambiguita' DEC-057 sul mouse in FloorZero resta una domanda
+ * aperta della KB, non una decisione presa qui implementando il click).
+ * Focus MAI comunicato dal solo colore (DEC-058): la carta col focus ha un
+ * bordo piu' spesso, e' leggermente PIU' GRANDE (scala, non solo tinta) e
+ * porta un piccolo indicatore triangolare sopra -- tre segnali di forma
+ * indipendenti dal colore. Dopo la scelta (game->themeChosenIndex>=0) questo
+ * pannello non disegna piu' nulla: il riepilogo persistente lo fa
+ * DrawThemeChosenBadge sotto, per il resto della permanenza nel Piano 0
+ * (requisito 9, "Feedback"). */
+static void DrawThemeCardsPanel(const Game *game, float sw, float sh)
+{
+    if (game->themeChosenIndex >= 0) return;
+    if (game->themeCardCount <= 0) return;
+    float uiScale = UiScaleForHeight(sh);
+
+    if (!game->themeCardsPanelOpen)
+    {
+        /* Pannello chiuso: solo un invito discreto, mai un riquadro vuoto --
+           il messaggio stabile "in attesa della scelta del mondo" (vedi
+           AppFloorZeroStatusText) gia' dice CHE COSA manca, questo dice COME
+           agire (requisito 9: un tasto dedicato, non un menu del Piano 0). */
+        const char *hint = "TAB -- carte del mondo";
+        int font = UiRound(14.0f*uiScale);
+        int tw = MeasureText(hint, font);
+        Rectangle box = { sw*0.5f - ((float)tw*0.5f + 14.0f*uiScale), 80.0f*uiScale, (float)tw + 28.0f*uiScale, 26.0f*uiScale };
+        DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
+        DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 180 });
+        DrawText(hint, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, (Color){ 205, 210, 220, 255 });
+        return;
+    }
+
+    DrawRectangle(0, 0, (int)sw, (int)sh, GameColorWithAlpha(BLACK, 170));
+    Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
+    DrawRectangleRec(box, (Color){ 18, 20, 27, 235 });
+    DrawRectangleLinesEx(box, 2.0f, game->theme.accent2);
+    const char *title = "Scegli il mondo -- sinistra/destra, conferma";
+    DrawText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(14.0f*uiScale),
+             UiRound(16.0f*uiScale), game->theme.accent2);
+
+    int titleFont = UiRound(15.0f*uiScale);
+    int blurbFont = UiRound(12.0f*uiScale);
+    for (int i = 0; i < game->themeCardCount; i++)
+    {
+        bool focused = (i == game->themeCardFocus);
+        Rectangle card = ThemeCardRectFor(box, i, game->themeCardCount, uiScale);
+        if (focused)
+        {
+            /* Scala, non solo tinta (DEC-058): la carta col focus e' un po'
+               piu' grande, gonfiata dal proprio centro cosi' le carte vicine
+               non si sovrappongono. */
+            float grow = 6.0f*uiScale;
+            card = (Rectangle){ card.x - grow*0.5f, card.y - grow*0.5f, card.width + grow, card.height + grow };
+        }
+        DrawRectangleRec(card, focused ? GameColorWithAlpha(game->theme.accent2, 40) : GameColorWithAlpha(BLACK, 130));
+        DrawRectangleLinesEx(card, focused ? 3.0f : 1.5f, focused ? game->theme.accent2 : GameColorWithAlpha(game->theme.accent2, 150));
+        if (focused)
+        {
+            /* Indicatore di forma in piu' (mai il solo bordo/scala): un
+               piccolo triangolo sopra la carta a fuoco. */
+            float cx = card.x + card.width*0.5f;
+            float ty = card.y - 10.0f*uiScale;
+            DrawTriangle((Vector2){ cx - 7.0f*uiScale, ty - 8.0f*uiScale }, (Vector2){ cx + 7.0f*uiScale, ty - 8.0f*uiScale },
+                         (Vector2){ cx, ty }, game->theme.accent2);
+        }
+
+        const ThemeCard *proposal = &game->themeCards[i];
+        int nameW = (int)(card.width - 20.0f*uiScale);
+        DrawText(proposal->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
+                 titleFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+        (void)nameW;   /* il nome (2-3 parole, <=40 char) sta sempre in una riga alla larghezza minima di una carta */
+
+        char lines[4][160];
+        int n = WrapTextLines(proposal->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 4);
+        int ly = (int)card.y + UiRound(34.0f*uiScale);
+        int lineStep = UiRound(16.0f*uiScale);
+        for (int l = 0; l < n; l++)
+        {
+            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
+        }
+    }
+}
+
+/* Riepilogo persistente del tema scelto (M5, requisito 9, "Feedback"): visibile
+ * per TUTTA la permanenza nel Piano 0 dopo la scelta, non solo nell'istante
+ * della conferma -- una piccola targa in alto, mai un riquadro che sparisce
+ * al frame successivo. */
+static void DrawThemeChosenBadge(const Game *game, Rectangle gameRect, float uiScale)
+{
+    if (game->themeChosenIndex < 0) return;
+    const ThemeCard *chosen = &game->themeCards[game->themeChosenIndex];
+    char text[64];
+    snprintf(text, sizeof(text), "Mondo: %s", chosen->name);
+    int font = UiRound(14.0f*uiScale);
+    int tw = MeasureText(text, font);
+    Rectangle box = { gameRect.x + 12.0f*uiScale, gameRect.y + 12.0f*uiScale, (float)tw + 24.0f*uiScale, 26.0f*uiScale };
+    DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
+    DrawRectangleLinesEx(box, 1.5f, game->theme.accent2);
+    DrawText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+}
+
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
                      bool takeScreenshot, const GenProgress *genProgress, const char *screenshotPath)
 {
@@ -1635,7 +1809,16 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
     {
         case APP_MAIN_MENU: DrawMainMenuOverlay(game, ui); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
-        case APP_FLOOR_ZERO: DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress); break;
+        case APP_FLOOR_ZERO:
+            DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);
+            /* M5: carte di tema (pannello o solo l'invito, a seconda di
+               game->themeCardsPanelOpen) finche' non scelto, poi il riepilogo
+               persistente -- le due funzioni si escludono a vicenda per
+               costruzione (themeChosenIndex>=0 le rende entrambe no-op sul
+               ramo sbagliato, vedi i rispettivi guard-clause). */
+            DrawThemeCardsPanel(game, (float)GetScreenWidth(), (float)GetScreenHeight());
+            DrawThemeChosenBadge(game, layout.gameRect, layout.uiScale);
+            break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
         case APP_OPTIONS: DrawOptionsOverlay(game, ui); break;

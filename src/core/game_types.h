@@ -232,6 +232,21 @@ enum {
     TRAIT_VAMP    = 1u << 8
 };
 
+/* M5 (DEC-005, scelta del tema nel Piano 0): una carta-proposta, letta da
+ * generated/theme_proposals.json (AppLoadThemeCards, src/app/app.c) o
+ * generata SUL POSTO dal ripiego lato gioco (RunContentMakeFallbackThemeCards,
+ * src/content/run_content.c) quando la generazione e' disabilitata o
+ * bin/melting-gen non c'e' (DEC-002: il gioco resta sempre avviabile). Stessi
+ * limiti di GenThemeProposal (tools/melting-gen/melting_gen.h): name 48 byte
+ * (3-40 char usati per davvero, il resto e' margine), blurb 200 -- charset
+ * ASCII puro (DEC-052), mai bisogno di escape quando si spezza il JSON a
+ * mano (il gioco non linka cJSON, AGENTS.md). */
+#define THEME_CARD_MAX 3
+typedef struct ThemeCard {
+    char name[48];
+    char blurb[200];
+} ThemeCard;
+
 typedef struct Theme {
     char name[64];
     char style[48];
@@ -583,6 +598,26 @@ typedef struct Game {
        vuole dopo che l'uscita si e' aperta). */
     bool floorZeroExitOpen;
     bool floorZeroExitCrossed;
+    /* M5 (DEC-005): le carte-proposta del Piano 0, scritte SOLO da src/app
+       (che possiede la generazione, esattamente come floorZeroExitOpen
+       sopra), lette da world/render. 'themeCardCount' 0 = proposte non
+       ancora pronte (mai carte a meta': FloorZeroEnter/AppLoadThemeCards/
+       RunContentMakeFallbackThemeCards scrivono sempre un conteggio
+       completo o niente). 'themeCardFocus' e' l'indice con la selezione da
+       tastiera/pad DENTRO il pannello di scelta (requisito 9: sinistra/
+       destra + conferma, mai il mouse); 'themeCardsPanelOpen' e' quel
+       pannello, apribile con TAB SOLO finche' il tema non e' scelto -- non
+       ruba i controlli di movimento (WASD) del Piano 0 giocabile (M1b).
+       'themeChosenIndex' -1 = nessun tema scelto: la generazione completa
+       (AppStartGeneration) parte SOLO alla scelta, mai prima (a differenza
+       di prima di M5), e l'uscita del Piano 0 resta chiusa finche' non e'
+       vero ENTRAMBE le cose, tema scelto E pipeline terminale (vedi
+       AppOpenFloorZeroExit/il case APP_FLOOR_ZERO in src/app/app.c). */
+    ThemeCard themeCards[THEME_CARD_MAX];
+    int themeCardCount;
+    int themeCardFocus;
+    bool themeCardsPanelOpen;
+    int themeChosenIndex;
     GamePhase phase;
     unsigned int rng;
     int floor;

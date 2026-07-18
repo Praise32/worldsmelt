@@ -1,0 +1,22 @@
+Run seed: {SEED}. Use the seed as creative fuel: three different calls must land on three
+different sets of worlds.
+
+{ISPIRAZIONI}
+
+{EVITA}
+
+Propose 3 possible worlds for the run about to start. The player will pick ONE; the floors
+of the run all take place in that single world, pushed further and further from its
+starting state. So propose 3 real starting points, not 3 endpoints.
+
+Rules, important:
+- Each world needs a name (2-3 words, evocative English, plain ASCII, no accents) and a
+  one-line blurb (roughly 10-18 words, plain ASCII) that makes a player want to step in.
+- The 3 worlds must feel like a real choice: different place, different mood, different
+  kind of danger. A player reading all three should not be able to guess one from another.
+- Invent the names and blurbs yourself. Combine and transform the inspirations above,
+  do not copy them verbatim, and do not feel obliged to use all of them.
+- No interface or game-system words (no "Smelting", "Flux", "Crucible", "Ingots",
+  "Embers", "Heat", "Crust", "Relics", and the like): describe the place, not the game.
+
+Reply only with the complete JSON for the 3 proposals.

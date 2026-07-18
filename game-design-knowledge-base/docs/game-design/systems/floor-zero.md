@@ -67,6 +67,14 @@ corrispondente mostra comunque nome e descrizione, senza bloccare la scelta: que
 fallback specifico, riconducibile alla regola generale di
 [Generated Content Validation](generated-content-validation.md).
 
+> **Nota di implementazione (M5, 18/07/2026, gap esplicito stile DEC-052-pre-M3):** nella
+> milestone che introduce la scelta del tema nel Piano 0, il modello immagini è ancora
+> provvisorio — le anteprime visive NON vengono generate. Le carte usano **sempre** il
+> percorso fallback nome+descrizione descritto sopra, non solo quando l'anteprima non fa in
+> tempo: è un gap di implementazione temporaneo, non una nuova decisione di design. DEC-039
+> resta il comportamento di riferimento; questa nota si aggiorna/si rimuove quando il modello
+> immagini smette di essere provvisorio.
+
 ## Museo con interazione (DEC-040)
 
 Il museo del Piano 0 non è solo consultazione passiva. È una galleria delle creazioni
@@ -277,6 +285,10 @@ superano la validazione, si applica la regola di fallback unica definita in
   (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva
   la generazione per chi ha scelto solo curato inizialmente — DEC-070 fissa solo il principio,
   vedi anche `../governance/open-questions.md`.
+- Quante carte tema curate di fallback mostrare quando nessuna proposta dell'IA supera la
+  validazione (scenario sopra): il numero non è fissato da nessuna decisione — default
+  proposto in implementazione (M5, 18/07/2026): 3, come il numero massimo di proposte
+  ordinarie, vedi anche `../governance/open-questions.md`.
 
 ## Scenari
 
@@ -304,6 +316,12 @@ superano la validazione, si applica la regola di fallback unica definita in
 - When la carta tema viene mostrata al giocatore
 - Then la carta mostra comunque nome e descrizione, senza anteprima, e resta comunque
   selezionabile (DEC-039)
+
+**Scenario: nessuna proposta di tema supera la validazione**
+- Given l'IA propone 2-3 temi per il Piano 0
+- When nessuna delle proposte supera la validazione (o l'IA non è disponibile)
+- Then il giocatore vede comunque carte tema curate di fallback, mai meno di
+  un'opzione selezionabile
 
 **Scenario: provare un oggetto del museo in saletta**
 - Given il giocatore consulta il museo e seleziona un oggetto tra le migliori creazioni

@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 
+#include "content/run_content.h"
 #include "game/game.h"
 #include "game/game_internal.h"
 #include "gen/gen_runner.h"
@@ -170,6 +171,12 @@ static void AppStartLazyGeneration(AppGen *gen)
 static bool AppStartGeneration(AppGen *gen, unsigned int seed)
 {
     AppStopLazyGeneration(gen);   /* mai due melting-gen insieme: vedi AppStopLazyGeneration */
+    /* M5: proposeRunner e' gia' finito per costruzione quando si arriva qui
+       (la generazione completa parte solo alla scelta della carta, e le
+       carte non sono selezionabili finche' proposeRunner non e' terminale) --
+       ma la cancellazione resta un no-op sicuro se per qualche motivo fosse
+       ancora RUNNING, stessa difesa di AppStopLazyGeneration sopra. */
+    GenRunnerCancel(&gen->proposeRunner);
     gen->inSpritesStage = false;
     gen->spritesPlannedThisRun = !gen->noSprites && SpritesModelsPresent();
     gen->lastGenSeed = seed;
@@ -194,8 +201,15 @@ static bool AppStartGeneration(AppGen *gen, unsigned int seed)
        false kArgs[2] e' NULL e GenRunnerStartWithArgs si ferma li' (vedi
        gen_runner.c), quindi il comportamento senza il flag resta IDENTICO a
        prima. */
+    /* --theme-file (M5, requisiti 3/5/6): SEMPRE passato -- la generazione
+       completa parte solo dopo una scelta (AppConfirmThemeChoice l'ha gia'
+       scritto su disco, tmp+rename, PRIMA di chiamare questa funzione). Se il
+       file per qualche motivo non c'e' (disco pieno...), melting-gen degrada
+       da solo: --theme-file su un percorso illeggibile equivale a nessun
+       tema scelto (vedi GenLoadChosenTheme), mai un errore fatale. */
     const char *kArgs[] = {
         "--lua-first", "1",
+        "--theme-file", "generated/chosen_theme.txt",
         gen->lowSpec ? "--model" : NULL,
         gen->lowSpec ? APP_LOW_SPEC_MODEL : NULL,
         NULL
@@ -226,10 +240,24 @@ static bool AppStartSpritesGeneration(AppGen *gen)
  * per essere mostrato com'e': niente percentuali, niente frasi diverse a
  * ogni chiamata di melting-gen). 'game->floorZeroExitOpen' e' gia' la
  * verita' su "pipeline terminale" (la scrive AppOpenFloorZeroExit sotto),
- * quindi basta leggerla invece di ricalcolare la terminalita' da capo qui. */
+ * quindi basta leggerla invece di ricalcolare la terminalita' da capo qui.
+ *
+ * M5 (DEC-005), requisito 10: NUOVO stato "in attesa della scelta del
+ * mondo" fra "le proposte sono pronte" e "il tema e' scelto" -- il gioco non
+ * genera piu' nulla in quella finestra (la generazione completa parte solo
+ * DOPO la scelta), quindi non c'e' nessun altro messaggio onesto da dare:
+ * mai un errore tecnico, sempre descrittivo e stabile, come richiesto dalla
+ * KB. Messaggio descrittivo stabile: game->themeCardCount>0 e'
+ * gia' la verita' su "le carte sono pronte" (le scrive AppLoadThemeCards/
+ * AppUseFallbackThemeCards, mai a meta'). */
 static const char *AppFloorZeroStatusText(const Game *game, const AppGen *gen)
 {
     if (game->floorZeroExitOpen) return "Primo piano pronto -- l'uscita e' aperta.";
+    if (game->themeChosenIndex < 0)
+    {
+        if (game->themeCardCount > 0) return "In attesa della scelta del mondo -- TAB per le carte.";
+        return "Il crogiolo prepara il mondo...";
+    }
     if (gen->inSpritesStage) return "Il mondo prende forma...";
     return "Il crogiolo prepara il mondo...";
 }
@@ -259,9 +287,14 @@ static void AppOpenFloorZeroExit(Game *game)
  * punto non e' ancora partito -- parte solo all'attraversamento vero, vedi il
  * case APP_FLOOR_ZERO sotto). GenRunnerCancel e' gia' un no-op se il runner
  * non e' RUNNING, quindi chiamarli entrambi senza controllare quale dei due
- * e' quello attivo e' sicuro e piu' semplice che tenere traccia a parte. */
+ * e' quello attivo e' sicuro e piu' semplice che tenere traccia a parte.
+ * M5, requisito 10: anche proposeRunner -- un abbandono durante "propongo i
+ * temi" (ancora prima che le carte compaiano) deve fermare pure quel
+ * processo, non solo runner/spritesRunner che a quel punto non sono ancora
+ * partiti. */
 static void AppCancelFloorZeroGeneration(AppGen *gen)
 {
+    GenRunnerCancel(&gen->proposeRunner);
     GenRunnerCancel(&gen->runner);
     GenRunnerCancel(&gen->spritesRunner);
 }
@@ -286,11 +319,132 @@ static AppInput AppInputCollect(void)
     input.pause = IsKeyPressed(KEY_P);
     input.up = IsKeyPressed(KEY_UP);
     input.down = IsKeyPressed(KEY_DOWN);
+    input.left = IsKeyPressed(KEY_LEFT);    /* M5: pannello di scelta del tema in FloorZero, vedi il commento su AppInput */
+    input.right = IsKeyPressed(KEY_RIGHT);
     input.tab = IsKeyPressed(KEY_TAB);
     input.reroll = IsKeyPressed(KEY_R);
     input.quit = IsKeyPressed(KEY_Q);
     input.bomb = IsKeyPressed(KEY_SPACE);
     return input;
+}
+
+/* M5 (DEC-005), requisito 1/8: avvia il processo "proponi 3 temi" (early-exit
+ * come il passo testo, ma un ordine di grandezza piu' corto: ~8-12s misurati,
+ * docs/BENCHMARKS.md). Stesso comando di gen->command (bin/melting-gen o il
+ * finto sostituto dei test): --propose-themes non e' un binario a parte. */
+static bool AppStartProposeThemes(AppGen *gen, unsigned int seed)
+{
+    const char *kArgs[] = { "--propose-themes", "3", NULL };
+    return GenRunnerStartWithArgs(&gen->proposeRunner, gen->command, seed, 45.0,
+                                  "generated/gen_progress_propose.txt", kArgs);
+}
+
+/* M5, requisito 8: legge generated/theme_proposals.json SENZA cJSON (il
+ * gioco non lo linka mai, AGENTS.md) -- schema fisso e charset ASCII senza
+ * virgolette/backslash interni (propose.gbnf lo garantisce sia sul percorso
+ * modello sia su quello procedurale di melting-gen, vedi il commento su
+ * GenWriteThemeProposals in tools/melting-gen/gen_manifest.c), quindi basta
+ * cercare "name":" e "blurb":" in ordine e leggere fino alla virgoletta di
+ * chiusura successiva. Ritorna false (game->themeCards non toccato) se il
+ * file manca, e' vuoto, o non contiene ALMENO una coppia valida -- il
+ * chiamante ricade su AppUseFallbackThemeCards (mai meno di una carta,
+ * requisito 11). */
+static bool AppLoadThemeCards(Game *game, const char *path)
+{
+    char *text = LoadFileText(path);
+    if (!text) return false;
+
+    int count = 0;
+    const char *cursor = text;
+    while (count < THEME_CARD_MAX)
+    {
+        const char *nameKey = strstr(cursor, "\"name\":\"");
+        if (!nameKey) break;
+        const char *nameStart = nameKey + strlen("\"name\":\"");
+        const char *nameEnd = strchr(nameStart, '"');
+        if (!nameEnd) break;
+        const char *blurbKey = strstr(nameEnd, "\"blurb\":\"");
+        if (!blurbKey) break;
+        const char *blurbStart = blurbKey + strlen("\"blurb\":\"");
+        const char *blurbEnd = strchr(blurbStart, '"');
+        if (!blurbEnd) break;
+
+        ThemeCard *card = &game->themeCards[count];
+        size_t nameLen = (size_t)(nameEnd - nameStart);
+        if (nameLen >= sizeof(card->name)) nameLen = sizeof(card->name) - 1;
+        memcpy(card->name, nameStart, nameLen);
+        card->name[nameLen] = '\0';
+
+        size_t blurbLen = (size_t)(blurbEnd - blurbStart);
+        if (blurbLen >= sizeof(card->blurb)) blurbLen = sizeof(card->blurb) - 1;
+        memcpy(card->blurb, blurbStart, blurbLen);
+        card->blurb[blurbLen] = '\0';
+
+        count++;
+        cursor = blurbEnd + 1;
+    }
+    UnloadFileText(text);
+
+    if (count < 1) return false;
+    game->themeCardCount = count;
+    game->themeCardFocus = 0;
+    return true;
+}
+
+/* M5, requisito 8/11: carte curate lato gioco, SUBITO -- nessun processo,
+ * mai meno di un'opzione selezionabile (DEC-002/requisito 11). Idempotente
+ * (mai chiamata due volte sulla stessa permanenza in FloorZero): un tema gia'
+ * scelto o carte gia' pronte significano che questa chiamata arriva tardi
+ * (proposeRunner e' appena riuscito nel frattempo), e non deve sovrascrivere
+ * nulla. */
+static void AppUseFallbackThemeCards(Game *game, unsigned int seed)
+{
+    if (game->themeChosenIndex >= 0 || game->themeCardCount > 0) return;
+    RunContentMakeFallbackThemeCards(seed, game->themeCards, THEME_CARD_MAX);
+    game->themeCardCount = THEME_CARD_MAX;
+    game->themeCardFocus = 0;
+}
+
+/* M5, requisito 3/6: il tema scelto viaggia al processo di generazione per
+ * FILE (tmp+rename, come ogni altro output atomico di questo progetto), mai
+ * per riga di comando -- nome/blurb possono contenere spazi/apostrofi che
+ * andrebbero citati con cura su una argv costruita a mano (gen_runner.c).
+ * Formato IDENTICO a quello che GenLoadChosenTheme (tools/melting-gen/
+ * gen_util.c) si aspetta e a quanto provenance.txt scrive in chosenTheme=:
+ * "<name> -- <blurb>", una riga sola. "generated/" e' gia' garantita
+ * esistente dal target del Makefile (mkdir -p bin logs generated, vedi il
+ * commento su ScriptSandboxLogLine in src/script/script_sandbox.c): nessun
+ * mkdir a runtime qui, coerente col resto di src/. Silenzioso su ogni
+ * fallimento (fopen fallita): mai bloccare la scelta del tema per un file
+ * diagnostico, melting-gen degrada gia' da solo su --theme-file assente o
+ * illeggibile. */
+static void AppWriteChosenThemeFile(const ThemeCard *card)
+{
+    const char *tmpPath = "generated/chosen_theme.txt.tmp";
+    const char *finalPath = "generated/chosen_theme.txt";
+    FILE *f = fopen(tmpPath, "w");
+    if (!f) return;
+    fprintf(f, "%s -- %s\n", card->name, card->blurb);
+    fclose(f);
+    rename(tmpPath, finalPath);
+}
+
+/* M5, requisito 9/10: la scelta VERA del tema (confermata dal pannello di
+ * carte, mai dal solo focus che ci passa sopra) -- scrive il file per
+ * melting-gen e SOLO ORA avvia la generazione completa (mai prima, a
+ * differenza di prima di M5: AppEnterFloorZero non chiama piu'
+ * AppStartGeneration all'ingresso). Idempotente: un secondo confirm mentre
+ * il tema e' gia' scelto (es. tasto tenuto premuto) non deve riavviare
+ * un'altra generazione sopra quella in corso. */
+static void AppConfirmThemeChoice(Game *game, AppGen *gen, int index)
+{
+    if (game->themeChosenIndex >= 0) return;
+    if (index < 0 || index >= game->themeCardCount) return;
+    game->themeChosenIndex = index;
+    game->themeCardsPanelOpen = false;
+    AppWriteChosenThemeFile(&game->themeCards[index]);
+    if (gen->enabled && AppStartGeneration(gen, gen->pendingGenSeed)) return;   /* il case APP_FLOOR_ZERO sondera' il progresso ai prossimi frame */
+    AppOpenFloorZeroExit(game);
 }
 
 /* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
@@ -299,17 +453,18 @@ static AppInput AppInputCollect(void)
    (il seed di RunSetup, o un NextGenSeed fresco per gli altri due ingressi).
    FloorZeroEnter prepara SUBITO la sala d'attesa giocabile (M1b: mai piu' un
    overlay bloccante) -- il giocatore ci si muove da questo stesso frame.
-   Se la generazione e' disabilitata, o AppStartGeneration fallisce subito
-   (fork fallita), la pipeline e' gia' "terminale" per costruzione: l'uscita
-   si apre immediatamente (AppOpenFloorZeroExit), ma si resta comunque in
-   FloorZero -- e' l'attraversamento del varco, non l'ingresso, a portare in
-   Gameplay (vedi il case APP_FLOOR_ZERO sotto). */
+   M5 (DEC-005): la generazione completa NON parte piu' qui -- parte alla
+   scelta della carta (AppConfirmThemeChoice). Qui si avvia SOLO il processo
+   "proponi 3 temi"; se la generazione e' disabilitata, o quel processo non
+   parte nemmeno (fork fallita), le carte curate lato gioco compaiono SUBITO
+   (AppUseFallbackThemeCards, DEC-002: il gioco resta sempre avviabile). */
 static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned int seed)
 {
     *mode = APP_FLOOR_ZERO;
     FloorZeroEnter(game);
-    if (gen->enabled && AppStartGeneration(gen, seed)) return;   /* il case APP_FLOOR_ZERO sondera' il progresso ai prossimi frame */
-    AppOpenFloorZeroExit(game);
+    gen->pendingGenSeed = seed;
+    if (gen->enabled && AppStartProposeThemes(gen, seed)) return;   /* il case APP_FLOOR_ZERO sondera' le proposte ai prossimi frame */
+    AppUseFallbackThemeCards(game, seed);
 }
 
 /* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
@@ -413,6 +568,49 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_FLOOR_ZERO:
         {
+            /* M5 (DEC-005), requisito 1/8: finche' il tema non e' scelto E
+               le carte non sono ancora pronte, si sonda proposeRunner --
+               successo -> le carte del JSON (o il ripiego, se il JSON non
+               valida: mai un errore visibile, requisito 11); fallimento ->
+               le carte curate lato gioco, SUBITO. Una volta che
+               themeCardCount>0 questo blocco non fa piu' nulla per il resto
+               della permanenza nel Piano 0 (stesso schema idempotente del
+               blocco "pipeline principale" sotto). */
+            if (game->themeChosenIndex < 0 && game->themeCardCount == 0 &&
+                gen->proposeRunner.state == GEN_RUNNER_RUNNING)
+            {
+                GenRunnerUpdate(&gen->proposeRunner);
+                if (gen->proposeRunner.state == GEN_RUNNER_SUCCEEDED)
+                {
+                    if (!AppLoadThemeCards(game, "generated/theme_proposals.json"))
+                        AppUseFallbackThemeCards(game, gen->pendingGenSeed);
+                }
+                else if (gen->proposeRunner.state == GEN_RUNNER_FAILED)
+                {
+                    AppUseFallbackThemeCards(game, gen->pendingGenSeed);
+                }
+            }
+
+            /* M5, requisito 9: il pannello di scelta del tema -- un tasto
+               dedicato (TAB) lo apre/chiude, cosi' le frecce sinistra/destra
+               dentro non "rubano" i controlli di movimento (WASD) del Piano 0
+               giocabile quando il pannello e' chiuso (il caso normale: il
+               giocatore gira nell'hub mentre aspetta le proposte). Sparisce
+               da solo (niente piu' if) non appena un tema e' scelto:
+               AppConfirmThemeChoice chiude anche il pannello. */
+            if (game->themeChosenIndex < 0 && game->themeCardCount > 0)
+            {
+                if (effective.tab) game->themeCardsPanelOpen = !game->themeCardsPanelOpen;
+                if (game->themeCardsPanelOpen)
+                {
+                    if (effective.left)
+                        game->themeCardFocus = (game->themeCardFocus + game->themeCardCount - 1)%game->themeCardCount;
+                    if (effective.right)
+                        game->themeCardFocus = (game->themeCardFocus + 1)%game->themeCardCount;
+                    if (effective.confirm) AppConfirmThemeChoice(game, gen, game->themeCardFocus);
+                }
+            }
+
             /* M1b: la sala d'attesa giocabile. La generazione corre in
                sottofondo, MAI bloccante -- il giocatore continua a muoversi
                (AppSimStep tratta questo stato come Gameplay per la
@@ -424,8 +622,16 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                (DEC-002/DEC-020, fallback SILENZIOSO: qui non si distingue
                successo da fallback, vedi AppOpenFloorZeroExit). Una volta
                aperta, questo blocco non fa piu' nulla (game->floorZeroExitOpen
-               resta vero per il resto della permanenza nel Piano 0). */
-            if (!game->floorZeroExitOpen)
+               resta vero per il resto della permanenza nel Piano 0).
+               M5, requisito 10: la pipeline principale non e' nemmeno
+               partita finche' il tema non e' scelto (gen->runner.state resta
+               GEN_RUNNER_IDLE, mai SUCCEEDED/FAILED), quindi la guardia
+               'game->themeChosenIndex >= 0' qui sotto e' ridondante per
+               costruzione con quello stato -- la si scrive comunque, esplicita:
+               "l'uscita si apre solo se tema scelto E pipeline terminale" e'
+               un requisito di design, non solo un effetto collaterale
+               dell'ordine delle chiamate. */
+            if (game->themeChosenIndex >= 0 && !game->floorZeroExitOpen)
             {
                 GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
                 GenRunnerUpdate(active);

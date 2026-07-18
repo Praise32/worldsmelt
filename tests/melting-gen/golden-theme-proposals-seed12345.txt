@@ -1,0 +1,1 @@
+{"proposals":[{"name":"Forge of Neon","blurb":"The walls keep a rhythm that is almost, but not quite, a heartbeat."},{"name":"Laboratory of Radiation","blurb":"It welcomes you in, then quietly locks the way back."},{"name":"Cathedral of Electricity","blurb":"The deeper you go, the less it agrees to make sense."}],"source":"fallback"}

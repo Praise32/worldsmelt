@@ -49,6 +49,15 @@ typedef struct GenArgs {
     /* --bench (piano 16/07/2026, sezione tier): misura il throughput REALE
      * della macchina invece di dedurlo dal nome della GPU. Vedi RunBench. */
     int bench;
+    /* M5 (DEC-005, scelta del tema nel Piano 0): 0 = non richiesto (comportamento
+     * di sempre). >0 = ramo di uscita anticipata --propose-themes N (vedi
+     * RunProposeThemes sotto), N clampato 2..3 li' dentro. */
+    int proposeThemes;
+    /* --theme-file <path>: il tema scelto dal giocatore (letto una volta sola
+     * subito dopo ParseArgs, vedi 'chosenTheme'/'chosenPtr' in main()). NULL =
+     * comportamento di sempre, nessuna regressione per i test che non lo
+     * passano (requisito 3 della spec M5). */
+    const char *themeFile;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -80,6 +89,8 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->resume = 0;
     args->printJsonPrompt = 0;
     args->bench = 0;
+    args->proposeThemes = 0;
+    args->themeFile = NULL;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -114,6 +125,8 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--resume") == 0) args->resume = 1;
         else if (strcmp(argv[i], "--print-json-prompt") == 0) args->printJsonPrompt = 1;
         else if (strcmp(argv[i], "--bench") == 0) args->bench = 1;
+        else if (strcmp(argv[i], "--propose-themes") == 0 && i + 1 < argc) args->proposeThemes = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--theme-file") == 0 && i + 1 < argc) args->themeFile = argv[++i];
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -174,7 +187,8 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
  * prodotto la run), ignorati del tutto quando args->resume (la provenienza
  * non si scrive in ripresa, vedi sotto). */
 static int WriteOutputs(const GenRun *run, const GenArgs *args,
-                         const char *modelJsonField, const char *modelLuaField)
+                         const char *modelJsonField, const char *modelLuaField,
+                         const GenChosenTheme *chosen)
 {
     /* 99, non 85: la fase Lua (fase 3a-L3, quando c'e' un modello) scrive
      * progresso fino al 98% (vedi GenLuaGenerateForRun in gen_lua.c), la
@@ -197,7 +211,8 @@ static int WriteOutputs(const GenRun *run, const GenArgs *args,
          * scrive SOLO a fine di una generazione normale o fallback -- MAI in
          * --resume, che appartiene alla STESSA run del processo che l'ha
          * aperta: provenance.txt esiste gia' e non va toccato. */
-        if (GenWriteProvenance(run, args->outDir, args->promptsDir, modelJsonField, modelLuaField) != 0)
+        if (GenWriteProvenance(run, args->outDir, args->promptsDir, modelJsonField, modelLuaField,
+                                chosen ? chosen->raw : NULL) != 0)
         {
             GenProgressWrite(args->outDir, "errore", 100, "scrittura provenienza fallita");
             return 3;
@@ -327,14 +342,14 @@ static int RunBench(const GenArgs *args)
  * seconda del percorso). Ritorna 1 se un tentativo e' andato a buon fine
  * (run popolato, run->source impostato), 0 altrimenti (*run non toccato). */
 static int RunJsonAttempts(GenLlmSession *sess, const char *modelPath, const GenArgs *args,
-                            GenRun *run, char *json, size_t jsonCap)
+                            const GenChosenTheme *chosen, GenRun *run, char *json, size_t jsonCap)
 {
     int haveRun = 0;
     char *grammar = GenReadFile(args->grammarPath);
     for (int attempt = 0; attempt < 2 && !haveRun && grammar; attempt++)
     {
         unsigned int attemptSeed = args->seed + (unsigned int)attempt*7919u;
-        char *prompt = GenLlmBuildJsonPrompt(args->promptsDir, attemptSeed);
+        char *prompt = GenLlmBuildJsonPrompt(args->promptsDir, attemptSeed, chosen);
         if (!prompt)
         {
             GenLogLine("tentativo %d: prompt JSON non costruibile (file mancanti in %s?)", attempt + 1, args->promptsDir);
@@ -362,7 +377,7 @@ static int RunJsonAttempts(GenLlmSession *sess, const char *modelPath, const Gen
         }
         GenCorpusRecordJson(attempt + 1, true, NULL, genSecs, tokens, json);
         GenProgressWrite(args->outDir, "valido", 92, "valido e normalizzo");
-        GenNormalizeRun(root, args->seed, run);
+        GenNormalizeRun(root, args->seed, chosen, run);
         cJSON_Delete(root);
         const char *base = strrchr(modelPath, '/');
         snprintf(run->source, sizeof(run->source), "local:%s", base ? base + 1 : modelPath);
@@ -394,6 +409,106 @@ static void RunLuaPhase(GenLlmSession *sess, GenRun *run, const GenArgs *args, d
                args->luaFirst, GEN_FLOORS);
 }
 
+/* M5 (DEC-005), requisito 1: percorso della grammatica di --propose-themes.
+ * Letterale fisso (come GEN_BENCH_SYSTEM/USER sopra), non configurabile da
+ * riga di comando: a differenza di run.gbnf (--grammar) nessun test ha
+ * bisogno di puntarla altrove, e propose.gbnf vive accanto a run.gbnf per
+ * costruzione (stessa cartella tools/melting-gen). */
+#define GEN_PROPOSE_GRAMMAR_PATH "tools/melting-gen/propose.gbnf"
+/* nPredict richiesto dalla spec: 3 coppie nome+blurb, output minuscolo. */
+#define GEN_PROPOSE_N_PREDICT 320
+
+/* --propose-themes N (M5, requisito 1): ramo di uscita anticipata come
+ * --print-json-prompt/--bench -- scrive SOLO generated/theme_proposals.json,
+ * MAI corpus/manifest/atlas/provenance/ledger di novita' della run (per
+ * questo non chiama ne' GenCorpusRecord* ne' GenNoveltyAppend, a differenza
+ * del resto di questo file). La grammatica propose.gbnf genera SEMPRE 3
+ * proposte (root fissa, coerente col prompt "Propose 3 possible worlds");
+ * 'requestedCount' (clampato 2..3) sceglie solo quante di quelle 3 il
+ * chiamante vuole vedere scritte su disco -- mai meno di 2 (requisito 11:
+ * mai una sola carta selezionabile). Un solo tentativo (a differenza dei 2
+ * di RunJsonAttempts): e' un output piccolo e veloce, e il ripiego
+ * deterministico copre comunque ogni fallimento (DEC-002). */
+static int RunProposeThemes(const GenArgs *args, int requestedCount)
+{
+    int count = requestedCount;
+    if (count < 2) count = 2;
+    if (count > GEN_THEME_PROPOSALS) count = GEN_THEME_PROPOSALS;
+
+    GenThemeProposal proposals[GEN_THEME_PROPOSALS];
+    memset(proposals, 0, sizeof(proposals));
+    const char *source = "fallback";
+    int haveLlm = 0;
+
+    const char *modelPath = NULL;
+    GenLlmSession *sess = OpenModelSession(args, &modelPath);
+    if (sess)
+    {
+        char *prompt = GenLlmBuildProposePrompt(args->promptsDir, args->seed);
+        char *grammar = GenReadFile(GEN_PROPOSE_GRAMMAR_PATH);
+        if (prompt && grammar)
+        {
+            static char json[8192];
+            int tokens = 0;
+            /* outDir/progressPhase NULL: --propose-themes non deve toccare
+             * generated/gen_progress.txt (che appartiene alla pipeline
+             * principale, sequenziale ma distinta -- vedi il commento sul
+             * requisito 1 in melting_gen.h). */
+            int rc = GenLlmComplete(sess, prompt, grammar, GEN_PROPOSE_N_PREDICT, args->temp, args->seed,
+                                     NULL, NULL, 0, 0, json, sizeof(json), &tokens);
+            if (rc == 0)
+            {
+                cJSON *root = cJSON_Parse(json);
+                if (root)
+                {
+                    cJSON *arr = cJSON_GetObjectItemCaseSensitive(root, "proposals");
+                    if (cJSON_IsArray(arr) && cJSON_GetArraySize(arr) >= GEN_THEME_PROPOSALS)
+                    {
+                        int ok = 1;
+                        for (int i = 0; i < GEN_THEME_PROPOSALS && ok; i++)
+                        {
+                            cJSON *p = cJSON_GetArrayItem(arr, i);
+                            cJSON *jn = cJSON_GetObjectItemCaseSensitive(p, "name");
+                            cJSON *jb = cJSON_GetObjectItemCaseSensitive(p, "blurb");
+                            if (!cJSON_IsString(jn) || !jn->valuestring || !jn->valuestring[0] ||
+                                !cJSON_IsString(jb) || !jb->valuestring || !jb->valuestring[0])
+                            {
+                                ok = 0;
+                                break;
+                            }
+                            snprintf(proposals[i].name, sizeof(proposals[i].name), "%s", jn->valuestring);
+                            snprintf(proposals[i].blurb, sizeof(proposals[i].blurb), "%s", jb->valuestring);
+                        }
+                        if (ok)
+                        {
+                            haveLlm = 1;
+                            static char srcBuf[128];
+                            const char *base = strrchr(modelPath, '/');
+                            snprintf(srcBuf, sizeof(srcBuf), "local:%s", base ? base + 1 : modelPath);
+                            source = srcBuf;
+                        }
+                    }
+                    cJSON_Delete(root);
+                }
+            }
+            if (!haveLlm) GenLogLine("propose-themes: generazione/validazione fallita, ripiego procedurale");
+        }
+        else GenLogLine("propose-themes: prompt o grammatica non costruibili, ripiego procedurale");
+        free(prompt);
+        free(grammar);
+        GenLlmSessionClose(sess);
+    }
+
+    if (!haveLlm)
+    {
+        GenFallbackThemeProposals(args->seed, GEN_THEME_PROPOSALS, proposals);
+        source = "fallback";
+    }
+
+    GenLogLine("propose-themes: source=%s count=%d seed=%u", source, count, args->seed);
+    return GenWriteThemeProposals(proposals, count, source, args->outDir) == 0 ? 0 : 3;
+}
+
 int main(int argc, char **argv)
 {
     double processStart = GenNowSeconds();
@@ -413,13 +528,22 @@ int main(int argc, char **argv)
     }
     GenProgressWrite(args.outDir, "avvio", 0, "melting-gen avviato");
 
+    /* M5 (DEC-005): il tema scelto si legge UNA VOLTA sola, qui, prima di
+     * ogni ramo che ne ha bisogno (--print-json-prompt, --propose-themes non
+     * lo usa, --from-json, la generazione normale, il ripiego). File assente
+     * o malformato -> chosenPtr resta NULL, esattamente come --theme-file non
+     * passato affatto (requisito 3: nessuna regressione). */
+    GenChosenTheme chosenTheme;
+    const GenChosenTheme *chosenPtr = NULL;
+    if (args.themeFile && GenLoadChosenTheme(args.themeFile, &chosenTheme)) chosenPtr = &chosenTheme;
+
     /* Semi d'ispirazione: costruisce il prompt JSON e lo stampa, PRIMA di
      * qualunque caricamento modello -- serve ai test per verificare il
      * prompt (placeholder sostituiti, determinismo sul seed) senza aspettare
      * una generazione vera. */
     if (args.printJsonPrompt)
     {
-        char *prompt = GenLlmBuildJsonPrompt(args.promptsDir, args.seed);
+        char *prompt = GenLlmBuildJsonPrompt(args.promptsDir, args.seed, chosenPtr);
         if (!prompt)
         {
             fprintf(stderr, "melting-gen: prompt JSON non costruibile (file mancanti in %s?)\n", args.promptsDir);
@@ -429,6 +553,11 @@ int main(int argc, char **argv)
         free(prompt);
         return 0;
     }
+
+    /* M5 (DEC-005), requisito 1: altro ramo di uscita anticipata, PRIMA di
+     * GenRemoveOldScripts -- --propose-themes non genera una run, non deve
+     * toccare gli script Lua di quella in corso. */
+    if (args.proposeThemes > 0) return RunProposeThemes(&args, args.proposeThemes);
 
     /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
      * scripts/ pulita. Senza, gli script della run precedente restavano sul disco
@@ -470,7 +599,7 @@ int main(int argc, char **argv)
 
         GenRun run;
         GenProgressWrite(args.outDir, "valido", 60, "valido e normalizzo il JSON");
-        GenNormalizeRun(root, args.seed, &run);
+        GenNormalizeRun(root, args.seed, chosenPtr, &run);
         cJSON_Delete(root);
         snprintf(run.source, sizeof(run.source), "from-json");
 
@@ -506,7 +635,7 @@ int main(int argc, char **argv)
          * e nessuna fase Lua viene eseguita (parte solo sotto args.resume qui
          * sopra). Quando args.resume E' vero questi due valori sono ignorati
          * del tutto: provenance.txt esiste gia' e non va toccato. */
-        return WriteOutputs(&run, &args, args.fromJson, "-");
+        return WriteOutputs(&run, &args, args.fromJson, "-", chosenPtr);
     }
 
     GenRun run;
@@ -555,7 +684,7 @@ int main(int argc, char **argv)
             if (jsonSess)
             {
                 GenCorpusRecordSession(args.modelText, args.ngl);
-                haveRun = RunJsonAttempts(jsonSess, args.modelText, &args, &run, json, sizeof(json));
+                haveRun = RunJsonAttempts(jsonSess, args.modelText, &args, chosenPtr, &run, json, sizeof(json));
                 if (haveRun) provModelJson = args.modelText;
                 GenLlmSessionClose(jsonSess);
             }
@@ -596,7 +725,7 @@ int main(int argc, char **argv)
             if (sess)
             {
                 GenCorpusRecordSession(modelPath, args.ngl);
-                haveRun = RunJsonAttempts(sess, modelPath, &args, &run, json, sizeof(json));
+                haveRun = RunJsonAttempts(sess, modelPath, &args, chosenPtr, &run, json, sizeof(json));
                 if (haveRun)
                 {
                     /* Stessa sessione per JSON e Lua su questo percorso (fase
@@ -619,9 +748,9 @@ int main(int argc, char **argv)
          * fare qui, e' la cosa giusta per costruzione. */
         GenCorpusRecordFallback(args.fallback ? "richiesto con --fallback" : "modello assente o tentativi JSON esauriti",
                                  args.fallback != 0);
-        GenFallbackRun(&run, args.seed);
+        GenFallbackRun(&run, args.seed, chosenPtr);
     }
-    int rc = WriteOutputs(&run, &args, provModelJson, provModelLua);
+    int rc = WriteOutputs(&run, &args, provModelJson, provModelLua, chosenPtr);
     /* Ledger di novita' fra run (gen_novelty.c): SOLO qui, MAI nel ramo
      * --resume/--from-json sopra (che ritorna prima di arrivare fin qui) e
      * MAI quando 'haveRun' e' rimasto 0 (run->source e' "fallback", lo
