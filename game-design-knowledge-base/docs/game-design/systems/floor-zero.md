@@ -3,7 +3,7 @@ id: gd-system-floor-zero
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato (DEC-070). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
 ---
 
 # Floor Zero
@@ -13,6 +13,10 @@ summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema
 Il Piano 0 è un luogo sicuro, sempre disponibile, in cui il giocatore prepara la run
 successiva senza fretta e senza rischio di perdita. Deve dare la sensazione di un rifugio
 personale che cresce con le run passate, non di una schermata di attesa.
+
+Il Piano 0 è il crogiolo della cornice narrativa minima del gioco (DEC-067): il luogo-fucina
+fuori dal tempo dove i mondi generati nascono, si fondono e si sciolgono. Cornice completa in
+[Narrative Tone](../content/narrative-tone.md) (rimando, non riformulata qui).
 
 ## Condizioni di ingresso
 
@@ -94,6 +98,30 @@ metriche di gioco, metà curatela diretta del giocatore.
 
 Un contenuto promosso solo per metriche può invece essere sostituito da un altro contenuto
 se le metriche di quest'ultimo lo superano.
+
+## Scelta al primo avvio: completo o solo curato (DEC-070)
+
+Al primissimo avvio del gioco — prima ancora della primissima visita guidata al Piano 0
+descritta sotto (DEC-047) — il gioco misura l'hardware con il benchmark già presente nel
+progetto e propone al giocatore una scelta **binaria**, senza livelli intermedi di download:
+
+- **esperienza completa**: scarica e attiva i modelli IA di generazione (un solo set di
+  modelli; non esistono alternative o livelli di qualità tra cui scegliere);
+- **solo curato**: nessun modello IA attivo; si gioca con i contenuti curati e il fallback
+  procedurale sempre disponibile (vedi
+  [Generated Content Validation](generated-content-validation.md)), con la possibilità di
+  attivare la generazione in un secondo momento.
+
+Se il benchmark rileva che l'hardware non regge la generazione, il gioco lo dichiara
+chiaramente e consiglia "solo curato", ma non impedisce al giocatore di scegliere comunque
+"completo". Questa scelta è coerente con la garanzia che il gioco è sempre giocabile
+(DEC-002, DEC-020): "solo curato" non è un fallback d'emergenza temporaneo, è una modalità di
+gioco legittima e permanente (dettaglio in
+[AI Content Generation Model](../06-ai-content-generation-model.md), rimando, non
+riformulato qui).
+
+Dopo questa scelta iniziale, il gioco procede alla primissima visita guidata al Piano 0
+(DEC-047, sotto), in entrambe le modalità.
 
 ## Primissima visita: tutorial integrato (DEC-047)
 
@@ -206,6 +234,13 @@ loro generazione o del loro punteggio, definito in
 - Il giocatore entra nel Piano 0 per la seconda volta (nella stessa run o in una
   successiva): la guida della primissima visita (DEC-047) non viene riproposta, ma le
   arene restano accessibili come sempre.
+- Il giocatore affronta la scelta binaria al primo avvio prima ancora di raggiungere il Piano
+  0 per la prima volta: qualunque sia l'esito (completo o solo curato), il Piano 0 resta
+  interamente giocabile e la primissima visita guidata (DEC-047) procede normalmente subito
+  dopo (DEC-070).
+- Il benchmark consiglia "solo curato" perché l'hardware non regge la generazione, ma il
+  giocatore sceglie comunque "completo": la scelta del giocatore è rispettata, il consiglio
+  resta solo un'indicazione (DEC-070).
 
 ## Fallback
 
@@ -238,6 +273,10 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Composizione esatta della rosa dei personaggi base scelti qui nel Piano 0 (nomi, ruoli
   precisi, condizioni di sblocco) — vedi DEC-030 in [Characters](characters.md) e
   `../governance/open-questions.md`.
+- Dettagli dell'interfaccia della scelta binaria completo/solo-curato al primo avvio
+  (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva
+  la generazione per chi ha scelto solo curato inizialmente — DEC-070 fissa solo il principio,
+  vedi anche `../governance/open-questions.md`.
 
 ## Scenari
 
@@ -341,3 +380,23 @@ superano la validazione, si applica la regola di fallback unica definita in
 - When le metriche di altri contenuti superano le sue
 - Then il contenuto preferito resta comunque esposto nel museo, perché la curatela del
   giocatore ha la precedenza sulla promozione per metriche (DEC-063)
+
+**Scenario: primo avvio con hardware sufficiente**
+- Given un giocatore avvia il gioco per la primissima volta
+- When il benchmark misura un hardware che regge la generazione
+- Then il gioco propone la scelta binaria completo/solo curato senza sconsigliare nessuna
+  delle due opzioni, e procede poi alla primissima visita guidata al Piano 0 (DEC-070,
+  DEC-047)
+
+**Scenario: primo avvio con hardware insufficiente**
+- Given un giocatore avvia il gioco per la primissima volta
+- When il benchmark misura un hardware che non regge la generazione
+- Then il gioco lo dichiara chiaramente e consiglia "solo curato", pur lasciando al
+  giocatore la possibilità di scegliere comunque "completo" (DEC-070)
+
+**Scenario: "solo curato" resta una modalità permanente, non un'attesa**
+- Given un giocatore ha scelto "solo curato" al primo avvio
+- When gioca run successive senza mai riattivare la generazione
+- Then il gioco resta interamente giocabile con contenuti curati e fallback procedurale,
+  senza che questa condizione sia trattata come temporanea o come un errore da correggere
+  (DEC-070)

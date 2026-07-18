@@ -3,7 +3,7 @@ id: gd-system-characters
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049)."
+summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche più caute in cambio (DEC-068); i personaggi base usano sempre colpi standard curati."
 ---
 
 # Characters
@@ -60,6 +60,30 @@ l'alternativa — i 6 slot visivi degli oggetti equipaggiati si sovrappongono al
 a **tutti** i personaggi: fonte unica del dettaglio di quegli strati è
 [Visual Language](../content/visual-language.md), non riformulato qui.
 
+## Colpo firmato (DEC-068)
+
+Il personaggio alternativo generato per la run può, **a volte**, avere un proprio tipo di
+colpo generato (forma più comportamento) invece di usare il colpo standard: è una
+**possibilità del generatore**, non una garanzia — non ogni personaggio generato riceve un
+colpo firmato.
+
+Il colpo firmato è parte del **budget** del personaggio generato (vedi
+[glossario](../governance/glossary.md) per il concetto generale di budget): un personaggio
+che riceve un colpo firmato ha statistiche più **caute** rispetto a un personaggio
+alternativo equivalente senza colpo firmato, per compensare il vantaggio di un colpo
+dedicato.
+
+- Un personaggio alternativo **senza** colpo firmato usa il colpo standard del giocatore, lo
+  stesso disponibile a qualunque personaggio della rosa base.
+- I personaggi della rosa base (DEC-030) usano **sempre** colpi standard curati: non hanno
+  mai un colpo firmato, che resta una possibilità esclusiva del personaggio alternativo
+  generato per run.
+- Quando presente, il colpo firmato del personaggio alternativo è generato con la stessa
+  pipeline dei tipi di colpo descritta in
+  [Combat and Projectiles](combat-and-projectiles.md) e può essere un comportamento Lua
+  validato in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037,
+  rimando, non riformulato qui).
+
 ## Input/azioni
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
@@ -86,6 +110,8 @@ run.
   quella verso l'alternativa generata.
 - Il personaggio scelto resta visibile nel riepilogo del Piano 0, insieme al tema della run
   (vedi [Floor Zero](floor-zero.md)).
+- La scheda del personaggio alternativo indica chiaramente se ha un colpo firmato generato,
+  distinto dal colpo standard, insieme al trait unico (DEC-068).
 
 ## Interazioni
 
@@ -99,6 +125,9 @@ run.
   generazione sprite usata per il personaggio alternativo, condivisa coi nemici (DEC-049).
 - [Visual Language](../content/visual-language.md): i 6 slot visivi degli oggetti
   equipaggiati, condivisi da personaggi curati e generati (DEC-049).
+- [Combat and Projectiles](combat-and-projectiles.md): il colpo firmato del personaggio
+  alternativo usa la stessa pipeline di generazione dei tipi di colpo, inclusi i
+  comportamenti Lua validati in sandbox (DEC-037, DEC-068).
 
 ## Regole per contenuti generati
 
@@ -119,6 +148,10 @@ run.
   la tassonomia unica di origine del contenuto.
 - I personaggi della rosa base (DEC-030) sono `curato`: non sono generati, restano fissi tra
   una run e l'altra fino a un eventuale aggiornamento curato del gioco.
+- Il colpo firmato del personaggio alternativo, quando il generatore lo produce, è parte del
+  suo budget e comporta statistiche più caute per il resto del personaggio (DEC-068); un
+  personaggio alternativo senza colpo firmato non è penalizzato: usa semplicemente il colpo
+  standard, senza compensazione né svantaggio.
 
 ## Casi limite
 
@@ -135,6 +168,14 @@ run.
   fallback definito in [Generated Content Validation](generated-content-validation.md), e la
   scheda del personaggio alternativo non compare (coerente con il caso limite già descritto
   sopra per la generazione dell'alternativa non disponibile).
+- Il generatore non produce un colpo firmato per il personaggio alternativo di questa run:
+  non è un errore, è lo stato più comune del generatore (DEC-068); il personaggio alternativo
+  usa il colpo standard, con le statistiche non caute della sua banda garantita.
+- Il colpo firmato generato non supera la validazione in sandbox: si applica il fallback
+  verso il colpo standard curato equivalente (vedi
+  [Generated Content Validation](generated-content-validation.md) e
+  [Combat and Projectiles](combat-and-projectiles.md), rimando, non riformulato qui), senza
+  che il giocatore veda alcun errore.
 
 ## Fallback
 
@@ -168,6 +209,9 @@ applica la regola di fallback unica definita in
 - Se lo sprite curato della rosa base condivide lo stesso atlas/risoluzione di riferimento
   dello sprite generato del personaggio alternativo (vedi
   [Visual Language](../content/visual-language.md), valori draft DEC-046).
+- Con quale frequenza il generatore assegna un colpo firmato rispetto al colpo standard, e di
+  quanto sono esattamente più caute le statistiche compensative del personaggio che lo riceve
+  (DEC-068 fissa solo il principio; valori da playtest, stile DEC-019).
 
 ## Scenari
 
@@ -212,3 +256,16 @@ applica la regola di fallback unica definita in
 - Then lo sprite della rosa base è pixel art curata a mano, mentre lo sprite
   dell'alternativa è generato dalla stessa pipeline usata per i nemici, ma entrambi
   condividono gli stessi 6 slot visivi per gli oggetti equipaggiati (DEC-049)
+
+**Scenario: personaggio alternativo con colpo firmato**
+- Given il generatore produce per questa run un personaggio alternativo con un colpo firmato
+  proprio
+- When il giocatore consulta la sua scheda nel Piano 0
+- Then la scheda mostra il colpo firmato distinto dal colpo standard, insieme a statistiche
+  più caute rispetto a un personaggio alternativo equivalente senza colpo firmato (DEC-068)
+
+**Scenario: personaggio alternativo senza colpo firmato usa il colpo standard**
+- Given il generatore produce per questa run un personaggio alternativo senza colpo firmato
+- When il giocatore lo seleziona e inizia la run
+- Then il personaggio usa il colpo standard, lo stesso disponibile ai personaggi della rosa
+  base, senza alcuna compensazione o svantaggio di statistiche (DEC-068)

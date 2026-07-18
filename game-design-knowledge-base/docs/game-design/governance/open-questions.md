@@ -8,6 +8,13 @@ DEC-055...DEC-062 del 2026-07-18 non hanno risolto alcuna domanda preesistente d
 elenco, ma ne hanno aperte di nuove (vedi sotto). Le decisioni DEC-063...DEC-066 del
 2026-07-18 risolvono parzialmente la domanda 11 sulla Daily (le ricompense dedicate sono
 ora definite come cosmetiche, DEC-064): resta aperto solo l'orario esatto di rotazione.
+La decisione DEC-067 del 2026-07-18 approva una cornice narrativa minima ("il crogiolo dei
+mondi"): il tono narrativo generale non è più completamente aperto, resta aperto solo il
+tono specifico (tragico, ironico, ecc.), i simboli ricorrenti, i limiti di contenuto e il
+nome definitivo del gioco (domanda 1, invariata) — dettagli registrati in
+`content/narrative-tone.md`, non duplicati qui. Le decisioni DEC-069 e DEC-070 del
+2026-07-18 non risolvono domande preesistenti di questo elenco, ma ne aprono due nuove (vedi
+sotto).
 
 ## Nome e vocabolario
 
@@ -39,3 +46,8 @@ ora definite come cosmetiche, DEC-064): resta aperto solo l'orario esatto di rot
 
 12. Quali contenuti curati minimi devono esistere per garantire una run di fallback completa (Piano 0 + 5 piani) senza alcuna generazione IA disponibile?
 13. Qual è il minimo gioco base da completare prima di espandere la generazione IA?
+
+## Primo avvio e migrazione del catalogo
+
+14. Dettagli dell'interfaccia della scelta binaria completo/solo-curato al primo avvio (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva la generazione per chi ha scelto solo curato inizialmente. (DEC-070 fissa solo il principio e il punto in cui avviene la scelta, non l'interfaccia esatta.)
+15. Un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) che diventa una Reliquia dopo un aggiornamento (DEC-069): resta esposto nel museo o ne esce automaticamente?

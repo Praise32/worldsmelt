@@ -3,7 +3,7 @@ id: gd-system-combat
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037)."
+summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md)."
 ---
 
 # Combat and Projectiles
@@ -115,6 +115,12 @@ equivalente, generata dentro le bande di garanzia.
 **Bande di potenza dei colpi (DEC-019 — draft, default di implementazione, da validare col playtest):** i colpi generati per il giocatore usano come default attuale una banda di potenza **[0.75–1.25]** (moltiplicatore rispetto a un colpo di riferimento). Questo valore è già presente nell'implementazione corrente ed è riportato qui come punto di partenza, **non come decisione di design chiusa**: resta soggetto a validazione tramite playtest. Bande equivalenti per nemici e boss vivono in [enemies.md](enemies.md) e [bosses.md](bosses.md) rispettivamente (rimando, valori non duplicati qui).
 
 Per il fallback quando un tipo di colpo generato non supera la validazione, vedi [generated-content-validation.md](generated-content-validation.md) (rimando, non riformulare).
+
+**Colpo firmato del personaggio generato (DEC-068):** un tipo di colpo generato può anche
+appartenere specificamente al personaggio alternativo generato per la run, come suo colpo
+firmato personale — una possibilità del generatore, non una garanzia. Fonte unica del
+meccanismo, del suo legame col budget del personaggio e del suo effetto sulle statistiche:
+[Characters](characters.md) (rimando, non riformulato qui).
 
 ## Casi limite
 

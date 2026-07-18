@@ -10,6 +10,14 @@
 - **RunBundle:** file esportato di una run, con verifica d'integrità già esistente nel progetto; via completa e verificabile per condividere o archiviare una run fuori dalle classifiche (DEC-066), adatta a gare private e archivio. Fonte unica: `08-multiplayer-and-competition.md`.
 - **Build:** insieme corrente di oggetti, statistiche e sinergie del giocatore.
 
+## Cornice narrativa
+
+- **Crogiolo (cornice)** (DEC-067): cornice narrativa minima canonica del gioco. Il Piano 0 è
+  un luogo-fucina fuori dal tempo dove i mondi generati nascono, si fondono e si sciolgono; il
+  giocatore è chi vi si immerge per esplorarli prima che collassino; il museo è la memoria di
+  ciò che ha salvato. Dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi
+  generati, che restano liberi. Fonte unica: `content/narrative-tone.md`.
+
 ## Oggetti e slot
 
 - **Innesto** (placeholder, sostituisce il termine vietato "trinket"): oggetto piccolo, situazionale, sostituibile; 1 slot iniziale, espandibile con oggetti o eventi rari. Rosa di nomi alternativi da valutare quando si sceglierà il nome del gioco: *Scaglia*, *Residuo*, *Sigillo*.
@@ -33,6 +41,14 @@
 
 - **Veterano** (placeholder, sostituisce "élite"): nemico potenziato non-boss.
 
+## Personaggi e colpi
+
+- **Colpo firmato** (DEC-068): tipo di colpo generato (forma più comportamento) che il
+  personaggio alternativo generato per la run può avere, a volte, come possibilità del
+  generatore; è parte del budget del personaggio — chi lo riceve ha statistiche più caute. I
+  personaggi della rosa base usano sempre colpi standard curati, mai un colpo firmato. Fonte
+  unica: `systems/characters.md`.
+
 ## Generazione e validazione
 
 - **Contenuto curato:** contenuto creato e approvato manualmente.
@@ -41,6 +57,15 @@
 - **Fallback:** contenuto sicuro usato quando una proposta generata non è disponibile o valida. Fonte unica delle regole di fallback: `systems/generated-content-validation.md`.
 - **Correzione di fortuna** (sostituisce il termine informale "pity"): garanzia che, dopo N estrazioni sfortunate, la qualità minima del contenuto offerto sale.
 - **Stati di validazione del contenuto generato** (6, in italiano): *proposto*, *strutturalmente-valido*, *simulato*, *approvato-per-run*, *respinto*, *fallback-usato*. Sostituiscono gli aggettivi informali "validato" e "fortemente validato". Fonte dei controlli: `systems/generated-content-validation.md`.
+- **Reliquie** (DEC-069): sezione del Catalogo che raccoglie i contenuti che non superano la
+  riconvalida a un aggiornamento del gioco: scheda consultabile, ma non più giocabile né
+  sbloccabile nei pool. La memoria del giocatore non si perde mai. Fonte unica:
+  `systems/save-and-meta-progression.md`.
+- **Solo curato** (modalità, DEC-070): modalità di gioco legittima e permanente, scelta al
+  primo avvio (o attivabile in seguito), in cui nessun modello IA è attivo: si gioca con
+  contenuti curati e fallback procedurale. Distinta dal fallback per singolo contenuto. Fonte
+  unica: `06-ai-content-generation-model.md` (regola), `systems/floor-zero.md` (scelta al
+  primo avvio).
 
 ## Pool ed economia degli oggetti
 

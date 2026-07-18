@@ -3,7 +3,7 @@ id: gd-system-save-meta
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050)."
+summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile (DEC-069)."
 ---
 
 # Save and Meta Progression
@@ -60,6 +60,25 @@ Il Catalogo è distinto dal museo del Piano 0: il museo è una galleria curata d
 creazioni migliori, provabile in loco (DEC-040); il Catalogo è l'enciclopedia completa più
 preferiti e spesa punti. Idea futura (lista DEC-018): portare le funzioni del Catalogo anche
 dentro il Piano 0/museo.
+
+## Migrazione del catalogo tra versioni: le Reliquie (DEC-069)
+
+A ogni aggiornamento del gioco, il catalogo persistente (vedi "Cosa persiste tra le run"
+sopra) viene **riconvalidato** con la stessa pipeline di validazione usata in run (vedi
+[Generated Content Validation](generated-content-validation.md), fonte unica del processo e
+degli stati; questo documento non li ripete):
+
+- ciò che **supera** la riconvalida resta giocabile e sbloccabile come prima, senza alcuna
+  perdita;
+- ciò che **fallisce** la riconvalida viene spostato in una sezione dedicata del Catalogo
+  chiamata **Reliquie**: resta consultabile — scheda visibile con nome, sprite e storia — ma
+  non è più giocabile né sbloccabile nei pool delle run future.
+
+La memoria del giocatore non si perde mai: un contenuto diventato Reliquia resta
+nell'enciclopedia personale del giocatore, semplicemente non più attivo in run. Il termine
+"Reliquie" è coerente con la cornice del crogiolo (DEC-067, fonte unica in
+[Narrative Tone](../content/narrative-tone.md)): ciò che il crogiolo ha sciolto lascia
+comunque una traccia consultabile.
 
 ## Sospensione della run e ripresa (DEC-050)
 
@@ -129,6 +148,8 @@ solo cosa persiste e con quali regole.
   corrente (DEC-050).
 - `08-multiplayer-and-competition.md`: fonte unica delle ricompense cosmetiche della Daily
   (medaglie/cornici) che persistono qui nel profilo (DEC-064).
+- `../content/narrative-tone.md`: la cornice del crogiolo (DEC-067) dà senso al termine
+  "Reliquie" usato qui per i contenuti che non superano la riconvalida (DEC-069).
 
 ## Regole per contenuti generati
 
@@ -157,6 +178,9 @@ per il contesto delle gare asincrone).
   sospensione.
 - Il giocatore sospende la run nel Piano 0: al rientro rientra direttamente nel Piano 0,
   coerente con `FloorZero` come stato salvato (vedi [Navigation Map](../ui/navigation-map.md)).
+- Un aggiornamento del gioco riconvalida il catalogo e un contenuto già approvato-per-run in
+  passato non supera più la riconvalida: diventa una Reliquia, resta consultabile nel
+  Catalogo ma esce dai pool sbloccabili delle run future (DEC-069).
 
 ## Fallback
 
@@ -183,6 +207,9 @@ Questo sistema non definisce la regola di fallback per i contenuti generati: ved
   meta-progressione (non deciso).
 - Peso esatto che i preferiti aggiungono alle proposte future dell'IA (DEC-045 fissa solo
   che il peso è "leggero", non il valore).
+- Un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) che
+  diventa una Reliquia dopo un aggiornamento (DEC-069): resta esposto nel museo o ne esce
+  automaticamente?
 
 Nota: la domanda su cosa mostri il museo del Piano 0 (intero catalogo o sottoinsieme curato)
 è risolta da DEC-063 — criterio misto, metriche più preferiti — e non è più aperta qui; la
@@ -273,3 +300,17 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - Then una medaglia o cornice cosmetica entra nel profilo persistente, visibile nel profilo e
   nel museo, senza alcun punto sblocco aggiuntivo (DEC-064, fonte unica in
   `08-multiplayer-and-competition.md`).
+
+**Scenario: un contenuto supera la riconvalida dopo un aggiornamento**
+- Given un aggiornamento del gioco riconvalida l'intero catalogo persistente,
+- When un contenuto già approvato-per-run in passato supera di nuovo la pipeline di
+  validazione,
+- Then resta giocabile e sbloccabile come prima, senza spostarsi tra le Reliquie (DEC-069).
+
+**Scenario: un contenuto diventa una Reliquia dopo un aggiornamento**
+- Given un aggiornamento del gioco riconvalida l'intero catalogo persistente,
+- When un contenuto già approvato-per-run in passato non supera più la pipeline di
+  validazione,
+- Then il contenuto si sposta nella sezione Reliquie del Catalogo: resta consultabile con
+  nome, sprite e storia, ma non è più giocabile né sbloccabile nei pool delle run future
+  (DEC-069).

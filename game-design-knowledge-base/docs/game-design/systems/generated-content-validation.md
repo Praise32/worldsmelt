@@ -3,7 +3,7 @@ id: gd-system-content-validation
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Fonte unica: modello di generazione, sei stati di validazione e regola di fallback per ogni contenuto generato dall'IA nella KB."
+summary: "Fonte unica: modello di generazione, sei stati di validazione e regola di fallback per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md)."
 ---
 
 # Generated Content Validation
@@ -81,6 +81,16 @@ Sei stati, in italiano, uguali per ogni categoria di contenuto generato:
 Se testi precedenti della KB usano termini informali come "validato" o "fortemente validato",
 vanno intesi come sostituiti da questi sei stati ufficiali.
 
+### Riconvalida a cambio versione del catalogo (DEC-069)
+
+Gli stessi sei stati sopra definiti si applicano anche alla **riconvalida** del catalogo
+persistente a ogni aggiornamento del gioco: un contenuto già approvato-per-run in una run
+passata viene ripassato attraverso questo stesso processo. Chi supera di nuovo la
+riconvalida resta come prima; chi non la supera passa a **respinto** e diventa una
+**Reliquia** nel Catalogo — consultabile ma non più giocabile né sbloccabile nei pool. Fonte
+unica del concetto di Reliquie e del suo effetto sul Catalogo:
+[Save and Meta Progression](save-and-meta-progression.md) (rimando, non riformulato qui).
+
 ## Controlli minimi
 
 - schema completo;
@@ -117,6 +127,8 @@ testi) restano fuori scope in questo documento e vivono nei documenti di `ui/`.
   run.
 - `../content/content-taxonomy.md`: l'origine "curato" identifica i contenuti di riserva usati
   nei fallback.
+- `save-and-meta-progression.md`: fonte unica delle Reliquie, il risultato per il Catalogo di
+  un contenuto respinto in riconvalida a cambio versione (DEC-069).
 
 ## Regole per contenuti generati
 
@@ -198,3 +210,11 @@ nell'interfaccia normale.
   simulazione,
 - Then il sistema sostituisce il contenuto con un layout curato equivalente (fallback-usato) e
   la run prosegue senza che il giocatore venga mai bloccato.
+
+**Scenario: riconvalida del catalogo a un aggiornamento del gioco**
+- Given un aggiornamento del gioco avvia la riconvalida del catalogo persistente,
+- When un contenuto già approvato-per-run non supera più i controlli minimi con le regole
+  della nuova versione,
+- Then il contenuto passa allo stato respinto e diventa una Reliquia nel Catalogo del
+  giocatore (DEC-069, fonte unica del dettaglio in
+  [Save and Meta Progression](save-and-meta-progression.md)).

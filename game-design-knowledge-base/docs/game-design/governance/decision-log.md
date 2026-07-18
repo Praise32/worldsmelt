@@ -683,3 +683,44 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** un'unica forma di condivisione (solo codice o solo bundle); permettere che una run condivisa possa comunque entrare in classifica.
 - **Conseguenze:** `08-multiplayer-and-competition.md` diventa fonte unica della regola; `ui/run-setup.md`, `systems/run-manifest-and-reproducibility.md` e `ui/multiplayer-lobby.md` vi rimandano.
 - **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/run-setup.md`, `systems/run-manifest-and-reproducibility.md`, `ui/multiplayer-lobby.md`
+
+### DEC-067 — Cornice narrativa: "il crogiolo dei mondi"
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** `content/narrative-tone.md` era un placeholder esplicito: senza una cornice narrativa minima, hub, museo, temi e fusione restavano senza un senso concettuale comune, pur essendo già tutti approvati singolarmente.
+- **Decisione:** il Piano 0 è un luogo-fucina fuori dal tempo dove i mondi generati nascono, si fondono e si sciolgono; il giocatore è chi vi si immerge per esplorarli prima che collassino; il museo è la memoria di ciò che ha salvato. La degenerazione dei piani (DEC-024) è il collasso progressivo del mondo visitato; la fusione (DEC-012) è la pratica stessa del crogiolo. Questa è la cornice minima canonica: dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati, che restano liberi. `content/narrative-tone.md` smette di essere un placeholder: registra la cornice, il campo semantico (fusione/scioglimento/crogiolo) e il vincolo che i temi generati non devono contraddirla.
+- **Alternative considerate:** nessuna cornice narrativa esplicita, lasciando hub/museo/fusione senza un senso concettuale comune; una lore completa e definitiva fin da subito.
+- **Conseguenze:** `content/narrative-tone.md` passa da placeholder puro a documento approvato per la cornice, con tono specifico e nome definitivo ancora draft/aperti; `00-vision.md` e `systems/floor-zero.md` richiamano la cornice con una riga.
+- **Documenti aggiornati:** `content/narrative-tone.md`, `00-vision.md`, `systems/floor-zero.md`
+
+### DEC-068 — Colpo firmato "a volte" per il personaggio generato
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il personaggio alternativo generato per run (DEC-014, DEC-030) aveva già un trait unico comportamentale (DEC-037), ma non era definito se potesse avere anche un proprio tipo di colpo dedicato, distinto dal colpo standard.
+- **Decisione:** il personaggio generato per-run PUÒ avere un tipo di colpo proprio generato (forma più comportamento, "colpo firmato"): è una possibilità del generatore, parte del budget del personaggio — chi ha il colpo firmato ha statistiche più caute, chi non ce l'ha usa il colpo standard. I personaggi base usano sempre colpi standard curati. Si aggancia a DEC-037 (comportamenti Lua per i colpi) e alle bande di bilanciamento dei personaggi (DEC-033).
+- **Alternative considerate:** colpo firmato garantito per ogni personaggio generato; colpo firmato riservato anche ai personaggi della rosa base.
+- **Conseguenze:** `systems/characters.md` diventa fonte unica del meccanismo e del suo effetto sul budget del personaggio; `systems/combat-and-projectiles.md` vi rimanda con una riga.
+- **Documenti aggiornati:** `systems/characters.md`, `systems/combat-and-projectiles.md`
+
+### DEC-069 — Migrazione del catalogo tra versioni: le Reliquie
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il catalogo persistente (DEC-015) non aveva una regola per cosa succede ai contenuti generati quando il gioco si aggiorna e le regole di validazione cambiano.
+- **Decisione:** a ogni aggiornamento del gioco il catalogo viene riconvalidato con la pipeline di validazione (stessi sei stati di `generated-content-validation.md`): ciò che passa resta giocabile e sbloccabile; ciò che fallisce viene archiviato in una sezione "Reliquie" del Catalogo, solo consultabile (scheda visibile, non giocabile, non sbloccabile nei pool). La memoria del giocatore non si perde mai; il termine "Reliquie" è coerente con la cornice del crogiolo (DEC-067).
+- **Alternative considerate:** eliminare del tutto dal catalogo i contenuti che non superano la riconvalida; non riconvalidare mai il catalogo tra versioni.
+- **Conseguenze:** `systems/save-and-meta-progression.md` diventa fonte unica delle Reliquie; `ui/main-menu.md` e `systems/generated-content-validation.md` vi rimandano con una riga.
+- **Documenti aggiornati:** `systems/save-and-meta-progression.md`, `ui/main-menu.md`, `systems/generated-content-validation.md`
+
+### DEC-070 — Primo avvio: benchmark più scelta binaria
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito come il gioco introduce per la prima volta la generazione IA, né cosa succede se l'hardware del giocatore non la regge.
+- **Decisione:** al primo avvio il gioco misura l'hardware (il benchmark esiste già nel progetto) e propone una scelta binaria: esperienza completa (scarica/attiva i modelli IA — un solo set di modelli, non esistono alternative) oppure solo curato (nessun modello: si gioca con i contenuti curati e il fallback procedurale, la generazione può essere attivata in seguito). Nessun tier intermedio di download. Se l'hardware non regge la generazione, il gioco lo dice chiaramente e consiglia "solo curato" (coerente con la garanzia: il gioco è sempre giocabile, DEC-002/DEC-020). La scelta avviene al primissimo avvio, prima della visita guidata al Piano 0 (DEC-047).
+- **Alternative considerate:** tier intermedi di download/qualità dei modelli; nessuna scelta esplicita, generazione sempre attiva di default indipendentemente dall'hardware.
+- **Conseguenze:** `systems/floor-zero.md` diventa fonte unica di dove e quando avviene la scelta; `06-ai-content-generation-model.md` registra "solo curato" come stato legittimo e permanente, non un fallback temporaneo.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `06-ai-content-generation-model.md`
+

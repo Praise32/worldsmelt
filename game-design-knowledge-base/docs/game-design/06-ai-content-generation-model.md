@@ -3,7 +3,7 @@ id: gd-ai-content-model
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052)."
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070)."
 ---
 
 # AI Content Generation Model
@@ -113,6 +113,21 @@ l'esperienza normale. Ogni altro documento che tocchi questo argomento (ad esemp
 [Run Structure](04-run-structure.md) o [Generation Status](ui/generation-status.md)) rimanda
 qui invece di riformulare la regola.
 
+## Modalità "solo curato" (DEC-070)
+
+Il giocatore può scegliere, al primo avvio del gioco (dettaglio completo in
+[Floor Zero](systems/floor-zero.md), rimando, non riformulato qui), di giocare in modalità
+**solo curato**: nessun modello IA attivo, solo contenuti curati e fallback procedurale.
+Questa modalità NON è un fallback d'emergenza temporaneo: è uno stato legittimo e
+**permanente** del gioco, tanto quanto la modalità con generazione attiva. Il giocatore può
+riattivare la generazione in un secondo momento.
+
+Questa distinzione è concettualmente separata dal fallback per singolo contenuto descritto in
+[Generated Content Validation](systems/generated-content-validation.md): quel fallback
+sostituisce un contenuto specifico non validato all'interno di una run con generazione
+attiva; la modalità solo curato disattiva la generazione stessa, per scelta esplicita del
+giocatore, non per un errore di validazione.
+
 ## Limite
 
 L'IA non può modificare arbitrariamente regole fondamentali come input, condizioni di
@@ -188,3 +203,7 @@ del gap già registrato per DEC-009 in
 - **Dato** che la pipeline di generazione produce oggi contenuti in italiano, **quando** si
   confronta con la regola di design (DEC-052), **allora** il documento registra questo come
   un gap di implementazione noto, non come comportamento canonico da preservare.
+- **Dato** che un giocatore ha scelto la modalità "solo curato" al primo avvio, **quando**
+  gioca una run in quella modalità, **allora** incontra solo contenuti curati e fallback
+  procedurali, senza che questo venga trattato come un errore o una condizione temporanea da
+  correggere (DEC-070).

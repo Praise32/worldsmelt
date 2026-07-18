@@ -2,8 +2,8 @@
 id: gd-vision
 status: draft
 owner: design
-last_reviewed: 2026-07-17
-summary: "Identità e promessa centrale del gioco."
+last_reviewed: 2026-07-18
+summary: "Identità e promessa centrale del gioco; identità narrativa minima = il crogiolo dei mondi (DEC-067, dettaglio in content/narrative-tone.md)."
 ---
 
 # Vision
@@ -15,6 +15,10 @@ Ogni run deve sembrare scoperta per la prima volta, ma abbastanza coerente da po
 ## Fantasia principale
 
 Entrare in un ecosistema che si reinventa davanti al giocatore: nuovi avversari, oggetti e combinazioni emergono durante la run, reagendo a un insieme stabile di regole di design.
+
+L'identità narrativa minima del gioco è quella di un **crogiolo dei mondi**: il Piano 0 è il
+luogo-fucina dove questi mondi nascono, si fondono e si sciolgono (DEC-067; cornice completa
+in [Narrative Tone](content/narrative-tone.md), non riformulata qui).
 
 ## Genere
 
