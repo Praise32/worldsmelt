@@ -950,6 +950,233 @@ bool GameFloorZeroTest(Game *game)
 }
 #endif
 
+/* ============================================================
+   M2 (DEC-009, default PROPOSTO): stanze di numero e grandezza variabili.
+   Vedi il commento in game_tests.h e game-design-knowledge-base/docs/
+   game-design/systems/rooms-and-floor-generation.md ("Default proposti
+   dall'implementazione"). Portabile (nessuna dipendenza da melting-gen/
+   Xvfb): gira su entrambe le piattaforme, a differenza del blocco sopra.
+   ============================================================ */
+
+/* Genera il piano 'floor' con seed 'seed' su un Game LOCALE pulito sullo
+   stack (come MakeBaseGame in script_items_tests.c): solo i campi che
+   WorldStartFloor legge davvero, niente asset/atlas -- questo test non
+   disegna nulla, quindi non serve nemmeno la finestra. */
+static void RoomsTestGenerateFloor(unsigned int seed, int floor, Game *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->rng = seed;
+    out->phase = PHASE_PLAY;
+    WorldStartFloor(out, floor);
+}
+
+/* Test (g): RoomLayoutBuild alla taglia MINIMA garantita da DEC-009, con
+   ogni forma non-vuota alla densita' MASSIMA (il caso piu' affollato
+   possibile): deve continuare a produrre almeno un ostacolo (niente collasso
+   silenzioso dei quadranti sotto i 20px, vedi room_layout.c) e rispettare
+   comunque croce/cerchio centrali. Stessa logica di verifica di
+   TestRoomLayoutAlwaysPlayable (src/tests/script_items_tests.c), qui alla
+   taglia minima invece che a quella storica fissa. */
+static bool RoomsTestMinSizeStillPlayable(void)
+{
+    const float rx = 10.0f, ry = 10.0f;   /* l'origine non conta nulla per questa verifica */
+    const float rw = (float)WORLD_ROOM_MIN_W, rh = (float)WORLD_ROOM_MIN_H;
+    const float cx = rx + rw*0.5f, cy = ry + rh*0.5f;
+    /* Fascia piu' stretta della vera ROOM_CROSS_HALF (90px, room_layout.c):
+       cosi' il test non si rompe se quel valore interno cambiasse di poco,
+       ma cattura comunque un ostacolo che invadesse davvero il centro. */
+    const float crossHalf = 70.0f;
+
+    bool ok = true;
+    int minBlocksSeen = 999;
+    for (int form = 1; form < (int)ROOM_LAYOUT_COUNT; form++)   /* da 1: OPEN non ha ostacoli */
+    {
+        for (unsigned int seed = 1; seed <= 6; seed++)
+        {
+            RoomLayoutDef def;
+            memset(&def, 0, sizeof(def));
+            def.active = true;
+            def.form = (RoomForm)form;
+            def.density = ROOM_LAYOUT_DENSITY_MAX;
+
+            Obstacle obs[MAX_OBSTACLES];
+            int n = RoomLayoutBuild(&def, seed, rx, ry, rw, rh, obs, MAX_OBSTACLES);
+            if (n < minBlocksSeen) minBlocksSeen = n;
+            if (n <= 0) { ok = false; continue; }   /* collasso silenzioso: esattamente cio' che DEC-009 vieta */
+            for (int i = 0; i < n; i++)
+            {
+                if (obs[i].x < cx + crossHalf && obs[i].x + obs[i].w > cx - crossHalf) ok = false;
+                if (obs[i].y < cy + crossHalf && obs[i].y + obs[i].h > cy - crossHalf) ok = false;
+                if (obs[i].x < rx || obs[i].y < ry ||
+                    obs[i].x + obs[i].w > rx + rw || obs[i].y + obs[i].h > ry + rh) ok = false;
+            }
+        }
+    }
+    printf("  [rooms-g] taglia minima (%dx%d), ogni forma/densita' massima: minimo blocchi visti %d -> giocabile=%s\n",
+           WORLD_ROOM_MIN_W, WORLD_ROOM_MIN_H, minBlocksSeen, ok ? "si" : "NO");
+    if (!ok) printf("      FALLITO: alla taglia minima un layout ha collassato (0 ostacoli), murato croce/cerchio, o e' uscito dalla stanza\n");
+    return ok;
+}
+
+bool GameRoomsTest(Game *game)
+{
+    /* Si genera sempre un Game LOCALE pulito (RoomsTestGenerateFloor): quello
+       passato da AppRun serve solo a rispettare la stessa firma/convenzione
+       di GamePortalRespawnTest e simili, non viene letto. */
+    (void)game;
+    bool ok = true;
+
+    static const unsigned int kSeeds[] = { 1001u, 2002u, 3003u, 4004u };
+    const int kSeedCount = (int)(sizeof(kSeeds)/sizeof(kSeeds[0]));
+
+    /* (c) "varia tra piani/seed": si registrano i conteggi distinti visti
+       durante l'intero giro sotto, e si pretende almeno due valori diversi. */
+    int seenCounts[64];
+    int seenCountsN = 0;
+
+    for (int floor = 1; floor <= FLOOR_COUNT; floor++)
+    {
+        for (int si = 0; si < kSeedCount; si++)
+        {
+            Game probe;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+
+            typedef struct { int w; int h; } RoomsTestWH;
+            RoomsTestWH sizes[GRID_SIZE*GRID_SIZE];
+            int sizesN = 0;
+            int count = 0;
+            int bossX = -1, bossY = -1;
+
+            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            {
+                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                {
+                    RoomState *r = &probe.rooms[ry2][rx2];
+                    if (!r->exists) continue;
+                    count++;
+                    /* (a) grandezza minima garantita. */
+                    if (r->w < WORLD_ROOM_MIN_W || r->h < WORLD_ROOM_MIN_H)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (a) stanza (%d,%d) piano %d seed %u sotto il minimo garantito: %dx%d\n",
+                                rx2, ry2, floor, kSeeds[si], r->w, r->h);
+                        ok = false;
+                    }
+                    sizes[sizesN].w = r->w; sizes[sizesN].h = r->h; sizesN++;
+                    if (r->kind == ROOM_BOSS) { bossX = rx2; bossY = ry2; }
+                }
+            }
+
+            /* (b) nessuna coppia (w,h) ripetuta nello stesso piano. */
+            for (int i = 0; i < sizesN; i++)
+                for (int j = i + 1; j < sizesN; j++)
+                    if (sizes[i].w == sizes[j].w && sizes[i].h == sizes[j].h)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (b) coppia (w,h) ripetuta nel piano %d seed %u: %dx%d\n",
+                                floor, kSeeds[si], sizes[i].w, sizes[i].h);
+                        ok = false;
+                    }
+
+            /* (f) la stanza boss e' sempre alla taglia massima. */
+            if (bossX < 0)
+            {
+                fprintf(stderr, "GameRoomsTest: (f) nessuna stanza boss nel piano %d seed %u\n", floor, kSeeds[si]);
+                ok = false;
+            }
+            else if (probe.rooms[bossY][bossX].w != (int)ROOM_W || probe.rooms[bossY][bossX].h != (int)ROOM_H)
+            {
+                fprintf(stderr, "GameRoomsTest: (f) la stanza boss del piano %d seed %u non e' alla taglia massima: %dx%d\n",
+                        floor, kSeeds[si], probe.rooms[bossY][bossX].w, probe.rooms[bossY][bossX].h);
+                ok = false;
+            }
+
+            /* (c) banda attesa: targetRooms = 6+piano+(0..3), piu' fino a 2
+               stanze speciali (tesoro/negozio) che WorldPlaceSpecialRoom puo'
+               aggiungere oltre il random walk. */
+            int lowerBound = 6 + floor;
+            int upperBound = 11 + floor;
+            if (count < lowerBound || count > upperBound)
+            {
+                fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d stanze, fuori dalla banda attesa [%d,%d]\n",
+                        floor, kSeeds[si], count, lowerBound, upperBound);
+                ok = false;
+            }
+            bool alreadySeen = false;
+            for (int i = 0; i < seenCountsN; i++) if (seenCounts[i] == count) { alreadySeen = true; break; }
+            if (!alreadySeen && seenCountsN < 64) seenCounts[seenCountsN++] = count;
+
+            /* (d) determinismo: rigenerare LO STESSO piano con lo stesso seed
+               deve produrre la STESSA griglia (esistenza, tipo, taglia, porte). */
+            Game probe2;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe2);
+            bool detOk = true;
+            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            {
+                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                {
+                    RoomState *a = &probe.rooms[ry2][rx2];
+                    RoomState *b = &probe2.rooms[ry2][rx2];
+                    if (a->exists != b->exists) { detOk = false; continue; }
+                    if (!a->exists) continue;
+                    if (a->kind != b->kind || a->w != b->w || a->h != b->h) detOk = false;
+                    for (int d = 0; d < 4; d++) if (a->doors[d] != b->doors[d]) detOk = false;
+                }
+            }
+            if (!detOk)
+            {
+                fprintf(stderr, "GameRoomsTest: (d) piano %d seed %u non deterministico: due generazioni con lo stesso seed differiscono\n",
+                        floor, kSeeds[si]);
+                ok = false;
+            }
+
+            /* (e) ogni transizione di porta atterra DENTRO il rettangolo della
+               stanza di arrivo. Si forza 'cleared' sulla stanza di partenza per
+               isolare la geometria dal gate di combattimento (gia' coperto da
+               --portal-test) e si danno chiavi in abbondanza per non far
+               fallire l'ingresso in una stanza tesoro non ancora visitata. */
+            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            {
+                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                {
+                    RoomState *from = &probe.rooms[ry2][rx2];
+                    if (!from->exists) continue;
+                    for (int dir = 0; dir < 4; dir++)
+                    {
+                        if (!from->doors[dir]) continue;
+                        probe.roomX = rx2;
+                        probe.roomY = ry2;
+                        from->cleared = true;
+                        probe.player.keys = 9;
+                        WorldTryEnterRoom(&probe, dir);
+                        Rectangle arrival = WorldCurrentRoomRect(&probe);
+                        const float tol = 0.5f;
+                        bool inside = probe.player.pos.x >= arrival.x - tol && probe.player.pos.x <= arrival.x + arrival.width + tol &&
+                                      probe.player.pos.y >= arrival.y - tol && probe.player.pos.y <= arrival.y + arrival.height + tol;
+                        if (!inside)
+                        {
+                            fprintf(stderr, "GameRoomsTest: (e) transizione da (%d,%d) dir %d piano %d seed %u non atterra dentro la stanza di arrivo\n",
+                                    rx2, ry2, dir, floor, kSeeds[si]);
+                            ok = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (seenCountsN < 2)
+    {
+        fprintf(stderr, "GameRoomsTest: (c) il numero di stanze non varia mai fra i piani/seed testati (osservato un solo valore)\n");
+        ok = false;
+    }
+
+    printf("  [rooms-abcdef] %d piani x %d semi: minimo garantito, taglie distinte, banda/variazione stanze (%d valori diversi), determinismo, transizioni di porta -> %s\n",
+           FLOOR_COUNT, kSeedCount, seenCountsN, ok ? "ok" : "FALLITO");
+
+    if (!RoomsTestMinSizeStillPlayable()) ok = false;
+
+    return ok;
+}
+
 /* Piano strategico 16/07/2026, sezione tier: scrive un finto
    logs/benchmark.txt per ciascuno scenario e verifica AppReadBenchmarkPreset
    (src/app/app.c) -- niente Game ne' finestra, e' solo I/O di file. Il file

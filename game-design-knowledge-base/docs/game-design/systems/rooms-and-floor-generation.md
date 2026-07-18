@@ -23,7 +23,26 @@ Ogni piano deve sembrare costruito apposta, con una progressione leggibile verso
 - Il piano usa una **griglia fissa** come intelaiatura spaziale.
 - Il **numero di stanze** per piano è **variabile**.
 - Le stanze hanno **grandezze tutte diverse tra loro**, con una **grandezza minima garantita**.
-- **Stato:** regola di design **approved**. **Gap noto rispetto al codice:** l'implementazione attuale genera stanze tutte uguali; è un requisito di design non ancora implementato — il codice dovrà adeguarsi a questa regola, non viceversa.
+- **Stato:** regola di design **approved**. **Implementato (M2):** il codice genera un numero di stanze variabile per piano e assegna a ogni stanza una taglia distinta entro un rettangolo massimo fisso (nessuna camera), rispettando una grandezza minima garantita — vedi il blocco "Default proposti" sotto per i valori scelti dall'implementazione.
+
+### Default proposti dall'implementazione (stile DEC-019, da validare col playtest)
+
+I valori esatti restano una domanda aperta di design (vedi `governance/open-questions.md`):
+quelli sotto sono **default proposti dal codice**, non una decisione di design. Il rettangolo
+massimo del canvas di gioco (960×640 logici) resta fisso; ogni stanza è un rettangolo più
+piccolo o uguale, sempre centrato al suo interno.
+
+- **Numero di stanze per piano:** `6 + numero_piano + estrazione(0..3)` dal seme della run
+  (piano 1: 7..10 stanze; piano 5: 11..14), più fino a due stanze speciali (tesoro/negozio)
+  quando trovano posto. Varia sia fra piani sia fra run con seed diverso.
+- **Lattice delle taglie:** larghezze `{876, 812, 748, 684, 620, 556}` × altezze
+  `{458, 418, 378, 338, 298}` px, quantizzate a passi di 8px (coerenza pixel-art). Le coppie
+  si pescano senza ripetizione da un pool di 30 combinazioni mescolato col seme della run:
+  nessuna stanza dello stesso piano condivide la stessa taglia.
+- **Grandezza minima garantita:** 556×298 px (il valore più piccolo del lattice sopra).
+- **Stanza boss:** sempre alla taglia massima (876×458, l'intero rettangolo del canvas).
+- **Stanza di partenza:** riceve una taglia riservata "almeno mediana" del lattice (non la
+  più piccola disponibile). Tesoro/negozio pescano liberamente dal resto del pool.
 
 ## Tipi di stanza (tassonomia completa, DEC-010)
 

@@ -49,6 +49,23 @@ const RoomState *GameCurrentRoom(const Game *game)
     return &game->rooms[game->roomY][game->roomX];
 }
 
+Rectangle WorldRoomRect(const Game *game, int rx, int ry)
+{
+    const RoomState *r = &game->rooms[ry][rx];
+    /* w/h <= 0: nessuna taglia impostata (Piano 0/hub, un Game di test
+       costruito a mano) -- il rettangolo massimo di sempre, invariato. */
+    float w = (r->w > 0) ? (float)r->w : ROOM_W;
+    float h = (r->h > 0) ? (float)r->h : ROOM_H;
+    float cx = ROOM_X + ROOM_W*0.5f;
+    float cy = ROOM_Y + ROOM_H*0.5f;
+    return (Rectangle){ cx - w*0.5f, cy - h*0.5f, w, h };
+}
+
+Rectangle WorldCurrentRoomRect(const Game *game)
+{
+    return WorldRoomRect(game, game->roomX, game->roomY);
+}
+
 bool WorldNoEnemiesActive(const Game *game)
 {
     for (int i = 0; i < MAX_ENEMIES; i++)
@@ -105,6 +122,104 @@ static void WorldLinkRooms(Game *game)
     }
 }
 
+/* ============================================================
+   M2 (DEC-009, default PROPOSTO -- vedi rooms-and-floor-generation.md,
+   "Default proposti dall'implementazione": i valori esatti restano una
+   domanda aperta di design, non una decisione). Un lattice di taglie
+   quantizzate a passi di 8px (ogni larghezza e' congrua a 4 mod 8, ogni
+   altezza a 2 mod 8: la stessa griglia pixel-art del rettangolo massimo
+   ROOM_X/Y/W/H, campionata a taglie via via piu' piccole -- niente valore
+   "a caso" che stonasse con gli sprite). Il piu' piccolo di ciascun elenco
+   E' la grandezza minima garantita da DEC-009.
+   ============================================================ */
+/* Il piu' piccolo di ciascun elenco DEVE restare uguale a
+   WORLD_ROOM_MIN_W/H (world.h): --rooms-test (src/tests/game_tests.c) li
+   verifica separatamente perche' quella costante e' pubblica apposta, senza
+   esporre l'intero lattice. */
+static const int kRoomSizeWidths[]  = { 876, 812, 748, 684, 620, 556 };
+static const int kRoomSizeHeights[] = { 458, 418, 378, 338, 298 };
+#define ROOM_SIZE_W_COUNT 6
+#define ROOM_SIZE_H_COUNT 5
+#define ROOM_SIZE_POOL_COUNT (ROOM_SIZE_W_COUNT*ROOM_SIZE_H_COUNT)
+
+typedef struct RoomSizePair { int w; int h; } RoomSizePair;
+
+/* Ordina il pool per AREA decrescente: dopo questa chiamata pool[0] e'
+   SEMPRE (876,458), l'unica taglia massima su entrambe le dimensioni (per
+   ogni altra coppia w'<=876 e h'<=458 con almeno una disuguaglianza
+   stretta, quindi w'*h' < 876*458 -- non serve cercarla, e' sempre in
+   testa). Usata per riservare senza ambiguita' la taglia del boss e una
+   taglia "almeno mediana" per la stanza di partenza, PRIMA di mescolare il
+   resto (vedi WorldGenerateFloorMap). */
+static int RoomSizePairCompareDesc(const void *a, const void *b)
+{
+    const RoomSizePair *pa = (const RoomSizePair *)a;
+    const RoomSizePair *pb = (const RoomSizePair *)b;
+    long areaA = (long)pa->w*(long)pa->h;
+    long areaB = (long)pb->w*(long)pb->h;
+    if (areaA != areaB) return (areaA < areaB) ? 1 : -1;
+    return (pa->w < pb->w) ? 1 : ((pa->w > pb->w) ? -1 : 0);
+}
+
+/* Assegna a OGNI stanza esistente del piano una coppia (w,h) DISTINTA dal
+   lattice sopra: il pool ha 30 coppie, ben piu' delle ~7-16 stanze di un
+   piano (targetRooms fino a 9+floor, piu' fino a 2 per tesoro/negozio), quindi
+   "nessuna coppia ripetuta" e' una garanzia STRUTTURALE (si pesca senza
+   rimessa), non probabilistica. La stanza boss prende SEMPRE la taglia
+   massima (default DEC-009: "la stanza boss usa sempre la taglia
+   massima"); la stanza di partenza prende una taglia riservata "almeno
+   mediana" (l'indice a meta' pool dopo l'ordinamento per area, che per
+   costruzione ha area >= di almeno meta' delle altre coppie). Tutte le
+   altre stanze pescano dal resto del pool, mescolato con l'RNG della run
+   (determinismo: stesso seed, stesso ordine di estrazione, stessa mappa). */
+static void WorldAssignRoomSizes(Game *game)
+{
+    RoomSizePair pool[ROOM_SIZE_POOL_COUNT];
+    int n = 0;
+    for (int i = 0; i < ROOM_SIZE_W_COUNT; i++)
+        for (int j = 0; j < ROOM_SIZE_H_COUNT; j++)
+            pool[n++] = (RoomSizePair){ kRoomSizeWidths[i], kRoomSizeHeights[j] };
+    qsort(pool, ROOM_SIZE_POOL_COUNT, sizeof(RoomSizePair), RoomSizePairCompareDesc);
+
+    RoomSizePair bossSize = pool[0];
+    int startIdx = ROOM_SIZE_POOL_COUNT/2 - 1;   /* 14 su 30: comodamente sopra meta' pool per area */
+    RoomSizePair startSize = pool[startIdx];
+
+    RoomSizePair rest[ROOM_SIZE_POOL_COUNT];
+    int restCount = 0;
+    for (int i = 0; i < ROOM_SIZE_POOL_COUNT; i++)
+    {
+        if (i == 0 || i == startIdx) continue;
+        rest[restCount++] = pool[i];
+    }
+    for (int i = restCount - 1; i > 0; i--)
+    {
+        int j = GameRngRange(&game->rng, 0, i);
+        RoomSizePair t = rest[i]; rest[i] = rest[j]; rest[j] = t;
+    }
+
+    int restUsed = 0;
+    int cx = GRID_SIZE/2, cy = GRID_SIZE/2;
+    for (int ry = 0; ry < GRID_SIZE; ry++)
+    {
+        for (int rx = 0; rx < GRID_SIZE; rx++)
+        {
+            RoomState *r = &game->rooms[ry][rx];
+            if (!r->exists) continue;
+            if (rx == cx && ry == cy) { r->w = startSize.w; r->h = startSize.h; continue; }
+            if (r->kind == ROOM_BOSS) { r->w = bossSize.w; r->h = bossSize.h; continue; }
+            /* Difensivo (non dovrebbe mai scattare, vedi il commento sopra su
+               quante stanze puo' avere davvero un piano): se il pool finisse,
+               ripete l'ultima taglia invece di lasciare w/h a 0 (che
+               ripiegherebbe silenziosamente sulla taglia MASSIMA, la
+               violazione piu' vistosa possibile di "grandezze diverse"). */
+            RoomSizePair sz = rest[(restUsed < restCount) ? restUsed : (restCount - 1)];
+            if (restUsed < restCount) restUsed++;
+            r->w = sz.w; r->h = sz.h;
+        }
+    }
+}
+
 static void WorldGenerateFloorMap(Game *game)
 {
     memset(game->rooms, 0, sizeof(game->rooms));
@@ -120,7 +235,11 @@ static void WorldGenerateFloorMap(Game *game)
     game->rooms[y][x].cleared = true;
     game->rooms[y][x].visited = true;
 
-    int targetRooms = 7 + game->floor;
+    /* Numero di stanze VARIABILE (M2, DEC-009 default proposto): 6+piano
+       piu' un'estrazione 0..3 dall'RNG della run (piano 1: 7..10, piano 5:
+       11..14), cappato implicitamente dal guard sotto (celle davvero
+       raggiungibili dal random walk in 300 tentativi). */
+    int targetRooms = 6 + game->floor + GameRngRange(&game->rng, 0, 3);
     int made = 1;
     int guard = 300;
     while (made < targetRooms && guard-- > 0)
@@ -152,6 +271,7 @@ static void WorldGenerateFloorMap(Game *game)
 
     WorldPlaceSpecialRoom(game, ROOM_TREASURE);
     WorldPlaceSpecialRoom(game, ROOM_SHOP);
+    WorldAssignRoomSizes(game);
     WorldLinkRooms(game);
 }
 
@@ -168,7 +288,8 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
     const RoomLayoutDef *layout = &game->content.floors[game->floor - 1].roomLayout;
     if (!layout->active) return;
     unsigned int seed = (unsigned int)(game->roomX*73856093) ^ (unsigned int)(game->roomY*19349663) ^ ((unsigned int)game->floor*83492791u);
-    game->obstacleCount = RoomLayoutBuild(layout, seed, ROOM_X, ROOM_Y, ROOM_W, ROOM_H,
+    Rectangle rect = WorldCurrentRoomRect(game);   /* M2: la taglia VERA di questa stanza, non piu' il massimo fisso */
+    game->obstacleCount = RoomLayoutBuild(layout, seed, rect.x, rect.y, rect.width, rect.height,
                                           game->obstacles, MAX_OBSTACLES);
 }
 
@@ -178,7 +299,8 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
    della collisione lo spingera' fuori al primo frame. */
 static Vector2 WorldFreeRoomPosition(Game *game, float pad)
 {
-    Vector2 pos = EntitiesRandomRoomPosition(&game->rng, pad);
+    Rectangle room = WorldCurrentRoomRect(game);
+    Vector2 pos = EntitiesRandomRoomPosition(&game->rng, room, pad);
     for (int tries = 0; tries < 12; tries++)
     {
         bool inside = false;
@@ -189,7 +311,7 @@ static Vector2 WorldFreeRoomPosition(Game *game, float pad)
                 pos.y > o->y - pad && pos.y < o->y + o->h + pad) { inside = true; break; }
         }
         if (!inside) return pos;
-        pos = EntitiesRandomRoomPosition(&game->rng, pad);
+        pos = EntitiesRandomRoomPosition(&game->rng, room, pad);
     }
     return pos;
 }
@@ -263,6 +385,10 @@ void WorldSpawnRoomContents(Game *game)
     RoomState *room = WorldCurrentRoomMutable(game);
     room->visited = true;
     game->roomNumber++;
+    /* M2: tutte le posizioni di spawno sotto sono relative al rettangolo
+       VERO di questa stanza (non piu' al massimo fisso). */
+    Rectangle rect = WorldCurrentRoomRect(game);
+    Vector2 center = { rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
 
     /* Fase 3c: gli ostacoli si costruiscono PRIMA di piazzare i nemici, cosi'
        WorldFreeRoomPosition puo' evitarli. */
@@ -281,13 +407,13 @@ void WorldSpawnRoomContents(Game *game)
            EntitiesAddEnemy. */
         const FloorContent *fc = &game->content.floors[game->floor - 1];
         const EnemyTypeDef *bossType = fc->bossType.active ? &fc->bossType : NULL;
-        EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + 118.0f }, bossType);
+        EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ center.x, rect.y + 118.0f }, bossType);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale: ultimo piano." : "Boss del piano.");
     }
     else if (room->kind == ROOM_TREASURE && !room->rewardTaken)
     {
         int itemIndex = GameRngRange(&game->rng, 0, 2);
-        EntitiesAddItemPickup(game, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f }, game->content.floors[game->floor - 1].items[itemIndex], 0);
+        EntitiesAddItemPickup(game, center, game->content.floors[game->floor - 1].items[itemIndex], 0);
         GameSetMessage(game, "Stanza tesoro: prendi l'oggetto.");
     }
     else if (room->kind == ROOM_SHOP && !room->rewardTaken)
@@ -298,15 +424,14 @@ void WorldSpawnRoomContents(Game *game)
            src/gameplay/item_traits.c), non piu' un letterale fisso "8". */
         int shopItemIndex = GameRngRange(&game->rng, 0, 2);
         Item shopItem = fc->items[shopItemIndex];
-        EntitiesAddItemPickup(game, (Vector2){ ROOM_X + ROOM_W*0.5f - 130.0f, ROOM_Y + ROOM_H*0.5f }, shopItem, ItemShopCostForRarity(shopItem.rarity));
-        EntitiesAddPickup(game, PICKUP_HEART, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f }, 1, 3);
-        EntitiesAddPickup(game, PICKUP_KEY, (Vector2){ ROOM_X + ROOM_W*0.5f + 100.0f, ROOM_Y + ROOM_H*0.5f }, 1, 4);
-        EntitiesAddPickup(game, PICKUP_BOMB, (Vector2){ ROOM_X + ROOM_W*0.5f + 180.0f, ROOM_Y + ROOM_H*0.5f }, 1, 3);
+        EntitiesAddItemPickup(game, (Vector2){ center.x - 130.0f, center.y }, shopItem, ItemShopCostForRarity(shopItem.rarity));
+        EntitiesAddPickup(game, PICKUP_HEART, center, 1, 3);
+        EntitiesAddPickup(game, PICKUP_KEY, (Vector2){ center.x + 100.0f, center.y }, 1, 4);
+        EntitiesAddPickup(game, PICKUP_BOMB, (Vector2){ center.x + 180.0f, center.y }, 1, 3);
         GameSetMessage(game, "Negozio: tocca un oggetto per comprarlo.");
     }
     else if (room->kind == ROOM_BOSS && room->cleared)
     {
-        Vector2 center = { ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };
         EntitiesAddPickup(game, PICKUP_EXIT, (Vector2){ center.x + 70.0f, center.y }, 0, 0);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Portale finale riaperto." : "Portale per il prossimo piano riaperto.");
     }
@@ -330,8 +455,9 @@ void WorldStartFloor(Game *game, int floor)
        di testo, una volta per piano. */
     RunContentRefreshFloorScripts(&game->content, floor - 1);
     game->theme = game->content.floors[floor - 1].theme;
-    WorldGenerateFloorMap(game);
-    game->player.pos = (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };
+    WorldGenerateFloorMap(game);   /* fissa game->roomX/roomY e la taglia di ogni stanza (M2) */
+    Rectangle rect = WorldCurrentRoomRect(game);
+    game->player.pos = (Vector2){ rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
     WorldSpawnRoomContents(game);
 }
 
@@ -364,20 +490,32 @@ void WorldTryEnterRoom(Game *game, int dir)
 
     game->roomX = nx;
     game->roomY = ny;
-    if (dir == DIR_UP) game->player.pos = (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_BOTTOM - 38.0f };
-    if (dir == DIR_DOWN) game->player.pos = (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + 38.0f };
-    if (dir == DIR_LEFT) game->player.pos = (Vector2){ ROOM_RIGHT - 38.0f, ROOM_Y + ROOM_H*0.5f };
-    if (dir == DIR_RIGHT) game->player.pos = (Vector2){ ROOM_X + 38.0f, ROOM_Y + ROOM_H*0.5f };
+    /* M2: gli offset di 38px restano relativi al rettangolo della stanza di
+       ARRIVO (che ora puo' essere piu' piccola del massimo) -- 38px sta
+       comodamente dentro anche la stanza piu' piccola del lattice (meta'
+       lato corto = 149px), nessun clamp aggiuntivo necessario. */
+    Rectangle arrival = WorldCurrentRoomRect(game);
+    if (dir == DIR_UP) game->player.pos = (Vector2){ arrival.x + arrival.width*0.5f, arrival.y + arrival.height - 38.0f };
+    if (dir == DIR_DOWN) game->player.pos = (Vector2){ arrival.x + arrival.width*0.5f, arrival.y + 38.0f };
+    if (dir == DIR_LEFT) game->player.pos = (Vector2){ arrival.x + arrival.width - 38.0f, arrival.y + arrival.height*0.5f };
+    if (dir == DIR_RIGHT) game->player.pos = (Vector2){ arrival.x + 38.0f, arrival.y + arrival.height*0.5f };
     (void)OppositeDir(dir);
     WorldSpawnRoomContents(game);
 }
 
 void WorldHandleTransitions(Game *game, Vector2 move)
 {
-    float cx = ROOM_X + ROOM_W*0.5f;
-    float cy = ROOM_Y + ROOM_H*0.5f;
+    /* M2: il rettangolo della stanza CORRENTE (WorldCurrentRoomRect ripiega
+       sul massimo per il Piano 0/hub, che non ha una taglia impostata --
+       stesso comportamento di sempre per quel caso, vedi il commento su
+       floor_zero.c in game_types.h). */
+    Rectangle room = WorldCurrentRoomRect(game);
+    float cx = room.x + room.width*0.5f;
+    float cy = room.y + room.height*0.5f;
+    float roomRight = room.x + room.width;
+    float roomBottom = room.y + room.height;
     float edge = game->player.radius + 7.0f;
-    bool pressingTop = move.y < -0.1f && game->player.pos.y <= ROOM_Y + edge && fabsf(game->player.pos.x - cx) < DOOR_HALF;
+    bool pressingTop = move.y < -0.1f && game->player.pos.y <= room.y + edge && fabsf(game->player.pos.x - cx) < DOOR_HALF;
 
     /* Piano 0 (M1b, src/world/floor_zero.c): il varco verso il piano 1 usa la
        STESSA geometria di trigger di una porta normale (il giocatore preme
@@ -396,9 +534,9 @@ void WorldHandleTransitions(Game *game, Vector2 move)
     }
 
     if (pressingTop) WorldTryEnterRoom(game, DIR_UP);
-    else if (move.y > 0.1f && game->player.pos.y >= ROOM_BOTTOM - edge && fabsf(game->player.pos.x - cx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_DOWN);
-    else if (move.x < -0.1f && game->player.pos.x <= ROOM_X + edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_LEFT);
-    else if (move.x > 0.1f && game->player.pos.x >= ROOM_RIGHT - edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_RIGHT);
+    else if (move.y > 0.1f && game->player.pos.y >= roomBottom - edge && fabsf(game->player.pos.x - cx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_DOWN);
+    else if (move.x < -0.1f && game->player.pos.x <= room.x + edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_LEFT);
+    else if (move.x > 0.1f && game->player.pos.x >= roomRight - edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_RIGHT);
 }
 
 static void WorldSpawnRoomReward(Game *game)
@@ -406,7 +544,8 @@ static void WorldSpawnRoomReward(Game *game)
     RoomState *room = WorldCurrentRoomMutable(game);
     if (room->rewardTaken) return;
     room->rewardTaken = true;
-    Vector2 center = { ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };
+    Rectangle rect = WorldCurrentRoomRect(game);
+    Vector2 center = { rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
     if (room->kind == ROOM_COMBAT)
     {
         int roll = GameRngRange(&game->rng, 0, 99);

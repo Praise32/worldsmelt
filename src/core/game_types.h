@@ -21,6 +21,19 @@
 
 #define HUD_H 82
 #define FOOTER_H 38
+/* M2 (DEC-009, stanze di grandezza variabile): questi NON sono piu' "il
+   rettangolo della stanza" -- sono il rettangolo MASSIMO del canvas di gioco
+   (nessuna camera: il canvas resta 960x640 fisso). Ogni stanza vera e' un
+   rettangolo <= questo, sempre CENTRATO al suo interno (vedi RoomState.w/h
+   e WorldRoomRect/WorldCurrentRoomRect in src/world/world.h): quel
+   accessore e' l'UNICO modo corretto di leggere "la stanza corrente" da
+   qui in poi. Restano usati direttamente, col loro significato di sempre
+   di limite massimo, solo per: i confini esterni del canvas (i muri li
+   riempiono fino a qui, game_renderer.c), le costanti Lua room_left/top/
+   right/bottom esposte agli script (compatibilita' col catalogo gia'
+   generato, script_api.c) e il piano 0/hub (sala d'attesa non generata,
+   sempre alla taglia massima: floor_zero.c non li tocca nemmeno, la
+   RoomState del hub resta a w=h=0 e WorldRoomRect ripiega su questi). */
 #define ROOM_X 42.0f
 #define ROOM_Y 104.0f
 #define ROOM_W 876.0f
@@ -30,7 +43,6 @@
 #define DOOR_HALF 50.0f
 
 #define FLOOR_COUNT 5
-#define ROOMS_PER_FLOOR 5
 #define GRID_SIZE 5
 
 #define MAX_ENEMIES 64
@@ -295,6 +307,15 @@ typedef struct RoomState {
     bool rewardTaken;
     RoomKind kind;
     bool doors[4];
+    /* M2 (DEC-009): taglia VERA della stanza in pixel, <= ROOM_W/ROOM_H
+       (il rettangolo resta sempre centrato dentro quel massimo, mai una
+       camera). 0 = non impostata: WorldRoomRect (src/world/world.h) ripiega
+       sul rettangolo massimo, cosi' una RoomState mai toccata da
+       WorldGenerateFloorMap (il hub del Piano 0, un Game di test costruito
+       a mano) si comporta esattamente come prima di questa fase, senza
+       bisogno di inizializzarla ovunque. */
+    int w;
+    int h;
 } RoomState;
 
 typedef struct Player {

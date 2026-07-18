@@ -327,8 +327,14 @@ static unsigned int ScriptApiClampToUint(double v)
 static int ScriptApiSpawnShot(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
-    float x = GameMathClampFloat((float)luaL_checknumber(L, 1), ROOM_X, ROOM_RIGHT);
-    float y = GameMathClampFloat((float)luaL_checknumber(L, 2), ROOM_Y, ROOM_BOTTOM);
+    /* M2: room_left/top/right/bottom (sopra) restano il rettangolo MASSIMO
+       per compatibilita' col catalogo gia' generato -- ma il clamp VERO deve
+       tenere lo script dentro la stanza CORRENTE, che puo' essere piu'
+       piccola: uno script che scrive fuori stanza va comunque riportato
+       dentro, garanzia invariata (vedi il task brief M2, sezione 3). */
+    Rectangle room = WorldCurrentRoomRect(game);
+    float x = GameMathClampFloat((float)luaL_checknumber(L, 1), room.x, room.x + room.width);
+    float y = GameMathClampFloat((float)luaL_checknumber(L, 2), room.y, room.y + room.height);
     float dx = (float)luaL_checknumber(L, 3);
     float dy = (float)luaL_checknumber(L, 4);
     float speed = GameMathClampFloat((float)luaL_checknumber(L, 5), SCRIPT_API_SHOT_SPEED_MIN, SCRIPT_API_SHOT_SPEED_MAX);
@@ -394,8 +400,11 @@ static int ScriptApiSetEnemyVelocity(lua_State *L)
 static int ScriptApiAddParticle(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
-    float x = GameMathClampFloat((float)luaL_checknumber(L, 1), ROOM_X, ROOM_RIGHT);
-    float y = GameMathClampFloat((float)luaL_checknumber(L, 2), ROOM_Y, ROOM_BOTTOM);
+    /* M2: stesso motivo di ScriptApiSpawnShot sopra -- clamp alla stanza
+       CORRENTE, non al rettangolo massimo. */
+    Rectangle room = WorldCurrentRoomRect(game);
+    float x = GameMathClampFloat((float)luaL_checknumber(L, 1), room.x, room.x + room.width);
+    float y = GameMathClampFloat((float)luaL_checknumber(L, 2), room.y, room.y + room.height);
     unsigned int packed = ScriptApiClampToUint(luaL_optnumber(L, 3, 0.0));   /* stesso cast UB di traits sopra: vedi ScriptApiClampToUint */
     Color color = { (unsigned char)((packed >> 16) & 0xFFu), (unsigned char)((packed >> 8) & 0xFFu), (unsigned char)(packed & 0xFFu), 255 };
     EntitiesAddParticle(game, (Vector2){ x, y }, color, 1);

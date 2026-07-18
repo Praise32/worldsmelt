@@ -1,5 +1,6 @@
 #include "core/room_layout.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -169,11 +170,26 @@ int RoomLayoutBuild(const RoomLayoutDef *def, unsigned int seed,
                BlockInQuadrant scarta comunque cio' che sfiorasse la croce. */
             int n = 4 + (int)(d.density*6.0f);
             if (n > maxOut) n = maxOut;
+            /* Il range storico (22..22+26*densita') presuppone il quadrante
+               grande della stanza fissa di sempre (qw~324/qh~115 a quella
+               taglia): sotto la grandezza minima garantita da DEC-009 (qh puo'
+               scendere fino a ~35px) un blocco di quella taglia non ci
+               starebbe MAI, e ogni tentativo verrebbe scartato sotto
+               (hiY<=loY) -- una stanza SCATTER che collassa silenziosamente a
+               zero ostacoli, esattamente cio' che questo modulo esiste per
+               impedire (vedi il commento in cima al file). Si CAPPA la taglia
+               massima a cio' che il quadrante piu' stretto puo' davvero
+               contenere (margine di 16px, lo stesso agio gia' nelle formule
+               di loX/hiX/loY/hiY sotto): per un quadrante grande quadCap resta
+               ben sopra 48, quindi il range storico non cambia di un pixel. */
+            float quadCap = fmaxf(10.0f, fminf(qw, qh) - 16.0f);
+            float bsMax = ClampF(22.0f + 26.0f*d.density, 10.0f, quadCap);
+            float bsMin = fminf(22.0f, bsMax);
             for (int k = 0; k < n; k++)
             {
                 int i = (k & 1);           /* quadrante sinistro (0) o destro (1) */
                 int j = (k >> 1) & 1;      /* alto (0) o basso (1) */
-                float bs = NextF(&rng, 22.0f, 22.0f + 26.0f*d.density);
+                float bs = NextF(&rng, bsMin, bsMax);
                 /* Limiti del quadrante scelto (fra il bordo esterno e la croce). */
                 float loX = (i == 0) ? (x + 26.0f) : (cx + ROOM_CROSS_HALF + 8.0f);
                 float hiX = (i == 0) ? (cx - ROOM_CROSS_HALF - 8.0f - bs) : (x + w - 26.0f - bs);

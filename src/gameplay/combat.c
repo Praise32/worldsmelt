@@ -47,11 +47,14 @@ static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
        corazzato grosso in una strozzatura d'angolo). Meglio che l'entita' resti
        incollata al muro con l'hitbox che sfiora appena il blocco (invisibile) che
        bucare il muro (visibile). Fatto qui, dentro la funzione, cosi' vale per
-       giocatore e nemici -- entrambi la chiamano subito dopo il proprio clamp. */
+       giocatore e nemici -- entrambi la chiamano subito dopo il proprio clamp.
+       M2: il bordo e' quello della stanza CORRENTE (variabile), non piu' il
+       massimo fisso -- gli ostacoli vivono comunque solo li'. */
     if (touched)
     {
-        pos->x = GameMathClampFloat(pos->x, ROOM_X + radius, ROOM_RIGHT - radius);
-        pos->y = GameMathClampFloat(pos->y, ROOM_Y + radius, ROOM_BOTTOM - radius);
+        Rectangle room = WorldCurrentRoomRect(game);
+        pos->x = GameMathClampFloat(pos->x, room.x + radius, room.x + room.width - radius);
+        pos->y = GameMathClampFloat(pos->y, room.y + radius, room.y + room.height - radius);
     }
     return touched;
 }
@@ -328,8 +331,9 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     if (IsKeyDown(KEY_D)) move.x += 1.0f;
     move = GameMathNormalize(move);
     p->pos = GameMathAdd(p->pos, GameMathScale(move, p->speed*dt));
-    p->pos.x = GameMathClampFloat(p->pos.x, ROOM_X + p->radius, ROOM_RIGHT - p->radius);
-    p->pos.y = GameMathClampFloat(p->pos.y, ROOM_Y + p->radius, ROOM_BOTTOM - p->radius);
+    Rectangle playerRoom = WorldCurrentRoomRect(game);   /* M2: bordo della stanza corrente, non piu' il massimo fisso */
+    p->pos.x = GameMathClampFloat(p->pos.x, playerRoom.x + p->radius, playerRoom.x + playerRoom.width - p->radius);
+    p->pos.y = GameMathClampFloat(p->pos.y, playerRoom.y + p->radius, playerRoom.y + playerRoom.height - p->radius);
     CombatResolveObstacles(game, &p->pos, p->radius);   /* fase 3c: non si passa attraverso i muri */
     WorldHandleTransitions(game, move);
 
@@ -505,8 +509,13 @@ void CombatUpdateEnemies(Game *game, float dt)
            per qualunque nemico che nessuno script ha mai toccato. */
         e->pos = GameMathAdd(e->pos, GameMathScale(e->vel, dt));
         e->vel = GameMathScale(e->vel, 0.90f);
-        e->pos.x = GameMathClampFloat(e->pos.x, ROOM_X + e->radius, ROOM_RIGHT - e->radius);
-        e->pos.y = GameMathClampFloat(e->pos.y, ROOM_Y + e->radius, ROOM_BOTTOM - e->radius);
+        /* M2: bordo della stanza corrente, non piu' il massimo fisso -- lo si
+           ricalcola per ogni nemico (banale: la stanza non cambia durante
+           questo ciclo, ma il compilatore non ha comunque motivo di lamentarsi
+           di una chiamata cosi' leggera dentro il ciclo). */
+        Rectangle enemyRoom = WorldCurrentRoomRect(game);
+        e->pos.x = GameMathClampFloat(e->pos.x, enemyRoom.x + e->radius, enemyRoom.x + enemyRoom.width - e->radius);
+        e->pos.y = GameMathClampFloat(e->pos.y, enemyRoom.y + e->radius, enemyRoom.y + enemyRoom.height - e->radius);
         CombatResolveObstacles(game, &e->pos, e->radius);   /* fase 3c: i nemici non passano attraverso i muri */
         e->cooldown -= dt;
 
@@ -536,7 +545,7 @@ void CombatUpdateEnemies(Game *game, float dt)
                 {
                     const FloorContent *fc = &game->content.floors[game->floor - 1];
                     const EnemyTypeDef *reinforcement = fc->enemies[0].active ? &fc->enemies[0] : NULL;
-                    EntitiesAddEnemyTyped(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, 60.0f), reinforcement);
+                    EntitiesAddEnemyTyped(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, WorldCurrentRoomRect(game), 60.0f), reinforcement);
                 }
 
                 /* 1.2s per un nemico che non spara: e' comunque il suo battito, e
@@ -559,7 +568,7 @@ void CombatUpdateEnemies(Game *game, float dt)
             }
             if (game->floor == FLOOR_COUNT && GameRngRange(&game->rng, 0, 100) < 45)
             {
-                EntitiesAddEnemy(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, 60.0f));
+                EntitiesAddEnemy(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, WorldCurrentRoomRect(game), 60.0f));
             }
             e->cooldown = (game->floor == FLOOR_COUNT) ? 0.85f : 1.18f;
         }
@@ -593,16 +602,21 @@ void CombatUpdateShots(Game *game, float dt)
         s->pos = GameMathAdd(s->pos, GameMathScale(s->vel, dt));
         s->life -= dt;
         bool wall = false;
-        if (s->pos.x < ROOM_X + s->radius || s->pos.x > ROOM_RIGHT - s->radius)
+        /* M2: i colpi vivono e rimbalzano nella stanza CORRENTE, non piu' nel
+           rettangolo massimo fisso. */
+        Rectangle shotRoom = WorldCurrentRoomRect(game);
+        float shotRoomRight = shotRoom.x + shotRoom.width;
+        float shotRoomBottom = shotRoom.y + shotRoom.height;
+        if (s->pos.x < shotRoom.x + s->radius || s->pos.x > shotRoomRight - s->radius)
         {
             s->vel.x *= -1.0f;
-            s->pos.x = GameMathClampFloat(s->pos.x, ROOM_X + s->radius, ROOM_RIGHT - s->radius);
+            s->pos.x = GameMathClampFloat(s->pos.x, shotRoom.x + s->radius, shotRoomRight - s->radius);
             wall = true;
         }
-        if (s->pos.y < ROOM_Y + s->radius || s->pos.y > ROOM_BOTTOM - s->radius)
+        if (s->pos.y < shotRoom.y + s->radius || s->pos.y > shotRoomBottom - s->radius)
         {
             s->vel.y *= -1.0f;
-            s->pos.y = GameMathClampFloat(s->pos.y, ROOM_Y + s->radius, ROOM_BOTTOM - s->radius);
+            s->pos.y = GameMathClampFloat(s->pos.y, shotRoom.y + s->radius, shotRoomBottom - s->radius);
             wall = true;
         }
         /* Fase 3c: gli ostacoli fermano i colpi come i muri. Si usa il SEGMENTO del

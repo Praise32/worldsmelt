@@ -23,6 +23,19 @@ bool GameStatesTest(Game *game);
    GameStatesTest. Vedi src/tests/game_tests.c per i quattro scenari. */
 bool GameFloorZeroTest(Game *game);
 
+/* M2 (DEC-009): stanze di numero e grandezza variabili. Per una manciata di
+   seed fissi e per ogni piano 1..5, verifica (a) grandezza minima garantita,
+   (b) nessuna coppia (w,h) ripetuta nello stesso piano, (c) il numero di
+   stanze cade nella banda attesa e varia fra piani/seed, (d) determinismo
+   (stesso seed => stessa mappa), (e) ogni transizione di porta atterra
+   DENTRO il rettangolo della stanza di arrivo, (f) la stanza boss e' sempre
+   alla taglia massima, (g) RoomLayoutBuild alla taglia minima con ogni
+   forma/densita' massima resta giocabile e non collassa silenziosamente.
+   Come GamePortalRespawnTest, gira dopo InitWindow ma non serve la finestra
+   per davvero (nessun rendering): usa 'game' gia' pronto (GameResetRun gia'
+   chiamata da AppRun) solo come Game su cui rigenerare piani con WorldStartFloor. */
+bool GameRoomsTest(Game *game);
+
 /* SOLO manuale (mai in make test): entra nel Piano 0 con gen disabilitata
    (uscita aperta subito) e scatta logs/worldsmelt-floorzero-screen.png,
    stessa tradizione degli altri *ScreenshotTest di questo file. */

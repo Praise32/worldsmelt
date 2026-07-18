@@ -650,6 +650,7 @@ int AppRun(int argc, char **argv)
     bool statesTest = false;
     bool floorZeroTest = false;
     bool floorZeroScreenshotTest = false;
+    bool roomsTest = false;
     unsigned int scriptSeed = 12345u;
     /* --full-spec: override manuale gemello di --low-spec (vedi
        AppReadBenchmarkPreset in app.h/qui sopra) -- forza il preset di
@@ -745,6 +746,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             floorZeroScreenshotTest = true;
+        }
+        /* M2 (DEC-009): come --states-test, gira dopo InitWindow ma senza
+           bisogno vero della finestra (GameRoomsTest non disegna nulla, vedi
+           src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--rooms-test") == 0)
+        {
+            smokeTest = true;
+            roomsTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
@@ -883,6 +892,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 17;
+    }
+    if (roomsTest)
+    {
+        bool ok = GameRoomsTest(&game);
+        printf("Rooms test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 18;   /* 18: il primo codice di uscita libero (vedi gli altri test sopra) */
     }
     if (scriptTest)
     {

@@ -125,8 +125,11 @@ static Color RoomMapColor(RoomKind kind)
  *      cambia di un pixel: e' tutta resa, nessuna modifica alla collisione.
    ============================================================ */
 
-/* Spessore dei muri (solo resa: il campo di gioco resta ROOM_X..ROOM_RIGHT,
-   ROOM_Y..ROOM_BOTTOM, nessuna collisione cambia). Il muro di fondo e' piu' alto
+/* Spessore DECORATIVO dei muri (solo resa, nessuna collisione cambia): il
+   campo di gioco vero e' il rettangolo della stanza CORRENTE (M2,
+   WorldCurrentRoomRect), non piu' sempre ROOM_X..ROOM_RIGHT/ROOM_Y..
+   ROOM_BOTTOM -- quello resta il bordo del canvas, oltre il quale i muri
+   riempiono comunque tutto (vedi DrawRoom). Il muro di fondo e' piu' alto
    degli altri perche' e' l'unico di cui vediamo la FACCIA. */
 #define WALL_BACK_H  34.0f
 #define WALL_SIDE_W  12.0f
@@ -185,11 +188,29 @@ static void DrawRoom(Game *game)
 {
     ClearBackground(game->theme.bg);
 
+    /* M2 (DEC-009): la stanza VERA (WorldCurrentRoomRect) puo' essere piu'
+       piccola del rettangolo massimo del canvas (ROOM_X/Y/W/H, che resta
+       fisso -- nessuna camera). Si riempie PRIMA l'intero massimo di muro
+       scuro, poi ci si disegna sopra il pavimento della stanza: lo spazio fra
+       il bordo della stanza e il bordo del canvas resta automaticamente muro,
+       qualunque sia la cornice, senza calcolare margini variabili per lato
+       (per il Piano 0/hub, che non ha una taglia impostata, la stanza
+       coincide col massimo: questa cornice e' quindi vuota, esattamente come
+       prima di questa fase). */
+    Color wallDark = GameColorLerp(game->theme.wall, BLACK, 0.45f);
+    Color wallLit = GameColorLerp(game->theme.wall, WHITE, 0.18f);
+    DrawRectangleRec((Rectangle){ ROOM_X - WALL_SIDE_W, ROOM_Y - WALL_BACK_H,
+                                   ROOM_W + WALL_SIDE_W*2.0f, ROOM_H + WALL_BACK_H + WALL_FRONT_H }, wallDark);
+
+    Rectangle roomRect = WorldCurrentRoomRect(game);
+    const float rx = roomRect.x, ry = roomRect.y, rw = roomRect.width, rh = roomRect.height;
+    const float rRight = rx + rw, rBottom = ry + rh;
+
     /* Pavimento: tinta piena, poi una sfumatura che scurisce il FONDO della
        stanza (la parte lontana). E' la stessa cosa che fa l'atmosfera in
        prospettiva: cio' che e' lontano perde contrasto. */
-    DrawRectangleRec((Rectangle){ ROOM_X, ROOM_Y, ROOM_W, ROOM_H }, game->theme.floor);
-    DrawRectangleGradientV((int)ROOM_X, (int)ROOM_Y, (int)ROOM_W, (int)(ROOM_H*0.45f),
+    DrawRectangleRec(roomRect, game->theme.floor);
+    DrawRectangleGradientV((int)rx, (int)ry, (int)rw, (int)(rh*0.45f),
                            GameColorWithAlpha(BLACK, 58), BLANK);
 
     /* Griglia in prospettiva: le linee "verticali" convergono verso un punto di
@@ -197,61 +218,66 @@ static void DrawRoom(Game *game)
        fondo (spaziatura non lineare). Il punto di fuga sta FUORI dalla stanza, in
        alto: e' cio' che fa leggere il pavimento come un piano inclinato sotto lo
        sguardo, invece che come un rettangolo visto di fronte. */
-    const float vpx = ROOM_X + ROOM_W*0.5f;
-    const float vpy = ROOM_Y - 340.0f;
+    const float vpx = rx + rw*0.5f;
+    const float vpy = ry - 340.0f;
     Color gridColor = GameColorWithAlpha(game->theme.accent, 34);
     for (int i = 0; i <= 14; i++)
     {
-        float x = ROOM_X + ROOM_W*(float)i/14.0f;
-        Vector2 near = { x, ROOM_BOTTOM };
+        float x = rx + rw*(float)i/14.0f;
+        Vector2 near = { x, rBottom };
         /* Quanto si e' "risaliti" verso il punto di fuga arrivando al muro di
            fondo: t = 0 al bordo vicino, cresce verso il punto di fuga. */
-        float t = (ROOM_BOTTOM - ROOM_Y)/(ROOM_BOTTOM - vpy);
-        Vector2 far = { near.x + (vpx - near.x)*t, ROOM_Y };
+        float t = (rBottom - ry)/(rBottom - vpy);
+        Vector2 far = { near.x + (vpx - near.x)*t, ry };
         DrawLineEx(near, far, 1.0f, gridColor);
     }
     for (int i = 1; i < 9; i++)
     {
         float f = (float)i/9.0f;
-        float y = ROOM_Y + (ROOM_BOTTOM - ROOM_Y)*powf(f, 1.7f);   /* piu' fitte in alto = piu' lontane */
-        DrawLine((int)ROOM_X, (int)y, (int)ROOM_RIGHT, (int)y, gridColor);
+        float y = ry + (rBottom - ry)*powf(f, 1.7f);   /* piu' fitte in alto = piu' lontane */
+        DrawLine((int)rx, (int)y, (int)rRight, (int)y, gridColor);
     }
 
-    /* Muri con spessore. Il muro di FONDO e' l'unico di cui si vede la faccia
+    /* Muri con spessore, ancorati al bordo REALE della stanza (non piu' al
+       massimo fisso). Il muro di FONDO e' l'unico di cui si vede la faccia
        (una fascia sopra il pavimento, piu' chiara in alto dove prende luce, con
        uno spigolo netto in basso dove incontra il pavimento). I laterali e quello
        davanti mostrano solo il loro spessore, senza faccia: e' esattamente cio'
-       che si vedrebbe da una camera inclinata di poco. */
-    Color wallDark = GameColorLerp(game->theme.wall, BLACK, 0.45f);
-    Color wallLit = GameColorLerp(game->theme.wall, WHITE, 0.18f);
-    DrawRectangleGradientV((int)(ROOM_X - WALL_SIDE_W), (int)(ROOM_Y - WALL_BACK_H),
-                           (int)(ROOM_W + WALL_SIDE_W*2.0f), (int)WALL_BACK_H, wallLit, wallDark);
-    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)(ROOM_Y - 3.0f), (int)(ROOM_W + WALL_SIDE_W*2.0f), 3, wallDark);
-    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_Y, (int)WALL_SIDE_W, (int)ROOM_H, wallDark);
-    DrawRectangle((int)ROOM_RIGHT, (int)ROOM_Y, (int)WALL_SIDE_W, (int)ROOM_H, wallDark);
-    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_BOTTOM,
-                  (int)(ROOM_W + WALL_SIDE_W*2.0f), (int)WALL_FRONT_H, wallDark);
+       che si vedrebbe da una camera inclinata di poco. Il resto della cornice
+       (fra questo spessore decorativo e il bordo del canvas) e' gia' muro scuro
+       piatto grazie al riempimento fatto sopra. */
+    DrawRectangleGradientV((int)(rx - WALL_SIDE_W), (int)(ry - WALL_BACK_H),
+                           (int)(rw + WALL_SIDE_W*2.0f), (int)WALL_BACK_H, wallLit, wallDark);
+    DrawRectangle((int)(rx - WALL_SIDE_W), (int)(ry - 3.0f), (int)(rw + WALL_SIDE_W*2.0f), 3, wallDark);
+    DrawRectangle((int)(rx - WALL_SIDE_W), (int)ry, (int)WALL_SIDE_W, (int)rh, wallDark);
+    DrawRectangle((int)rRight, (int)ry, (int)WALL_SIDE_W, (int)rh, wallDark);
+    DrawRectangle((int)(rx - WALL_SIDE_W), (int)rBottom,
+                  (int)(rw + WALL_SIDE_W*2.0f), (int)WALL_FRONT_H, wallDark);
     /* Spigolo illuminato dei muri laterali/davanti: la linea sottile che fa
        leggere lo spessore come uno spessore e non come una cornice piatta. */
-    DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)ROOM_BOTTOM, (int)(ROOM_W + WALL_SIDE_W*2.0f), 2, wallLit);
+    DrawRectangle((int)(rx - WALL_SIDE_W), (int)rBottom, (int)(rw + WALL_SIDE_W*2.0f), 2, wallLit);
 
     const RoomState *room = GameCurrentRoom(game);
-    float cx = ROOM_X + ROOM_W*0.5f;
-    float cy = ROOM_Y + ROOM_H*0.5f;
+    float cx = rx + rw*0.5f;
+    float cy = ry + rh*0.5f;
     Color doorColor = GameRoomIsLocked(game) ? (Color){ 200, 58, 58, 255 } : game->theme.accent2;
-    /* Le porte si disegnano SOPRA i muri (sono buchi nel muro): quella di fondo
-       occupa tutta la faccia del muro, cosi' si legge come un passaggio e non
-       come una striscia appoggiata. */
-    if (room->doors[DIR_UP]) DrawRectangle((int)(cx - DOOR_HALF), (int)(ROOM_Y - WALL_BACK_H), (int)(DOOR_HALF*2), (int)WALL_BACK_H, doorColor);
-    if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)ROOM_BOTTOM, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
-    if (room->doors[DIR_LEFT]) DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
-    if (room->doors[DIR_RIGHT]) DrawRectangle((int)ROOM_RIGHT, (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+    /* Le porte si disegnano SOPRA i muri (sono buchi nel muro), CENTRATE sulle
+       pareti REALI della stanza (M2: non piu' sempre allo stesso punto dello
+       schermo se la stanza e' piu' piccola): quella di fondo occupa tutta la
+       faccia del muro, cosi' si legge come un passaggio e non come una
+       striscia appoggiata. */
+    if (room->doors[DIR_UP]) DrawRectangle((int)(cx - DOOR_HALF), (int)(ry - WALL_BACK_H), (int)(DOOR_HALF*2), (int)WALL_BACK_H, doorColor);
+    if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)rBottom, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
+    if (room->doors[DIR_LEFT]) DrawRectangle((int)(rx - WALL_SIDE_W), (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+    if (room->doors[DIR_RIGHT]) DrawRectangle((int)rRight, (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
 
     /* Piano 0 (M1b): il varco verso il piano 1, nel muro di fondo. NON e' un
        room->doors[DIR_UP] (vedi FloorZeroEnter, src/world/floor_zero.c: la
        griglia ha una sola cella, quindi quell'array resta tutto falso) --
        ha un aspetto dedicato apposta, cosi' resta leggibile come "l'uscita
-       speciale della sala d'attesa" anche a chi non guarda la minimappa. */
+       speciale della sala d'attesa" anche a chi non guarda la minimappa. Usa
+       ancora ROOM_X/ROOM_W fissi (non roomRect): il Piano 0 non e' generato,
+       la sua stanza coincide sempre col massimo (vedi il commento sopra). */
     if (game->floor == 0) DrawFloorZeroExitGate(game);
 }
 
@@ -322,8 +348,16 @@ static void DrawEnemy(Game *game, const Enemy *e)
         drew = DrawAtlasCell(game, cell, e->pos, e->radius*3.3f, WHITE);
     }
     /* Il nome del boss va sempre mostrato durante lo scontro, sia che si
-       disegni lo sprite sia la forma di riserva. */
-    if (e->kind == ENEMY_BOSS) DrawText(game->theme.bossName, (int)(ROOM_X + 20), (int)(ROOM_Y + 16), 18, RAYWHITE);
+       disegni lo sprite sia la forma di riserva. M2: ancorato all'angolo
+       della stanza CORRENTE (in pratica coincide sempre col massimo, la
+       stanza boss e' sempre alla taglia massima -- ma leggerlo dall'accessore
+       invece che dalla macro lo rende corretto per costruzione, non per
+       coincidenza). */
+    if (e->kind == ENEMY_BOSS)
+    {
+        Rectangle bossRoom = WorldCurrentRoomRect(game);
+        DrawText(game->theme.bossName, (int)(bossRoom.x + 20.0f), (int)(bossRoom.y + 16.0f), 18, RAYWHITE);
+    }
     if (!drew)
     {
         /* Fase 3b: la FORMA del nemico (inventata dal modello, core/enemy_type.h)
@@ -924,6 +958,24 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color)
     DrawText(g, (int)(cell.x + cell.width*0.5f - w*0.5f), (int)(cell.y + cell.height*0.5f - 7), 14, color);
 }
 
+/* M2 (DEC-009): la minimappa comunica la taglia VERA della stanza (griglia
+   fissa, taglie diverse) senza scompaginare la griglia di celle a passo
+   fisso (size+gap) -- si scala solo il RIQUADRO COLORATO dentro lo slot,
+   lasciando bordo/icona/evidenziazione "stanza corrente" sullo slot intero,
+   cosi' la mappa resta leggibile e cliccabile come sempre. Tre classi
+   bastano (piccola/media/grande, come richiesto): non serve una scala
+   continua per un'informazione che qui è solo un indizio a colpo d'occhio.
+   w/h <= 0 (Piano 0/hub, o una RoomState di test mai passata da
+   WorldGenerateFloorMap) => 1.0, la cella piena di sempre. */
+static float RoomMapSizeScale(const RoomState *room)
+{
+    if (room->w <= 0 || room->h <= 0) return 1.0f;
+    float frac = ((float)room->w*(float)room->h)/(ROOM_W*ROOM_H);
+    if (frac >= 0.78f) return 1.0f;    /* grande */
+    if (frac < 0.55f) return 0.7f;     /* piccola */
+    return 0.85f;                      /* media */
+}
+
 static void DrawLargeMinimap(Game *game, Rectangle rec)
 {
     int size = 26;
@@ -943,9 +995,19 @@ static void DrawLargeMinimap(Game *game, Rectangle rec)
                (adiacente a una visitata): smorzata, cosi' si vede DOVE si puo'
                andare senza svelare cosa c'e'. */
             Color base = room->visited ? RoomMapColor(room->kind) : GameColorLerp(RoomMapColor(room->kind), (Color){ 30, 33, 40, 255 }, 0.7f);
-            DrawRectangleRec(cell, base);
+            float scale = RoomMapSizeScale(room);
+            Rectangle fillCell = cell;
+            if (scale < 1.0f)
+            {
+                float shrink = (float)size*(1.0f - scale)*0.5f;
+                fillCell = (Rectangle){ cell.x + shrink, cell.y + shrink, (float)size*scale, (float)size*scale };
+            }
+            DrawRectangleRec(fillCell, base);
             /* Le icone delle stanze speciali si vedono solo dopo averle visitate:
-               un pizzico di scoperta, come in Isaac. */
+               un pizzico di scoperta, come in Isaac. Icona ed evidenziazione
+               restano ancorate allo SLOT intero (cell), non al riquadro
+               rimpicciolito: la griglia deve restare leggibile/cliccabile
+               uguale a prima, la taglia e' solo un indizio in piu'. */
             if (room->visited) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200));
             if (current) DrawRectangleLinesEx(cell, 3.0f, RAYWHITE);
             else DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 150));

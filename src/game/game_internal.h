@@ -29,7 +29,10 @@ void WorldHandleTransitions(Game *game, Vector2 move);
 void WorldCheckRoomClear(Game *game);
 
 void EntitiesClear(Game *game);
-Vector2 EntitiesRandomRoomPosition(unsigned int *rng, float padding);
+/* M2: 'room' e' il rettangolo dentro cui pescare (di norma
+   WorldCurrentRoomRect(game), ma il chiamante decide -- questo file non
+   sa nulla di "stanza corrente"). */
+Vector2 EntitiesRandomRoomPosition(unsigned int *rng, Rectangle room, float padding);
 void EntitiesAddParticle(Game *game, Vector2 position, Color color, int count);
 void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 position);
 /* Fase 3b: il nemico con un TIPO inventato dal modello (core/enemy_type.h).

@@ -14,11 +14,15 @@ void EntitiesClear(Game *game)
     memset(game->particles, 0, sizeof(game->particles));
 }
 
-Vector2 EntitiesRandomRoomPosition(unsigned int *rng, float pad)
+/* M2: il rettangolo lo decide il chiamante (WorldCurrentRoomRect o simili) --
+   questo file non include world/world.h apposta (src/gameplay non deve sapere
+   COME si calcola "la stanza corrente", solo dentro quale rettangolo pescare
+   un punto). */
+Vector2 EntitiesRandomRoomPosition(unsigned int *rng, Rectangle room, float pad)
 {
     return (Vector2){
-        GameRngFloat(rng, ROOM_X + pad, ROOM_RIGHT - pad),
-        GameRngFloat(rng, ROOM_Y + pad, ROOM_BOTTOM - pad)
+        GameRngFloat(rng, room.x + pad, room.x + room.width - pad),
+        GameRngFloat(rng, room.y + pad, room.y + room.height - pad)
     };
 }
 
