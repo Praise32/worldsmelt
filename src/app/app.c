@@ -6,6 +6,7 @@
 #include "gen/gen_runner.h"
 #include "render/game_renderer.h"
 #include "tests/game_tests.h"
+#include "world/floor_zero.h"
 
 #include "raylib.h"
 
@@ -161,7 +162,11 @@ static void AppStartLazyGeneration(AppGen *gen)
  * AppEnterFloorZero piu' sotto) -- non lo si genera piu' QUI dentro con
  * NextGenSeed(0u): RunSetup e' lo stato canonico che possiede il seed della
  * run (spec M1a, ui/run-setup.md), e AppStartGeneration deve usare quello
- * esatto, non uno diverso deciso all'ultimo momento. */
+ * esatto, non uno diverso deciso all'ultimo momento.
+ * NOTA (M1b): questa funzione non tocca piu' 'game' -- FloorZeroEnter (vedi
+ * AppEnterFloorZero sotto) prepara il Piano 0 indipendentemente dall'esito
+ * della generazione, e GameResetRun (che carica manifest/atlas nuovi) arriva
+ * solo all'attraversamento del varco, mai qui. */
 static bool AppStartGeneration(AppGen *gen, unsigned int seed)
 {
     AppStopLazyGeneration(gen);   /* mai due melting-gen insieme: vedi AppStopLazyGeneration */
@@ -214,20 +219,51 @@ static bool AppStartSpritesGeneration(AppGen *gen)
                                   "generated/gen_progress.txt", kArgs);
 }
 
-/* Combina il progresso del passo attivo in un'unica barra continua 0-100%:
- * col passo sprite pianificato, il testo occupa 0-50% e gli sprite 50-100%;
- * senza passo sprite (modelli assenti, --no-sprites, o passo testo mai
- * partito) il testo da solo occupa l'intera barra, cosi' arriva comunque al
- * 100% invece di fermarsi a meta' in modo ingannevole. */
-static GenProgress AppCombinedProgress(const AppGen *gen)
+/* Il messaggio STABILE dell'indicatore del Piano 0 (M1b, ui/generation-status.md):
+ * mappa 1:1 con gli "Stati visibili al giocatore" della KB -- MAI il
+ * phase/message grezzo di GenRunner.progress (quello resta un dettaglio
+ * tecnico, buono al massimo per DECIDERE fra i tre messaggi qui sotto, mai
+ * per essere mostrato com'e': niente percentuali, niente frasi diverse a
+ * ogni chiamata di melting-gen). 'game->floorZeroExitOpen' e' gia' la
+ * verita' su "pipeline terminale" (la scrive AppOpenFloorZeroExit sotto),
+ * quindi basta leggerla invece di ricalcolare la terminalita' da capo qui. */
+static const char *AppFloorZeroStatusText(const Game *game, const AppGen *gen)
 {
-    const GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
-    GenProgress combined = active->progress;
-    if (gen->spritesPlannedThisRun)
-    {
-        combined.percent = gen->inSpritesStage ? 50 + active->progress.percent/2 : active->progress.percent/2;
-    }
-    return combined;
+    if (game->floorZeroExitOpen) return "Primo piano pronto -- l'uscita e' aperta.";
+    if (gen->inSpritesStage) return "Il mondo prende forma...";
+    return "Il crogiolo prepara il mondo...";
+}
+
+/* Apertura dell'uscita verso il piano 1 (M1b): evento visibile e distinto
+ * (KB floor-zero.md, "Feedback": mai un semplice cambio di stato silenzioso)
+ * -- messaggio di gioco + il varco che cambia aspetto (DrawFloorZeroExitGate,
+ * src/render/game_renderer.c, legge game->floorZeroExitOpen) + un burst di
+ * particelle nello stesso punto. Idempotente: se la pipeline resta
+ * "terminale" per piu' frame di fila (il caso normale: GenRunnerUpdate su un
+ * runner gia' SUCCEEDED/FAILED e' un no-op, vedi gen_runner.c), la seconda
+ * chiamata non deve ripetere messaggio/particelle. Vale ANCHE per un
+ * fallimento della generazione (fallback silenzioso, DEC-002/DEC-020: il
+ * gioco e' sempre avviabile) -- chi chiama non distingue i due casi, ed e'
+ * voluto: il giocatore non deve mai vedere la differenza. */
+static void AppOpenFloorZeroExit(Game *game)
+{
+    if (game->floorZeroExitOpen) return;
+    game->floorZeroExitOpen = true;
+    GameSetMessage(game, "L'uscita verso il piano 1 si apre.");
+    Vector2 gate = { ROOM_X + ROOM_W*0.5f, ROOM_Y };
+    EntitiesAddParticle(game, gate, game->theme.accent2, 26);
+}
+
+/* Annulla i runner di primo piano ancora attivi (ESC/ExitConfirm dal Piano 0,
+ * "abbandona la preparazione"): SOLO quelli, mai il lazyRunner (che a questo
+ * punto non e' ancora partito -- parte solo all'attraversamento vero, vedi il
+ * case APP_FLOOR_ZERO sotto). GenRunnerCancel e' gia' un no-op se il runner
+ * non e' RUNNING, quindi chiamarli entrambi senza controllare quale dei due
+ * e' quello attivo e' sicuro e piu' semplice che tenere traccia a parte. */
+static void AppCancelFloorZeroGeneration(AppGen *gen)
+{
+    GenRunnerCancel(&gen->runner);
+    GenRunnerCancel(&gen->spritesRunner);
 }
 
 /* Passo FISSO della simulazione (spec appunti 01/03: sim a 60 Hz, rendering a
@@ -259,21 +295,21 @@ static AppInput AppInputCollect(void)
 
 /* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
    generazione, RunResults/"Nuova run subito"): SEMPRE lo stesso cammino,
-   "niente scorciatoie" (spec M1a). 'seed' e' gia' deciso dal chiamante (il
-   seed di RunSetup, o un NextGenSeed fresco per gli altri due ingressi).
-   Con generazione disabilitata o AppStartGeneration fallita, la transizione
-   a Gameplay avviene SUBITO, nello stesso update: il flusso e' comunque
-   passato per FloorZero (*mode lo ha attraversato un istante prima), che e'
-   quanto la spec richiede per M1a (la sala d'attesa giocabile arriva in
-   M1b). */
+   "niente scorciatoie" (spec M1a/M1b). 'seed' e' gia' deciso dal chiamante
+   (il seed di RunSetup, o un NextGenSeed fresco per gli altri due ingressi).
+   FloorZeroEnter prepara SUBITO la sala d'attesa giocabile (M1b: mai piu' un
+   overlay bloccante) -- il giocatore ci si muove da questo stesso frame.
+   Se la generazione e' disabilitata, o AppStartGeneration fallisce subito
+   (fork fallita), la pipeline e' gia' "terminale" per costruzione: l'uscita
+   si apre immediatamente (AppOpenFloorZeroExit), ma si resta comunque in
+   FloorZero -- e' l'attraversamento del varco, non l'ingresso, a portare in
+   Gameplay (vedi il case APP_FLOOR_ZERO sotto). */
 static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned int seed)
 {
     *mode = APP_FLOOR_ZERO;
+    FloorZeroEnter(game);
     if (gen->enabled && AppStartGeneration(gen, seed)) return;   /* il case APP_FLOOR_ZERO sondera' il progresso ai prossimi frame */
-
-    GameResetRun(game);
-    if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
-    *mode = APP_GAMEPLAY;
+    AppOpenFloorZeroExit(game);
 }
 
 /* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
@@ -377,70 +413,71 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_FLOOR_ZERO:
         {
-            /* M1a: la generazione resta BLOCCANTE, ospitata qui come overlay
-               (comportamento equivalente a pre-M1a, solo riposizionato nello
-               stato canonico: la sala d'attesa giocabile arriva in M1b). */
-            GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
-            GenRunnerUpdate(active);
-            if (effective.back)
+            /* M1b: la sala d'attesa giocabile. La generazione corre in
+               sottofondo, MAI bloccante -- il giocatore continua a muoversi
+               (AppSimStep tratta questo stato come Gameplay per la
+               simulazione). Finche' l'uscita non e' aperta si sonda il
+               runner di primo piano attivo (testo, poi se pianificato lo
+               sprite) e si apre l'uscita non appena la pipeline diventa
+               TERMINALE -- anche in caso di fallimento: i contenuti gia' su
+               disco sono la riserva, il gioco resta sempre avviabile
+               (DEC-002/DEC-020, fallback SILENZIOSO: qui non si distingue
+               successo da fallback, vedi AppOpenFloorZeroExit). Una volta
+               aperta, questo blocco non fa piu' nulla (game->floorZeroExitOpen
+               resta vero per il resto della permanenza nel Piano 0). */
+            if (!game->floorZeroExitOpen)
             {
-                GenRunnerCancel(active);
-                *mode = APP_MAIN_MENU;
-                ui->focus = 0;
+                GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
+                GenRunnerUpdate(active);
+                if (active->state == GEN_RUNNER_SUCCEEDED)
+                {
+                    if (!gen->inSpritesStage && gen->spritesPlannedThisRun)
+                    {
+                        /* Passo testo riuscito e modelli SD presenti: si passa
+                           al passo sprite invece di aprire subito l'uscita
+                           (l'indicatore passa a "Il mondo prende forma...",
+                           vedi AppFloorZeroStatusText). */
+                        if (AppStartSpritesGeneration(gen)) gen->inSpritesStage = true;
+                        /* fork() fallita (rarissimo): pipeline comunque
+                           conclusa, si gioca con l'atlas gia' scritto dal
+                           passo testo -- mai bloccare l'uscita per un secondo
+                           passo che non e' nemmeno partito. */
+                        else AppOpenFloorZeroExit(game);
+                    }
+                    else AppOpenFloorZeroExit(game);
+                }
+                else if (active->state == GEN_RUNNER_FAILED) AppOpenFloorZeroExit(game);
+            }
+
+            /* Attraversamento (segnalato da WorldHandleTransitions, world.c,
+               quando il giocatore preme contro il varco APERTO): SOLO qui
+               scattano GameResetRun (carica manifest/atlas nuovi, o quelli
+               di riserva) e la ripresa in sottofondo dei piani 2-5 -- stessa
+               condizione di sempre (Step B2): solo se il passo TESTO e'
+               andato a buon fine, perche' la ripresa rilegge
+               generated/current_run.json con lo STESSO seed di quella run. */
+            if (game->floorZeroExitCrossed)
+            {
+                game->floorZeroExitCrossed = false;
+                GameResetRun(game);
+                *mode = APP_GAMEPLAY;
+                if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
                 break;
             }
-            if (active->state == GEN_RUNNER_SUCCEEDED)
+
+            if (effective.back)
             {
-                if (!gen->inSpritesStage && gen->spritesPlannedThisRun)
-                {
-                    /* Passo testo riuscito e modelli SD presenti: si passa al
-                       passo sprite invece di entrare subito in gioco. L'overlay
-                       resta a schermo, il progresso continua sulla stessa barra
-                       (vedi AppCombinedProgress). */
-                    if (AppStartSpritesGeneration(gen)) gen->inSpritesStage = true;
-                    else
-                    {
-                        /* fork() fallita (rarissimo): si gioca comunque con
-                           l'atlas BMP gia' scritto dal passo testo, mai bloccare
-                           la run per un secondo passo che non e' nemmeno partito. */
-                        GameResetRun(game);
-                        GameSetMessage(game, "Sprite non avviati: si gioca con l'atlas di riserva");
-                        *mode = APP_GAMEPLAY;
-                        AppStartLazyGeneration(gen);   /* il passo TESTO e' comunque riuscito: i piani 2-5 si possono scrivere */
-                    }
-                }
-                else
-                {
-                    GameResetRun(game);
-                    if (gen->inSpritesStage) GameSetMessage(game, "Sprite generati: run pronta");
-                    *mode = APP_GAMEPLAY;
-                    /* Step B2: la partita comincia ORA -> parte la ripresa dei piani
-                       2-5 in sottofondo. Solo se il passo TESTO e' andato a buon fine:
-                       la ripresa rilegge generated/current_run.json e ha bisogno dello
-                       STESSO seed di quella run (gen->lastGenSeed) -- se il passo testo
-                       fosse fallito, quel JSON sarebbe di una run precedente e la
-                       ripresa ricostruirebbe un contenuto DIVERSO da quello che si sta
-                       giocando. */
-                    if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
-                }
-            }
-            else if (active->state == GEN_RUNNER_FAILED)
-            {
-                /* Il passo testo o quello sprite e' fallito o e' andato in
-                   timeout (GenRunnerUpdate cancella e marca FAILED da sola): si
-                   gioca comunque, con qualunque atlas sia gia' su disco (vedi
-                   RunContentLoad/PreferPngAtlasIfFresh: mai una scrittura a
-                   meta'). */
-                GameResetRun(game);
-                GameSetMessage(game, gen->inSpritesStage
-                    ? "Sprite generati saltati: si gioca con l'atlas di riserva"
-                    : "Generazione fallita: uso i contenuti di riserva");
-                *mode = APP_GAMEPLAY;
-                /* Correzione da review (pre-M1a): se a fallire e' stato il passo
-                   SPRITE (timeout a 240s, o fork fallita), il passo TESTO era
-                   comunque riuscito -- la run che si sta per giocare e' quella
-                   nuova, e i piani 2-5 vanno scritti lo stesso. */
-                if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
+                /* Azione distruttiva: passa da ExitConfirm come ogni altro
+                   abbandono (DEC-057), mai una cancellazione diretta -- il
+                   contesto "abbandona la preparazione" lo sceglie
+                   DrawExitConfirmOverlay da ui->openedFrom. La generazione
+                   NON viene toccata qui: continua in sottofondo finche' non
+                   si conferma davvero (AppCancelFloorZeroGeneration, sotto). */
+                ui->openedFrom = APP_FLOOR_ZERO;
+                ui->returnFocus = 0;
+                ui->exitAbandonsRun = true;
+                *mode = APP_EXIT_CONFIRM;
+                ui->focus = 1;   /* default: "Annulla" */
             }
             break;
         }
@@ -555,7 +592,16 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             {
                 if (ui->focus == 0)   /* Conferma */
                 {
-                    if (ui->exitAbandonsRun) { *mode = APP_MAIN_MENU; ui->focus = 0; }
+                    if (ui->exitAbandonsRun)
+                    {
+                        /* Abbandono dalla preparazione (M1b): i runner di primo
+                           piano attivi vanno cancellati SOLO qui, alla conferma
+                           vera -- non al semplice ESC che apre il dialogo (la
+                           generazione continua in sottofondo mentre il
+                           giocatore decide, vedi il case APP_FLOOR_ZERO). */
+                        if (ui->openedFrom == APP_FLOOR_ZERO) AppCancelFloorZeroGeneration(gen);
+                        *mode = APP_MAIN_MENU; ui->focus = 0;
+                    }
                     else return true;   /* uscita dall'applicazione: l'UNICO modo, niente piu' scorciatoie dirette */
                 }
                 else { *mode = ui->openedFrom; ui->focus = ui->returnFocus; }   /* Annulla */
@@ -566,13 +612,16 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
     return false;
 }
 
-/* Un passo di simulazione a dt FISSO: il gioco vero solo in Gameplay, le sole
-   particelle cosmetiche in tutti gli altri stati (menu, generazione, pausa,
-   build, risultati...). Il mouse viene mappato una volta per frame dal
-   chiamante: dentro lo stesso frame non cambia. */
+/* Un passo di simulazione a dt FISSO: il gioco vero in Gameplay E in
+   FloorZero (M1b: la sala d'attesa e' giocabile, il giocatore ci si muove e
+   ci spara mentre la generazione corre in sottofondo -- vedi
+   FloorZeroEnter/WorldHandleTransitions), le sole particelle cosmetiche in
+   tutti gli altri stati (menu, pausa, build, risultati...). Il mouse viene
+   mappato una volta per frame dal chiamante: dentro lo stesso frame non
+   cambia. */
 static void AppSimStep(Game *game, AppMode mode, UiLayout layout)
 {
-    if (mode == APP_GAMEPLAY)
+    if (mode == APP_GAMEPLAY || mode == APP_FLOOR_ZERO)
     {
         Vector2 mouseGame = { 0.0f, 0.0f };
         bool mouseInsideGame = UiScreenToGameMouse(layout, &mouseGame);
@@ -599,6 +648,8 @@ int AppRun(int argc, char **argv)
     bool scriptItemsTest = false;
     bool benchPresetTest = false;
     bool statesTest = false;
+    bool floorZeroTest = false;
+    bool floorZeroScreenshotTest = false;
     unsigned int scriptSeed = 12345u;
     /* --full-spec: override manuale gemello di --low-spec (vedi
        AppReadBenchmarkPreset in app.h/qui sopra) -- forza il preset di
@@ -677,6 +728,23 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             statesTest = true;
+        }
+        /* M1b: la sala d'attesa giocabile del Piano 0 (vedi GameFloorZeroTest
+           in src/tests/game_tests.c). Come --states-test, gira dopo InitWindow
+           ma prima del loop principale. */
+        if (strcmp(argv[i], "--floor-zero-test") == 0)
+        {
+            smokeTest = true;
+            floorZeroTest = true;
+        }
+        /* SOLO manuale (non in make test, tradizione del progetto: vedi
+           --rarity-screenshot-test/--shot-forms-screenshot-test sopra):
+           finestra GRANDE, entra nel Piano 0 con gen disabilitata e scatta
+           logs/worldsmelt-floorzero-screen.png. */
+        if (strcmp(argv[i], "--floor-zero-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            floorZeroScreenshotTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
@@ -764,7 +832,7 @@ int AppRun(int argc, char **argv)
        che nella finestra compatta 960x640 finisce in parte sotto il
        riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
        vedi logs/melting-run-layers-screen.png). */
-    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest;
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     /* Titolo della finestra WORLDSMELT (DEC-071): il repo conserva il nome
        storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
@@ -799,6 +867,22 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 15;   /* 15: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
+    if (floorZeroTest)
+    {
+        bool ok = GameFloorZeroTest(&game);
+        printf("Floor zero test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 16;
+    }
+    if (floorZeroScreenshotTest)
+    {
+        bool ok = GameFloorZeroScreenshotTest(&game);
+        printf("Floor zero screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 17;
     }
     if (scriptTest)
     {
@@ -886,10 +970,11 @@ int AppRun(int argc, char **argv)
             AppSimStep(&game, appMode, layout);
             simAccum -= APP_SIM_DT;
         }
-        GenProgress combinedProgress = { 0 };
-        if (appMode == APP_FLOOR_ZERO) combinedProgress = AppCombinedProgress(&gen);
+        GenProgress floorZeroStatus = { 0 };
+        if (appMode == APP_FLOOR_ZERO)
+            snprintf(floorZeroStatus.message, sizeof(floorZeroStatus.message), "%s", AppFloorZeroStatusText(&game, &gen));
         RendererDrawApp(&game, gameCanvas, appMode, &appUi, screenshotTest && !screenshotDone,
-                        appMode == APP_FLOOR_ZERO ? &combinedProgress : NULL, "logs/melting-run-screen.png");
+                        appMode == APP_FLOOR_ZERO ? &floorZeroStatus : NULL, "logs/melting-run-screen.png");
         if (screenshotTest && !screenshotDone) screenshotDone = true;
         if (frames > 0)
         {

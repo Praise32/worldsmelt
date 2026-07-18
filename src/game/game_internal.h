@@ -5,6 +5,17 @@
 
 void GameSetMessage(Game *game, const char *message);
 
+/* Valori di PARTENZA del Player (radius/hp/coins/bombs/keys + i base* del
+   sistema delle cache), estratti da GameResetRun perche' FloorZeroEnter
+   (src/world/floor_zero.c) ne ha bisogno anche lei per preparare un Player
+   pulito nel Piano 0 -- SENZA passare da GameResetRun, che leggerebbe
+   generated/ (vietato li', vedi il commento su FloorZeroEnter). Una sola
+   fonte dei numeri: se cambiano qui, cambiano per entrambe senza rischio che
+   divergano in silenzio. Non tocca ScriptItemsInit ne' i campi derivati
+   (damage/fireDelay/.../maxHp): quello resta a carico del chiamante, DOPO
+   aver chiamato questa funzione (stesso ordine di GameResetRun). */
+void GamePlayerResetBaseStats(Player *player);
+
 RoomState *WorldCurrentRoomMutable(Game *game);
 bool WorldNoEnemiesActive(const Game *game);
 void WorldStartFloor(Game *game, int floor);

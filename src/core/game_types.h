@@ -73,7 +73,14 @@ typedef enum RoomKind {
     ROOM_COMBAT,
     ROOM_TREASURE,
     ROOM_SHOP,
-    ROOM_BOSS
+    ROOM_BOSS,
+    /* M1b: la sala hub del Piano 0 (src/world/floor_zero.c). Aggiunta IN CODA,
+       come SPR_ENEMY_FLOATER sotto: RoomKind non e' mai usato come indice di
+       un array (solo confronti/switch, vedi world.c/game_renderer.c), quindi
+       non c'e' un vincolo di posizione, ma restare in coda evita comunque di
+       spostare per errore il significato implicito di un valore salvato da
+       qualche parte in futuro. */
+    ROOM_HUB
 } RoomKind;
 
 typedef enum Direction {
@@ -540,6 +547,21 @@ typedef struct Game {
        direttamente dentro la simulazione: rileggerli a ogni passo e' corretto. */
     bool bombQueued;    /* SPACE: piazzare una bomba al prossimo passo */
     bool resetQueued;   /* R (senza melting-gen): reset rapido della run */
+    /* Piano 0 sala d'attesa (M1b, systems/floor-zero.md + ui/generation-status.md):
+       scritto SOLO da src/app (che possiede lo stato della generazione), letto
+       da world/render. 'floorZeroExitOpen' diventa vero quando la pipeline di
+       generazione del primo piano e' TERMINALE (successo o fallback, mai un
+       blocco: DEC-002/DEC-020) e resta vero per il resto della permanenza nel
+       Piano 0 -- riapre il varco nel muro (render dedicato, non una porta
+       normale) e permette l'attraversamento. 'floorZeroExitCrossed' e' il
+       segnale opposto, scritto SOLO da world (WorldHandleTransitions, quando
+       il giocatore preme contro il varco aperto) e consumato da UpdateApp
+       nello stesso frame in cui lo legge true (poi lo rimette a false): SOLO
+       quel consumo puo' far scattare GameResetRun e il passaggio a Gameplay,
+       mai l'apertura da sola (il giocatore puo' restare nel Piano 0 quanto
+       vuole dopo che l'uscita si e' aperta). */
+    bool floorZeroExitOpen;
+    bool floorZeroExitCrossed;
     GamePhase phase;
     unsigned int rng;
     int floor;

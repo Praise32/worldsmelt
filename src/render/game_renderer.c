@@ -89,6 +89,11 @@ static Color RoomMapColor(RoomKind kind)
         case ROOM_SHOP: return (Color){ 95, 220, 130, 255 };
         case ROOM_BOSS: return (Color){ 230, 82, 90, 255 };
         case ROOM_COMBAT: return (Color){ 130, 145, 165, 255 };
+        /* M1b: colore ambra/braci, distinto dalle stanze di un piano vero --
+           coerente con l'aspetto "curato e distinto" richiesto per il
+           crogiolo (DEC-067), anche sulla minimappa (che qui mostra una
+           sola cella). */
+        case ROOM_HUB: return (Color){ 224, 140, 62, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -135,6 +140,45 @@ static void DrawGroundShadow(Vector2 pos, float radius, float lift, unsigned cha
 {
     if (radius <= 0.5f) return;
     DrawEllipse((int)pos.x, (int)(pos.y + lift), radius, radius*0.42f, (Color){ 0, 0, 0, alpha });
+}
+
+/* Piano 0 (M1b): il varco verso il piano 1 non e' una porta normale (vedi il
+   commento su DrawRoom sotto e su WorldHandleTransitions in world.c) -- ha un
+   aspetto dedicato che DEVE distinguersi visibilmente fra chiuso e aperto
+   (KB systems/floor-zero.md, "Feedback": "l'uscita si apre visibilmente solo
+   quando diventa abilitata"). Chiuso: sbarrato con strisce diagonali (un
+   cantiere, non un buco nel muro). Aperto: luminoso e pulsante -- lo stesso
+   punto dove EntitiesAddParticle spruzza il burst all'apertura (vedi
+   AppOpenFloorZeroExit, src/app/app.c), cosi' il bagliore e le particelle
+   coincidono. */
+static void DrawFloorZeroExitGate(Game *game)
+{
+    float cx = ROOM_X + ROOM_W*0.5f;
+    Rectangle gate = { cx - DOOR_HALF, ROOM_Y - WALL_BACK_H, DOOR_HALF*2.0f, WALL_BACK_H };
+    if (game->floorZeroExitOpen)
+    {
+        float pulse = (sinf((float)GetTime()*2.4f) + 1.0f)*0.5f;
+        Color glow = GameColorLerp(game->theme.accent2, WHITE, 0.25f + pulse*0.25f);
+        DrawRectangleRec(gate, glow);
+        DrawRectangleLinesEx(gate, 3.0f, WHITE);
+    }
+    else
+    {
+        Color hazard = (Color){ 224, 168, 42, 255 };
+        DrawRectangleRec(gate, GameColorLerp(game->theme.wall, BLACK, 0.55f));
+        for (float sx = gate.x - gate.height; sx < gate.x + gate.width; sx += 16.0f)
+        {
+            Vector2 p1 = { sx, gate.y + gate.height };
+            Vector2 p2 = { sx + gate.height, gate.y };
+            /* Clamp orizzontale: le strisce nascono/muoiono fuori da 'gate' per
+               coprirlo fino ai bordi, ma disegnate intere sforerebbero visibilmente
+               nel muro adiacente. */
+            if (p1.x < gate.x) p1.x = gate.x;
+            if (p2.x > gate.x + gate.width) p2.x = gate.x + gate.width;
+            DrawLineEx(p1, p2, 3.0f, hazard);
+        }
+        DrawRectangleLinesEx(gate, 2.0f, hazard);
+    }
 }
 
 static void DrawRoom(Game *game)
@@ -202,6 +246,13 @@ static void DrawRoom(Game *game)
     if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)ROOM_BOTTOM, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
     if (room->doors[DIR_LEFT]) DrawRectangle((int)(ROOM_X - WALL_SIDE_W), (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
     if (room->doors[DIR_RIGHT]) DrawRectangle((int)ROOM_RIGHT, (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+
+    /* Piano 0 (M1b): il varco verso il piano 1, nel muro di fondo. NON e' un
+       room->doors[DIR_UP] (vedi FloorZeroEnter, src/world/floor_zero.c: la
+       griglia ha una sola cella, quindi quell'array resta tutto falso) --
+       ha un aspetto dedicato apposta, cosi' resta leggibile come "l'uscita
+       speciale della sala d'attesa" anche a chi non guarda la minimappa. */
+    if (game->floor == 0) DrawFloorZeroExitGate(game);
 }
 
 /* Vignettatura: quattro sfumature ai bordi del canvas. Non e' decorazione fine a
@@ -1122,9 +1173,9 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    Overlay dei 9 stati canonici (M1a, ui/navigation-map.md). Ciascuno dei 7
    stati con un vero "menu" (MainMenu, RunSetup, PauseMenu, Options,
    BuildScreen, RunResults, ExitConfirm) disegna il proprio riquadro con
-   DrawXOverlay; FloorZero disegna invece l'indicatore di generazione
-   (DrawGeneratingOverlay, invariato da prima di M1a: qui la generazione resta
-   bloccante) e Gameplay non disegna nessun overlay sopra la scena.
+   DrawXOverlay; FloorZero disegna invece l'indicatore di generazione (M1b,
+   DrawFloorZeroIndicator: una riga discreta dentro la scena, non piu' un
+   overlay bloccante) e Gameplay non disegna nessun overlay sopra la scena.
    MenuBoxForMode/MenuItemCountForMode/MenuItemRect sono la fonte UNICA della
    geometria delle voci: sia per disegnarle (DrawMenuRow) sia per il hit-test
    del mouse (RendererMenuItemAt, chiamata da UpdateApp in src/app/app.c) --
@@ -1289,40 +1340,39 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
 static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
     Rectangle box = BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
-    const char *question = ui->exitAbandonsRun
-        ? "Abbandonare la run in corso? Il progresso non salvato si perde."
-        : "Uscire dal gioco?";
+    /* Tre contesti distinti (DEC-057 + M1b), tutti derivati da 'ui' senza un
+       campo dedicato in piu': MainMenu/Esci ha exitAbandonsRun falso, gli
+       altri due lo hanno vero e si distinguono da ui->openedFrom (chi ha
+       aperto ExitConfirm, gia' scritto da UpdateApp prima del cambio di
+       stato). */
+    const char *question = !ui->exitAbandonsRun
+        ? "Uscire dal gioco?"
+        : (ui->openedFrom == APP_FLOOR_ZERO
+            ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
+            : "Abbandonare la run in corso? Il progresso non salvato si perde.");
     DrawText(question, (int)box.x + 40, (int)box.y + 56, 16, (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
     DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);
 }
 
-/* Generazione bloccante ospitata dentro FloorZero (M1a, invariato rispetto a
-   prima: qui il testo diventa lo sprite, poi entrambi diventano la run
-   giocabile -- vedi il case APP_FLOOR_ZERO in UpdateApp). La sala d'attesa
-   giocabile con questo indicatore come overlay dentro l'hub arriva in M1b. */
-static void DrawGeneratingOverlay(const Game *game, const GenProgress *progress)
+/* Indicatore di generazione DENTRO il Piano 0 (M1b, ui/generation-status.md):
+   una riga discreta, MAI un overlay modale -- la generazione ormai non
+   blocca piu' nulla (vedi il case APP_FLOOR_ZERO in UpdateApp), quindi non
+   deve piu' oscurare la scena ne' rubare l'input. Niente percentuali/barre
+   (KB: "preferire messaggi descrittivi stabili a barre di progresso
+   ingannevoli") -- 'status->message' arriva gia' composto da
+   AppFloorZeroStatusText (src/app/app.c), uno dei tre messaggi canonici
+   della KB; qui ci si limita a mostrarlo. 'status' NULL o messaggio vuoto =
+   nulla da disegnare (mai un riquadro vuoto). */
+static void DrawFloorZeroIndicator(Rectangle gameRect, const GenProgress *status)
 {
-    int sw = GetScreenWidth();
-    int sh = GetScreenHeight();
-    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 200));
-    Rectangle box = { sw*0.5f - 320.0f, sh*0.5f - 130.0f, 640.0f, 260.0f };
-    DrawRectangleRec(box, (Color){ 20, 22, 29, 246 });
-    DrawRectangleLinesEx(box, 2.0f, game->theme.accent2);
-    const char *title = "GENERAZIONE RUN";
-    DrawText(title, (int)(box.x + box.width*0.5f - MeasureText(title, 30)*0.5f), (int)box.y + 28, 30, RAYWHITE);
-
-    const char *phase = progress ? progress->phase : "avvio";
-    int percent = progress ? progress->percent : 0;
-    DrawText(TextFormat("%s  %d%%", phase, percent), (int)box.x + 60, (int)box.y + 84, 18, game->theme.accent2);
-
-    Rectangle bar = { box.x + 60.0f, box.y + 116.0f, box.width - 120.0f, 26.0f };
-    DrawRectangleRec(bar, (Color){ 35, 38, 48, 255 });
-    DrawRectangleRec((Rectangle){ bar.x, bar.y, bar.width*(float)percent/100.0f, bar.height }, game->theme.accent2);
-    DrawRectangleLinesEx(bar, 2.0f, RAYWHITE);
-
-    DrawText(progress ? progress->message : "", (int)box.x + 60, (int)box.y + 158, 16, RAYWHITE);
-    DrawText("ESC annulla e torna al menu", (int)box.x + 60, (int)box.y + 206, 15, (Color){ 155, 163, 176, 255 });
+    const char *text = (status && status->message[0]) ? status->message : NULL;
+    if (!text) return;
+    int tw = MeasureText(text, 16);
+    Rectangle box = { gameRect.x + gameRect.width*0.5f - ((float)tw*0.5f + 16.0f), gameRect.y + 40.0f, (float)tw + 32.0f, 30.0f };
+    DrawRectangleRec(box, (Color){ 16, 18, 24, 205 });
+    DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 200 });
+    DrawText(text, (int)box.x + 16, (int)box.y + 7, 16, RAYWHITE);
 }
 
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
@@ -1353,7 +1403,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
     {
         case APP_MAIN_MENU: DrawMainMenuOverlay(game, ui); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
-        case APP_FLOOR_ZERO: DrawGeneratingOverlay(game, genProgress); break;
+        case APP_FLOOR_ZERO: DrawFloorZeroIndicator(layout.gameRect, genProgress); break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
         case APP_OPTIONS: DrawOptionsOverlay(game, ui); break;

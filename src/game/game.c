@@ -14,6 +14,31 @@ void GameSetMessage(Game *game, const char *message)
     game->messageTimer = 3.2f;
 }
 
+void GamePlayerResetBaseStats(Player *player)
+{
+    player->radius = 14.0f;
+    player->hp = 6;
+    player->coins = 3;
+    player->bombs = 2;
+    player->keys = 1;
+    /* Valori di PARTENZA del sistema delle cache (spec, sezione 7): non
+       vengono piu' assegnati direttamente ai campi "vivi" (damage,
+       fireDelay, shotSpeed, shotRadius, speed, maxHp). ScriptItemsInit del
+       chiamante li deriva chiamando ScriptItemsRecomputeStats con zero
+       oggetti posseduti, che per costruzione produce esattamente questi
+       stessi numeri (nessun cambiamento di comportamento per una run senza
+       oggetti). */
+    player->baseDamage = 8.0f;
+    player->baseFireDelay = 0.23f;
+    player->baseShotSpeed = 520.0f;
+    player->baseShotRadius = 5.0f;
+    player->baseSpeed = 224.0f;
+    player->baseMaxHp = 6;
+    /* Step C: la fortuna parte da zero (esplicita come le altre, perche' "da
+       dove parte una statistica" si deve leggere qui e in nessun altro posto). */
+    player->baseLuck = 0.0f;
+}
+
 void GameResetRun(Game *game)
 {
     GameUnloadAssets(game);
@@ -22,28 +47,7 @@ void GameResetRun(Game *game)
     RunContentLoad(&game->content, game->rng);
     AssetsLoad(game);
     game->phase = PHASE_PLAY;
-    game->player.radius = 14.0f;
-    game->player.hp = 6;
-    game->player.coins = 3;
-    game->player.bombs = 2;
-    game->player.keys = 1;
-    /* Valori di PARTENZA del sistema delle cache (spec, sezione 7): non
-       vengono piu' assegnati direttamente ai campi "vivi" (damage,
-       fireDelay, shotSpeed, shotRadius, speed, maxHp). ScriptItemsInit sotto
-       li deriva chiamando ScriptItemsRecomputeStats con zero oggetti
-       posseduti, che per costruzione produce esattamente questi stessi
-       numeri (nessun cambiamento di comportamento per una run senza
-       oggetti). */
-    game->player.baseDamage = 8.0f;
-    game->player.baseFireDelay = 0.23f;
-    game->player.baseShotSpeed = 520.0f;
-    game->player.baseShotRadius = 5.0f;
-    game->player.baseSpeed = 224.0f;
-    game->player.baseMaxHp = 6;
-    /* Step C: la fortuna parte da zero (il memset sopra la azzera gia': la riga
-       e' esplicita come le altre, perche' "da dove parte una statistica" si deve
-       leggere qui e in nessun altro posto). */
-    game->player.baseLuck = 0.0f;
+    GamePlayerResetBaseStats(&game->player);
     ScriptItemsInit(game);
     WorldStartFloor(game, 1);
 }

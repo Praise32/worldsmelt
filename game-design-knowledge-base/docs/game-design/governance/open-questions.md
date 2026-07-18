@@ -50,3 +50,7 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 
 12. Dettagli dell'interfaccia della scelta binaria completo/solo-curato al primo avvio (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva la generazione per chi ha scelto solo curato inizialmente. (DEC-070 fissa solo il principio e il punto in cui avviene la scelta, non l'interfaccia esatta.)
 13. Un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) che diventa una Reliquia dopo un aggiornamento (DEC-069): resta esposto nel museo o ne esce automaticamente?
+
+## Stati e flusso
+
+14. Abbandono del Piano 0: la mappa canonica non prevede un arco FloorZero → MainMenu; l'implementazione attuale usa ESC → ExitConfirm (abbandona la preparazione). Va sancito o sostituito?

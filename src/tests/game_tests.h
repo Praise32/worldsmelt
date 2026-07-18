@@ -12,6 +12,22 @@ bool GamePortalRespawnTest(Game *game);
    (src/app/app_internal.h) direttamente con AppInput sintetici -- mai
    IsKeyPressed. Vedi src/tests/game_tests.c per l'elenco degli scenari. */
 bool GameStatesTest(Game *game);
+
+/* M1b: la sala d'attesa giocabile del Piano 0 (systems/floor-zero.md,
+   ui/generation-status.md). Come GameStatesTest, chiama UpdateApp
+   direttamente con AppInput sintetici (mai IsKeyPressed) e gira dopo
+   InitWindow; usa pero' un AppGen con generazione ABILITATA e
+   tests/fake-gen.sh come comando (stesso finto generatore di
+   GenRunnerSelfTest sotto), per esercitare davvero la pipeline in
+   sottofondo -- non solo il caso "gen disabilitata" gia' coperto da
+   GameStatesTest. Vedi src/tests/game_tests.c per i quattro scenari. */
+bool GameFloorZeroTest(Game *game);
+
+/* SOLO manuale (mai in make test): entra nel Piano 0 con gen disabilitata
+   (uscita aperta subito) e scatta logs/worldsmelt-floorzero-screen.png,
+   stessa tradizione degli altri *ScreenshotTest di questo file. */
+bool GameFloorZeroScreenshotTest(Game *game);
+
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
 bool GameAtlasFallbackTest(Game *game);

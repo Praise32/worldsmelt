@@ -19,6 +19,7 @@ const char *GameRoomKindName(RoomKind kind)
         case ROOM_TREASURE: return "tesoro";
         case ROOM_SHOP: return "negozio";
         case ROOM_BOSS: return "boss";
+        case ROOM_HUB: return "crogiolo";
         default: return "vuota";
     }
 }
@@ -376,7 +377,25 @@ void WorldHandleTransitions(Game *game, Vector2 move)
     float cx = ROOM_X + ROOM_W*0.5f;
     float cy = ROOM_Y + ROOM_H*0.5f;
     float edge = game->player.radius + 7.0f;
-    if (move.y < -0.1f && game->player.pos.y <= ROOM_Y + edge && fabsf(game->player.pos.x - cx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_UP);
+    bool pressingTop = move.y < -0.1f && game->player.pos.y <= ROOM_Y + edge && fabsf(game->player.pos.x - cx) < DOOR_HALF;
+
+    /* Piano 0 (M1b, src/world/floor_zero.c): il varco verso il piano 1 usa la
+       STESSA geometria di trigger di una porta normale (il giocatore preme
+       contro il muro di fondo), ma non e' una porta -- la stanza hub non ha
+       vicini (FloorZeroEnter lascia doors[] tutto falso), quindi passare da
+       WorldTryEnterRoom fallirebbe silenziosamente su 'next->exists' falso.
+       Qui si segnala solo l'evento (letto e consumato da UpdateApp, mai da
+       qui: src/app possiede lo stato della generazione, vedi il commento su
+       Game.floorZeroExitCrossed in core/game_types.h). A uscita CHIUSA non
+       succede nulla: il varco chiuso e' solido, il clamp del giocatore ai
+       bordi della stanza (CombatUpdatePlayer) basta gia' da solo a fermarlo. */
+    if (game->floor == 0)
+    {
+        if (pressingTop && game->floorZeroExitOpen) game->floorZeroExitCrossed = true;
+        return;
+    }
+
+    if (pressingTop) WorldTryEnterRoom(game, DIR_UP);
     else if (move.y > 0.1f && game->player.pos.y >= ROOM_BOTTOM - edge && fabsf(game->player.pos.x - cx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_DOWN);
     else if (move.x < -0.1f && game->player.pos.x <= ROOM_X + edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_LEFT);
     else if (move.x > 0.1f && game->player.pos.x >= ROOM_RIGHT - edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_RIGHT);

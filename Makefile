@@ -136,6 +136,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --script-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --portal-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --states-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --floor-zero-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
