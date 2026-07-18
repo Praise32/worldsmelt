@@ -231,21 +231,47 @@ typedef struct ScriptItemsStatsAccum
 #define SCRIPT_ITEMS_SPEED_MIN       60.0f
 #define SCRIPT_ITEMS_SPEED_MAX       600.0f
 #define SCRIPT_ITEMS_MAX_HP_MIN      1.0f
+/* M6a (DEC-033): il tetto vero di maxHp non e' piu' un assoluto -- e'
+   Player.hpCap, proprio di ciascun personaggio (vedi il commento su quel
+   campo in core/game_types.h). Questo resta il valore STORICO, usato SOLO
+   quando hpCap non e' impostato (<=0: un Player azzerato con memset, come
+   fanno ancora molti test costruiti a mano senza passare da
+   GamePlayerResetBaseStatsFor), vedi ScriptItemsHpCap sotto: e' cio' che
+   garantisce che nessun test esistente cambi risultato. */
 #define SCRIPT_ITEMS_MAX_HP_MAX      12.0f
+/* Guardia di motore ASSOLUTA (M6a): a prescindere da quanto generoso sia
+   hpCap di un personaggio -- curato oggi (rosa base, DEC-030), generato
+   domani entro bande di default da playtest (personaggio alternativo per
+   run, DEC-014/033, M6b) -- nessun personaggio puo' mai superare QUESTO
+   valore. E' la rete di sicurezza del motore (protegge da un hpCap
+   corrotto o da bande di generazione future troppo larghe), non un valore
+   di design: quello resta hpCap, deciso per-personaggio. */
+#define SCRIPT_ITEMS_MAX_HP_ABSOLUTE_MAX 24.0f
 /* Fortuna (step C): banda alla Isaac. Puo' andare in negativo (un oggetto puo'
    costare fortuna in cambio d'altro) ma non sotto -5, e non oltre +15: oltre
    quella soglia ogni effetto a probabilita' sarebbe di fatto garantito. */
 #define SCRIPT_ITEMS_LUCK_MIN        (-5.0f)
 #define SCRIPT_ITEMS_LUCK_MAX        15.0f
 
-static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc)
+/* M6a (DEC-033): tetto EFFETTIVO di maxHp per QUESTO player -- p->hpCap se
+   impostato (>0), altrimenti il tetto storico assoluto (nessun personaggio
+   applicato, vedi il commento sul campo). Passa comunque dalla guardia di
+   motore assoluta: un hpCap corrotto o fuori banda non puo' mai superarla. */
+static float ScriptItemsHpCap(const Player *p)
+{
+    float cap = (p->hpCap > 0) ? (float)p->hpCap : SCRIPT_ITEMS_MAX_HP_MAX;
+    if (cap > SCRIPT_ITEMS_MAX_HP_ABSOLUTE_MAX) cap = SCRIPT_ITEMS_MAX_HP_ABSOLUTE_MAX;
+    return cap;
+}
+
+static void ScriptItemsClampStats(ScriptItemsStatsAccum *acc, float hpCap)
 {
     acc->damage     = GameMathClampFloat(acc->damage,     SCRIPT_ITEMS_DAMAGE_MIN,      SCRIPT_ITEMS_DAMAGE_MAX);
     acc->fireDelay  = GameMathClampFloat(acc->fireDelay,  SCRIPT_ITEMS_FIRE_DELAY_MIN,  SCRIPT_ITEMS_FIRE_DELAY_MAX);
     acc->shotSpeed  = GameMathClampFloat(acc->shotSpeed,  SCRIPT_ITEMS_SHOT_SPEED_MIN,  SCRIPT_ITEMS_SHOT_SPEED_MAX);
     acc->shotRadius = GameMathClampFloat(acc->shotRadius, SCRIPT_ITEMS_SHOT_RADIUS_MIN, SCRIPT_ITEMS_SHOT_RADIUS_MAX);
     acc->speed      = GameMathClampFloat(acc->speed,      SCRIPT_ITEMS_SPEED_MIN,       SCRIPT_ITEMS_SPEED_MAX);
-    acc->maxHp      = GameMathClampFloat(acc->maxHp,      SCRIPT_ITEMS_MAX_HP_MIN,      SCRIPT_ITEMS_MAX_HP_MAX);
+    acc->maxHp      = GameMathClampFloat(acc->maxHp,      SCRIPT_ITEMS_MAX_HP_MIN,      hpCap);
     acc->luck       = GameMathClampFloat(acc->luck,       SCRIPT_ITEMS_LUCK_MIN,        SCRIPT_ITEMS_LUCK_MAX);
 }
 
@@ -496,6 +522,7 @@ void ScriptItemsProcessDirty(Game *game)
 void ScriptItemsRecomputeStats(Game *game)
 {
     Player *p = &game->player;
+    float hpCap = ScriptItemsHpCap(p);   /* M6a (DEC-033): per-personaggio, vedi il commento sopra */
     ScriptItemsStatsAccum acc = {
         p->baseDamage, p->baseFireDelay, p->baseShotSpeed, p->baseShotRadius, p->baseSpeed, (float)p->baseMaxHp,
         p->baseLuck
@@ -522,7 +549,7 @@ void ScriptItemsRecomputeStats(Game *game)
     {
         const Item *item = &p->items[i];
         ScriptItemsApplyBuiltin(&acc, item);
-        ScriptItemsClampStats(&acc);
+        ScriptItemsClampStats(&acc, hpCap);
 
         if (item->shotType.active)
         {
@@ -550,7 +577,7 @@ void ScriptItemsRecomputeStats(Game *game)
                 if (isStatUp) ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
                 ranLuaEval = true;
             }
-            ScriptItemsClampStats(&acc);   /* di nuovo: anche dopo un fallimento, per sicurezza in profondita' */
+            ScriptItemsClampStats(&acc, hpCap);   /* di nuovo: anche dopo un fallimento, per sicurezza in profondita' */
         }
 
         /* Ripiego "mai un dud" (task brief, fase 3): un oggetto STAT-UP
@@ -565,7 +592,7 @@ void ScriptItemsRecomputeStats(Game *game)
             ScriptItemsStatsAccum pre = acc;
             ScriptItemsApplyStatUpFallback(&acc, item, item->rarity);
             ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
-            ScriptItemsClampStats(&acc);
+            ScriptItemsClampStats(&acc, hpCap);
         }
     }
 
@@ -610,7 +637,7 @@ void ScriptItemsRecomputeStats(Game *game)
     acc.fireDelay *= bonus.fireDelayMul;
     acc.shotSpeed *= bonus.shotSpeedMul;
     acc.luck      += bonus.luckAdd;
-    ScriptItemsClampStats(&acc);
+    ScriptItemsClampStats(&acc, hpCap);
 
     /* La curva dei rendimenti decrescenti (step C) va QUI, dopo l'ultimo oggetto
        (e dopo le sinergie: anche il loro contributo e' danno, e deve rispettare
@@ -620,7 +647,7 @@ void ScriptItemsRecomputeStats(Game *game)
        tetto, ma il pavimento va comunque garantito per un baseDamage patologico
        (0 o negativo) che nessuno dovrebbe mai impostare. */
     acc.damage = ScriptItemsDamageCurve(acc.damage, p->baseDamage);
-    ScriptItemsClampStats(&acc);
+    ScriptItemsClampStats(&acc, hpCap);
 
     p->damage = acc.damage;
     p->fireDelay = acc.fireDelay;

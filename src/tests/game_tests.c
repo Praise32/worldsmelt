@@ -59,6 +59,7 @@ static AppInput InputNone(void)    { AppInput in = { 0 }; return in; }
 static AppInput InputConfirm(void) { AppInput in = { 0 }; in.confirm = true; return in; }
 static AppInput InputBack(void)    { AppInput in = { 0 }; in.back = true; return in; }
 static AppInput InputDown(void)    { AppInput in = { 0 }; in.down = true; return in; }
+static AppInput InputUp(void)      { AppInput in = { 0 }; in.up = true; return in; }   /* M6a: cambia sezione nel pannello combinato del Piano 0 */
 static AppInput InputTab(void)     { AppInput in = { 0 }; in.tab = true; return in; }
 static AppInput InputLeft(void)    { AppInput in = { 0 }; in.left = true; return in; }   /* M5: pannello di scelta del tema */
 static AppInput InputRight(void)   { AppInput in = { 0 }; in.right = true; return in; }
@@ -741,12 +742,13 @@ bool GameShotFormsScreenshotTest(Game *game)
     return textureValid && game->player.shotType.active && game->player.synergies != 0u;
 }
 
-/* M1b/M5, SOLO manuale (--floor-zero-screenshot-test, mai in make test:
+/* M1b/M5/M6a, SOLO manuale (--floor-zero-screenshot-test, mai in make test:
    stessa tradizione degli screenshot sopra, "per l'occhio del proprietario").
    Gen disabilitata: le carte curate lato gioco compaiono SUBITO all'ingresso
    (AppUseFallbackThemeCards, vedi AppEnterFloorZero in src/app/app.c) -- il
    pannello si apre a mano (TAB) cosi' lo screenshot mostra DAVVERO le carte
-   (requisito 13 della spec M5), non solo l'indicatore testuale. */
+   (requisito 13 della spec M5), non solo l'indicatore testuale. M6a: due
+   scatti, uno per sezione del pannello combinato (MONDI/PERSONAGGI). */
 bool GameFloorZeroScreenshotTest(Game *game)
 {
     AppGen gen = { 0 };   /* enabled=false: le carte curate compaiono subito */
@@ -776,10 +778,24 @@ bool GameFloorZeroScreenshotTest(Game *game)
     snprintf(status.message, sizeof(status.message), "In attesa della scelta del mondo -- TAB per le carte.");
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    /* Sezione MONDI, quella con cui il pannello si apre di default
+       (FloorZeroEnter, floorZeroPanelSection = FLOOR_ZERO_PANEL_WORLDS). */
     RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-floorzero-screen.png");
-    bool textureValid = canvas.texture.id != 0;
+    bool worldsTextureValid = canvas.texture.id != 0;
+
+    /* M6a, requisito 4 della spec ("--floor-zero-screenshot-test: aggiornato
+       per mostrare anche la sezione PERSONAGGI"): un secondo scatto, stesso
+       pannello ma sull'altra sezione (su, wrap fra le due) -- una schedina
+       resta selezionata (SCELTO, il preselezionato di default) mentre il
+       focus e' sulla schedina 1, cosi' lo screenshot mostra ANCHE il
+       segnale di selezione distinto dal focus (requisito 3). */
+    { AppInput in = InputUp();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* MONDI -> PERSONAGGI */
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus sul personaggio 1, diverso dal preselezionato 0 */
+    RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-floorzero-characters-screen.png");
+    bool charactersTextureValid = canvas.texture.id != 0;
+
     UnloadRenderTexture(canvas);
-    return textureValid;
+    return worldsTextureValid && charactersTextureValid;
 }
 
 /* M4, SOLO manuale: stesso scenario di GameFloorZeroScreenshotTest sopra
@@ -1130,6 +1146,104 @@ bool GameFloorZeroTest(Game *game)
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     if (mode != APP_MAIN_MENU) { fprintf(stderr, "GameFloorZeroTest: (6) conferma da ExitConfirm/FloorZero non torna a MainMenu\n"); return false; }
     if (gen.runner.state == GEN_RUNNER_RUNNING) { fprintf(stderr, "GameFloorZeroTest: (6) il generatore non e' stato cancellato all'abbandono\n"); return false; }
+
+    /* --- scenario 7 (M6a, spec requisito 4a-d): il selettore di personaggio
+       nel pannello combinato. Gen disabilitata, stesso schema sintetico
+       dello scenario 4: le carte-mondo curate compaiono SUBITO, quindi il
+       pannello e' apribile dal primo frame -- niente attesa di un finto
+       generatore, solo la scelta del personaggio conta qui. --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = false;
+    mode = APP_MAIN_MENU;
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (7) Avvia non porta a FloorZero\n"); return false; }
+
+    /* (a) il personaggio 0 (Wayfinder) e' preselezionato all'ingresso, e le
+       sue base* sono gia' applicate al player dell'hub (il giocatore SENTE
+       la velocita' dal primo frame, requisito 1/2 della spec). */
+    if (game->characterChosenIndex != 0)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7a) il personaggio 0 non e' preselezionato (e' %d)\n", game->characterChosenIndex);
+        return false;
+    }
+    if (game->player.speed != 240.0f || game->player.hpCap != 12 || game->player.luck != 0.5f)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7a) le stats del preselezionato (Wayfinder) non sono applicate nell'hub (speed=%.1f hpCap=%d luck=%.2f)\n",
+                game->player.speed, game->player.hpCap, game->player.luck);
+        return false;
+    }
+
+    /* (b) selezionarne un altro nella sezione PERSONAGGI cambia SUBITO le
+       base* nell'hub (Ashblade, indice 1: speed 230, hpCap 8). */
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* apre il pannello, sezione MONDI di default */
+    if (!game->themeCardsPanelOpen) { fprintf(stderr, "GameFloorZeroTest: (7b) TAB non apre il pannello combinato\n"); return false; }
+    { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* MONDI -> PERSONAGGI (wrap fra le due sezioni) */
+    if (game->floorZeroPanelSection != FLOOR_ZERO_PANEL_CHARACTERS)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7b) su non sposta il focus sulla sezione PERSONAGGI\n");
+        return false;
+    }
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus personaggio 0 -> 1 */
+    if (game->characterCardFocus != 1) { fprintf(stderr, "GameFloorZeroTest: (7b) destra non sposta il focus sul personaggio 1\n"); return false; }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* sceglie Ashblade */
+    if (game->characterChosenIndex != 1) { fprintf(stderr, "GameFloorZeroTest: (7b) confirm non sceglie il personaggio col focus\n"); return false; }
+    if (game->player.speed != 230.0f || game->player.hpCap != 8)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7b) la selezione non ha cambiato SUBITO le stats nell'hub (speed=%.1f hpCap=%d)\n",
+                game->player.speed, game->player.hpCap);
+        return false;
+    }
+    if (!game->themeCardsPanelOpen)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7b) confermare un personaggio chiude il pannello (deve restare aperto, a differenza del mondo)\n");
+        return false;
+    }
+
+    /* (d) la sezione PERSONAGGI naviga con wrap (focus 1 -> 0 -> ultimo -> 0)
+       e la selezione e' idempotente (riconfermare lo stesso indice non
+       cambia nulla). */
+    { AppInput in = InputLeft(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterCardFocus != 0) { fprintf(stderr, "GameFloorZeroTest: (7d) sinistra da 1 non porta il focus a 0\n"); return false; }
+    { AppInput in = InputLeft(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterCardFocus != CHARACTER_COUNT - 1)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7d) sinistra da 0 non fa il wrap sull'ultimo personaggio\n");
+        return false;
+    }
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterCardFocus != 0) { fprintf(stderr, "GameFloorZeroTest: (7d) destra dall'ultimo non fa il wrap su 0\n"); return false; }
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* torna sul focus 1 (Ashblade, gia' scelto) */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    float speedAfterReconfirm = game->player.speed;
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* riconferma: idempotente */
+    if (game->characterChosenIndex != 1 || game->player.speed != speedAfterReconfirm)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7d) riconfermare lo stesso personaggio non e' idempotente\n");
+        return false;
+    }
+
+    /* (c) attraversamento: la run parte con le stats E l'hpCap del
+       personaggio scelto -- serve prima scegliere anche il mondo (l'uscita
+       non si apre altrimenti, gating invariato dalla spec M5). */
+    { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PERSONAGGI -> MONDI */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* sceglie il mondo col focus (0) */
+    if (game->themeChosenIndex != 0) { fprintf(stderr, "GameFloorZeroTest: (7c) la scelta del mondo e' fallita\n"); return false; }
+    if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (7c) l'uscita non si apre subito con gen disabilitata\n"); return false; }
+
+    game->floorZeroExitCrossed = true;
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (7c) l'attraversamento non porta a Gameplay\n"); return false; }
+    if (game->characterChosenIndex != 1) { fprintf(stderr, "GameFloorZeroTest: (7c) la run non ricorda il personaggio scelto nell'hub\n"); return false; }
+    if (game->player.speed != 230.0f || game->player.hpCap != 8 || game->player.maxHp != 4)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (7c) la run non parte con le stats/hpCap del personaggio scelto (speed=%.1f hpCap=%d maxHp=%d)\n",
+                game->player.speed, game->player.hpCap, game->player.maxHp);
+        return false;
+    }
 
     return true;
 }

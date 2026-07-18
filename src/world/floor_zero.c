@@ -1,5 +1,6 @@
 #include "world/floor_zero.h"
 
+#include "content/character_roster.h"
 #include "game/game_internal.h"
 #include "script/script_items.h"
 
@@ -71,13 +72,22 @@ void FloorZeroEnter(Game *game)
     game->themeCardFocus = 0;
     game->themeCardsPanelOpen = false;
     game->themeChosenIndex = -1;
+    game->floorZeroPanelSection = FLOOR_ZERO_PANEL_WORLDS;
 
-    /* Il Piano 0 non eredita hp/oggetti/statistiche della run precedente, ne'
-       anticipa quelli della prossima (la scelta del personaggio, DEC-005/
-       DEC-014, e' fuori scope in M1b: vedi la spec): stessi numeri di
-       partenza di una run vera (GamePlayerResetBaseStats, condivisa con
-       GameResetRun apposta, vedi game_internal.h). */
-    GamePlayerResetBaseStats(&game->player);
+    /* M6a (DEC-030/033): il personaggio, a differenza del tema, e' SEMPRE
+       definito per costruzione -- l'indice 0 (Wayfinder) e' il
+       preselezionato d'ingresso (vedi il commento su CharacterDef/su
+       Game.characterChosenIndex in core/game_types.h: assunzione dichiarata,
+       la open question sulla definitivita' della scelta resta aperta). Il
+       Piano 0 non eredita hp/oggetti/statistiche della run precedente ne'
+       anticipa quelli della prossima -- stessi numeri di partenza di una run
+       vera (GamePlayerResetBaseStatsFor, condivisa con GameResetRun apposta,
+       vedi game_internal.h), ma per il personaggio preselezionato: il
+       giocatore SENTE la sua velocita' nell'hub dal primo frame, non solo
+       dopo aver toccato il selettore. */
+    game->characterChosenIndex = 0;
+    game->characterCardFocus = 0;
+    GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(game->characterChosenIndex));
     ScriptItemsInit(game);   /* deriva damage/fireDelay/... dai base* con zero oggetti posseduti */
 
     game->phase = PHASE_PLAY;

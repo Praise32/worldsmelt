@@ -30,11 +30,11 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 ## Valori numerici da playtest
 
 5. I valori proposti in DEC-019 (pesi rarità {55,30,12,3}, pesi boss {0,0,70,30}, bande di potenza colpi/nemici/boss, 4 rarità) sono confermati dal playtest o vanno corretti?
-6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest.)
+6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest. Per la rosa base i tetti non sono bande ma valori FISSI curati — 8/12/16, default proposti dall'implementazione M6a, vedi `systems/characters.md` — le bande restano una domanda aperta solo per il personaggio generato per run, DEC-014/M6b.)
 
 ## Personaggi
 
-7. Composizione esatta della rosa dei personaggi base: nomi, ruoli precisi oltre alle indicazioni offensivo/difensivo/esploratore, e condizioni esatte di sblocco di ciascuno (DEC-030 fissa solo il principio di una rosa di 2-3 personaggi curati, sbloccabili presto).
+7. Composizione esatta della rosa dei personaggi base: nomi, ruoli precisi oltre alle indicazioni offensivo/difensivo/esploratore, e condizioni esatte di sblocco di ciascuno (DEC-030 fissa solo il principio di una rosa di 2-3 personaggi curati, sbloccabili presto). L'implementazione M6a propone dei default (Wayfinder/Ashblade/Bulwark, vedi `systems/characters.md`, blocco "Default proposti dall'implementazione"): nomi, ruoli e statistiche sono un punto di partenza giocabile, non ancora approvati dal design; la domanda resta aperta.
 
 ## Multiplayer
 

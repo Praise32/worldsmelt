@@ -247,6 +247,47 @@ typedef struct ThemeCard {
     char blurb[200];
 } ThemeCard;
 
+/* M6a (DEC-030/033/049, rosa base di personaggi): scheda CURATA di un
+ * personaggio della rosa fissa (2-3, mai generata: quella e' il personaggio
+ * alternativo per-run, DEC-014/037, fuori scope qui). I dati veri (i
+ * CHARACTER_COUNT elementi) vivono in src/content/character_roster.c,
+ * NON qui -- questo header resta solo la FORMA condivisa (come Theme/Item
+ * sopra), coerente con AGENTS.md ("costanti/tipi condivisi in core, i dati
+ * in un modulo dedicato"). 'hpCap' e' il tetto di salute BASE proprio di
+ * questo personaggio (DEC-033): ScriptItemsRecomputeStats lo usa al posto
+ * del tetto globale storico [1,12], che resta il ripiego SOLO quando nessun
+ * personaggio e' stato applicato (vedi il commento su Player.hpCap sotto).
+ * 'palette' e' il colore con cui DrawBaseStickman tinge lo stickman di
+ * questo personaggio (DEC-058-friendly: mai l'unico segnale di selezione,
+ * solo un tocco identitario in piu' -- il focus/la selezione nel pannello
+ * restano bordo+scala+indicatore, vedi DrawFloorZeroPanel). Nomi in inglese
+ * (DEC-052), niente termine riservato della nomenclatura in-game (vedi
+ * governance/glossary.md). */
+#define CHARACTER_COUNT 3
+/* Le due sezioni del pannello combinato del Piano 0 (M6a, requisito 3):
+ * su/giu' passa dall'una all'altra, sinistra/destra sposta il focus DENTRO
+ * la sezione attiva. Interi semplici (non un enum) perche' Game.
+ * floorZeroPanelSection deve restare un campo POD azzerabile con memset
+ * come il resto di Game, e 0 (MONDI) e' gia' il valore giusto di default
+ * all'ingresso in FloorZero, senza bisogno di uno zero-default diverso da
+ * "il primo dei due". */
+#define FLOOR_ZERO_PANEL_WORLDS 0
+#define FLOOR_ZERO_PANEL_CHARACTERS 1
+typedef struct CharacterDef {
+    char name[32];
+    char role[24];
+    char blurb[160];
+    float baseDamage;
+    float baseFireDelay;
+    float baseShotSpeed;
+    float baseShotRadius;
+    float baseSpeed;
+    int baseMaxHp;
+    int hpCap;
+    float baseLuck;
+    Color palette;
+} CharacterDef;
+
 typedef struct Theme {
     char name[64];
     char style[48];
@@ -398,6 +439,18 @@ typedef struct Player {
     float baseSpeed;
     int baseMaxHp;
     float baseLuck;   /* 0 di partenza (step C): la fortuna e' un bonus, mai un requisito */
+    /* M6a (DEC-033): tetto di salute BASE proprio del personaggio applicato
+       (GamePlayerResetBaseStatsFor, src/game/game.c) -- ScriptItemsRecomputeStats
+       clampa maxHp a [SCRIPT_ITEMS_MAX_HP_MIN, hpCap] invece del vecchio tetto
+       assoluto [1,12]. <=0 significa "nessun personaggio applicato" (un Player
+       azzerato con memset, come fanno ancora molti test che costruiscono un
+       Game a mano senza passare da GamePlayerResetBaseStatsFor): in quel caso
+       script_items.c ripiega sul tetto STORICO 12, cosi' nessun test esistente
+       cambia esito. Non e' un tetto per-oggetto (quelli restano relativi a
+       baseMaxHp, invariati) ne' tocca la salute temporanea/protettiva
+       (Crust, DEC-008), che non e' rappresentata da un campo separato in
+       questa versione del motore e quindi non e' mai soggetta a QUESTO clamp. */
+    int hpCap;
 } Player;
 
 typedef struct Enemy {
@@ -616,8 +669,40 @@ typedef struct Game {
     ThemeCard themeCards[THEME_CARD_MAX];
     int themeCardCount;
     int themeCardFocus;
+    /* M6a: 'themeCardsPanelOpen' apre/chiude ora il pannello COMBINATO
+       MONDI/PERSONAGGI (stesso tasto TAB, requisito 3 della spec M6a:
+       "nessun tasto nuovo") -- il nome resta quello di M5 per non muovere
+       tutti i punti che gia' lo leggono/scrivono, ma dal M6a in poi governa
+       entrambe le sezioni. 'floorZeroPanelSection' (FLOOR_ZERO_PANEL_WORLDS/
+       _CHARACTERS sopra) dice quale sezione ha il focus da tastiera in
+       QUESTO momento: su/giu' la cambia, sinistra/destra e conferma
+       agiscono SOLO dentro quella attiva. A differenza del tema (una scelta
+       sola, mai piu' modificabile dopo AppConfirmThemeChoice), il pannello
+       resta apribile e la sezione PERSONAGGI resta interattiva anche DOPO
+       che il mondo e' stato scelto -- il personaggio e' "sempre" scegliebile
+       finche' non si attraversa l'uscita (floor-zero.md, riga del
+       Selettore personaggio: "Abilitato quando: Sempre"). */
     bool themeCardsPanelOpen;
     int themeChosenIndex;
+    int floorZeroPanelSection;
+    /* M6a (DEC-030/033): il personaggio scelto nel Piano 0, indice dentro
+       la rosa curata (CharacterRosterGet, src/content/character_roster.h).
+       A differenza di themeChosenIndex, NON parte da -1: FloorZeroEnter lo
+       preseleziona SUBITO a 0 (Wayfinder, l'indice piu' vicino allo storico,
+       vedi il commento li') cosi' "nessuno dei tre elementi [mondo, pipeline,
+       personaggio] resta indefinito" resta vero anche senza una conferma
+       esplicita (assunzione dichiarata, la open question sulla definitivita'
+       della scelta resta aperta) -- la rosa base non ha un equivalente del
+       "rifiuta e resta indefinito" del tema. 'characterCardFocus' e'
+       l'indice col focus da tastiera DENTRO la sezione PERSONAGGI, stesso
+       schema di themeCardFocus. Applicato SUBITO alla selezione (nell'hub,
+       GamePlayerResetBaseStatsFor via AppConfirmCharacterChoice, src/app/
+       app.c) e di nuovo dopo GameResetRun all'attraversamento (che azzera
+       tutto il resto di Game con un memset: il case APP_FLOOR_ZERO in
+       app.c cattura l'indice PRIMA di quella chiamata e lo riapplica
+       subito dopo, vedi il commento li'). */
+    int characterChosenIndex;
+    int characterCardFocus;
     GamePhase phase;
     unsigned int rng;
     int floor;

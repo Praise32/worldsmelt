@@ -2154,6 +2154,93 @@ static bool TestPerformance(void)
     return ok;
 }
 
+/* ============================================================
+   Test AO (M6a, DEC-033): tetto di salute base PER-PERSONAGGIO
+   ============================================================ */
+
+/* Oggetto stat-up SENZA Lua (luaSource vuoto): niente sandbox, il ricalcolo
+   passa dritto al ripiego fisso C (ScriptItemsApplyStatUpFallback,
+   src/script/script_items.c) col trait VAMP -- lo stesso trait che
+   ScriptItemsApplyBuiltin usa gia' per il bonus builtin +1 fisso. Rarita'
+   LEGGENDARIA (fraction 0.60) per crescere in fretta: basta un manciata di
+   oggetti per superare il vecchio tetto storico 12 quando hpCap lo
+   permette. Isola il clamp GLOBALE (oggetto di questo test): il tetto
+   per-oggetto e' gia' coperto da TestStatUpClampedToPerItemCap/
+   TestRarityCapDiffersFromCommonToLegendary sopra. */
+static void TestAddHeartStatUp(Game *game, int index)
+{
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_STATUP;
+    item.rarity = RARITY_LEGENDARY;
+    item.slot = SLOT_HAT;
+    item.traits = TRAIT_VAMP;
+    snprintf(item.name, sizeof(item.name), "Cuore %d", index);
+    TestAddItem(game, item);
+}
+
+/* Test AO: DEC-033 dice che il tetto di salute base e' PROPRIO di ciascun
+ * personaggio, non un valore unico condiviso -- prima di M6a era un
+ * assoluto [1,12] (SCRIPT_ITEMS_MAX_HP_MAX). Tre scenari, stesso script di
+ * quattro cuori leggendari applicato a Player.hpCap diversi:
+ * personaggio-roccia (hpCap 16) supera 12 e si ferma a 16, personaggio-vetro
+ * (hpCap 8) non supera mai 8, e SENZA alcun personaggio (hpCap non
+ * impostato, com'era prima di M6a) il tetto resta lo storico 12 --
+ * non-regressione esplicita. Un quarto controllo copre DEC-008: la salute
+ * NON e' soggetta a un tetto diverso a seconda di come cresce -- lo stesso
+ * hpCap vale sia per gli stat-up SIA per un cuore raccolto (CombatUpdatePickups,
+ * il percorso VERO di gioco, non una reimplementazione della formula) --
+ * questo motore non ha ancora un campo separato per la salute
+ * temporanea/protettiva (Crust, vedi il commento su Player.hpCap in
+ * core/game_types.h), quindi e' l'unica cosa verificabile per davvero oggi. */
+static bool TestHpCapIsPerCharacter(void)
+{
+    bool ok = true;
+
+    /* Personaggio-roccia: hpCap 16, baseMaxHp 8. */
+    Game rock = MakeBaseGame(7001u);
+    rock.player.baseMaxHp = 8;
+    rock.player.hp = 8;
+    rock.player.hpCap = 16;
+    for (int i = 0; i < 4; i++) TestAddHeartStatUp(&rock, i);
+    printf("  [AO-roccia] hpCap=16, baseMaxHp=8, 4 cuori leggendari -> maxHp=%d (atteso 16, oltre il vecchio storico 12)\n", rock.player.maxHp);
+    if (rock.player.maxHp != 16) { printf("      FALLITO: il personaggio-roccia non ha raggiunto il proprio tetto (16)\n"); ok = false; }
+    if (rock.player.maxHp <= 12) { printf("      FALLITO: il personaggio-roccia e' rimasto sotto il vecchio tetto storico (12): il tetto non e' per-personaggio\n"); ok = false; }
+
+    /* DEC-008: un cuore raccolto (percorso VERO: EntitiesAddPickup +
+       CombatUpdatePickups, non una copia della formula) non supera MAI
+       hpCap, nemmeno con un valore assurdo -- niente guarigione "fuori
+       tetto" che scavalchi DEC-033 passando da un pickup invece che da uno
+       stat-up. */
+    EntitiesAddPickup(&rock, PICKUP_HEART, rock.player.pos, 1000, 0);
+    CombatUpdatePickups(&rock);
+    printf("  [AO-roccia/DEC-008] cuore da +1000 -> hp=%d (atteso 16, mai oltre il tetto del personaggio)\n", rock.player.hp);
+    if (rock.player.hp != 16) { printf("      FALLITO: un cuore raccolto ha scavalcato il tetto per-personaggio\n"); ok = false; }
+    ScriptItemsShutdown(&rock);
+
+    /* Personaggio-vetro: hpCap 8, baseMaxHp 4 -- stesso script di 4 cuori
+       leggendari, mai oltre 8 (a differenza della roccia sopra). */
+    Game glass = MakeBaseGame(7002u);
+    glass.player.baseMaxHp = 4;
+    glass.player.hp = 4;
+    glass.player.hpCap = 8;
+    for (int i = 0; i < 4; i++) TestAddHeartStatUp(&glass, i);
+    printf("  [AO-vetro] hpCap=8, baseMaxHp=4, 4 cuori leggendari -> maxHp=%d (atteso 8, mai oltre)\n", glass.player.maxHp);
+    if (glass.player.maxHp != 8) { printf("      FALLITO: il personaggio-vetro ha superato (o non raggiunto) il proprio tetto (8)\n"); ok = false; }
+    ScriptItemsShutdown(&glass);
+
+    /* Senza personaggio (hpCap non impostato: MakeBaseGame non lo tocca,
+       esattamente come nessun test precedente a M6a) -- il tetto resta lo
+       storico 12, la non-regressione che la spec M6a richiede esplicitamente. */
+    Game none = MakeBaseGame(7003u);
+    for (int i = 0; i < 4; i++) TestAddHeartStatUp(&none, i);
+    printf("  [AO-nessuno] hpCap non impostato -> maxHp=%d (atteso 12, il tetto storico invariato)\n", none.player.maxHp);
+    if (none.player.maxHp != 12) { printf("      FALLITO: senza personaggio il tetto storico 12 e' cambiato -- regressione\n"); ok = false; }
+    ScriptItemsShutdown(&none);
+
+    return ok;
+}
+
 bool ScriptItemsSelfTest(void)
 {
     struct { const char *label; bool (*fn)(void); } tests[] = {
@@ -2197,6 +2284,7 @@ bool ScriptItemsSelfTest(void)
         { "AL (3c: round-trip testo<->enum delle forme di layout, sincronizzato con run.gbnf)", TestRoomFormTextRoundTrip },
         { "AM (3c: gli ostacoli fermano il movimento del giocatore e i colpi, non sono decorazione)", TestObstaclesBlockMovementAndShots },
         { "AN (review 3c: un ostacolo a ridosso del muro non spinge un'entita' oltre il bordo)", TestObstacleAgainstWallDoesNotPushThroughIt },
+        { "AO (M6a, DEC-033: il tetto di salute base e' per-personaggio -- roccia 16, vetro 8, nessuno 12; DEC-008 sul percorso pickup)", TestHpCapIsPerCharacter },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

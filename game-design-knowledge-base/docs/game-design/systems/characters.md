@@ -46,7 +46,45 @@ Il personaggio alternativo generato per run (vedi sotto) non sostituisce la rosa
 scelta nel Piano 0 avviene tra i personaggi della rosa (quelli già sbloccati) più
 l'eventuale alternativa generata per quella run.
 
+### Default proposti dall'implementazione (stile DEC-019, M6a)
+
+Come i valori numerici di DEC-019 (pesi rarità, bande di potenza), questi sono **default
+proposti in fase di implementazione** per rendere la rosa giocabile subito, non ancora
+numeri approvati dal design: restano da validare col playtest (vedi Domande aperte residue
+e `../governance/open-questions.md` punto 7).
+
+| | Wayfinder | Ashblade | Bulwark |
+|---|---|---|---|
+| Ruolo | Explorer | Offensive | Defensive |
+| Danno base | 8.0 | 10.0 | 7.0 |
+| Cadenza base | 0.23s | 0.21s | 0.26s |
+| Velocità base | 240 | 230 | 204 |
+| Salute base / tetto | 6 / 12 | 4 / 8 | 8 / 16 |
+| Fortuna base | +0.5 | 0 | 0 |
+| Palette | teal/verde | rosso/arancio caldo | blu acciaio |
+
+Wayfinder (indice 0) è il personaggio **preselezionato di default** all'ingresso nel Piano
+0: un'assunzione dichiarata dell'implementazione, legata alla open question residua sulla
+definitività della scelta (vedi sotto) — così "nessuno dei tre elementi [mondo, pipeline,
+personaggio]" del Risultato del Piano 0 resta mai indefinito, anche senza una conferma
+esplicita del giocatore. La scelta resta comunque modificabile fino all'attraversamento
+dell'uscita, esattamente come per un personaggio scelto attivamente.
+
+Per ora l'**intera rosa base è disponibile da subito**, senza alcuna condizione: gli
+"sbloccabili presto" di DEC-030 restano un principio approvato, ma le condizioni di sblocco
+sono ancora una open question (vedi sopra e punto 7 di `open-questions.md`) — finché
+restano indefinite, non c'è nulla da bloccare per davvero, e bloccare una scheda senza una
+regola definita sarebbe un comportamento inventato in silenzio (vietato da `AGENTS.md`
+della KB).
+
 ## Sprite dei personaggi (DEC-049)
+
+Nota implementativa (M6a): finché il modello immagini resta provvisorio (vedi
+`../06-ai-content-generation-model.md`), lo stickman a palette già in uso per il
+personaggio base (uno stesso disegno, tinto col colore proprio di ciascun personaggio della
+rosa) **È** lo sprite curato placeholder di cui parla questo paragrafo — non un sostituto
+temporaneo fuori standard. Il gap verso pixel art dedicata per personaggio resta esplicito e
+noto, non risolto da questo default.
 
 I 2-3 personaggi della rosa base (DEC-030) hanno sprite pixel art **curati a mano**: sono
 contenuto `curato`, non generato, come il resto della rosa. Il personaggio alternativo

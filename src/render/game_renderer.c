@@ -1,5 +1,6 @@
 #include "render/game_renderer.h"
 
+#include "content/character_roster.h"
 #include "core/game_math.h"
 #include "game/game.h"
 #include "gameplay/synergies.h"
@@ -659,7 +660,23 @@ static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
 static void DrawPlayer(Game *game)
 {
     Player *p = &game->player;
-    Color tint = (p->invuln > 0.0f && ((int)(GetTime()*18.0)%2 == 0)) ? GameColorWithAlpha(WHITE, 115) : WHITE;
+    /* M6a (requisito 3): lo stickman usa la palette del personaggio scelto
+       invece del WHITE fisso di sempre -- MA solo quando un personaggio e'
+       davvero stato applicato (characterChosenIndex>=0, scritto dal Piano 0
+       o dall'attraversamento, vedi il commento su Game.characterChosenIndex
+       in core/game_types.h). -1 (nessun personaggio: GameResetRun chiamata
+       fuori dal cammino del Piano 0, es. molti test) ricade sul WHITE
+       storico -- CharacterRosterGet da sola non basta qui perche' ricade
+       SEMPRE su un personaggio valido (Wayfinder) anche per un indice
+       fuori range, e quel fallback e' giusto per il testo (GIOCATORE
+       mostra sempre un nome) ma sbagliato per il colore storico del
+       personaggio "di nessuno". Il flash di invulnerabilita' si COMPONE
+       sopra la tinta (alpha ridotto sullo stesso colore), non la
+       sostituisce -- altrimenti un personaggio colpito lampeggerebbe
+       bianco per un istante, tradendo la sua identita' visiva proprio nel
+       momento in cui il giocatore la guarda di piu'. */
+    Color base = (game->characterChosenIndex >= 0) ? CharacterRosterGet(game->characterChosenIndex)->palette : WHITE;
+    Color tint = (p->invuln > 0.0f && ((int)(GetTime()*18.0)%2 == 0)) ? GameColorWithAlpha(base, 115) : base;
     DrawEquipment(p, p->pos, tint);
 }
 
@@ -1297,6 +1314,15 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     int panelInnerW = (int)(layout.rightPanel.width - 36.0f*s);
     Player *p = &game->player;
 
+    /* M6a (requisito 3, "il pannello GIOCATORE mostra nome/ruolo del
+       personaggio"): valido in OGNI stato che disegna questo pannello
+       (FloorZero E Gameplay, DrawOuterUi non distingue), non solo nel
+       pannello di selezione -- il giocatore deve poter controllare "chi sto
+       giocando" anche a meta' run senza riaprire il pannello TAB. */
+    const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
+    DrawText(TextFormat("%s -- %s", character->name, character->role), rx, ry, UiRound(14.0f*s), character->palette);
+    ry += UiRound(20.0f*s);
+
     /* Vita come cuori (fase 4). */
     DrawHearts(p, rx, ry, s);
     ry += UiRound(30.0f*s);
@@ -1656,39 +1682,182 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
  * tema -- non MenuBoxForMode/MenuItemCountForMode (FloorZero non e' uno dei 7
  * stati con overlay di menu canonico, quel conteggio ritorna 0 apposta per
  * lui, vedi il commento sopra). Scala CENTRATA come MenuBoxForModeFor, stessa
- * garanzia M4 (uiScale==1.0 alle risoluzioni di riferimento). */
+ * garanzia M4 (uiScale==1.0 alle risoluzioni di riferimento). M6a: 320 invece
+ * dei 300 di M5 -- lo spazio in piu' e' per le due schedine di sezione
+ * (DrawFloorZeroSectionTabs) sopra il titolo, che M5 non aveva. */
 static Rectangle ThemeCardsPanelBoxFor(float sw, float sh)
 {
     float uiScale = UiScaleForHeight(sh);
     float w = 760.0f*uiScale;
-    float h = 300.0f*uiScale;
+    float h = 320.0f*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
+/* M6a: 'titleH' e' cresciuta da 40 a 58 (stesso motivo di ThemeCardsPanelBoxFor
+ * sopra: le schedine di sezione + il titolo occupano piu' spazio verticale
+ * del solo titolo di M5). Generica sul CONTEGGIO -- la usano sia le carte-
+ * mondo sia le carte-personaggio, stessa geometria per entrambe le sezioni
+ * (mai due layout diversi da coordinare a mano). */
 static Rectangle ThemeCardRectFor(Rectangle box, int index, int count, float uiScale)
 {
     float pad = 22.0f*uiScale;
     float gap = 16.0f*uiScale;
-    float titleH = 40.0f*uiScale;
+    float titleH = 58.0f*uiScale;
     float cardW = (box.width - pad*2.0f - gap*(float)(count - 1))/(float)count;
     float cardH = box.height - pad*2.0f - titleH;
     return (Rectangle){ box.x + pad + (float)index*(cardW + gap), box.y + pad + titleH, cardW, cardH };
 }
 
-/* Il pannello di scelta del tema (M5, requisito 9): TAB lo apre/chiude
- * (src/app/app.c), sinistra/destra sposta il focus, conferma sceglie -- MAI
- * il click (l'ambiguita' DEC-057 sul mouse in FloorZero resta una domanda
- * aperta della KB, non una decisione presa qui implementando il click).
- * Focus MAI comunicato dal solo colore (DEC-058): la carta col focus ha un
- * bordo piu' spesso, e' leggermente PIU' GRANDE (scala, non solo tinta) e
- * porta un piccolo indicatore triangolare sopra -- tre segnali di forma
- * indipendenti dal colore. Dopo la scelta (game->themeChosenIndex>=0) questo
- * pannello non disegna piu' nulla: il riepilogo persistente lo fa
- * DrawThemeChosenBadge sotto, per il resto della permanenza nel Piano 0
- * (requisito 9, "Feedback"). */
-static void DrawThemeCardsPanel(const Game *game, float sw, float sh)
+/* M6a, requisito 3: le due schedine "MONDI"/"PERSONAGGI" in cima al pannello
+ * combinato -- dicono quale sezione ha il focus da tastiera (su/giu' la
+ * cambia). Come il focus di una carta (DEC-058), MAI il solo colore: la
+ * sezione attiva ha un bordo piu' spesso, e' leggermente sollevata (stesso
+ * trucco di "scala" delle carte, qui verticale) e porta lo stesso piccolo
+ * triangolo puntato verso il basso, sopra le carte della sua sezione. */
+static void DrawFloorZeroSectionTabs(Rectangle box, int section, float uiScale, Color accent)
 {
-    if (game->themeChosenIndex >= 0) return;
+    float pad = 22.0f*uiScale;
+    float tabY = box.y + 8.0f*uiScale;
+    float tabH = 22.0f*uiScale;
+    Rectangle tabs[2] = {
+        { box.x + pad, tabY, 150.0f*uiScale, tabH },
+        { box.x + pad + 158.0f*uiScale, tabY, 170.0f*uiScale, tabH },
+    };
+    const char *labels[2] = { "MONDI", "PERSONAGGI" };
+    for (int s = 0; s < 2; s++)
+    {
+        bool active = (s == section);
+        Rectangle tab = tabs[s];
+        if (active) { tab.y -= 3.0f*uiScale; tab.height += 3.0f*uiScale; }
+        DrawRectangleRec(tab, active ? GameColorWithAlpha(accent, 50) : GameColorWithAlpha(BLACK, 120));
+        DrawRectangleLinesEx(tab, active ? 2.5f : 1.0f, active ? accent : GameColorWithAlpha(accent, 130));
+        int font = UiRound(13.0f*uiScale);
+        DrawText(labels[s], (int)tab.x + UiRound(10.0f*uiScale), (int)tab.y + UiRound(4.0f*uiScale), font,
+                 active ? RAYWHITE : (Color){ 190, 196, 206, 255 });
+        if (active)
+        {
+            float cx = tab.x + tab.width*0.5f;
+            float ty = tab.y + tab.height + 8.0f*uiScale;
+            DrawTriangle((Vector2){ cx - 6.0f*uiScale, ty - 7.0f*uiScale }, (Vector2){ cx + 6.0f*uiScale, ty - 7.0f*uiScale },
+                         (Vector2){ cx, ty }, accent);
+        }
+    }
+}
+
+/* Una carta (mondo o personaggio, stessa geometria via ThemeCardRectFor) col
+ * bordo/scala/triangolo del focus (DEC-058, mai il solo colore) -- fattorizzata
+ * fuori da DrawFloorZeroPanel (M6a) perche' ora la disegnano DUE sezioni
+ * diverse con lo stesso identico linguaggio visivo. 'selected' e' un segnale
+ * DISTINTO dal focus (requisito 3: "la scheda del personaggio selezionato
+ * resta evidenziata, segnale distinto dal focus"): un bordo pieno dell'accento
+ * anche senza focus, cosi' si vede quale scelta e' GIA' attiva mentre si
+ * naviga altrove con le frecce. */
+static Rectangle DrawFloorZeroCardFrame(Rectangle box, int index, int count, float uiScale, bool focused, bool selected, Color accent)
+{
+    Rectangle card = ThemeCardRectFor(box, index, count, uiScale);
+    if (focused)
+    {
+        float grow = 6.0f*uiScale;
+        card = (Rectangle){ card.x - grow*0.5f, card.y - grow*0.5f, card.width + grow, card.height + grow };
+    }
+    Color fill = focused ? GameColorWithAlpha(accent, 40) : (selected ? GameColorWithAlpha(accent, 26) : GameColorWithAlpha(BLACK, 130));
+    DrawRectangleRec(card, fill);
+    float thick = focused ? 3.0f : (selected ? 2.0f : 1.5f);
+    Color line = focused ? accent : (selected ? accent : GameColorWithAlpha(accent, 150));
+    DrawRectangleLinesEx(card, thick, line);
+    if (focused)
+    {
+        float cx = card.x + card.width*0.5f;
+        float ty = card.y - 10.0f*uiScale;
+        DrawTriangle((Vector2){ cx - 7.0f*uiScale, ty - 8.0f*uiScale }, (Vector2){ cx + 7.0f*uiScale, ty - 8.0f*uiScale },
+                     (Vector2){ cx, ty }, accent);
+    }
+    return card;
+}
+
+static void DrawWorldCards(const Game *game, Rectangle box, float uiScale)
+{
+    int titleFont = UiRound(15.0f*uiScale);
+    int blurbFont = UiRound(12.0f*uiScale);
+    for (int i = 0; i < game->themeCardCount; i++)
+    {
+        bool focused = (i == game->themeCardFocus) && (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS);
+        bool selected = (i == game->themeChosenIndex);
+        Rectangle card = DrawFloorZeroCardFrame(box, i, game->themeCardCount, uiScale, focused, selected, game->theme.accent2);
+
+        const ThemeCard *proposal = &game->themeCards[i];
+        DrawText(proposal->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
+                 titleFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+        if (selected)
+            DrawText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
+                     UiRound(11.0f*uiScale), GOLD);
+
+        char lines[4][160];
+        int wrapY = selected ? 48 : 34;
+        int n = WrapTextLines(proposal->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 4);
+        int ly = (int)card.y + UiRound((float)wrapY*uiScale);
+        int lineStep = UiRound(16.0f*uiScale);
+        for (int l = 0; l < n; l++)
+            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
+    }
+}
+
+/* M6a, requisito 3: le tre schede della rosa base -- nome, ruolo, blurb,
+ * una piccola tabella di statistiche chiave e un pallino della palette
+ * (mai il SOLO colore per identificare il personaggio: nome/ruolo restano
+ * il segnale primario, il pallino e' un tocco in piu', coerente col resto
+ * della UI che non affida MAI un significato al solo colore, DEC-058). */
+static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
+{
+    int nameFont = UiRound(15.0f*uiScale);
+    int roleFont = UiRound(12.0f*uiScale);
+    int blurbFont = UiRound(11.0f*uiScale);
+    int statFont = UiRound(12.0f*uiScale);
+    for (int i = 0; i < CHARACTER_COUNT; i++)
+    {
+        bool focused = (i == game->characterCardFocus) && (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_CHARACTERS);
+        bool selected = (i == game->characterChosenIndex);
+        Rectangle card = DrawFloorZeroCardFrame(box, i, CHARACTER_COUNT, uiScale, focused, selected, game->theme.accent2);
+        const CharacterDef *c = CharacterRosterGet(i);
+
+        float dotR = 6.0f*uiScale;
+        DrawCircleV((Vector2){ card.x + card.width - 16.0f*uiScale, card.y + 16.0f*uiScale }, dotR, c->palette);
+        DrawText(c->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
+                 nameFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+        DrawText(c->role, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
+                 roleFont, game->theme.accent2);
+        if (selected)
+            DrawText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(48.0f*uiScale),
+                     UiRound(11.0f*uiScale), GOLD);
+
+        char lines[3][160];
+        int n = WrapTextLines(c->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 3);
+        int ly = (int)card.y + UiRound((selected ? 66.0f : 50.0f)*uiScale);
+        int lineStep = UiRound(15.0f*uiScale);
+        for (int l = 0; l < n; l++)
+            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
+
+        /* Statistiche chiave in piccola tabella (requisito 3), ancorate al
+           fondo della carta cosi' restano leggibili a qualunque numero di
+           righe di blurb sopra. */
+        int statsY = (int)(card.y + card.height - 40.0f*uiScale);
+        DrawText(TextFormat("DMG %.0f", c->baseDamage), (int)card.x + UiRound(10.0f*uiScale), statsY, statFont, RAYWHITE);
+        DrawText(TextFormat("SPD %.0f", c->baseSpeed), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(16.0f*uiScale), statFont, RAYWHITE);
+        DrawText(TextFormat("HP %d/%d", c->baseMaxHp, c->hpCap), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(32.0f*uiScale), statFont, RAYWHITE);
+    }
+}
+
+/* Il pannello COMBINATO MONDI/PERSONAGGI (M5 requisito 9 + M6a requisito 3):
+ * TAB lo apre/chiude (src/app/app.c), su/giu' cambia sezione, sinistra/
+ * destra sposta il focus, conferma sceglie -- MAI il click (l'ambiguita'
+ * DEC-057 sul mouse in FloorZero resta una domanda aperta della KB). A
+ * differenza di M5, questo pannello NON smette di disegnare nulla dopo la
+ * scelta del mondo: la sezione PERSONAGGI resta viva per tutta la
+ * permanenza nel Piano 0 (requisito 1). Il riepilogo persistente lo fa
+ * comunque DrawFloorZeroSummary sotto, per chi vuole lo stato SENZA aprire
+ * il pannello. */
+static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
+{
     if (game->themeCardCount <= 0) return;
     float uiScale = UiScaleForHeight(sh);
 
@@ -1696,9 +1865,10 @@ static void DrawThemeCardsPanel(const Game *game, float sw, float sh)
     {
         /* Pannello chiuso: solo un invito discreto, mai un riquadro vuoto --
            il messaggio stabile "in attesa della scelta del mondo" (vedi
-           AppFloorZeroStatusText) gia' dice CHE COSA manca, questo dice COME
-           agire (requisito 9: un tasto dedicato, non un menu del Piano 0). */
-        const char *hint = "TAB -- carte del mondo";
+           AppFloorZeroStatusText) gia' dice CHE COSA manca prima della
+           scelta; dopo, questo resta comunque l'invito a riaprire per
+           cambiare personaggio (requisito 1: sempre modificabile). */
+        const char *hint = "TAB -- mondo e personaggio";
         int font = UiRound(14.0f*uiScale);
         int tw = MeasureText(hint, font);
         Rectangle box = { sw*0.5f - ((float)tw*0.5f + 14.0f*uiScale), 80.0f*uiScale, (float)tw + 28.0f*uiScale, 26.0f*uiScale };
@@ -1712,69 +1882,56 @@ static void DrawThemeCardsPanel(const Game *game, float sw, float sh)
     Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
     DrawRectangleRec(box, (Color){ 18, 20, 27, 235 });
     DrawRectangleLinesEx(box, 2.0f, game->theme.accent2);
-    const char *title = "Scegli il mondo -- sinistra/destra, conferma";
-    DrawText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(14.0f*uiScale),
-             UiRound(16.0f*uiScale), game->theme.accent2);
+    DrawFloorZeroSectionTabs(box, game->floorZeroPanelSection, uiScale, game->theme.accent2);
 
-    int titleFont = UiRound(15.0f*uiScale);
-    int blurbFont = UiRound(12.0f*uiScale);
-    for (int i = 0; i < game->themeCardCount; i++)
-    {
-        bool focused = (i == game->themeCardFocus);
-        Rectangle card = ThemeCardRectFor(box, i, game->themeCardCount, uiScale);
-        if (focused)
-        {
-            /* Scala, non solo tinta (DEC-058): la carta col focus e' un po'
-               piu' grande, gonfiata dal proprio centro cosi' le carte vicine
-               non si sovrappongono. */
-            float grow = 6.0f*uiScale;
-            card = (Rectangle){ card.x - grow*0.5f, card.y - grow*0.5f, card.width + grow, card.height + grow };
-        }
-        DrawRectangleRec(card, focused ? GameColorWithAlpha(game->theme.accent2, 40) : GameColorWithAlpha(BLACK, 130));
-        DrawRectangleLinesEx(card, focused ? 3.0f : 1.5f, focused ? game->theme.accent2 : GameColorWithAlpha(game->theme.accent2, 150));
-        if (focused)
-        {
-            /* Indicatore di forma in piu' (mai il solo bordo/scala): un
-               piccolo triangolo sopra la carta a fuoco. */
-            float cx = card.x + card.width*0.5f;
-            float ty = card.y - 10.0f*uiScale;
-            DrawTriangle((Vector2){ cx - 7.0f*uiScale, ty - 8.0f*uiScale }, (Vector2){ cx + 7.0f*uiScale, ty - 8.0f*uiScale },
-                         (Vector2){ cx, ty }, game->theme.accent2);
-        }
+    const char *title = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
+                         ? "Scegli il mondo -- sinistra/destra, conferma (su/giu': personaggio)"
+                         : "Scegli il personaggio -- sinistra/destra, conferma (su/giu': mondo)";
+    DrawText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(42.0f*uiScale),
+             UiRound(13.0f*uiScale), (Color){ 205, 210, 220, 255 });
 
-        const ThemeCard *proposal = &game->themeCards[i];
-        int nameW = (int)(card.width - 20.0f*uiScale);
-        DrawText(proposal->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
-                 titleFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
-        (void)nameW;   /* il nome (2-3 parole, <=40 char) sta sempre in una riga alla larghezza minima di una carta */
-
-        char lines[4][160];
-        int n = WrapTextLines(proposal->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 4);
-        int ly = (int)card.y + UiRound(34.0f*uiScale);
-        int lineStep = UiRound(16.0f*uiScale);
-        for (int l = 0; l < n; l++)
-        {
-            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
-        }
-    }
+    /* La geometria delle carte usa la stessa 'box' del titolo (ThemeCardRectFor
+       misura dal bordo del pannello, non dalla riga del titolo): entrambe le
+       sezioni condividono lo stesso riquadro, se ne disegna una sola alla
+       volta -- e' quella col focus (game->floorZeroPanelSection) a decidere
+       quale. */
+    if (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS) DrawWorldCards(game, box, uiScale);
+    else DrawCharacterCards(game, box, uiScale);
 }
 
-/* Riepilogo persistente del tema scelto (M5, requisito 9, "Feedback"): visibile
- * per TUTTA la permanenza nel Piano 0 dopo la scelta, non solo nell'istante
- * della conferma -- una piccola targa in alto, mai un riquadro che sparisce
- * al frame successivo. */
-static void DrawThemeChosenBadge(const Game *game, Rectangle gameRect, float uiScale)
+/* Riepilogo persistente di mondo + personaggio (M5 requisito 9 + M6a
+ * requisito 3, "Feedback": "Il tema scelto e il personaggio scelto restano
+ * visibili in un riepilogo"): visibile per TUTTA la permanenza nel Piano 0,
+ * non solo nell'istante della conferma. Il personaggio e' SEMPRE definito
+ * (preselezione di default, vedi FloorZeroEnter) quindi la sua targhetta
+ * compare da subito; quella del mondo resta gating su themeChosenIndex>=0
+ * come in M5 -- il mondo puo' davvero essere ancora indefinito. */
+static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiScale)
 {
-    if (game->themeChosenIndex < 0) return;
-    const ThemeCard *chosen = &game->themeCards[game->themeChosenIndex];
-    char text[64];
-    snprintf(text, sizeof(text), "Mondo: %s", chosen->name);
+    float y = gameRect.y + 12.0f*uiScale;
     int font = UiRound(14.0f*uiScale);
-    int tw = MeasureText(text, font);
-    Rectangle box = { gameRect.x + 12.0f*uiScale, gameRect.y + 12.0f*uiScale, (float)tw + 24.0f*uiScale, 26.0f*uiScale };
-    DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
-    DrawRectangleLinesEx(box, 1.5f, game->theme.accent2);
-    DrawText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+
+    if (game->themeChosenIndex >= 0)
+    {
+        const ThemeCard *chosen = &game->themeCards[game->themeChosenIndex];
+        char text[64];
+        snprintf(text, sizeof(text), "Mondo: %s", chosen->name);
+        int tw = MeasureText(text, font);
+        Rectangle box = { gameRect.x + 12.0f*uiScale, y, (float)tw + 24.0f*uiScale, 26.0f*uiScale };
+        DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
+        DrawRectangleLinesEx(box, 1.5f, game->theme.accent2);
+        DrawText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+        y += 30.0f*uiScale;
+    }
+
+    const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
+    char ctext[64];
+    snprintf(ctext, sizeof(ctext), "Personaggio: %s", character->name);
+    int ctw = MeasureText(ctext, font);
+    Rectangle cbox = { gameRect.x + 12.0f*uiScale, y, (float)ctw + 24.0f*uiScale, 26.0f*uiScale };
+    DrawRectangleRec(cbox, (Color){ 16, 18, 24, 190 });
+    DrawRectangleLinesEx(cbox, 1.5f, character->palette);
+    DrawText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
 }
 
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
@@ -1811,13 +1968,14 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
         case APP_FLOOR_ZERO:
             DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);
-            /* M5: carte di tema (pannello o solo l'invito, a seconda di
-               game->themeCardsPanelOpen) finche' non scelto, poi il riepilogo
-               persistente -- le due funzioni si escludono a vicenda per
-               costruzione (themeChosenIndex>=0 le rende entrambe no-op sul
-               ramo sbagliato, vedi i rispettivi guard-clause). */
-            DrawThemeCardsPanel(game, (float)GetScreenWidth(), (float)GetScreenHeight());
-            DrawThemeChosenBadge(game, layout.gameRect, layout.uiScale);
+            /* M6a: il pannello combinato (aperto o solo l'invito, a seconda
+               di game->themeCardsPanelOpen) e il riepilogo persistente
+               convivono SEMPRE, a differenza di M5 -- il riepilogo mostra
+               anche il personaggio (sempre definito) anche col pannello
+               chiuso, il pannello resta apribile anche dopo la scelta del
+               mondo (requisito 1: il personaggio resta modificabile). */
+            DrawFloorZeroPanel(game, (float)GetScreenWidth(), (float)GetScreenHeight());
+            DrawFloorZeroSummary(game, layout.gameRect, layout.uiScale);
             break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;

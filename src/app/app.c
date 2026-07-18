@@ -1,11 +1,13 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 
+#include "content/character_roster.h"
 #include "content/run_content.h"
 #include "game/game.h"
 #include "game/game_internal.h"
 #include "gen/gen_runner.h"
 #include "render/game_renderer.h"
+#include "script/script_items.h"
 #include "tests/game_tests.h"
 #include "world/floor_zero.h"
 
@@ -447,6 +449,28 @@ static void AppConfirmThemeChoice(Game *game, AppGen *gen, int index)
     AppOpenFloorZeroExit(game);
 }
 
+/* M6a (DEC-030/033), requisito 2/3: la scelta VERA del personaggio, sezione
+ * PERSONAGGI del pannello combinato -- a differenza di AppConfirmThemeChoice
+ * NON e' guardata da "gia' scelto": il personaggio resta modificabile per
+ * tutta la permanenza nel Piano 0 (floor-zero.md, riga del Selettore
+ * personaggio, "Abilitato quando: Sempre"), quindi ogni confirm nella
+ * sezione PERSONAGGI deve poter cambiare scelta di nuovo. Applica le
+ * statistiche SUBITO (GamePlayerResetBaseStatsFor + ScriptItemsInit, come
+ * FloorZeroEnter): il giocatore SENTE la differenza nell'hub dallo stesso
+ * frame in cui conferma, requisito 2 della spec. Idempotente per
+ * costruzione: riconfermare lo stesso indice rideriva esattamente gli
+ * stessi numeri (ScriptItemsInit riparte sempre da zero, sistema delle
+ * cache). Non tocca il pannello (resta aperto, a differenza della scelta
+ * del tema): la sezione PERSONAGGI invita a confrontare le tre schede senza
+ * richiudersi ad ogni conferma. */
+static void AppConfirmCharacterChoice(Game *game, int index)
+{
+    if (index < 0 || index >= CHARACTER_COUNT) return;
+    game->characterChosenIndex = index;
+    GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(index));
+    ScriptItemsInit(game);
+}
+
 /* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
    generazione, RunResults/"Nuova run subito"): SEMPRE lo stesso cammino,
    "niente scorciatoie" (spec M1a/M1b). 'seed' e' gia' deciso dal chiamante
@@ -591,23 +615,50 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 }
             }
 
-            /* M5, requisito 9: il pannello di scelta del tema -- un tasto
-               dedicato (TAB) lo apre/chiude, cosi' le frecce sinistra/destra
-               dentro non "rubano" i controlli di movimento (WASD) del Piano 0
+            /* M5/M6a, requisito 9/3: il pannello COMBINATO MONDI/PERSONAGGI --
+               un tasto dedicato (TAB) lo apre/chiude, cosi' le frecce dentro
+               non "rubano" i controlli di movimento (WASD) del Piano 0
                giocabile quando il pannello e' chiuso (il caso normale: il
-               giocatore gira nell'hub mentre aspetta le proposte). Sparisce
-               da solo (niente piu' if) non appena un tema e' scelto:
-               AppConfirmThemeChoice chiude anche il pannello. */
-            if (game->themeChosenIndex < 0 && game->themeCardCount > 0)
+               giocatore gira nell'hub mentre aspetta le proposte). Disponibile
+               solo da quando le carte-mondo sono pronte (stessa condizione di
+               M5: 'themeCardCount>0' -- i personaggi curati sarebbero gia'
+               pronti prima, ma legare le due sezioni alla stessa condizione
+               evita un secondo timing da testare per un guadagno che nessuno
+               nota, dato quanto e' breve l'attesa delle proposte). A
+               differenza di M5, il pannello NON sparisce da solo quando il
+               tema e' scelto: la sezione PERSONAGGI resta interattiva per
+               tutta la permanenza nel Piano 0 (requisito 1: "sempre
+               modificabile finche' non si attraversa l'uscita"); solo
+               AppConfirmThemeChoice (guardata/idempotente) fa si' che
+               confermare di nuovo un mondo, dopo il primo, non abbia effetto.
+               Su/giu' cambia sezione (con wrap fra le due, mai un terzo
+               stato); sinistra/destra e conferma agiscono SOLO dentro la
+               sezione col focus. */
+            if (game->themeCardCount > 0)
             {
                 if (effective.tab) game->themeCardsPanelOpen = !game->themeCardsPanelOpen;
                 if (game->themeCardsPanelOpen)
                 {
-                    if (effective.left)
-                        game->themeCardFocus = (game->themeCardFocus + game->themeCardCount - 1)%game->themeCardCount;
-                    if (effective.right)
-                        game->themeCardFocus = (game->themeCardFocus + 1)%game->themeCardCount;
-                    if (effective.confirm) AppConfirmThemeChoice(game, gen, game->themeCardFocus);
+                    if (effective.up || effective.down)
+                        game->floorZeroPanelSection = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
+                                                       ? FLOOR_ZERO_PANEL_CHARACTERS : FLOOR_ZERO_PANEL_WORLDS;
+
+                    if (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
+                    {
+                        if (effective.left)
+                            game->themeCardFocus = (game->themeCardFocus + game->themeCardCount - 1)%game->themeCardCount;
+                        if (effective.right)
+                            game->themeCardFocus = (game->themeCardFocus + 1)%game->themeCardCount;
+                        if (effective.confirm) AppConfirmThemeChoice(game, gen, game->themeCardFocus);
+                    }
+                    else
+                    {
+                        if (effective.left)
+                            game->characterCardFocus = (game->characterCardFocus + CHARACTER_COUNT - 1)%CHARACTER_COUNT;
+                        if (effective.right)
+                            game->characterCardFocus = (game->characterCardFocus + 1)%CHARACTER_COUNT;
+                        if (effective.confirm) AppConfirmCharacterChoice(game, game->characterCardFocus);
+                    }
                 }
             }
 
@@ -665,7 +716,23 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             if (game->floorZeroExitCrossed)
             {
                 game->floorZeroExitCrossed = false;
+                /* M6a, requisito 2/4c: GameResetRun azzera l'INTERO Game con
+                   un memset (compreso characterChosenIndex), quindi l'indice
+                   scelto va catturato PRIMA di chiamarla e riapplicato SUBITO
+                   dopo -- la run parte con le statistiche del personaggio
+                   scelto nel Piano 0, non con lo storico "nessun personaggio"
+                   che GameResetRun applicherebbe da sola (comportamento
+                   invariato per ogni ALTRO chiamante di GameResetRun, es. i
+                   test che la chiamano direttamente senza mai passare dal
+                   Piano 0: vedi il commento su GamePlayerResetBaseStatsFor in
+                   game.c). ScriptItemsInit rideriva damage/fireDelay/... dai
+                   nuovi base* (0 oggetti posseduti a inizio piano 1, come
+                   sempre). */
+                int chosenCharacter = game->characterChosenIndex;
                 GameResetRun(game);
+                game->characterChosenIndex = chosenCharacter;
+                GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(chosenCharacter));
+                ScriptItemsInit(game);
                 *mode = APP_GAMEPLAY;
                 if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
                 break;

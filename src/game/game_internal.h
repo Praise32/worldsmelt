@@ -15,6 +15,9 @@ void GameSetMessage(Game *game, const char *message);
    (damage/fireDelay/.../maxHp): quello resta a carico del chiamante, DOPO
    aver chiamato questa funzione (stesso ordine di GameResetRun). */
 void GamePlayerResetBaseStats(Player *player);
+/* M6a: la stessa cosa, ma per il personaggio APPLICATO (NULL = comportamento
+   storico, vedi il commento nell'implementazione in game.c). */
+void GamePlayerResetBaseStatsFor(Player *player, const CharacterDef *character);
 
 RoomState *WorldCurrentRoomMutable(Game *game);
 bool WorldNoEnemiesActive(const Game *game);
