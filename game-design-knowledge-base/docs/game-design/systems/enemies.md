@@ -2,8 +2,8 @@
 id: gd-system-enemies
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Bande di potenza (DEC-019) restano un default draft da validare col playtest."
+last_reviewed: 2026-07-18
+summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest."
 ---
 
 # Enemies
@@ -38,6 +38,21 @@ Ogni nemico deve essere leggibile a colpo d'occhio: ruolo, minaccia e finestra d
 - evocatore;
 - ostacolo mobile;
 - **Veterano** — variante potenziata di un ruolo base (nome placeholder canonico, sostituisce "élite"). Non è un boss: non ha fasi né arena dedicata (vedi [bosses.md](./bosses.md)).
+
+## Escalation per piano (DEC-024)
+
+Il tema del piano non si limita a colorare i nemici: piano dopo piano gli stessi ruoli si
+esprimono con un **grado crescente** dentro il tema (es. un tema "fantasy medievale" mostra
+cavalieri di grado infimo al piano 1 e cavalieri esperti al piano 5), non con ruoli
+scollegati dal tema. Questo documento non ridefinisce il principio generale di escalation
+leggibile, che vive in
+[Difficulty and Progression](../07-difficulty-and-progression.md); qui si registra solo la
+conseguenza specifica per i nemici:
+
+- il **Veterano** compare con **frequenza crescente** nei piani alti;
+- il grado dei nemici generati sale con il piano, restando sempre dentro le bande di
+  potenza dichiarate e il budget di leggibilità di
+  [Combat and Projectiles](./combat-and-projectiles.md).
 
 ## Input/azioni
 
@@ -90,6 +105,8 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 - Valore finale delle bande di potenza nemico e Veterano dopo playtest (DEC-019).
 - Numero massimo di Veterano contemporanei per stanza.
+- Tasso esatto di crescita della frequenza di Veterani per piano (DEC-024 fissa solo che
+  cresce con il piano, non i numeri).
 
 ## Scenari
 
@@ -116,3 +133,9 @@ Then la generazione è respinta o la stanza viene rigenerata
 Given una categoria di nemico richiesta dal piano corrente senza contenuto generato approvato
 When la run deve comunque proseguire
 Then si usa il pool curato di fallback, secondo [generated-content-validation.md](./generated-content-validation.md), senza bloccare la partita
+
+### Scenario 5 — Veterani più frequenti nei piani alti
+
+Given due piani della stessa run, uno basso e uno alto
+When il gioco genera i nemici per ciascun piano
+Then la frequenza con cui compare il Veterano nel piano alto è maggiore di quella nel piano basso, coerente con DEC-024

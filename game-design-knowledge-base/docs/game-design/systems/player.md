@@ -2,13 +2,13 @@
 id: gd-system-player
 status: approved
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Capacità e responsabilità del personaggio giocato: movimento, mira, gestione di risorse e oggetti. Controlli decisi da DEC-007. Per identità e statistiche dei personaggi vedi characters.md."
 ---
 
 # Player
 
-Questo documento è la fonte per le **capacità e responsabilità generiche** del personaggio controllato dal giocatore (movimento, mira, gestione di risorse e oggetti). Non è la fonte per *quali* personaggi esistono: per il personaggio base sempre disponibile e per il personaggio generato per run vedi [characters.md](characters.md) — quel documento definisce identità, trait e statistiche specifiche; questo documento resta la fonte per le capacità che ogni personaggio, base o generato, condivide.
+Questo documento è la fonte per le **capacità e responsabilità generiche** del personaggio controllato dal giocatore (movimento, mira, gestione di risorse e oggetti). Non è la fonte per *quali* personaggi esistono: per la piccola rosa di personaggi base (DEC-030) e per il personaggio generato per run vedi [characters.md](characters.md) — quel documento definisce identità, trait e statistiche specifiche; questo documento resta la fonte per le capacità che ogni personaggio, di rosa base o generato, condivide.
 
 ## Intento per il giocatore
 
@@ -23,9 +23,9 @@ Controllo diretto e prevedibile: il giocatore deve poter leggere in ogni istante
 
 ## Statistiche di base, per funzione
 
-Le statistiche non hanno valori numerici definiti qui: restano categorie concettuali, in attesa di bilanciamento (draft). Ogni personaggio (base o generato, DEC-014) applica le proprie variazioni a queste categorie — vedi [characters.md](characters.md).
+Le statistiche non hanno valori numerici definiti qui: restano categorie concettuali, in attesa di bilanciamento (draft). Ogni personaggio (di rosa base, DEC-030, o generato, DEC-014) applica le proprie variazioni a queste categorie — vedi [characters.md](characters.md).
 
-- **Salute:** capacità di assorbire danno prima della sconfitta; struttura stratificata definita in [health-and-resources.md](health-and-resources.md) (DEC-008).
+- **Salute:** capacità di assorbire danno prima della sconfitta; struttura stratificata definita in [health-and-resources.md](health-and-resources.md) (DEC-008). La salute base ha un tetto proprio di ciascun personaggio, parte delle sue statistiche (DEC-033): personaggi diversi possono avere tetti diversi per design; i contenitori di salute crescono con stat-up e oggetti fino al tetto di quel personaggio, non oltre. Le bande min/max dei tetti sono un default da playtest; fonte unica per il dettaglio in [health-and-resources.md](health-and-resources.md) (rimando, non riformulato qui).
 - **Velocità di movimento:** rapidità di spostamento nello spazio libero definito dal controllo sopra.
 - **Cadenza di sparo:** frequenza con cui il personaggio può emettere attacchi nella direzione di mira scelta.
 - **Danno di sparo:** danno per colpo; si combina con le proprietà dell'attacco definite in [combat-and-projectiles.md](combat-and-projectiles.md).

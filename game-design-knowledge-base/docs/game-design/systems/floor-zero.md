@@ -2,8 +2,8 @@
 id: gd-system-floor-zero
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema e personaggio mentre la run si prepara."
+last_reviewed: 2026-07-18
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Il museo permette anche di provare le creazioni esposte (DEC-040). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042)."
 ---
 
 # Floor Zero
@@ -18,8 +18,8 @@ personale che cresce con le run passate, non di una schermata di attesa.
 
 - Si entra nel Piano 0 dallo stato `RunSetup`, come descritto in
   [Game States and Flow](../05-game-states-and-flow.md).
-- Si rientra nel Piano 0 anche al termine di una run (vittoria, sconfitta o uscita
-  volontaria dai piani extra), prima di tornare al menu principale o avviarne un'altra.
+- Si rientra nel Piano 0 anche al termine di una run (vittoria o sconfitta, DEC-006/DEC-031),
+  prima di tornare al menu principale o avviarne un'altra.
 - Il Piano 0 non richiede che alcun contenuto della run futura sia già pronto: è sempre
   giocabile, per costruzione (vedi "Regole per contenuti generati").
 
@@ -27,12 +27,12 @@ personale che cresce con le run passate, non di una schermata di attesa.
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
-| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Evidenziazione della carta scelta, anteprima del tema |
-| Selettore personaggio | Sempre | Sempre | Scegliere il personaggio base o l'alternativa generata per la run, oppure rifiutare l'alternativa | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
-| Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; non modifica la run in preparazione | Segnale d'ingresso dedicato, esito mostrato a fine sfida |
-| Museo delle creazioni | Sempre | Sempre | Sfogliare le migliori creazioni delle run passate | Nessun effetto meccanico sulla run corrente, solo consultazione | Galleria consultabile, nessuna modifica allo stato di gioco |
+| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback) |
+| Selettore personaggio | Sempre | Sempre | Scegliere un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
+| Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione |
+| Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029) | Galleria consultabile; feedback dedicato quando si avvia una prova |
 | Indicatore di generazione | Sempre, da quando inizia la preparazione dei piani successivi | Sola lettura, non interagibile | Nessuna (informativo) | Comunica lo stato di preparazione dei piani | Messaggio descrittivo stabile, vedi [Generation Status](../ui/generation-status.md) |
-| Uscita verso il piano 1 | Sempre visibile nel Piano 0 | Quando il piano 1 è pronto (validato o in fallback) | Attraversare l'uscita | Avvio della run: il piano 1 viene caricato | L'uscita si apre visibilmente solo quando diventa abilitata |
+| Uscita verso il piano 1 | Sempre visibile nel Piano 0 | Quando il piano 1 è pronto (validato o in fallback) | Attraversare l'uscita | Avvio della run: il piano 1 viene caricato e le prove specifiche della run vengono presentate al giocatore (DEC-042) | L'uscita si apre visibilmente solo quando diventa abilitata; l'attraversamento mostra la presentazione delle prove prima o durante il caricamento del piano 1 |
 
 ## Risultato
 
@@ -48,6 +48,35 @@ tre elementi può restare indefinito quando si attraversa l'uscita.
   semplice cambio di stato silenzioso), perché segna la fine dell'attesa.
 - L'indicatore di generazione non usa percentuali finte né promesse di tempo, in linea con
   [Generation Status](../ui/generation-status.md).
+- Ogni carta tema comunica anteprima visiva, nome e descrizione insieme, non in sequenza:
+  il giocatore deve poter confrontare le proposte a colpo d'occhio (DEC-039).
+
+## Anteprime visive dei temi (DEC-039)
+
+Ognuna delle 2-3 proposte di tema mostra nome, breve descrizione **e** un'anteprima visiva
+già generata (es. uno sprite campione di un nemico del tema). La generazione delle anteprime
+ha **priorità altissima** a inizio run, prima di altre generazioni in corso, perché la
+scelta del tema dipende da queste anteprime.
+
+Se un'anteprima non è ancora pronta quando il giocatore vede le carte tema, la carta
+corrispondente mostra comunque nome e descrizione, senza bloccare la scelta: questo è un
+fallback specifico, riconducibile alla regola generale di
+[Generated Content Validation](generated-content-validation.md).
+
+## Museo con interazione (DEC-040)
+
+Il museo del Piano 0 non è solo consultazione passiva. È una galleria delle creazioni
+migliori — oggetti, nemici, boss, fusioni, personaggi — ciascuna presentata con **nome e
+storia**. Il giocatore può inoltre **provare** una creazione esposta:
+
+- un **oggetto** si prova in una saletta dedicata, isolata dal resto della run in
+  preparazione;
+- un **boss** si riaffronta in un'**arena di sfida**, riusando l'infrastruttura già
+  descritta per le arene opzionali del Piano 0 (DEC-004) e la dote iniziale (DEC-029) se
+  applicabile.
+
+Provare una creazione dal museo non altera la run in preparazione, salvo l'eventuale dote di
+un'arena completata (DEC-029).
 
 ## Interazioni
 
@@ -58,8 +87,40 @@ tre elementi può restare indefinito quando si attraversa l'uscita.
   personaggio scelti nel Piano 0 entrano nel manifest della run.
 - [Save and Meta Progression](save-and-meta-progression.md): il museo delle creazioni
   migliori e il catalogo dei contenuti generati sono meta-progressione persistente.
-- [Special Rooms](special-rooms.md): le arene di sfida del Piano 0 riusano contenuti e
-  archetipi già presenti nel gioco, ri-tematizzati come attività opzionali locali.
+- [Special Rooms](special-rooms.md): le arene di sfida del Piano 0, la saletta di prova per
+  un oggetto del museo e l'arena per riaffrontare un boss condividono l'infrastruttura delle
+  stanze speciali.
+- [Multiplayer and Competition](../08-multiplayer-and-competition.md): la dote iniziale
+  dell'arena di sfida (DEC-029) è disattivata nelle run in modalità Classificata, per
+  coerenza con DEC-016/DEC-021.
+- [Rewards and Economy](rewards-and-economy.md): le prove specifiche presentate qui
+  all'ingresso nel piano 1 sono il canale bonus dei punti sblocco (DEC-027, DEC-042).
+- [Pause Menu](../ui/pause-menu.md) e
+  [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md): le prove restano
+  consultabili da lì per tutta la run (DEC-042).
+
+## Dote iniziale dall'arena di sfida (DEC-029)
+
+Completare un'arena di sfida del Piano 0 dà una **piccola dote** (risorse o un oggetto
+comune) per la run che sta per iniziare: un piccolo vantaggio d'apertura, non un
+potenziamento permanente del personaggio (coerente con
+[Save and Meta Progression](save-and-meta-progression.md), che esclude potenziamenti
+permanenti).
+
+Questa dote è **disattivata nelle run in modalità Classificata**, per coerenza con la
+parità richiesta dalle gare competitive (vedi DEC-016 e DEC-021 in
+[08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md)): una run
+Classificata non deve poter partire avvantaggiata da attività extra del Piano 0.
+
+## Presentazione delle prove all'ingresso nel piano 1 (DEC-042)
+
+Le prove specifiche della run — quelle che danno i punti bonus di DEC-027 — vengono
+presentate al giocatore al passaggio dal Piano 0 al piano 1: il momento di ingresso nella
+run vera, quando il giocatore attraversa l'uscita. Da quel momento in poi, l'elenco delle
+prove resta sempre consultabile dal menu di pausa (`ui/pause-menu.md`) e dalla schermata
+build (`ui/inventory-and-synergy-screen.md`); questo documento non ripete il dettaglio della
+loro generazione o del loro punteggio, definito in
+[Rewards and Economy](rewards-and-economy.md).
 
 ## Regole per contenuti generati
 
@@ -68,6 +129,9 @@ tre elementi può restare indefinito quando si attraversa l'uscita.
 - I 2-3 temi proposti nella scelta del tema sono generati dall'IA per quella sessione nel
   Piano 0 (vedi [Characters](characters.md) per il meccanismo analogo applicato al
   personaggio alternativo).
+- L'anteprima visiva di ciascun tema proposto è generata con priorità altissima rispetto
+  alle altre generazioni in corso a inizio run (DEC-039); se non è pronta in tempo, la carta
+  tema resta comunque valida con solo nome e descrizione.
 - Il gioco è sempre avviabile. Finché non esistono asset dedicati generati per il Piano 0,
   una versione statica curata del Piano 0 fa da sala d'attesa/fallback della primissima
   run: vedi [Generated Content Validation](generated-content-validation.md) per la regola
@@ -83,6 +147,16 @@ tre elementi può restare indefinito quando si attraversa l'uscita.
   di tema selezionabile.
 - Il giocatore entra in un'arena di sfida e la abbandona a metà: il ritorno al resto del
   Piano 0 deve restare disponibile senza penalità sulla run in preparazione.
+- Il giocatore completa un'arena di sfida mentre sta per avviare una run in modalità
+  Classificata: la dote iniziale non viene assegnata, e l'interfaccia lo segnala prima
+  dell'ingresso in arena, non solo dopo.
+- L'anteprima visiva di uno o più temi proposti non è pronta quando le carte tema vengono
+  mostrate: la carta corrispondente mostra solo nome e descrizione, senza bloccare la scelta
+  (DEC-039).
+- Il giocatore prova un oggetto del museo in saletta, ma quell'oggetto non è ancora
+  sbloccato per l'uso nella run in preparazione: la prova resta locale e non aggiunge
+  l'oggetto alla build della run che sta per iniziare (salvo l'eventuale dote di un'arena
+  completata, DEC-029).
 
 ## Fallback
 
@@ -99,11 +173,19 @@ superano la validazione, si applica la regola di fallback unica definita in
 
 ## Domande aperte residue
 
-- Le arene di sfida hanno una loro economia di ricompense separata da quella della run, o
-  premiano solo meta-progressione (punti, sblocchi)?
+- Oltre alla dote iniziale per la run (DEC-029), le arene di sfida hanno una propria
+  economia di ricompense separata (per l'attività nel Piano 0 stesso), o le uniche
+  ricompense sono la dote e la meta-progressione (punti, sblocchi)?
 - Il riepilogo di tema/personaggio scelto è modificabile prima di attraversare l'uscita, o
   la scelta è definitiva non appena confermata?
 - Quanti "best-of" minimi servono perché un'arena di sfida compaia come disponibile?
+- Valore esatto della dote iniziale (quali risorse, quale oggetto comune, quantità) —
+  DEC-029 fissa solo che sia "piccola", non i numeri.
+- Quanti tentativi di riaffrontare un boss dal museo in arena sono ammessi per sessione, e
+  se la saletta di prova di un oggetto ha un limite di tempo o di usi (DEC-040).
+- Composizione esatta della rosa dei personaggi base scelti qui nel Piano 0 (nomi, ruoli
+  precisi, condizioni di sblocco) — vedi DEC-030 in [Characters](characters.md) e
+  `../governance/open-questions.md`.
 
 ## Scenari
 
@@ -118,6 +200,35 @@ superano la validazione, si applica la regola di fallback unica definita in
 - When vengono mostrate 2-3 carte tema generate dall'IA
 - Then il giocatore ne seleziona una e il riepilogo del Piano 0 mostra il tema scelto
 
+**Scenario: anteprima visiva del tema pronta**
+- Given l'IA ha proposto un tema e la sua anteprima visiva ha completato la generazione con
+  priorità altissima (DEC-039)
+- When la carta tema viene mostrata al giocatore
+- Then la carta mostra nome, breve descrizione e l'anteprima visiva generata (es. lo sprite
+  campione di un nemico del tema) insieme
+
+**Scenario: anteprima visiva del tema non pronta, fallback nome+descrizione**
+- Given l'IA ha proposto un tema ma la sua anteprima visiva non ha completato la
+  generazione in tempo
+- When la carta tema viene mostrata al giocatore
+- Then la carta mostra comunque nome e descrizione, senza anteprima, e resta comunque
+  selezionabile (DEC-039)
+
+**Scenario: provare un oggetto del museo in saletta**
+- Given il giocatore consulta il museo e seleziona un oggetto tra le migliori creazioni
+  esposte (DEC-040)
+- When avvia la prova
+- Then entra in una saletta dedicata dove può testare l'oggetto, senza che questo alteri la
+  build della run in preparazione
+
+**Scenario: riaffrontare un boss dal museo in arena**
+- Given il giocatore consulta il museo e seleziona un boss tra le migliori creazioni
+  esposte (DEC-040)
+- When sceglie di riaffrontarlo
+- Then entra in un'arena di sfida che riusa l'infrastruttura delle arene opzionali del
+  Piano 0 (DEC-004), con l'eventuale dote iniziale (DEC-029) applicabile come per le altre
+  arene
+
 **Scenario: prima run in assoluto, senza asset dedicati generati**
 - Given non esistono ancora asset dedicati generati per il Piano 0
 - When il giocatore avvia il gioco per la prima volta
@@ -128,3 +239,23 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Given tema e personaggio sono stati scelti e il piano 1 ha superato la validazione
 - When il giocatore raggiunge l'uscita
 - Then l'uscita si apre e attraversarla avvia la run sul piano 1
+
+**Scenario: dote iniziale da un'arena completata**
+- Given un giocatore completa un'arena di sfida nel Piano 0 prima di avviare una run non
+  Classificata
+- When attraversa l'uscita verso il piano 1
+- Then la run inizia con la piccola dote (risorse o un oggetto comune) guadagnata
+  dall'arena, oltre a tema e personaggio scelti
+
+**Scenario: dote disattivata in modalità Classificata**
+- Given un giocatore completa un'arena di sfida nel Piano 0 mentre sta per avviare una run
+  in modalità Classificata
+- When attraversa l'uscita verso il piano 1
+- Then la run inizia senza alcuna dote iniziale dall'arena, per coerenza con la parità
+  richiesta dalla modalità Classificata (DEC-016, DEC-021)
+
+**Scenario: presentazione delle prove all'ingresso nel piano 1**
+- Given un giocatore nel Piano 0 con tema, personaggio e piano 1 pronti
+- When attraversa l'uscita verso il piano 1
+- Then il gioco presenta le prove specifiche della run (DEC-042) prima o durante l'ingresso,
+  e da quel momento l'elenco resta consultabile dal menu di pausa e dalla schermata build

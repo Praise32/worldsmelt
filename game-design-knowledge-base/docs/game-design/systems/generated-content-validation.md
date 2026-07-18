@@ -2,7 +2,7 @@
 id: gd-system-content-validation
 status: approved
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Fonte unica: modello di generazione, sei stati di validazione e regola di fallback per ogni contenuto generato dall'IA nella KB."
 ---
 
@@ -22,7 +22,9 @@ deve mai restare bloccato in attesa che una generazione finisca.
 Questa regola si applica a ogni contenuto che nasce da generazione IA nel corso di una run:
 tipi di colpo, nemici, layout di stanze (invenzione parametrica dentro bande di garanzia),
 comportamenti di oggetto (scritti e validati in sandbox), personaggio alternativo di run,
-temi proposti nel Piano 0. Vale dal Piano 0 fino al piano 5 e agli eventuali piani extra.
+temi proposti nel Piano 0, ostacoli generati a tema (DEC-043), offerta e prezzo dello
+scambio ad alto rischio (DEC-044). Vale dal Piano 0 fino al boss del piano 5, dove la
+vittoria chiude la run (DEC-006, DEC-031).
 
 ## Il modello di generazione (DEC-020)
 

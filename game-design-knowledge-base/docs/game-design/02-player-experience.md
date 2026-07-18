@@ -2,7 +2,7 @@
 id: gd-player-experience
 status: draft
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Esperienza emotiva, ritmo e chiarezza."
 ---
 
@@ -26,8 +26,9 @@ summary: "Esperienza emotiva, ritmo e chiarezza."
 4. Aumento della complessità, con il tema che evolve o degenera piano dopo piano.
 5. Picco di potere o rischio.
 6. Boss e ricompensa.
-7. Transizione al piano successivo, fino al boss del piano 5 e all'eventuale scelta di
-   proseguire in piani extra sempre più degenerati.
+7. Transizione al piano successivo, fino al boss del piano 5: la vittoria chiude la run lì
+   (DEC-006, DEC-031); una prosecuzione oltre resta solo un'idea futura non implementata
+   (DEC-018).
 
 ## Principio di chiarezza
 

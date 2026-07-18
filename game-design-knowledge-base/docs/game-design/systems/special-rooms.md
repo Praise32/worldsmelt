@@ -2,8 +2,8 @@
 id: gd-system-special-rooms
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Dettaglio dei quattro archetipi speciali (DEC-010): fusione, segreta, arena di sfida, scambio ad alto rischio — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
+last_reviewed: 2026-07-18
+summary: "Dettaglio dei quattro archetipi speciali (DEC-010): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
 ---
 
 # Special Rooms
@@ -16,7 +16,7 @@ Le stanze speciali offrono decisioni fuori dal combattimento standard: rischio, 
 
 La tassonomia completa dei tipi di stanza (standard + speciali) è definita in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md); questo documento non la ridefinisce. Qui si dettagliano solo i quattro archetipi speciali dichiarati da DEC-010: stanza di fusione, stanza segreta, arena di sfida, scambio ad alto rischio.
 
-**Nota sul negozio:** il negozio è un tipo di stanza **standard** (definito in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), non uno dei quattro archetipi speciali qui descritti. Lo scambio ad alto rischio è un archetipo diverso dal negozio: offre scambi rischiosi o non convenzionali, con presentazione e regole originali — mai nominato o presentato con riferimenti a giochi esistenti.
+**Nota sul negozio:** il negozio è un tipo di stanza **standard** (definito in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), non uno dei quattro archetipi speciali qui descritti. Il negozio ha prezzi base fissi per fascia di rarità più un'offerta speciale generata per negozio (DEC-026): il dettaglio economico vive in [rewards-and-economy.md](./rewards-and-economy.md), non ripetuto qui. Lo scambio ad alto rischio è un archetipo diverso dal negozio: offre scambi rischiosi o non convenzionali, con presentazione e regole originali — mai nominato o presentato con riferimenti a giochi esistenti. **Confine netto (DEC-026):** i "patti" a costo salute (cedere salute in cambio di un guadagno) non esistono nel negozio; restano esclusivi dello scambio ad alto rischio.
 
 ## I quattro archetipi
 
@@ -26,7 +26,12 @@ Ospita la meccanica-firma di fusione esplicita tra due oggetti. Il dettaglio del
 
 ### Stanza segreta
 
-Stanza non indicata direttamente sulla mappa. La sua scoperta resta una domanda di design aperta: vedi [secrets-and-obstacles.md](./secrets-and-obstacles.md) per lo stato della questione; questo documento non anticipa una risposta.
+Stanza non indicata direttamente sulla mappa, a **due livelli** (DEC-025): "normale", con
+indizi visivi leggibili (crepe, anomalie del tema) apribile con lo strumento di breccia; e
+"super-segreta", senza indizi, trovabile solo con oggetti/Innesti rivelatori o intuizione
+estrema. Il dettaglio dei due livelli è descritto in
+[secrets-and-obstacles.md](./secrets-and-obstacles.md); questo documento non lo ripete,
+colloca solo l'archetipo nella tassonomia.
 
 ### Arena di sfida
 
@@ -34,7 +39,25 @@ Stanza opzionale con combattimento più impegnativo in cambio di ricompensa magg
 
 ### Scambio ad alto rischio
 
-Stanza che propone uno scambio non convenzionale (es. cedere una risorsa o una parte della build per un guadagno maggiore ma incerto), ri-tematizzata in modo originale. Nome e presentazione precisi restano da definire in fase di contenuto, ma la funzione — rischio dichiarato in cambio di un guadagno superiore alla media — è fissata da DEC-010.
+Stanza che propone uno scambio non convenzionale (es. cedere una risorsa, salute o una parte della build per un guadagno maggiore ma incerto), ri-tematizzata in modo originale. È l'**unico** archetipo dove sono ammessi scambi a costo salute (DEC-026): il negozio non li offre mai. Nome e presentazione precisi restano da definire in fase di contenuto, ma la funzione — rischio dichiarato in cambio di un guadagno superiore alla media — è fissata da DEC-010.
+
+#### Puntata generata dentro un budget di equità (DEC-044)
+
+Nella stanza di scambio l'IA genera **sia l'offerta sia il prezzo** dentro un **budget di
+equità**: non sono coppie fisse curate, ma una puntata composta per l'occasione. Il prezzo
+può essere:
+
+- salute, immediata o massima (riduzione del tetto, non solo del valore corrente);
+- un oggetto o Innesto posseduto dal giocatore;
+- valuta principale;
+- perfino un catalizzatore di fusione.
+
+Ogni scambio proposto è diverso dagli altri. L'**equità** tra offerta e prezzo è garantita
+dal budget di equità, non da una tabella fissa; la validazione della coppia offerta/prezzo
+segue le regole generali di
+[Generated Content Validation](./generated-content-validation.md), non riformulate qui. Il
+negozio resta invariato (DEC-026): questa generazione è esclusiva della stanza di scambio ad
+alto rischio.
 
 ## Input/azioni
 
@@ -55,7 +78,8 @@ Ogni stanza speciale produce un esito dichiarato (oggetto fuso, accesso a una ri
 - con la tassonomia generale delle stanze ([rooms-and-floor-generation.md](./rooms-and-floor-generation.md));
 - con la meccanica di fusione ([item-fusion.md](./item-fusion.md)) e il catalizzatore di fusione ([health-and-resources.md](./health-and-resources.md), [items-pools-and-rarity.md](./items-pools-and-rarity.md));
 - con il Piano 0 per l'accesso "best-of" all'arena di sfida ([floor-zero.md](./floor-zero.md));
-- con l'economia per lo scambio ad alto rischio ([rewards-and-economy.md](./rewards-and-economy.md)).
+- con l'economia per lo scambio ad alto rischio ([rewards-and-economy.md](./rewards-and-economy.md));
+- con la regola di validazione generale per la coppia offerta/prezzo generata ([generated-content-validation.md](./generated-content-validation.md), DEC-044).
 
 ## Regola di originalità
 
@@ -65,10 +89,17 @@ I nomi, la presentazione e la logica precisa dei quattro archetipi devono essere
 
 Ogni istanza di stanza speciale generata dichiara un'origine (curato | composto | variato | nuovo) e rispetta il contratto: accesso, costo, ricompensa, frequenza, segnale visivo, uscita, interazioni con risorse.
 
+Per lo scambio ad alto rischio, la coppia offerta/prezzo generata (DEC-044) deve restare
+dentro il budget di equità dichiarato: un prezzo sproporzionato rispetto all'offerta, o
+un'offerta priva di un prezzo coerente, non supera la validazione e non viene mai proposta al
+giocatore.
+
 ## Casi limite
 
 - Una stanza di fusione generata senza almeno due oggetti fondibili posseduti dal giocatore: resta accessibile ma senza azione disponibile finché non sono soddisfatti i requisiti.
 - Uno scambio ad alto rischio proposto quando il giocatore non ha nulla di cedibile: la stanza non deve bloccare il progresso, deve offrire un'uscita senza penalità.
+- Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore.
+- Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore.
 - L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md).
 
 ## Fallback
@@ -85,8 +116,10 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - Nome e presentazione definitivi dello scambio ad alto rischio.
-- Meccanismo di scoperta della stanza segreta (vedi [secrets-and-obstacles.md](./secrets-and-obstacles.md)).
 - Frequenza esatta di ciascun archetipo per piano.
+- Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
+- Quali oggetti/Innesti rivelatori esistono per le stanze "super-segrete" (DEC-025, vedi
+  [secrets-and-obstacles.md](./secrets-and-obstacles.md)).
 
 ## Scenari
 
@@ -113,3 +146,27 @@ Then la stanza offre comunque un'uscita senza penalità, senza bloccare il progr
 Given un giocatore con un solo oggetto fondibile
 When entra nella stanza di fusione
 Then la stanza è visitabile ma l'azione di fusione resta non disponibile finché non possiede almeno due oggetti fondibili e il catalizzatore richiesto
+
+### Scenario 5 — Negozio senza patti a costo salute
+
+Given un giocatore in un negozio con l'offerta speciale generata per quel negozio
+When osserva le opzioni di acquisto disponibili
+Then nessuna di esse chiede di cedere salute in cambio di uno sconto o di un oggetto: quel tipo di patto esiste solo nella stanza di scambio ad alto rischio (DEC-026)
+
+### Scenario 6 — Stanza segreta a due livelli
+
+Given un giocatore che esplora un piano con una stanza segreta "normale" e una "super-segreta"
+When cerca di individuarle
+Then trova la "normale" tramite un indizio visivo leggibile apribile con lo strumento di breccia, mentre individua la "super-segreta" solo con un oggetto/Innesto rivelatore o intuizione estrema (DEC-025)
+
+### Scenario 7 — Puntata generata in una stanza di scambio ad alto rischio
+
+Given un giocatore che entra in una stanza di scambio ad alto rischio
+When il gioco genera l'offerta e il prezzo della puntata
+Then il prezzo appartiene a una delle categorie ammesse (salute immediata o massima, oggetto o Innesto posseduto, valuta principale, catalizzatore di fusione) ed è proporzionato all'offerta dentro il budget di equità (DEC-044)
+
+### Scenario 8 — Ogni scambio è diverso
+
+Given un giocatore che entra in due stanze di scambio ad alto rischio diverse nella stessa run
+When confronta le due puntate proposte
+Then offerta e prezzo delle due stanze sono diversi tra loro, perché ogni scambio è generato per l'occasione (DEC-044)

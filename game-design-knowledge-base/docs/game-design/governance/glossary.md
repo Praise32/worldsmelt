@@ -4,7 +4,7 @@
 
 - **Piano 0:** hub di caricamento giocabile, sempre disponibile; rifugio sicuro più arene di sfida opzionali con contenuti "best-of" già validati; contiene museo, scelta del tema, scelta del personaggio e indicatore di generazione (DEC-004). Assorbe la vecchia schermata separata di generazione.
 - **Floor / Piano:** gruppo di stanze con progressione interna e boss. Una run standard è Piano 0 + 5 piani (DEC-001).
-- **Run:** sessione completa dall'avvio alla vittoria (boss del piano 5) o alla sconfitta (permadeath). Una run può proseguire oltre il piano 5 in piani extra non ufficiali (DEC-006).
+- **Run:** sessione completa dall'avvio alla vittoria (boss del piano 5) o alla sconfitta (permadeath). La vittoria al boss del piano 5 chiude la run (DEC-006, DEC-031); una prosecuzione oltre il piano 5 resta solo un'idea futura non implementata (DEC-018).
 - **Manifest di run:** descrizione stabile dei contenuti e delle regole di una run (seed compreso), usata per riproducibilità e classifiche.
 - **Build:** insieme corrente di oggetti, statistiche e sinergie del giocatore.
 

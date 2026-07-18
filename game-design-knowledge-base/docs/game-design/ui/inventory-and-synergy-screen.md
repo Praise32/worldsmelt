@@ -2,8 +2,8 @@
 id: gd-ui-build-screen
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici."
+last_reviewed: 2026-07-18
+summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
 ---
 
 # Inventory and Synergy Screen (BuildScreen)
@@ -33,6 +33,7 @@ L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota 
 | Sinergie implicite attive | Almeno una sinergia implicita è attiva | Sempre, se visibile | Seleziona una sinergia | Vedi "Regola di comprensione" | Componenti coinvolti evidenziati insieme |
 | Fusioni possibili | Il giocatore possiede almeno due oggetti fondibili e catalizzatore di fusione sufficiente | Sempre, se visibile | Seleziona una combinazione possibile | Mostra un'anteprima non tecnica del risultato atteso | Indicazione se manca il catalizzatore di fusione |
 | Effetti temporanei | Almeno un effetto temporaneo è attivo | — (sola lettura) | Nessuna | — | Durata residua indicata |
+| Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Seleziona la sezione prove | Mostra le prove specifiche della run e il loro stato di completamento | Evidenzia le prove già completate |
 
 ## Sinergie implicite e fusione: due binari distinti
 
@@ -52,6 +53,14 @@ Selezionando una sinergia implicita, il giocatore vede:
 
 Selezionando una possibilità di fusione, il giocatore vede quali due oggetti verrebbero
 consumati e un'anteprima non tecnica dell'effetto atteso, senza specifiche numeriche interne.
+
+## Prove (DEC-042, rimando)
+
+La sezione Prove mostra le prove specifiche della run e il loro stato di completamento; le
+stesse prove sono anche consultabili da `ui/pause-menu.md`, dove sono state presentate per
+la prima volta al passaggio dal Piano 0 al piano 1. Il contenuto e il punteggio bonus delle
+prove sono definiti in `systems/rewards-and-economy.md`; questo documento non li ripete,
+colloca solo la sezione qui.
 
 ## Non mostrare
 
@@ -76,3 +85,4 @@ consumati e un'anteprima non tecnica dell'effetto atteso, senza specifiche numer
 2. **Given** il giocatore possiede due oggetti fondibili ma catalizzatore di fusione insufficiente, **when** apre la sezione "Fusioni possibili", **then** la combinazione appare ma con un'indicazione chiara che manca il catalizzatore.
 3. **Given** il giocatore non possiede alcuna sinergia implicita attiva, **when** apre `BuildScreen`, **then** la sezione "Sinergie implicite attive" non è visibile.
 4. **Given** il giocatore seleziona una possibilità di fusione, **when** consulta l'anteprima, **then** non vede alcun punteggio di validazione tecnico né prompt dell'IA.
+5. **Given** le prove sono state presentate al passaggio dal Piano 0 al piano 1 (DEC-042), **when** il giocatore apre `BuildScreen` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento, coerente con quanto mostrato in `ui/pause-menu.md`.

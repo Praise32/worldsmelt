@@ -2,8 +2,8 @@
 id: gd-system-items-pools
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie, pool, rarità (pesi in stato draft) e correzione di fortuna."
+last_reviewed: 2026-07-18
+summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna."
 ---
 
 # Items, Pools and Rarity
@@ -32,6 +32,18 @@ Un oggetto appartiene a esattamente una delle 4 categorie:
 
 Il termine "trinket" è un riferimento esterno e non va usato: la categoria equivalente
 in questo progetto si chiama **Innesto**.
+
+### Oggetti ibridi comportamento+statistiche (DEC-035)
+
+Un oggetto attivo o passivo può includere, oltre al proprio comportamento, modifiche dirette
+a una o più statistiche — positive o negative, coerenti con l'effetto dichiarato. Questo non
+introduce una quinta categoria: l'oggetto resta classificato come `attivo` o `passivo` nel
+campo `categoria`; le modifiche di statistica si sommano al comportamento e vanno dichiarate
+insieme ad esso. Questa regola non rompe la tassonomia a 4 categorie di DEC-011: la aggira
+componendo, non aggiungendo categorie.
+
+Gli stat-up, inoltre, compaiono anche nei pool normali (tesoro, negozio), non solo come
+ricompensa boss: non sono riservati a un contesto specifico.
 
 ### Slot
 
@@ -79,6 +91,12 @@ Un oggetto appartiene a uno o più pool tematici o funzionali. Esempi astratti:
 - economia;
 - boss;
 - segreto.
+
+## Densità di oggetti per piano (DEC-032)
+
+In media un piano offre **3-5 oggetti** al giocatore; una run completa (5 piani) ne offre
+indicativamente circa **20** in totale. Questo valore risolve la domanda aperta sul numero
+medio di oggetti per piano.
 
 ## Condizioni di ingresso
 
@@ -224,3 +242,19 @@ Given due oggetti dichiarati incompatibili tra loro,
 When entrambi risulterebbero candidati per la stessa offerta,  
 Then il sistema ne rimuove uno secondo la regola di priorità dichiarata, mantenendo
 l'offerta valida.
+
+### Scenario 5 — stat-up in un pool standard
+
+Given un pool di negozio o di tesoro che include oggetti di categoria stat-up (DEC-035),  
+When il gioco compone l'offerta per quella stanza,  
+Then uno stat-up può comparire nell'offerta senza che l'unica fonte prevista sia una
+ricompensa boss.
+
+### Scenario 6 — oggetto ibrido con modifica di statistica negativa
+
+Given un oggetto passivo generato con comportamento e una modifica negativa a una
+statistica, coerente con il proprio effetto (DEC-035),  
+When l'oggetto viene offerto al giocatore,  
+Then la scheda dell'oggetto mostra sia il comportamento sia la modifica di statistica,
+positiva o negativa, come parte dello stesso oggetto, senza introdurre una categoria
+diversa da `passivo`.

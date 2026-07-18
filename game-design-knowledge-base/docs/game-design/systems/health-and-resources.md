@@ -2,8 +2,8 @@
 id: gd-system-health-resources
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Salute stratificata e risorse di run ri-tematizzate per funzione, con nomi placeholder (DEC-013)."
+last_reviewed: 2026-07-18
+summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione, con nomi placeholder (DEC-013)."
 ---
 
 # Health and Resources
@@ -26,7 +26,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 - **Ordine di consumo:** si consuma **prima** la salute temporanea/protettiva, **poi** la salute base. Questo ordine è esplicito e non negoziabile.
 - **Esaurimento:** salute base a zero = run persa, permadeath (DEC-006, cita solo di sfuggita). Per le condizioni di vittoria legate al boss del piano 5 vedi [bosses.md](bosses.md) (rimando, non riformulare qui i dettagli boss).
 - **Come si ottiene:** fonti di cura (oggetti, stanze, eventi) — quantità e frequenza esatte non definite (draft).
-- **Cap/limite massimo:** non definito (domanda aperta).
+- **Cap/limite massimo (DEC-033):** la salute base ha un **tetto proprio di ciascun personaggio**, parte delle sue statistiche: non è un valore unico condiviso da tutti. Personaggi-vetro (tetto basso) e personaggi-roccia (tetto alto) esistono per design, sia nella rosa base (DEC-030) sia nel personaggio generato per run (DEC-014). I contenitori di salute crescono tramite stat-up e oggetti fino al tetto di quel personaggio specifico, non oltre. Le bande min/max entro cui possono variare i tetti — soprattutto per i personaggi generati — sono valori di default da playtest, come i valori di DEC-019 (stato `draft`). La salute temporanea/protettiva segue regole proprie (DEC-008) e non è soggetta a questo stesso tetto.
 - **HUD:** mostra separatamente la quota di salute temporanea/protettiva e quella base (rimando concettuale; la progettazione dell'interfaccia vive fuori scope in `ui/`, non trattata qui).
 - **Fine piano:** presumibilmente persiste (nessuna DEC afferma il contrario) — draft, da confermare.
 - **Fine run:** la run termina quando la salute base arriva a zero (vedi sopra); non applicabile oltre quel punto.
@@ -112,7 +112,8 @@ Vedi [generated-content-validation.md](generated-content-validation.md) — font
 
 ## Domande aperte residue
 
-- Cap/limite massimo per ciascuna risorsa (salute, valuta, strumento di breccia, strumento di apertura, catalizzatore di fusione): non definiti da nessuna DEC.
+- Bande min/max esatte dei tetti di salute dei personaggi (il principio del tetto per-personaggio è approvato da DEC-033; i valori restano da validare col playtest, vedi `../governance/open-questions.md`).
+- Cap/limite massimo per valuta, strumento di breccia, strumento di apertura e catalizzatore di fusione: non definiti da nessuna DEC.
 - Persistenza tra piani e a fine run per ciascuna risorsa oltre alla salute: non definita da nessuna DEC (draft, ipotesi di persistenza tra piani nella stessa run indicate sopra come non confermate).
 - Presenza di contenitori permanenti (capacità massima ampliabile) nella run.
 - Relazione esatta tra strumento di apertura e i singoli archetipi di stanza speciale (quali richiedono quale risorsa).
@@ -142,3 +143,15 @@ Then l'accesso si sblocca e l'unità consumata viene sottratta dalla scorta corr
 Given il giocatore è nella stanza di fusione con due oggetti idonei e almeno un'unità di catalizzatore di fusione,  
 When avvia la fusione,  
 Then il catalizzatore viene consumato e la meccanica procede secondo le regole di [item-fusion.md](item-fusion.md).
+
+### Scenario 5 — la salute base non supera il tetto del personaggio
+
+Given il giocatore ha già raggiunto il tetto di salute base del proprio personaggio (DEC-033) tramite stat-up e oggetti raccolti,  
+When ottiene un ulteriore stat-up o oggetto che aumenterebbe la capacità massima di salute base,  
+Then la salute base non supera il tetto proprio di quel personaggio: l'eventuale eccedenza non ha effetto sul contenitore di salute base (la salute temporanea/protettiva, se applicabile, non è soggetta a questo stesso limite).
+
+### Scenario 6 — personaggi diversi con tetti di salute diversi
+
+Given due personaggi della run — uno con un tetto di salute base basso ("personaggio-vetro") e uno con un tetto alto ("personaggio-roccia") — entrambi parte delle statistiche definite in DEC-033,  
+When ciascuno raccoglie la stessa quantità di stat-up e oggetti che aumentano la salute base,  
+Then il contenitore di salute base di ciascun personaggio cresce fino al proprio tetto individuale, e i due tetti restano diversi tra loro per design.

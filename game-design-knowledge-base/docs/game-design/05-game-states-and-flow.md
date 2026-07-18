@@ -2,7 +2,7 @@
 id: gd-game-states
 status: approved
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
 ---
 
@@ -73,7 +73,7 @@ flowchart TD
 | `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, abbandona (con `ExitConfirm`) |
 | `Options` | Da `MainMenu` o da `PauseMenu` | Modifica opzioni, torna indietro |
 | `BuildScreen` | Comando dedicato durante `Gameplay` | Consulta oggetti, sinergie, fusioni disponibili, torna a `Gameplay` |
-| `RunResults` | Fine run (vittoria ufficiale, prosecuzione conclusa, o sconfitta) | Torna al Piano 0, torna al menu principale |
+| `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, o sconfitta) | Torna al Piano 0, torna al menu principale |
 | `ExitConfirm` | Azione distruttiva richiesta (abbandono run, uscita dal gioco) | Conferma, annulla |
 
 ## Risultato e feedback per transizione

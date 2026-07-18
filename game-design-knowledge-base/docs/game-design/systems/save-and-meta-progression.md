@@ -2,8 +2,8 @@
 id: gd-system-save-meta
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi; niente potenziamenti permanenti del personaggio."
+last_reviewed: 2026-07-18
+summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045)."
 ---
 
 # Save and Meta Progression
@@ -34,7 +34,28 @@ competitive interagiscono con questo sistema solo in lettura limitata (vedi sott
 - **Il museo del Piano 0**, che raccoglie i migliori contenuti tra quelli catalogati (vedi
   `floor-zero.md` per cosa sia il museo).
 - **I punti guadagnati solo in singleplayer**, spendibili per sbloccare contenuti generati nei
-  pool delle run future.
+  pool delle run future. Il meccanismo di guadagno è a doppio canale — punti base dal
+  risultato della run più bonus da prove specifiche (DEC-027) — descritto in
+  [rewards-and-economy.md](rewards-and-economy.md) come fonte unica; questo documento non lo
+  ripete, registra solo che quei punti persistono.
+
+## Il Catalogo: tre funzioni (DEC-045)
+
+Il Catalogo, raggiungibile dal menu principale (vedi `ui/main-menu.md`), è la schermata che
+espone la meta-progressione persistente sopra descritta attraverso tre funzioni:
+
+- **enciclopedia consultabile** di tutto il contenuto generato incontrato dal giocatore:
+  ogni scheda mostra nome, sprite, storia e statistiche d'uso;
+- **preferiti**: il giocatore può segnare contenuti come preferiti; i preferiti pesano
+  leggermente sulle proposte future dell'IA nelle run successive, senza garantirne la
+  comparsa (restano soggette alle stesse regole di generazione e di peso nel pool);
+- **spesa dei punti sblocco**: è il luogo dove si spendono i punti guadagnati in
+  singleplayer (DEC-015, DEC-027) per sbloccare contenuti generati nei pool delle run future.
+
+Il Catalogo è distinto dal museo del Piano 0: il museo è una galleria curata delle sole
+creazioni migliori, provabile in loco (DEC-040); il Catalogo è l'enciclopedia completa più
+preferiti e spesa punti. Idea futura (lista DEC-018): portare le funzioni del Catalogo anche
+dentro il Piano 0/museo.
 
 ## Cosa NON persiste
 
@@ -61,6 +82,11 @@ solo cosa persiste e con quali regole.
   sono disattivati.
 - `generated-content-validation.md`: solo i contenuti approvati-per-run entrano nel catalogo
   (i fallback-usati restano un caso da chiarire, vedi Domande aperte).
+- `rewards-and-economy.md`: fonte del doppio canale di guadagno dei punti sblocco (DEC-027:
+  punti base dal risultato della run più bonus da prove specifiche); questo documento
+  descrive solo cosa persiste, non come si guadagna.
+- `ui/main-menu.md`: la voce Catalogo del menu principale apre la schermata a tre funzioni
+  descritta qui (DEC-045).
 
 ## Regole per contenuti generati
 
@@ -101,9 +127,12 @@ Questo sistema non definisce la regola di fallback per i contenuti generati: ved
 
 - Se i contenuti fallback-usati durante una run singleplayer entrano comunque nel catalogo, o
   solo i contenuti approvati-per-run (vedi anche `generated-content-validation.md`).
-- Il tasso esatto di guadagno e spesa dei punti di meta-progressione (non deciso).
+- Il tasso esatto di guadagno (punti base e bonus, DEC-027) e di spesa dei punti di
+  meta-progressione (non deciso).
 - Se il museo del Piano 0 mostra l'intero catalogo o solo un sottoinsieme curato dei migliori
   contenuti (vedi `floor-zero.md`).
+- Peso esatto che i preferiti aggiungono alle proposte future dell'IA (DEC-045 fissa solo
+  che il peso è "leggero", non il valore).
 
 ## Idee future (experimental)
 
@@ -113,6 +142,9 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
   personalizzate che usano i contenuti sbloccati dal catalogo di un giocatore è un'idea
   futura, non un requisito attuale. Non è stata progettata nel dettaglio e non deve essere
   trattata come funzionalità pianificata.
+- **DEC-018/DEC-045 — Funzioni del Catalogo anche nel Piano 0/museo**: portare l'enciclopedia
+  consultabile, i preferiti e la spesa punti anche dentro il museo del Piano 0, non solo nel
+  Catalogo del menu principale, è un'idea futura, non un requisito attuale.
 
 ## Scenari
 
@@ -138,3 +170,24 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - Given un giocatore ha sbloccato contenuti extra spendendo punti guadagnati in singleplayer,
 - When entra in una gara asincrona su un manifest di run condiviso,
 - Then quegli sblocchi non si applicano: la run competitiva usa i pool di base, non ampliati.
+
+**Scenario: punti da entrambi i canali persistono insieme**
+- Given un giocatore ha guadagnato punti base dal risultato di una run e bonus da prove
+  specifiche completate nella stessa run (DEC-027),
+- When la run termina,
+- Then entrambi i canali confluiscono nello stesso totale di punti sblocco persistente nel
+  profilo, senza distinzione nel saldo spendibile.
+
+**Scenario: le tre funzioni del Catalogo (DEC-045)**
+- Given un giocatore con un profilo che contiene contenuti catalogati, alcuni segnati come
+  preferiti, e punti sblocco disponibili,
+- When apre il Catalogo dal menu principale,
+- Then trova insieme l'enciclopedia consultabile dei contenuti incontrati, i preferiti
+  segnati e la possibilità di spendere i punti per sbloccare contenuti nei pool delle run
+  future.
+
+**Scenario: i preferiti pesano leggermente sulle proposte future**
+- Given un giocatore ha segnato alcuni contenuti come preferiti nel Catalogo,
+- When l'IA genera le proposte per una run futura,
+- Then quei contenuti preferiti ricevono un peso leggermente maggiore nel pool, senza che la
+  loro comparsa sia garantita.

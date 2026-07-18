@@ -2,8 +2,8 @@
 id: gd-ui-run-setup
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Seed e modalità della run; tema e personaggio si scelgono nel Piano 0."
+last_reviewed: 2026-07-18
+summary: "Seed e modalità della run; tema e personaggio si scelgono nel Piano 0. Nessun selettore di difficoltà: la curva dei 5 piani è unica e uguale per tutti (DEC-038)."
 ---
 
 # Run Setup
@@ -26,6 +26,11 @@ Il primo campo modificabile disponibile (seed o modalità), a seconda del punto 
 La scelta del tema della run e la scelta del personaggio non avvengono in `RunSetup`:
 avvengono nel Piano 0 (DEC-004, DEC-005, DEC-014). Vedi `systems/floor-zero.md` per la
 loro spec completa. `RunSetup` prepara solo l'identità tecnica della run.
+
+Non esiste un selettore di difficoltà: la curva di difficoltà dei 5 piani è unica, uguale
+per tutte le run e per tutti i giocatori (DEC-038, vedi
+`07-difficulty-and-progression.md`). Questo rende le classifiche immediatamente
+confrontabili, senza bisogno di normalizzazione per un livello di difficoltà scelto.
 
 ## Elementi interattivi
 
@@ -68,3 +73,4 @@ seed condiviso e modificatori sbloccati vanno etichettati come tali (DEC-016).
 2. **Given** il giocatore importa un codice di run condivisa valido, **when** conferma "Avvia", **then** il manifest riprodotto è identico a quello condiviso.
 3. **Given** una modalità competitiva è attiva, **when** il giocatore prova ad attivare un modificatore sbloccato, **then** l'elemento risulta disabilitato con un'indicazione del motivo.
 4. **Given** il giocatore cerca la modalità caos, **when** consulta `RunSetup`, **then** non la trova: è documentata solo come idea futura (DEC-018).
+5. **Given** il giocatore apre `RunSetup`, **when** cerca un'opzione per scegliere il livello di difficoltà, **then** non la trova: nessun livello di difficoltà è selezionabile, la curva dei 5 piani è unica per tutte le run (DEC-038).

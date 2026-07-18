@@ -2,8 +2,8 @@
 id: gd-system-rewards-economy
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) e punti sblocco esclusivi al singleplayer (DEC-015); pattern rischio/ricompensa dell'arena di sfida."
+last_reviewed: 2026-07-18
+summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013), negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida."
 ---
 
 # Rewards and Economy
@@ -38,6 +38,20 @@ La **valuta principale** è il nome placeholder per funzione che sostituisce "mo
 - partecipazione a scambi nella stanza di scambio ad alto rischio (vedi [special-rooms.md](./special-rooms.md));
 - eventuale pagamento parziale di costi in altre stanze speciali, quando previsto dal loro contratto.
 
+## Negozio: prezzi fissi e offerta speciale (DEC-026)
+
+Il negozio (stanza standard) usa **prezzi base fissi per fascia di rarità**: il giocatore
+impara nel tempo il valore delle cose, invece di dover ricalcolare un prezzo variabile ogni
+volta. Ogni negozio propone inoltre **una sola offerta speciale generata** (sconto,
+pacchetto o oggetto legato al tema della run). **Non esistono "patti" a costo salute nel
+negozio**: cedere salute in cambio di un guadagno resta esclusivo della stanza di scambio
+ad alto rischio (vedi [Special Rooms](./special-rooms.md)). Questo risolve la domanda di
+design precedentemente aperta su prezzi dinamici e costi in salute nel negozio.
+
+Nella stanza di scambio ad alto rischio, offerta e prezzo sono generati dall'IA dentro un
+budget di equità (DEC-044): fonte unica del dettaglio è [Special Rooms](./special-rooms.md),
+non riformulato qui.
+
 ## Risultato
 
 Una ricompensa raccolta entra nell'inventario, nella salute o nella valuta principale del giocatore secondo il tipo; una spesa riduce la risorsa usata e sblocca l'accesso, l'oggetto o l'effetto pagato.
@@ -56,19 +70,39 @@ La ricompensa deve essere proporzionata a rischio, costo e rarità, considerando
 
 L'arena di sfida ([special-rooms.md](./special-rooms.md), DEC-010) è una fonte dichiarata di rischio-ricompensa: propone contenuti "best-of" più impegnativi (anche in versione Piano 0, vedi [floor-zero.md](./floor-zero.md)) in cambio di ricompense superiori alla media di una stanza equivalente non a rischio. Il dettaglio dell'archetipo — accesso, costo, frequenza — è definito in [special-rooms.md](./special-rooms.md); questo documento descrive solo il pattern economico che ne deriva.
 
-## Meta-progressione e punti sblocco (DEC-015)
+## Meta-progressione e punti sblocco (DEC-015, DEC-027)
 
 I **punti sblocco** si guadagnano giocando in singleplayer e sono spendibili per sbloccare contenuti generati nei pool delle run future. Sono **esclusi dalle modalità competitive**. Il dettaglio della meta-progressione (catalogo, museo del Piano 0, cosa persiste) è definito in [save-and-meta-progression.md](./save-and-meta-progression.md) come fonte unica; questo documento non lo ripete, registra solo che:
 
 - i punti sblocco sono un tipo di ricompensa/progressione guadagnata in singleplayer;
 - non hanno valore o effetto nelle gare asincrone o in altre modalità competitive.
 
+### Doppio canale di guadagno (DEC-027)
+
+I punti sblocco a fine run si compongono di due canali:
+
+- **punti base**, assegnati in funzione del risultato della run (piani completati, boss
+  sconfitti, scoperte fatte);
+- **bonus da prove specifiche**, fisse o generate (esempi: sconfiggere un boss senza
+  subire danni, trovare 2 stanze segrete, completare un'arena di sfida).
+
+Resta valido solo in singleplayer (DEC-015 invariata): nessun canale di questo doppio
+sistema si applica alle modalità competitive.
+
+### Presentazione delle prove specifiche (DEC-042, rimando)
+
+Le prove specifiche del canale bonus vengono presentate al giocatore al passaggio dal Piano
+0 al piano 1 e restano sempre consultabili dal menu di pausa e dalla schermata build; fonte
+unica del comportamento di presentazione: [Floor Zero](./floor-zero.md). Questo documento non
+lo ripete, definisce solo che le prove sono la fonte del bonus punti descritto sopra.
+
 ## Interazioni
 
 - con il negozio e gli scambi ([rooms-and-floor-generation.md](./rooms-and-floor-generation.md), [special-rooms.md](./special-rooms.md));
 - con la salute e le altre risorse ([health-and-resources.md](./health-and-resources.md));
 - con la tassonomia oggetti e rarità ([items-pools-and-rarity.md](./items-pools-and-rarity.md));
-- con la meta-progressione ([save-and-meta-progression.md](./save-and-meta-progression.md)).
+- con la meta-progressione ([save-and-meta-progression.md](./save-and-meta-progression.md));
+- con la presentazione delle prove specifiche all'ingresso nel piano 1 ([floor-zero.md](./floor-zero.md), DEC-042).
 
 ## Regole per contenuti generati
 
@@ -86,6 +120,7 @@ Ogni ricompensa generata (oggetto, effetto, quantità di valuta) dichiara un'ori
 - Un giocatore accumula valuta principale senza occasioni di spesa nel piano corrente: la generazione deve garantire almeno un'occasione di spesa significativa per piano.
 - Uno scambio ad alto rischio propone un costo che il giocatore non può permettersi: la stanza non deve bloccare il progresso (vedi [special-rooms.md](./special-rooms.md), casi limite).
 - I punti sblocco vengono guadagnati durante una sessione che poi entra in una modalità competitiva: restano registrati come singleplayer e non si applicano alla sessione competitiva in corso.
+- Una prova specifica generata per il bonus punti sblocco (es. "boss senza danni") risulta impossibile da verificare per un difetto di generazione: la prova va scartata o corretta in validazione prima di essere proposta, e non deve mai negare i punti base già maturati.
 
 ## Fallback
 
@@ -99,7 +134,11 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 ## Domande aperte residue
 
-- Tasso esatto di guadagno dei punti sblocco per azione/run.
+- Valori esatti dei prezzi fissi per fascia di rarità nel negozio (DEC-026 fissa il
+  modello "prezzi fissi", non i numeri).
+- Tasso esatto di guadagno dei punti base e dei bonus da prova specifica (DEC-027 fissa la
+  struttura a doppio canale, non i numeri).
+- Elenco completo delle prove specifiche (fisse e generate) che danno bonus punti sblocco.
 - Prezzi e range esatti degli scambi nella stanza ad alto rischio.
 - Quanti "slot" di spesa significativa devono esistere per piano.
 
@@ -128,3 +167,15 @@ Then i punti sblocco e i contenuti sbloccati non hanno effetto nella sessione co
 Given un giocatore con risorse insufficienti per completare uno scambio ad alto rischio proposto
 When valuta le opzioni nella stanza
 Then può uscire senza penalità, senza che la progressione della run sia bloccata
+
+### Scenario 5 — Negozio con prezzo fisso e offerta speciale
+
+Given un giocatore che entra in due negozi diversi nella stessa run
+When confronta i prezzi base di un oggetto della stessa fascia di rarità nei due negozi
+Then i prezzi base coincidono, mentre ciascun negozio propone una propria offerta speciale generata diversa dall'altro
+
+### Scenario 6 — Punti sblocco dal doppio canale a fine run
+
+Given un giocatore che completa una run singleplayer sconfiggendo un boss senza subire danni e trovando 2 stanze segrete
+When la run termina e i punti sblocco vengono calcolati
+Then il totale include sia i punti base per il risultato della run sia i bonus per le prove specifiche completate (DEC-027)

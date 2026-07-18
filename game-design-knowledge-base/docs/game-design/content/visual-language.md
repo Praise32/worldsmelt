@@ -2,8 +2,8 @@
 id: gd-content-visual-language
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB."
+last_reviewed: 2026-07-18
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046)."
 ---
 
 # Visual Language
@@ -62,6 +62,29 @@ La fusione esplicita degli oggetti (vedi `../systems/item-fusion.md`, non riform
 produrre una trasformazione visiva coerente usando questi 7 strati, non un semplice collage
 degli aspetti dei due oggetti di partenza.
 
+## Escalation del tema tra piani (DEC-024)
+
+L'aspetto è uno dei quattro assi su cui il tema di una run si intensifica piano dopo piano
+(vedi [Difficulty and Progression](../07-difficulty-and-progression.md) per il principio
+generale, non riformulato qui). Anche nei piani più avanzati, l'intensificazione dei 7
+strati sopra definiti deve restare uno schema visivo comprensibile: il budget di
+leggibilità di [Combat and Projectiles](../systems/combat-and-projectiles.md) vale su tutti
+i piani, senza eccezioni per i piani finali.
+
+## Pixel art come linguaggio canonico totale (DEC-046)
+
+Tutto il gioco si basa sulla **pixel art**: non solo gli elementi di gioco (personaggio,
+nemici, proiettili, oggetti, ambiente), ma anche l'**intera interfaccia** — menu, HUD, font,
+indicatori. La UI è **custom e in pixel art anch'essa**, non un linguaggio pulito non-pixel
+separato dal resto del gioco. I 7 strati di trasformazione visiva definiti sopra si
+esprimono quindi sempre in pixel art, e lo stesso vale per gli elementi di interfaccia che
+comunicano stato di gioco (es. l'indicatore sul personaggio, strato 7).
+
+Le risoluzioni di riferimento attuali (atlas generati, resa a campionamento a punto) sono
+**default dell'implementazione**, nello stesso stato `draft` dei valori numerici di DEC-019:
+documentate come default proposto, non come valore di design definitivo. Fonti che
+rimandano a questa regola senza riformularla: `ui/hud.md`.
+
 ## Accessibilità
 
 Nessuna informazione critica deve dipendere solo dal colore.
@@ -107,3 +130,16 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - When osserva il proprio personaggio senza aprire un menu,
 - Then l'indicatore sul personaggio comunica in modo persistente quali effetti sono attivi,
   senza dipendere solo dal colore.
+
+**Scenario: l'aspetto si intensifica ma resta leggibile anche nel piano più avanzato**
+- Given una run con tema scelto nel Piano 0, arrivata al piano 5,
+- When il gioco compone l'aspetto delle minacce e degli elementi di quel piano usando i 7
+  strati con l'intensità massima prevista per il tema,
+- Then lo schema visivo resta comprensibile e rispetta il budget di leggibilità di
+  [Combat and Projectiles](../systems/combat-and-projectiles.md), coerente con DEC-024.
+
+**Scenario: la UI è pixel art quanto gli elementi di gioco**
+- Given un giocatore che osserva sia un nemico generato sia l'HUD durante `Gameplay`,
+- When confronta lo stile visivo dei due elementi,
+- Then entrambi sono resi in pixel art con lo stesso linguaggio, perché la UI non usa uno
+  stile pulito non-pixel separato (DEC-046).

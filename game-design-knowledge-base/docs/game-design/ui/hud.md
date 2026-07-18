@@ -2,8 +2,8 @@
 id: gd-ui-hud
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto."
+last_reviewed: 2026-07-18
+summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md)."
 ---
 
 # HUD
@@ -56,6 +56,11 @@ distinta dalle altre tre.
 Si parte con 1 slot attivo e 1 slot Innesto; oggetti o eventi rari possono aggiungere slot
 durante la run (DEC-011). L'HUD mostra sempre lo stato corrente degli slot posseduti, non
 il numero massimo teorico.
+
+## Stile visivo (DEC-046, rimando)
+
+L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regola è
+[Visual Language](../content/visual-language.md), non riformulata qui.
 
 ## Priorità visiva
 

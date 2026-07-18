@@ -2,8 +2,8 @@
 id: gd-system-bosses
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run ufficiale (DEC-006), con proseguimento facoltativo in piani extra degenerati. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019)."
+last_reviewed: 2026-07-18
+summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028): piano 1 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019)."
 ---
 
 # Bosses
@@ -15,7 +15,7 @@ Il boss verifica abilità e decisioni sviluppate nel piano, senza dipendere da u
 ## Condizioni di ingresso
 
 - Il giocatore raggiunge la stanza boss dopo aver completato le condizioni previste dal piano (vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)).
-- Il boss del piano 5 è l'ultimo boss della run standard: la sua sconfitta chiude la run ufficiale (DEC-006).
+- Il boss del piano 5 è l'ultimo boss della run: la sua sconfitta chiude la run con vittoria (DEC-006, aggiornata da DEC-031).
 
 ## Input/azioni
 
@@ -33,24 +33,35 @@ Il giocatore usa la build corrente, movimento libero e sparo nelle quattro direz
 - condizioni anti-stallo;
 - fallback.
 
-## Risultato (DEC-006)
+## Escalation dei boss per piano (DEC-028)
+
+Come gli altri assi dell'escalation del tema (DEC-024, vedi
+[Difficulty and Progression](../07-difficulty-and-progression.md) per il principio
+generale), anche i boss crescono in complessità piano dopo piano:
+
+- il boss del **piano 1** ha una **fase singola**, leggibile fin dal primo incontro;
+- dal **piano 3** i boss hanno **due fasi**, con un cambio di comportamento leggibile alla
+  transizione;
+- il boss del **piano 5** è il **più complesso** della run standard.
+
+Questa progressione resta comunque soggetta al [Limite](#limite) sotto e al budget di
+leggibilità di [Combat and Projectiles](./combat-and-projectiles.md): più fasi e più
+regole non significano mai perdere la leggibilità delle transizioni.
+
+## Risultato (DEC-006, aggiornato da DEC-031)
 
 - **Boss dei piani 1-4:** la sconfitta apre l'uscita verso il piano successivo.
-- **Boss del piano 5:** la sconfitta chiude la run ufficiale, valida per classifiche e vittoria. Da qui il giocatore sceglie se:
-  - fermarsi e concludere la run con il risultato ottenuto; oppure
-  - proseguire in piani extra, in continuità con lo stesso tema ma sempre più degenerati, oltre il piano 5, finché non muore.
-- **Morte, in qualunque piano incluso un piano extra:** salute a zero significa run persa (permadeath). L'ordine di consumo tra salute temporanea e salute base è definito in [health-and-resources.md](./health-and-resources.md); questo documento non lo ripete.
-- I piani extra oltre il piano 5 non contano ai fini della vittoria ufficiale né delle classifiche standard: sono un proseguimento facoltativo del rischio, successivo a una vittoria già acquisita.
+- **Boss del piano 5:** la sconfitta chiude la run con **vittoria**, valida per classifiche. La run finisce qui: non è prevista una prosecuzione in piani extra in questa fase del gioco (l'idea è parcheggiata tra le idee future, DEC-018, DEC-031).
+- **Morte, in qualunque piano:** salute a zero significa run persa (permadeath). L'ordine di consumo tra salute temporanea e salute base è definito in [health-and-resources.md](./health-and-resources.md); questo documento non lo ripete. Alla sconfitta i punti sblocco maturati restano in misura ridotta rispetto alla vittoria, e il catalogo si aggiorna comunque con le creazioni incontrate (DEC-041; dettaglio in [results-and-leaderboards.md](../ui/results-and-leaderboards.md), rimando, non riformulato qui).
 
 ## Feedback
 
 - transizioni di fase leggibili e distinte;
-- segnale chiaro alla sconfitta del boss del piano 5 (chiusura della run ufficiale) e scelta esplicita se proseguire oltre;
-- indicazione che i piani extra sono oltre l'obiettivo ufficiale, per evitare ambiguità sulla vittoria già ottenuta.
+- segnale chiaro alla sconfitta del boss del piano 5: la run si chiude con vittoria, senza alcuna scelta di prosecuzione (DEC-031).
 
 ## Interazioni
 
-- con il tema di run, che degenera progressivamente fino al boss del piano 5 e oltre, nei piani extra;
+- con il tema di run, che degenera progressivamente fino al boss del piano 5;
 - con la build del giocatore, senza dipendenza da una combinazione obbligatoria;
 - con la ricompensa (vedi [rewards-and-economy.md](./rewards-and-economy.md)).
 
@@ -67,9 +78,8 @@ Il boss finale non deve introdurre contemporaneamente troppe regole mai viste ne
 
 ## Casi limite
 
-- Il giocatore muore in un piano extra dopo aver già vinto ufficialmente al piano 5: la run resta vinta ai fini di classifica; la morte chiude solo il proseguimento facoltativo.
-- Il boss generato per un piano extra eccede la banda di potenza [1.4–3.2]: va respinto o riscalato in validazione, come qualunque boss generato.
-- Il giocatore abbandona la run prima di affrontare il boss del piano 5: nessuna vittoria ufficiale registrata.
+- Il boss generato per un piano eccede la banda di potenza [1.4–3.2]: va respinto o riscalato in validazione, come qualunque boss generato.
+- Il giocatore abbandona la run prima di affrontare il boss del piano 5: nessuna vittoria registrata.
 
 ## Fallback
 
@@ -85,21 +95,24 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - Valore finale delle bande di potenza boss e dei pesi di rarità dopo playtest (DEC-019).
-- Regole esatte di scaling/degenerazione dei piani extra oltre il piano 5.
+- Il boss del piano 2 ha fase singola (come il piano 1) o già due fasi (come dal piano 3)?
+  DEC-028 non lo specifica esplicitamente.
+- Numero esatto di fasi del boss del piano 5, oltre alla qualifica di "il più complesso"
+  (DEC-028).
 
 ## Scenari
 
-### Scenario 1 — Vittoria ufficiale al piano 5
+### Scenario 1 — Vittoria al piano 5
 
 Given un giocatore che raggiunge il boss del piano 5 con salute residua
 When sconfigge il boss
-Then la run si chiude come vittoria ufficiale, valida per classifiche, e il gioco offre la scelta di fermarsi o proseguire in un piano extra
+Then la run si chiude con vittoria, valida per classifiche, e finisce lì: nessuna scelta di prosecuzione in piani extra viene presentata (DEC-031)
 
-### Scenario 2 — Morte in un piano extra
+### Scenario 2 — Sconfitta prima del piano 5
 
-Given un giocatore che ha già vinto ufficialmente al piano 5 e ha scelto di proseguire
-When la sua salute base scende a zero in un piano extra
-Then la run termina in permadeath, ma il risultato di vittoria ufficiale ottenuto al piano 5 resta valido per la classifica
+Given un giocatore che non ha ancora sconfitto il boss del piano 5
+When la sua salute base scende a zero in un piano qualunque
+Then la run termina in permadeath, con i punti sblocco maturati mantenuti in misura ridotta rispetto alla vittoria (DEC-041)
 
 ### Scenario 3 — Boss generato fuori banda
 
@@ -112,3 +125,15 @@ Then il boss è respinto o riscalato entro la banda prima di poter apparire nell
 Given la sconfitta di un boss
 When il gioco genera la ricompensa dal pool pesato {comune: 0, non-comune: 0, rara: 70, leggendaria: 30}
 Then l'oggetto assegnato è sempre di rarità rara o leggendaria, coerente con il default attuale (draft, da validare col playtest)
+
+### Scenario 5 — Boss del piano 1 a fase singola
+
+Given il giocatore raggiunge il boss del piano 1
+When lo affronta
+Then il boss ha una sola fase, leggibile fin dal primo incontro, senza cambi di comportamento a metà scontro
+
+### Scenario 6 — Boss dal piano 3 con due fasi
+
+Given il giocatore raggiunge il boss di un piano dal 3 in su
+When la salute del boss scende sotto la soglia di transizione
+Then il boss cambia fase con un comportamento nuovo, leggibile come cambio di fase (DEC-028)

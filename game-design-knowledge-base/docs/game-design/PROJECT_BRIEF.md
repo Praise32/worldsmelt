@@ -2,7 +2,7 @@
 id: gd-project-brief
 status: draft
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Sintesi iniziale del gioco descritta dal creatore."
 ---
 
@@ -44,9 +44,9 @@ linkato; questa sezione è solo una sintesi orientativa.
   [Health and Resources](systems/health-and-resources.md)).
 - Il gioco deve permettere apprendimento e miglioramento del giocatore, evitando il caos
   totale come unica esperienza.
-- Sconfiggere il boss del piano 5 chiude la run ufficiale (valida per classifiche); il
-  giocatore può proseguire in piani extra sempre più degenerati finché non muore
-  (`DEC-006`).
+- Sconfiggere il boss del piano 5 chiude la run ufficiale (valida per classifiche) e la run
+  finisce lì (`DEC-006`, aggiornata da `DEC-031`); una prosecuzione in piani extra resta solo
+  un'idea futura non implementata (`DEC-018`).
 - Durata obiettivo di una run completa vinta (Piano 0 + 5 piani): 30–45 minuti (`DEC-017`).
 - Meta-progressione: persistono il catalogo di tutti i contenuti generati, il museo del
   Piano 0 e punti guadagnati in singleplayer per sbloccare contenuti nei pool delle run

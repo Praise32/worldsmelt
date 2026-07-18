@@ -2,8 +2,8 @@
 id: gd-system-rooms-floors
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010). Il Piano 0 non è un piano generato: vedi floor-zero.md."
+last_reviewed: 2026-07-18
+summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 ---
 
 # Rooms and Floor Generation
@@ -14,7 +14,7 @@ Ogni piano deve sembrare costruito apposta, con una progressione leggibile verso
 
 ## Condizioni di ingresso
 
-- Un piano viene generato quando la run lo richiede: i piani 1-5, e gli eventuali piani extra oltre il 5 (vedi [bosses.md](./bosses.md)).
+- Un piano viene generato quando la run lo richiede: i piani 1-5. La vittoria al boss del piano 5 chiude la run (DEC-006, DEC-031, vedi [bosses.md](./bosses.md)); non esistono piani oltre il 5 in questa fase del gioco.
 - Il **Piano 1** è generato con le stesse regole di tutti gli altri piani: nessun trattamento speciale rispetto ai piani 2-5.
 - Il **Piano 0** NON è un piano generato: è la sala d'attesa/hub del gioco. Per i suoi dettagli vedi [floor-zero.md](./floor-zero.md); questo documento non li ripete.
 
@@ -81,12 +81,33 @@ Ogni piano possiede:
 - almeno un elemento ricorrente;
 - progressione interna verso il boss.
 
+## Budget di difficoltà condiviso tra ostacoli e nemici (DEC-043)
+
+Il **budget di difficoltà della stanza** (vedi "Coerenza del piano" sopra) copre insieme
+gli ostacoli ambientali e i nemici della stanza: spendere budget in ostacoli riduce quanto
+resta disponibile per i nemici, e viceversa. Non sono due budget separati e indipendenti.
+Il dettaglio della generazione degli ostacoli a tema (forma, comportamento, garanzie di
+giocabilità) è definito in
+[Secrets and Obstacles](./secrets-and-obstacles.md) come fonte unica; questo documento
+registra solo il vincolo di condivisione del budget con i nemici (vedi anche
+[Enemies](./enemies.md) per il budget lato nemici).
+
+## Modificatori di stanza nei piani avanzati (DEC-024)
+
+Nei piani avanzati sono ammessi **modificatori di stanza generati** (es. una variazione di
+regola o condizione applicata a una stanza esistente, coerente col grado crescente del
+tema), sempre dentro le garanzie di giocabilità della validazione dei contenuti generati
+(vedi [Generated Content Validation](./generated-content-validation.md), non riformulata
+qui). Questo fa parte dell'asse "regole di stanza" dell'escalation leggibile del tema
+descritta in [Difficulty and Progression](../07-difficulty-and-progression.md), fonte del
+principio generale; questo documento non lo ripete.
+
 ## Interazioni
 
 - con il tema di run scelto nel Piano 0 (vedi [floor-zero.md](./floor-zero.md)), che evolve/degenera piano dopo piano;
 - con gli archetipi nemici (vedi [enemies.md](./enemies.md)) e il boss di fine piano (vedi [bosses.md](./bosses.md));
 - con le stanze speciali (vedi [special-rooms.md](./special-rooms.md));
-- con ostacoli e segreti (vedi [secrets-and-obstacles.md](./secrets-and-obstacles.md)).
+- con ostacoli e segreti (vedi [secrets-and-obstacles.md](./secrets-and-obstacles.md)), inclusa la condivisione del budget di difficoltà della stanza tra ostacoli e nemici (DEC-043).
 
 ## Regole per contenuti generati
 
@@ -114,7 +135,9 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 - Valore esatto della grandezza minima garantita (DEC-009 non specifica un numero).
 - Intervallo esatto del numero variabile di stanze per piano.
-- Regole esatte di degenerazione del tema piano dopo piano (vedi anche [bosses.md](./bosses.md) per i piani extra).
+- Regole esatte (soglie per piano, intensità) di degenerazione del tema piano dopo piano,
+  oltre al principio dei quattro assi e all'ammissibilità di modificatori di stanza
+  generati nei piani avanzati fissati da DEC-024 (vedi anche [bosses.md](./bosses.md)).
 
 ## Scenari
 
@@ -141,3 +164,15 @@ Then il piano viene integrato con un negozio (curato o generato) o rifiutato, se
 Given un giocatore nel Piano 0
 When sceglie di entrare nel piano successivo pronto
 Then entra nel Piano 1 generato con le stesse regole descritte in questo documento, mentre il Piano 0 resta descritto solo in [floor-zero.md](./floor-zero.md)
+
+### Scenario 5 — Modificatore di stanza generato in un piano avanzato
+
+Given un piano avanzato (es. dal piano 3 in su) che genera un modificatore di stanza legato al tema
+When il modificatore viene proposto per una stanza
+Then deve superare la validazione delle garanzie di giocabilità prima di poter apparire nella run, secondo [generated-content-validation.md](./generated-content-validation.md)
+
+### Scenario 6 — Budget di stanza condiviso tra ostacoli e nemici
+
+Given una stanza generata con un budget di difficoltà dichiarato
+When la generazione spende una parte consistente del budget in ostacoli ambientali a tema (DEC-043)
+Then il budget restante per i nemici della stessa stanza si riduce di conseguenza, perché ostacoli e nemici condividono lo stesso budget di difficoltà

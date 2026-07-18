@@ -2,8 +2,8 @@
 id: gd-ai-content-model
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato."
+last_reviewed: 2026-07-18
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037)."
 ---
 
 # AI Content Generation Model
@@ -26,11 +26,16 @@ la generazione blocca la partita.
 
 ## Tipi di contenuto
 
-- Tipi di colpo (parametrico, entro bande).
+- Tipi di colpo (parametrico entro bande, come garanzia e fallback; anche comportamentale,
+  scritto in Lua e validato in sandbox con grande varietà — DEC-037, vedi
+  [Combat and Projectiles](systems/combat-and-projectiles.md)).
 - Nemici e boss (parametrico per statistiche/pattern, entro bande).
 - Layout di stanze (parametrico, entro bande e vincoli strutturali).
 - Oggetti, inclusi gli oggetti di fusione (comportamentale, validato in sandbox; vedi
   [Item Fusion](systems/item-fusion.md)).
+- Trait unico del personaggio alternativo generato per run (comportamentale, scritto in Lua
+  e validato in sandbox con la stessa pipeline degli oggetti — DEC-037, vedi
+  [Characters](systems/characters.md)).
 - Sinergie tra effetti (comportamentale).
 - Temi di piano e la loro evoluzione/degenerazione (composizione + variazione).
 - Aspetto e composizione degli sprite.
@@ -81,6 +86,25 @@ Ogni contenuto generato deve avere:
 2. Non è richiesta una sandbox comportamentale separata: il rispetto delle bande è di per sé
    la garanzia di sicurezza, verificata da controlli strutturali minimi.
 
+## Comportamenti Lua per oggetti, trait di personaggio e tipi di colpo (DEC-037)
+
+La pipeline comportamentale, nata per gli oggetti, si estende ad altri due contenuti:
+
+- il **trait unico del personaggio alternativo** generato per ogni run (vedi
+  [Characters](systems/characters.md));
+- i **tipi di colpo** (per il giocatore e per i nemici), che il proprietario vuole vedere
+  evolvere verso una grande varietà di comportamenti scriptati (vedi
+  [Combat and Projectiles](systems/combat-and-projectiles.md)).
+
+In entrambi i casi il comportamento è scritto dall'IA e validato in sandbox con la stessa
+pipeline già usata per i comportamenti degli oggetti (vedi "Processo per contenuti
+comportamentali" sopra). Per i tipi di colpo, le manopole parametriche descritte nel
+processo per contenuti parametrici **restano attive** come garanzia di bilanciamento e come
+fallback: un colpo scriptato in Lua che non supera la validazione ricade su una versione
+parametrica curata equivalente. Questo documento non ridefinisce i dettagli tecnici del
+linguaggio o della sandbox: quei dettagli, quando esistono, vivono nella documentazione
+tecnica del progetto, fuori da questa KB di game design.
+
 ## Trasparenza al giocatore (fonte unica)
 
 Questa è la fonte unica della regola: il gioco può comunicare che la run è stata generata,
@@ -94,6 +118,14 @@ qui invece di riformulare la regola.
 L'IA non può modificare arbitrariamente regole fondamentali come input, condizioni di
 vittoria, significato delle risorse o segnali di pericolo senza una modalità esplicitamente
 dedicata.
+
+## Nota — priorità delle anteprime visive dei temi (DEC-039)
+
+Tra le generazioni richieste a inizio run, le anteprime visive dei 2-3 temi proposti nel
+Piano 0 (es. uno sprite campione di un nemico del tema) hanno **priorità altissima**: la
+scelta del tema dipende da queste anteprime. Il dettaglio completo del comportamento e del
+fallback (nome+descrizione senza anteprima) vive in [Floor Zero](systems/floor-zero.md)
+(rimando, non riformulato qui).
 
 ## Casi limite
 
@@ -130,3 +162,8 @@ dedicata.
 - **Dato** che il gioco comunica che la run è stata generata, **quando** mostra
   quell'informazione al giocatore, **allora** non include mai prompt, log o messaggi di
   errore interni.
+- **Dato** che l'IA scrive il trait unico del personaggio alternativo o un tipo di colpo
+  come comportamento Lua (DEC-037), **quando** il comportamento non supera la validazione in
+  sandbox, **allora** il fallback curato prende il suo posto — per i tipi di colpo, la
+  versione parametrica dentro le bande di garanzia — senza che il giocatore veda alcun
+  errore.

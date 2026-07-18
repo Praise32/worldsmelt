@@ -2,39 +2,47 @@
 id: gd-ui-results-leaderboards
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Run ufficiale chiusa al boss del piano 5; prosecuzione registrata a parte; riprova non classificata."
+last_reviewed: 2026-07-18
+summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041); riprova non classificata."
 ---
 
 # Results and Leaderboards (RunResults)
 
 ## Intento
 
-Comunicare l'esito della run in modo chiaro, distinguendo la run ufficiale dalla
-prosecuzione oltre il piano 5, e dare accesso alle classifiche coerenti con DEC-016.
+Comunicare l'esito della run in modo chiaro — vittoria al boss del piano 5 o sconfitta — e
+dare accesso alle classifiche coerenti con DEC-016.
 
 ## Condizioni di ingresso
 
 Da `Gameplay`, quando la run termina: vittoria sul boss del piano 5, morte in un piano
 qualunque (permadeath), o abbandono confermato da `PauseMenu`.
 
-## Run ufficiale e prosecuzione (DEC-006)
+## Vittoria e sconfitta (DEC-006, aggiornata da DEC-031)
 
-- Sconfiggere il boss del piano 5 chiude la **run ufficiale**, valida per le classifiche.
-- Da quel momento il giocatore può scegliere di proseguire in piani extra sempre più
-  degenerati; questa prosecuzione viene registrata **a parte** e non altera il risultato
-  già acquisito della run ufficiale.
+- Sconfiggere il boss del piano 5 chiude la run con **vittoria**, valida per le classifiche.
+  La run finisce lì: la prosecuzione in piani extra non è implementata in questa fase del
+  gioco e resta un'idea futura parcheggiata (DEC-018, DEC-031), non un'opzione presentata in
+  `RunResults`.
 - La salute a zero, in qualunque piano, è run persa (permadeath): non esiste un "continua"
   dopo la morte.
+
+## Alla sconfitta (DEC-041)
+
+Alla sconfitta restano i punti sblocco maturati durante la run, ma in **misura ridotta**
+rispetto alla vittoria; il catalogo si aggiorna comunque con le creazioni incontrate e con le
+statistiche della run. Nessun oggetto sopravvive alla run in nessun caso (permadeath,
+DEC-006).
 
 ## Elementi interattivi
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
-| Esito | Sempre | — (sola lettura) | Nessuna | — | Vittoria (boss piano 5), sconfitta, o abbandono, con eventuale prosecuzione extra indicata a parte |
+| Esito | Sempre | — (sola lettura) | Nessuna | — | Vittoria (boss piano 5), sconfitta, o abbandono |
 | Tempo e piano raggiunto | Sempre | — (sola lettura) | Nessuna | — | — |
 | Build finale e sinergie notevoli | Sempre | — (sola lettura) | Consulta dettagli | Apre una vista sola-lettura della build | — |
 | Punteggio | Sempre | — (sola lettura) | Nessuna | — | — |
+| Punti sblocco maturati | Sempre | — (sola lettura) | Nessuna | — | Valore intero alla vittoria, ridotto alla sconfitta (DEC-041) |
 | Identificatore condivisibile della run | Sempre | Sempre | Copia/condividi identificatore | Permette ad altri di scegliere la stessa run/seed | Conferma di copia |
 | Nuova run | Sempre | Sempre | Apre `RunSetup` | Entra in `RunSetup` senza vincoli dalla run appena conclusa | — |
 | Riprova la stessa run | Sempre | Sempre | Apre `RunSetup` con lo stesso seed/manifest precompilato | Riavvia la stessa run, ma **non classificata** | Etichetta esplicita "non classificata" |
@@ -69,7 +77,7 @@ regole di fallback: `systems/generated-content-validation.md`.
 
 ## Scenari verificabili
 
-1. **Given** il giocatore sconfigge il boss del piano 5, **when** entra in `RunResults`, **then** l'esito mostra "vittoria" per la run ufficiale, indipendentemente da eventuali piani extra successivi.
+1. **Given** il giocatore sconfigge il boss del piano 5, **when** entra in `RunResults`, **then** l'esito mostra "vittoria" e la run risulta conclusa lì, senza alcuna opzione di prosecuzione (DEC-031).
 2. **Given** il giocatore muore in un piano qualunque, **when** entra in `RunResults`, **then** l'esito mostra sconfitta e nessuna opzione di "continua" è disponibile (permadeath).
 3. **Given** il giocatore sceglie "Riprova la stessa run", **when** la nuova esecuzione parte, **then** è etichettata come non classificata fin dall'inizio.
-4. **Given** il giocatore prosegue oltre il piano 5 dopo la vittoria, **when** muore in un piano extra, **then** il risultato della run ufficiale resta la vittoria già registrata, e la morte extra è annotata separatamente.
+4. **Given** il giocatore muore (permadeath) prima del boss del piano 5, **when** entra in `RunResults`, **then** i punti sblocco maturati sono mostrati in misura ridotta rispetto a quanto avrebbe ottenuto con una vittoria, e il catalogo risulta comunque aggiornato con le creazioni incontrate (DEC-041).

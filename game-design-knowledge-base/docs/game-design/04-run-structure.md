@@ -2,8 +2,8 @@
 id: gd-run-structure
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Struttura di una run: Piano 0 più cinque piani generati, e prosecuzione post-boss."
+last_reviewed: 2026-07-18
+summary: "Struttura di una run: Piano 0 più cinque piani generati; la vittoria al boss del piano 5 chiude la run (DEC-031, aggiorna DEC-006). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018)."
 ---
 
 # Run Structure
@@ -11,8 +11,8 @@ summary: "Struttura di una run: Piano 0 più cinque piani generati, e prosecuzio
 ## Intento per il giocatore
 
 Il giocatore deve poter avviare il gioco senza attese morte, capire in ogni momento in
-quale fase della run si trova, e scegliere consapevolmente se fermarsi al boss del piano 5
-o rischiare piani extra sempre più degenerati.
+quale fase della run si trova, e riconoscere chiaramente quando la run si conclude: al boss
+del piano 5 con la vittoria, oppure prima con la sconfitta (permadeath).
 
 ## Struttura canonica (DEC-001)
 
@@ -46,45 +46,47 @@ Una run è composta da **Piano 0** più **cinque piani** generati.
   con il tema di partenza.
 - Contenuti generati o composti aumentano di proporzione rispetto ai contenuti curati.
 
-### Piano 5 — culmine e chiusura della run ufficiale
+### Piano 5 — culmine e chiusura della run
 
 - Contiene il boss del piano 5, la forma più evoluta o degenerata del tema della run.
-- Sconfiggere questo boss **chiude la run ufficiale**: il risultato è valido per le
-  classifiche (DEC-006).
+- Sconfiggere questo boss **chiude la run con vittoria**: il risultato è valido per le
+  classifiche (DEC-006, aggiornata da DEC-031). La run finisce qui: non è previsto proseguire
+  oltre in questa fase del gioco.
+- La run termina anche prima, in qualunque piano, quando la salute del giocatore raggiunge
+  zero: permadeath, nessuna eccezione.
 
-### Prosegui oltre (DEC-006)
+### Prosegui oltre: idea futura, non implementata (DEC-031)
 
-- Dopo il boss del piano 5, il giocatore sceglie esplicitamente se fermarsi (risultato
-  registrato come run ufficiale conclusa) o proseguire in **piani extra**.
-- I piani extra continuano a degenerare il tema oltre il punto raggiunto al piano 5; non
-  sono validi per le classifiche della run ufficiale, ma i loro contenuti generati entrano
-  comunque nel catalogo persistente (vedi [Core Loop](03-core-loop.md)).
-- La run termina quando la salute del giocatore raggiunge zero: permadeath, nessuna
-  eccezione.
+La prima versione di DEC-006 prevedeva piani extra facoltativi dopo la vittoria al piano 5.
+Questa prosecuzione è stata **parcheggiata tra le idee future** (vedi la lista in DEC-018 nel
+[decision log](governance/decision-log.md)) e **non va implementata ora**: la vittoria al
+boss del piano 5 chiude la run e basta. Nessun documento di questa KB descrive più i piani
+extra come funzionalità attiva.
 
 ## Input e azioni
 
 - Nel Piano 0: navigazione libera, selezione del tema, selezione del personaggio, ingresso
   nelle arene di sfida opzionali, uscita verso il piano 1 quando disponibile.
-- Nei piani 1–5 ed extra: gli stessi input di gioco definiti in [Player](systems/player.md)
-  e [Combat and Projectiles](systems/combat-and-projectiles.md); in più, la decisione di
-  proseguire oltre al termine del piano 5.
+- Nei piani 1–5: gli stessi input di gioco definiti in [Player](systems/player.md) e
+  [Combat and Projectiles](systems/combat-and-projectiles.md).
 
 ## Risultato
 
-- Run ufficiale conclusa con vittoria (boss del piano 5 sconfitto) o con sconfitta
-  (permadeath in un punto qualsiasi della run, incluse le arene di sfida del Piano 0 se
-  applicabile).
-- Eventuale prosecuzione in piani extra fino alla sconfitta.
+- Run conclusa con **vittoria** (boss del piano 5 sconfitto) o con **sconfitta** (permadeath
+  in un punto qualsiasi della run, incluse le arene di sfida del Piano 0 se applicabile).
+- Alla sconfitta, i punti sblocco maturati durante la run restano ma in misura ridotta
+  rispetto alla vittoria, e il catalogo si aggiorna comunque con le creazioni incontrate
+  (DEC-041); nessun oggetto sopravvive alla run in nessun caso (permadeath, DEC-006). Il
+  dettaglio della presentazione dell'esito vive in
+  [Results and Leaderboards](ui/results-and-leaderboards.md) (rimando, non riformulato qui).
 
 ## Feedback
 
 - L'indicatore di generazione nel Piano 0 comunica lo stato di preparazione senza mostrare
   dettagli tecnici (regola unica in
   [AI Content Generation Model](06-ai-content-generation-model.md)).
-- Al boss del piano 5, il gioco segnala chiaramente che la run ufficiale sta per chiudersi e
-  presenta la scelta di proseguire come decisione esplicita, non come continuazione
-  automatica.
+- Al boss del piano 5, il gioco segnala chiaramente che la run si sta per chiudere con la
+  vittoria, senza presentare alcuna scelta di prosecuzione (DEC-031).
 
 ## Interazioni
 
@@ -93,7 +95,8 @@ Una run è composta da **Piano 0** più **cinque piani** generati.
 - Con [Difficulty and Progression](07-difficulty-and-progression.md): la crescita di
   difficoltà tra piani segue le curve lì definite.
 - Con [Save and Meta Progression](systems/save-and-meta-progression.md): l'esito della run
-  (ufficiale o estesa) alimenta il catalogo e i punti sblocco.
+  (vittoria o sconfitta) alimenta il catalogo e i punti sblocco, in misura ridotta alla
+  sconfitta rispetto alla vittoria (DEC-041).
 
 ## Regole per contenuti generati
 
@@ -102,8 +105,7 @@ Una run è composta da **Piano 0** più **cinque piani** generati.
   ricompensa, nuovi effetti visivi dominanti). Questi budget sono `draft`, da tarare col
   playtest (DEC-019).
 - L'evoluzione/degenerazione del tema è un vincolo di generazione: i contenuti dei piani
-  2–5 ed extra devono restare riconoscibilmente derivati dal tema scelto nel Piano 0, non
-  arbitrari.
+  2–5 devono restare riconoscibilmente derivati dal tema scelto nel Piano 0, non arbitrari.
 - La pre-generazione di una run futura, quando risorse e tempo lo consentono, è opzionale e
   non deve ridurre la stabilità o la leggibilità della run corrente.
 
@@ -114,8 +116,8 @@ Una run è composta da **Piano 0** più **cinque piani** generati.
   dell'interazione con il resto del Piano 0.
 - Il giocatore muore all'interno di un'arena di sfida opzionale nel Piano 0: da definire se
   equivale a una sconfitta di run o a un evento locale reversibile (vedi Domande aperte).
-- Un piano generato (2–5 o extra) non supera la validazione in tempo utile: si applica il
-  fallback, vedi sotto.
+- Un piano generato (2–5) non supera la validazione in tempo utile: si applica il fallback,
+  vedi sotto.
 
 ## Fallback
 
@@ -131,12 +133,13 @@ non la ripete.
   [Rooms and Floor Generation](systems/rooms-and-floor-generation.md).
 - Il Piano 0 non è un tutorial obbligatorio con contenuti bloccati: resta un hub navigabile
   liberamente.
+- Questo documento non implementa piani extra oltre il piano 5: l'idea resta parcheggiata
+  tra le idee future (DEC-018, DEC-031), non un requisito di questa fase del gioco.
 
 ## Domande aperte residue
 
 - Cosa succede esattamente alla salute/allo stato del giocatore se muore in un'arena di
   sfida opzionale del Piano 0.
-- Numero massimo di piani extra oltre il piano 5, se un limite pratico è necessario.
 
 ## Scenari
 
@@ -144,12 +147,13 @@ non la ripete.
   entra nel Piano 0, **allora** può muoversi liberamente, consultare il museo e scegliere
   tema e personaggio, e l'uscita verso il piano 1 resta chiusa finché la generazione non è
   completata.
-- **Dato** che il giocatore sconfigge il boss del piano 5, **quando** il gioco chiude la run
-  ufficiale, **allora** il risultato viene registrato come valido per classifiche e al
-  giocatore viene chiesto esplicitamente se vuole proseguire in piani extra.
-- **Dato** che il giocatore sceglie di proseguire oltre il piano 5, **quando** entra nel
-  primo piano extra, **allora** il tema della run continua a degenerare rispetto alla forma
-  raggiunta al piano 5, e la run resta non valida per le classifiche ufficiali.
+- **Dato** che il giocatore sconfigge il boss del piano 5, **quando** il gioco chiude la
+  run, **allora** il risultato viene registrato come vittoria valida per classifiche, e la
+  run finisce lì: non viene proposta alcuna prosecuzione in piani extra (DEC-031).
+- **Dato** che il giocatore muore (permadeath) in un punto qualsiasi della run, **quando** la
+  salute base raggiunge zero, **allora** la run si chiude con sconfitta e i punti sblocco
+  maturati restano in misura ridotta rispetto alla vittoria, col catalogo aggiornato con le
+  creazioni incontrate (DEC-041).
 - **Dato** che un piano generato non supera la validazione entro il tempo previsto,
   **quando** il giocatore tenta di accedervi, **allora** il gioco applica il fallback
   descritto in [Generated Content Validation](systems/generated-content-validation.md)

@@ -75,6 +75,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Nessun limite ufficiale di piani; vittoria che chiude definitivamente la run senza possibilità di proseguire.
 - **Conseguenze:** I risultati devono distinguere la run ufficiale dalla prosecuzione extra ai fini di classifica.
 - **Documenti aggiornati:** `ui/results-and-leaderboards.md`, `04-run-structure.md`
+- **Nota (2026-07-18):** la prosecuzione in piani extra descritta qui è stata spostata tra le idee future da DEC-031: non va implementata ora. La vittoria al boss del piano 5 chiude la run e basta; la parte di questa decisione sulla prosecuzione resta di riferimento storico, superata nella pratica da DEC-031.
 
 ### DEC-007 — Controlli: movimento libero, sparo a 4 direzioni
 
@@ -155,6 +156,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Roster fisso di personaggi sbloccabili in modo permanente.
 - **Conseguenze:** La scelta del personaggio si sposta da Run Setup al Piano 0.
 - **Documenti aggiornati:** `systems/floor-zero.md`, `ui/run-setup.md`
+- **Nota (2026-07-18):** integrata da DEC-030 — il personaggio base non è un singolo personaggio ma una piccola rosa fissa di 2-3 personaggi curati con ruoli distinti; il personaggio generato per run descritto qui si aggiunge a quella rosa nella scelta del Piano 0, non la sostituisce.
 
 ### DEC-015 — Meta-progressione senza potenziamenti permanenti
 
@@ -195,6 +197,9 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Includerle subito come requisiti del gioco base.
 - **Conseguenze:** Run Setup rimuove la modalità caos come opzione attiva.
 - **Documenti aggiornati:** `ui/run-setup.md`, `governance/open-questions.md`
+- **Nota (2026-07-18):** integrata da DEC-045 — si aggiunge alla lista delle idee future anche portare le funzioni del Catalogo (enciclopedia, preferiti, spesa punti) dentro il Piano 0/museo.
+- **Nota (2026-07-18):** integrata da DEC-031 — si aggiunge alle idee future la prosecuzione in piani extra oltre il boss del piano 5, non implementata ora.
+- **Nota (2026-07-18):** integrata da DEC-036 — si aggiunge alle idee future la parametrizzazione/generazione audio a tema.
 
 ### DEC-019 — Valori numerici attuali come default draft
 
@@ -225,3 +230,254 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Solo classificata a stesso seed (DEC-016 originale); modalità uniche separate ("Shared Run Race"/"Unique Run Duel", nomi eliminati).
 - **Conseguenze:** La Classificata a seed diversi richiede un criterio di normalizzazione della difficoltà (open question); la gara resta asincrona (DEC-016).
 - **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/multiplayer-lobby.md`
+
+### DEC-022 — Catalizzatore di fusione raro
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** la fusione è la meccanica-firma del gioco; senza un vincolo di rarità sul catalizzatore rischia di diventare un'azione ripetibile senza peso.
+- **Decisione:** Il catalizzatore di fusione è raro (drop da boss o arene, oppure acquisto costoso); attese 1-2 fusioni a run. Ogni fusione è un momento memorabile e una scommessa strategica.
+- **Alternative considerate:** Catalizzatore comune e liberamente accumulabile; fusione illimitata.
+- **Conseguenze:** `item-fusion.md` e `health-and-resources.md` devono trattare il catalizzatore come risorsa rara con fonti dedicate.
+- **Documenti aggiornati:** `systems/item-fusion.md`
+
+### DEC-023 — Risultato della fusione a doppio stadio
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** generare subito un oggetto interamente IA rischia di bloccare il giocatore in attesa nel momento più importante della run (la fusione).
+- **Decisione:** Alla fusione il gioco compone SUBITO il risultato con regole deterministiche (eredita trait e strati visivi dai due genitori); l'IA in sottofondo genera nome, comportamento e sprite dedicati e li applica appena pronti. Mai un'attesa per il giocatore; se la generazione non arriva, la composizione deterministica resta valida (fallback naturale).
+- **Alternative considerate:** Attendere sempre la generazione IA completa prima di consegnare l'oggetto; fusione puramente deterministica senza rifinitura IA.
+- **Conseguenze:** `item-fusion.md` descrive il doppio stadio come parte del risultato, non solo come fallback d'emergenza.
+- **Documenti aggiornati:** `systems/item-fusion.md`
+
+### DEC-024 — Degenerazione come escalation leggibile del tema
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** serve un principio comune che leghi come il tema si intensifica piano dopo piano su più sistemi, senza produrre distorsioni arbitrarie o illeggibili.
+- **Decisione:** Piano dopo piano il tema si intensifica su quattro assi (aspetto, nemici, regole di stanza, audio), ma deve sempre rispettare uno schema visivo comprensibile e un audio ascoltabile (il budget di leggibilità vale su tutti i piani). Progressione dentro il tema, non distorsione arbitraria: esempio canonico del proprietario, tema "fantasy medievale", piano 1 cavalieri di grado infimo, piano 5 cavalieri esperti, gameplay che cambia di conseguenza, con eventuali elementi di degrado ambientale. Nei piani avanzati sono ammessi modificatori di stanza generati (dentro le garanzie di giocabilità); Veterani più frequenti nei piani alti.
+- **Alternative considerate:** Degenerazione libera senza vincolo di leggibilità; tema fisso senza intensificazione piano dopo piano.
+- **Conseguenze:** `07-difficulty-and-progression.md`, `enemies.md`, `rooms-and-floor-generation.md`, `visual-language.md` e `audio-and-feedback.md` devono riflettere i quattro assi e il vincolo di leggibilità.
+- **Documenti aggiornati:** `07-difficulty-and-progression.md`, `systems/enemies.md`, `systems/rooms-and-floor-generation.md`, `content/visual-language.md`, `content/audio-and-feedback.md`
+
+### DEC-025 — Segrete a due livelli
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il metodo di scoperta delle stanze segrete era una domanda di design aperta.
+- **Decisione:** Stanze segrete "normali" con indizi visivi leggibili (crepe, anomalie del tema) apribili con lo strumento di breccia; "super-segrete" senza indizi, trovabili solo con oggetti/Innesti rivelatori o intuizione estrema.
+- **Alternative considerate:** Un solo livello di segretezza; scoperta puramente casuale.
+- **Conseguenze:** `secrets-and-obstacles.md` e `special-rooms.md` descrivono i due livelli; la domanda aperta sul metodo di scoperta è chiusa.
+- **Documenti aggiornati:** `systems/secrets-and-obstacles.md`, `systems/special-rooms.md`, `governance/open-questions.md`
+
+### DEC-026 — Negozio a prezzi fissi più offerta speciale
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** prezzi dinamici o costi in salute nel negozio erano una domanda di design aperta.
+- **Decisione:** Prezzi base fissi per fascia di rarità (il giocatore impara il valore delle cose); ogni negozio ha 1 offerta speciale generata (sconto, pacchetto, oggetto del tema). I "patti" a costo salute non esistono nel negozio: restano esclusivi dello scambio ad alto rischio.
+- **Alternative considerate:** Prezzi dinamici legati alla build; costi in salute nel negozio.
+- **Conseguenze:** `rewards-and-economy.md` e `special-rooms.md` devono fissare il confine tra negozio e scambio ad alto rischio.
+- **Documenti aggiornati:** `systems/rewards-and-economy.md`, `systems/special-rooms.md`, `governance/open-questions.md`
+
+### DEC-027 — Punti sblocco a doppio canale
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** DEC-015 fissava solo il principio dei punti singleplayer, non la struttura di guadagno.
+- **Decisione:** Punti base assegnati a fine run in funzione del risultato (piani completati, boss, scoperte) più bonus da prove specifiche (fisse o generate: es. boss senza danni, 2 segrete trovate, arena completata). Solo singleplayer (DEC-015 invariata).
+- **Nota (2026-07-18):** il testo originale citava anche la "prosecuzione" tra i fattori: rimossa per coerenza con DEC-031 (prosecuzione parcheggiata tra le idee future).
+- **Alternative considerate:** Un unico canale di punti senza bonus da prove; bonus disponibili anche in competitivo.
+- **Conseguenze:** `rewards-and-economy.md` e `save-and-meta-progression.md` devono riflettere il doppio canale.
+- **Documenti aggiornati:** `systems/rewards-and-economy.md`, `systems/save-and-meta-progression.md`
+
+### DEC-028 — Boss a escalation col piano
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** serve coerenza tra la complessità dei boss e l'escalation generale del tema (DEC-024).
+- **Decisione:** Boss del piano 1 a fase singola e leggibile; dal piano 3 due fasi con cambio di comportamento; il boss del piano 5 è il più complesso.
+- **Alternative considerate:** Stessa complessità di boss per tutti i piani; complessità libera senza soglie dichiarate.
+- **Conseguenze:** `bosses.md` deve descrivere la progressione di fasi per piano.
+- **Documenti aggiornati:** `systems/bosses.md`
+
+### DEC-029 — Arene del Piano 0 con piccola dote
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** le arene di sfida del Piano 0 non davano alcun beneficio alla run in preparazione.
+- **Decisione:** Completare un'arena dà un piccolo vantaggio iniziale per la run che sta per cominciare (risorse o un oggetto comune); disattivato nelle run in modalità Classificata (coerenza con DEC-016/DEC-021).
+- **Alternative considerate:** Nessun beneficio dalle arene sulla run in preparazione; dote sempre attiva anche in Classificata.
+- **Conseguenze:** `floor-zero.md` deve descrivere la dote e la sua disattivazione in Classificata.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-030 — Rosa di personaggi base
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** un solo personaggio base rischiava di rendere la scelta d'identità povera rispetto all'unica alternativa generata.
+- **Decisione:** i personaggi base sono una piccola rosa di 2-3 personaggi FISSI e curati con ruoli distinti (indicativamente: offensivo, difensivo, esploratore — nomi/dettagli da definire), sbloccabili presto. Il personaggio generato per-run (DEC-014) si aggiunge alla rosa nella scelta del Piano 0, non la sostituisce.
+- **Alternative considerate:** Un solo personaggio base (versione originale di DEC-014); roster ampio e liberamente configurabile.
+- **Conseguenze:** DEC-014 viene annotata come integrata da questa decisione; `systems/characters.md` deve descrivere la rosa e la sua relazione con il personaggio generato.
+- **Documenti aggiornati:** `systems/characters.md`, `systems/player.md`, `governance/decision-log.md` (annotazione DEC-014)
+
+### DEC-031 — Prosegui-oltre parcheggiato tra le idee future
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** la prosecuzione in piani extra dopo il boss del piano 5 (DEC-006) non è una priorità di implementazione in questa fase del progetto.
+- **Decisione:** la vittoria al boss del piano 5 chiude la run e basta; la prosecuzione in piani extra non va implementata ora ed entra tra le idee future (lista DEC-018). DEC-006 resta nel decision log ma viene annotata di conseguenza.
+- **Alternative considerate:** Mantenere la prosecuzione in piani extra come requisito attivo; rimuovere del tutto l'idea invece di parcheggiarla.
+- **Conseguenze:** `04-run-structure.md`, `ui/results-and-leaderboards.md`, `03-core-loop.md` e `systems/bosses.md` (dove citava il proseguimento) descrivono ora la vittoria come fine della run, con il proseguimento solo come idea futura.
+- **Documenti aggiornati:** `04-run-structure.md`, `ui/results-and-leaderboards.md`, `03-core-loop.md`, `systems/bosses.md`, `governance/decision-log.md` (annotazione DEC-006)
+
+### DEC-032 — Densità oggetti per piano
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il numero medio di oggetti offerti per piano era una domanda aperta.
+- **Decisione:** in media 3-5 oggetti per piano, indicativamente circa 20 a run completa (5 piani).
+- **Alternative considerate:** Densità fissa per piano senza variazione; densità lasciata interamente al playtest senza un default indicativo.
+- **Conseguenze:** Risolve la domanda aperta sul numero medio di oggetti per piano, che viene rimossa da `governance/open-questions.md`.
+- **Documenti aggiornati:** `systems/items-pools-and-rarity.md`, `governance/open-questions.md`
+
+### DEC-033 — Cap di salute per personaggio
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** serviva stabilire se la salute base avesse un limite massimo e se fosse uguale per tutti i personaggi.
+- **Decisione:** ogni personaggio (base o generato) ha il proprio tetto di salute base come parte delle sue statistiche: personaggi-vetro (tetto basso) e personaggi-roccia (tetto alto) esistono per design. I contenitori di salute crescono con stat-up e oggetti fino al tetto del personaggio specifico. Le bande min/max entro cui possono variare i tetti — soprattutto per i personaggi generati — sono valori di default da playtest, come DEC-019. La salute temporanea resta regolata da DEC-008.
+- **Alternative considerate:** Nessun tetto massimo di salute base; un tetto assoluto unico e uguale per tutti i personaggi (versione iniziale della decisione, corretta dal proprietario in questa stessa sessione).
+- **Conseguenze:** `health-and-resources.md`, `player.md` e `characters.md` devono trattare il tetto come parte delle statistiche del personaggio, non come valore globale unico; il legame con la rosa base (DEC-030) e col personaggio generato (DEC-014) va esplicitato.
+- **Documenti aggiornati:** `systems/health-and-resources.md`, `systems/player.md`, `systems/characters.md`
+
+### DEC-034 — Innesti a doppia natura
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** gli Innesti rischiavano di restare solo modificatori minori, senza una progressione di profondità legata alla rarità.
+- **Decisione:** Innesti comuni = piccoli modificatori situazionali passivi, scambiabili al volo senza costo; Innesti rari = "piega-regole" che alterano in piccolo UNA regola del gioco (es. le offerte del negozio, il comportamento delle segrete). La rarità decide la profondità dell'effetto.
+- **Alternative considerate:** Tutti gli Innesti con la stessa natura di modificatore situazionale, indipendentemente dalla rarità.
+- **Conseguenze:** `grafts.md` deve descrivere le due nature e il vincolo "una sola regola alterata" per i piega-regole.
+- **Documenti aggiornati:** `systems/grafts.md`
+
+### DEC-035 — Stat-up diffusi e oggetti ibridi
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** gli stat-up e gli oggetti con comportamento erano trattati come categorie separate senza sovrapposizione.
+- **Decisione:** gli stat-up compaiono anche nei pool normali (tesoro/negozio), non solo come ricompensa boss; inoltre gli oggetti con comportamento possono includere modifiche alle statistiche, positive o NEGATIVE, coerenti con ciò che fanno (oggetti ibridi comportamento+statistiche).
+- **Alternative considerate:** Stat-up riservati a contesti specifici; nessuna modifica di statistica ammessa su oggetti attivi/passivi.
+- **Conseguenze:** `items-pools-and-rarity.md` aggiorna la tassonomia senza rompere DEC-011 (restano 4 categorie; gli ibridi compongono, non aggiungono una categoria).
+- **Documenti aggiornati:** `systems/items-pools-and-rarity.md`
+
+### DEC-036 — Audio curato, generazione futura
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** l'asse audio dell'escalation del tema (DEC-024) non specificava se i suoni fossero curati o generati.
+- **Decisione:** per ora musica e suoni sono curati e statici; la parametrizzazione/generazione audio a tema è un'idea futura (lista DEC-018). L'asse audio della degenerazione (DEC-024) si applica per ora con i mezzi curati disponibili (selezione/mix), senza generazione.
+- **Alternative considerate:** Generazione audio a tema fin da subito.
+- **Conseguenze:** `content/audio-and-feedback.md` chiarisce che l'asse audio dell'escalation è oggi curato, non generato.
+- **Documenti aggiornati:** `content/audio-and-feedback.md`
+
+### DEC-037 — Comportamenti Lua anche per trait e tipi di colpo
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** la pipeline comportamentale validata in sandbox era riservata agli oggetti; il proprietario vuole estenderla ad altri contenuti per aumentare la varietà.
+- **Decisione:** il trait unico del personaggio generato è un comportamento Lua generato e validato in sandbox (stessa pipeline degli oggetti). Anche i tipi di colpo evolvono verso comportamenti Lua generati con grande varietà: le manopole parametriche attuali restano come garanzia di bilanciamento e fallback, ma il comportamento del colpo può essere scriptato.
+- **Alternative considerate:** Mantenere tipi di colpo e trait personaggio solo come generazione parametrica entro bande, senza comportamenti scriptati.
+- **Conseguenze:** `systems/characters.md`, `systems/combat-and-projectiles.md` e `06-ai-content-generation-model.md` devono riflettere la pipeline comportamentale estesa e il ruolo di garanzia/fallback delle manopole parametriche per i colpi.
+- **Documenti aggiornati:** `systems/characters.md`, `systems/combat-and-projectiles.md`, `06-ai-content-generation-model.md`
+
+### DEC-038 — Difficoltà unica
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** serviva decidere se il gioco offrisse livelli di difficoltà selezionabili.
+- **Decisione:** nessun livello di difficoltà selezionabile; la curva è quella dei 5 piani, uguale per tutti. Classifiche immediatamente confrontabili.
+- **Alternative considerate:** Livelli di difficoltà selezionabili in `RunSetup`; difficoltà adattiva basata sulle prestazioni del giocatore.
+- **Conseguenze:** `07-difficulty-and-progression.md` e `ui/run-setup.md` devono escludere esplicitamente un selettore di difficoltà.
+- **Documenti aggiornati:** `07-difficulty-and-progression.md`, `ui/run-setup.md`
+
+### DEC-039 — Scelta tema con anteprima visiva
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** le carte tema del Piano 0 mostravano solo nome e descrizione, senza alcun elemento visivo.
+- **Decisione:** ognuna delle 2-3 proposte di tema nel Piano 0 mostra nome, breve descrizione e un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema); la generazione delle anteprime ha priorità altissima a inizio run. Fallback: se un'anteprima non è pronta, nome+descrizione.
+- **Alternative considerate:** Anteprime visive opzionali o a bassa priorità di generazione; nessuna anteprima visiva, solo testo.
+- **Conseguenze:** `systems/floor-zero.md` descrive il comportamento completo; `06-ai-content-generation-model.md` registra una nota sulla priorità di generazione.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `06-ai-content-generation-model.md`
+
+### DEC-040 — Museo con interazione
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il museo del Piano 0 era solo consultazione passiva delle creazioni migliori.
+- **Decisione:** il museo del Piano 0 è una galleria delle creazioni migliori (oggetti, nemici, boss, fusioni, personaggi) con nome e storia, e permette di provarle: testare un oggetto in una saletta, riaffrontare un boss in arena (si collega alle arene di sfida di DEC-004/DEC-029).
+- **Alternative considerate:** Museo puramente consultativo, senza possibilità di provare le creazioni.
+- **Conseguenze:** `systems/floor-zero.md` descrive l'interazione col museo e il collegamento con le arene di sfida.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-041 — Alla sconfitta
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era chiaro cosa restasse al giocatore in caso di sconfitta, rispetto alla vittoria.
+- **Decisione:** alla sconfitta restano i punti sblocco maturati in misura RIDOTTA rispetto alla vittoria, il catalogo aggiornato con le creazioni incontrate e le statistiche. Nessun oggetto sopravvive alla run (permadeath, DEC-006).
+- **Alternative considerate:** Nessun punto sblocco alla sconfitta; punti sblocco identici a vittoria e sconfitta.
+- **Conseguenze:** `ui/results-and-leaderboards.md` e i documenti di struttura della run devono distinguere l'esito ridotto della sconfitta da quello della vittoria.
+- **Documenti aggiornati:** `ui/results-and-leaderboards.md`, `04-run-structure.md`, `03-core-loop.md`, `systems/bosses.md`
+
+### DEC-042 — Presentazione delle prove
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** DEC-027 introduce bonus da prove specifiche (fisse o generate) che danno punti sblocco, ma non era definito dove e quando il giocatore le vede prima e durante la run.
+- **Decisione:** le prove specifiche della run vengono presentate al giocatore al passaggio dal Piano 0 al piano 1 (momento di ingresso nella run vera) e restano sempre consultabili dal menu di pausa e dalla schermata build.
+- **Alternative considerate:** Prove nascoste fino al completamento, senza presentazione anticipata; prove visibili solo a fine run nella schermata risultati.
+- **Conseguenze:** `systems/floor-zero.md` deve descrivere la presentazione delle prove al momento dell'ingresso nel piano 1; `ui/pause-menu.md` e `ui/inventory-and-synergy-screen.md` devono esporre una voce "Prove" sempre consultabile; `systems/rewards-and-economy.md` rimanda senza ripetere.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `ui/pause-menu.md`, `ui/inventory-and-synergy-screen.md`, `systems/rewards-and-economy.md`
+
+### DEC-043 — Ostacoli generati a tema
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** gli ostacoli ambientali (vedi `secrets-and-obstacles.md`) non avevano un legame esplicito col tema di run né un budget dichiarato condiviso con i nemici.
+- **Decisione:** gli ostacoli ambientali sono un tipo di contenuto generato dal tema (forma + comportamento semplice), dentro le garanzie di giocabilità: croce centrale libera, telegraph leggibili. Comprendono blocchi e pericoli passivi telegrafati. La degenerazione (DEC-024) li rende più insidiosi nei piani alti. Vincolo esplicito del proprietario: giusto bilanciamento tra ostacoli e nemici — il budget di difficoltà della stanza copre ENTRAMBI (spendere in ostacoli riduce i nemici e viceversa).
+- **Alternative considerate:** Ostacoli come contenuto puramente curato, senza generazione a tema; budget separati e indipendenti per ostacoli e nemici.
+- **Conseguenze:** `systems/secrets-and-obstacles.md` deve descrivere la generazione a tema degli ostacoli e le sue garanzie; `systems/rooms-and-floor-generation.md` deve fissare il budget di stanza condiviso tra ostacoli e nemici.
+- **Documenti aggiornati:** `systems/secrets-and-obstacles.md`, `systems/rooms-and-floor-generation.md`
+
+### DEC-044 — Scambio ad alto rischio a puntata generata
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** `special-rooms.md` ammette scambi a costo salute nella stanza di scambio ad alto rischio (DEC-026), ma non definiva come offerta e prezzo vengono generati né la garanzia di equità.
+- **Decisione:** nella stanza di scambio l'IA genera sia l'offerta sia il prezzo dentro un budget di equità; il prezzo può essere salute (immediata o massima), un oggetto o Innesto posseduto, valuta, perfino un catalizzatore di fusione. Ogni scambio è diverso; l'equità è garantita dal budget, la validazione segue le regole di `generated-content-validation.md`.
+- **Alternative considerate:** Offerte fisse curate senza generazione; prezzo limitato solo a salute o valuta principale.
+- **Conseguenze:** `systems/special-rooms.md` deve descrivere la generazione di offerta e prezzo dentro il budget di equità; `systems/rewards-and-economy.md` rimanda e conferma che il negozio resta invariato (DEC-026: nessun patto a costo salute nel negozio).
+- **Documenti aggiornati:** `systems/special-rooms.md`, `systems/rewards-and-economy.md`
+
+### DEC-045 — Catalogo completo
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** `ui/main-menu.md` e `systems/save-and-meta-progression.md` trattavano il Catalogo/Museo come voce di menu senza una definizione completa delle sue funzioni.
+- **Decisione:** il Catalogo (dal menu principale) è: enciclopedia consultabile di tutto il generato incontrato (schede con nome, sprite, storia, statistiche d'uso) più preferiti che pesano leggermente sulle proposte future dell'IA più il luogo dove si spendono i punti per sbloccare contenuti nei pool (DEC-015, DEC-027). Idea futura (aggiunta alla lista DEC-018): portare queste funzioni anche dentro il Piano 0/museo.
+- **Alternative considerate:** Catalogo puramente consultativo, senza preferiti né spesa punti; le tre funzioni divise tra più schermate separate.
+- **Conseguenze:** `ui/main-menu.md` e `systems/save-and-meta-progression.md` devono descrivere le tre funzioni del Catalogo; la lista di idee future di DEC-018 si arricchisce dell'estensione al Piano 0/museo.
+- **Documenti aggiornati:** `ui/main-menu.md`, `systems/save-and-meta-progression.md`, `governance/decision-log.md` (annotazione DEC-018)
+
+### DEC-046 — Pixel art come linguaggio canonico totale
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il gioco si appoggia già a sprite generati e a una resa a campionamento a punto negli esempi tecnici, ma non esisteva una regola di design esplicita sulla pixel art come linguaggio dell'intero gioco, UI compresa.
+- **Decisione:** tutto il gioco si basa sulla pixel art, INCLUSA la UI (menu, HUD, font, indicatori): la UI è custom e in pixel art anch'essa, non un linguaggio pulito non-pixel separato. Le risoluzioni di riferimento attuali (atlas generati, resa a campionamento a punto) restano default dell'implementazione in stile DEC-019.
+- **Alternative considerate:** Pixel art solo per gli elementi di gioco (nemici, oggetti, ambiente) con una UI in stile pulito non-pixel separato (scartata dal proprietario: la UI è pixel art anch'essa).
+- **Conseguenze:** `content/visual-language.md` diventa la fonte unica della regola per l'intero gioco, UI compresa; `ui/hud.md` rimanda con una riga senza riformulare.
+- **Documenti aggiornati:** `content/visual-language.md`, `ui/hud.md`

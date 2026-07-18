@@ -2,8 +2,8 @@
 id: gd-system-combat
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft."
+last_reviewed: 2026-07-18
+summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037)."
 ---
 
 # Combat and Projectiles
@@ -101,6 +101,17 @@ I tipi di colpo (per il giocatore e per i nemici) non sono scelti da un menu cur
 - restare entro il budget di leggibilità canonico definito sopra;
 - dichiarare la propria origine con uno dei 4 valori: `curato | composto | variato | nuovo`.
 
+**Comportamenti Lua per i tipi di colpo (DEC-037):** oltre all'invenzione parametrica dentro
+bande descritta sopra, il comportamento di un tipo di colpo può essere scritto dall'IA come
+comportamento Lua e validato in sandbox, con la stessa pipeline già usata per i
+comportamenti degli oggetti (vedi
+[AI Content Generation Model](../06-ai-content-generation-model.md) per i livelli di
+generazione e [Generated Content Validation](generated-content-validation.md) per il
+processo di validazione; entrambi rimando, non riformulati qui). Le manopole parametriche
+restano comunque attive come **garanzia di bilanciamento e fallback**: un tipo di colpo
+scriptato in Lua che non supera la validazione ricade su una versione parametrica curata
+equivalente, generata dentro le bande di garanzia.
+
 **Bande di potenza dei colpi (DEC-019 — draft, default di implementazione, da validare col playtest):** i colpi generati per il giocatore usano come default attuale una banda di potenza **[0.75–1.25]** (moltiplicatore rispetto a un colpo di riferimento). Questo valore è già presente nell'implementazione corrente ed è riportato qui come punto di partenza, **non come decisione di design chiusa**: resta soggetto a validazione tramite playtest. Bande equivalenti per nemici e boss vivono in [enemies.md](enemies.md) e [bosses.md](bosses.md) rispettivamente (rimando, valori non duplicati qui).
 
 Per il fallback quando un tipo di colpo generato non supera la validazione, vedi [generated-content-validation.md](generated-content-validation.md) (rimando, non riformulare).
@@ -110,6 +121,7 @@ Per il fallback quando un tipo di colpo generato non supera la validazione, vedi
 - un attacco singolo tecnicamente leggibile ma che, sommato ad altri effetti attivi in scena, eccede il budget di leggibilità;
 - proiettile nemico con traiettoria che imita visivamente un proiettile del giocatore (deve essere evitato per la regola di asimmetria sopra);
 - sinergia che moltiplica il numero di proiettili oltre la soglia leggibile: deve degradare graziosamente (es. raggruppamento visivo) invece di rompere il budget.
+- un tipo di colpo scriptato in Lua (DEC-037) introduce un comportamento che eccede il budget di leggibilità o le bande di garanzia dichiarate: è trattato come qualunque altro contenuto generato, vedi [generated-content-validation.md](generated-content-validation.md).
 
 ## Fallback
 
@@ -152,3 +164,9 @@ Then il suo moltiplicatore di potenza rientra nella banda draft [0.75–1.25], s
 Given un tipo di colpo generato produce un numero di particelle tale da nascondere un proiettile nemico,  
 When la validazione lo verifica,  
 Then il contenuto è respinto o sostituito da un fallback curato, secondo la regola in [generated-content-validation.md](generated-content-validation.md).
+
+### Scenario 5 — tipo di colpo generato come comportamento Lua
+
+Given l'IA scrive un tipo di colpo come comportamento Lua invece che come sola variazione parametrica (DEC-037),  
+When il comportamento supera la validazione in sandbox,  
+Then il colpo entra in gioco con quel comportamento scriptato; se invece non la supera, il gioco ricade su una versione parametrica curata equivalente, generata dentro le bande di garanzia, senza mostrare alcun errore al giocatore.

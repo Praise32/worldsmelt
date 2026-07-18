@@ -2,8 +2,8 @@
 id: gd-core-loop
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita e ciclo museo/catalogo/sblocchi."
+last_reviewed: 2026-07-18
+summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita e ciclo museo/catalogo/sblocchi. La vittoria al boss del piano 5 chiude la run (DEC-031); la prosecuzione in piani extra resta un'idea futura."
 ---
 
 # Core Loop
@@ -36,9 +36,10 @@ summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita 
 7. Affrontare una sfida più complessa, mentre il tema della run evolve o degenera.
 8. Sconfiggere il boss del piano.
 9. Accedere al piano successivo.
-10. Al boss del piano 5: la run ufficiale si chiude (valida per classifiche). Il giocatore
-    sceglie se fermarsi o proseguire in piani extra sempre più degenerati finché non muore
-    (DEC-006; salute a zero = run persa, permadeath).
+10. Al boss del piano 5: la run si chiude con vittoria, valida per classifiche (DEC-006,
+    aggiornata da DEC-031: la prosecuzione in piani extra non è implementata ora e resta
+    un'idea futura, vedi DEC-018 nel [decision log](governance/decision-log.md)). In
+    qualunque piano, salute a zero = run persa, permadeath.
 
 ## Loop di apprendimento
 
@@ -51,12 +52,16 @@ summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita 
 ## Loop metagioco: museo, catalogo, punti sblocco (approved, DEC-015)
 
 1. Concludere o fallire una run.
-2. Registrare nel catalogo persistente tutti i contenuti generati durante la run.
+2. Registrare nel catalogo persistente tutti i contenuti generati durante la run: alla
+   vittoria come alla sconfitta, il catalogo si aggiorna comunque con le creazioni
+   incontrate (DEC-041).
 3. I contenuti migliori entrano nel museo del Piano 0, dove diventano visibili e riusabili
    nelle arene di sfida.
 4. I punti guadagnati in singleplayer si accumulano e possono essere spesi per sbloccare
-   contenuti generati nei pool delle run future. Nessun potenziamento permanente del
-   personaggio è previsto: gli sblocchi ampliano la varietà, non la potenza di base.
+   contenuti generati nei pool delle run future. Alla sconfitta i punti maturati restano ma
+   in misura ridotta rispetto alla vittoria (DEC-041); nessun oggetto sopravvive comunque
+   alla run (permadeath, DEC-006). Nessun potenziamento permanente del personaggio è
+   previsto: gli sblocchi ampliano la varietà, non la potenza di base.
 5. Gli sblocchi sono disattivati nelle modalità competitive (vedi
    [Multiplayer and Competition](08-multiplayer-and-competition.md)).
 6. Preparare una nuova run: tornare al Piano 0 e scegliere un nuovo tema e, se disponibile,
@@ -71,9 +76,13 @@ summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita 
   **quando** entra nella stanza di fusione e conferma la fusione, **allora** i due oggetti
   vengono consumati e il giocatore riceve un oggetto nuovo con comportamento e
   presentazione visibilmente derivati da entrambi.
-- **Dato** che il giocatore sconfigge il boss del piano 5, **quando** la run ufficiale si
-  chiude, **allora** il gioco offre esplicitamente la scelta tra fermarsi (risultato valido
-  per classifiche) e proseguire in piani extra degenerati.
+- **Dato** che il giocatore sconfigge il boss del piano 5, **quando** la run si chiude,
+  **allora** il risultato è registrato come vittoria valida per classifiche e la run finisce
+  lì, senza alcuna scelta di prosecuzione in piani extra (DEC-031).
+- **Dato** che il giocatore muore (permadeath) prima del boss del piano 5, **quando** la run
+  si chiude con sconfitta, **allora** i punti sblocco maturati restano ma in misura ridotta
+  rispetto alla vittoria, e il catalogo si aggiorna comunque con le creazioni incontrate
+  (DEC-041).
 - **Dato** che una run è terminata, **quando** il giocatore torna al Piano 0, **allora** i
   contenuti generati in quella run sono già registrati nel catalogo e i migliori sono
   consultabili nel museo, senza richiedere un'azione manuale di salvataggio.
