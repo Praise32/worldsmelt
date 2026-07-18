@@ -45,6 +45,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Fissare subito un nome definitivo.
 - **Conseguenze:** I nomi placeholder di risorse, Innesto e Veterano dipendono da questa scelta futura.
 - **Documenti aggiornati:** `governance/open-questions.md`, `governance/glossary.md`
+- **Nota (2026-07-18): risolta da DEC-071.** Il nome definitivo del gioco è "Worldsmelt"; "Melting Run" resta il nome storico del repository e il titolo di lavoro citato in questo registro. La domanda aperta sul nome è chiusa.
 
 ### DEC-004 — Il Piano 0 è un hub ibrido
 
@@ -147,6 +148,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Mantenere i nomi originali del genere.
 - **Conseguenze:** `health-and-resources.md`, `09-originality-guardrails.md` e l'HUD devono usare i nomi per funzione, mai i nomi presi in prestito.
 - **Documenti aggiornati:** `systems/health-and-resources.md`, `09-originality-guardrails.md`, `ui/hud.md`
+- **Nota (2026-07-18):** nomenclatura fissata da DEC-072. I nomi placeholder di valuta principale, strumento di breccia, strumento di apertura e catalizzatore di fusione hanno ora il rispettivo nome inglese in-game (Ingots, Blast Charges, Cast Keys, Flux); i termini di lavoro italiani restano quelli usati in questo documento e nella KB.
 
 ### DEC-014 — Personaggio base più personaggio alternativo generato
 
@@ -723,4 +725,34 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** tier intermedi di download/qualità dei modelli; nessuna scelta esplicita, generazione sempre attiva di default indipendentemente dall'hardware.
 - **Conseguenze:** `systems/floor-zero.md` diventa fonte unica di dove e quando avviene la scelta; `06-ai-content-generation-model.md` registra "solo curato" come stato legittimo e permanente, non un fallback temporaneo.
 - **Documenti aggiornati:** `systems/floor-zero.md`, `06-ai-content-generation-model.md`
+
+### DEC-071 — Il nome del gioco è "Worldsmelt"
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** DEC-003 lasciava il nome del gioco come titolo di lavoro provvisorio, in attesa di una scelta del proprietario del progetto.
+- **Decisione:** il titolo definitivo del gioco è **Worldsmelt**, scelto dal proprietario e verificato libero da collisioni con giochi esistenti (ricerca web del 18/07/2026; scartati per collisione "Forgefall" ed "Everforge"; nessun match trovato per "Worldsmelt"). "Melting Run" resta solo il nome storico di questo repository e il titolo di lavoro citato in questo registro delle decisioni; nei documenti vivi della KB il gioco è Worldsmelt.
+- **Alternative considerate:** "Forgefall" (scartato, collisione con giochi esistenti); "Everforge" (scartato, collisione con giochi esistenti); mantenere il nome provvisorio a tempo indeterminato.
+- **Conseguenze:** risolve DEC-003 e la domanda aperta sul nome definitivo del gioco. Apre la strada alla nomenclatura inglese in-game dei termini di lavoro (vedi DEC-072).
+- **Documenti aggiornati:** `README.md`, `PROJECT_BRIEF.md`, `00-vision.md`, `content/narrative-tone.md`, `governance/open-questions.md`, `governance/decision-log.md` (annotazione DEC-003)
+
+### DEC-072 — Nomenclatura inglese di gioco
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** con il titolo definitivo fissato (DEC-071) e la cornice del crogiolo già approvata (DEC-067), i termini di lavoro placeholder della KB (risorse, Innesto, Veterano, ecc.) potevano finalmente ricevere un nome inglese in-game coerente.
+- **Decisione:** confermata dal proprietario una tabella canonica di nomenclatura inglese in-game, coerente con la cornice del crogiolo: Piano 0/crogiolo → The Crucible; Tema della run → World; Fusione esplicita → Smelting; Stanza di fusione → Smeltery; Catalizzatore di fusione → Flux; Valuta principale → Ingots; Punti sblocco (meta) → Embers; Energia di ricarica attivi → Heat; Salute temporanea → Crust; Strumento di breccia → Blast Charges; Strumento di apertura → Cast Keys; Innesto → Graft; Veterano → Tempered; Reliquie → Relics; Colpo firmato → Signature Shot; Card di scoperta → Discovery Card; Daily → Daily Smelt. La KB resta scritta in italiano (DEC-052): i termini di lavoro italiani restano in uso nei documenti; il glossario diventa la mappa bilingue, con il nome inglese accanto a ogni termine di lavoro interessato. I nomi placeholder smettono di essere placeholder: la domanda aperta sui nomi definitivi di risorse/Innesto/Veterano è risolta.
+- **Alternative considerate:** lasciare i nomi di interfaccia in italiano anche in gioco; rimandare la nomenclatura a un secondo momento, oltre il lancio del nome del gioco.
+- **Conseguenze:** `governance/glossary.md` diventa la fonte unica della mappa bilingue; `ui/hud.md` e `systems/health-and-resources.md` mostrano i nomi in-game accanto ai termini di lavoro, senza duplicare la mappa.
+- **Documenti aggiornati:** `governance/glossary.md`, `content/narrative-tone.md`, `ui/hud.md`, `systems/health-and-resources.md`, `governance/open-questions.md`, `governance/decision-log.md` (annotazione DEC-013)
+
+### DEC-073 — La nomenclatura non contamina la generazione dei mondi
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** con la nomenclatura di interfaccia fissata (DEC-072), serviva chiarire il confine tra il vocabolario di fonderia dell'interfaccia/cornice e il contenuto generato per i World di ogni run, per evitare che i prompt di generazione venissero contaminati da termini che appartengono solo al Crucible.
+- **Decisione:** due regole. (a) I nomi di gioco della nomenclatura (Smelting, Flux, Tempered, ecc.) non entrano nei prompt di generazione dei contenuti dei World (sprite, nemici, boss, oggetti, stanze): quei prompt descrivono funzione e tema del World scelto, non il vocabolario di fonderia dell'interfaccia. (b) Le risorse fisse (Ingots, Cast Keys, Blast Charges, Crust, Flux, Heat) hanno una silhouette iconica stabile tra le run: la variazione per-World è ammessa solo in palette e dettagli, dentro il budget di leggibilità (coerente con DEC-058: mai informazione dal solo colore). Nota gap: il codice attuale genera le icone di valuta/chiave/bomba/cuore per-run con il tema, senza silhouette stabile — registrato come gap di implementazione esplicito (stile DEC-009/DEC-052).
+- **Alternative considerate:** lasciare che i prompt dei World includano liberamente il vocabolario di fonderia dell'interfaccia; icone delle risorse fisse completamente rigenerate a ogni World senza vincolo di silhouette.
+- **Conseguenze:** `06-ai-content-generation-model.md` fissa la regola (a) per i prompt dei World; `content/visual-language.md` fissa la regola (b) e registra il gap di implementazione.
+- **Documenti aggiornati:** `06-ai-content-generation-model.md`, `content/visual-language.md`
 

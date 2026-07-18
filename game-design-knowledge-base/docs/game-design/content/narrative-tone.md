@@ -3,7 +3,7 @@ id: gd-content-narrative-tone
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Restano draft/aperti: nome definitivo (DEC-003), tono specifico (tragico, ironico, ecc.), simboli ricorrenti, limiti di contenuto. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap noto: la pipeline attuale genera in italiano."
+summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Restano draft/aperti: tono specifico (tragico, ironico, ecc.), simboli ricorrenti, limiti di contenuto. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap noto: la pipeline attuale genera in italiano."
 ---
 
 # Narrative Tone
@@ -33,9 +33,10 @@ riformularle:
 ## Campo semantico
 
 Il campo semantico fusione/scioglimento/crogiolo — già disponibile in precedenza come
-opzione di vocabolario ed estetica, coerente col nome di lavoro provvisorio (vedi sotto) — è
-ora il campo semantico della cornice narrativa canonica (DEC-067): nomi, descrizioni e
-presentazione dei contenuti generati possono attingervi liberamente.
+opzione di vocabolario ed estetica, coerente anche col titolo definitivo del gioco,
+Worldsmelt (DEC-071, vedi sotto) — è ora il campo semantico della cornice narrativa canonica
+(DEC-067): nomi, descrizioni e presentazione dei contenuti generati possono attingervi
+liberamente.
 
 ## Vincolo sui temi generati
 
@@ -45,12 +46,21 @@ che nessun tema generato può **contraddire** la cornice — per esempio negando
 sia un luogo di passaggio fuori dal tempo, o che i mondi visitati siano destinati a sciogliersi.
 Dentro questo unico vincolo, la varietà dei temi resta interamente affidata alla generazione.
 
-## Nome di lavoro provvisorio (DEC-003)
+## Titolo definitivo (DEC-071, risolve DEC-003)
 
-"Melting Run" è un titolo di lavoro **provvisorio**. Il nome definitivo del gioco sarà scelto
-dal proprietario del progetto; resta una domanda aperta e non va risolta in questo documento
-né altrove nella KB. La cornice del crogiolo (DEC-067) non risolve questa domanda: è una
-cornice narrativa minima, non un nome.
+Il titolo definitivo del gioco è **Worldsmelt**, scelto dal proprietario del progetto e
+verificato libero da collisioni con giochi esistenti (DEC-071). "Melting Run" resta solo il
+nome storico di questo repository e il titolo di lavoro citato nel
+[registro delle decisioni](../governance/decision-log.md); non è più usato per riferirsi al
+gioco negli altri documenti vivi della KB. Questo chiude la domanda aperta lasciata da
+DEC-003. La cornice del crogiolo (DEC-067) restava una cornice narrativa minima indipendente
+dal nome: DEC-071 non la modifica, si limita a fissare il titolo.
+
+## Nomenclatura di interfaccia (DEC-072), rimando
+
+I nomi inglesi in-game dei termini di lavoro legati alla cornice del crogiolo (Piano 0,
+Fusione, Innesto, Veterano, valuta, ecc.) sono definiti nella mappa bilingue del
+[Glossary](../governance/glossary.md) (DEC-072, rimando, non riformulato qui).
 
 ## Tema per-run (DEC-005) — distinto dal tono narrativo specifico
 
@@ -84,14 +94,17 @@ adeguarsi a questa regola, non viceversa (stesso trattamento di gap dato a DEC-0
 
 ## Deve ancora definire
 
-La cornice narrativa minima (DEC-067) è decisa. Restano ancora da definire, e restano quindi
-in stato **draft**:
+La cornice narrativa minima (DEC-067) è decisa, così come il titolo del gioco (DEC-071) e la
+nomenclatura di interfaccia (DEC-072). Restano ancora da definire, e restano quindi in stato
+**draft**:
 
 - tono specifico: tragico, ironico, inquietante, surreale o altro, dentro la cornice del
   crogiolo;
 - limiti di contenuto;
 - simboli ricorrenti;
-- lessico per nomi e descrizioni (compreso il nome definitivo del gioco, DEC-003).
+- lessico per nomi e descrizioni dei singoli contenuti generati (oggetti, nemici, boss,
+  World) caso per caso — distinto dal nome del gioco e dalla nomenclatura di interfaccia,
+  ormai fissati.
 
 ## Regola temporanea
 
@@ -102,15 +115,13 @@ semplice opzione), ma resta comunque priva di un tono specifico definitivo.
 
 ## Non-obiettivi
 
-Questo documento non sceglie un tono narrativo specifico, non propone un nome definitivo per
-il gioco e non risolve la domanda aperta di DEC-003: registra la cornice narrativa minima
-approvata (DEC-067), il meccanismo di tema per-run (DEC-005) e cosa resta aperto (tono
-specifico, nome definitivo).
+Questo documento non sceglie un tono narrativo specifico: registra la cornice narrativa
+minima approvata (DEC-067), il titolo definitivo del gioco deciso dal proprietario (DEC-071,
+rimando) e il meccanismo di tema per-run (DEC-005). Il tono specifico resta ancora da
+definire.
 
 ## Domande aperte residue
 
-- Nome definitivo del gioco (DEC-003, decisione del proprietario del progetto, non di questa
-  KB).
 - Tono specifico del gioco (tragico, ironico, inquietante, surreale o altro), dentro la
   cornice del crogiolo (DEC-067): nessuna scelta ancora fatta.
 - Limiti di contenuto e simboli ricorrenti: non ancora definiti.
@@ -132,13 +143,13 @@ specifico, nome definitivo).
   restando coerente con la cornice del crogiolo (DEC-067): la degenerazione è il collasso
   progressivo del mondo visitato.
 
-**Scenario: il nome provvisorio non implica un tono specifico deciso**
-- Given la KB usa "Melting Run" come titolo di lavoro provvisorio (DEC-003),
+**Scenario: il titolo definitivo non impone da solo un tono specifico**
+- Given la KB registra "Worldsmelt" come titolo definitivo del gioco (DEC-071),
 - When un documento fa riferimento al campo semantico fusione/scioglimento/crogiolo per
   vocabolario o estetica,
-- Then quel riferimento è coerente con la cornice narrativa approvata (DEC-067), ma non deve
-  essere interpretato come una decisione definitiva sul tono specifico del gioco o sul nome
-  definitivo.
+- Then quel riferimento resta coerente con la cornice narrativa approvata (DEC-067), ma non
+  deve essere interpretato come una decisione definitiva sul tono narrativo specifico del
+  gioco, che resta aperto.
 
 **Scenario: un tema generato non contraddice la cornice del crogiolo**
 - Given l'IA propone un tema per una run nel Piano 0,

@@ -3,7 +3,7 @@ id: gd-content-visual-language
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049)."
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b)."
 ---
 
 # Visual Language
@@ -101,6 +101,22 @@ sovrappone visivamente. Il numero esatto di slot funzionali (attivo, Innesto, es
 DEC-011) e la relazione precisa con questi 6 slot visivi restano da chiarire (vedi Domande
 aperte residue).
 
+## Silhouette stabile delle risorse fisse (DEC-073b)
+
+Le risorse fisse dell'interfaccia — Ingots, Cast Keys, Blast Charges, Crust, Flux, Heat (nomi
+in-game, fonte unica [Glossary](../governance/glossary.md), DEC-072) — hanno una
+**silhouette iconica stabile** tra le run: la forma riconoscibile dell'icona di ciascuna
+risorsa non cambia da un World all'altro. La variazione per-World è ammessa solo in palette
+e dettagli, sempre dentro il budget di leggibilità (fonte unica
+[Combat and Projectiles](../systems/combat-and-projectiles.md), non riformulato qui); questa
+regola è coerente con la garanzia che nessuna informazione di gioco dipenda dal solo colore
+(DEC-058).
+
+**Gap noto rispetto al codice:** il codice attuale genera le icone di valuta, chiave, bomba e
+cuore per-run seguendo il tema, senza silhouette stabile. È un requisito di design non ancora
+implementato — il codice dovrà adeguarsi a questa regola, non viceversa (stesso trattamento
+dei gap già registrati per DEC-009 e DEC-052).
+
 ## Accessibilità
 
 Nessuna informazione critica deve dipendere solo dal colore.
@@ -170,3 +186,10 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - Then l'oggetto occupa lo stesso slot visivo con la stessa logica di sovrapposizione in
   entrambi i casi, perché i 6 slot visivi (DEC-049) sono indipendenti dall'origine dello
   sprite del personaggio.
+
+**Scenario: le icone delle risorse fisse restano riconoscibili tra World diversi**
+- Given un giocatore che ha giocato una run nel World A e un'altra nel World B,
+- When confronta le icone di Ingots, Cast Keys, Blast Charges, Crust, Flux o Heat nell'HUD
+  delle due run,
+- Then la silhouette di ciascuna icona è la stessa in entrambi i World; solo palette e
+  dettagli possono variare, dentro il budget di leggibilità (DEC-073b).

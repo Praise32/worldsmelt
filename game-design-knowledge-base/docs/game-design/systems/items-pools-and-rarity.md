@@ -211,7 +211,6 @@ validato in tempo), si applica la regola unica descritta in
 - Validazione col playtest dei pesi di rarità (pool standard e pool boss) e del numero
   N di estrazioni sfortunate che attiva la correzione di fortuna.
 - Numero massimo di slot attivo/Innesto ottenibili in una run.
-- Nome definitivo della categoria Innesto (rosa proposta: Scaglia, Residuo, Sigillo).
 
 ## Scenari verificabili
 

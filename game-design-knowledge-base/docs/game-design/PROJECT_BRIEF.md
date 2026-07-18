@@ -10,7 +10,7 @@ summary: "Sintesi iniziale del gioco descritta dal creatore."
 
 ## Elevator pitch
 
-Action roguelite a stanze con run uniche, nel quale un'IA locale genera durante il gioco nuovi oggetti, nemici, boss, combinazioni visive e sinergie. La casualità è controllata da pool, rarità, progressione e regole di qualità, così ogni run è sorprendente ma non priva di struttura.
+**Worldsmelt** (titolo definitivo, `DEC-071`) è un action roguelite a stanze con run uniche, nel quale un'IA locale genera durante il gioco nuovi oggetti, nemici, boss, combinazioni visive e sinergie. La casualità è controllata da pool, rarità, progressione e regole di qualità, così ogni run è sorprendente ma non priva di struttura.
 
 ## Concetti già dichiarati
 
@@ -55,6 +55,11 @@ linkato; questa sezione è solo una sintesi orientativa.
 - È desiderato un multiplayer competitivo: la visione fissata è quella di gare asincrone
   sulla stessa run/seed con classifiche a tempo/punteggio (`DEC-016`; vedi
   [Multiplayer and Competition](08-multiplayer-and-competition.md)).
+- Il nome definitivo del gioco è Worldsmelt, scelto dal proprietario e verificato libero da
+  collisioni con giochi esistenti (`DEC-071`); risolve la domanda aperta sul nome citata in
+  `DEC-003`. La nomenclatura inglese in-game dei termini di lavoro (Piano 0, Innesto,
+  Veterano, valuta, ecc.) è fissata da `DEC-072` (vedi
+  [Glossary](governance/glossary.md)).
 
 ## Principale rischio di design
 

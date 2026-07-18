@@ -10,10 +10,9 @@ summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, co
 
 ## Nota terminologica
 
-"Innesto" è il nome placeholder di questa categoria di oggetto. Sostituisce un termine
-esterno precedentemente usato nella prima stesura della knowledge base, non più impiegato
-qui. Restano in discussione, come rosa di nomi alternativi al placeholder, anche
-**Scaglia**, **Residuo** e **Sigillo** (vedi "Domande aperte residue").
+"Innesto" è il termine di lavoro italiano di questa categoria di oggetto; il nome
+in-game è **Graft** (DEC-072). Sostituisce un termine esterno precedentemente usato
+nella prima stesura della knowledge base, non più impiegato qui.
 
 ## Intento per il giocatore
 
@@ -113,12 +112,9 @@ unica definita in
 
 - L'Innesto non sostituisce il ruolo degli oggetti attivi o passivi nella build.
 - L'Innesto non è pensato per essere il fulcro di una build: resta un elemento di rifinitura.
-- Questo documento non fissa il nome definitivo della categoria: resta un placeholder.
 
 ## Domande aperte residue
 
-- Quale tra Scaglia, Residuo e Sigillo (o il placeholder Innesto stesso) diventerà il nome
-  definitivo della categoria?
 - Il drop volontario di un Innesto equipaggiato è permesso?
 - Gli Innesti possono avere stacking tra loro?
 - Gli Innesti persistono tra un piano e l'altro della stessa run, o sono legati a

@@ -8,6 +8,11 @@ Il progetto descrive un action roguelite a stanze, proprietà originale, nel qua
 dei contenuti di ogni run viene generata da un'IA locale entro regole, pool, rarità e vincoli
 di qualità definiti dal game design.
 
+Il gioco si chiama **Worldsmelt** (titolo definitivo, DEC-071). "Melting Run" resta solo il
+nome storico di questo repository e il titolo di lavoro citato nel
+[registro delle decisioni](docs/game-design/governance/decision-log.md); nei documenti vivi
+della knowledge base il gioco è Worldsmelt.
+
 ## Come iniziare
 
 1. Leggi `docs/game-design/INDEX.md`.

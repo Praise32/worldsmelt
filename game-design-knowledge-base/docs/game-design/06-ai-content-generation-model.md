@@ -3,7 +3,7 @@ id: gd-ai-content-model
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070)."
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
 ---
 
 # AI Content Generation Model
@@ -160,6 +160,15 @@ implementato — il codice dovrà adeguarsi a questa regola, non viceversa (stes
 del gap già registrato per DEC-009 in
 [Rooms and Floor Generation](systems/rooms-and-floor-generation.md)).
 
+## Nota — la nomenclatura non contamina i prompt dei World (DEC-073a)
+
+I nomi di gioco della nomenclatura di interfaccia (Smelting, Flux, Tempered, ecc. — fonte
+unica: [Glossary](governance/glossary.md), DEC-072) NON entrano nei prompt di generazione dei
+contenuti dei World (sprite, nemici, boss, oggetti, stanze): quei prompt descrivono funzione
+e tema del World scelto dal giocatore, non il vocabolario di fonderia. Il vocabolario di
+fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
+[Narrative Tone](content/narrative-tone.md)), non ai mondi generati.
+
 ## Casi limite
 
 - Un contenuto `variato` supera la banda di garanzia per un errore di generazione: viene
@@ -207,3 +216,7 @@ del gap già registrato per DEC-009 in
   gioca una run in quella modalità, **allora** incontra solo contenuti curati e fallback
   procedurali, senza che questo venga trattato come un errore o una condizione temporanea da
   correggere (DEC-070).
+- **Dato** che l'IA genera il prompt per un nemico o un oggetto del World scelto per la run,
+  **quando** quel prompt viene composto, **allora** descrive solo funzione e tema del World,
+  senza includere termini della nomenclatura di interfaccia come Smelting, Flux o Tempered
+  (DEC-073a).

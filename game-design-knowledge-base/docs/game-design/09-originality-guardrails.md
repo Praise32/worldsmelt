@@ -2,7 +2,7 @@
 id: gd-originality
 status: approved
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-18
 summary: "Regole per mantenere il progetto distinto dalle sue ispirazioni."
 ---
 
@@ -44,7 +44,7 @@ giocatore. Ogni documento che li usava li sostituisce con il termine canonico de
 
 | Termine esterno vietato | Sostituzione canonica | Note |
 |---|---|---|
-| "trinket" | **Innesto** | Rosa di alternative ammesse in fase di naming: Scaglia, Residuo, Sigillo. Vedi [Innesti](systems/grafts.md). |
+| "trinket" | **Innesto** (in-game: **Graft**, DEC-072) | Vedi [Innesti](systems/grafts.md). |
 | "élite" | **Veterano** | Nemico potenziato non-boss. |
 | "pity" | **correzione di fortuna** | Garanzia che dopo N estrazioni sfortunate la qualità minima sale. |
 | set risorse "cuori / monete / bombe / chiavi" | **risorse per funzione** | Salute (stratificata), valuta principale, strumento di breccia, strumento di apertura, catalizzatore di fusione. Nessun nome di risorsa è ripreso da altri giochi. Vedi [Health and Resources](systems/health-and-resources.md). |
@@ -69,9 +69,9 @@ giocatore. Ogni documento che li usava li sostituisce con il termine canonico de
 
 ## Domande aperte residue
 
-- Nome definitivo del gioco (attualmente "Melting Run" è solo un titolo di lavoro
-  provvisorio, DEC-003).
-- Quale, tra Scaglia / Residuo / Sigillo, diventa il nome definitivo dell'Innesto.
+- Nessuna sul naming: il titolo definitivo è **Worldsmelt** (DEC-071) e la
+  nomenclatura inglese in-game è fissata da DEC-072 (mappa completa nel
+  [glossario](governance/glossary.md)).
 
 ## Scenari
 

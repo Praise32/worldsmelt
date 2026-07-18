@@ -32,7 +32,7 @@ Il giocatore raccoglie, spende o scambia ricompense: acquista nel negozio, offre
 
 ## La valuta principale (DEC-013)
 
-La **valuta principale** è il nome placeholder per funzione che sostituisce "monete", finché non esiste il nome definitivo del gioco. Le regole generali della risorsa (cap massimo, ordine di consumo, visibilità in HUD) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento non le ripete, descrive solo l'**uso economico** e le **fonti canoniche**.
+La **valuta principale** (in-game: **Ingots**, DEC-072) sostituisce per funzione le "monete" del genere. Le regole generali della risorsa (cap massimo, ordine di consumo, visibilità in HUD) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento non le ripete, descrive solo l'**uso economico** e le **fonti canoniche**.
 
 ### Fonti canoniche della valuta principale (DEC-048)
 

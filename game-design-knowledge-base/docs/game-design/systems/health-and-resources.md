@@ -3,7 +3,7 @@ id: gd-system-health-resources
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione, con nomi placeholder (DEC-013)."
+summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione (DEC-013), ora affiancate dai nomi inglesi in-game fissati da DEC-072."
 ---
 
 # Health and Resources
@@ -16,13 +16,25 @@ Le risorse devono produrre decisioni, non solo accumulo. Ogni utilizzo important
 
 Le regole di questo documento si applicano ovunque il giocatore possa accumulare o spendere risorse: piani 1–5, Piano 0 (per quanto reso disponibile lì, DEC-004) e arene di sfida opzionali.
 
-## Risorse (per funzione, nomi placeholder — DEC-013)
+## Risorse (per funzione — DEC-013)
 
-Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placeholder** in attesa del nome definitivo del gioco (DEC-003). Il set di risorse precedente non è più canone: questo documento definisce le risorse solo in termini delle funzioni astratte qui sotto.
+Tutte le risorse del gioco sono ri-tematizzate per funzione. I nomi italiani qui sotto sono i
+termini di lavoro della KB (lingua di lavoro, DEC-052); il nome del gioco è deciso
+(Worldsmelt, DEC-071) e i nomi inglesi mostrati in gioco per ciascuna risorsa sono fissati da
+DEC-072 (fonte unica: [Glossary](../governance/glossary.md), non riformulata qui): valuta
+principale = Ingots, strumento di breccia = Blast Charges, strumento di apertura = Cast Keys,
+catalizzatore di fusione = Flux, componente temporanea/protettiva della salute = Crust. Il
+set di risorse precedente (di un altro gioco) non è più canone: questo documento definisce le
+risorse in termini delle funzioni astratte qui sotto, con il nome in-game riportato accanto a
+ciascuna.
+
+Le icone di queste risorse mantengono una silhouette stabile tra i World generati, con
+variazione ammessa solo in palette e dettagli (DEC-073b, fonte unica
+[Visual Language](../content/visual-language.md), non riformulata qui).
 
 ### Salute (stratificata)
 
-- **Composizione:** salute base + salute temporanea/protettiva (DEC-008, approved).
+- **Composizione:** salute base + salute temporanea/protettiva (in-game: **Crust** per la sola componente temporanea/protettiva, DEC-072) (DEC-008, approved).
 - **Ordine di consumo:** si consuma **prima** la salute temporanea/protettiva, **poi** la salute base. Questo ordine è esplicito e non negoziabile.
 - **Esaurimento:** salute base a zero = run persa, permadeath (DEC-006, cita solo di sfuggita). Per le condizioni di vittoria legate al boss del piano 5 vedi [bosses.md](bosses.md) (rimando, non riformulare qui i dettagli boss).
 - **Come si ottiene:** fonti di cura (oggetti, stanze, eventi) — quantità e frequenza esatte non definite (draft).
@@ -31,7 +43,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 - **Fine piano:** presumibilmente persiste (nessuna DEC afferma il contrario) — draft, da confermare.
 - **Fine run:** la run termina quando la salute base arriva a zero (vedi sopra); non applicabile oltre quel punto.
 
-### Valuta principale
+### Valuta principale (in-game: Ingots)
 
 - **Funzione:** economia di run (acquisti in stanze di negozio, prezzi in stanze ad alto rischio — vedi [special-rooms.md](special-rooms.md)).
 - **Come si ottiene:** fonti canoniche definite da DEC-048 — nemici sconfitti e stanze ripulite (completate); il negozio inoltre ricompra oggetti e Innesti indesiderati a prezzo ridotto, unica via per convertirli in valuta durante la run. Fonte unica del dettaglio: [rewards-and-economy.md](rewards-and-economy.md) (rimando, non riformulare).
@@ -40,7 +52,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 - **Fine piano:** presumibilmente persiste tra i piani della stessa run (draft, non confermato da nessuna DEC).
 - **Fine run:** si azzera al termine della run, salvo un ruolo nella meta-progressione — domanda aperta, vedi [save-and-meta-progression.md](save-and-meta-progression.md) (rimando).
 
-### Strumento di breccia
+### Strumento di breccia (in-game: Blast Charges)
 
 - **Funzione:** distruggere ostacoli o muri, infliggere danno d'area.
 - **Come si ottiene:** stanze di ricompensa, tesoro, negozio, oggetti (draft, dettagli non definiti).
@@ -48,7 +60,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 - **HUD:** mostra la scorta corrente (rimando concettuale, fuori scope UI).
 - **Fine piano/fine run:** non definito (domanda aperta); relazione con ostacoli e scorciatoie in [secrets-and-obstacles.md](secrets-and-obstacles.md) (rimando).
 
-### Strumento di apertura
+### Strumento di apertura (in-game: Cast Keys)
 
 - **Funzione:** aprire stanze o forzieri bloccati, incluso l'accesso ad alcuni archetipi speciali di stanza.
 - **Come si ottiene:** stanze, nemici, ricompense (draft, dettagli non definiti).
@@ -56,7 +68,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 - **HUD:** mostra la scorta corrente (rimando concettuale, fuori scope UI).
 - **Fine piano/fine run:** non definito (domanda aperta); relazione con stanze speciali in [special-rooms.md](special-rooms.md) e con segreti in [secrets-and-obstacles.md](secrets-and-obstacles.md) (rimando).
 
-### Catalizzatore di fusione
+### Catalizzatore di fusione (in-game: Flux)
 
 - **Funzione:** risorsa nuova che abilita/paga la fusione esplicita di due oggetti nella stanza di fusione (DEC-012b, DEC-013). La meccanica di fusione in sé vive in [item-fusion.md](item-fusion.md) (rimando, non riformulare qui).
 - **Come si ottiene:** non definito nel dettaglio (draft); presumibilmente stanze di fusione o eventi dedicati.
@@ -108,7 +120,7 @@ Vedi [generated-content-validation.md](generated-content-validation.md) — font
 
 - Non definisce valori numerici finali (quantità, cap, prezzi).
 - Non progetta l'interfaccia che mostra le risorse — vedi `ui/`, fuori scope.
-- Non definisce il nome finale delle risorse: quelli qui sono placeholder in attesa del nome del gioco (DEC-003).
+- Non ridefinisce i nomi in-game delle risorse: quelli sono fissati in `../governance/glossary.md` (DEC-072); questo documento li richiama accanto a ciascuna risorsa senza duplicarli come fonte.
 
 ## Domande aperte residue
 

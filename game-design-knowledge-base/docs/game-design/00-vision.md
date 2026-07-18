@@ -3,10 +3,17 @@ id: gd-vision
 status: draft
 owner: design
 last_reviewed: 2026-07-18
-summary: "Identità e promessa centrale del gioco; identità narrativa minima = il crogiolo dei mondi (DEC-067, dettaglio in content/narrative-tone.md)."
+summary: "Identità e promessa centrale del gioco, ora chiamato Worldsmelt (DEC-071); identità narrativa minima = il crogiolo dei mondi (DEC-067, dettaglio in content/narrative-tone.md)."
 ---
 
 # Vision
+
+## Titolo
+
+Il gioco si chiama **Worldsmelt** (titolo definitivo, DEC-071). "Melting Run" resta solo il
+nome storico di questo repository e il titolo di lavoro citato nel
+[registro delle decisioni](governance/decision-log.md); non è più usato per riferirsi al
+gioco negli altri documenti vivi della KB.
 
 ## Promessa al giocatore
 

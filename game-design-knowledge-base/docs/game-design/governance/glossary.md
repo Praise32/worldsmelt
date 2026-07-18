@@ -2,8 +2,9 @@
 
 ## Struttura e stati
 
-- **Piano 0:** hub di caricamento giocabile, sempre disponibile; rifugio sicuro più arene di sfida opzionali con contenuti "best-of" già validati; contiene museo, scelta del tema, scelta del personaggio e indicatore di generazione (DEC-004). Assorbe la vecchia schermata separata di generazione.
+- **Piano 0** (in-game: **The Crucible**, DEC-072): hub di caricamento giocabile, sempre disponibile; rifugio sicuro più arene di sfida opzionali con contenuti "best-of" già validati; contiene museo, scelta del tema, scelta del personaggio e indicatore di generazione (DEC-004). Assorbe la vecchia schermata separata di generazione.
 - **Floor / Piano:** gruppo di stanze con progressione interna e boss. Una run standard è Piano 0 + 5 piani (DEC-001).
+- **Tema della run** (in-game: **World**, DEC-072): identità tematica scelta dal giocatore tra 2-3 proposte generate dall'IA nel Piano 0; evolve/degenera piano dopo piano fino al boss del piano 5 (DEC-005). Fonte unica: `systems/floor-zero.md`.
 - **Run:** sessione completa dall'avvio alla vittoria (boss del piano 5) o alla sconfitta (permadeath). La vittoria al boss del piano 5 chiude la run (DEC-006, DEC-031); una prosecuzione oltre il piano 5 resta solo un'idea futura non implementata (DEC-018).
 - **Manifest di run:** descrizione stabile dei contenuti e delle regole di una run (seed compreso), usata per riproducibilità e classifiche.
 - **Codice run:** codice breve testuale (seed più versione di gioco) che permette di condividere e rigenerare localmente una run fuori dalle classifiche; alternativa più leggera al file RunBundle esportato per la condivisione di una run (DEC-066). Fonte unica: `08-multiplayer-and-competition.md`.
@@ -12,7 +13,8 @@
 
 ## Cornice narrativa
 
-- **Crogiolo (cornice)** (DEC-067): cornice narrativa minima canonica del gioco. Il Piano 0 è
+- **Crogiolo (cornice)** (in-game: **The Crucible**, stesso nome in-game della voce Piano 0
+  sopra, DEC-072) (DEC-067): cornice narrativa minima canonica del gioco. Il Piano 0 è
   un luogo-fucina fuori dal tempo dove i mondi generati nascono, si fondono e si sciolgono; il
   giocatore è chi vi si immerge per esplorarli prima che collassino; il museo è la memoria di
   ciò che ha salvato. Dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi
@@ -20,30 +22,32 @@
 
 ## Oggetti e slot
 
-- **Innesto** (placeholder, sostituisce il termine vietato "trinket"): oggetto piccolo, situazionale, sostituibile; 1 slot iniziale, espandibile con oggetti o eventi rari. Rosa di nomi alternativi da valutare quando si sceglierà il nome del gioco: *Scaglia*, *Residuo*, *Sigillo*.
+- **Innesto** (in-game: **Graft**, DEC-072; sostituisce il termine vietato "trinket"): oggetto piccolo, situazionale, sostituibile; 1 slot iniziale, espandibile con oggetti o eventi rari.
 - **Trinket:** termine esterno, non usare. Sostituito ovunque da **Innesto**.
 - **Oggetto attivo:** oggetto con azione volontaria e ricarica; 1 slot iniziale, espandibile.
 - **Oggetto passivo:** oggetto con effetto continuo; nessun limite di slot.
 - **Stat-up:** incremento diretto di una statistica; nessun limite di slot.
-- **Fusione:** meccanica-firma del gioco (DEC-012). Nella stanza di fusione il giocatore consuma due oggetti e ottiene un oggetto nuovo generato dall'IA che eredita comportamento e presentazione da entrambi.
+- **Fusione** (in-game: **Smelting**, DEC-072): meccanica-firma del gioco (DEC-012). Nella stanza di fusione il giocatore consuma due oggetti e ottiene un oggetto nuovo generato dall'IA che eredita comportamento e presentazione da entrambi.
+- **Stanza di fusione** (in-game: **Smeltery**, DEC-072): archetipo speciale di stanza dove si pratica la fusione esplicita (DEC-010, DEC-012). Fonte unica: `systems/item-fusion.md`, `systems/special-rooms.md`.
 - **Sinergia (implicita):** interazione automatica tra due o più componenti compatibili della build, senza consumo di oggetti; distinta dalla fusione esplicita.
 
 ## Risorse
 
-- **Salute stratificata:** salute base più salute temporanea/protettiva, visivamente distinguibili; ordine di consumo: prima la temporanea, poi la base (DEC-008).
-- **Valuta principale:** risorsa spendibile per acquisti in run (nome definitivo da assegnare).
-- **Strumento di breccia:** risorsa consumabile con funzione equivalente alle "bombe" (nome definitivo da assegnare).
-- **Strumento di apertura:** risorsa consumabile con funzione equivalente alle "chiavi" (nome definitivo da assegnare).
-- **Catalizzatore di fusione:** risorsa che abilita e paga la fusione esplicita (DEC-012, DEC-013).
-- **Energia:** risorsa droppata dai nemici sconfitti che ricarica gli oggetti attivi; è uno dei due canali di ricarica di base degli attivi (l'altro è il completamento delle stanze), estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059). Fonte unica: `systems/active-items.md`.
+- **Salute stratificata:** salute base più salute temporanea/protettiva (in-game: **Crust** per la sola componente temporanea/protettiva, DEC-072), visivamente distinguibili; ordine di consumo: prima la temporanea, poi la base (DEC-008).
+- **Valuta principale** (in-game: **Ingots**, DEC-072): risorsa spendibile per acquisti in run.
+- **Strumento di breccia** (in-game: **Blast Charges**, DEC-072): risorsa consumabile con funzione equivalente alle "bombe".
+- **Strumento di apertura** (in-game: **Cast Keys**, DEC-072): risorsa consumabile con funzione equivalente alle "chiavi".
+- **Catalizzatore di fusione** (in-game: **Flux**, DEC-072): risorsa che abilita e paga la fusione esplicita (DEC-012, DEC-013).
+- **Punti sblocco (meta)** (in-game: **Embers**, DEC-072): risorsa meta, fuori dalla run, guadagnata in singleplayer a fine run e spendibile nel Catalogo per sbloccare contenuti generati nei pool delle run future (DEC-015, DEC-027). Fonte unica: `systems/save-and-meta-progression.md`.
+- **Energia** (in-game: **Heat**, DEC-072): risorsa droppata dai nemici sconfitti che ricarica gli oggetti attivi; è uno dei due canali di ricarica di base degli attivi (l'altro è il completamento delle stanze), estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059). Fonte unica: `systems/active-items.md`.
 
 ## Nemici
 
-- **Veterano** (placeholder, sostituisce "élite"): nemico potenziato non-boss.
+- **Veterano** (in-game: **Tempered**, DEC-072; sostituisce "élite"): nemico potenziato non-boss.
 
 ## Personaggi e colpi
 
-- **Colpo firmato** (DEC-068): tipo di colpo generato (forma più comportamento) che il
+- **Colpo firmato** (in-game: **Signature Shot**, DEC-072) (DEC-068): tipo di colpo generato (forma più comportamento) che il
   personaggio alternativo generato per la run può avere, a volte, come possibilità del
   generatore; è parte del budget del personaggio — chi lo riceve ha statistiche più caute. I
   personaggi della rosa base usano sempre colpi standard curati, mai un colpo firmato. Fonte
@@ -57,7 +61,7 @@
 - **Fallback:** contenuto sicuro usato quando una proposta generata non è disponibile o valida. Fonte unica delle regole di fallback: `systems/generated-content-validation.md`.
 - **Correzione di fortuna** (sostituisce il termine informale "pity"): garanzia che, dopo N estrazioni sfortunate, la qualità minima del contenuto offerto sale.
 - **Stati di validazione del contenuto generato** (6, in italiano): *proposto*, *strutturalmente-valido*, *simulato*, *approvato-per-run*, *respinto*, *fallback-usato*. Sostituiscono gli aggettivi informali "validato" e "fortemente validato". Fonte dei controlli: `systems/generated-content-validation.md`.
-- **Reliquie** (DEC-069): sezione del Catalogo che raccoglie i contenuti che non superano la
+- **Reliquie** (in-game: **Relics**, DEC-072) (DEC-069): sezione del Catalogo che raccoglie i contenuti che non superano la
   riconvalida a un aggiornamento del gioco: scheda consultabile, ma non più giocabile né
   sbloccabile nei pool. La memoria del giocatore non si perde mai. Fonte unica:
   `systems/save-and-meta-progression.md`.
@@ -79,10 +83,10 @@
 
 ## Multiplayer e classifiche
 
-- **Daily (Classificata giornaliera pubblica):** una delle tre istanze della modalità Classificata (DEC-021, DEC-062); una run generata scelta dallo sviluppatore, con lo stesso seed per tutti i giocatori, che cambia ogni giorno; ha una classifica globale giornaliera, divisa per metrica (tempo e punteggio separati); premia con medaglie/cornici cosmetiche legate a piazzamento e streak di partecipazione, fuori dall'economia dei punti sblocco (DEC-064). Fonte unica: `08-multiplayer-and-competition.md`.
+- **Daily (Classificata giornaliera pubblica)** (in-game: **Daily Smelt**, DEC-072): una delle tre istanze della modalità Classificata (DEC-021, DEC-062); una run generata scelta dallo sviluppatore, con lo stesso seed per tutti i giocatori, che cambia ogni giorno; ha una classifica globale giornaliera, divisa per metrica (tempo e punteggio separati); premia con medaglie/cornici cosmetiche legate a piazzamento e streak di partecipazione, fuori dall'economia dei punti sblocco (DEC-064). Fonte unica: `08-multiplayer-and-competition.md`.
 
 ## Presentazione e leggibilità
 
 - **Telegraph:** segnale anticipatorio di un attacco o evento.
 - **Leggibilità:** vincolo di chiarezza visiva delle minacce e degli effetti attivi; fonte unica del "budget di leggibilità": `systems/combat-and-projectiles.md`.
-- **Card di scoperta (breve):** annuncio non bloccante nell'HUD alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione); mostra sprite, nome e una riga; non mette in pausa né blocca l'input; una sola card alla volta, le altre si accodano (DEC-065). Fonte unica: `ui/hud.md`.
+- **Card di scoperta (breve)** (in-game: **Discovery Card**, DEC-072): annuncio non bloccante nell'HUD alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione); mostra sprite, nome e una riga; non mette in pausa né blocca l'input; una sola card alla volta, le altre si accodano (DEC-065). Fonte unica: `ui/hud.md`.

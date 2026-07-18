@@ -37,7 +37,7 @@ Ogni nemico deve essere leggibile a colpo d'occhio: ruolo, minaccia e finestra d
 - supporto;
 - evocatore;
 - ostacolo mobile;
-- **Veterano** — variante potenziata di un ruolo base (nome placeholder canonico, sostituisce "élite"). Non è un boss: non ha fasi né arena dedicata (vedi [bosses.md](./bosses.md)).
+- **Veterano** — variante potenziata di un ruolo base (termine di lavoro; in-game: **Tempered**, DEC-072). Non è un boss: non ha fasi né arena dedicata (vedi [bosses.md](./bosses.md)).
 
 ## Roster compatto per run (DEC-053)
 

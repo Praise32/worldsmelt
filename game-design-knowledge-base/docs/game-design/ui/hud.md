@@ -49,9 +49,14 @@ temporanea, poi la base (DEC-008). Fonte di sistema: `systems/health-and-resourc
 ## Risorse per funzione
 
 Valuta principale, strumento di breccia, strumento di apertura e catalizzatore di fusione
-sono mostrati con nomi placeholder per funzione (DEC-013): nessun riferimento al set
-cuori/monete/bombe/chiavi di altri giochi. Il catalizzatore di fusione è una risorsa nuova,
-distinta dalle altre tre.
+sono definiti per funzione (DEC-013): nessun riferimento al set cuori/monete/bombe/chiavi di
+altri giochi. Il catalizzatore di fusione è una risorsa nuova, distinta dalle altre tre.
+
+I nomi mostrati in gioco sono quelli inglesi della nomenclatura ufficiale (Ingots, Blast
+Charges, Cast Keys, Flux — DEC-072, fonte unica [Glossary](../governance/glossary.md), non
+riformulata qui). Le icone di queste risorse mantengono una silhouette stabile tra i World,
+con variazione ammessa solo in palette e dettagli (DEC-073b, fonte unica
+[Visual Language](../content/visual-language.md), non riformulata qui).
 
 ## Slot attivo e Innesto
 
@@ -115,7 +120,6 @@ L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regol
 
 ## Domande aperte residue
 
-- I nomi definitivi delle risorse e degli slot dipendono dal nome del gioco (vedi `governance/open-questions.md`).
 - Casi limite della coda delle card di scoperta (DEC-065): quante scoperte possono restare in
   attesa, se esiste un tempo massimo prima di scartarle o comprimerle, e come si comporta la
   coda se il giocatore muore o cambia stanza mentre una card è in attesa.

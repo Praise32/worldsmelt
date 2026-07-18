@@ -48,7 +48,7 @@ stessa stanza, e viceversa (fonte del principio di budget condiviso:
 
 ## Input/azioni
 
-Il giocatore usa lo **strumento di breccia** (DEC-013, nome placeholder per funzione, sostituisce "bombe") per distruggere ostacoli, muri deboli o aprire varchi. Le regole della risorsa stessa (come si ottiene, cap massimo, ordine di consumo, rarità e fonti) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento descrive solo il suo **uso** nel contesto di ostacoli e segreti, senza ripetere quelle regole.
+Il giocatore usa lo **strumento di breccia** (DEC-013; in-game: **Blast Charges**, DEC-072) per distruggere ostacoli, muri deboli o aprire varchi. Le regole della risorsa stessa (come si ottiene, cap massimo, ordine di consumo, rarità e fonti) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento descrive solo il suo **uso** nel contesto di ostacoli e segreti, senza ripetere quelle regole.
 
 ## Risultato
 
