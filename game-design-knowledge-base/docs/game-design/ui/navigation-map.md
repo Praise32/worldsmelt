@@ -2,8 +2,8 @@
 id: gd-ui-navigation
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Mappa degli stati canonici (05-game-states-and-flow.md) e ritorno del focus."
+last_reviewed: 2026-07-18
+summary: "Mappa degli stati canonici (05-game-states-and-flow.md) e ritorno del focus. Ogni transizione rispetta la parità rigorosa di input (DEC-057, fonte unica in ui/options-and-accessibility.md)."
 ---
 
 # Navigation Map
@@ -61,6 +61,7 @@ flowchart TD
 - Dopo la chiusura di una schermata secondaria, il focus torna all'elemento che l'ha aperta; l'arco `PauseMenu → Options` restituisce il focus sull'elemento "Opzioni" del menu pausa al ritorno.
 - Durante caricamenti critici (ingresso in `FloorZero`, transizione di piano), il sistema previene attivazioni duplicate dell'input.
 - La pausa ferma la simulazione in singleplayer; nelle run competitive asincrone il tempo della run continua a contare mentre `PauseMenu` è aperto (coerente con DEC-016; vedi `ui/pause-menu.md`).
+- Ogni transizione e ogni comando di questa mappa funziona in modo identico su tastiera e controller; il mouse è ammesso solo nei menu. Fonte unica della regola di parità di input: `ui/options-and-accessibility.md` (DEC-057, rimando, non riformulato qui).
 
 ## Non-obiettivi
 

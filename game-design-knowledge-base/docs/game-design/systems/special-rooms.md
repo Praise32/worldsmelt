@@ -3,7 +3,7 @@ id: gd-system-special-rooms
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Dettaglio dei quattro archetipi speciali (DEC-010): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
 ---
 
 # Special Rooms
@@ -14,11 +14,11 @@ Le stanze speciali offrono decisioni fuori dal combattimento standard: rischio, 
 
 ## Condizioni di ingresso
 
-La tassonomia completa dei tipi di stanza (standard + speciali) è definita in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md); questo documento non la ridefinisce. Qui si dettagliano solo i quattro archetipi speciali dichiarati da DEC-010: stanza di fusione, stanza segreta, arena di sfida, scambio ad alto rischio.
+La tassonomia completa dei tipi di stanza (standard + speciali) è definita in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md); questo documento non la ridefinisce. Qui si dettagliano i quattro archetipi speciali dichiarati da DEC-010 — stanza di fusione, stanza segreta, arena di sfida, scambio ad alto rischio — più il quinto archetipo aggiunto da DEC-051: la stanza a tempo.
 
 **Nota sul negozio:** il negozio è un tipo di stanza **standard** (definito in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), non uno dei quattro archetipi speciali qui descritti. Il negozio ha prezzi base fissi per fascia di rarità più un'offerta speciale generata per negozio (DEC-026): il dettaglio economico vive in [rewards-and-economy.md](./rewards-and-economy.md), non ripetuto qui. Lo scambio ad alto rischio è un archetipo diverso dal negozio: offre scambi rischiosi o non convenzionali, con presentazione e regole originali — mai nominato o presentato con riferimenti a giochi esistenti. **Confine netto (DEC-026):** i "patti" a costo salute (cedere salute in cambio di un guadagno) non esistono nel negozio; restano esclusivi dello scambio ad alto rischio.
 
-## I quattro archetipi
+## I cinque archetipi
 
 ### Stanza di fusione
 
@@ -40,6 +40,18 @@ Stanza opzionale con combattimento più impegnativo in cambio di ricompensa magg
 ### Scambio ad alto rischio
 
 Stanza che propone uno scambio non convenzionale (es. cedere una risorsa, salute o una parte della build per un guadagno maggiore ma incerto), ri-tematizzata in modo originale. È l'**unico** archetipo dove sono ammessi scambi a costo salute (DEC-026): il negozio non li offre mai. Nome e presentazione precisi restano da definire in fase di contenuto, ma la funzione — rischio dichiarato in cambio di un guadagno superiore alla media — è fissata da DEC-010.
+
+### Stanza a tempo (DEC-051)
+
+Stanza fissa dei **piani avanzati**: se il giocatore la raggiunge entro una soglia di tempo,
+ottiene una ricompensa aggiuntiva. Coerente con il timer di run sempre visibile nell'HUD
+(DEC-051, vedi [HUD](../ui/hud.md)): il gioco si dichiara esplicitamente una corsa, e questo
+archetipo rende quella dichiarazione parte del level design nei piani avanzati. Il dettaglio
+della ricompensa vive in [Rewards and Economy](./rewards-and-economy.md) come fonte unica;
+questo documento colloca solo l'archetipo nella tassonomia e ne descrive l'accesso.
+
+**Estensione della tassonomia (DEC-051):** questo è un quinto archetipo speciale, aggiunto
+da DEC-051 ai quattro originali di DEC-010.
 
 #### Puntata generata dentro un budget di equità (DEC-044)
 
@@ -79,7 +91,8 @@ Ogni stanza speciale produce un esito dichiarato (oggetto fuso, accesso a una ri
 - con la meccanica di fusione ([item-fusion.md](./item-fusion.md)) e il catalizzatore di fusione ([health-and-resources.md](./health-and-resources.md), [items-pools-and-rarity.md](./items-pools-and-rarity.md));
 - con il Piano 0 per l'accesso "best-of" all'arena di sfida ([floor-zero.md](./floor-zero.md));
 - con l'economia per lo scambio ad alto rischio ([rewards-and-economy.md](./rewards-and-economy.md));
-- con la regola di validazione generale per la coppia offerta/prezzo generata ([generated-content-validation.md](./generated-content-validation.md), DEC-044).
+- con la regola di validazione generale per la coppia offerta/prezzo generata ([generated-content-validation.md](./generated-content-validation.md), DEC-044);
+- con la ricompensa della stanza a tempo ([rewards-and-economy.md](./rewards-and-economy.md), DEC-051) e con il timer sempre visibile ([hud.md](../ui/hud.md)).
 
 ## Regola di originalità
 
@@ -101,6 +114,7 @@ giocatore.
 - Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore.
 - Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore.
 - L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md).
+- Il giocatore raggiunge una stanza a tempo dopo la scadenza della soglia: non deve mai bloccare il progresso del piano; resta almeno accessibile come stanza ordinaria, anche senza il bonus a tempo (soglia esatta e comportamento di mancato rispetto da definire col playtest, vedi `governance/open-questions.md`).
 
 ## Fallback
 
@@ -170,3 +184,9 @@ Then il prezzo appartiene a una delle categorie ammesse (salute immediata o mass
 Given un giocatore che entra in due stanze di scambio ad alto rischio diverse nella stessa run
 When confronta le due puntate proposte
 Then offerta e prezzo delle due stanze sono diversi tra loro, perché ogni scambio è generato per l'occasione (DEC-044)
+
+### Scenario 9 — Stanza a tempo raggiunta in tempo
+
+Given un giocatore che raggiunge una stanza a tempo entro la soglia richiesta in un piano avanzato
+When entra nella stanza
+Then riceve la ricompensa aggiuntiva descritta in [rewards-and-economy.md](./rewards-and-economy.md), coerente col timer di run sempre visibile nell'HUD (DEC-051)

@@ -3,7 +3,7 @@ id: gd-system-characters
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037)."
+summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049)."
 ---
 
 # Characters
@@ -46,6 +46,20 @@ Il personaggio alternativo generato per run (vedi sotto) non sostituisce la rosa
 scelta nel Piano 0 avviene tra i personaggi della rosa (quelli già sbloccati) più
 l'eventuale alternativa generata per quella run.
 
+## Sprite dei personaggi (DEC-049)
+
+I 2-3 personaggi della rosa base (DEC-030) hanno sprite pixel art **curati a mano**: sono
+contenuto `curato`, non generato, come il resto della rosa. Il personaggio alternativo
+generato per la run ha invece uno sprite **generato dalla pipeline di generazione sprite già
+esistente**, la stessa usata per i nemici (vedi
+[AI Content Generation Model](../06-ai-content-generation-model.md)); questo documento non
+ripete il dettaglio tecnico di quella pipeline.
+
+Indipendentemente dall'origine dello sprite — curato per la rosa base, generato per
+l'alternativa — i 6 slot visivi degli oggetti equipaggiati si sovrappongono allo stesso modo
+a **tutti** i personaggi: fonte unica del dettaglio di quegli strati è
+[Visual Language](../content/visual-language.md), non riformulato qui.
+
 ## Input/azioni
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
@@ -81,6 +95,10 @@ run.
   del tema della run.
 - [Run Manifest and Reproducibility](run-manifest-and-reproducibility.md): il personaggio
   scelto entra nel manifest della run.
+- [AI Content Generation Model](../06-ai-content-generation-model.md): la pipeline di
+  generazione sprite usata per il personaggio alternativo, condivisa coi nemici (DEC-049).
+- [Visual Language](../content/visual-language.md): i 6 slot visivi degli oggetti
+  equipaggiati, condivisi da personaggi curati e generati (DEC-049).
 
 ## Regole per contenuti generati
 
@@ -113,6 +131,10 @@ run.
   si applica il fallback, vedi sotto.
 - Un personaggio della rosa base non è ancora sbloccato: la sua scheda non è selezionabile
   nel Piano 0 (dettagli dello sblocco da definire, vedi domande aperte).
+- Lo sprite generato del personaggio alternativo non supera la validazione: si applica il
+  fallback definito in [Generated Content Validation](generated-content-validation.md), e la
+  scheda del personaggio alternativo non compare (coerente con il caso limite già descritto
+  sopra per la generazione dell'alternativa non disponibile).
 
 ## Fallback
 
@@ -143,6 +165,9 @@ applica la regola di fallback unica definita in
 - Composizione esatta della rosa dei personaggi base (DEC-030): nomi, ruoli precisi oltre
   alle indicazioni offensivo/difensivo/esploratore, e condizioni esatte di sblocco di
   ciascuno (vedi `../governance/open-questions.md`).
+- Se lo sprite curato della rosa base condivide lo stesso atlas/risoluzione di riferimento
+  dello sprite generato del personaggio alternativo (vedi
+  [Visual Language](../content/visual-language.md), valori draft DEC-046).
 
 ## Scenari
 
@@ -179,3 +204,11 @@ applica la regola di fallback unica definita in
 - Then si applica il fallback definito in
   [Generated Content Validation](generated-content-validation.md) e nel Piano 0 compare solo
   la rosa dei personaggi base già sbloccati
+
+**Scenario: sprite curato per la rosa base, generato per l'alternativa**
+- Given un giocatore che confronta nel Piano 0 la scheda di un personaggio della rosa base e
+  la scheda del personaggio alternativo generato
+- When osserva i due sprite
+- Then lo sprite della rosa base è pixel art curata a mano, mentre lo sprite
+  dell'alternativa è generato dalla stessa pipeline usata per i nemici, ma entrambi
+  condividono gli stessi 6 slot visivi per gli oggetti equipaggiati (DEC-049)

@@ -3,7 +3,7 @@ id: gd-system-save-meta
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045)."
+summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050)."
 ---
 
 # Save and Meta Progression
@@ -31,8 +31,10 @@ competitive interagiscono con questo sistema solo in lettura limitata (vedi sott
 
 - **Il catalogo di tutti i contenuti generati**: ogni contenuto approvato-per-run in qualunque
   run singleplayer entra nel catalogo permanente del profilo.
-- **Il museo del Piano 0**, che raccoglie i migliori contenuti tra quelli catalogati (vedi
-  `floor-zero.md` per cosa sia il museo).
+- **Il museo del Piano 0**, che raccoglie i migliori contenuti tra quelli catalogati con un
+  criterio di curatela misto — promozione automatica per metriche più preferiti del
+  giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063, fonte unica in
+  `floor-zero.md`, rimando, non riformulato qui).
 - **I punti guadagnati solo in singleplayer**, spendibili per sbloccare contenuti generati nei
   pool delle run future. Il meccanismo di guadagno è a doppio canale — punti base dal
   risultato della run più bonus da prove specifiche (DEC-027) — descritto in
@@ -48,7 +50,9 @@ espone la meta-progressione persistente sopra descritta attraverso tre funzioni:
   ogni scheda mostra nome, sprite, storia e statistiche d'uso;
 - **preferiti**: il giocatore può segnare contenuti come preferiti; i preferiti pesano
   leggermente sulle proposte future dell'IA nelle run successive, senza garantirne la
-  comparsa (restano soggette alle stesse regole di generazione e di peso nel pool);
+  comparsa (restano soggette alle stesse regole di generazione e di peso nel pool); i
+  preferiti hanno inoltre la precedenza nel museo del Piano 0 e non ne escono mai (DEC-063,
+  rimando a `floor-zero.md`);
 - **spesa dei punti sblocco**: è il luogo dove si spendono i punti guadagnati in
   singleplayer (DEC-015, DEC-027) per sbloccare contenuti generati nei pool delle run future.
 
@@ -56,6 +60,39 @@ Il Catalogo è distinto dal museo del Piano 0: il museo è una galleria curata d
 creazioni migliori, provabile in loco (DEC-040); il Catalogo è l'enciclopedia completa più
 preferiti e spesa punti. Idea futura (lista DEC-018): portare le funzioni del Catalogo anche
 dentro il Piano 0/museo.
+
+## Sospensione della run e ripresa (DEC-050)
+
+A differenza delle sezioni sopra — che descrivono cosa persiste **tra** una run e l'altra —
+questa sezione descrive la sospensione di una run **in corso**: il giocatore può sospendere
+in qualunque momento, non solo nei punti di salvataggio tradizionali.
+
+Al rientro:
+
+- la **stanza corrente riparte dall'ingresso**, con i nemici ripristinati: non esiste uno
+  snapshot di metà combattimento;
+- il **resto della run** (piani già completati, build, oggetti, risorse, tema scelto)
+  riprende esattamente com'era al momento della sospensione.
+
+Questo comportamento è coerente con "Continua" da `MainMenu`, che rientra direttamente nello
+stato salvato (`Gameplay` nel caso tipico, `FloorZero` se la sospensione è avvenuta nel
+Piano 0): fonte unica dei nomi di stato e della transizione è
+[Game States and Flow](../05-game-states-and-flow.md) e
+[Navigation Map](../ui/navigation-map.md); questo documento non li ripete, registra solo la
+regola di ripristino della stanza corrente.
+
+## Ricompense cosmetiche della Classificata giornaliera (DEC-064)
+
+Oltre al catalogo, al museo e ai punti sblocco (DEC-015), il profilo persistente conserva
+anche le **medaglie e cornici** guadagnate nella Classificata giornaliera pubblica ("Daily",
+DEC-062): ricompense cosmetiche legate ai piazzamenti e alle streak di partecipazione,
+visibili nel profilo e nel museo del Piano 0. Fonte unica della Daily e delle sue regole:
+[08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md#ricompense-della-daily-cosmetici-dec-064)
+(rimando, non riformulato qui).
+
+Le medaglie e le cornici **non assegnano punti sblocco** e non toccano in alcun modo
+l'economia dei punti di meta-progressione (DEC-015, DEC-027): sono un canale di persistenza
+separato, puramente cosmetico.
 
 ## Cosa NON persiste
 
@@ -87,6 +124,11 @@ solo cosa persiste e con quali regole.
   descrive solo cosa persiste, non come si guadagna.
 - `ui/main-menu.md`: la voce Catalogo del menu principale apre la schermata a tre funzioni
   descritta qui (DEC-045).
+- `05-game-states-and-flow.md` e `ui/navigation-map.md`: la regola "Continua" rientra nello
+  stato salvato; questo documento aggiunge solo il dettaglio del ripristino della stanza
+  corrente (DEC-050).
+- `08-multiplayer-and-competition.md`: fonte unica delle ricompense cosmetiche della Daily
+  (medaglie/cornici) che persistono qui nel profilo (DEC-064).
 
 ## Regole per contenuti generati
 
@@ -110,6 +152,11 @@ per il contesto delle gare asincrone).
 - Una run interrotta a metà (abbandono) non deve corrompere il profilo: i contenuti già
   approvati-per-run fino a quel momento restano acquisiti nel catalogo secondo le stesse
   regole di una run completata.
+- Il giocatore sospende la run a metà di un combattimento in una stanza: al rientro la
+  stanza riparte dall'ingresso con i nemici ripristinati, non dal punto esatto di
+  sospensione.
+- Il giocatore sospende la run nel Piano 0: al rientro rientra direttamente nel Piano 0,
+  coerente con `FloorZero` come stato salvato (vedi [Navigation Map](../ui/navigation-map.md)).
 
 ## Fallback
 
@@ -122,6 +169,11 @@ Questo sistema non definisce la regola di fallback per i contenuti generati: ved
   vantaggi di potere che persistono tra run): esplicitamente escluso.
 - Questo documento non definisce l'interfaccia di catalogo/museo/sblocchi (vedi `ui/`).
 - Non definisce il tasso di conversione punti-sblocco (valore non deciso qui).
+- Non ridefinisce i nomi di stato o le transizioni di navigazione (vedi
+  [Game States and Flow](../05-game-states-and-flow.md),
+  [Navigation Map](../ui/navigation-map.md)).
+- Non ridefinisce i criteri esatti di piazzamento/streak che assegnano le medaglie della
+  Daily: fonte unica in `08-multiplayer-and-competition.md`.
 
 ## Domande aperte residue
 
@@ -129,10 +181,13 @@ Questo sistema non definisce la regola di fallback per i contenuti generati: ved
   solo i contenuti approvati-per-run (vedi anche `generated-content-validation.md`).
 - Il tasso esatto di guadagno (punti base e bonus, DEC-027) e di spesa dei punti di
   meta-progressione (non deciso).
-- Se il museo del Piano 0 mostra l'intero catalogo o solo un sottoinsieme curato dei migliori
-  contenuti (vedi `floor-zero.md`).
 - Peso esatto che i preferiti aggiungono alle proposte future dell'IA (DEC-045 fissa solo
   che il peso è "leggero", non il valore).
+
+Nota: la domanda su cosa mostri il museo del Piano 0 (intero catalogo o sottoinsieme curato)
+è risolta da DEC-063 — criterio misto, metriche più preferiti — e non è più aperta qui; la
+soglia esatta delle metriche resta una domanda aperta specifica, registrata in
+`floor-zero.md`.
 
 ## Idee future (experimental)
 
@@ -191,3 +246,30 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - When l'IA genera le proposte per una run futura,
 - Then quei contenuti preferiti ricevono un peso leggermente maggiore nel pool, senza che la
   loro comparsa sia garantita.
+
+**Scenario: sospensione a metà combattimento**
+- Given un giocatore in una stanza di combattimento con nemici parzialmente sconfitti,
+- When sospende la run e poi la riprende con "Continua",
+- Then la stanza riparte dall'ingresso con tutti i nemici ripristinati, mentre il resto
+  della run (piani completati, build, risorse) resta esattamente come al momento della
+  sospensione (DEC-050).
+
+**Scenario: sospensione nel Piano 0**
+- Given un giocatore nel Piano 0 che ha già scelto tema e personaggio,
+- When sospende la run e poi la riprende,
+- Then rientra direttamente nel Piano 0 con le stesse scelte già fatte, coerente con lo
+  stato salvato `FloorZero` (DEC-050).
+
+**Scenario: un preferito ha precedenza nel museo**
+- Given un giocatore ha segnato un contenuto come preferito nel Catalogo (DEC-045),
+- When le metriche di quel contenuto scendono sotto la soglia di promozione automatica,
+- Then il contenuto resta comunque esposto nel museo del Piano 0, perché il preferito ha la
+  precedenza sulla promozione per metriche (DEC-063, fonte unica in `floor-zero.md`).
+
+**Scenario: medaglie della Daily persistono nel profilo**
+- Given un giocatore partecipa alla Classificata giornaliera pubblica e ottiene un
+  piazzamento,
+- When la sessione termina,
+- Then una medaglia o cornice cosmetica entra nel profilo persistente, visibile nel profilo e
+  nel museo, senza alcun punto sblocco aggiuntivo (DEC-064, fonte unica in
+  `08-multiplayer-and-competition.md`).

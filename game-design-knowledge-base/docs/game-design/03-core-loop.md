@@ -3,14 +3,17 @@ id: gd-core-loop
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita e ciclo museo/catalogo/sblocchi. La vittoria al boss del piano 5 chiude la run (DEC-031); la prosecuzione in piani extra resta un'idea futura."
+summary: "Ciclo principale di una run: Piano 0 (con tutorial integrato nella primissima visita, DEC-047), cinque piani, fusione esplicita e ciclo museo/catalogo/sblocchi. La vittoria al boss del piano 5 chiude la run (DEC-031); la prosecuzione in piani extra resta un'idea futura. La valuta principale si guadagna da nemici e stanze ripulite e il negozio ricompra oggetti indesiderati (DEC-048)."
 ---
 
 # Core Loop
 
 ## Loop di Piano 0 (approved, DEC-004)
 
-1. Il giocatore entra nell'hub sempre giocabile del Piano 0.
+1. Il giocatore entra nell'hub sempre giocabile del Piano 0. Alla primissima visita, questo
+   passaggio è guidato: le arene opzionali insegnano le meccaniche base (movimento, sparo,
+   risorse, fusione) con cartelli e prove pratiche, senza un tutorial separato (DEC-047;
+   dettaglio in [Floor Zero](systems/floor-zero.md)).
 2. Consulta il museo delle creazioni migliori (contenuti "best-of" già validati da run
    passate) e può affrontare arene di sfida opzionali che li riusano.
 3. Sceglie uno tra i 2–3 temi che l'IA propone per la run (DEC-005).
@@ -24,10 +27,13 @@ summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita 
 1. Entrare in una stanza.
 2. Leggere minacce, ostacoli e opportunità.
 3. Combattere o risolvere la stanza.
-4. Ricevere risorse per funzione (salute, valuta principale, strumento di breccia,
-   strumento di apertura, catalizzatore di fusione), informazioni o una scelta (vedi
+4. Ricevere risorse per funzione (salute, valuta principale — guadagnata sconfiggendo
+   nemici e ripulendo stanze, DEC-048 — strumento di breccia, strumento di apertura,
+   catalizzatore di fusione), informazioni o una scelta (vedi
    [Health and Resources](systems/health-and-resources.md)).
-5. Decidere dove andare e cosa spendere.
+5. Decidere dove andare e cosa spendere, incluso rivendere al negozio oggetti o Innesti
+   indesiderati a prezzo ridotto rispetto all'acquisto (DEC-048; dettaglio in
+   [Rewards and Economy](systems/rewards-and-economy.md)).
 6. Modificare la build: raccogliere oggetti, attivare sinergie implicite, oppure — nella
    stanza di fusione, quando si dispone del catalizzatore di fusione — consumare due
    oggetti per ottenere un oggetto di fusione generato dall'IA che eredita comportamento e
@@ -86,6 +92,12 @@ summary: "Ciclo principale di una run: Piano 0, cinque piani, fusione esplicita 
 - **Dato** che una run è terminata, **quando** il giocatore torna al Piano 0, **allora** i
   contenuti generati in quella run sono già registrati nel catalogo e i migliori sono
   consultabili nel museo, senza richiedere un'azione manuale di salvataggio.
+- **Dato** che il giocatore entra nel Piano 0 per la primissima volta, **quando** esplora le
+  arene opzionali, **allora** trova cartelli e prove pratiche che insegnano movimento,
+  sparo, risorse e fusione, senza alcun tutorial separato dal resto del gioco (DEC-047).
+- **Dato** che il giocatore possiede oggetti o Innesti che non vuole più tenere, **quando**
+  li porta al negozio, **allora** può rivenderli per valuta principale a un prezzo ridotto
+  rispetto al valore di acquisto (DEC-048).
 
 ## Fallback
 

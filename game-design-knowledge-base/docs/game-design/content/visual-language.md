@@ -3,7 +3,7 @@ id: gd-content-visual-language
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046)."
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049)."
 ---
 
 # Visual Language
@@ -85,6 +85,22 @@ Le risoluzioni di riferimento attuali (atlas generati, resa a campionamento a pu
 documentate come default proposto, non come valore di design definitivo. Fonti che
 rimandano a questa regola senza riformularla: `ui/hud.md`.
 
+## Slot visivi degli oggetti sul personaggio (DEC-049)
+
+Gli oggetti equipaggiati si sovrappongono al personaggio attraverso **6 slot visivi** fissi.
+Questi slot si applicano identicamente a **tutti** i personaggi, indipendentemente
+dall'origine del loro sprite: sia ai personaggi della rosa base, con sprite pixel art curati
+a mano, sia al personaggio alternativo generato per la run, con sprite generato dalla stessa
+pipeline usata per i nemici (vedi [Characters](../systems/characters.md), DEC-049, fonte del
+dettaglio sulla scelta curato/generato; questo documento non lo ripete).
+
+I 6 slot visivi sono un concetto distinto dai 7 strati di trasformazione visiva definiti
+sopra: gli strati descrivono COME una trasformazione visiva si compone (silhouette,
+materiale, ecc.), i 6 slot visivi descrivono DOVE sul personaggio un oggetto equipaggiato si
+sovrappone visivamente. Il numero esatto di slot funzionali (attivo, Innesto, espandibili —
+DEC-011) e la relazione precisa con questi 6 slot visivi restano da chiarire (vedi Domande
+aperte residue).
+
 ## Accessibilità
 
 Nessuna informazione critica deve dipendere solo dal colore.
@@ -109,6 +125,9 @@ Nessuna informazione critica deve dipendere solo dal colore.
 
 - Numero massimo di strati leggibili simultaneamente prima che una trasformazione risulti
   confusa (valore non ancora definito).
+- Relazione esatta tra i 6 slot visivi (DEC-049) e il numero di slot funzionali di
+  inventario (attivo, Innesto, espandibili — DEC-011): coincidono, o sono concetti
+  indipendenti?
 
 ## Scenari
 
@@ -143,3 +162,11 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - When confronta lo stile visivo dei due elementi,
 - Then entrambi sono resi in pixel art con lo stesso linguaggio, perché la UI non usa uno
   stile pulito non-pixel separato (DEC-046).
+
+**Scenario: gli stessi slot visivi su personaggio curato e generato**
+- Given un giocatore che equipaggia lo stesso oggetto su un personaggio della rosa base
+  (sprite curato) e, in un'altra run, sul personaggio alternativo (sprite generato),
+- When osserva come l'oggetto si sovrappone al personaggio,
+- Then l'oggetto occupa lo stesso slot visivo con la stessa logica di sovrapposizione in
+  entrambi i casi, perché i 6 slot visivi (DEC-049) sono indipendenti dall'origine dello
+  sprite del personaggio.

@@ -3,7 +3,7 @@ id: gd-system-bosses
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028): piano 1 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019)."
+summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028): piano 1 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054)."
 ---
 
 # Bosses
@@ -48,6 +48,25 @@ Questa progressione resta comunque soggetta al [Limite](#limite) sotto e al budg
 leggibilità di [Combat and Projectiles](./combat-and-projectiles.md): più fasi e più
 regole non significano mai perdere la leggibilità delle transizioni.
 
+## Tutti i boss sono generati dal tema (DEC-054)
+
+I **5 boss della run** (uno per piano) sono **tutti generati dal tema** scelto nel Piano 0,
+e validati dentro le bande di potenza boss (vedi "Bande di potenza boss" più sotto) come
+qualunque altro contenuto generato. **Non esiste un boss fisso del gioco**: nessun boss è
+un'entità curata sempre uguale tra le run, a differenza, per esempio, della rosa di
+personaggi base (DEC-030), che resta curata per design.
+
+Questo è coerente con l'escalation di fasi per piano (DEC-028, sopra) e con il principio
+generale di generazione entro bande di garanzia (vedi
+[AI Content Generation Model](../06-ai-content-generation-model.md)): i boss cambiano
+identità e tema run dopo run, ma la loro complessità strutturale (fasi, transizioni) segue
+sempre la stessa progressione per piano.
+
+Il **fallback curato** dei boss (vedi sotto) resta valido come rete di sicurezza quando la
+generazione non supera la validazione: non contraddice questa regola, perché è un contenuto
+usato solo in assenza di un boss generato valido, non un boss fisso presentato come identità
+ricorrente del gioco.
+
 ## Risultato (DEC-006, aggiornato da DEC-031)
 
 - **Boss dei piani 1-4:** la sconfitta apre l'uscita verso il piano successivo.
@@ -80,6 +99,7 @@ Il boss finale non deve introdurre contemporaneamente troppe regole mai viste ne
 
 - Il boss generato per un piano eccede la banda di potenza [1.4–3.2]: va respinto o riscalato in validazione, come qualunque boss generato.
 - Il giocatore abbandona la run prima di affrontare il boss del piano 5: nessuna vittoria registrata.
+- La generazione non produce un boss valido per un piano: si usa il fallback curato (vedi sotto), che resta un'eccezione di sicurezza, non un boss fisso ricorrente della run.
 
 ## Fallback
 
@@ -137,3 +157,9 @@ Then il boss ha una sola fase, leggibile fin dal primo incontro, senza cambi di 
 Given il giocatore raggiunge il boss di un piano dal 3 in su
 When la salute del boss scende sotto la soglia di transizione
 Then il boss cambia fase con un comportamento nuovo, leggibile come cambio di fase (DEC-028)
+
+### Scenario 7 — Tutti i boss sono generati dal tema
+
+Given una run con un tema scelto nel Piano 0
+When il giocatore affronta i boss dei 5 piani
+Then ciascuno dei 5 boss è generato dal tema di quella run e validato entro le bande di potenza boss, senza che nessuno di essi sia un'entità fissa e identica tra run diverse (DEC-054)

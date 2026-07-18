@@ -2,8 +2,8 @@
 id: gd-system-active-items
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Oggetti attivabili volontariamente dal giocatore, una delle 4 categorie della tassonomia oggetti."
+last_reviewed: 2026-07-18
+summary: "Oggetti attivabili volontariamente dal giocatore, una delle 4 categorie della tassonomia oggetti. Ricarica a doppio canale di base — stanze completate ed energia droppata dai nemici — estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059)."
 ---
 
 # Active Items
@@ -39,12 +39,29 @@ sostituisce volontariamente l'occupante dello slot, se il gioco lo consente).
 
 Ogni attivo dichiara uno tra:
 
-- **cariche**: un numero finito di usi che si ricaricano con una fonte esterna (tempo,
-  danno inflitto, stanze superate, a seconda del design specifico dell'oggetto);
+- **cariche**: un numero finito di usi che si ricaricano con una fonte esterna (vedi
+  "Ricarica a doppio canale" sotto);
 - **cooldown**: un tempo di attesa fisso dopo l'uso, indipendente da azioni successive.
 
 Il metodo di ricarica scelto è parte della fantasia dell'oggetto e va dichiarato
 esplicitamente, non lasciato implicito.
+
+### Ricarica a doppio canale (DEC-059)
+
+Gli attivi a **cariche** si ricaricano attraverso **due canali di base**, sempre attivi:
+
+1. **completando stanze**;
+2. **raccogliendo energia droppata dai nemici**.
+
+Il dosaggio esatto (quanta carica per stanza, quanta energia serve, quanto ne droppa un
+nemico) fa parte del budget di potenza dell'oggetto e resta specifico di ciascun attivo,
+non un valore unico globale.
+
+Oltre ai due canali di base, alcuni oggetti possono **aggiungere** modi di ricarica
+ulteriori (es. danno inflitto, tempo, un evento specifico): il sistema è estensibile per
+design, anche da contenuti generati, sempre dentro la validazione descritta in
+[Generated Content Validation](generated-content-validation.md) (rimando, non
+riformulato qui).
 
 ## Risultato
 
@@ -98,6 +115,8 @@ riformulata qui.
 - Numero massimo di slot attivi ottenibili in una run.
 - Se e come il giocatore possa riordinare o scambiare volontariamente gli attivi tra
   slot.
+- Dosaggio esatto della ricarica a doppio canale (quanta carica per stanza, quanta
+  energia per nemico) — DEC-059 fissa solo i due canali di base, non i numeri.
 
 ## Scenari verificabili
 
@@ -121,3 +140,9 @@ Given un giocatore che ha ottenuto un evento raro che aggiunge uno slot attivo,
 When raccoglie un secondo oggetto attivo,  
 Then entrambi gli attivi restano disponibili in slot separati e il giocatore può
 attivarli indipendentemente.
+
+### Scenario 4 — ricarica a doppio canale
+
+Given un attivo a cariche con carica non piena,  
+When il giocatore completa una stanza oppure raccoglie energia droppata da un nemico,  
+Then la carica dell'attivo aumenta secondo il dosaggio dichiarato dall'oggetto, indipendentemente da quale dei due canali di base ha attivato la ricarica (DEC-059).

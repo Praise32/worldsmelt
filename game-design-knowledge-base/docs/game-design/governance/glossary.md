@@ -6,6 +6,8 @@
 - **Floor / Piano:** gruppo di stanze con progressione interna e boss. Una run standard è Piano 0 + 5 piani (DEC-001).
 - **Run:** sessione completa dall'avvio alla vittoria (boss del piano 5) o alla sconfitta (permadeath). La vittoria al boss del piano 5 chiude la run (DEC-006, DEC-031); una prosecuzione oltre il piano 5 resta solo un'idea futura non implementata (DEC-018).
 - **Manifest di run:** descrizione stabile dei contenuti e delle regole di una run (seed compreso), usata per riproducibilità e classifiche.
+- **Codice run:** codice breve testuale (seed più versione di gioco) che permette di condividere e rigenerare localmente una run fuori dalle classifiche; alternativa più leggera al file RunBundle esportato per la condivisione di una run (DEC-066). Fonte unica: `08-multiplayer-and-competition.md`.
+- **RunBundle:** file esportato di una run, con verifica d'integrità già esistente nel progetto; via completa e verificabile per condividere o archiviare una run fuori dalle classifiche (DEC-066), adatta a gare private e archivio. Fonte unica: `08-multiplayer-and-competition.md`.
 - **Build:** insieme corrente di oggetti, statistiche e sinergie del giocatore.
 
 ## Oggetti e slot
@@ -25,6 +27,7 @@
 - **Strumento di breccia:** risorsa consumabile con funzione equivalente alle "bombe" (nome definitivo da assegnare).
 - **Strumento di apertura:** risorsa consumabile con funzione equivalente alle "chiavi" (nome definitivo da assegnare).
 - **Catalizzatore di fusione:** risorsa che abilita e paga la fusione esplicita (DEC-012, DEC-013).
+- **Energia:** risorsa droppata dai nemici sconfitti che ricarica gli oggetti attivi; è uno dei due canali di ricarica di base degli attivi (l'altro è il completamento delle stanze), estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059). Fonte unica: `systems/active-items.md`.
 
 ## Nemici
 
@@ -49,7 +52,12 @@
 - **Incompatibilità** (termine unico: "esclusioni" non si usa più): relazione dichiarata tra due componenti che impedisce la loro convivenza nella stessa build o pool.
 - **Tag:** proprietà semantica usata per regole, generazione e presentazione.
 
+## Multiplayer e classifiche
+
+- **Daily (Classificata giornaliera pubblica):** una delle tre istanze della modalità Classificata (DEC-021, DEC-062); una run generata scelta dallo sviluppatore, con lo stesso seed per tutti i giocatori, che cambia ogni giorno; ha una classifica globale giornaliera, divisa per metrica (tempo e punteggio separati); premia con medaglie/cornici cosmetiche legate a piazzamento e streak di partecipazione, fuori dall'economia dei punti sblocco (DEC-064). Fonte unica: `08-multiplayer-and-competition.md`.
+
 ## Presentazione e leggibilità
 
 - **Telegraph:** segnale anticipatorio di un attacco o evento.
 - **Leggibilità:** vincolo di chiarezza visiva delle minacce e degli effetti attivi; fonte unica del "budget di leggibilità": `systems/combat-and-projectiles.md`.
+- **Card di scoperta (breve):** annuncio non bloccante nell'HUD alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione); mostra sprite, nome e una riga; non mette in pausa né blocca l'input; una sola card alla volta, le altre si accodano (DEC-065). Fonte unica: `ui/hud.md`.

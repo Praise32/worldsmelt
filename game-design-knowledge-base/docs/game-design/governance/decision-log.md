@@ -116,6 +116,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Mantenere nomi di stanza riconoscibili da altri giochi.
 - **Conseguenze:** `special-rooms.md` deve introdurre la stanza di fusione e ridenominare lo scambio ad alto rischio.
 - **Documenti aggiornati:** `systems/special-rooms.md`, `systems/rooms-and-floor-generation.md`
+- **Nota (2026-07-18):** integrata da DEC-051 — aggiunto un quinto archetipo speciale, "stanza a tempo", nei piani avanzati (dettaglio in `systems/special-rooms.md` e `systems/rooms-and-floor-generation.md`).
 
 ### DEC-011 — Tassonomia oggetti e slot espandibili
 
@@ -230,6 +231,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Solo classificata a stesso seed (DEC-016 originale); modalità uniche separate ("Shared Run Race"/"Unique Run Duel", nomi eliminati).
 - **Conseguenze:** La Classificata a seed diversi richiede un criterio di normalizzazione della difficoltà (open question); la gara resta asincrona (DEC-016).
 - **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/multiplayer-lobby.md`
+- **Nota (2026-07-18):** estesa da DEC-062 — dentro la Modalità Classificata, il "Tipo di gara" passa da due a tre istanze (stesso seed, seed diversi, Classificata giornaliera pubblica "Daily"); la Modalità Leggera resta a due istanze. DEC-062 aggiunge inoltre che le classifiche sono divise per metrica (tempo e punteggio separati, mai combinati).
 
 ### DEC-022 — Catalizzatore di fusione raro
 
@@ -481,3 +483,203 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Pixel art solo per gli elementi di gioco (nemici, oggetti, ambiente) con una UI in stile pulito non-pixel separato (scartata dal proprietario: la UI è pixel art anch'essa).
 - **Conseguenze:** `content/visual-language.md` diventa la fonte unica della regola per l'intero gioco, UI compresa; `ui/hud.md` rimanda con una riga senza riformulare.
 - **Documenti aggiornati:** `content/visual-language.md`, `ui/hud.md`
+
+### DEC-047 — Il Piano 0 è il tutorial
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** mancava una risposta chiara su dove e come il gioco insegna le meccaniche base al giocatore.
+- **Decisione:** la primissima visita al Piano 0 è guidata; le arene opzionali insegnano movimento, sparo, risorse e fusione con cartelli e prove pratiche. Nessun tutorial separato. Le visite successive non ripropongono la guida (le arene restano riutilizzabili per allenarsi).
+- **Alternative considerate:** un tutorial separato prima del Piano 0; nessuna guida esplicita, apprendimento solo per tentativi.
+- **Conseguenze:** `systems/floor-zero.md` e `03-core-loop.md` devono descrivere la primissima visita guidata.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `03-core-loop.md`
+
+### DEC-048 — Valuta: drop + ricompra
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** le fonti canoniche della valuta principale e il destino degli oggetti indesiderati non erano definiti.
+- **Decisione:** la valuta principale si guadagna da nemici sconfitti e stanze ripulite; il negozio ricompra oggetti e Innesti indesiderati a prezzo ridotto rispetto al valore di acquisto. Nessun'altra fonte canonica per ora.
+- **Alternative considerate:** fonti aggiuntive di valuta (es. esplorazione, eventi); nessuna ricompra nel negozio, oggetti indesiderati senza uso economico.
+- **Conseguenze:** `systems/rewards-and-economy.md` e `03-core-loop.md` devono descrivere fonti e ricompra.
+- **Documenti aggiornati:** `systems/rewards-and-economy.md`, `03-core-loop.md`
+
+### DEC-049 — Sprite dei personaggi
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito se i personaggi avessero sprite curati o generati, né come si comportassero gli oggetti equipaggiati sull'uno o sull'altro.
+- **Decisione:** i 2-3 personaggi base (DEC-030) hanno sprite pixel art curati a mano; il personaggio generato per-run ha sprite generato dalla pipeline sprite esistente (come i nemici). I 6 slot visivi degli oggetti si sovrappongono a tutti i personaggi, base e generati.
+- **Alternative considerate:** sprite generato anche per la rosa base; slot visivi diversi tra personaggi curati e generati.
+- **Conseguenze:** `systems/characters.md` e `content/visual-language.md` devono descrivere la distinzione curato/generato e i 6 slot visivi comuni.
+- **Documenti aggiornati:** `systems/characters.md`, `content/visual-language.md`
+
+### DEC-050 — Sospensione ovunque con reset stanza
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era chiaro cosa succedesse alla stanza corrente quando una run veniva sospesa e ripresa.
+- **Decisione:** si può sospendere la run in qualsiasi momento; al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati (niente snapshot di metà combattimento). Il resto della run (piani, build, risorse) riprende esattamente com'era.
+- **Alternative considerate:** snapshot esatto di metà combattimento; sospensione consentita solo in punti prestabiliti.
+- **Conseguenze:** `systems/save-and-meta-progression.md` deve descrivere la regola di ripristino della stanza, coerente con "Continua" in `05-game-states-and-flow.md` e `ui/navigation-map.md`.
+- **Documenti aggiornati:** `systems/save-and-meta-progression.md`
+
+### DEC-051 — Timer visibile + stanze-premio a tempo
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il tempo di run era mostrato solo nelle modalità competitive; mancava un meccanismo di ricompensa legato alla velocità nei piani avanzati.
+- **Decisione:** il tempo di run è sempre visibile nell'HUD, in ogni modalità (il gioco si dichiara una corsa). Nei piani avanzati esistono inoltre stanze fisse che, se raggiunte abbastanza in fretta, danno ricompense, bilanciate col gameplay (soglie e ricompense esatte da playtest, stile DEC-019). È un quinto archetipo di stanza speciale, aggiunto ai quattro di DEC-010: "stanza a tempo".
+- **Alternative considerate:** timer visibile solo in competitivo (comportamento precedente); nessuna ricompensa legata al tempo nei piani.
+- **Conseguenze:** `ui/hud.md` deve mostrare il timer sempre; `systems/rooms-and-floor-generation.md` e `systems/special-rooms.md` devono introdurre l'archetipo "stanza a tempo"; `systems/rewards-and-economy.md` descrive la ricompensa; `governance/decision-log.md` annota DEC-010.
+- **Documenti aggiornati:** `ui/hud.md`, `systems/rooms-and-floor-generation.md`, `systems/special-rooms.md`, `systems/rewards-and-economy.md`, `governance/decision-log.md` (annotazione DEC-010)
+
+### DEC-052 — Inglese-first
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** la lingua primaria del gioco e della generazione IA non era mai stata fissata esplicitamente, mentre la pipeline attuale genera in italiano.
+- **Decisione:** la lingua primaria del gioco (e della generazione IA: nomi, descrizioni, temi) è l'inglese; l'italiano resta lingua di sviluppo e test. La pipeline attuale genera contenuti in italiano: è un gap di implementazione esplicito. I documenti KB restano scritti in italiano, lingua di lavoro della KB, non del gioco.
+- **Alternative considerate:** italiano come lingua primaria definitiva del gioco; bilinguismo nativo fin da subito.
+- **Conseguenze:** `content/narrative-tone.md` e `06-ai-content-generation-model.md` devono registrare la regola e il gap noto.
+- **Documenti aggiornati:** `content/narrative-tone.md`, `06-ai-content-generation-model.md`
+
+### DEC-053 — Roster nemici compatto
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito quanti tipi di nemici distinti un tema generasse per l'intera run, con il rischio di un flusso illeggibile di nemici sempre nuovi.
+- **Decisione:** il tema genera 6-8 tipi di nemici per l'intera run, distribuiti sui piani e potenziati dalla degenerazione (gradi crescenti, DEC-024; Veterani): l'apprendimento dei pattern è parte del design (coerente con la difficoltà unica, DEC-038).
+- **Alternative considerate:** numero illimitato di tipi di nemici generati per run; roster fisso identico per ogni tema.
+- **Conseguenze:** `systems/enemies.md` deve descrivere il roster compatto e la sua relazione con i ruoli tattici e la degenerazione.
+- **Documenti aggiornati:** `systems/enemies.md`
+
+### DEC-054 — Boss tutti generati
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era esplicito se alcuni boss potessero essere fissi/curati come identità ricorrente del gioco, a differenza della rosa di personaggi base.
+- **Decisione:** tutti e 5 i boss della run sono generati dal tema e validati nelle bande boss, con l'escalation di DEC-028 (piano 1 fase singola, dal 3 due fasi, il 5 il più complesso). Nessun boss fisso del gioco; il fallback curato resta comunque una rete di sicurezza in caso di generazione non valida, non un'eccezione a questa regola.
+- **Alternative considerate:** uno o più boss fissi e curati come identità ricorrente del gioco (es. il boss del piano 5 sempre lo stesso).
+- **Conseguenze:** `systems/bosses.md` deve chiarire che tutti i boss sono generati e distinguere questa regola dal fallback curato.
+- **Documenti aggiornati:** `systems/bosses.md`
+
+### DEC-055 — Arene del Piano 0 senza conseguenze
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era esplicito cosa perdesse il giocatore sconfitto in un'arena di sfida del Piano 0, rischiando di introdurre rischio percepito in quello che deve restare un rifugio sicuro.
+- **Decisione:** la sconfitta in un'arena del Piano 0 non ha alcun costo — l'arena è una simulazione: il giocatore esce sconfitto ma illeso, perde solo la dote (DEC-029) di quell'arena. Il Piano 0 resta a rischio zero.
+- **Alternative considerate:** penalità sulla run in preparazione alla sconfitta in arena; perdita di risorse o di tempo oltre alla sola dote mancata.
+- **Conseguenze:** `systems/floor-zero.md` deve descrivere l'assenza di costo alla sconfitta in arena.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-056 — Schermata risultati completa
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** `RunResults` mostrava solo tempo, punteggio e punti sblocco, senza un quadro completo della run appena conclusa.
+- **Decisione:** i risultati di fine run mostrano, oltre a tempo e punteggio: (1) la timeline della run per piano (oggetti presi, fusioni, boss, tempi parziali); (2) le nuove scoperte entrate nel catalogo, con i candidati al museo evidenziati; (3) il riepilogo punti (base + prove) con scorciatoia diretta alla spesa nel Catalogo; (4) il confronto con le run passate (miglior tempo, medie, record personali per tema e personaggio).
+- **Alternative considerate:** schermata risultati minimale, solo esito/tempo/punteggio; confronto con le run passate spostato in una schermata separata del Catalogo.
+- **Conseguenze:** `ui/results-and-leaderboards.md` deve descrivere i quattro elementi aggiuntivi della schermata risultati.
+- **Documenti aggiornati:** `ui/results-and-leaderboards.md`
+
+### DEC-057 — Parità rigorosa di input
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non esisteva un vincolo esplicito che garantisse la stessa esperienza a tastiera e a controller su tutte le schermate.
+- **Decisione:** ogni scelta di design deve funzionare in modo identico su tastiera e controller (vincolo esplicito nei documenti UI); il mouse è ammesso solo nei menu. Nessuna meccanica può richiedere un dispositivo specifico.
+- **Alternative considerate:** parità solo raccomandata, non vincolante; mouse ammesso anche in `Gameplay` per meccaniche opzionali.
+- **Conseguenze:** `ui/options-and-accessibility.md` diventa fonte unica della regola; `ui/navigation-map.md` vi rimanda con una riga.
+- **Documenti aggiornati:** `ui/options-and-accessibility.md`, `ui/navigation-map.md`
+
+### DEC-058 — Garanzie di accessibilità canoniche
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** l'accessibilità era elencata solo come lista di voci da progettare, senza garanzie approvate e vincolanti.
+- **Decisione:** tre garanzie canoniche: (1) rimappatura totale di ogni input su tastiera e pad; (2) nessuna informazione di gioco affidata al solo colore (forme e pattern distinti, si aggancia al budget di leggibilità); (3) opzione di riduzione effetti (particelle, scuotimenti, lampi, anche per fotosensibilità) che non altera le informazioni di gioco. La "modalità assistita" (riduzione difficoltà) non è nel canone.
+- **Alternative considerate:** accessibilità come insieme di raccomandazioni non vincolanti; modalità assistita di riduzione difficoltà inclusa nel canone.
+- **Conseguenze:** `ui/options-and-accessibility.md` deve distinguere le tre garanzie canoniche dalle voci ancora da progettare, ed escludere esplicitamente la modalità assistita.
+- **Documenti aggiornati:** `ui/options-and-accessibility.md`
+
+### DEC-059 — Ricarica degli attivi a doppio canale
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il metodo di ricarica degli attivi a cariche era lasciato generico ("una fonte esterna"), senza canali di base garantiti.
+- **Decisione:** gli oggetti attivi si ricaricano sia completando stanze sia raccogliendo energia droppata dai nemici (entrambi i canali attivi di base; il dosaggio è parte del budget dell'oggetto). Alcuni oggetti possono aggiungere modi di ricarica ulteriori (sistema estensibile per design, anche dai contenuti generati, dentro validazione).
+- **Alternative considerate:** un solo canale di ricarica di base; ricarica esclusivamente a tempo (cooldown) per tutti gli attivi a cariche.
+- **Conseguenze:** `systems/active-items.md` deve descrivere i due canali di base e l'estensibilità; `governance/glossary.md` introduce il termine "energia".
+- **Documenti aggiornati:** `systems/active-items.md`, `governance/glossary.md`
+
+### DEC-060 — Punteggio composito multi-percorso
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** il punteggio era citato solo come voce generica di ricompensa, senza una composizione dichiarata né un vincolo di equità tra stili di gioco diversi.
+- **Decisione:** il punteggio somma piccoli bonus da: tempo, prove/sfide, esplorazione, scoperte, eliminazioni e Veterani. Vincolo di bilanciamento esplicito del proprietario: percorsi diversi devono restare competitivi — chi completa i 5 piani con il minor numero di stanze visitate e nel minor tempo riceve un bonus di efficienza; chi esplora tutto e impiega più tempo accumula comunque bonus per tutto ciò che fa. Il bilanciamento fine è da playtest (open question).
+- **Alternative considerate:** punteggio basato solo sul tempo; punteggio che penalizza l'esplorazione rispetto alla velocità, senza bonus di efficienza dedicato al percorso rapido.
+- **Conseguenze:** `systems/rewards-and-economy.md` diventa fonte del punteggio composito; `08-multiplayer-and-competition.md` e `ui/results-and-leaderboards.md` vi rimandano per la metrica punteggio delle classifiche.
+- **Documenti aggiornati:** `systems/rewards-and-economy.md`, `08-multiplayer-and-competition.md`, `ui/results-and-leaderboards.md`
+
+### DEC-061 — Danno da contatto dichiarato dalla forma
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito se tutti i nemici infliggessero danno al solo contatto fisico, indipendentemente dal loro aspetto.
+- **Decisione:** solo i nemici la cui forma lo telegrafa (spine, corpi ustionanti, ecc.) feriscono al contatto; gli altri al contatto spingono ma non feriscono. La lettura visiva decide: si aggancia al vocabolario delle forme dei nemici e al budget di leggibilità.
+- **Alternative considerate:** tutti i nemici infliggono danno al contatto indipendentemente dalla forma; danno da contatto dichiarato da un tag invisibile, non dalla silhouette.
+- **Conseguenze:** `systems/enemies.md` deve descrivere la regola e la sua validazione in generazione.
+- **Documenti aggiornati:** `systems/enemies.md`
+
+### DEC-062 — Tre istanze di Classificata + classifiche divise per metrica
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** DEC-021 fissava solo due istanze di gara (stesso seed / seed diversi) per ciascuna Modalità, senza una classifica pubblica giornaliera né una regola esplicita su come si combinano tempo e punteggio in classifica.
+- **Decisione:** estende DEC-021. La modalità Classificata esiste in tre istanze: (a) sfida a stesso seed — i contendenti affrontano la stessa run generata; (b) sfida a seed diversi — run generate casualmente, diverse per ciascuno, con componente dichiarata di casualità; (c) Classificata giornaliera pubblica ("Daily") — una run generata scelta dallo sviluppatore, che cambia ogni giorno, stesso seed per tutti i giocatori, con classifica globale giornaliera. Le classifiche della Classificata sono divise per metrica: una graduatoria per il tempo e una per il punteggio, non un punteggio combinato.
+- **Alternative considerate:** solo due istanze di gara come in DEC-021, senza Daily; classifica unica con punteggio combinato di tempo e punteggio.
+- **Conseguenze:** la Modalità Leggera resta a due istanze; la Daily esiste solo in Classificata. `08-multiplayer-and-competition.md` diventa fonte unica delle tre istanze e della divisione per metrica; `ui/multiplayer-lobby.md` e `ui/results-and-leaderboards.md` vi rimandano.
+- **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/multiplayer-lobby.md`, `ui/results-and-leaderboards.md`, `governance/decision-log.md` (annotazione DEC-021)
+
+### DEC-063 — Museo curato in modo misto
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito il criterio di ingresso nel museo del Piano 0 oltre alla generica idea di "creazioni migliori".
+- **Decisione:** le creazioni entrano nel museo del Piano 0 per promozione automatica basata su metriche (uso, sopravvivenza col giocatore, contributo alle vittorie) E per scelta del giocatore: i contenuti marcati come preferiti nel Catalogo (DEC-045) hanno la precedenza e non escono mai dal museo. Il museo è metà specchio delle metriche, metà curatela del giocatore.
+- **Alternative considerate:** museo interamente automatico per metriche, senza intervento del giocatore; museo interamente curato a mano dal giocatore, senza promozione automatica.
+- **Conseguenze:** `systems/floor-zero.md` e `systems/save-and-meta-progression.md` devono descrivere il criterio misto e il legame coi preferiti del Catalogo; risolve la domanda aperta su cosa mostri il museo (intero catalogo o sottoinsieme curato).
+- **Documenti aggiornati:** `systems/floor-zero.md`, `systems/save-and-meta-progression.md`
+
+### DEC-064 — Ricompense della Daily: cosmetici e riconoscimenti
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** DEC-062 introduceva la Classificata giornaliera pubblica ("Daily") senza definire se avesse ricompense dedicate oltre alla classifica.
+- **Decisione:** la Daily (DEC-062) premia con medaglie/cornici visibili nel profilo e nel museo, legate a piazzamenti e streak di partecipazione. NON assegna punti sblocco né tocca l'economia dei punti (DEC-015/DEC-027 restano intatte: sblocchi solo singleplayer). Risolve la parte "ricompense dedicate?" della domanda aperta sulla Daily; l'orario di rotazione resta aperto.
+- **Alternative considerate:** nessuna ricompensa oltre alla classifica; ricompense che assegnano punti sblocco anche in competitivo (scartata, romperebbe DEC-015).
+- **Conseguenze:** `08-multiplayer-and-competition.md` diventa fonte unica delle ricompense della Daily; `systems/save-and-meta-progression.md` e `ui/results-and-leaderboards.md` registrano la persistenza cosmetica nel profilo/risultati; `ui/multiplayer-lobby.md` e `governance/open-questions.md` si aggiornano di conseguenza.
+- **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `systems/save-and-meta-progression.md`, `ui/results-and-leaderboards.md`, `ui/multiplayer-lobby.md`, `governance/open-questions.md`
+
+### DEC-065 — Card di scoperta breve
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** non era definito come il gioco comunica al giocatore l'incontro con un contenuto generato mai visto prima.
+- **Decisione:** alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione) il gioco mostra una card rapida — sprite, nome, una riga — che NON mette in pausa e non blocca l'input; i dettagli completi vivono nella scheda del Catalogo. Una sola card alla volta; se ne arrivano più insieme, si accodano senza invadere lo schermo (casi limite da specificare).
+- **Alternative considerate:** nessun annuncio dedicato, solo la voce nel Catalogo a fine run; card che mette in pausa il gioco per essere letta con calma (scartata, romperebbe il ritmo dichiarato dal timer sempre visibile, DEC-051).
+- **Conseguenze:** `ui/hud.md` diventa fonte unica dell'elemento; `06-ai-content-generation-model.md` vi rimanda con una riga.
+- **Documenti aggiornati:** `ui/hud.md`, `06-ai-content-generation-model.md`
+
+### DEC-066 — Condivisione run a due vie
+
+- **Data:** 2026-07-18
+- **Stato:** approved
+- **Contesto:** la condivisione di una run tra giocatori era menzionata solo genericamente ("identificatore condivisibile" in RunResults, "codice/manifest" in RunSetup) senza distinguere le forme possibili né la loro classificabilità.
+- **Decisione:** una run è condivisibile (fuori dalle classifiche) in due modi: (a) codice breve testuale (seed più versione di gioco) da incollare in Run Setup — richiede che chi riceve possa rigenerare i contenuti; (b) file RunBundle esportato (formato con verifica d'integrità già esistente nel progetto) — via completa e verificabile, adatta a gare private e archivio. Le run condivise così sono sempre non classificate (coerenza DEC-062: la Classificata passa dalle gare pubblicate/Daily).
+- **Alternative considerate:** un'unica forma di condivisione (solo codice o solo bundle); permettere che una run condivisa possa comunque entrare in classifica.
+- **Conseguenze:** `08-multiplayer-and-competition.md` diventa fonte unica della regola; `ui/run-setup.md`, `systems/run-manifest-and-reproducibility.md` e `ui/multiplayer-lobby.md` vi rimandano.
+- **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/run-setup.md`, `systems/run-manifest-and-reproducibility.md`, `ui/multiplayer-lobby.md`

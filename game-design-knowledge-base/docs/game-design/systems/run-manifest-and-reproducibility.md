@@ -2,8 +2,8 @@
 id: gd-system-run-manifest
 status: approved
 owner: design
-last_reviewed: 2026-07-17
-summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); dettagli multiplayer restano experimental."
+last_reviewed: 2026-07-18
+summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve o file RunBundle, sempre non classificata (DEC-066); dettagli multiplayer restano experimental."
 ---
 
 # Run Manifest and Reproducibility
@@ -45,6 +45,10 @@ condivisibile, schermata risultati) restano fuori scope qui e vivono nei documen
   approvati-per-run e quali fallback-usati.
 - `save-and-meta-progression.md`: i punti sblocco guadagnati in singleplayer sono esclusi dalle
   modalità competitive (vedi quel documento per il dettaglio).
+- `08-multiplayer-and-competition.md`: fonte unica della regola che le run condivise tramite
+  codice breve o RunBundle sono sempre non classificate (DEC-066).
+- `ui/run-setup.md`: rappresentazione in interfaccia del codice breve e dell'importazione
+  RunBundle (DEC-066).
 
 ## Regole per contenuti generati
 
@@ -68,6 +72,24 @@ Ogni altro dettaglio del multiplayer oltre a questa visione fissata (matchmaking
 delle classifiche, gestione di lobby, sincronizzazione di eventi non deterministici) resta in
 stato **experimental**: non è stato deciso nel dettaglio.
 
+## Condivisione del manifest: codice breve e RunBundle (DEC-066)
+
+Il manifest di run può essere condiviso fuori dalle classifiche in due forme, entrambe
+descritte in dettaglio nei documenti di interfaccia:
+
+1. **Codice breve testuale** (seed più versione di gioco): la forma minima, sufficiente
+   perché chi lo riceve rigeneri localmente lo stesso manifest, a patto che la versione di
+   gioco combaci (vedi [ui/run-setup.md](../ui/run-setup.md)).
+2. **File RunBundle esportato**: il formato con **verifica d'integrità** già esistente nel
+   progetto, che porta con sé il manifest completo e i contenuti registrati, adatto a gare
+   private e archivio.
+
+In entrambi i casi la run risultante è sempre **non classificata** (DEC-066, coerenza con
+DEC-062): fonte unica della regola in
+[08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md#condivisione-run-a-due-vie-dec-066)
+(rimando, non riformulato qui). Questo documento non definisce il formato tecnico esatto del
+RunBundle o del codice breve: resta fuori scope (vedi Non-obiettivi).
+
 ## Regola competitiva
 
 Una run classificata non può cambiare dopo l'avvio in modo non deterministico tra concorrenti,
@@ -81,6 +103,11 @@ salvo eventi esplicitamente sincronizzati e verificabili.
 - Una run con modificatori o pool sbloccati da meta-progressione non è comparabile in
   classifica con una run che non li ha: per questo gli sblocchi restano esclusi dalle
   modalità competitive.
+- Un codice breve importato ha una versione di gioco diversa da quella corrente: la
+  rigenerazione locale non è garantita identica; il gioco deve segnalarlo (dettaglio in
+  `ui/run-setup.md`).
+- Un file RunBundle non supera la verifica d'integrità: l'importazione va rifiutata con un
+  errore chiaro, senza tentare una ricostruzione parziale.
 
 ## Fallback
 
@@ -130,3 +157,15 @@ avvenuti. La regola stessa è definita in `generated-content-validation.md`.
 - When quel giocatore entra in una gara asincrona su un manifest condiviso,
 - Then quegli sblocchi non alterano il manifest della run competitiva: i pool sbloccati sono
   esclusi dalle modalità competitive.
+
+**Scenario: condivisione tramite codice breve**
+- Given un giocatore genera un codice breve (seed più versione di gioco) dalla propria run,
+- When un altro giocatore con la stessa versione di gioco lo incolla in `RunSetup`,
+- Then rigenera localmente un manifest identico, e la run che ne risulta è sempre non
+  classificata (DEC-066).
+
+**Scenario: condivisione tramite RunBundle**
+- Given un giocatore esporta un file RunBundle della propria run,
+- When un altro giocatore lo importa e la verifica d'integrità passa,
+- Then ottiene una ricostruzione verificabile del manifest completo, sempre come run non
+  classificata (DEC-066).

@@ -3,7 +3,7 @@ id: gd-system-floor-zero
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Il museo permette anche di provare le creazioni esposte (DEC-040). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042)."
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
 ---
 
 # Floor Zero
@@ -29,7 +29,7 @@ personale che cresce con le run passate, non di una schermata di attesa.
 |---|---|---|---|---|---|
 | Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback) |
 | Selettore personaggio | Sempre | Sempre | Scegliere un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
-| Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione |
+| Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata; la sconfitta non ha alcun costo, l'arena è una simulazione (DEC-055) | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione; alla sconfitta il giocatore esce illeso |
 | Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029) | Galleria consultabile; feedback dedicato quando si avvia una prova |
 | Indicatore di generazione | Sempre, da quando inizia la preparazione dei piani successivi | Sola lettura, non interagibile | Nessuna (informativo) | Comunica lo stato di preparazione dei piani | Messaggio descrittivo stabile, vedi [Generation Status](../ui/generation-status.md) |
 | Uscita verso il piano 1 | Sempre visibile nel Piano 0 | Quando il piano 1 è pronto (validato o in fallback) | Attraversare l'uscita | Avvio della run: il piano 1 viene caricato e le prove specifiche della run vengono presentate al giocatore (DEC-042) | L'uscita si apre visibilmente solo quando diventa abilitata; l'attraversamento mostra la presentazione delle prove prima o durante il caricamento del piano 1 |
@@ -78,6 +78,36 @@ storia**. Il giocatore può inoltre **provare** una creazione esposta:
 Provare una creazione dal museo non altera la run in preparazione, salvo l'eventuale dote di
 un'arena completata (DEC-029).
 
+## Criteri di ingresso nel museo (DEC-063)
+
+Il museo del Piano 0 (vedi sopra, DEC-040) è curato in modo **misto**: metà specchio delle
+metriche di gioco, metà curatela diretta del giocatore.
+
+- **Promozione automatica per metriche**: un contenuto del catalogo (vedi
+  [Save and Meta Progression](save-and-meta-progression.md)) entra nel museo quando le sue
+  metriche di uso, di sopravvivenza col giocatore e di contributo alle vittorie superano una
+  soglia (valore esatto non fissato qui, vedi Domande aperte residue).
+- **Curatela del giocatore**: i contenuti che il giocatore segna come preferiti nel Catalogo
+  (DEC-045, vedi [Save and Meta Progression](save-and-meta-progression.md)) hanno la
+  **precedenza** sulla promozione automatica: entrano nel museo e non ne escono mai finché
+  restano segnati come preferiti, indipendentemente dalle loro metriche.
+
+Un contenuto promosso solo per metriche può invece essere sostituito da un altro contenuto
+se le metriche di quest'ultimo lo superano.
+
+## Primissima visita: tutorial integrato (DEC-047)
+
+La primissima volta che il giocatore entra nel Piano 0, la visita è **guidata**: le arene di
+sfida opzionali (vedi "Dote iniziale dall'arena di sfida (DEC-029)" sopra e DEC-004)
+insegnano movimento, sparo, risorse e fusione tramite cartelli e prove pratiche, direttamente
+dentro l'arena. Non esiste un tutorial separato dal resto del gioco: l'insegnamento avviene
+attraverso le stesse arene opzionali che il giocatore userà anche più avanti per allenarsi o
+guadagnare la dote iniziale (DEC-029).
+
+Le visite successive al Piano 0, nella stessa run o in run future, non ripropongono la guida:
+le arene restano visitabili e riutilizzabili per allenarsi, ma senza cartelli o prove
+pratiche di introduzione.
+
 ## Interazioni
 
 - [Characters](characters.md): la scelta del personaggio avviene qui, nel Piano 0.
@@ -86,7 +116,9 @@ un'arena completata (DEC-029).
 - [Run Manifest and Reproducibility](run-manifest-and-reproducibility.md): il tema e il
   personaggio scelti nel Piano 0 entrano nel manifest della run.
 - [Save and Meta Progression](save-and-meta-progression.md): il museo delle creazioni
-  migliori e il catalogo dei contenuti generati sono meta-progressione persistente.
+  migliori e il catalogo dei contenuti generati sono meta-progressione persistente; i criteri
+  di ingresso nel museo — metriche più preferiti del Catalogo (DEC-045) — sono descritti qui
+  (DEC-063).
 - [Special Rooms](special-rooms.md): le arene di sfida del Piano 0, la saletta di prova per
   un oggetto del museo e l'arena per riaffrontare un boss condividono l'infrastruttura delle
   stanze speciali.
@@ -111,6 +143,16 @@ Questa dote è **disattivata nelle run in modalità Classificata**, per coerenza
 parità richiesta dalle gare competitive (vedi DEC-016 e DEC-021 in
 [08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md)): una run
 Classificata non deve poter partire avvantaggiata da attività extra del Piano 0.
+
+## Le arene sono a rischio zero (DEC-055)
+
+La sconfitta in un'arena di sfida del Piano 0 non ha **alcun costo**: l'arena è una
+simulazione. Il giocatore ne esce sconfitto ma **illeso** — nessuna perdita di salute,
+risorse o oggetti della run in preparazione — e l'unica conseguenza è non ottenere la
+dote iniziale di quell'arena (DEC-029). Questo vale sia per le arene opzionali standard sia
+per quelle riusate dal museo per riaffrontare un boss (DEC-040): il Piano 0 nel suo
+complesso resta a rischio zero, coerente con il suo essere un rifugio sicuro (vedi
+"Intento per il giocatore" sopra).
 
 ## Presentazione delle prove all'ingresso nel piano 1 (DEC-042)
 
@@ -147,6 +189,10 @@ loro generazione o del loro punteggio, definito in
   di tema selezionabile.
 - Il giocatore entra in un'arena di sfida e la abbandona a metà: il ritorno al resto del
   Piano 0 deve restare disponibile senza penalità sulla run in preparazione.
+- Il giocatore viene sconfitto dentro un'arena di sfida: esce dall'arena illeso, senza
+  alcuna perdita sulla run in preparazione, e semplicemente non ottiene la dote di
+  quell'arena (DEC-055); può rientrare subito nell'arena o proseguire nel resto del
+  Piano 0.
 - Il giocatore completa un'arena di sfida mentre sta per avviare una run in modalità
   Classificata: la dote iniziale non viene assegnata, e l'interfaccia lo segnala prima
   dell'ingresso in arena, non solo dopo.
@@ -157,6 +203,9 @@ loro generazione o del loro punteggio, definito in
   sbloccato per l'uso nella run in preparazione: la prova resta locale e non aggiunge
   l'oggetto alla build della run che sta per iniziare (salvo l'eventuale dote di un'arena
   completata, DEC-029).
+- Il giocatore entra nel Piano 0 per la seconda volta (nella stessa run o in una
+  successiva): la guida della primissima visita (DEC-047) non viene riproposta, ma le
+  arene restano accessibili come sempre.
 
 ## Fallback
 
@@ -183,6 +232,9 @@ superano la validazione, si applica la regola di fallback unica definita in
   DEC-029 fissa solo che sia "piccola", non i numeri.
 - Quanti tentativi di riaffrontare un boss dal museo in arena sono ammessi per sessione, e
   se la saletta di prova di un oggetto ha un limite di tempo o di usi (DEC-040).
+- Soglia esatta delle metriche (uso, sopravvivenza col giocatore, contributo alle vittorie)
+  che fa scattare la promozione automatica al museo (DEC-063 fissa solo il principio misto,
+  non i numeri).
 - Composizione esatta della rosa dei personaggi base scelti qui nel Piano 0 (nomi, ruoli
   precisi, condizioni di sblocco) — vedi DEC-030 in [Characters](characters.md) e
   `../governance/open-questions.md`.
@@ -254,8 +306,38 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Then la run inizia senza alcuna dote iniziale dall'arena, per coerenza con la parità
   richiesta dalla modalità Classificata (DEC-016, DEC-021)
 
+**Scenario: primissima visita guidata al Piano 0**
+- Given un giocatore che avvia il gioco per la primissima volta
+- When entra nel Piano 0
+- Then le arene opzionali propongono cartelli e prove pratiche che insegnano movimento,
+  sparo, risorse e fusione, senza alcun tutorial separato dal resto del gioco (DEC-047)
+
+**Scenario: visite successive senza guida ripetuta**
+- Given un giocatore che ha già completato la primissima visita guidata al Piano 0
+- When rientra nel Piano 0 in una run successiva
+- Then le arene opzionali restano disponibili per allenarsi, ma senza ripresentare cartelli
+  o prove pratiche di introduzione (DEC-047)
+
+**Scenario: sconfitta senza costo in un'arena di sfida**
+- Given un giocatore che entra in un'arena di sfida opzionale del Piano 0
+- When viene sconfitto dentro l'arena
+- Then esce dall'arena illeso, senza alcuna perdita sulla run in preparazione, e non
+  ottiene la dote iniziale di quell'arena (DEC-055)
+
 **Scenario: presentazione delle prove all'ingresso nel piano 1**
 - Given un giocatore nel Piano 0 con tema, personaggio e piano 1 pronti
 - When attraversa l'uscita verso il piano 1
 - Then il gioco presenta le prove specifiche della run (DEC-042) prima o durante l'ingresso,
   e da quel momento l'elenco resta consultabile dal menu di pausa e dalla schermata build
+
+**Scenario: promozione automatica per metriche**
+- Given un contenuto del catalogo supera la soglia di uso, sopravvivenza col giocatore e
+  contributo alle vittorie
+- When il museo si aggiorna
+- Then il contenuto entra nel museo per promozione automatica (DEC-063)
+
+**Scenario: un preferito non esce mai dal museo**
+- Given un contenuto del Catalogo è stato segnato come preferito dal giocatore (DEC-045)
+- When le metriche di altri contenuti superano le sue
+- Then il contenuto preferito resta comunque esposto nel museo, perché la curatela del
+  giocatore ha la precedenza sulla promozione per metriche (DEC-063)

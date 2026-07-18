@@ -3,7 +3,7 @@ id: gd-ai-content-model
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037)."
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052)."
 ---
 
 # AI Content Generation Model
@@ -127,6 +127,24 @@ scelta del tema dipende da queste anteprime. Il dettaglio completo del comportam
 fallback (nome+descrizione senza anteprima) vive in [Floor Zero](systems/floor-zero.md)
 (rimando, non riformulato qui).
 
+## Nota — card di scoperta breve (DEC-065), rimando
+
+Alla prima occorrenza di un contenuto generato mai visto, il gioco mostra una card di
+scoperta breve, non bloccante; l'elemento vive nell'HUD ed è descritto in
+[HUD](ui/hud.md#card-di-scoperta-breve-dec-065) (rimando, non riformulato qui).
+
+## Nota — lingua della generazione (DEC-052), gap di implementazione
+
+La lingua primaria del gioco, inclusi i contenuti generati dall'IA (nomi, descrizioni,
+temi), è l'inglese; l'italiano resta la lingua di sviluppo e di test del progetto (dettaglio
+completo in [Narrative Tone](content/narrative-tone.md), non riformulato qui).
+
+**Stato:** regola di design approved. **Gap noto rispetto al codice:** la pipeline di
+generazione attuale produce contenuti in italiano. È un requisito di design non ancora
+implementato — il codice dovrà adeguarsi a questa regola, non viceversa (stesso trattamento
+del gap già registrato per DEC-009 in
+[Rooms and Floor Generation](systems/rooms-and-floor-generation.md)).
+
 ## Casi limite
 
 - Un contenuto `variato` supera la banda di garanzia per un errore di generazione: viene
@@ -167,3 +185,6 @@ fallback (nome+descrizione senza anteprima) vive in [Floor Zero](systems/floor-z
   sandbox, **allora** il fallback curato prende il suo posto — per i tipi di colpo, la
   versione parametrica dentro le bande di garanzia — senza che il giocatore veda alcun
   errore.
+- **Dato** che la pipeline di generazione produce oggi contenuti in italiano, **quando** si
+  confronta con la regola di design (DEC-052), **allora** il documento registra questo come
+  un gap di implementazione noto, non come comportamento canonico da preservare.

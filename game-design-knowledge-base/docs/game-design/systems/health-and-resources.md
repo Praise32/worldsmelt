@@ -34,7 +34,7 @@ Tutte le risorse del gioco sono ri-tematizzate per funzione, con nomi **placehol
 ### Valuta principale
 
 - **Funzione:** economia di run (acquisti in stanze di negozio, prezzi in stanze ad alto rischio — vedi [special-rooms.md](special-rooms.md)).
-- **Come si ottiene:** ricompense di stanza, nemici, oggetti o eventi (draft, dettagli non definiti).
+- **Come si ottiene:** fonti canoniche definite da DEC-048 — nemici sconfitti e stanze ripulite (completate); il negozio inoltre ricompra oggetti e Innesti indesiderati a prezzo ridotto, unica via per convertirli in valuta durante la run. Fonte unica del dettaglio: [rewards-and-economy.md](rewards-and-economy.md) (rimando, non riformulare).
 - **Cap/limite massimo:** non definito (domanda aperta).
 - **HUD:** mostra il totale corrente (rimando concettuale, fuori scope UI).
 - **Fine piano:** presumibilmente persiste tra i piani della stessa run (draft, non confermato da nessuna DEC).

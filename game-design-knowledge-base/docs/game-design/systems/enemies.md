@@ -3,7 +3,7 @@ id: gd-system-enemies
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest."
+summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest. Il tema genera un roster compatto di 6-8 tipi di nemici per l'intera run, distribuiti sui piani (DEC-053). Il danno da contatto è dichiarato dalla forma: solo i nemici la cui silhouette lo telegrafa feriscono al contatto, gli altri spingono soltanto (DEC-061)."
 ---
 
 # Enemies
@@ -39,6 +39,20 @@ Ogni nemico deve essere leggibile a colpo d'occhio: ruolo, minaccia e finestra d
 - ostacolo mobile;
 - **Veterano** — variante potenziata di un ruolo base (nome placeholder canonico, sostituisce "élite"). Non è un boss: non ha fasi né arena dedicata (vedi [bosses.md](./bosses.md)).
 
+## Roster compatto per run (DEC-053)
+
+Il tema di una run non genera un numero illimitato di tipi di nemici: genera un **roster
+compatto di 6-8 tipi di nemici** per l'intera run, distribuiti sui cinque piani e potenziati
+dalla degenerazione del tema (gradi crescenti, DEC-024; vedi anche il Veterano sopra).
+Questi 6-8 tipi sono istanze concrete generate dal tema, distinte dai **ruoli** elencati
+sopra (la tassonomia tattica fissa): più tipi generati possono condividere lo stesso ruolo.
+
+Un roster compatto rende l'**apprendimento dei pattern** parte del design: il giocatore
+rivede lo stesso piccolo insieme di nemici, sempre più potenziati, invece di un flusso
+continuo di nemici mai visti (coerente con la difficoltà unica del gioco, senza livelli
+selezionabili — vedi [Difficulty and Progression](../07-difficulty-and-progression.md),
+DEC-038).
+
 ## Escalation per piano (DEC-024)
 
 Il tema del piano non si limita a colorare i nemici: piano dopo piano gli stessi ruoli si
@@ -53,6 +67,23 @@ conseguenza specifica per i nemici:
 - il grado dei nemici generati sale con il piano, restando sempre dentro le bande di
   potenza dichiarate e il budget di leggibilità di
   [Combat and Projectiles](./combat-and-projectiles.md).
+
+## Danno da contatto dichiarato dalla forma (DEC-061)
+
+Non tutti i nemici feriscono al contatto fisico. Solo i nemici la cui **forma lo telegrafa
+visivamente** (es. spine, corpi ustionanti) infliggono danno al contatto; gli **altri**
+nemici, al contatto, **spingono ma non feriscono**. La lettura visiva decide, non una
+proprietà nascosta: se la silhouette di un nemico non comunica un pericolo di contatto, quel
+nemico non può ferire toccando il giocatore.
+
+Questa regola si aggancia a due fonti uniche, senza riformularle:
+
+- il **vocabolario delle forme dei nemici**, in particolare la regola secondo cui "la
+  silhouette deve comunicare almeno il ruolo dominante" (vedi "Regole per contenuti
+  generati" sotto, e i 7 strati di trasformazione visiva in
+  [Visual Language](../content/visual-language.md), strato 1, silhouette);
+- il **budget di leggibilità**, fonte unica
+  [Combat and Projectiles](./combat-and-projectiles.md) (rimando, non riformulato qui).
 
 ## Input/azioni
 
@@ -81,6 +112,9 @@ Il giocatore osserva pattern e telegraph, si muove liberamente, spara nelle quat
 - Non combinare più ruoli complessi senza aumentare il budget.
 - Ogni attacco pericoloso deve avere telegraph: il budget di leggibilità di un attacco è definito in [combat-and-projectiles.md](./combat-and-projectiles.md); questo documento non lo ridefinisce.
 - La silhouette deve comunicare almeno il ruolo dominante.
+- Se un nemico generato infligge danno al contatto, la sua silhouette deve telegrafarlo
+  (es. spine, corpi ustionanti, ecc.); un nemico generato senza una forma che lo comunica
+  spinge ma non ferisce al contatto (DEC-061).
 - **Bande di potenza (DEC-019):** i nemici generati vengono oggi scalati entro una banda di potenza **[0.7–1.35]** rispetto al nemico base di riferimento. **Stato: draft, default proposto dall'implementazione attuale, da validare col playtest** — non è una decisione di design chiusa.
 - Il Veterano occupa la fascia alta della stessa banda, o una variante dichiarata dal generatore, restando comunque un nemico potenziato non-boss.
 - Ogni nemico generato dichiara un'origine (curato | composto | variato | nuovo) e supera la validazione prevista prima di apparire in una run standard: la regola di garanzia entro cui l'IA inventa nemici è descritta in [generated-content-validation.md](./generated-content-validation.md), non qui.
@@ -90,6 +124,8 @@ Il giocatore osserva pattern e telegraph, si muove liberamente, spara nelle quat
 - Nemico generato con ruoli incompatibili nella stessa stanza: la stanza va respinta o rigenerata prima di essere proposta al giocatore.
 - Nemico Veterano generato in una stanza incompatibile con il suo pattern: la generazione deve rispettare la compatibilità dichiarata dalla stanza.
 - Attacco senza telegraph rilevato in validazione: il nemico non è approvato per la run.
+- Il tema genera più di 8 tipi di nemici distinti: il pool va ridotto a 6-8 prima di essere approvato per la run, secondo [generated-content-validation.md](./generated-content-validation.md).
+- Un nemico generato infligge danno al contatto ma la sua silhouette non lo telegrafa: la validazione lo respinge o richiede la correzione della forma prima di essere `approvato-per-run` (DEC-061).
 
 ## Fallback
 
@@ -107,6 +143,8 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Numero massimo di Veterano contemporanei per stanza.
 - Tasso esatto di crescita della frequenza di Veterani per piano (DEC-024 fissa solo che
   cresce con il piano, non i numeri).
+- Se il roster di 6-8 tipi (DEC-053) è fisso per l'intera run fin dall'inizio, o può essere
+  esteso da contenuti "best-of" incontrati durante la run.
 
 ## Scenari
 
@@ -139,3 +177,15 @@ Then si usa il pool curato di fallback, secondo [generated-content-validation.md
 Given due piani della stessa run, uno basso e uno alto
 When il gioco genera i nemici per ciascun piano
 Then la frequenza con cui compare il Veterano nel piano alto è maggiore di quella nel piano basso, coerente con DEC-024
+
+### Scenario 6 — Roster compatto per l'intera run
+
+Given una run con un tema scelto nel Piano 0
+When il gioco genera i tipi di nemici della run
+Then il roster generato conta tra 6 e 8 tipi di nemici in totale, distribuiti sui piani e potenziati piano dopo piano dalla degenerazione del tema, coerente con DEC-053
+
+### Scenario 7 — Danno da contatto solo se telegrafato dalla forma
+
+Given un nemico con una silhouette che mostra chiaramente spine o un corpo ustionante, e un nemico con una silhouette senza alcun elemento di pericolo di contatto
+When il giocatore tocca ciascuno dei due nemici
+Then il primo nemico infligge danno al contatto, il secondo spinge il giocatore ma non lo ferisce, coerente con DEC-061

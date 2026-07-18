@@ -3,7 +3,7 @@ id: gd-system-rewards-economy
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013), negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida."
+summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
 ---
 
 # Rewards and Economy
@@ -32,7 +32,13 @@ Il giocatore raccoglie, spende o scambia ricompense: acquista nel negozio, offre
 
 ## La valuta principale (DEC-013)
 
-La **valuta principale** è il nome placeholder per funzione che sostituisce "monete", finché non esiste il nome definitivo del gioco. Le regole generali della risorsa (come si ottiene, cap massimo, ordine di consumo, visibilità in HUD) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento non le ripete, descrive solo l'**uso economico**:
+La **valuta principale** è il nome placeholder per funzione che sostituisce "monete", finché non esiste il nome definitivo del gioco. Le regole generali della risorsa (cap massimo, ordine di consumo, visibilità in HUD) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento non le ripete, descrive solo l'**uso economico** e le **fonti canoniche**.
+
+### Fonti canoniche della valuta principale (DEC-048)
+
+La valuta principale si guadagna da **nemici sconfitti** e da **stanze ripulite** (completate): queste sono, per ora, le uniche fonti canoniche. Nessun'altra fonte è prevista in questa fase del progetto.
+
+L'**uso economico** della valuta principale:
 
 - acquisti nel negozio (stanza standard, vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md));
 - partecipazione a scambi nella stanza di scambio ad alto rischio (vedi [special-rooms.md](./special-rooms.md));
@@ -52,6 +58,15 @@ Nella stanza di scambio ad alto rischio, offerta e prezzo sono generati dall'IA 
 budget di equità (DEC-044): fonte unica del dettaglio è [Special Rooms](./special-rooms.md),
 non riformulato qui.
 
+### Ricompra nel negozio (DEC-048)
+
+Oltre a vendere, il negozio **ricompra** oggetti e Innesti indesiderati dal giocatore, a un
+prezzo ridotto rispetto al valore di acquisto della stessa fascia di rarità (DEC-026 fissa i
+prezzi base fissi per fascia; DEC-048 aggiunge il lato ricompra). Questa è, per ora, l'unica
+via per convertire oggetti indesiderati in valuta principale durante la run. Non è un patto a
+costo salute: resta un'operazione economica ordinaria del negozio, distinta dallo scambio ad
+alto rischio (vedi [Special Rooms](./special-rooms.md)).
+
 ## Risultato
 
 Una ricompensa raccolta entra nell'inventario, nella salute o nella valuta principale del giocatore secondo il tipo; una spesa riduce la risorsa usata e sblocca l'accesso, l'oggetto o l'effetto pagato.
@@ -69,6 +84,12 @@ La ricompensa deve essere proporzionata a rischio, costo e rarità, considerando
 ## Pattern rischio/ricompensa dell'arena di sfida
 
 L'arena di sfida ([special-rooms.md](./special-rooms.md), DEC-010) è una fonte dichiarata di rischio-ricompensa: propone contenuti "best-of" più impegnativi (anche in versione Piano 0, vedi [floor-zero.md](./floor-zero.md)) in cambio di ricompense superiori alla media di una stanza equivalente non a rischio. Il dettaglio dell'archetipo — accesso, costo, frequenza — è definito in [special-rooms.md](./special-rooms.md); questo documento descrive solo il pattern economico che ne deriva.
+
+## Ricompense delle stanze a tempo (DEC-051)
+
+Il tempo di run è sempre visibile nell'HUD (vedi [HUD](../ui/hud.md), DEC-051): il gioco si dichiara esplicitamente una corsa. Coerente con questo, nei piani avanzati esistono stanze fisse — l'archetipo "stanza a tempo", descritto in [Rooms and Floor Generation](./rooms-and-floor-generation.md) e [Special Rooms](./special-rooms.md) — che danno una ricompensa aggiuntiva se il giocatore le raggiunge entro una soglia di tempo. Questo documento descrive solo la ricompensa; l'archetipo di stanza (accesso, posizione, segnale) è definito nei documenti citati, non riformulato qui.
+
+Soglia di tempo e valore esatto della ricompensa sono da definire col playtest (stile DEC-019): questa decisione fissa solo che la ricompensa esiste ed è bilanciata col resto del gameplay, non i numeri.
 
 ## Meta-progressione e punti sblocco (DEC-015, DEC-027)
 
@@ -96,13 +117,47 @@ Le prove specifiche del canale bonus vengono presentate al giocatore al passaggi
 unica del comportamento di presentazione: [Floor Zero](./floor-zero.md). Questo documento non
 lo ripete, definisce solo che le prove sono la fonte del bonus punti descritto sopra.
 
+## Punteggio composito multi-percorso (DEC-060)
+
+Il **punteggio** è una delle metriche di classifica (vedi
+[Results and Leaderboards](../ui/results-and-leaderboards.md) e
+[08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md), DEC-062,
+rimando) ed è distinto dai punti sblocco (DEC-015, DEC-027, sopra): il punteggio misura la
+prestazione della run, i punti sblocco alimentano la meta-progressione.
+
+Il punteggio si compone sommando **piccoli bonus** da sei fonti:
+
+- tempo;
+- prove/sfide superate;
+- esplorazione;
+- scoperte (nuovi contenuti generati incontrati);
+- eliminazioni;
+- Veterani sconfitti.
+
+### Vincolo di bilanciamento: percorsi diversi restano competitivi
+
+Il proprietario ha fissato un vincolo esplicito: **percorsi di gioco diversi devono
+restare competitivi tra loro** nel punteggio finale.
+
+- Chi completa i 5 piani con il **minor numero di stanze visitate** e nel **minor tempo**
+  riceve un **bonus di efficienza**.
+- Chi **esplora tutto** e impiega più tempo accumula comunque bonus per tutto ciò che fa
+  (esplorazione, scoperte, eliminazioni, prove), senza essere penalizzato rispetto a un
+  percorso rapido.
+
+Il bilanciamento fine tra questi bonus — quanto vale ciascuna fonte, come si equivalgono
+un percorso rapido ed efficiente e un percorso lento ed esaustivo — è **da playtest**
+(domanda aperta, vedi sotto), non fissato da questa decisione.
+
 ## Interazioni
 
 - con il negozio e gli scambi ([rooms-and-floor-generation.md](./rooms-and-floor-generation.md), [special-rooms.md](./special-rooms.md));
 - con la salute e le altre risorse ([health-and-resources.md](./health-and-resources.md));
 - con la tassonomia oggetti e rarità ([items-pools-and-rarity.md](./items-pools-and-rarity.md));
 - con la meta-progressione ([save-and-meta-progression.md](./save-and-meta-progression.md));
-- con la presentazione delle prove specifiche all'ingresso nel piano 1 ([floor-zero.md](./floor-zero.md), DEC-042).
+- con la presentazione delle prove specifiche all'ingresso nel piano 1 ([floor-zero.md](./floor-zero.md), DEC-042);
+- con l'archetipo "stanza a tempo" ([rooms-and-floor-generation.md](./rooms-and-floor-generation.md), [special-rooms.md](./special-rooms.md), DEC-051) e col timer sempre visibile ([hud.md](../ui/hud.md));
+- con la classifica a punteggio, che usa il punteggio composito qui definito come metrica separata dalla classifica a tempo ([results-and-leaderboards.md](../ui/results-and-leaderboards.md), [08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md), DEC-062).
 
 ## Regole per contenuti generati
 
@@ -141,6 +196,11 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Elenco completo delle prove specifiche (fisse e generate) che danno bonus punti sblocco.
 - Prezzi e range esatti degli scambi nella stanza ad alto rischio.
 - Quanti "slot" di spesa significativa devono esistere per piano.
+- Valori esatti di soglia e ricompensa delle stanze a tempo (DEC-051, da playtest).
+- Bilanciamento fine del punteggio composito multi-percorso: peso relativo di tempo,
+  prove, esplorazione, scoperte, eliminazioni e Veterani, e come si equivalgono un
+  percorso rapido/efficiente e un percorso lento/esaustivo (DEC-060 fissa solo le fonti e
+  il vincolo di competitività tra percorsi, non i numeri; da playtest).
 
 ## Scenari
 
@@ -179,3 +239,27 @@ Then i prezzi base coincidono, mentre ciascun negozio propone una propria offert
 Given un giocatore che completa una run singleplayer sconfiggendo un boss senza subire danni e trovando 2 stanze segrete
 When la run termina e i punti sblocco vengono calcolati
 Then il totale include sia i punti base per il risultato della run sia i bonus per le prove specifiche completate (DEC-027)
+
+### Scenario 7 — Ricompra nel negozio
+
+Given un giocatore con un oggetto che non vuole più tenere
+When lo vende al negozio
+Then riceve valuta principale a un prezzo ridotto rispetto al valore di acquisto della stessa fascia di rarità (DEC-048)
+
+### Scenario 8 — Ricompensa da una stanza a tempo
+
+Given un giocatore che raggiunge una stanza a tempo di un piano avanzato entro la soglia richiesta
+When riceve la ricompensa della stanza
+Then ottiene un premio aggiuntivo bilanciato col gameplay, i cui valori esatti di soglia e ricompensa restano da definire col playtest (DEC-051)
+
+### Scenario 9 — Percorso rapido con bonus di efficienza
+
+Given un giocatore che completa i 5 piani visitando il minor numero di stanze possibile e nel minor tempo
+When il punteggio finale viene calcolato
+Then riceve un bonus di efficienza che si somma agli altri bonus del punteggio composito, restando competitivo con un percorso più esplorativo (DEC-060)
+
+### Scenario 10 — Percorso esplorativo con bonus cumulativi
+
+Given un giocatore che esplora ogni stanza raggiungibile di ogni piano, impiegando più tempo di un percorso rapido
+When il punteggio finale viene calcolato
+Then accumula bonus per l'esplorazione, le scoperte, le eliminazioni e i Veterani sconfitti incontrati lungo il percorso, restando competitivo col punteggio di un percorso rapido ed efficiente (DEC-060)

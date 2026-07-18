@@ -3,7 +3,7 @@ id: gd-system-rooms-floors
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Il Piano 0 non è un piano generato: vedi floor-zero.md."
+summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 ---
 
 # Rooms and Floor Generation
@@ -40,9 +40,18 @@ più quattro archetipi speciali:
 - stanza di fusione;
 - stanza segreta;
 - arena di sfida;
-- scambio ad alto rischio.
+- scambio ad alto rischio;
+
+più un quinto archetipo speciale, aggiunto da DEC-051:
+
+- stanza a tempo (esclusiva dei piani avanzati).
 
 Il dettaglio di ciascun archetipo speciale (accesso, costo, ricompensa, frequenza, segnale visivo) è descritto in [special-rooms.md](./special-rooms.md) come sottoinsieme dichiarato di questa tassonomia; questo documento non lo ridefinisce.
+
+**Estensione DEC-051:** la stanza a tempo è una stanza fissa dei piani avanzati che dà una
+ricompensa se raggiunta entro una soglia di tempo. Soglie e valori esatti restano da
+playtest (vedi [Rewards and Economy](./rewards-and-economy.md) per il dettaglio della
+ricompensa e [Special Rooms](./special-rooms.md) per il dettaglio dell'archetipo).
 
 ## Input/azioni
 
@@ -128,7 +137,7 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Non-obiettivi
 
 - Non descrive il Piano 0 (vedi [floor-zero.md](./floor-zero.md)).
-- Non dettaglia i quattro archetipi speciali (vedi [special-rooms.md](./special-rooms.md)).
+- Non dettaglia i cinque archetipi speciali, incluso il quinto aggiunto da DEC-051 (vedi [special-rooms.md](./special-rooms.md)).
 - Non definisce il budget di leggibilità di nemici o attacchi (vedi [enemies.md](./enemies.md), [combat-and-projectiles.md](./combat-and-projectiles.md)).
 
 ## Domande aperte residue
@@ -138,6 +147,8 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Regole esatte (soglie per piano, intensità) di degenerazione del tema piano dopo piano,
   oltre al principio dei quattro assi e all'ammissibilità di modificatori di stanza
   generati nei piani avanzati fissati da DEC-024 (vedi anche [bosses.md](./bosses.md)).
+- Frequenza esatta e piani minimi in cui compare la stanza a tempo (DEC-051 fissa solo
+  "piani avanzati", non il numero esatto).
 
 ## Scenari
 
@@ -176,3 +187,9 @@ Then deve superare la validazione delle garanzie di giocabilità prima di poter 
 Given una stanza generata con un budget di difficoltà dichiarato
 When la generazione spende una parte consistente del budget in ostacoli ambientali a tema (DEC-043)
 Then il budget restante per i nemici della stessa stanza si riduce di conseguenza, perché ostacoli e nemici condividono lo stesso budget di difficoltà
+
+### Scenario 7 — Stanza a tempo nei piani avanzati
+
+Given un piano avanzato generato
+When il piano include l'archetipo aggiuntivo "stanza a tempo" (DEC-051)
+Then la stanza è raggiungibile entro una soglia di tempo per ottenere una ricompensa extra, con soglia e valore esatti da definire col playtest, secondo il dettaglio in [rewards-and-economy.md](./rewards-and-economy.md) e [special-rooms.md](./special-rooms.md)

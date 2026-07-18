@@ -47,7 +47,7 @@ Il giocatore si muove liberamente ma spara solo lungo le 4 direzioni cardinali (
 - interazioni con muri, nemici e ostacoli;
 - tag visivi e meccanici.
 
-## Budget di leggibilità — definizione canonica
+## Budget di leggibilità
 
 **Questa è la fonte unica del concetto. Ogni altro documento della KB rimanda qui senza riformulare.**
 
