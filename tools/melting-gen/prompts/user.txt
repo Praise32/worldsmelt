@@ -1,27 +1,27 @@
-Seed della run: {SEED}. Usa il seed come spinta creativa: run diverse devono dare mondi diversi.
+Run seed: {SEED}. Use the seed as creative fuel: different runs must yield different worlds.
 
 {ISPIRAZIONI}
 
 {EVITA}
 
-Genera 5 piani con temi molto diversi tra loro e una progressione di difficolta'. Il boss del piano 5 deve essere il piu' minaccioso.
+Generate 5 floors with very different themes and a difficulty progression. Floor 5's boss must be the most threatening.
 
-Regole sui nomi, importanti:
-- Scrivi tutti i nomi in ITALIANO corretto. Niente inglese, niente parole inventate storpiate.
-- Inventa nomi originali per ogni tema, boss e oggetto. Niente nomi generici tipo "Custode 1".
-- Nessun nome si ripete: 5 temi diversi, 5 boss diversi, 15 oggetti con 15 nomi diversi.
-- Un tema e' fatto di due parole: un luogo piu' una qualita' che lo rende strano
-  (non basta "deserto": serve qualcosa come un luogo con un aggettivo memorabile).
-- Un nome di oggetto e' fatto di due parole e suggerisce cosa fa: un oggetto piu' una qualita' o un effetto.
-- Il tema del piano contagia i suoi oggetti: in un piano ghiacciato gli oggetti sanno di ghiaccio.
-- Il layout delle stanze ("room") nasce dal tema: colonne in una cattedrale, casse in una fucina, massi in una caverna. Un layout diverso per piano.
-- Anche i nemici ("enemies") e il boss ("bossType") nascono dal tema: due nemici normali diversi fra loro per ogni piano, piu' il boss. Dieci nemici e cinque boss, tutti con nomi diversi.
-- Il tipo di colpo ("shot") del piano nasce dal tema come tutto il resto: in un piano di vetro si spara vetro, in una fucina si sparano scintille. Inventa 5 colpi diversi, uno per piano, con nomi tutti diversi fra loro e diversi da quelli degli oggetti. L'oggetto indicato da "shotItem" deve avere un nome coerente col colpo che gli dai.
+Rules for names, important:
+- Write all names in natural, evocative English. No Italian, no mangled invented words.
+- Invent original names for every theme, boss, and item. No generic names like "Guardian 1".
+- No name repeats: 5 different themes, 5 different bosses, 15 items with 15 different names.
+- A theme is made of two words: a place plus a quality that makes it strange
+  (a plain "desert" is not enough: it needs something like a place with a memorable adjective).
+- An item name is made of two words and hints at what it does: an object plus a quality or an effect.
+- The floor's theme infects its items: on a frozen floor, the items smell of ice.
+- The room layout ("room") grows out of the theme: columns in a cathedral, crates in a forge, boulders in a cavern. A different layout for every floor.
+- The enemies ("enemies") and the boss ("bossType") also grow out of the theme: two regular enemies, different from each other, for every floor, plus the boss. Ten enemies and five bosses, all with different names.
+- The floor's shot type ("shot") grows out of the theme like everything else: on a glass floor you shoot glass, in a forge you shoot sparks. Invent 5 different shots, one per floor, with names all different from each other and from the item names. The item marked by "shotItem" must have a name that matches the shot you give it.
 
-Promemoria dei campi. I valori tra parentesi angolari sono segnaposto: NON copiarli, sostituiscili con roba tua.
+Field reminders. Values in angle brackets are placeholders: do NOT copy them, replace them with your own.
 
-Piano: {"theme":"<tema>","style":"<stile grafico>","boss":"<nome boss>","bg":"<#colore scuro>","floor":"<#colore scuro>","wall":"<#colore medio>","accent":"<#colore vivo>","accent2":"<#colore vivo>","enemy":"<#colore vivo>","bossColor":"<#colore vivo>","shot":{"name":"<nome del colpo>","form":"<orb|spike|beam|arc|blade>","speed":<0.5-2>,"damage":<0.5-2>,"size":<0.5-2>,"life":<0.5-2>,"pierce":<0-3>,"chain":<0-3>,"pellets":<1-3>},"shotItem":<1|2|3>,"enemies":[{"name":"<nemico>","form":"<blob|spiky|armored|floater>","move":"<chase|kite|orbit|zigzag|charge>","fire":"<none|single|spread|ring>","hp":<0.5-3>,"speed":<0.5-2>,"size":<0.6-2>,"rate":<0-2.5>,"pellets":<1-8>},{<altro nemico>}],"bossType":{<come un nemico, ma il pezzo grosso>},"room":{"name":"<nome layout>","form":"<open|pillars|corridor|arena|scatter>","density":<0.2-1>},"items":[<oggetto>,<oggetto>,<oggetto>]}
+Floor: {"theme":"<theme>","style":"<visual style>","boss":"<boss name>","bg":"<#dark color>","floor":"<#dark color>","wall":"<#mid color>","accent":"<#vivid color>","accent2":"<#vivid color>","enemy":"<#vivid color>","bossColor":"<#vivid color>","shot":{"name":"<shot name>","form":"<orb|spike|beam|arc|blade>","speed":<0.5-2>,"damage":<0.5-2>,"size":<0.5-2>,"life":<0.5-2>,"pierce":<0-3>,"chain":<0-3>,"pellets":<1-3>},"shotItem":<1|2|3>,"enemies":[{"name":"<enemy>","form":"<blob|spiky|armored|floater>","move":"<chase|kite|orbit|zigzag|charge>","fire":"<none|single|spread|ring>","hp":<0.5-3>,"speed":<0.5-2>,"size":<0.6-2>,"rate":<0-2.5>,"pellets":<1-8>},{<other enemy>}],"bossType":{<like an enemy, but the heavy hitter>},"room":{"name":"<layout name>","form":"<open|pillars|corridor|arena|scatter>","density":<0.2-1>},"items":[<object>,<object>,<object>]}
 
-Oggetto: {"name":"<nome originale>","slot":"<hat|eyes|hand|back|body|aura>","traits":["<trait>"],"color":"<#colore vivo>","script":[{"trigger":"<on_fire|on_hit>","op":"<burst|projectile|area|heal>","a":<numero>,"b":<numero>,"trait":"<trait>"}]}
+Object: {"name":"<original name>","slot":"<hat|eyes|hand|back|body|aura>","traits":["<trait>"],"color":"<#vivid color>","script":[{"trigger":"<on_fire|on_hit>","op":"<burst|projectile|area|heal>","a":<number>,"b":<number>,"trait":"<trait>"}]}
 
-Rispondi solo con il JSON completo dei 5 piani.
+Reply only with the complete JSON for the 5 floors.

@@ -7,81 +7,83 @@
 
 /* Le liste sono materia prima, non un catalogo: il prompt dice al modello di
    combinarle e trasformarle, mai di copiarle. Le "qualita'" sono locuzioni
-   invariabili (di X, in Y, senza Z): si attaccano a qualunque luogo senza
-   problemi di accordo di genere ("faro di cenere", "biblioteca in rovina"),
-   che con aggettivi semplici il 7B sbaglierebbe una volta su tre.
-   Convenzione dei prompt esistenti: niente lettere accentate (system.txt
-   chiede nomi "senza accenti"), quindi apostrofo al posto dell'accento. */
+   invariabili (of X, in Y, without Z): si attaccano a qualunque luogo senza
+   ambiguita' sintattica ("lighthouse of ash", "library in ruins") -- in
+   inglese l'accordo di genere non esiste, ma la forma prepositiva resta piu'
+   facile da comporre per un 7B che un aggettivo libero.
+   Contenuto in inglese (DEC-052): ASCII puro per costruzione (nessuna parola
+   qui usa lettere accentate), coerente con la grammatica namechar di
+   run.gbnf. */
 
 static const char *LUOGHI[] = {
-    "serra", "fonderia", "ossario", "faro", "biblioteca", "acquedotto",
-    "miniera", "cattedrale", "palude", "ghiacciaio", "vulcano", "mulino",
-    "osservatorio", "teatro", "giardino", "cripta", "laguna", "canyon",
-    "alveare", "relitto", "mercato", "labirinto", "fungaia", "salina",
-    "vigneto", "torre", "pozzo", "frantoio", "arsenale", "planetario",
-    "catacomba", "grotta", "frutteto", "obitorio", "monastero", "acquario",
-    "bazar", "cantiere", "museo", "serraglio", "stamperia", "distilleria",
-    "campanile", "sartoria", "granaio", "fornace", "molo", "anfiteatro",
+    "greenhouse", "foundry", "ossuary", "lighthouse", "library", "aqueduct",
+    "mine", "cathedral", "swamp", "glacier", "volcano", "mill",
+    "observatory", "theater", "garden", "crypt", "lagoon", "canyon",
+    "beehive", "shipwreck", "market", "labyrinth", "mushroom grove", "saltworks",
+    "vineyard", "tower", "well", "press house", "arsenal", "planetarium",
+    "catacomb", "cave", "orchard", "morgue", "monastery", "aquarium",
+    "bazaar", "shipyard", "museum", "menagerie", "printworks", "distillery",
+    "bell tower", "tailor shop", "granary", "furnace", "pier", "amphitheater",
 };
 
 static const char *QUALITA[] = {
-    "di vetro", "di cenere", "in fiamme", "alla deriva", "senza fondo",
-    "di mezzanotte", "in rovina", "di specchi", "sotto sale", "in quarantena",
-    "fuori orbita", "di velluto", "a testa in giu'", "di sabbia",
-    "tra le nuvole", "di ossidiana", "in eterno autunno", "di neon",
-    "a molla", "di muffa luminosa", "senza gravita'", "di carta",
-    "in miniatura", "di corallo", "al contrario", "di ambra", "in letargo",
-    "di ruggine", "a maree", "di porcellana", "in festa", "di ossa",
-    "sotto vuoto", "di lanterne", "in eclissi", "di ragnatele",
-    "a orologeria", "di miele", "in piena", "di pece",
+    "of glass", "of ash", "on fire", "adrift", "bottomless",
+    "at midnight", "in ruins", "of mirrors", "under salt", "in quarantine",
+    "out of orbit", "of velvet", "upside down", "of sand",
+    "among the clouds", "of obsidian", "in eternal autumn", "of neon",
+    "wind-up", "of glowing mold", "without gravity", "of paper",
+    "in miniature", "of coral", "in reverse", "of amber", "in hibernation",
+    "of rust", "of tides", "of porcelain", "in festival", "of bone",
+    "vacuum-sealed", "of lanterns", "in eclipse", "of cobwebs",
+    "clockwork", "of honey", "in flood", "of tar",
 };
 
 static const char *MATERIE[] = {
-    "vetro", "spore", "fulmini", "sabbia", "inchiostro", "ossa", "petali",
-    "monete", "ghiaccio", "lava", "vapore", "chiodi", "stelle", "radici",
-    "schegge", "bolle", "dadi", "aghi", "piume", "catene", "scintille",
-    "meduse", "cristalli", "semi", "trottole", "lame", "gocce", "prismi",
-    "comete", "spine", "ingranaggi", "ceneri", "perle", "saette",
-    "ampolle", "frammenti di specchio",
+    "glass", "spores", "lightning", "sand", "ink", "bones", "petals",
+    "coins", "ice", "lava", "steam", "nails", "stars", "roots",
+    "shards", "bubbles", "dice", "needles", "feathers", "chains", "sparks",
+    "jellyfish", "crystals", "seeds", "spinning tops", "blades", "droplets", "prisms",
+    "comets", "thorns", "gears", "ashes", "pearls", "bolts",
+    "vials", "mirror shards",
 };
 
 static const char *BESTIARIO[] = {
-    "falene", "granchi", "burattini", "gargolle", "lumache", "vespe",
-    "armature vuote", "statue", "funghi", "serpi", "corvi", "ragni",
-    "golem", "spettri", "pesci", "ricci", "talpe", "scarabei",
-    "lanterne viventi", "libri", "radici", "cristalli viventi", "sciami",
-    "meduse", "salamandre", "mimi", "campane", "bambole", "tartarughe",
-    "sentinelle di fumo",
+    "moths", "crabs", "puppets", "gargoyles", "snails", "wasps",
+    "hollow armor", "statues", "mushrooms", "serpents", "ravens", "spiders",
+    "golems", "specters", "fish", "hedgehogs", "moles", "beetles",
+    "living lanterns", "books", "roots", "living crystals", "swarms",
+    "jellyfish", "salamanders", "mimics", "bells", "dolls", "turtles",
+    "smoke sentinels",
 };
 
 static const char *VINCOLI[] = {
-    "almeno un piano e' un luogo d'acqua",
-    "un boss e' minuscolo ma letale",
-    "un tipo di colpo punisce chi sta fermo",
-    "due piani sono lo stesso luogo prima e dopo un disastro",
-    "un piano e' assurdamente allegro, e per questo inquietante",
-    "un tema nasce da un mestiere antico",
-    "un piano vive di notte perpetua",
-    "un tipo di colpo e' fatto di qualcosa di commestibile",
-    "un nemico e' un oggetto domestico animato",
-    "un piano sta dentro qualcosa di vivo ed enorme",
-    "un boss ha un nome gentile e maniere pessime",
-    "un piano e' verticale: tutto scende o tutto sale",
-    "un tipo di colpo torna indietro in qualche modo",
-    "i nemici di un piano collaborano fra loro in modo visibile",
-    "un piano e' il rovescio esatto di un altro",
-    "un tema e' un luogo comune ribaltato",
+    "at least one floor is a place of water",
+    "a boss is tiny but lethal",
+    "a shot type punishes standing still",
+    "two floors are the same place before and after a disaster",
+    "a floor is absurdly cheerful, and unsettling because of it",
+    "a theme grows out of an ancient trade",
+    "a floor lives in perpetual night",
+    "a shot type is made of something edible",
+    "an enemy is an animated household object",
+    "a floor sits inside something living and enormous",
+    "a boss has a gentle name and terrible manners",
+    "a floor is vertical: everything goes down or everything goes up",
+    "a shot type comes back somehow",
+    "a floor's enemies visibly work together",
+    "a floor is the exact reverse of another",
+    "a theme is a commonplace turned inside out",
 };
 
 /* Esempi rotanti per il SYSTEM prompt (vedi gen_inspire.h). A differenza
    delle liste sopra qui il contenuto deve restare JSON valido dentro le
    bande numeriche del prompt: non e' materia prima da combinare, e' un
    pezzo intero gia' pronto, quindi il pool e' scritto a mano invece che
-   assemblato da liste di parole. Include gli esempi storici (Colonnato
-   Sacro, Scoria Impazzita, Sentinella Corazzata, Chiodi Arrugginiti, Raggio
-   Lunare, Scarica Salina): restano UNA possibilita' fra tante, non piu'
-   l'unica. Nomi italiani, senza accenti (apostrofo al posto dell'accento,
-   come sopra), e nessuno ripreso dalle liste d'ispirazione. */
+   assemblato da liste di parole. Include gli esempi storici tradotti in
+   inglese (Sacred Colonnade, Runaway Slag, Armored Sentinel, Rusty Nails,
+   Lunar Ray, Salt Surge): restano UNA possibilita' fra tante, non piu'
+   l'unica. Nomi in inglese (DEC-052), ASCII puro per costruzione, e nessuno
+   ripreso dalle liste d'ispirazione. */
 
 typedef struct {
     const char *name;
@@ -112,54 +114,54 @@ typedef struct {
 } ShotExample;
 
 static const RoomExample ROOM_EXAMPLES[] = {
-    { "Colonnato Sacro",     "pillars",  0.6 },
-    { "Sala degli Specchi",  "scatter",  0.5 },
-    { "Ponte dei Sospiri",   "corridor", 0.3 },
-    { "Fossa dei Leoni",     "arena",    0.7 },
-    { "Vuoto Cerimoniale",   "open",     0.2 },
-    { "Bosco di Colonne",    "pillars",  0.8 },
-    { "Cunicolo Allagato",   "corridor", 0.5 },
-    { "Deposito Sfasciato",  "scatter",  0.9 },
-    { "Rotonda del Giudizio","arena",    0.4 },
-    { "Piazza Deserta",      "open",     0.3 },
+    { "Sacred Colonnade",    "pillars",  0.6 },
+    { "Hall of Mirrors",     "scatter",  0.5 },
+    { "Bridge of Sighs",     "corridor", 0.3 },
+    { "Lions' Den",          "arena",    0.7 },
+    { "Ceremonial Void",     "open",     0.2 },
+    { "Grove of Columns",    "pillars",  0.8 },
+    { "Flooded Tunnel",      "corridor", 0.5 },
+    { "Wrecked Depot",       "scatter",  0.9 },
+    { "Rotunda of Judgment", "arena",    0.4 },
+    { "Deserted Plaza",      "open",     0.3 },
 };
 
 /* Nemici "da mischia": move chase/charge/zigzag, fire none/single. */
 static const EnemyExample ENEMY_EXAMPLES_MELEE[] = {
-    { "Scoria Impazzita",   "blob",    "zigzag", "none",   0.8, 1.4, 0.9, 0,   1 },
-    { "Grugnito d'Ottone",  "armored", "charge", "none",   2.2, 0.5, 1.6, 0,   1 },
-    { "Sciame di Vespe",    "spiky",   "zigzag", "single", 0.6, 1.8, 0.6, 1.2, 1 },
-    { "Talpa Corazzata",    "armored", "chase",  "none",   2.5, 0.7, 1.4, 0,   1 },
-    { "Ombra Rovente",      "blob",    "chase",  "none",   1.0, 1.6, 1.0, 0,   1 },
-    { "Ricciolo Spinato",   "spiky",   "charge", "single", 1.2, 1.0, 0.8, 0.6, 1 },
-    { "Guscio Rabbioso",    "armored", "zigzag", "none",   2.0, 0.8, 1.5, 0,   1 },
-    { "Falena di Cenere",   "floater", "chase",  "none",   0.7, 1.3, 0.7, 0,   1 },
+    { "Runaway Slag",       "blob",    "zigzag", "none",   0.8, 1.4, 0.9, 0,   1 },
+    { "Brass Grunt",        "armored", "charge", "none",   2.2, 0.5, 1.6, 0,   1 },
+    { "Wasp Swarm",         "spiky",   "zigzag", "single", 0.6, 1.8, 0.6, 1.2, 1 },
+    { "Armored Mole",       "armored", "chase",  "none",   2.5, 0.7, 1.4, 0,   1 },
+    { "Scorching Shade",    "blob",    "chase",  "none",   1.0, 1.6, 1.0, 0,   1 },
+    { "Barbed Coil",        "spiky",   "charge", "single", 1.2, 1.0, 0.8, 0.6, 1 },
+    { "Raging Shell",       "armored", "zigzag", "none",   2.0, 0.8, 1.5, 0,   1 },
+    { "Ash Moth",           "floater", "chase",  "none",   0.7, 1.3, 0.7, 0,   1 },
 };
 
 /* Nemici "a distanza": move kite/orbit, fire spread/ring/single. */
 static const EnemyExample ENEMY_EXAMPLES_RANGED[] = {
-    { "Sentinella Corazzata","armored", "kite",  "spread", 1.8, 0.6, 1.3, 0.8, 3 },
-    { "Medusa Fluttuante",   "floater", "orbit", "ring",   0.9, 0.9, 1.1, 0.5, 6 },
-    { "Arciera di Vetro",    "spiky",   "kite",  "single", 0.7, 1.1, 0.7, 1.5, 1 },
-    { "Corona Vagante",      "floater", "orbit", "spread", 1.1, 0.8, 0.9, 0.9, 4 },
-    { "Guardiano a Distanza","armored", "kite",  "single", 2.0, 0.5, 1.5, 0.7, 1 },
-    { "Sciame Pungente",     "blob",    "orbit", "ring",   0.8, 1.0, 0.8, 1.0, 5 },
-    { "Cecchino di Sale",    "spiky",   "kite",  "spread", 0.9, 0.9, 0.9, 1.1, 3 },
-    { "Vortice di Piume",    "floater", "orbit", "ring",   1.0, 1.2, 1.0, 0.6, 8 },
+    { "Armored Sentinel",   "armored", "kite",  "spread", 1.8, 0.6, 1.3, 0.8, 3 },
+    { "Drifting Jellyfish", "floater", "orbit", "ring",   0.9, 0.9, 1.1, 0.5, 6 },
+    { "Glass Archer",       "spiky",   "kite",  "single", 0.7, 1.1, 0.7, 1.5, 1 },
+    { "Wandering Crown",    "floater", "orbit", "spread", 1.1, 0.8, 0.9, 0.9, 4 },
+    { "Distant Guardian",   "armored", "kite",  "single", 2.0, 0.5, 1.5, 0.7, 1 },
+    { "Stinging Swarm",     "blob",    "orbit", "ring",   0.8, 1.0, 0.8, 1.0, 5 },
+    { "Salt Sniper",        "spiky",   "kite",  "spread", 0.9, 0.9, 0.9, 1.1, 3 },
+    { "Feather Vortex",     "floater", "orbit", "ring",   1.0, 1.2, 1.0, 0.6, 8 },
 };
 
 static const ShotExample SHOT_EXAMPLES[] = {
-    { "Chiodi Arrugginiti", "spike", 1.4, 0.7, 0.6, 1.0, 1, 0, 1 },
-    { "Raggio Lunare",      "beam",  1.9, 0.6, 0.5, 1.6, 2, 0, 1 },
-    { "Scarica Salina",     "arc",   0.8, 0.9, 1.2, 0.9, 0, 2, 1 },
-    { "Sfera di Miele",     "orb",   0.7, 1.3, 1.4, 1.1, 0, 0, 1 },
-    { "Lama Vagante",       "blade", 1.0, 1.1, 0.9, 1.3, 1, 0, 1 },
-    { "Dardo di Grandine",  "spike", 1.6, 0.6, 0.5, 0.8, 0, 0, 3 },
-    { "Frusta di Brace",    "arc",   1.1, 0.8, 0.8, 1.0, 0, 3, 1 },
-    { "Sciame di Perle",    "orb",   0.9, 0.6, 0.7, 1.0, 0, 0, 3 },
-    { "Trapano di Vetro",   "spike", 0.6, 1.8, 0.6, 0.7, 2, 0, 1 },
-    { "Falce di Nebbia",    "blade", 1.3, 0.7, 1.1, 0.9, 1, 0, 1 },
-    { "Colonna di Vapore",  "beam",  0.5, 1.2, 1.5, 1.4, 1, 0, 1 },
+    { "Rusty Nails",     "spike", 1.4, 0.7, 0.6, 1.0, 1, 0, 1 },
+    { "Lunar Ray",       "beam",  1.9, 0.6, 0.5, 1.6, 2, 0, 1 },
+    { "Salt Surge",      "arc",   0.8, 0.9, 1.2, 0.9, 0, 2, 1 },
+    { "Honey Sphere",    "orb",   0.7, 1.3, 1.4, 1.1, 0, 0, 1 },
+    { "Wandering Blade", "blade", 1.0, 1.1, 0.9, 1.3, 1, 0, 1 },
+    { "Hail Dart",       "spike", 1.6, 0.6, 0.5, 0.8, 0, 0, 3 },
+    { "Ember Whip",      "arc",   1.1, 0.8, 0.8, 1.0, 0, 3, 1 },
+    { "Pearl Swarm",     "orb",   0.9, 0.6, 0.7, 1.0, 0, 0, 3 },
+    { "Glass Drill",     "spike", 0.6, 1.8, 0.6, 0.7, 2, 0, 1 },
+    { "Mist Scythe",     "blade", 1.3, 0.7, 1.1, 0.9, 1, 0, 1 },
+    { "Steam Column",    "beam",  0.5, 1.2, 1.5, 1.4, 1, 0, 1 },
 };
 
 #define COUNT(a) ((int)(sizeof(a)/sizeof((a)[0])))
@@ -205,14 +207,14 @@ char *GenInspireBuild(unsigned int seed, char *buf, size_t size)
     const char *vincolo = VINCOLI[GenRngRange(&rng, 0, COUNT(VINCOLI) - 1)];
 
     snprintf(buf, size,
-             "Ispirazioni per QUESTA run: materia prima, non obblighi. Combinale,\n"
-             "trasformale, accorda la grammatica; non copiarle tali e quali e non\n"
-             "sentirti in dovere di usarle tutte. Tutto il resto inventalo da zero.\n"
-             "- luoghi: %s\n"
-             "- qualita' dei luoghi: %s\n"
-             "- materia dei colpi: %s\n"
-             "- spunti per il bestiario: %s\n"
-             "- vincolo creativo della run: %s.",
+             "Inspirations for THIS run: raw material, not obligations. Combine\n"
+             "them, transform them, fix the grammar; do not copy them verbatim and\n"
+             "don't feel obliged to use them all. Invent everything else from scratch.\n"
+             "- places: %s\n"
+             "- qualities of the places: %s\n"
+             "- shot materials: %s\n"
+             "- bestiary sparks: %s\n"
+             "- creative constraint for this run: %s.",
              luoghi, qualita, materie, bestie, vincolo);
     return buf;
 }

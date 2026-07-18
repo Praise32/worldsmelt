@@ -23,6 +23,28 @@ SEED="${SEED:-31337}"
 bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$SEED" --out generated
 grep -q "^source=local:" generated/current_run.txt
 grep -q "^floor5.item3.script=" generated/current_run.txt
+
+# Guardia di lingua (DEC-052, generazione contenuti inglese-first): l'unico
+# test che genera per davvero col modello, quindi l'unico posto dove ha senso
+# controllare la lingua VERA prodotta (make test-gen resta "senza modello",
+# vedi gen_lua.h). Parole-funzione italiane (preposizioni articolate,
+# preposizione semplice "di", congiunzione "e") a CONFINE DI PAROLA sui campi
+# generati dal modello (tema/stile/nomi, mai i campi tecnici come colore o
+# form): un match e' il modello che e' scivolato in italiano nonostante il
+# prompt in inglese. Confine di parola (\b) e' cio' che tiene il falso-
+# positivo basso: "del"/"di"/"e" come SOTTOSTRINGA compaiono in nomi inglesi
+# legittimi (Divine, Delve, Delight, Emblem, Elemental...) ma mai come parola
+# intera separata da spazi -- verificato anche negli esempi few-shot di
+# gen_inspire.c (Rotunda of Judgment, Drifting Jellyfish, Hall of Mirrors...:
+# nessun falso positivo).
+italianWordPattern='\b(del|della|dei|degli|delle|di|e)\b'
+generatedFields=$(grep -E '^floor[0-9]+\.(theme|style|boss|enemy[0-9]+\.name|bossType\.name|room\.name|item[0-9]+\.name|item[0-9]+\.shotName|bossItem\.name)=' generated/current_run.txt)
+italianHit=$(echo "$generatedFields" | grep -Ei "$italianWordPattern" || true)
+if [ -n "$italianHit" ]; then
+  echo "FALLITO: parola-funzione italiana a confine di parola in un campo generato dal modello (DEC-052 richiede inglese):"
+  echo "$italianHit"
+  exit 1
+fi
 # --manifest-test (fase 3a-L3) carica anche gli script Lua presenti nel
 # manifest in una sandbox vera e asserisce che compilino: vedi
 # src/tests/game_tests.c, GameManifestTest.

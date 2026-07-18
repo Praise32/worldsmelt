@@ -3,7 +3,7 @@ id: gd-ai-content-model
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap noto: la pipeline attuale genera in italiano (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
 ---
 
 # AI Content Generation Model
@@ -148,17 +148,19 @@ Alla prima occorrenza di un contenuto generato mai visto, il gioco mostra una ca
 scoperta breve, non bloccante; l'elemento vive nell'HUD ed è descritto in
 [HUD](ui/hud.md#card-di-scoperta-breve-dec-065) (rimando, non riformulato qui).
 
-## Nota — lingua della generazione (DEC-052), gap di implementazione
+## Nota — lingua della generazione (DEC-052), gap chiuso
 
 La lingua primaria del gioco, inclusi i contenuti generati dall'IA (nomi, descrizioni,
 temi), è l'inglese; l'italiano resta la lingua di sviluppo e di test del progetto (dettaglio
 completo in [Narrative Tone](content/narrative-tone.md), non riformulato qui).
 
-**Stato:** regola di design approved. **Gap noto rispetto al codice:** la pipeline di
-generazione attuale produce contenuti in italiano. È un requisito di design non ancora
-implementato — il codice dovrà adeguarsi a questa regola, non viceversa (stesso trattamento
-del gap già registrato per DEC-009 in
-[Rooms and Floor Generation](systems/rooms-and-floor-generation.md)).
+**Stato:** regola di design approved. **Gap chiuso (aggiornato 18/07/2026, M3):** la
+pipeline di generazione (prompt, esempi few-shot, pool di nomi curati/fallback) produce ora
+contenuti in inglese, coerente con questa regola. Restava un gap di implementazione (la
+pipeline produceva contenuti in italiano) fino all'implementazione di M3 — stesso tipo di
+gap-di-implementazione-non-ancora-chiuso già registrato per DEC-009 in
+[Rooms and Floor Generation](systems/rooms-and-floor-generation.md) (quel gap ha un proprio
+stato, non toccato da questo lavoro).
 
 ## Nota — la nomenclatura non contamina i prompt dei World (DEC-073a)
 
@@ -209,9 +211,10 @@ fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
   sandbox, **allora** il fallback curato prende il suo posto — per i tipi di colpo, la
   versione parametrica dentro le bande di garanzia — senza che il giocatore veda alcun
   errore.
-- **Dato** che la pipeline di generazione produce oggi contenuti in italiano, **quando** si
-  confronta con la regola di design (DEC-052), **allora** il documento registra questo come
-  un gap di implementazione noto, non come comportamento canonico da preservare.
+- **Dato** che la pipeline di generazione produce oggi contenuti in inglese (M3, chiuso il
+  gap di implementazione), **quando** si confronta con la regola di design (DEC-052),
+  **allora** il comportamento è coerente con la regola: non resta più un gap da registrare
+  su questo punto.
 - **Dato** che un giocatore ha scelto la modalità "solo curato" al primo avvio, **quando**
   gioca una run in quella modalità, **allora** incontra solo contenuti curati e fallback
   procedurali, senza che questo venga trattato come un errore o una condizione temporanea da

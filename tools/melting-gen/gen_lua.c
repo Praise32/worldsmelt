@@ -236,19 +236,19 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
     if (anyCallback) *anyCallback = false;
     if (!source || !source[0])
     {
-        if (err) snprintf(err, errSize, "script vuoto");
+        if (err) snprintf(err, errSize, "empty script");
         return false;
     }
     if (strlen(source) >= (size_t)GEN_LUA_LEN - 1)
     {
-        if (err) snprintf(err, errSize, "script troppo lungo (limite %d caratteri)", GEN_LUA_LEN - 2);
+        if (err) snprintf(err, errSize, "script too long (limit %d characters)", GEN_LUA_LEN - 2);
         return false;
     }
 
     ScriptSandbox *sb = ScriptSandboxCreate(seed ? seed : 1u, SCRIPT_SANDBOX_DEFAULT_MEMORY_CAP);
     if (!sb)
     {
-        if (err) snprintf(err, errSize, "impossibile creare la sandbox di validazione (memoria?)");
+        if (err) snprintf(err, errSize, "could not create the validation sandbox (out of memory?)");
         return false;
     }
     GenLuaStubRegister(sb);
@@ -275,7 +275,7 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
     if (statUpOnly && (hasFire || hasHit || hasTick))
     {
         ScriptSandboxDestroy(sb);
-        if (err) snprintf(err, errSize, "un oggetto stat-up puo' definire solo on_evaluate, niente on_fire/on_hit/on_tick");
+        if (err) snprintf(err, errSize, "a stat-up item can only define on_evaluate, no on_fire/on_hit/on_tick");
         return false;
     }
 
@@ -301,7 +301,7 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
     if (!statUpOnly && hasEval)
     {
         ScriptSandboxDestroy(sb);
-        if (err) snprintf(err, errSize, "un oggetto attivo non puo' definire on_evaluate (e' riservato agli oggetti stat-up): definisci ESATTAMENTE un comportamento vero con on_fire/on_hit/on_tick, oppure nessuna callback");
+        if (err) snprintf(err, errSize, "an active item cannot define on_evaluate (it's reserved for stat-up items): define EXACTLY one real behavior with on_fire/on_hit/on_tick, or no callback at all");
         return false;
     }
 
@@ -447,9 +447,9 @@ static char *BuildLuaUserFinal(const char *promptsDir, const char *floorTheme, c
         if (withRetry)
         {
             snprintf(withRetry, cap,
-                "%s\n\nIl tuo script precedente non ha superato la validazione:\n%s\n"
-                "Correggi SOLO il problema segnalato e riscrivi lo script Lua completo da capo, "
-                "seguendo le stesse regole del cheat-sheet sopra.",
+                "%s\n\nYour previous script failed validation:\n%s\n"
+                "Fix ONLY the reported problem and rewrite the complete Lua script from scratch, "
+                "following the same rules from the cheat-sheet above.",
                 userFinal, prevError);
             free(userFinal);
             userFinal = withRetry;
@@ -557,13 +557,17 @@ bool GenLuaPromptBudgetCheck(const char *promptsDir, char *err, size_t errSize)
 
     GenItem worst;
     memset(&worst, 0, sizeof(worst));
-    snprintf(worst.name, sizeof(worst.name), "%s", "Lente del Vulcano Radioattivo");
+    /* Nomi ri-tarati in inglese (DEC-052, 18/07): stessa taglia in byte dei
+       precedenti worst-case italiani ("Lente del Vulcano Radioattivo" 29,
+       "Laboratorio di Zucchero Radioattivo" 35), non un caso a se' -- vedi
+       il commento sopra la funzione per il "perche'" di questa taglia. */
+    snprintf(worst.name, sizeof(worst.name), "%s", "Lens of the Radioactive Volcano");
     snprintf(worst.slot, sizeof(worst.slot), "%s", "aura");
     snprintf(worst.traits[0], sizeof(worst.traits[0]), "%s", "explode");
     snprintf(worst.traits[1], sizeof(worst.traits[1]), "%s", "bounce");
     worst.traitCount = 2;
     snprintf(worst.rarity, sizeof(worst.rarity), "%s", GEN_RARITIES[longestHint]);
-    const char *floorTheme = "Laboratorio di Zucchero Radioattivo";
+    const char *floorTheme = "Laboratory of the Radioactive Sugar";
 
     size_t worstBytes = 0;
     for (int statUp = 0; statUp <= 1; statUp++)

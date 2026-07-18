@@ -136,19 +136,19 @@ void ShotTypeExample(ShotTypeDef *out, int index)
     switch (((index % SHOT_TYPE_EXAMPLE_COUNT) + SHOT_TYPE_EXAMPLE_COUNT) % SHOT_TYPE_EXAMPLE_COUNT)
     {
         case 1:   /* raggio: velocissimo e sottile, lunga gittata, perfora molto */
-            snprintf(out->name, sizeof(out->name), "Raggio");
+            snprintf(out->name, sizeof(out->name), "Beam");
             out->form = SHOT_FORM_BEAM;
             out->speedMul = 1.9f; out->damageMul = 0.6f; out->radiusMul = 0.5f; out->lifeMul = 1.6f;
             out->pierceBonus = 2; out->chain = 0; out->pellets = 1;
             break;
         case 2:   /* scarica: lenta e grossa, ma salta di nemico in nemico */
-            snprintf(out->name, sizeof(out->name), "Scarica");
+            snprintf(out->name, sizeof(out->name), "Jolt");
             out->form = SHOT_FORM_ARC;
             out->speedMul = 0.8f; out->damageMul = 0.9f; out->radiusMul = 1.2f; out->lifeMul = 0.9f;
             out->pierceBonus = 0; out->chain = 2; out->pellets = 1;
             break;
         default:  /* chiodo: veloce, piccolo, perfora un nemico */
-            snprintf(out->name, sizeof(out->name), "Chiodi");
+            snprintf(out->name, sizeof(out->name), "Spikes");
             out->form = SHOT_FORM_SPIKE;
             out->speedMul = 1.45f; out->damageMul = 0.75f; out->radiusMul = 0.65f; out->lifeMul = 1.0f;
             out->pierceBonus = 1; out->chain = 0; out->pellets = 1;

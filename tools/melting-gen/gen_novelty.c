@@ -18,12 +18,14 @@
    qualche campo crescesse. */
 #define GEN_NOVELTY_MAX_WORDS_PER_RUN 64
 
-/* Stessa lista di scripts/gen_metrics.py:ITALIAN_STOPWORDS -- le due liste
-   vanno tenute sincronizzate a mano (vedi il commento in gen_novelty.h). */
+/* Stessa lista di scripts/gen_metrics.py:STOPWORDS -- le due liste vanno
+   tenute sincronizzate a mano (vedi il commento in gen_novelty.h). Stopword
+   inglesi dal 18/07 (DEC-052, generazione contenuti inglese-first): articoli,
+   preposizioni e congiunzioni piu' comuni nei nomi generati (temi/colpi/
+   nemici/boss/stanze/oggetti), stesso ruolo di prima con la lingua nuova. */
 static const char *STOPWORDS[] = {
-    "di", "del", "della", "dei", "delle", "in", "a", "al", "alla", "la", "il",
-    "le", "i", "lo", "gli", "un", "una", "e", "che", "con", "per", "da", "su",
-    "tra", "fra",
+    "the", "of", "in", "a", "an", "and", "or", "for", "to", "on", "at",
+    "with", "from",
 };
 #define STOPWORD_COUNT ((int)(sizeof(STOPWORDS)/sizeof(STOPWORDS[0])))
 
@@ -50,11 +52,12 @@ static void WordSetAdd(GenNoveltyWordSet *ws, const char *word)
     ws->count++;
 }
 
-/* Spezza 'text' su SPAZI (mai su apostrofi o trattini: i nomi di questo
-   generatore usano l'apostrofo al posto dell'accento, "d'ottone" resta una
-   parola sola), abbassa a minuscolo (ASCII puro: system.txt chiede nomi
-   "senza accenti", quindi tolower basta), scarta le stopword e le parole
-   sotto le 3 lettere, e aggiunge il resto a 'ws' (gia' deduplicato). */
+/* Spezza 'text' su SPAZI (mai su apostrofi o trattini: un genitivo sassone
+   come "Lions' Den" -- vedi ROOM_EXAMPLES in gen_inspire.c -- resta una
+   parola sola, "lions'"), abbassa a minuscolo (ASCII puro: system.txt chiede
+   nomi in inglese piano, senza accenti, quindi tolower basta), scarta le
+   stopword e le parole sotto le 3 lettere, e aggiunge il resto a 'ws' (gia'
+   deduplicato). */
 static void WordSetAddFromText(GenNoveltyWordSet *ws, const char *text)
 {
     if (!text || !text[0]) return;

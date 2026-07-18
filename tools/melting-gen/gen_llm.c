@@ -67,7 +67,7 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed)
     char evita[GEN_NOVELTY_AVOID_BUF_SIZE + 128];
     if (avoidWords[0])
         snprintf(evita, sizeof(evita),
-                 "Parole gia' viste nelle tue run recenti, NON usarle (ne' i loro derivati ovvi): %s",
+                 "Words already seen in your recent runs, do NOT use them (nor obvious derivatives): %s",
                  avoidWords);
     else evita[0] = '\0';
     char *userFinal = GenReplaceAll(userInspired, "{EVITA}", evita);

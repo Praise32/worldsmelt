@@ -231,8 +231,8 @@ static unsigned int RandomTrait(unsigned int *rng)
 static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
 {
     static const char *names[] = {
-        "Cappello Rimbalzino", "Occhiali Guidati", "Guanto Bomba",
-        "Mantello Split", "Medaglia Rapida", "Corona Gigante"
+        "Bouncy Hat", "Homing Goggles", "Bomb Glove",
+        "Split Cloak", "Swift Medal", "Giant Crown"
     };
     Item item = { 0 };
     item.active = true;
@@ -265,8 +265,8 @@ static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
 static Item MakeFallbackBossItem(unsigned int *rng, const Theme *theme, int floorIdx)
 {
     static const char *names[] = {
-        "Reliquia Possente", "Nucleo Ardente", "Sigillo Vitale",
-        "Cristallo Rapido", "Totem Solido", "Anima Grande"
+        "Mighty Relic", "Blazing Core", "Vital Seal",
+        "Swift Crystal", "Solid Totem", "Great Soul"
     };
     Item item = { 0 };
     item.active = true;
@@ -300,16 +300,16 @@ static Item MakeFallbackBossItem(unsigned int *rng, const Theme *theme, int floo
 static Theme MakeFallbackTheme(unsigned int *rng, int floor)
 {
     static const char *themes[] = {
-        "Cantina Neon", "Biblioteca Muffita", "Fucina Lunare", "Acquario Radioattivo", "Cattedrale di Zucchero"
+        "Neon Cellar", "Moldy Library", "Lunar Forge", "Radioactive Aquarium", "Cathedral of Sugar"
     };
     static const char *styles[] = {
-        "pixel semplice", "toon scuro", "arcade secco", "inchiostro piatto", "low-fi fantasy"
+        "simple pixel", "dark toon", "stark arcade", "flat ink", "low-fi fantasy"
     };
     float hue = GameRngFloat(rng, 0.0f, 360.0f);
     Theme theme = { 0 };
     snprintf(theme.name, sizeof(theme.name), "%s", themes[(floor - 1)%5]);
     snprintf(theme.style, sizeof(theme.style), "%s", styles[GameRngRange(rng, 0, 4)]);
-    snprintf(theme.bossName, sizeof(theme.bossName), "Custode Piano %d", floor);
+    snprintf(theme.bossName, sizeof(theme.bossName), "Floor %d Guardian", floor);
     theme.bg = ColorFromHSV(hue, 0.30f, 0.12f);
     theme.floor = ColorFromHSV(fmodf(hue + 20.0f, 360.0f), 0.38f, 0.22f);
     theme.wall = ColorFromHSV(fmodf(hue + 52.0f, 360.0f), 0.55f, 0.45f);

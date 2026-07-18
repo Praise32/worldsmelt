@@ -3,7 +3,7 @@ id: gd-content-narrative-tone
 status: approved
 owner: design
 last_reviewed: 2026-07-18
-summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Restano draft/aperti: tono specifico (tragico, ironico, ecc.), simboli ricorrenti, limiti di contenuto. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap noto: la pipeline attuale genera in italiano."
+summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Restano draft/aperti: tono specifico (tragico, ironico, ecc.), simboli ricorrenti, limiti di contenuto. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese."
 ---
 
 # Narrative Tone
@@ -87,10 +87,13 @@ Questa decisione riguarda la lingua dei contenuti generati per il giocatore, non
 della KB: la knowledge base resta scritta in italiano, perché è la lingua di lavoro del
 team, non la lingua del gioco.
 
-**Gap noto rispetto al codice:** la pipeline di generazione attuale produce contenuti in
-italiano. Questo è un requisito di design non ancora implementato — il codice dovrà
-adeguarsi a questa regola, non viceversa (stesso trattamento di gap dato a DEC-009 in
-[Rooms and Floor Generation](../systems/rooms-and-floor-generation.md)).
+**Stato rispetto al codice (aggiornato 18/07/2026):** gap chiuso. La pipeline di
+generazione (prompt, esempi few-shot, pool di nomi curati/fallback) produce ora contenuti
+in inglese, coerente con questa regola. Restava un gap di implementazione (la pipeline
+produceva contenuti in italiano) fino all'implementazione di M3 (stesso tipo di
+gap-di-implementazione dato a DEC-009 in
+[Rooms and Floor Generation](../systems/rooms-and-floor-generation.md), che ha un proprio
+stato non toccato da questo lavoro).
 
 ## Deve ancora definire
 
@@ -125,8 +128,8 @@ definire.
 - Tono specifico del gioco (tragico, ironico, inquietante, surreale o altro), dentro la
   cornice del crogiolo (DEC-067): nessuna scelta ancora fatta.
 - Limiti di contenuto e simboli ricorrenti: non ancora definiti.
-- Tempistica e percorso di migrazione della pipeline di generazione dall'italiano
-  all'inglese (DEC-052 fissa la regola, non il piano di implementazione).
+- ~~Tempistica e percorso di migrazione della pipeline di generazione dall'italiano
+  all'inglese~~: risolta con M3 (18/07/2026), vedi la nota di stato sopra (DEC-052).
 
 ## Scenari
 

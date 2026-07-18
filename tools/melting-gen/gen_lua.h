@@ -142,33 +142,39 @@ bool GenLuaValidate(const char *source, unsigned int seed, bool statUpOnly, bool
    hint di poche parole).
 
    Derivazione del ceiling: GEN_LLM_SESSION_N_CTX (melting_gen.h, la
-   sessione condivisa) meno GEN_LUA_N_PREDICT sopra = quanti token il
-   PROMPT puo' occupare senza intaccare il budget riservato all'output
-   generato -- lo stesso confine che GenLlmComplete gia' impone a runtime
-   (gen_llm.c: "prompt+nPredict <= n_ctx", che pero' degrada sempre con un
-   log+fallback, mai un crash: quella resta l'ultima rete di sicurezza,
-   questa guardia serve solo a scoprirlo PRIMA, senza il modello). Convertiti
-   in byte con ~3.2 caratteri/token: non e' un numero a caso, e' vicino al
-   rapporto misurato UNA TANTUM (non ad ogni build, serve il modello vero)
-   tokenizzando per davvero il prompt Lua piu' grande di oggi col
-   vocabolario di Qwen2.5-Coder (vocab-only, ~5ms, nessuna inferenza):
+   sessione condivisa, 8192) meno GEN_LUA_N_PREDICT sopra (384) = 7808
+   token che il PROMPT puo' occupare senza intaccare il budget riservato
+   all'output generato -- lo stesso confine che GenLlmComplete gia' impone a
+   runtime (gen_llm.c: "prompt+nPredict <= n_ctx", che pero' degrada sempre
+   con un log+fallback, mai un crash: quella resta l'ultima rete di
+   sicurezza, questa guardia serve solo a scoprirlo PRIMA, senza il
+   modello). Convertiti in byte con ~3.2 caratteri/token: non e' un numero a
+   caso, e' vicino al rapporto misurato UNA TANTUM (non ad ogni build, serve
+   il modello vero) tokenizzando per davvero il prompt Lua piu' grande di
+   oggi col vocabolario di Qwen2.5-Coder (vocab-only, ~5ms, nessuna
+   inferenza):
 
      deps/llama.cpp/build/bin/test-tokenizer-0 \
        models/qwen2.5-coder-7b-instruct-q4_k_m.gguf <prompt-composto>.txt
 
-   -> 11601 byte = 3695 token reali (~3.14 caratteri/token per questo
-   contenuto misto italiano+Lua: lua_system.txt, il cheat-sheet condiviso,
-   pesa da solo 10683 dei circa 11600 byte del prompt piu' grande). Il
-   prompt Lua di oggi e' quindi GIA' vicino al tetto (solo ~14 token di
-   margine sotto n_ctx-GEN_LUA_N_PREDICT=3712): non e' una scoperta di
-   questa guardia, e' lo stesso motivo per cui GEN_RARITY_PROMPT_HINTS sono
-   "VOLUTAMENTE brevi" (vedi gen_util.c). Con un margine cosi' stretto un
-   ceiling byte non puo' inseguire l'ultimo token: il *16/5 sotto (= *3.2,
-   interi per evitare float in una #define) e' scelto leggermente PIU'
-   GENEROSO del rapporto misurato apposta, cosi' la guardia passa oggi senza
-   sfarfallare a ogni piccola modifica cosmetica del prompt, restando comunque
-   ben sotto l'intero n_ctx e capace di intercettare senza ambiguita' una
-   vera re-inflazione (centinaia di byte in piu', non decine). */
+   -> ri-misurato il 18/07/2026 dopo M3/DEC-052 (contenuto oggi inglese+Lua,
+   non piu' italiano+Lua): 11662 byte = 3711 token reali (~3.14
+   caratteri/token, praticamente invariato rispetto alla misura italiana
+   precedente -- lua_system.txt, il cheat-sheet condiviso in inglese fin
+   dalla fase 3a-L3, pesa la maggior parte del prompt piu' grande, ed e' lui
+   a dominare il rapporto, non i pochi campi tradotti). Il margine sotto il
+   ceiling in token oggi (7808-3711 = 4097 token, ampio) e' pero' un fatto
+   di GEN_LLM_SESSION_N_CTX=8192: con l'n_ctx piu' piccolo di una fase
+   precedente (4096, quindi budget 3712) lo stesso prompt sarebbe stato a
+   UN SOLO token dal tetto -- non e' una scoperta di questa guardia, e' lo
+   stesso motivo per cui GEN_RARITY_PROMPT_HINTS sono "VOLUTAMENTE brevi"
+   (vedi gen_util.c). Il *16/5 sotto (= *3.2, interi per evitare float in
+   una #define) resta scelto leggermente PIU' GENEROSO del rapporto
+   misurato apposta, cosi' la guardia passa senza sfarfallare a ogni piccola
+   modifica cosmetica del prompt qualunque sia l'n_ctx del momento, restando
+   comunque ben sotto l'intero n_ctx e capace di intercettare senza
+   ambiguita' una vera re-inflazione (centinaia di byte in piu', non
+   decine). */
 #define GEN_LUA_PROMPT_BYTE_CEILING (((GEN_LLM_SESSION_N_CTX) - (GEN_LUA_N_PREDICT)) * 16 / 5)
 
 /* Compone il prompt Lua piu' grande possibile (entrambe le categorie,

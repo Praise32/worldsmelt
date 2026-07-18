@@ -13,7 +13,7 @@
    c'e' (vedi ScriptItemsApplyStatUpFallback). */
 static void FallbackBossItem(unsigned int *rng, GenItem *item, int h, int floorIdx)
 {
-    static const char *bossNames[] = { "Nucleo", "Reliquia", "Sigillo", "Totem", "Cristallo", "Anima", "Cuore", "Emblema" };
+    static const char *bossNames[] = { "Core", "Relic", "Seal", "Totem", "Crystal", "Soul", "Heart", "Emblem" };
     const char *trait = GEN_TRAITS[GenRngRange(rng, 0, 8)];
     snprintf(item->name, sizeof(item->name), "%s %s", bossNames[GenRngRange(rng, 0, 7)], trait);
     snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(rng, 0, 5)]);
@@ -55,10 +55,10 @@ static void FallbackScriptForTrait(const char *trait, unsigned int *rng, GenItem
 
 void GenFallbackRun(GenRun *run, unsigned int seed)
 {
-    static const char *themeWords[] = { "Cantina", "Biblioteca", "Acquario", "Fucina", "Cattedrale", "Laboratorio", "Teatro" };
-    static const char *weirdWords[] = { "Neon", "Muffita", "Lunare", "Radioattiva", "di Zucchero", "Elettrica", "di Carta" };
-    static const char *styles[]     = { "pixel semplice", "toon scuro", "arcade secco", "inchiostro piatto", "low-fi fantasy" };
-    static const char *itemNames[]  = { "Corona", "Occhiali", "Guanto", "Mantello", "Medaglia", "Cappello", "Aureola", "Spada" };
+    static const char *themeWords[] = { "Cellar", "Library", "Aquarium", "Forge", "Cathedral", "Laboratory", "Theater" };
+    static const char *weirdWords[] = { "of Neon", "of Mold", "of the Moon", "of Radiation", "of Sugar", "of Electricity", "of Paper" };
+    static const char *styles[]     = { "simple pixel", "dark toon", "stark arcade", "flat ink", "low-fi fantasy" };
+    static const char *itemNames[]  = { "Crown", "Goggles", "Glove", "Cloak", "Medal", "Hat", "Halo", "Sword" };
 
     memset(run, 0, sizeof(*run));
     unsigned int rng = seed ? seed : 0xA341316Cu;
@@ -136,8 +136,8 @@ void GenFallbackRun(GenRun *run, unsigned int seed)
         snprintf(floor->theme, sizeof(floor->theme), "%s %s",
                  themeWords[GenRngRange(&rng, 0, 6)], weirdWords[GenRngRange(&rng, 0, 6)]);
         snprintf(floor->style, sizeof(floor->style), "%s", styles[GenRngRange(&rng, 0, 4)]);
-        if (f == GEN_FLOORS - 1) snprintf(floor->boss, sizeof(floor->boss), "Ultimo Custode");
-        else snprintf(floor->boss, sizeof(floor->boss), "Custode %d", f + 1);
+        if (f == GEN_FLOORS - 1) snprintf(floor->boss, sizeof(floor->boss), "Final Guardian");
+        else snprintf(floor->boss, sizeof(floor->boss), "Guardian %d", f + 1);
         GenHsvToHex(h, 0.32, 0.12, floor->bg);
         GenHsvToHex((h + 20)%360, 0.38, 0.22, floor->floorColor);
         GenHsvToHex((h + 52)%360, 0.55, 0.45, floor->wall);

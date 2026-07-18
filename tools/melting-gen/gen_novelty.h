@@ -6,8 +6,8 @@
 struct GenRun;
 
 /* Tetto dell'elenco "da evitare" (~50 token nel prompt a ~2 token/parola in
-   media sulle parole italiane in gioco): budget contenuto apposta, lo stesso
-   spirito del blocco ispirazioni di gen_inspire.c (~150 token). */
+   media sulle parole inglesi in gioco, DEC-052): budget contenuto apposta,
+   lo stesso spirito del blocco ispirazioni di gen_inspire.c (~150 token). */
 #define GEN_NOVELTY_MAX_AVOID_WORDS 24
 
 /* Dimensione MINIMA del buffer da passare a GenNoveltyAvoidList perche'
@@ -37,9 +37,9 @@ struct GenRun;
    Formato di una riga del ledger (testo semplice, non JSON: lo legge solo
    questo modulo, e un formato piatto e' piu' facile da ispezionare a mano):
      seed=<seed> words=<parola1> <parola2> ... <parolaN>
-   'words' sono le parole-contenuto UNICHE di quella run (stopword italiane e
+   'words' sono le parole-contenuto UNICHE di quella run (stopword inglesi e
    parole < 3 caratteri gia' scartate in fase di scrittura, stessa lista di
-   scripts/gen_metrics.py:ITALIAN_STOPWORDS -- le due liste vanno tenute
+   scripts/gen_metrics.py:STOPWORDS -- le due liste vanno tenute
    sincronizzate a mano, non esiste un punto unico di verita' condiviso fra
    Python e C in questo repo), separate da un singolo spazio: split "su
    spazi", mai virgole, per restare simmetrico con come si leggono. */

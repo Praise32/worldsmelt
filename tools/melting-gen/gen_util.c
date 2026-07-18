@@ -269,8 +269,9 @@ static const int GEN_RARITY_WEIGHTS_TREASURE_SHOP[4] = { 55, 30, 12, 3 };
 static const int GEN_RARITY_WEIGHTS_BOSS[4]          = {  0,  0, 70, 30 };
 
 /* Frasi di intensita' per il prompt Lua per-oggetto (design sezione 2:
-   "la rarita' entra nel prompt come intensita'"), in italiano -- MODIFICA
-   QUI per cambiare quanto il prompt spinge verso numeri piccoli o grandi.
+   "la rarita' entra nel prompt come intensita'"), in inglese (DEC-052,
+   generazione IA inglese-first) -- MODIFICA QUI per cambiare quanto il
+   prompt spinge verso numeri piccoli o grandi.
    Stesso ordine di GEN_RARITIES sopra. Iniettate da gen_lua.c
    (BuildLuaPrompt) al posto del placeholder {ITEM_RARITY} nei template
    prompts/lua_user.txt e prompts/lua_statup_user.txt.
@@ -283,10 +284,10 @@ static const int GEN_RARITY_WEIGHTS_BOSS[4]          = {  0,  0, 70, 30 };
    (trovato girando davvero MODEL=...7b... make test-llm durante lo
    sviluppo di questa fase, vedi il report di fase). */
 const char *GEN_RARITY_PROMPT_HINTS[4] = {
-    "comune (numeri piccoli)",
-    "non comune (numeri moderati)",
-    "raro (numeri alti)",
-    "leggendario (numeri grandi)",
+    "common (small numbers)",
+    "uncommon (moderate numbers)",
+    "rare (high numbers)",
+    "legendary (big numbers)",
 };
 
 int GenRollRarity(unsigned int *rng, int isBoss)

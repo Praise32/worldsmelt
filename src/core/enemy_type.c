@@ -183,17 +183,17 @@ void EnemyTypeExample(EnemyTypeDef *out, int index)
     switch (((index % ENEMY_TYPE_EXAMPLE_COUNT) + ENEMY_TYPE_EXAMPLE_COUNT) % ENEMY_TYPE_EXAMPLE_COUNT)
     {
         case 1:   /* il tiratore: si tiene a distanza e spara colpi mirati */
-            snprintf(out->name, sizeof(out->name), "Tiratore");
+            snprintf(out->name, sizeof(out->name), "Marksman");
             out->form = ENEMY_FORM_SPIKY; out->move = ENEMY_MOVE_KITE; out->fire = ENEMY_FIRE_SINGLE;
             out->hpMul = 1.0f; out->speedMul = 0.85f; out->sizeMul = 1.0f; out->fireRate = 1.0f; out->pellets = 1;
             break;
         case 2:   /* il corazzato: lento, grosso, duro, spara ventagli */
-            snprintf(out->name, sizeof(out->name), "Corazzato");
+            snprintf(out->name, sizeof(out->name), "Ironclad");
             out->form = ENEMY_FORM_ARMORED; out->move = ENEMY_MOVE_CHASE; out->fire = ENEMY_FIRE_SPREAD;
             out->hpMul = 1.9f; out->speedMul = 0.6f; out->sizeMul = 1.35f; out->fireRate = 0.7f; out->pellets = 3;
             break;
         default:  /* l'inseguitore: veloce, fragile, solo contatto */
-            snprintf(out->name, sizeof(out->name), "Inseguitore");
+            snprintf(out->name, sizeof(out->name), "Chaser");
             out->form = ENEMY_FORM_BLOB; out->move = ENEMY_MOVE_CHASE; out->fire = ENEMY_FIRE_NONE;
             out->hpMul = 0.75f; out->speedMul = 1.25f; out->sizeMul = 0.9f; out->fireRate = 0.0f; out->pellets = 1;
             break;
@@ -208,7 +208,7 @@ void EnemyTypeExampleBoss(EnemyTypeDef *out)
     memset(out, 0, sizeof(*out));
     out->active = true;
     out->boss = true;
-    snprintf(out->name, sizeof(out->name), "Custode");
+    snprintf(out->name, sizeof(out->name), "Guardian");
     out->form = ENEMY_FORM_FLOATER;
     out->move = ENEMY_MOVE_ORBIT;
     out->fire = ENEMY_FIRE_RING;

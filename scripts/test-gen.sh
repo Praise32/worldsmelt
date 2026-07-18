@@ -57,12 +57,13 @@ rm -f "$newest"
 
 # Semi d'ispirazione (roadmap 16/07/2026, settimana 1): --print-json-prompt
 # costruisce il prompt JSON completo e lo stampa su stdout senza caricare
-# alcun modello -- il modo giusto per verificare il blocco "Ispirazioni per
-# QUESTA run" (placeholder sostituito, deterministico sul seed, diverso fra
-# semi) senza aspettare una generazione vera.
+# alcun modello -- il modo giusto per verificare il blocco "Inspirations for
+# THIS run" (placeholder sostituito, deterministico sul seed, diverso fra
+# semi) senza aspettare una generazione vera. Stringa in inglese dal 18/07
+# (DEC-052, generazione contenuti inglese-first): vedi gen_inspire.c.
 echo "-- semi d'ispirazione: --print-json-prompt espone il blocco nel prompt --"
 "$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-a" > "$TMP/prompt-a.txt"
-grep -q "Ispirazioni per QUESTA run" "$TMP/prompt-a.txt" || {
+grep -q "Inspirations for THIS run" "$TMP/prompt-a.txt" || {
   echo "FALLITO: il prompt stampato non contiene il blocco ispirazioni"; exit 1; }
 
 echo "-- semi d'ispirazione: stesso seed due volte -> prompt identico --"
@@ -141,7 +142,7 @@ seed=1002 words=convergenza1 unicadue
 seed=1003 words=convergenza1 convergenza2
 EOF
 "$GEN" --print-json-prompt --seed 5555 --out "$TMP/prompt-evita" > "$TMP/prompt-evita.txt"
-evitaLine=$(grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-evita.txt") || {
+evitaLine=$(grep "Words already seen in your recent runs" "$TMP/prompt-evita.txt") || {
   echo "FALLITO: il blocco EVITA non compare col ledger sintetico presente"; exit 1; }
 # convergenza1 e' in 3/3 righe, convergenza2 in 2/3: entrambe convergono
 # (viste in ALMENO 2 run diverse), quindi devono comparire, in quest'ordine
@@ -162,7 +163,7 @@ fi
 echo "-- ledger di novita': senza ledger, nessun blocco EVITA e nessun placeholder residuo --"
 rm -f "$NOVELTY_LEDGER"
 "$GEN" --print-json-prompt --seed 5555 --out "$TMP/prompt-noevita" > "$TMP/prompt-noevita.txt"
-if grep -q "Parole gia' viste" "$TMP/prompt-noevita.txt"; then
+if grep -q "Words already seen" "$TMP/prompt-noevita.txt"; then
   echo "FALLITO: il blocco EVITA compare senza alcun ledger su disco"; exit 1
 fi
 if grep -q '{EVITA}' "$TMP/prompt-noevita.txt"; then
@@ -194,7 +195,7 @@ done
 printf 'seed=7001 words=%s\n' "$longWords" >> "$NOVELTY_LEDGER"
 printf 'seed=7002 words=%s\n' "$longWords" >> "$NOVELTY_LEDGER"
 "$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-long" > "$TMP/prompt-long.txt"
-evitaLong=$(grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-long.txt") || {
+evitaLong=$(grep "Words already seen in your recent runs" "$TMP/prompt-long.txt") || {
   echo "FALLITO: il blocco EVITA non compare col ledger di parole lunghe"; exit 1; }
 lastLong="w23$xpad"   # l'ultima parola, per intero (31 caratteri)
 echo "$evitaLong" | grep -q "$lastLong" || {
@@ -214,7 +215,7 @@ printf 'seed=7101 words=%s\nseed=7102 words=%s\nseed=7103 words=%s\n' \
   "$overWord" "$overWord" "$overWord" >> "$NOVELTY_LEDGER"
 "$GEN" --print-json-prompt --seed 4242 --out "$TMP/prompt-over" > "$TMP/prompt-over.txt"
 cutWord="${overWord:0:31}"
-grep "Parole gia' viste nelle tue run recenti" "$TMP/prompt-over.txt" | grep -q "$cutWord" || {
+grep "Words already seen in your recent runs" "$TMP/prompt-over.txt" | grep -q "$cutWord" || {
   echo "FALLITO: una parola oltre il cap (35 char, 3 run su 3) non converge nel blocco EVITA"; exit 1; }
 
 # Il ledger sintetico ha fatto il suo lavoro: da qui in giu' non serve piu' (e

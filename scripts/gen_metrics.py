@@ -12,8 +12,9 @@ funzionali non misurano:
      centrale del gioco (vedi memoria "shot-types-ai-generated"): un numero
      che peggiora qui vale piu' di qualunque impressione a occhio.
 
-Il report chiude con un campione d'italiano da giudicare a occhio: la
-qualita' della lingua non si riduce a un numero.
+Il report chiude con un campione d'inglese (DEC-052, generazione contenuti
+inglese-first dal 18/07) da giudicare a occhio: la qualita' della lingua non
+si riduce a un numero.
 """
 
 import json
@@ -26,14 +27,17 @@ def norm(s):
     return " ".join(str(s).lower().split())
 
 
-# Stopword italiane: articoli, preposizioni semplici e articolate,
-# congiunzioni piu' comuni nei nomi generati (temi/colpi/nemici/boss/stanze/
-# oggetti). Scartate insieme alle parole < 3 caratteri prima di contare le
-# parole-contenuto ricorrenti (vedi word_report sotto).
-ITALIAN_STOPWORDS = {
-    "di", "del", "della", "dei", "delle", "in", "a", "al", "alla", "la", "il",
-    "le", "i", "lo", "gli", "un", "una", "e", "che", "con", "per", "da", "su",
-    "tra", "fra",
+# Stopword inglesi (DEC-052, generazione contenuti inglese-first dal 18/07):
+# articoli, preposizioni e congiunzioni piu' comuni nei nomi generati (temi/
+# colpi/nemici/boss/stanze/oggetti). Scartate insieme alle parole < 3
+# caratteri prima di contare le parole-contenuto ricorrenti (vedi word_report
+# sotto). Nome neutro apposta (non piu' ITALIAN_STOPWORDS): stessa lista di
+# tools/melting-gen/gen_novelty.c:STOPWORDS -- le due liste vanno tenute
+# sincronizzate a mano, non esiste un punto unico di verita' condiviso fra
+# Python e C in questo repo (vedi il commento in gen_novelty.h).
+STOPWORDS = {
+    "the", "of", "in", "a", "an", "and", "or", "for", "to", "on", "at",
+    "with", "from",
 }
 
 
@@ -42,12 +46,12 @@ def word_report(per_run, cat):
 
     Perche' esiste, oltre alla misura "unici su totale" qui sopra: su una
     baseline abbiamo misurato 14/15 nomi unici in "temi" eppure il
-    vocabolario di fondo era sempre lo stesso -- 'cattedrale', 'caverna',
-    'deserto' spuntavano in ogni run sotto un aggettivo diverso
-    ('cattedrale ghiacciata', 'cattedrale sommersa', ...). Il conteggio sui
+    vocabolario di fondo era sempre lo stesso -- 'cathedral', 'cavern',
+    'desert' spuntavano in ogni run sotto un aggettivo diverso
+    ('frozen cathedral', 'sunken cathedral', ...). Il conteggio sui
     nomi INTERI non lo vede: sono stringhe diverse. Solo un occhio umano che
     legge il campione se n'e' accorto. Qui si scompone ogni nome in parole,
-    si scartano le stopword italiane e le parole troppo corte (< 3
+    si scartano le stopword inglesi e le parole troppo corte (< 3
     caratteri), e si conta quante parole-contenuto ricorrono in PIU' RUN
     DIVERSE (non solo ripetute piu' volte nella stessa run): e' quella
     ripetizione fra run, non l'unicita' dei nomi, il segnale che il modello
@@ -59,7 +63,7 @@ def word_report(per_run, cat):
         words_here = Counter()
         for name in pr[cat]:
             for w in name.split():
-                if w in ITALIAN_STOPWORDS or len(w) < 3:
+                if w in STOPWORDS or len(w) < 3:
                     continue
                 words_here[w] += 1
         run_word_sets.append(set(words_here))
@@ -199,8 +203,8 @@ def main():
         print("  servono almeno 2 run dal modello per misurare la varieta'")
     print()
 
-    # -- 3. campione d'italiano ----------------------------------------------
-    print("-- campione d'italiano (giudica a occhio) --")
+    # -- 3. campione d'inglese ------------------------------------------------
+    print("-- campione d'inglese (giudica a occhio) --")
     for r in model_runs[:3]:
         floors = r["manifest"].get("floors", [])
         themes = " | ".join(f.get("theme", "?") for f in floors)

@@ -220,7 +220,7 @@ void RoomLayoutExample(RoomLayoutDef *out, int index)
     switch (((index % ROOM_LAYOUT_EXAMPLE_COUNT) + ROOM_LAYOUT_EXAMPLE_COUNT) % ROOM_LAYOUT_EXAMPLE_COUNT)
     {
         case 1:
-            snprintf(out->name, sizeof(out->name), "Corridoio");
+            snprintf(out->name, sizeof(out->name), "Corridor");
             out->form = ROOM_LAYOUT_CORRIDOR; out->density = 0.6f;
             break;
         case 2:
@@ -228,11 +228,11 @@ void RoomLayoutExample(RoomLayoutDef *out, int index)
             out->form = ROOM_LAYOUT_ARENA; out->density = 0.55f;
             break;
         case 3:
-            snprintf(out->name, sizeof(out->name), "Detriti");
+            snprintf(out->name, sizeof(out->name), "Rubble");
             out->form = ROOM_LAYOUT_SCATTER; out->density = 0.5f;
             break;
         default:
-            snprintf(out->name, sizeof(out->name), "Colonne");
+            snprintf(out->name, sizeof(out->name), "Columns");
             out->form = ROOM_LAYOUT_PILLARS; out->density = 0.5f;
             break;
     }
