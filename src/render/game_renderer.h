@@ -6,6 +6,20 @@
 UiLayout UiComputeLayout(void);
 bool UiScreenToGameMouse(UiLayout layout, Vector2 *out);
 
+/* M4: nucleo PURO di UiComputeLayout (nessuna chiamata raylib, solo matematica
+   sulle struct) -- separato apposta perche' --layout-test (src/app/app.c) possa
+   esercitarlo su risoluzioni sintetiche PRIMA di InitWindow, come --gen-test.
+   UiComputeLayout(void) resta il wrapper che legge GetScreenWidth/Height e
+   chiama questa. */
+UiLayout UiComputeLayoutFor(float sw, float sh);
+
+/* Suite di autotest pura di UiComputeLayoutFor/della geometria dei menu
+   (MenuBoxForMode/MenuItemRect), per un set fisso di risoluzioni (720p..4K):
+   nessuna sovrapposizione pannelli/canvas, scala del canvas massimale,
+   non-regressione a 1600x900, monotonia al crescere della risoluzione, voci di
+   menu dentro il box e non sovrapposte. Vedi --layout-test in src/app/app.c. */
+bool UiLayoutSelfTest(void);
+
 /* Zona cliccabile della voce di menu all'indice restituito, per lo stato
    'mode', nella STESSA geometria che RendererDrawApp usa per disegnarla
    (game_renderer.c: un'unica sorgente per le due cose, mai duplicata in

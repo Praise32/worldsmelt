@@ -41,6 +41,14 @@ bool GameRoomsTest(Game *game);
    stessa tradizione degli altri *ScreenshotTest di questo file. */
 bool GameFloorZeroScreenshotTest(Game *game);
 
+/* M4, SOLO manuale: identico a GameFloorZeroScreenshotTest sopra (stesso
+   ingresso nel Piano 0, gen disabilitata, uscita gia' aperta), ma chiamato
+   da app.c mentre la finestra e' a dimensione del MONITOR (avvio fullscreen
+   vero, non la finestra grande di test) -- serve a guardare il layout
+   adattivo (spec M4) su una risoluzione reale, non sulla finestra compatta
+   di test. Scrive logs/worldsmelt-fullscreen-screen.png. */
+bool GameFullscreenScreenshotTest(Game *game);
+
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
 bool GameAtlasFallbackTest(Game *game);

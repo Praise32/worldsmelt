@@ -746,6 +746,38 @@ bool GameFloorZeroScreenshotTest(Game *game)
     return textureValid;
 }
 
+/* M4, SOLO manuale: stesso scenario di GameFloorZeroScreenshotTest sopra
+   (identico passo per passo: e' lo stesso "guarda il Piano 0 gia' aperto"),
+   chiamato pero' quando la finestra e' gia' a dimensione del monitor
+   (src/app/app.c, --fullscreen-screenshot-test) -- RendererDrawApp chiama da
+   sola UiComputeLayout() e legge GetScreenWidth/Height VERE, quindi non serve
+   nessun parametro in piu' qui: e' la stessa identica chiamata, cambia solo
+   la finestra dietro le quinte e il file di destinazione. */
+bool GameFullscreenScreenshotTest(Game *game)
+{
+    AppGen gen = { 0 };   /* enabled=false: l'uscita del Piano 0 si apre subito */
+    AppUi ui = { 0 };
+    AppMode mode = APP_MAIN_MENU;
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* MainMenu -> RunSetup */
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* Seed -> Avvia */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Avvia -> FloorZero */
+    if (mode != APP_FLOOR_ZERO)
+    {
+        fprintf(stderr, "GameFullscreenScreenshotTest: Avvia non porta a FloorZero\n");
+        return false;
+    }
+
+    GenProgress status = { 0 };
+    snprintf(status.message, sizeof(status.message), "Primo piano pronto -- l'uscita e' aperta.");
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-fullscreen-screen.png");
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+    return textureValid;
+}
+
 #ifndef _WIN32
 #include "gen/gen_runner.h"
 

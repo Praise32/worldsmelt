@@ -141,6 +141,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --layout-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --bench-preset-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test

@@ -600,6 +600,17 @@ typedef struct UiLayout {
     Rectangle rightPanel;
     Rectangle bottomPanel;
     float gameScale;
+    /* M4 (fullscreen-first): fattore di scala dell'INTERFACCIA esterna (pannelli,
+       font, overlay dei menu) -- MAI del canvas di gioco, che resta 960x640 sempre
+       e usa la sua scala indipendente 'gameScale' sopra. Derivato dalla sola
+       altezza dello schermo (UiComputeLayoutFor, src/render/game_renderer.c) e
+       quantizzato a passi di 0.25 per restare coerente col gusto "a scatti" del
+       resto del progetto (gameScale a passi di 1/8, minimappa a taglie discrete).
+       1.0 per qualunque finestra <=900px di altezza: e' cio' che garantisce che le
+       finestre di test compatte (960x640, smoke test) e la finestra grande di
+       riferimento (1600x900, screenshot test) restino bit-per-bit identiche a
+       prima di M4. */
+    float uiScale;
 } UiLayout;
 
 /* Progresso del generatore esterno (melting-gen), letto da gen_progress.txt. */

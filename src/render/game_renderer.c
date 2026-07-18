@@ -18,9 +18,23 @@
    gioco invece del grigio di default di raygui. Chiamata una volta per frame prima
    di disegnare la GUI (costa niente: solo GuiSetStyle, che scrive in un array
    globale). I colori si passano a raygui come interi 0xRRGGBBAA (ColorToInt). */
-static void UiApplyTheme(const Theme *theme)
+/* M4: arrotondamento comune per font/spessori scalati da uiScale -- una
+   dimensione di testo o una linea non puo' restare frazionaria (DrawText/
+   DrawRectangleLinesEx vogliono un int), e va arrotondata al piu' vicino
+   (non troncata) perche' un font che si aggancia sempre per difetto sembra
+   sistematicamente piu' piccolo di quanto la scala richiederebbe. */
+static int UiRound(float v)
 {
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 15);
+    return (int)(v + 0.5f);
+}
+
+/* M4: 'uiScale' arrotonda il TEXT_SIZE di raygui (GuiLabel/GuiPanel/GuiStatusBar
+   -- tutto cio' che raygui disegna da solo, a differenza dei DrawText diretti
+   di DrawOuterUi/gli overlay, che si scalano ciascuno per conto proprio, vedi
+   UiRound piu' sotto). */
+static void UiApplyTheme(const Theme *theme, float uiScale)
+{
+    GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(15.0f*uiScale + 0.5f));
     GuiSetStyle(DEFAULT, BACKGROUND_COLOR, ColorToInt((Color){ 16, 18, 24, 255 }));
     GuiSetStyle(DEFAULT, LINE_COLOR, ColorToInt(GameColorWithAlpha(theme->accent, 120)));
     /* Pannelli e riquadri: sfondo scuro semitrasparente, bordo nel colore accento. */
@@ -33,16 +47,80 @@ static void UiApplyTheme(const Theme *theme)
     GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
 }
 
-UiLayout UiComputeLayout(void)
+/* M4 (fullscreen-first): fattore di scala dell'interfaccia ESTERNA (pannelli,
+   font, overlay dei menu -- mai il canvas 960x640, che ha la sua scala a parte,
+   vedi 'scale' sotto). Derivato dalla sola ALTEZZA dello schermo (la larghezza
+   varia troppo con l'ultrawide per essere un indizio affidabile di "quanto e'
+   grande lo schermo"): 900px di altezza -> 1.0, cioe' l'aspetto di sempre prima
+   di M4 (la finestra grande di riferimento del progetto e' 1600x900, vedi
+   APP_WINDOW_WIDTH/HEIGHT in core/game_types.h). Sopra i 900px cresce fino a un
+   tetto di 3.0 (oltre, l'interfaccia diventerebbe piu' un ostacolo che un aiuto
+   anche su un 4K). QUANTIZZATO a passi di 0.25 con un floor (non arrotondato):
+   stessa scelta della scala del canvas qui sotto, un valore continuo farebbe
+   "respirare" pannelli e font ad ogni pixel di resize invece di scattare fra
+   pochi valori stabili. 1080p (rapporto 1.2) cade quindi a 1.0 (floor di 4.8/4),
+   1440p (1.6) a 1.5, 2160p (2.4) a 2.25: coerente col commento del task e con
+   quanto verifica --layout-test (punto c, non-regressione a 1600x900). */
+static float UiScaleForHeight(float sh)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    float pad = GameMathClampFloat(sw*0.014f, 18.0f, 28.0f);
-    float leftW = GameMathClampFloat(sw*0.18f, 250.0f, 330.0f);
-    float rightW = GameMathClampFloat(sw*0.24f, 330.0f, 460.0f);
-    float bottomH = GameMathClampFloat(sh*0.12f, 82.0f, 128.0f);
+    float raw = GameMathClampFloat(sh/900.0f, 1.0f, 3.0f);
+    return floorf(raw*4.0f)/4.0f;
+}
+
+UiLayout UiComputeLayoutFor(float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    /* M4: gli stessi tetti/minimi di sempre, ma SCALATI da uiScale invece che
+       assoluti -- su uno schermo piu' alto di 900px i pannelli hanno il
+       permesso di crescere oltre i vecchi 330/460/128px, cosi' font e
+       contenuti scalati (DrawOuterUi) hanno davvero lo spazio per crescere
+       con loro. A uiScale==1.0 (qualunque sh<=900, quindi ANCHE le finestre
+       di test compatte 960x640 e quella grande di riferimento 1600x900) i
+       clamp coincidono esattamente con quelli di sempre: zero regressione. */
+    float pad = GameMathClampFloat(sw*0.014f, 18.0f*uiScale, 28.0f*uiScale);
+    float leftW = GameMathClampFloat(sw*0.18f, 250.0f*uiScale, 330.0f*uiScale);
+    float rightW = GameMathClampFloat(sw*0.24f, 330.0f*uiScale, 460.0f*uiScale);
+    float bottomH = GameMathClampFloat(sh*0.12f, 82.0f*uiScale, 128.0f*uiScale);
     float maxW = sw - leftW - rightW - pad*4.0f;
     float maxH = sh - bottomH - pad*3.0f;
+
+    /* M4 (requisito 2): "nessuna sovrapposizione pannelli/canvas a nessuna
+       risoluzione >= 1280x720". A quella soglia i pannelli, coi loro minimi
+       storici (250/330/82px), da soli occupano gia' abbastanza spazio da
+       lasciare al canvas MENO di quanto il minimo garantito (0.75, cioe'
+       720x480) richiede -- il vecchio clamp "if (scale<0.75) scale=0.75"
+       spingerebbe allora il canvas OLTRE lo spazio libero, dentro i
+       pannelli. Qui i pannelli cedono spazio PRIMA che accada (mai il
+       contrario: il canvas e' la vista di gioco, i pannelli sono contorno) --
+       leftW/rightW si stringono in proporzione l'uno all'altro, bottomH da
+       solo, quanto basta perche' il minimo garantito ci stia per davvero.
+       Sotto 1280x720 la guardia resta SPENTA di proposito (spec M4,
+       requisito 2: "comportamento di oggi preservato" per le finestre di
+       test compatte, overlap storico incluso) -- a 1600x900 e oltre i
+       pannelli non toccano mai questi minimi (sono gia' oltre), quindi la
+       guardia e' un no-op esatto la' (non-regressione, punto (c) di
+       --layout-test). */
+    if (sw >= 1280.0f && sh >= 720.0f)
+    {
+        const float minGw = (float)SCREEN_WIDTH*0.75f;
+        const float minGh = (float)SCREEN_HEIGHT*0.75f;
+        if (maxW < minGw)
+        {
+            float deficit = minGw - maxW;
+            float totalLR = leftW + rightW;
+            float shrink = fminf(deficit, totalLR);
+            leftW -= shrink*(leftW/totalLR);
+            rightW -= shrink*(rightW/totalLR);
+            maxW = sw - leftW - rightW - pad*4.0f;
+        }
+        if (maxH < minGh)
+        {
+            float deficit = minGh - maxH;
+            bottomH -= fminf(deficit, bottomH);
+            maxH = sh - bottomH - pad*3.0f;
+        }
+    }
+
     float scale = fminf(maxW/(float)SCREEN_WIDTH, maxH/(float)SCREEN_HEIGHT);
     /* Scala AGGANCIATA a passi di 1/8 (mai continua): il canvas e' campionato
        con filtro POINT (vedi app.c), e a scala continua i pixel raddoppiati
@@ -51,7 +129,12 @@ UiLayout UiComputeLayout(void)
        raddoppiati e' fissa e regolare. Il floor sceglie il passo INFERIORE:
        meglio un bordo di margine in piu' che tagliare il canvas. */
     scale = floorf(scale*8.0f)/8.0f;
-    scale = GameMathClampFloat(scale, 0.75f, 1.375f);
+    /* M4: il tetto 1.375 e' SPARITO apposta (spec M4, requisito 2) -- il
+       canvas deve riempire lo schermo su 1440p/4K invece di restare un
+       francobollo con enormi spazi morti. Resta SOLO il minimo, a guardia dei
+       pochi casi (finestra ridotta a mano sotto la finestra di test) in cui
+       lo spazio disponibile scenderebbe sotto un canvas ancora leggibile. */
+    if (scale < 0.75f) scale = 0.75f;
     float gw = (float)SCREEN_WIDTH*scale;
     float gh = (float)SCREEN_HEIGHT*scale;
     float gx = leftW + pad*2.0f + (maxW - gw)*0.5f;
@@ -63,7 +146,13 @@ UiLayout UiComputeLayout(void)
     layout.bottomPanel = (Rectangle){ leftW + pad*2.0f, sh - bottomH - pad, maxW, bottomH };
     layout.gameRect = (Rectangle){ gx, gy, gw, gh };
     layout.gameScale = scale;
+    layout.uiScale = uiScale;
     return layout;
+}
+
+UiLayout UiComputeLayout(void)
+{
+    return UiComputeLayoutFor((float)GetScreenWidth(), (float)GetScreenHeight());
 }
 
 bool UiScreenToGameMouse(UiLayout layout, Vector2 *out)
@@ -886,18 +975,22 @@ static void TraitsToText(unsigned int traits, char *out, int outSize)
    fascia del titolo con lo stile a tema (UiApplyTheme); sopra la fascia si aggiunge
    una lama di colore accento, che raygui da solo non fa, per legare ogni pannello al
    tema della run. */
-static void DrawPanel(Rectangle rec, const char *title, Color accent)
+static void DrawPanel(Rectangle rec, const char *title, Color accent, float uiScale)
 {
     GuiPanel(rec, title);
-    DrawRectangle((int)rec.x, (int)rec.y + 24, (int)rec.width, 2, GameColorWithAlpha(accent, 180));
+    /* Il "24" NON scala: e' RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT, un #define fisso di
+       GuiPanel (deps/raygui/raygui.h), non uno stile -- la lama deve continuare a
+       cadere esattamente sotto la fascia titolo che raygui disegna davvero,
+       qualunque sia uiScale. Solo lo spessore della lama scala. */
+    DrawRectangle((int)rec.x, (int)rec.y + 24, (int)rec.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 180));
 }
 
-static void DrawStatLine(const char *label, const char *value, int x, int y, Color color)
+static void DrawStatLine(const char *label, const char *value, int x, int y, Color color, float uiScale)
 {
     GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 150, 158, 172, 255 }));
-    GuiLabel((Rectangle){ (float)x, (float)y, 116.0f, 18.0f }, label);
+    GuiLabel((Rectangle){ (float)x, (float)y, 116.0f*uiScale, 18.0f*uiScale }, label);
     GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(color));
-    GuiLabel((Rectangle){ (float)(x + 118), (float)y, 220.0f, 18.0f }, value);
+    GuiLabel((Rectangle){ (float)x + 118.0f*uiScale, (float)y, 220.0f*uiScale, 18.0f*uiScale }, value);
     GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));   /* ripristina il default */
 }
 
@@ -922,9 +1015,9 @@ static void DrawHeart(float cx, float cy, float s, Color fill, bool half)
     }
 }
 
-static int DrawHearts(const Player *p, int x, int y)
+static int DrawHearts(const Player *p, int x, int y, float uiScale)
 {
-    const float s = 15.0f;
+    const float s = 15.0f*uiScale;
     const float step = s*1.15f;
     int full = p->hp/2;
     bool half = (p->hp%2) != 0;
@@ -947,15 +1040,16 @@ static int DrawHearts(const Player *p, int x, int y)
 /* Una lettera-icona al centro di una cella della minimappa per le stanze speciali
    (fase 4): T tesoro, $ negozio, B boss. Le stanze normali/di partenza restano
    vuote. Reso leggibile anche a 26px. */
-static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color)
+static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiScale)
 {
     const char *g = NULL;
     if (kind == ROOM_TREASURE) g = "T";
     else if (kind == ROOM_SHOP) g = "$";
     else if (kind == ROOM_BOSS) g = "B";
     if (!g) return;
-    int w = MeasureText(g, 14);
-    DrawText(g, (int)(cell.x + cell.width*0.5f - w*0.5f), (int)(cell.y + cell.height*0.5f - 7), 14, color);
+    int fontSize = UiRound(14.0f*uiScale);
+    int w = MeasureText(g, fontSize);
+    DrawText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f), fontSize, color);
 }
 
 /* M2 (DEC-009): la minimappa comunica la taglia VERA della stanza (griglia
@@ -976,10 +1070,10 @@ static float RoomMapSizeScale(const RoomState *room)
     return 0.85f;                      /* media */
 }
 
-static void DrawLargeMinimap(Game *game, Rectangle rec)
+static void DrawLargeMinimap(Game *game, Rectangle rec, float uiScale)
 {
-    int size = 26;
-    int gap = 7;
+    int size = UiRound(26.0f*uiScale);
+    int gap = UiRound(7.0f*uiScale);
     int total = GRID_SIZE*size + (GRID_SIZE - 1)*gap;
     int baseX = (int)(rec.x + rec.width*0.5f - total*0.5f);
     int baseY = (int)rec.y;
@@ -1008,27 +1102,29 @@ static void DrawLargeMinimap(Game *game, Rectangle rec)
                restano ancorate allo SLOT intero (cell), non al riquadro
                rimpicciolito: la griglia deve restare leggibile/cliccabile
                uguale a prima, la taglia e' solo un indizio in piu'. */
-            if (room->visited) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200));
-            if (current) DrawRectangleLinesEx(cell, 3.0f, RAYWHITE);
+            if (room->visited) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200), uiScale);
+            if (current) DrawRectangleLinesEx(cell, UiRound(3.0f*uiScale), RAYWHITE);
             else DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 150));
         }
     }
     /* Legenda compatta sotto la griglia: cosa vuol dire ogni colore/lettera. */
-    int legendY = baseY + GRID_SIZE*(size + gap) + 6;
+    int legendFont = UiRound(11.0f*uiScale);
+    int legendY = baseY + GRID_SIZE*(size + gap) + UiRound(6.0f*uiScale);
     struct { const char *g; RoomKind kind; } items[] = { { "T tesoro", ROOM_TREASURE }, { "$ negozio", ROOM_SHOP }, { "B boss", ROOM_BOSS } };
     int lx = baseX;
+    int swatch = UiRound(10.0f*uiScale);
     for (int i = 0; i < 3; i++)
     {
-        DrawRectangle(lx, legendY + 2, 10, 10, RoomMapColor(items[i].kind));
-        DrawText(items[i].g, lx + 14, legendY, 11, (Color){ 170, 178, 190, 255 });
-        lx += MeasureText(items[i].g, 11) + 30;
+        DrawRectangle(lx, legendY + UiRound(2.0f*uiScale), swatch, swatch, RoomMapColor(items[i].kind));
+        DrawText(items[i].g, lx + UiRound(14.0f*uiScale), legendY, legendFont, (Color){ 170, 178, 190, 255 });
+        lx += MeasureText(items[i].g, legendFont) + UiRound(30.0f*uiScale);
     }
 }
 
 /* Ritorna true se il mouse e' sopra la riga (fase 4: per il tooltip). Il tooltip
    VERO lo disegna il chiamante dopo tutti i pannelli, cosi' non finisce sotto la
    riga successiva. */
-static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int width, bool owned)
+static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int width, bool owned, float uiScale)
 {
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
@@ -1039,28 +1135,36 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
        PANNELLO passa alla rarita'). 2px invece di 1: leggibile anche a
        sguardo veloce, senza diventare invadente sulle righe COMUNI/grigie. */
     Color rarityColor = RarityColor(item->rarity);
-    Rectangle row = { (float)x, (float)y, (float)width, 58.0f };
+    /* M4: l'altezza scala con uiScale -- il chiamante (DrawOuterUi) usa lo
+       STESSO passo (64*uiScale) per la spaziatura fra righe, cosi' il margine
+       di 6px fra una riga e la successiva resta proporzionale invece di
+       sparire (o esplodere) quando la riga cresce. */
+    int fontName = UiRound(14.0f*uiScale);
+    int fontSlot = UiRound(12.0f*uiScale);
+    Rectangle row = { (float)x, (float)y, (float)width, 58.0f*uiScale };
     bool hover = CheckCollisionPointRec(GetMousePosition(), row);
     DrawRectangleRec(row, hover ? (Color){ 40, 45, 56, 235 } : (owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 }));
-    DrawRectangleLinesEx(row, hover ? 2.0f : 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
-    if (!DrawAtlasCell(game, SPR_ITEM, (Vector2){ x + 28.0f, y + 29.0f }, 36.0f, WHITE))
+    DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
+    if (!DrawAtlasCell(game, SPR_ITEM, (Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, 36.0f*uiScale, WHITE))
     {
-        DrawItemShape((Vector2){ x + 28.0f, y + 29.0f }, *item, 12.0f);
+        DrawItemShape((Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, *item, 12.0f*uiScale);
     }
     /* Se l'oggetto cambia il modo di sparare (step C), un puntino del colore del
        colpo in coda al nome: si vede a colpo d'occhio quali oggetti danno un tipo
        di colpo. */
-    if (item->shotType.active) DrawCircleV((Vector2){ x + 47.0f, y + 15.0f }, 4.0f, item->color);
-    DrawText(item->name, x + 55, y + 9, 14, RAYWHITE);
+    if (item->shotType.active) DrawCircleV((Vector2){ x + 47.0f*uiScale, y + 15.0f*uiScale }, 4.0f*uiScale, item->color);
+    DrawText(item->name, x + UiRound(55.0f*uiScale), y + UiRound(9.0f*uiScale), fontName, RAYWHITE);
     /* Nome della rarita' in coda alla riga slot/traits, nel suo colore (design
        doc, sezione 6: "...e col nome nel pannello"): due DrawText invece di
        uno solo cosi' SOLO il nome della rarita' prende il suo colore, il
        resto della riga resta nel grigio neutro gia' in uso. */
     char slotTraits[200];
     snprintf(slotTraits, sizeof(slotTraits), "%s  |  %s  |  ", SlotName(item->slot), traits);
-    DrawText(slotTraits, x + 55, y + 31, 12, (Color){ 190, 198, 211, 255 });
-    int rarityTextX = x + 55 + MeasureText(slotTraits, 12);
-    DrawText(RarityName(item->rarity), rarityTextX, y + 31, 12, rarityColor);
+    int textX = x + UiRound(55.0f*uiScale);
+    int textY = y + UiRound(31.0f*uiScale);
+    DrawText(slotTraits, textX, textY, fontSlot, (Color){ 190, 198, 211, 255 });
+    int rarityTextX = textX + MeasureText(slotTraits, fontSlot);
+    DrawText(RarityName(item->rarity), rarityTextX, textY, fontSlot, rarityColor);
     return hover;
 }
 
@@ -1068,7 +1172,7 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
    oggetto, una scheda con COSA FA -- slot, trait, rarita', e il tipo di colpo che
    conferisce. Disegnato per ULTIMO (sopra tutto), ancorato vicino al mouse ma
    tenuto dentro lo schermo. */
-static void DrawItemTooltip(const Item *item)
+static void DrawItemTooltip(const Item *item, float uiScale)
 {
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
@@ -1082,22 +1186,25 @@ static void DrawItemTooltip(const Item *item)
     if (item->kind == ITEM_STATUP)
         snprintf(lines[n++], sizeof(lines[0]), "Ricompensa del boss: potenzia una statistica");
 
-    int w = MeasureText(item->name, 16);
-    for (int i = 0; i < n; i++) { int lw = MeasureText(lines[i], 13); if (lw > w) w = lw; }
-    w += 24;
-    int h = 30 + n*18 + 8;
+    int titleFont = UiRound(16.0f*uiScale);
+    int lineFont = UiRound(13.0f*uiScale);
+    int w = MeasureText(item->name, titleFont);
+    for (int i = 0; i < n; i++) { int lw = MeasureText(lines[i], lineFont); if (lw > w) w = lw; }
+    w += UiRound(24.0f*uiScale);
+    int lineStep = UiRound(18.0f*uiScale);
+    int h = UiRound(30.0f*uiScale) + n*lineStep + UiRound(8.0f*uiScale);
 
     Vector2 m = GetMousePosition();
-    float bx = m.x + 18.0f;
-    float by = m.y + 8.0f;
-    if (bx + w > (float)GetScreenWidth() - 6.0f) bx = m.x - w - 8.0f;
-    if (by + h > (float)GetScreenHeight() - 6.0f) by = (float)GetScreenHeight() - h - 6.0f;
+    float bx = m.x + 18.0f*uiScale;
+    float by = m.y + 8.0f*uiScale;
+    if (bx + w > (float)GetScreenWidth() - 6.0f) bx = m.x - (float)w - 8.0f*uiScale;
+    if (by + h > (float)GetScreenHeight() - 6.0f) by = (float)GetScreenHeight() - (float)h - 6.0f;
 
     DrawRectangleRec((Rectangle){ bx, by, (float)w, (float)h }, (Color){ 12, 14, 19, 245 });
     DrawRectangleLinesEx((Rectangle){ bx, by, (float)w, (float)h }, 2.0f, GameColorWithAlpha(RarityColor(item->rarity), 230));
-    DrawText(item->name, (int)bx + 12, (int)by + 8, 16, RAYWHITE);
+    DrawText(item->name, (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(8.0f*uiScale), titleFont, RAYWHITE);
     for (int i = 0; i < n; i++)
-        DrawText(lines[i], (int)bx + 12, (int)by + 30 + i*18, 13, (Color){ 198, 205, 217, 255 });
+        DrawText(lines[i], (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(30.0f*uiScale) + i*lineStep, lineFont, (Color){ 198, 205, 217, 255 });
 }
 
 /* Il blocco BUILD (fase 4, richiesta dell'utente: "sinergie/colpo piu' in vista").
@@ -1105,130 +1212,148 @@ static void DrawItemTooltip(const Item *item)
    come pillole dorate. E' lo stato piu' importante di una build, e prima era
    confinato in righe piccole (il colpo nel pannello, le sinergie nel LOG). Ritorna
    l'altezza occupata, per impaginare cio' che segue. */
-static int DrawBuildBlock(Game *game, int x, int y, int width)
+static int DrawBuildBlock(Game *game, int x, int y, int width, float uiScale)
 {
     const Player *p = &game->player;
     int cy = y;
+    int fontShot = UiRound(15.0f*uiScale);
+    int fontPill = UiRound(13.0f*uiScale);
 
     /* Barra del tipo di colpo. */
-    Rectangle bar = { (float)x, (float)cy, (float)width, 30.0f };
+    Rectangle bar = { (float)x, (float)cy, (float)width, 30.0f*uiScale };
     Color shotTint = p->shotType.active ? p->shotColor : (Color){ 60, 66, 78, 255 };
     DrawRectangleRec(bar, GameColorWithAlpha(shotTint, 60));
     DrawRectangleLinesEx(bar, 2.0f, GameColorWithAlpha(shotTint, 200));
-    DrawCircleV((Vector2){ (float)x + 16.0f, (float)cy + 15.0f }, 6.0f, shotTint);
+    DrawCircleV((Vector2){ (float)x + 16.0f*uiScale, (float)cy + 15.0f*uiScale }, 6.0f*uiScale, shotTint);
     if (p->shotType.active)
-        DrawText(TextFormat("%s  (%s)", p->shotType.name, ShotFormName(p->shotType.form)), x + 30, cy + 7, 15, RAYWHITE);
+        DrawText(TextFormat("%s  (%s)", p->shotType.name, ShotFormName(p->shotType.form)), x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, RAYWHITE);
     else
-        DrawText("Colpo base", x + 30, cy + 7, 15, (Color){ 170, 178, 190, 255 });
-    cy += 38;
+        DrawText("Colpo base", x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, (Color){ 170, 178, 190, 255 });
+    cy += UiRound(38.0f*uiScale);
 
     /* Pillole delle sinergie attive: vanno a capo da sole se non ci stanno in
        larghezza. */
+    int chipH = UiRound(22.0f*uiScale);
+    int chipRowStep = UiRound(26.0f*uiScale);
     int chipX = x, chipY = cy, anyPill = 0;
     for (int i = 0; i < (int)SYNERGY_COUNT; i++)
     {
         if (!(p->synergies & (1u << i))) continue;
         const char *name = SynergyName(i);
-        int w = MeasureText(name, 13) + 20;
-        if (chipX + w > x + width) { chipX = x; chipY += 26; }
-        DrawRectangleRounded((Rectangle){ (float)chipX, (float)chipY, (float)w, 22.0f }, 0.5f, 6, GameColorWithAlpha(GOLD, 40));
-        DrawRectangleRoundedLines((Rectangle){ (float)chipX, (float)chipY, (float)w, 22.0f }, 0.5f, 6, GOLD);
-        DrawText(name, chipX + 10, chipY + 4, 13, GOLD);
-        chipX += w + 8;
+        int w = MeasureText(name, fontPill) + UiRound(20.0f*uiScale);
+        if (chipX + w > x + width) { chipX = x; chipY += chipRowStep; }
+        DrawRectangleRounded((Rectangle){ (float)chipX, (float)chipY, (float)w, (float)chipH }, 0.5f, 6, GameColorWithAlpha(GOLD, 40));
+        DrawRectangleRoundedLines((Rectangle){ (float)chipX, (float)chipY, (float)w, (float)chipH }, 0.5f, 6, GOLD);
+        DrawText(name, chipX + UiRound(10.0f*uiScale), chipY + UiRound(4.0f*uiScale), fontPill, GOLD);
+        chipX += w + UiRound(8.0f*uiScale);
         anyPill++;
     }
     if (!anyPill)
     {
-        DrawText("Nessuna sinergia: combina gli oggetti.", x, cy + 2, 13, (Color){ 150, 158, 172, 255 });
+        DrawText("Nessuna sinergia: combina gli oggetti.", x, cy + UiRound(2.0f*uiScale), fontPill, (Color){ 150, 158, 172, 255 });
         chipY = cy;
     }
-    return (chipY + 26) - y;
+    return (chipY + chipRowStep) - y;
 }
 
 static void DrawOuterUi(Game *game, UiLayout layout)
 {
-    UiApplyTheme(&game->theme);
+    /* M4: 's' e' l'UNICA sorgente di scala per tutto cio' che segue -- ogni
+       offset/font/spaziatura di questa funzione e delle sue chiamate e' il
+       valore storico (pre-M4) moltiplicato per 's' e arrotondato dove serve un
+       int (font, spessori). A s==1.0 (qualunque finestra <=900px di altezza,
+       QUINDI anche gli screenshot test, tutti sotto quella soglia) ogni
+       espressione qui sotto vale esattamente il pixel di prima: zero
+       regressione visiva sulle finestre di riferimento del progetto. */
+    float s = layout.uiScale;
+    UiApplyTheme(&game->theme, s);
     const Item *hoveredItem = NULL;   /* fase 4: l'oggetto sotto il mouse, per il tooltip (disegnato per ultimo) */
 
-    DrawPanel(layout.leftPanel, "RUN", game->theme.accent);
-    int lx = (int)layout.leftPanel.x + 18;
-    int ly = (int)layout.leftPanel.y + 40;
-    DrawText("WORLDSMELT", lx, ly, 22, RAYWHITE);   /* DEC-071: il repo conserva il nome storico solo in locale, vedi CLAUDE.md */
-    DrawText(TextFormat("%s / %s", game->theme.name, game->theme.style), lx, ly + 32, 14, game->theme.accent2);
-    DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + 54, 14, (Color){ 214, 218, 226, 255 });
-    DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + 88, RAYWHITE);
-    DrawStatLine("Stanza", GameRoomKindName(GameCurrentRoom(game)->kind), lx, ly + 112, game->theme.accent2);
-    DrawStatLine("Fonte", game->content.loaded ? "LLM cache" : "fallback", lx, ly + 136, RAYWHITE);
-    DrawText("MAPPA", lx, ly + 176, 16, game->theme.accent2);
-    DrawLargeMinimap(game, (Rectangle){ (float)lx, (float)(ly + 204), layout.leftPanel.width - 36.0f, 190.0f });
-    DrawText("COMANDI", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 142), 16, game->theme.accent2);
-    DrawText("WASD muovi", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 112), 14, RAYWHITE);
-    DrawText("Mouse/Frecce spara", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 90), 14, RAYWHITE);
-    DrawText("SPACE bomba", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 68), 14, RAYWHITE);
-    DrawText("ESC/P pausa   F11 fullscreen", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 46), 14, RAYWHITE);
+    DrawPanel(layout.leftPanel, "RUN", game->theme.accent, s);
+    int lx = (int)layout.leftPanel.x + UiRound(18.0f*s);
+    int ly = (int)layout.leftPanel.y + UiRound(40.0f*s);
+    DrawText("WORLDSMELT", lx, ly, UiRound(22.0f*s), RAYWHITE);   /* DEC-071: il repo conserva il nome storico solo in locale, vedi CLAUDE.md */
+    DrawText(TextFormat("%s / %s", game->theme.name, game->theme.style), lx, ly + UiRound(32.0f*s), UiRound(14.0f*s), game->theme.accent2);
+    DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + UiRound(54.0f*s), UiRound(14.0f*s), (Color){ 214, 218, 226, 255 });
+    DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + UiRound(88.0f*s), RAYWHITE, s);
+    DrawStatLine("Stanza", GameRoomKindName(GameCurrentRoom(game)->kind), lx, ly + UiRound(112.0f*s), game->theme.accent2, s);
+    DrawStatLine("Fonte", game->content.loaded ? "LLM cache" : "fallback", lx, ly + UiRound(136.0f*s), RAYWHITE, s);
+    DrawText("MAPPA", lx, ly + UiRound(176.0f*s), UiRound(16.0f*s), game->theme.accent2);
+    DrawLargeMinimap(game, (Rectangle){ (float)lx, (float)ly + 204.0f*s, layout.leftPanel.width - 36.0f*s, 190.0f*s }, s);
+    DrawText("COMANDI", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 142.0f*s), UiRound(16.0f*s), game->theme.accent2);
+    DrawText("WASD muovi", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 112.0f*s), UiRound(14.0f*s), RAYWHITE);
+    DrawText("Mouse/Frecce spara", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 90.0f*s), UiRound(14.0f*s), RAYWHITE);
+    DrawText("SPACE bomba", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 68.0f*s), UiRound(14.0f*s), RAYWHITE);
+    DrawText("ESC/P pausa   F11 fullscreen", lx, (int)(layout.leftPanel.y + layout.leftPanel.height - 46.0f*s), UiRound(14.0f*s), RAYWHITE);
 
-    DrawPanel(layout.rightPanel, "GIOCATORE", game->theme.accent2);
+    DrawPanel(layout.rightPanel, "GIOCATORE", game->theme.accent2, s);
+    int fpsFont = UiRound(13.0f*s);
     const char *fpsText = TextFormat("%d FPS", GetFPS());
-    int fpsW = MeasureText(fpsText, 13);
-    DrawText(fpsText, (int)(layout.rightPanel.x + layout.rightPanel.width - 16.0f) - fpsW,
-             (int)layout.rightPanel.y + 6, 13, (Color){ 126, 232, 152, 255 });
-    int rx = (int)layout.rightPanel.x + 18;
-    int ry = (int)layout.rightPanel.y + 36;
+    int fpsW = MeasureText(fpsText, fpsFont);
+    DrawText(fpsText, (int)(layout.rightPanel.x + layout.rightPanel.width - 16.0f*s) - fpsW,
+             (int)layout.rightPanel.y + UiRound(6.0f*s), fpsFont, (Color){ 126, 232, 152, 255 });
+    int rx = (int)layout.rightPanel.x + UiRound(18.0f*s);
+    int ry = (int)layout.rightPanel.y + UiRound(36.0f*s);
+    int panelInnerW = (int)(layout.rightPanel.width - 36.0f*s);
     Player *p = &game->player;
 
     /* Vita come cuori (fase 4). */
-    DrawHearts(p, rx, ry);
-    ry += 30;
-    DrawStatLine("Danno", TextFormat("%.1f", p->damage), rx, ry, RAYWHITE);
-    DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rx, ry + 22, RAYWHITE);
-    DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rx, ry + 44, RAYWHITE);
-    DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rx, ry + 66, RAYWHITE);
-    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rx, ry + 88, (Color){ 126, 232, 152, 255 });
-    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + 110, GOLD);
+    DrawHearts(p, rx, ry, s);
+    ry += UiRound(30.0f*s);
+    DrawStatLine("Danno", TextFormat("%.1f", p->damage), rx, ry, RAYWHITE, s);
+    DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rx, ry + UiRound(22.0f*s), RAYWHITE, s);
+    DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rx, ry + UiRound(44.0f*s), RAYWHITE, s);
+    DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rx, ry + UiRound(66.0f*s), RAYWHITE, s);
+    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rx, ry + UiRound(88.0f*s), (Color){ 126, 232, 152, 255 }, s);
+    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rx, ry + UiRound(110.0f*s), GOLD, s);
 
     /* Blocco BUILD prominente (colpo + sinergie). */
-    int buildY = ry + 140;
-    int buildH = DrawBuildBlock(game, rx, buildY, (int)layout.rightPanel.width - 36);
+    int buildY = ry + UiRound(140.0f*s);
+    int buildH = DrawBuildBlock(game, rx, buildY, panelInnerW, s);
 
-    DrawText("OGGETTI PRESI", rx, buildY + buildH + 6, 16, game->theme.accent2);
-    int rowY = buildY + buildH + 32;
-    /* Quante righe ci stanno fra qui e l'anteprima del piano (ancorata al fondo). */
-    int previewY = (int)(layout.rightPanel.y + layout.rightPanel.height - 230);
-    int room = (previewY - 30 - rowY)/64;
+    DrawText("OGGETTI PRESI", rx, buildY + buildH + UiRound(6.0f*s), UiRound(16.0f*s), game->theme.accent2);
+    int rowY = buildY + buildH + UiRound(32.0f*s);
+    /* Quante righe ci stanno fra qui e l'anteprima del piano (ancorata al fondo):
+       rowStep DEVE essere lo stesso passo che DrawItemPreview usa per la propria
+       altezza di riga (58*s + margine), altrimenti a scale diverse da 1.0 le
+       righe si accavallerebbero o si staccherebbero. */
+    int rowStep = UiRound(64.0f*s);
+    int previewY = (int)(layout.rightPanel.y + layout.rightPanel.height - 230.0f*s);
+    int room = (previewY - UiRound(30.0f*s) - rowY)/rowStep;
     if (room < 1) room = 1;
     int maxShow = room < 6 ? room : 6;
     int shown = 0;
     int start = p->itemCount > maxShow ? p->itemCount - maxShow : 0;
     for (int i = start; i < p->itemCount && shown < maxShow; i++, shown++)
     {
-        if (DrawItemPreview(game, &p->items[i], rx, rowY + shown*64, (int)layout.rightPanel.width - 36, true)) hoveredItem = &p->items[i];
+        if (DrawItemPreview(game, &p->items[i], rx, rowY + shown*rowStep, panelInnerW, true, s)) hoveredItem = &p->items[i];
     }
-    if (shown == 0) DrawText("Nessun oggetto ancora.", rx, rowY + 8, 14, (Color){ 150, 158, 172, 255 });
+    if (shown == 0) DrawText("Nessun oggetto ancora.", rx, rowY + UiRound(8.0f*s), UiRound(14.0f*s), (Color){ 150, 158, 172, 255 });
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
-    DrawText("ANTEPRIMA PIANO", rx, previewY, 16, game->theme.accent2);
+    DrawText("ANTEPRIMA PIANO", rx, previewY, UiRound(16.0f*s), game->theme.accent2);
     for (int i = 0; i < 3; i++)
     {
-        if (DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rx, previewY + 30 + i*64, (int)layout.rightPanel.width - 36, false))
+        if (DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rx, previewY + UiRound(30.0f*s) + i*rowStep, panelInnerW, false, s))
             hoveredItem = &game->content.floors[floorIndex].items[i];
     }
 
     /* LOG: ora mostra la fonte grafica E l'architettura della stanza (fase 3c: il
        layout inventato dal modello ha un nome a tema, es. "Colonnato Sacro"). Le
        sinergie sono migrate nel blocco BUILD sopra, quindi qui non si ripetono. */
-    DrawPanel(layout.bottomPanel, "LOG", game->theme.wall);
-    int bx = (int)layout.bottomPanel.x + 18;
-    int by = (int)layout.bottomPanel.y + 34;
+    DrawPanel(layout.bottomPanel, "LOG", game->theme.wall, s);
+    int bx = (int)layout.bottomPanel.x + UiRound(18.0f*s);
+    int by = (int)layout.bottomPanel.y + UiRound(34.0f*s);
     const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (Stable Diffusion): atlas PNG 128x128" : "Atlas procedurale/fallback BMP";
-    DrawText(atlasMode, bx, by, 15, game->theme.accent2);
+    DrawText(atlasMode, bx, by, UiRound(15.0f*s), game->theme.accent2);
     const RoomLayoutDef *rl = &game->content.floors[floorIndex].roomLayout;
     if (rl->active && rl->form != ROOM_LAYOUT_OPEN)
-        DrawText(TextFormat("Architettura del piano: %s (%s)", rl->name, RoomFormName(rl->form)), bx, by + 24, 14, RAYWHITE);
+        DrawText(TextFormat("Architettura del piano: %s (%s)", rl->name, RoomFormName(rl->form)), bx, by + UiRound(24.0f*s), UiRound(14.0f*s), RAYWHITE);
     else
-        DrawText("Raccogli oggetti diversi per sbloccare sinergie.", bx, by + 24, 14, RAYWHITE);
+        DrawText("Raccogli oggetti diversi per sbloccare sinergie.", bx, by + UiRound(24.0f*s), UiRound(14.0f*s), RAYWHITE);
 
     /* Il tooltip per ultimo, sopra tutto. */
-    if (hoveredItem) DrawItemTooltip(hoveredItem);
+    if (hoveredItem) DrawItemTooltip(hoveredItem, s);
 }
 
 /* ============================================================
@@ -1243,16 +1368,28 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    del mouse (RendererMenuItemAt, chiamata da UpdateApp in src/app/app.c) --
    duplicarla in due posti avrebbe fatto disallineare "cosa si vede" da "cosa
    si clicca" al primo ritocco di uno dei due lati. */
-static Rectangle MenuBoxForMode(AppMode mode)
+/* M4: nucleo PURO (nessuna chiamata raylib) di MenuBoxForMode -- e' quello che
+   --layout-test (src/app/app.c) esercita su risoluzioni sintetiche, PRIMA di
+   InitWindow. Scala CENTRATA sullo schermo: la larghezza/altezza cresce con
+   uiScale ma il centro (sw*0.5, sh*0.5) resta fermo, cosi' il box rimane
+   sempre in mezzo qualunque sia la scala -- esattamente il requisito M4
+   "restando centrati". A uiScale==1.0 il centro-larghezza/2 e' aritmeticamente
+   identico ai vecchi letterali fissi (sw*0.5-380 == sw*0.5-760*1.0*0.5). */
+static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
+    float uiScale = UiScaleForHeight(sh);
     /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
        intera a schermo pieno, non solo poche voci): riusa le stesse fonti
        dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
        di piu' spazio delle 1-4 voci di un menu qualunque. */
-    if (mode == APP_BUILD_SCREEN) return (Rectangle){ sw*0.5f - 380.0f, sh*0.5f - 260.0f, 760.0f, 520.0f };
-    return (Rectangle){ sw*0.5f - 300.0f, sh*0.5f - 200.0f, 600.0f, 400.0f };
+    float w = (mode == APP_BUILD_SCREEN ? 760.0f : 600.0f)*uiScale;
+    float h = (mode == APP_BUILD_SCREEN ? 520.0f : 400.0f)*uiScale;
+    return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
+}
+
+static Rectangle MenuBoxForMode(AppMode mode)
+{
+    return MenuBoxForModeFor(mode, (float)GetScreenWidth(), (float)GetScreenHeight());
 }
 
 static int MenuItemCountForMode(AppMode mode)
@@ -1270,13 +1407,23 @@ static int MenuItemCountForMode(AppMode mode)
     }
 }
 
-#define MENU_ROW_START_Y 110.0f
-#define MENU_ROW_H 52.0f
+/* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. */
+#define MENU_ROW_START_Y_BASE 110.0f
+#define MENU_ROW_H_BASE 52.0f
+
+/* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
+   stessa garanzia (uiScale==1.0 => letterali identici a prima). */
+static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh)
+{
+    Rectangle box = MenuBoxForModeFor(mode, sw, sh);
+    float uiScale = UiScaleForHeight(sh);
+    return (Rectangle){ box.x + 60.0f*uiScale, box.y + MENU_ROW_START_Y_BASE*uiScale + (float)index*MENU_ROW_H_BASE*uiScale,
+                        box.width - 120.0f*uiScale, 40.0f*uiScale };
+}
 
 static Rectangle MenuItemRect(AppMode mode, int index)
 {
-    Rectangle box = MenuBoxForMode(mode);
-    return (Rectangle){ box.x + 60.0f, box.y + MENU_ROW_START_Y + (float)index*MENU_ROW_H, box.width - 120.0f, 40.0f };
+    return MenuItemRectFor(mode, index, (float)GetScreenWidth(), (float)GetScreenHeight());
 }
 
 int RendererMenuItemAt(AppMode mode, Vector2 mouse)
@@ -1292,15 +1439,20 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse)
 /* Una voce di menu: riquadro pieno + bordo se ha il focus da tastiera
    ('focus'), un riempimento piu' tenue al solo passaggio del mouse (DEC-057:
    il mouse e' ammesso, ma non "ruba" il focus da tastiera solo passandoci
-   sopra -- quello lo fa un click vero, gestito in UpdateApp). */
+   sopra -- quello lo fa un click vero, gestito in UpdateApp). uiScale si
+   ricalcola qui dalla finestra VERA (non e' un parametro): stessa fonte di
+   MenuItemRect, che questa funzione chiama per la propria geometria -- cosi'
+   il font della riga scala sempre in accordo col riquadro che lo contiene,
+   senza dover far transitare uiScale per ogni DrawXOverlay che la chiama. */
 static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, Color accent)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle row = MenuItemRect(mode, index);
     bool hasFocus = (index == focus);
     bool hover = CheckCollisionPointRec(GetMousePosition(), row);
     DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
     DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 130));
-    DrawText(label, (int)row.x + 16, (int)row.y + 10, 18, hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+    DrawText(label, (int)row.x + UiRound(16.0f*uiScale), (int)row.y + UiRound(10.0f*uiScale), UiRound(18.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
 }
 
 /* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
@@ -1311,18 +1463,22 @@ static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, C
 {
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
+    float uiScale = UiScaleForHeight((float)sh);
     DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
-    UiApplyTheme(&game->theme);
+    UiApplyTheme(&game->theme, uiScale);
     Rectangle box = MenuBoxForMode(mode);
     GuiPanel(box, title);
-    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, 2, GameColorWithAlpha(accent, 200));
+    /* Il "24" non scala: stesso motivo di DrawPanel (RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
+       e' un #define fisso di raygui). */
+    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
     return box;
 }
 
 static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2);
-    DrawText("Roguelite con contenuti generati in locale.", (int)box.x + 40, (int)box.y + 56, 15, game->theme.accent2);
+    DrawText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 1, "Opzioni", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 2, "Esci", ui->focus, game->theme.accent2);
@@ -1330,13 +1486,14 @@ static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
 
 static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
     /* "Modalita'" e' un'etichetta fissa (unica modalita' esistente, DEC-038:
        niente selettore di difficolta'), non una voce selezionabile: disegnata
        fra le righe 0 e 1 senza passare da DrawMenuRow/MenuItemRect, cosi' non
        occupa un indice ne' e' cliccabile. */
-    DrawText("Modalita': Standard", (int)box.x + 76, (int)(box.y + MENU_ROW_START_Y + MENU_ROW_H*0.62f), 14, (Color){ 176, 184, 198, 255 });
+    DrawText("Modalita': Standard", (int)box.x + UiRound(76.0f*uiScale), (int)(box.y + (MENU_ROW_START_Y_BASE + MENU_ROW_H_BASE*0.62f)*uiScale), UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
     DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
 }
@@ -1352,55 +1509,60 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
 
 static void DrawOptionsOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_OPTIONS, game, "OPZIONI", game->theme.accent2);
     /* Schermata minima M1a (spec): una sola informazione consultabile, non
        modificabile da qui. Le opzioni vere arrivano con
        ui/options-and-accessibility.md, fuori scope in M1a. */
-    DrawText("Schermo intero -- F11", (int)box.x + 40, (int)box.y + 56, 16, (Color){ 205, 210, 220, 255 });
+    DrawText("Schermo intero -- F11", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_OPTIONS, 0, "Indietro", ui->focus, game->theme.accent2);
 }
 
 static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_BUILD_SCREEN, game, "BUILD E SINERGIE", game->theme.accent2);
-    int x = (int)box.x + 40;
-    int y = (int)box.y + 56;
-    int width = (int)box.width - 80;
+    int x = (int)box.x + UiRound(40.0f*uiScale);
+    int y = (int)box.y + UiRound(56.0f*uiScale);
+    int width = (int)box.width - UiRound(80.0f*uiScale);
     /* Stesse fonti dati del pannello "GIOCATORE" in gioco (DrawBuildBlock: tipo
        di colpo attivo + sinergie), qui a schermo pieno invece che in una
        colonna laterale -- spec M1a: "riusare le stesse fonti dati". */
-    int buildH = DrawBuildBlock(game, x, y, width);
-    y += buildH + 12;
-    DrawText("OGGETTI", x, y, 16, game->theme.accent2);
-    y += 28;
+    int buildH = DrawBuildBlock(game, x, y, width, uiScale);
+    y += buildH + UiRound(12.0f*uiScale);
+    DrawText("OGGETTI", x, y, UiRound(16.0f*uiScale), game->theme.accent2);
+    y += UiRound(28.0f*uiScale);
     const Player *p = &game->player;
-    if (p->itemCount == 0) DrawText("Nessun oggetto ancora.", x, y, 14, (Color){ 150, 158, 172, 255 });
+    if (p->itemCount == 0) DrawText("Nessun oggetto ancora.", x, y, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
     else
     {
-        int maxShow = (((int)box.height - (y - (int)box.y) - 40) / 64);
+        int rowStep = UiRound(64.0f*uiScale);
+        int maxShow = (((int)box.height - (y - (int)box.y) - UiRound(40.0f*uiScale)) / rowStep);
         if (maxShow < 1) maxShow = 1;
         int shown = 0;
         for (int i = 0; i < p->itemCount && shown < maxShow; i++, shown++)
-            DrawItemPreview(game, &p->items[i], x, y + shown*64, width, true);
+            DrawItemPreview(game, &p->items[i], x, y + shown*rowStep, width, true, uiScale);
     }
     DrawMenuRow(APP_BUILD_SCREEN, 0, "Indietro", ui->focus, game->theme.accent2);
 }
 
 static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     const char *title = (game->phase == PHASE_WIN) ? "VITTORIA UFFICIALE" : "SCONFITTA";
     Rectangle box = BeginMenuOverlay(APP_RUN_RESULTS, game, title, game->theme.accent2);
     const char *outcome = (game->phase == PHASE_WIN)
         ? "Boss del piano 5 sconfitto."
         : "La run e' finita qui.";
-    DrawText(outcome, (int)box.x + 40, (int)box.y + 56, 16, game->theme.accent2);
-    DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + 40, (int)box.y + 80, 15, (Color){ 205, 210, 220, 255 });
+    DrawText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
+    DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
 }
 
 static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
     /* Tre contesti distinti (DEC-057 + M1b), tutti derivati da 'ui' senza un
        campo dedicato in piu': MainMenu/Esci ha exitAbandonsRun falso, gli
@@ -1412,7 +1574,7 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
         : (ui->openedFrom == APP_FLOOR_ZERO
             ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
             : "Abbandonare la run in corso? Il progresso non salvato si perde.");
-    DrawText(question, (int)box.x + 40, (int)box.y + 56, 16, (Color){ 205, 210, 220, 255 });
+    DrawText(question, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
     DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);
 }
@@ -1425,16 +1587,20 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
    ingannevoli") -- 'status->message' arriva gia' composto da
    AppFloorZeroStatusText (src/app/app.c), uno dei tre messaggi canonici
    della KB; qui ci si limita a mostrarlo. 'status' NULL o messaggio vuoto =
-   nulla da disegnare (mai un riquadro vuoto). */
-static void DrawFloorZeroIndicator(Rectangle gameRect, const GenProgress *status)
+   nulla da disegnare (mai un riquadro vuoto). 'uiScale' arriva dal chiamante
+   (RendererDrawApp ha gia' il UiLayout del frame): a differenza degli overlay
+   di menu sopra, qui non serve ricalcolarla, gameRect e' gia' parte dello
+   stesso layout. */
+static void DrawFloorZeroIndicator(Rectangle gameRect, float uiScale, const GenProgress *status)
 {
     const char *text = (status && status->message[0]) ? status->message : NULL;
     if (!text) return;
-    int tw = MeasureText(text, 16);
-    Rectangle box = { gameRect.x + gameRect.width*0.5f - ((float)tw*0.5f + 16.0f), gameRect.y + 40.0f, (float)tw + 32.0f, 30.0f };
+    int font = UiRound(16.0f*uiScale);
+    int tw = MeasureText(text, font);
+    Rectangle box = { gameRect.x + gameRect.width*0.5f - ((float)tw*0.5f + 16.0f*uiScale), gameRect.y + 40.0f*uiScale, (float)tw + 32.0f*uiScale, 30.0f*uiScale };
     DrawRectangleRec(box, (Color){ 16, 18, 24, 205 });
     DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 200 });
-    DrawText(text, (int)box.x + 16, (int)box.y + 7, 16, RAYWHITE);
+    DrawText(text, (int)box.x + UiRound(16.0f*uiScale), (int)box.y + UiRound(7.0f*uiScale), font, RAYWHITE);
 }
 
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
@@ -1454,8 +1620,12 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
        fra loro e il canvas non cambia nulla di visibile, tranne appunto il tooltip. */
     Rectangle src = { 0.0f, 0.0f, (float)canvas.texture.width, -(float)canvas.texture.height };
     DrawTexturePro(canvas.texture, src, layout.gameRect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
-    DrawRectangleLinesEx(layout.gameRect, 4.0f, game->theme.accent2);
-    DrawText("GAME VIEW", (int)layout.gameRect.x + 16, (int)layout.gameRect.y + 14, 16, GameColorWithAlpha(RAYWHITE, 170));
+    /* M4: la cornice/etichetta "GAME VIEW" e' interfaccia (screen space), non il
+       canvas -- scala con layout.uiScale come il resto dei DrawXOverlay, mai col
+       canvas stesso (che ha gameScale). */
+    DrawRectangleLinesEx(layout.gameRect, 4.0f*layout.uiScale, game->theme.accent2);
+    DrawText("GAME VIEW", (int)layout.gameRect.x + UiRound(16.0f*layout.uiScale), (int)layout.gameRect.y + UiRound(14.0f*layout.uiScale),
+             UiRound(16.0f*layout.uiScale), GameColorWithAlpha(RAYWHITE, 170));
     DrawOuterUi(game, layout);
 
     /* UN overlay per stato (switch esplicito, M1a): 'ui' e' NULL solo per
@@ -1465,7 +1635,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
     {
         case APP_MAIN_MENU: DrawMainMenuOverlay(game, ui); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
-        case APP_FLOOR_ZERO: DrawFloorZeroIndicator(layout.gameRect, genProgress); break;
+        case APP_FLOOR_ZERO: DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress); break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
         case APP_OPTIONS: DrawOptionsOverlay(game, ui); break;
@@ -1486,4 +1656,151 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
         TakeScreenshot(screenshotPath);
     }
     EndDrawing();
+}
+
+/* ============================================================
+   M4: --layout-test (src/app/app.c), matematica pura -- nessuna InitWindow,
+   nessun GetScreenWidth/Height: solo UiComputeLayoutFor/MenuBoxForModeFor/
+   MenuItemRectFor su risoluzioni sintetiche. Un piccolo margine di tolleranza
+   (EPS) assorbe il rumore in virgola mobile delle divisioni/moltiplicazioni a
+   catena (lo shrink dei pannelli qui sopra, in particolare): un pixel di
+   errore non e' una sovrapposizione vera.
+   ============================================================ */
+#define UI_LAYOUT_TEST_EPS 0.05f
+
+static bool UiRectInside(Rectangle outer, Rectangle inner)
+{
+    return inner.x >= outer.x - UI_LAYOUT_TEST_EPS && inner.y >= outer.y - UI_LAYOUT_TEST_EPS &&
+           inner.x + inner.width <= outer.x + outer.width + UI_LAYOUT_TEST_EPS &&
+           inner.y + inner.height <= outer.y + outer.height + UI_LAYOUT_TEST_EPS;
+}
+
+static bool UiRectOverlap(Rectangle a, Rectangle b)
+{
+    return a.x < b.x + b.width - UI_LAYOUT_TEST_EPS && a.x + a.width > b.x + UI_LAYOUT_TEST_EPS &&
+           a.y < b.y + b.height - UI_LAYOUT_TEST_EPS && a.y + a.height > b.y + UI_LAYOUT_TEST_EPS;
+}
+
+bool UiLayoutSelfTest(void)
+{
+    static const float kW[] = { 1280.0f, 1366.0f, 1600.0f, 1920.0f, 2560.0f, 3440.0f, 3840.0f };
+    static const float kH[] = {  720.0f,  768.0f,  900.0f, 1080.0f, 1440.0f, 1440.0f, 2160.0f };
+    static const AppMode kMenuModes[] = {
+        APP_MAIN_MENU, APP_RUN_SETUP, APP_PAUSE_MENU, APP_OPTIONS,
+        APP_BUILD_SCREEN, APP_RUN_RESULTS, APP_EXIT_CONFIRM
+    };
+    const int n = (int)(sizeof(kW)/sizeof(kW[0]));
+
+    float prevArea = -1.0f, prevUiScale = -1.0f;
+    for (int i = 0; i < n; i++)
+    {
+        float sw = kW[i], sh = kH[i];
+        UiLayout L = UiComputeLayoutFor(sw, sh);
+        Rectangle screen = { 0.0f, 0.0f, sw, sh };
+
+        /* (a) dentro lo schermo, nessuna sovrapposizione fra canvas e pannelli. */
+        if (!UiRectInside(screen, L.gameRect) || !UiRectInside(screen, L.leftPanel) ||
+            !UiRectInside(screen, L.rightPanel) || !UiRectInside(screen, L.bottomPanel))
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (a) un rettangolo esce dallo schermo a %.0fx%.0f\n", sw, sh);
+            return false;
+        }
+        if (UiRectOverlap(L.gameRect, L.leftPanel) || UiRectOverlap(L.gameRect, L.rightPanel) ||
+            UiRectOverlap(L.gameRect, L.bottomPanel) || UiRectOverlap(L.leftPanel, L.rightPanel) ||
+            UiRectOverlap(L.leftPanel, L.bottomPanel) || UiRectOverlap(L.rightPanel, L.bottomPanel))
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (a) sovrapposizione pannelli/canvas a %.0fx%.0f\n", sw, sh);
+            return false;
+        }
+
+        /* (b) la scala e' il MASSIMO passo di 1/8 che sta nello spazio libero:
+           lo spazio libero si legge dai pannelli GIA' RISOLTI (leftPanel.x e'
+           il pad, le larghezze/altezza dei tre pannelli), non da una copia
+           indipendente della formula interna -- il passo SUCCESSIVO (+1/8)
+           non deve starci, altrimenti il canvas avrebbe lasciato spazio morto
+           evitabile. Sotto il minimo 0.75 il vincolo non si applica: quello e'
+           un pavimento imposto, non "il massimo che ci sta". */
+        float pad = L.leftPanel.x;
+        float maxW = sw - L.leftPanel.width - L.rightPanel.width - pad*4.0f;
+        float maxH = sh - L.bottomPanel.height - pad*3.0f;
+        float nextScale = L.gameScale + 0.125f;
+        bool nextFits = (nextScale*(float)SCREEN_WIDTH <= maxW + UI_LAYOUT_TEST_EPS) &&
+                        (nextScale*(float)SCREEN_HEIGHT <= maxH + UI_LAYOUT_TEST_EPS);
+        if (nextFits && L.gameScale > 0.75f + 0.001f)
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (b) spazio morto evitabile a %.0fx%.0f (scale %.3f, il passo successivo ci stava)\n", sw, sh, L.gameScale);
+            return false;
+        }
+
+        /* (d) monotonia: la lista e' gia' ordinata per risoluzione crescente
+           (larghezza E altezza mai decrescenti da una riga alla successiva) --
+           gameRect (in area) e uiScale non devono MAI restringersi. */
+        float area = L.gameRect.width*L.gameRect.height;
+        if (i > 0 && (area < prevArea - UI_LAYOUT_TEST_EPS || L.uiScale < prevUiScale - 0.0001f))
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (d) canvas/uiScale rimpiccioliti a %.0fx%.0f rispetto alla risoluzione precedente\n", sw, sh);
+            return false;
+        }
+        prevArea = area;
+        prevUiScale = L.uiScale;
+
+        /* (e) geometria dei menu: ogni voce dentro il proprio box, nessuna
+           sovrapposizione fra voci consecutive dello stesso menu. */
+        for (int m = 0; m < (int)(sizeof(kMenuModes)/sizeof(kMenuModes[0])); m++)
+        {
+            AppMode mode = kMenuModes[m];
+            Rectangle box = MenuBoxForModeFor(mode, sw, sh);
+            int count = MenuItemCountForMode(mode);
+            Rectangle prevItem = { 0 };
+            for (int idx = 0; idx < count; idx++)
+            {
+                Rectangle item = MenuItemRectFor(mode, idx, sw, sh);
+                if (!UiRectInside(box, item))
+                {
+                    fprintf(stderr, "UiLayoutSelfTest: (e) voce %d del menu %d fuori dal box a %.0fx%.0f\n", idx, (int)mode, sw, sh);
+                    return false;
+                }
+                if (idx > 0 && UiRectOverlap(prevItem, item))
+                {
+                    fprintf(stderr, "UiLayoutSelfTest: (e) voci %d/%d del menu %d sovrapposte a %.0fx%.0f\n", idx - 1, idx, (int)mode, sw, sh);
+                    return false;
+                }
+                prevItem = item;
+            }
+        }
+    }
+
+    /* (c) non-regressione a 1600x900: uiScale ESATTAMENTE 1.0 e layout
+       identico alla formula pre-M4 (clamp assoluti, tetto 1.375 sulla scala)
+       -- ripetuta qui SOLO come termine di paragone storico congelato, non e'
+       la stessa logica del renderer duplicata: se UiComputeLayoutFor
+       divergesse da questi numeri alla finestra di riferimento del progetto,
+       l'aspetto di sempre sarebbe cambiato. */
+    {
+        float sw = 1600.0f, sh = 900.0f;
+        UiLayout L = UiComputeLayoutFor(sw, sh);
+        if (fabsf(L.uiScale - 1.0f) > 0.0001f)
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (c) uiScale a 1600x900 e' %.4f, atteso 1.0\n", L.uiScale);
+            return false;
+        }
+        float pad = GameMathClampFloat(sw*0.014f, 18.0f, 28.0f);
+        float leftW = GameMathClampFloat(sw*0.18f, 250.0f, 330.0f);
+        float rightW = GameMathClampFloat(sw*0.24f, 330.0f, 460.0f);
+        float bottomH = GameMathClampFloat(sh*0.12f, 82.0f, 128.0f);
+        float maxW = sw - leftW - rightW - pad*4.0f;
+        float maxH = sh - bottomH - pad*3.0f;
+        float oldScale = fminf(maxW/(float)SCREEN_WIDTH, maxH/(float)SCREEN_HEIGHT);
+        oldScale = floorf(oldScale*8.0f)/8.0f;
+        oldScale = GameMathClampFloat(oldScale, 0.75f, 1.375f);
+        if (fabsf(L.gameScale - oldScale) > 0.001f ||
+            fabsf(L.leftPanel.width - leftW) > 0.001f || fabsf(L.rightPanel.width - rightW) > 0.001f ||
+            fabsf(L.bottomPanel.height - bottomH) > 0.001f)
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (c) layout a 1600x900 diverge dalla formula pre-M4\n");
+            return false;
+        }
+    }
+
+    return true;
 }

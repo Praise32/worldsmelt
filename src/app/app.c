@@ -651,6 +651,13 @@ int AppRun(int argc, char **argv)
     bool floorZeroTest = false;
     bool floorZeroScreenshotTest = false;
     bool roomsTest = false;
+    bool layoutTest = false;
+    /* M4, SOLO manuale (mai in make test, come *ScreenshotTest sopra): a
+       differenza di TUTTI gli altri flag *Test qui sopra, questo NON mette
+       smokeTest a true -- vuole davvero la finestra a dimensione del monitor
+       (il ramo "!smokeTest" piu' sotto, lo stesso avvio fullscreen del gioco
+       vero), non la finestra grande di test APP_WINDOW_WIDTH/HEIGHT. */
+    bool fullscreenScreenshotTest = false;
     unsigned int scriptSeed = 12345u;
     /* --full-spec: override manuale gemello di --low-spec (vedi
        AppReadBenchmarkPreset in app.h/qui sopra) -- forza il preset di
@@ -756,6 +763,11 @@ int AppRun(int argc, char **argv)
             roomsTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
+        /* M4: matematica pura come --gen-test (nessuna InitWindow/GetScreenWidth
+           dentro UiLayoutSelfTest, vedi src/render/game_renderer.c), quindi gira
+           nello stesso punto, PRIMA di InitWindow. */
+        if (strcmp(argv[i], "--layout-test") == 0) layoutTest = true;
+        if (strcmp(argv[i], "--fullscreen-screenshot-test") == 0) fullscreenScreenshotTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
         if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
@@ -795,6 +807,17 @@ int AppRun(int argc, char **argv)
         bool ok = GenRunnerSelfTest();
         printf("Gen runner test: %s\n", ok ? "ok" : "failed");
         return ok ? 0 : 6;
+    }
+
+    /* M4: matematica pura (src/render/game_renderer.c, UiLayoutSelfTest) come
+       GenRunnerSelfTest sopra -- nessuna finestra, gira su risoluzioni
+       sintetiche fisse. 19: il primo codice di uscita libero (vedi gli altri
+       test sopra e sotto, l'ultimo era --rooms-test=18). */
+    if (layoutTest)
+    {
+        bool ok = UiLayoutSelfTest();
+        printf("Layout test: %s\n", ok ? "ok" : "failed");
+        return ok ? 0 : 19;
     }
 
     /* Come --gen-test: la sandbox Lua (src/script/script_sandbox.c) non
@@ -852,6 +875,32 @@ int AppRun(int argc, char **argv)
         int monitor = GetCurrentMonitor();
         SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
         ToggleFullscreen();
+        /* M4: SetWindowSize/ToggleFullscreen aggiornano SUBITO la contabilita'
+           interna di raylib (GetScreenWidth/Height/GetRenderWidth/Height, quindi
+           UiComputeLayout, gia' corretti al frame successivo) -- ma il vero
+           framebuffer GLX della finestra (il drawable X11 su cui Mesa disegna
+           davvero) si ridimensiona SOLO alla prima glXSwapBuffers dopo la
+           richiesta, non alla richiesta stessa (osservato sotto Xvfb SENZA window
+           manager: nessun ConfigureNotify a confermare, quindi raylib/GLFW
+           aggiornano le proprie variabili in modo ottimistico prima che Mesa
+           riallochi davvero il backing store). Il gioco vero non se ne accorge
+           MAI (il primo vero frame del game loop, subito sotto, scambia i buffer
+           comunque prima che il giocatore veda niente) -- questo warmup serve
+           SOLO a --fullscreen-screenshot-test, che scatta uno screenshot A FREDDO
+           in zero frame reali: senza qualche scambio di buffer esplicito prima,
+           TakeScreenshot prenderebbe un frame ancora alla vecchia risoluzione
+           fisica pur riportando gia' le dimensioni nuove. Guardia dietro
+           'fullscreenScreenshotTest' apposta: il gioco vero non deve pagare
+           qualche frame nero in piu' per un problema che non ha. */
+        if (fullscreenScreenshotTest)
+        {
+            for (int warmup = 0; warmup < 5; warmup++)
+            {
+                BeginDrawing();
+                ClearBackground(BLACK);
+                EndDrawing();
+            }
+        }
     }
     SetTargetFPS(60);
 
@@ -892,6 +941,18 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 17;
+    }
+    /* M4, SOLO manuale: la finestra e' gia' a dimensione del monitor (il ramo
+       "!smokeTest" qui sopra, mai eseguito per gli altri *Test) -- stesso
+       schema di GameFloorZeroScreenshotTest, percorso del file diverso. 20:
+       il primo codice di uscita libero (l'ultimo era --layout-test=19). */
+    if (fullscreenScreenshotTest)
+    {
+        bool ok = GameFullscreenScreenshotTest(&game);
+        printf("Fullscreen screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 20;
     }
     if (roomsTest)
     {
