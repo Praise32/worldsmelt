@@ -1,6 +1,7 @@
 #include "tests/game_tests.h"
 
 #include "app/app.h"
+#include "app/app_internal.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
@@ -40,6 +41,159 @@ bool GamePortalRespawnTest(Game *game)
     EntitiesClear(game);
     WorldSpawnRoomContents(game);
     return EntitiesCountActivePickups(game, PICKUP_EXIT) == 1;
+}
+
+/* M1a: la macchina a stati canonica (9 stati, ui/navigation-map.md). Come
+   GamePortalRespawnTest sopra, gira DOPO InitWindow (RendererMenuItemAt,
+   letta da UpdateApp per il click del mouse, ha bisogno di
+   GetScreenWidth/Height) ma chiama UpdateApp DIRETTAMENTE con AppInput
+   sintetici costruiti a mano -- MAI IsKeyPressed, vedi il commento su
+   UpdateApp in app_internal.h. 'game' e' quello gia' pronto passato da
+   AppRun (GameResetRun gia' chiamata): gli scenari di fine run impostano
+   game->phase a mano, esattamente come farebbe combat.c davvero.
+   gen.enabled resta false per tutto il test (AppGen azzerato): i cammini con
+   una generazione VERA restano fuori dal test sintetico (assunzione
+   dichiarata nella spec M1a -- la pipeline bloccante e' gia' coperta
+   indirettamente dall'equivalenza col comportamento pre-M1a). */
+static AppInput InputNone(void)    { AppInput in = { 0 }; return in; }
+static AppInput InputConfirm(void) { AppInput in = { 0 }; in.confirm = true; return in; }
+static AppInput InputBack(void)    { AppInput in = { 0 }; in.back = true; return in; }
+static AppInput InputDown(void)    { AppInput in = { 0 }; in.down = true; return in; }
+static AppInput InputTab(void)     { AppInput in = { 0 }; in.tab = true; return in; }
+static AppInput InputReroll(void)  { AppInput in = { 0 }; in.reroll = true; return in; }
+static AppInput InputPause(void)   { AppInput in = { 0 }; in.pause = true; return in; }
+
+#define STATES_CHECK(cond, msg) \
+    do { if (!(cond)) { fprintf(stderr, "GameStatesTest: %s\n", (msg)); return false; } } while (0)
+
+bool GameStatesTest(Game *game)
+{
+    AppGen gen = { 0 };
+    AppUi ui = { 0 };
+    AppMode mode = APP_MAIN_MENU;
+
+    /* Un frame senza alcun evento: esercita il caso "niente e' successo", che
+       deve lasciare tutto esattamente com'era. */
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "lo stato iniziale non e' MainMenu");
+    STATES_CHECK(ui.focus == 0, "il focus iniziale di MainMenu non e' 0 (Nuova run)");
+
+    /* MainMenu -> RunSetup -> (back) -> MainMenu */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_RUN_SETUP, "MainMenu/confirm su 'Nuova run' non porta a RunSetup");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "RunSetup/back non torna a MainMenu");
+    STATES_CHECK(ui.focus == 0, "il ritorno a MainMenu non ripristina il focus su 'Nuova run'");
+
+    /* RunSetup reroll cambia il seed */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* di nuovo in RunSetup, con un nuovo seed proposto */
+    STATES_CHECK(mode == APP_RUN_SETUP, "rientro in RunSetup fallito");
+    unsigned int seedBeforeReroll = ui.seed;
+    { AppInput in = InputReroll(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(ui.seed != seedBeforeReroll, "R in RunSetup non cambia il seed");
+    STATES_CHECK(ui.focus == 0, "il reroll non deve spostare il focus da Seed");
+
+    /* RunSetup -> Avvia -> FloorZero -> Gameplay (gen disabilitata: fallback immediato, ma il flusso passa comunque per FloorZero) */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Seed -> Avvia */
+    STATES_CHECK(ui.focus == 1, "down da Seed non porta il focus su Avvia");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_GAMEPLAY, "RunSetup/Avvia con gen disabilitata non arriva a Gameplay");
+    STATES_CHECK(game->phase == PHASE_PLAY, "l'ingresso in Gameplay via FloorZero non ha richiamato GameResetRun");
+
+    /* Gameplay -> PauseMenu -> Options -> (back) -> PauseMenu, focus su "Opzioni" */
+    { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_PAUSE_MENU, "P in Gameplay non apre PauseMenu");
+    STATES_CHECK(ui.focus == 0, "il focus iniziale di PauseMenu non e' 0 (Riprendi)");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi -> Build e sinergie */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Build e sinergie -> Opzioni */
+    STATES_CHECK(ui.focus == 2, "due 'down' da Riprendi non arrivano su Opzioni (indice 2)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_OPTIONS, "confirm su Opzioni non apre Options");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_PAUSE_MENU, "Options/back non torna a PauseMenu");
+    STATES_CHECK(ui.focus == 2, "il ritorno da Options non ripristina il focus su Opzioni");
+
+    /* PauseMenu -> BuildScreen -> (back) -> PauseMenu */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Abbandona run */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Abbandona run -> Riprendi (giro completo) */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi -> Build e sinergie */
+    STATES_CHECK(ui.focus == 1, "la navigazione circolare in PauseMenu non torna su Build e sinergie (indice 1)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_BUILD_SCREEN, "confirm su Build e sinergie non apre BuildScreen");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_PAUSE_MENU, "BuildScreen/back non torna a PauseMenu");
+    STATES_CHECK(ui.focus == 1, "il ritorno da BuildScreen non ripristina il focus su Build e sinergie");
+
+    /* torna in Gameplay per il blocco successivo */
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi (via ESC/P, non serve il focus) */
+    STATES_CHECK(mode == APP_GAMEPLAY, "il ritorno a Gameplay da PauseMenu e' fallito");
+
+    /* Gameplay -> TAB -> BuildScreen -> (back) -> Gameplay */
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_GAMEPLAY, "BuildScreen/back da Gameplay non torna a Gameplay");
+
+    /* PauseMenu -> Abbandona run -> ExitConfirm -> (annulla) -> PauseMenu,
+       poi di nuovo -> (conferma) -> MainMenu */
+    { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PauseMenu, focus su Riprendi */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Build e sinergie */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Opzioni */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Abbandona run */
+    STATES_CHECK(ui.focus == 3, "la navigazione in PauseMenu non arriva su Abbandona run (indice 3)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Abbandona run non apre ExitConfirm");
+    STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da PauseMenu non e' 'abbandono run'");
+    STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm non e' 1 (Annulla)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
+    STATES_CHECK(mode == APP_PAUSE_MENU, "ExitConfirm/Annulla non torna a PauseMenu");
+    STATES_CHECK(ui.focus == 3, "il ritorno da ExitConfirm/Annulla non ripristina il focus su Abbandona run");
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* di nuovo in ExitConfirm */
+    STATES_CHECK(mode == APP_EXIT_CONFIRM, "rientro in ExitConfirm fallito");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }      /* Annulla -> Conferma */
+    STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm non porta a Conferma");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "ExitConfirm/Conferma (abbandono) non torna a MainMenu");
+
+    /* MainMenu -> Esci -> ExitConfirm -> (conferma) -> UpdateApp ritorna true */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run -> Opzioni */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Esci */
+    STATES_CHECK(ui.focus == 2, "la navigazione in MainMenu non arriva su Esci (indice 2)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Esci non apre ExitConfirm");
+    STATES_CHECK(!ui.exitAbandonsRun, "il contesto di ExitConfirm da MainMenu non e' 'uscita dal gioco'");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla -> Conferma */
+    STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm (quit) non porta a Conferma");
+    {
+        AppInput in = InputConfirm();
+        bool wantsExit = UpdateApp(game, &mode, &gen, &ui, &in);
+        STATES_CHECK(wantsExit, "ExitConfirm/Conferma (uscita dal gioco) non fa ritornare true a UpdateApp");
+    }
+
+    /* Fase Game vittoria -> RunResults -> Menu principale -> MainMenu */
+    mode = APP_GAMEPLAY;
+    ui.focus = 0;
+    game->phase = PHASE_WIN;
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_RUN_RESULTS, "PHASE_WIN in Gameplay non porta a RunResults");
+    STATES_CHECK(ui.focus == 0, "il focus iniziale di RunResults non e' 0 (Nuova run subito)");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run subito -> Menu principale */
+    STATES_CHECK(ui.focus == 1, "down in RunResults non porta a Menu principale (indice 1)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "RunResults/Menu principale non torna a MainMenu");
+
+    /* Fase Game sconfitta -> RunResults -> Nuova run subito -> FloorZero -> Gameplay */
+    mode = APP_GAMEPLAY;
+    ui.focus = 0;
+    game->phase = PHASE_GAME_OVER;
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_RUN_RESULTS, "PHASE_GAME_OVER in Gameplay non porta a RunResults");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus 0: Nuova run subito */
+    STATES_CHECK(mode == APP_GAMEPLAY, "RunResults/Nuova run subito con gen disabilitata non arriva a Gameplay");
+    STATES_CHECK(game->phase == PHASE_PLAY, "la nuova run non ha richiamato GameResetRun (fase non tornata a PLAY)");
+
+    return true;
 }
 
 static int CountActiveShots(const Game *game)
@@ -202,7 +356,7 @@ bool GameAtlasFallbackTest(Game *game)
        quale) in ciascuna posizione candidata, cosi' il confronto sotto non
        deve indovinare la geometria della griglia. */
     EntitiesClear(game);
-    RendererDrawApp(game, canvas, APP_PLAY, false, NULL, NULL);
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
     Image before = LoadImageFromTexture(canvas.texture);
     Color enemyBefore = GetImageColor(before, (int)enemyPos.x, enemyImgY);
     Color exitBefore = GetImageColor(before, (int)exitPos.x, exitImgY);
@@ -210,7 +364,7 @@ bool GameAtlasFallbackTest(Game *game)
 
     EntitiesAddEnemy(game, ENEMY_CHASER, enemyPos);
     EntitiesAddPickup(game, PICKUP_EXIT, exitPos, 0, 0);
-    RendererDrawApp(game, canvas, APP_PLAY, false, NULL, NULL);   /* non deve andare in crash */
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);   /* non deve andare in crash */
 
     /* DrawPlayer disegna, come riserva, un cerchio bianco per la testa a
        (pos.x, pos.y - 30): se DrawAtlasCell tornasse ancora "vero" per una
@@ -332,7 +486,7 @@ bool GameLayerTest(Game *game)
     game->player.itemCount = n;
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-layers-screen.png");   /* non deve andare in crash */
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, "logs/melting-run-layers-screen.png");   /* non deve andare in crash */
     bool textureValid = canvas.texture.id != 0;
     UnloadRenderTexture(canvas);
 
@@ -390,7 +544,7 @@ bool GameRarityScreenshotTest(Game *game)
     }
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-rarity-screen.png");   /* non deve andare in crash */
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, "logs/melting-run-rarity-screen.png");   /* non deve andare in crash */
     bool textureValid = canvas.texture.id != 0;
     UnloadRenderTexture(canvas);
 
@@ -509,7 +663,7 @@ bool GameShotFormsScreenshotTest(Game *game)
     for (int frame = 0; frame < 12; frame++) CombatUpdateShots(game, 1.0f/60.0f);
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    RendererDrawApp(game, canvas, APP_PLAY, true, NULL, "logs/melting-run-shotforms-screen.png");
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, "logs/melting-run-shotforms-screen.png");
     bool textureValid = canvas.texture.id != 0;
     UnloadRenderTexture(canvas);
 

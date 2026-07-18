@@ -757,13 +757,11 @@ static void DrawGameplayCanvas(Game *game)
     DrawVignette();
     DrawTransientMessage(game);
 
-    if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)
-    {
-        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GameColorWithAlpha(BLACK, 160));
-        const char *title = (game->phase == PHASE_WIN) ? "RUN COMPLETATA" : "RUN FALLITA";
-        DrawText(title, SCREEN_WIDTH/2 - MeasureText(title, 38)/2, SCREEN_HEIGHT/2 - 40, 38, RAYWHITE);
-        DrawText("Premi R per ricominciare", SCREEN_WIDTH/2 - 118, SCREEN_HEIGHT/2 + 10, 20, game->theme.accent2);
-    }
+    /* M1a: il vecchio overlay "RUN COMPLETATA/FALLITA, premi R" e' sparito da
+       QUI -- fine run e' ora lo stato canonico RunResults (DrawRunResultsOverlay
+       piu' sotto), che copre l'intero schermo con l'esito vero e le due voci
+       canoniche ("Nuova run subito"/"Menu principale"): "premi R" era gia'
+       falso appena scritto in M1a (R rigenera in Gameplay, non in fine run). */
 }
 
 static const char *SlotName(ItemSlot slot)
@@ -1042,7 +1040,7 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawPanel(layout.leftPanel, "RUN", game->theme.accent);
     int lx = (int)layout.leftPanel.x + 18;
     int ly = (int)layout.leftPanel.y + 40;
-    DrawText("MELTING ISAAC LLM", lx, ly, 22, RAYWHITE);
+    DrawText("WORLDSMELT", lx, ly, 22, RAYWHITE);   /* DEC-071: il repo conserva il nome storico solo in locale, vedi CLAUDE.md */
     DrawText(TextFormat("%s / %s", game->theme.name, game->theme.style), lx, ly + 32, 14, game->theme.accent2);
     DrawText(TextFormat("Boss: %s", game->theme.bossName), lx, ly + 54, 14, (Color){ 214, 218, 226, 255 });
     DrawStatLine("Piano", TextFormat("%d / %d", game->floor, FLOOR_COUNT), lx, ly + 88, RAYWHITE);
@@ -1120,46 +1118,189 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     if (hoveredItem) DrawItemTooltip(hoveredItem);
 }
 
-/* Una riga "tasto -> azione" del menu (fase 4, raygui): il tasto in una pillola,
-   l'azione accanto. Restyle coerente coi pannelli; l'input resta da tastiera (scelta
-   dell'utente: restyle, non widget cliccabili). */
-static void DrawMenuKey(const char *key, const char *action, int x, int y, Color accent)
+/* ============================================================
+   Overlay dei 9 stati canonici (M1a, ui/navigation-map.md). Ciascuno dei 7
+   stati con un vero "menu" (MainMenu, RunSetup, PauseMenu, Options,
+   BuildScreen, RunResults, ExitConfirm) disegna il proprio riquadro con
+   DrawXOverlay; FloorZero disegna invece l'indicatore di generazione
+   (DrawGeneratingOverlay, invariato da prima di M1a: qui la generazione resta
+   bloccante) e Gameplay non disegna nessun overlay sopra la scena.
+   MenuBoxForMode/MenuItemCountForMode/MenuItemRect sono la fonte UNICA della
+   geometria delle voci: sia per disegnarle (DrawMenuRow) sia per il hit-test
+   del mouse (RendererMenuItemAt, chiamata da UpdateApp in src/app/app.c) --
+   duplicarla in due posti avrebbe fatto disallineare "cosa si vede" da "cosa
+   si clicca" al primo ritocco di uno dei due lati. */
+static Rectangle MenuBoxForMode(AppMode mode)
 {
-    int kw = MeasureText(key, 18) + 22;
-    DrawRectangleRounded((Rectangle){ (float)x, (float)y, (float)kw, 28.0f }, 0.4f, 6, GameColorWithAlpha(accent, 45));
-    DrawRectangleRoundedLines((Rectangle){ (float)x, (float)y, (float)kw, 28.0f }, 0.4f, 6, GameColorWithAlpha(accent, 200));
-    DrawText(key, x + 11, y + 5, 18, RAYWHITE);
-    DrawText(action, x + kw + 16, y + 6, 18, (Color){ 214, 220, 230, 255 });
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
+       intera a schermo pieno, non solo poche voci): riusa le stesse fonti
+       dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
+       di piu' spazio delle 1-4 voci di un menu qualunque. */
+    if (mode == APP_BUILD_SCREEN) return (Rectangle){ sw*0.5f - 380.0f, sh*0.5f - 260.0f, 760.0f, 520.0f };
+    return (Rectangle){ sw*0.5f - 300.0f, sh*0.5f - 200.0f, 600.0f, 400.0f };
 }
 
-static void DrawMenuOverlay(AppMode mode, Game *game)
+static int MenuItemCountForMode(AppMode mode)
+{
+    switch (mode)
+    {
+        case APP_MAIN_MENU: return 3;    /* Nuova run, Opzioni, Esci */
+        case APP_RUN_SETUP: return 3;    /* Seed, Avvia, Indietro ("Modalita'" non e' selezionabile: unica modalita' esistente) */
+        case APP_PAUSE_MENU: return 4;   /* Riprendi, Build e sinergie, Opzioni, Abbandona run */
+        case APP_OPTIONS: return 1;      /* Indietro */
+        case APP_BUILD_SCREEN: return 1; /* Indietro */
+        case APP_RUN_RESULTS: return 2;  /* Nuova run subito, Menu principale */
+        case APP_EXIT_CONFIRM: return 2; /* Conferma, Annulla */
+        default: return 0;               /* FloorZero, Gameplay: nessun menu */
+    }
+}
+
+#define MENU_ROW_START_Y 110.0f
+#define MENU_ROW_H 52.0f
+
+static Rectangle MenuItemRect(AppMode mode, int index)
+{
+    Rectangle box = MenuBoxForMode(mode);
+    return (Rectangle){ box.x + 60.0f, box.y + MENU_ROW_START_Y + (float)index*MENU_ROW_H, box.width - 120.0f, 40.0f };
+}
+
+int RendererMenuItemAt(AppMode mode, Vector2 mouse)
+{
+    int count = MenuItemCountForMode(mode);
+    for (int i = 0; i < count; i++)
+    {
+        if (CheckCollisionPointRec(mouse, MenuItemRect(mode, i))) return i;
+    }
+    return -1;
+}
+
+/* Una voce di menu: riquadro pieno + bordo se ha il focus da tastiera
+   ('focus'), un riempimento piu' tenue al solo passaggio del mouse (DEC-057:
+   il mouse e' ammesso, ma non "ruba" il focus da tastiera solo passandoci
+   sopra -- quello lo fa un click vero, gestito in UpdateApp). */
+static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, Color accent)
+{
+    Rectangle row = MenuItemRect(mode, index);
+    bool hasFocus = (index == focus);
+    bool hover = CheckCollisionPointRec(GetMousePosition(), row);
+    DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
+    DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 130));
+    DrawText(label, (int)row.x + 16, (int)row.y + 10, 18, hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+}
+
+/* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
+   schermo (mette in pausa visiva la scena sotto) + pannello raygui col
+   titolo. Ritorna il box, cosi' il chiamante posiziona il resto del proprio
+   contenuto senza ricalcolarlo. */
+static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, Color accent)
 {
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
     DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
     UiApplyTheme(&game->theme);
-    Rectangle box = { sw*0.5f - 300.0f, sh*0.5f - 200.0f, 600.0f, 400.0f };
-    GuiPanel(box, mode == APP_MENU ? "MELTING ISAAC LLM" : "PAUSA");
-    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, 2, GameColorWithAlpha(game->theme.accent2, 200));
-
-    int kx = (int)box.x + 90;
-    if (mode == APP_MENU)
-    {
-        DrawText("Roguelite con contenuti generati in locale.", (int)box.x + 40, (int)box.y + 58, 17, game->theme.accent2);
-        DrawText("Testo e comportamenti: LLM.  Sprite: Stable Diffusion.", (int)box.x + 40, (int)box.y + 82, 15, (Color){ 176, 184, 198, 255 });
-        DrawMenuKey("INVIO", "nuova run", kx, (int)box.y + 138, game->theme.accent2);
-        DrawMenuKey("F11", "schermo intero", kx, (int)box.y + 190, game->theme.accent2);
-        DrawMenuKey("Q", "esci", kx, (int)box.y + 242, game->theme.accent2);
-    }
-    else
-    {
-        DrawMenuKey("ESC/P", "continua", kx, (int)box.y + 96, game->theme.accent2);
-        DrawMenuKey("R", "nuova run", kx, (int)box.y + 148, game->theme.accent2);
-        DrawMenuKey("M", "menu principale", kx, (int)box.y + 200, game->theme.accent2);
-        DrawMenuKey("Q", "esci", kx, (int)box.y + 252, game->theme.accent2);
-    }
+    Rectangle box = MenuBoxForMode(mode);
+    GuiPanel(box, title);
+    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, 2, GameColorWithAlpha(accent, 200));
+    return box;
 }
 
+static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
+{
+    Rectangle box = BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2);
+    DrawText("Roguelite con contenuti generati in locale.", (int)box.x + 40, (int)box.y + 56, 15, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 1, "Opzioni", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 2, "Esci", ui->focus, game->theme.accent2);
+}
+
+static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
+{
+    Rectangle box = BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);
+    DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
+    /* "Modalita'" e' un'etichetta fissa (unica modalita' esistente, DEC-038:
+       niente selettore di difficolta'), non una voce selezionabile: disegnata
+       fra le righe 0 e 1 senza passare da DrawMenuRow/MenuItemRect, cosi' non
+       occupa un indice ne' e' cliccabile. */
+    DrawText("Modalita': Standard", (int)box.x + 76, (int)(box.y + MENU_ROW_START_Y + MENU_ROW_H*0.62f), 14, (Color){ 176, 184, 198, 255 });
+    DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
+}
+
+static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
+{
+    BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 0, "Riprendi", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 1, "Build e sinergie", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 3, "Abbandona run", ui->focus, game->theme.accent2);
+}
+
+static void DrawOptionsOverlay(Game *game, const AppUi *ui)
+{
+    Rectangle box = BeginMenuOverlay(APP_OPTIONS, game, "OPZIONI", game->theme.accent2);
+    /* Schermata minima M1a (spec): una sola informazione consultabile, non
+       modificabile da qui. Le opzioni vere arrivano con
+       ui/options-and-accessibility.md, fuori scope in M1a. */
+    DrawText("Schermo intero -- F11", (int)box.x + 40, (int)box.y + 56, 16, (Color){ 205, 210, 220, 255 });
+    DrawMenuRow(APP_OPTIONS, 0, "Indietro", ui->focus, game->theme.accent2);
+}
+
+static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
+{
+    Rectangle box = BeginMenuOverlay(APP_BUILD_SCREEN, game, "BUILD E SINERGIE", game->theme.accent2);
+    int x = (int)box.x + 40;
+    int y = (int)box.y + 56;
+    int width = (int)box.width - 80;
+    /* Stesse fonti dati del pannello "GIOCATORE" in gioco (DrawBuildBlock: tipo
+       di colpo attivo + sinergie), qui a schermo pieno invece che in una
+       colonna laterale -- spec M1a: "riusare le stesse fonti dati". */
+    int buildH = DrawBuildBlock(game, x, y, width);
+    y += buildH + 12;
+    DrawText("OGGETTI", x, y, 16, game->theme.accent2);
+    y += 28;
+    const Player *p = &game->player;
+    if (p->itemCount == 0) DrawText("Nessun oggetto ancora.", x, y, 14, (Color){ 150, 158, 172, 255 });
+    else
+    {
+        int maxShow = (((int)box.height - (y - (int)box.y) - 40) / 64);
+        if (maxShow < 1) maxShow = 1;
+        int shown = 0;
+        for (int i = 0; i < p->itemCount && shown < maxShow; i++, shown++)
+            DrawItemPreview(game, &p->items[i], x, y + shown*64, width, true);
+    }
+    DrawMenuRow(APP_BUILD_SCREEN, 0, "Indietro", ui->focus, game->theme.accent2);
+}
+
+static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
+{
+    const char *title = (game->phase == PHASE_WIN) ? "VITTORIA UFFICIALE" : "SCONFITTA";
+    Rectangle box = BeginMenuOverlay(APP_RUN_RESULTS, game, title, game->theme.accent2);
+    const char *outcome = (game->phase == PHASE_WIN)
+        ? "Boss del piano 5 sconfitto."
+        : "La run e' finita qui.";
+    DrawText(outcome, (int)box.x + 40, (int)box.y + 56, 16, game->theme.accent2);
+    DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + 40, (int)box.y + 80, 15, (Color){ 205, 210, 220, 255 });
+    DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
+}
+
+static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
+{
+    Rectangle box = BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
+    const char *question = ui->exitAbandonsRun
+        ? "Abbandonare la run in corso? Il progresso non salvato si perde."
+        : "Uscire dal gioco?";
+    DrawText(question, (int)box.x + 40, (int)box.y + 56, 16, (Color){ 205, 210, 220, 255 });
+    DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
+    DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);
+}
+
+/* Generazione bloccante ospitata dentro FloorZero (M1a, invariato rispetto a
+   prima: qui il testo diventa lo sprite, poi entrambi diventano la run
+   giocabile -- vedi il case APP_FLOOR_ZERO in UpdateApp). La sala d'attesa
+   giocabile con questo indicatore come overlay dentro l'hub arriva in M1b. */
 static void DrawGeneratingOverlay(const Game *game, const GenProgress *progress)
 {
     int sw = GetScreenWidth();
@@ -1184,7 +1325,8 @@ static void DrawGeneratingOverlay(const Game *game, const GenProgress *progress)
     DrawText("ESC annulla e torna al menu", (int)box.x + 60, (int)box.y + 206, 15, (Color){ 155, 163, 176, 255 });
 }
 
-void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool takeScreenshot, const GenProgress *genProgress, const char *screenshotPath)
+void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
+                     bool takeScreenshot, const GenProgress *genProgress, const char *screenshotPath)
 {
     BeginTextureMode(canvas);
     DrawGameplayCanvas(game);
@@ -1203,8 +1345,23 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, bool take
     DrawRectangleLinesEx(layout.gameRect, 4.0f, game->theme.accent2);
     DrawText("GAME VIEW", (int)layout.gameRect.x + 16, (int)layout.gameRect.y + 14, 16, GameColorWithAlpha(RAYWHITE, 170));
     DrawOuterUi(game, layout);
-    if (mode == APP_MENU || mode == APP_PAUSE) DrawMenuOverlay(mode, game);
-    if (mode == APP_GENERATING) DrawGeneratingOverlay(game, genProgress);
+
+    /* UN overlay per stato (switch esplicito, M1a): 'ui' e' NULL solo per
+       Gameplay (che non ne ha bisogno) e per FloorZero (che legge
+       genProgress, non ui). */
+    switch (mode)
+    {
+        case APP_MAIN_MENU: DrawMainMenuOverlay(game, ui); break;
+        case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
+        case APP_FLOOR_ZERO: DrawGeneratingOverlay(game, genProgress); break;
+        case APP_GAMEPLAY: break;
+        case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
+        case APP_OPTIONS: DrawOptionsOverlay(game, ui); break;
+        case APP_BUILD_SCREEN: DrawBuildScreenOverlay(game, ui); break;
+        case APP_RUN_RESULTS: DrawRunResultsOverlay(game, ui); break;
+        case APP_EXIT_CONFIRM: DrawExitConfirmOverlay(game, ui); break;
+    }
+
     /* screenshotPath e' del chiamante (mai NULL quando takeScreenshot e'
        vero, vedi game_renderer.h): --screenshot-test continua a scrivere
        logs/melting-run-screen.png esattamente come prima (vedi app.c),

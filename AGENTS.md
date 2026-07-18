@@ -21,7 +21,10 @@
 
 ## Responsabilità dei moduli
 
-- `src/app`: ciclo applicativo, finestra, modalità menu/gioco/pausa/generazione.
+- `src/app`: ciclo applicativo, finestra, gli stati canonici del design
+  (`MainMenu`, `RunSetup`, `FloorZero`, `Gameplay`, `PauseMenu`, `Options`,
+  `BuildScreen`, `RunResults`, `ExitConfirm` — vedi
+  `game-design-knowledge-base/docs/game-design/05-game-states-and-flow.md`).
 - `src/assets`: caricamento e rilascio delle risorse Raylib.
 - `src/content`: manifest e contenuti della run.
 - `src/core`: tipi, costanti e funzioni matematiche condivise.

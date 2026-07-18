@@ -6,6 +6,12 @@
 #include <stddef.h>
 
 bool GamePortalRespawnTest(Game *game);
+
+/* M1a: la macchina a stati canonica dei 9 stati (ui/navigation-map.md).
+   Come GamePortalRespawnTest, gira dopo InitWindow ma chiama UpdateApp
+   (src/app/app_internal.h) direttamente con AppInput sintetici -- mai
+   IsKeyPressed. Vedi src/tests/game_tests.c per l'elenco degli scenari. */
+bool GameStatesTest(Game *game);
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
 bool GameAtlasFallbackTest(Game *game);

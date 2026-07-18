@@ -1,4 +1,5 @@
 #include "app/app.h"
+#include "app/app_internal.h"
 
 #include "game/game.h"
 #include "game/game_internal.h"
@@ -70,54 +71,9 @@ void AppReadBenchmarkPreset(const char *path, bool manualLowSpec, bool manualFul
     /* tier=full (o un valore sconosciuto): nessuna azione, nessun messaggio -- e' il comportamento di sempre. */
 }
 
-/* Contesto della generazione in-game: se abilitata (flag --generate), il
- * gioco avvia due processi esterni IN SEQUENZA (melting-gen per il testo,
- * poi melting-sprites per gli sprite) invece di limitarsi a rileggere il
- * manifest gia' su disco. I due restano processi separati (vedi la spec,
- * sezione 3: due ggml incompatibili, VRAM che non basta per entrambi i
- * modelli insieme) e src/gen non sa nulla del fatto che ce ne siano due:
- * l'orchestrazione a due passi vive qui, in src/app, che e' il modulo che
- * possiede le modalita' applicative (vedi AGENTS.md). */
-typedef struct AppGen {
-    bool enabled;
-    bool noSprites;              /* --no-sprites: salta sempre il passo sprite */
-    /* --low-spec: preset MANUALE per hardware sotto la scheda di riferimento
-       (5600 XT, che resta il default: senza questo flag non cambia nulla).
-       Ricerca verificata nel piano del 16/07: sullo Steam Deck la pipeline
-       attuale genera una run in ~8-10 minuti, con LLM 1.5B + sprite a 256px
-       scenderebbe a ~3-4. Qui si limita a passare due argomenti in piu' ai
-       processi figli (vedi AppStartGeneration/AppStartSpritesGeneration piu'
-       sotto): NESSUN benchmark o rilevamento automatico del tier hardware,
-       quello arrivera' dopo. */
-    bool lowSpec;
-    const char *command;         /* melting-gen (passo 1: testo) */
-    const char *spritesCommand;  /* melting-sprites (passo 2: sprite) */
-    GenRunner runner;            /* passo 1 */
-    GenRunner spritesRunner;     /* passo 2 */
-    bool inSpritesStage;         /* quale dei due passi e' quello attivo ora */
-    /* Deciso all'avvio della generazione (AppStartGeneration), non ad ogni
-       frame: se cambiasse a meta' generazione la barra di progresso (che
-       mappa il passo testo su 0-50% o 0-100% a seconda di questo flag)
-       salterebbe in modo visibile. */
-    bool spritesPlannedThisRun;
-    /* Step B2 (generazione pigra dei piani, roadmap punto 2): il passo testo
-       genera gli script Lua del SOLO piano 1 (--lua-first 1), cosi' la run parte
-       dopo 4 script invece di 20. I 16 restanti li scrive QUESTO processo, avviato
-       nel momento in cui la partita comincia e lasciato correre in sottofondo
-       mentre si gioca (--resume: rilegge la run dal JSON gia' su disco, genera solo
-       cio' che manca, e ripubblica il manifest dopo ogni piano). Il gioco raccoglie
-       gli script di un piano quando ci entra (WorldStartFloor ->
-       RunContentRefreshFloorScripts): si esplora il piano 1 per minuti, il tempo
-       abbondante perche' i piani successivi siano pronti prima di arrivarci.
-       Non gira MAI insieme a melting-sprites (i due modelli non stanno insieme
-       nella VRAM della scheda di riferimento, vedi il commento nel Makefile): parte
-       solo DOPO che il passo sprite e' finito, cioe' quando si entra in gioco. */
-    GenRunner lazyRunner;
-    bool lazyRunning;
-    unsigned int lastGenSeed;   /* il seed della generazione in corso: la ripresa DEVE usare lo stesso, o ricostruirebbe un'altra run */
-} AppGen;
-
-/* Modello LLM piccolo del preset --low-spec (vedi AppGen.lowSpec). Estratto in
+/* Modello LLM piccolo del preset --low-spec (vedi AppGen.lowSpec, ora in
+ * app_internal.h: AppGen si e' spostato li' perche' src/tests/game_tests.c
+ * deve poterne costruire uno per --states-test). Estratto in
  * una costante condivisa perche' DUE punti lo devono passare con lo stesso
  * valore: il passo bloccante (AppStartGeneration) e la ripresa in sottofondo
  * (AppStartLazyGeneration). La ripresa DEVE usare lo stesso modello del passo
@@ -200,12 +156,17 @@ static void AppStartLazyGeneration(AppGen *gen)
     }
 }
 
-static bool AppStartGeneration(AppGen *gen)
+/* 'seed' e' SEMPRE quello scelto dal chiamante (AppUi.seed di RunSetup, o un
+ * NextGenSeed fresco per "Nuova run subito"/il reroll di Gameplay, vedi
+ * AppEnterFloorZero piu' sotto) -- non lo si genera piu' QUI dentro con
+ * NextGenSeed(0u): RunSetup e' lo stato canonico che possiede il seed della
+ * run (spec M1a, ui/run-setup.md), e AppStartGeneration deve usare quello
+ * esatto, non uno diverso deciso all'ultimo momento. */
+static bool AppStartGeneration(AppGen *gen, unsigned int seed)
 {
     AppStopLazyGeneration(gen);   /* mai due melting-gen insieme: vedi AppStopLazyGeneration */
     gen->inSpritesStage = false;
     gen->spritesPlannedThisRun = !gen->noSprites && SpritesModelsPresent();
-    unsigned int seed = NextGenSeed(0u);
     gen->lastGenSeed = seed;
     /* 420s, non piu' 180s: da fase 3a-L3 melting-gen non genera solo il JSON
      * dei piani, ma anche (con lo stesso modello gia' caricato) fino a 15
@@ -277,164 +238,341 @@ static GenProgress AppCombinedProgress(const AppGen *gen)
 #define APP_SIM_DT (1.0f / 60.0f)
 #define APP_SIM_MAX_STEPS 5
 
-/* Gestione di input e transizioni di modalita': UNA volta per frame di
-   finestra, perche' IsKeyPressed() e' un evento per-frame. La simulazione
-   (che in un frame puo' girare 0 o 2 volte) sta in AppSimStep; gli eventi che
-   la riguardano (bomba, reset rapido) vengono LATCHATI qui dentro Game e
-   consumati dal passo che li legge (vedi il commento in game_types.h). */
-static bool UpdateApp(Game *game, AppMode *mode, AppGen *gen)
+/* L'unico punto che chiama IsKeyPressed per queste chiavi (vedi AppInput in
+   app_internal.h): riempito UNA volta per frame di finestra, prima di
+   UpdateApp. F11 resta fuori (gestito a parte, subito sotto in UpdateApp):
+   non e' un evento di navigazione fra stati. */
+static AppInput AppInputCollect(void)
+{
+    AppInput input = { 0 };
+    input.confirm = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
+    input.back = IsKeyPressed(KEY_ESCAPE);
+    input.pause = IsKeyPressed(KEY_P);
+    input.up = IsKeyPressed(KEY_UP);
+    input.down = IsKeyPressed(KEY_DOWN);
+    input.tab = IsKeyPressed(KEY_TAB);
+    input.reroll = IsKeyPressed(KEY_R);
+    input.quit = IsKeyPressed(KEY_Q);
+    input.bomb = IsKeyPressed(KEY_SPACE);
+    return input;
+}
+
+/* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
+   generazione, RunResults/"Nuova run subito"): SEMPRE lo stesso cammino,
+   "niente scorciatoie" (spec M1a). 'seed' e' gia' deciso dal chiamante (il
+   seed di RunSetup, o un NextGenSeed fresco per gli altri due ingressi).
+   Con generazione disabilitata o AppStartGeneration fallita, la transizione
+   a Gameplay avviene SUBITO, nello stesso update: il flusso e' comunque
+   passato per FloorZero (*mode lo ha attraversato un istante prima), che e'
+   quanto la spec richiede per M1a (la sala d'attesa giocabile arriva in
+   M1b). */
+static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned int seed)
+{
+    *mode = APP_FLOOR_ZERO;
+    if (gen->enabled && AppStartGeneration(gen, seed)) return;   /* il case APP_FLOOR_ZERO sondera' il progresso ai prossimi frame */
+
+    GameResetRun(game);
+    if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
+    *mode = APP_GAMEPLAY;
+}
+
+/* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
+   il contratto). Regola generale di focus condivisa da Options/BuildScreen/
+   ExitConfirm (ui/navigation-map.md, "il focus torna sull'elemento che ha
+   aperto la schermata"): chi le apre scrive SEMPRE
+   ui->returnFocus = ui->focus (il proprio, PRIMA di cambiare *mode), cosi' un
+   "back" identico in tutt'e tre le sappia restituire senza un caso per
+   ciascuna provenienza. */
+bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput *input)
 {
     if (IsKeyPressed(KEY_F11)) ToggleFullscreen();
 
-    if (*mode == APP_MENU)
-    {
-        if (IsKeyPressed(KEY_Q)) return true;
-        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))
-        {
-            if (gen->enabled && AppStartGeneration(gen)) *mode = APP_GENERATING;
-            else
-            {
-                GameResetRun(game);
-                if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
-                *mode = APP_PLAY;
-            }
-        }
-        return false;
-    }
-
-    if (*mode == APP_PAUSE)
-    {
-        if (IsKeyPressed(KEY_Q)) return true;
-        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P)) *mode = APP_PLAY;
-        if (IsKeyPressed(KEY_R))
-        {
-            if (gen->enabled && AppStartGeneration(gen)) *mode = APP_GENERATING;
-            else
-            {
-                GameResetRun(game);
-                if (gen->enabled) GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
-                *mode = APP_PLAY;
-            }
-        }
-        if (IsKeyPressed(KEY_M)) *mode = APP_MENU;
-        return false;
-    }
-
-    if (*mode == APP_GENERATING)
-    {
-        GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
-        GenRunnerUpdate(active);
-        if (IsKeyPressed(KEY_ESCAPE))
-        {
-            GenRunnerCancel(active);
-            *mode = APP_MENU;
-            return false;
-        }
-        if (active->state == GEN_RUNNER_SUCCEEDED)
-        {
-            if (!gen->inSpritesStage && gen->spritesPlannedThisRun)
-            {
-                /* Passo testo riuscito e modelli SD presenti: si passa al
-                   passo sprite invece di entrare subito in gioco. L'overlay
-                   resta a schermo, il progresso continua sulla stessa barra
-                   (vedi AppCombinedProgress). */
-                if (AppStartSpritesGeneration(gen)) gen->inSpritesStage = true;
-                else
-                {
-                    /* fork() fallita (rarissimo): si gioca comunque con
-                       l'atlas BMP gia' scritto dal passo testo, mai bloccare
-                       la run per un secondo passo che non e' nemmeno partito. */
-                    GameResetRun(game);
-                    GameSetMessage(game, "Sprite non avviati: si gioca con l'atlas di riserva");
-                    *mode = APP_PLAY;
-                    AppStartLazyGeneration(gen);   /* il passo TESTO e' comunque riuscito: i piani 2-5 si possono scrivere */
-                }
-            }
-            else
-            {
-                GameResetRun(game);
-                if (gen->inSpritesStage) GameSetMessage(game, "Sprite generati: run pronta");
-                *mode = APP_PLAY;
-                /* Step B2: la partita comincia ORA -> parte la ripresa dei piani
-                   2-5 in sottofondo. Solo se il passo TESTO e' andato a buon fine:
-                   la ripresa rilegge generated/current_run.json e ha bisogno dello
-                   STESSO seed di quella run (gen->lastGenSeed) -- se il passo testo
-                   fosse fallito, quel JSON sarebbe di una run precedente e la
-                   ripresa ricostruirebbe un contenuto DIVERSO da quello che si sta
-                   giocando. */
-                if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
-            }
-        }
-        else if (active->state == GEN_RUNNER_FAILED)
-        {
-            /* Il passo testo o quello sprite e' fallito o e' andato in
-               timeout (GenRunnerUpdate cancella e marca FAILED da sola): si
-               gioca comunque, con qualunque atlas sia gia' su disco (vedi
-               RunContentLoad/PreferPngAtlasIfFresh: mai una scrittura a
-               meta'). */
-            GameResetRun(game);
-            GameSetMessage(game, gen->inSpritesStage
-                ? "Sprite generati saltati: si gioca con l'atlas di riserva"
-                : "Generazione fallita: uso i contenuti di riserva");
-            *mode = APP_PLAY;
-            /* Correzione da review: se a fallire e' stato il passo SPRITE (timeout
-               a 240s, o fork fallita), il passo TESTO era comunque riuscito -- la
-               run che si sta per giocare e' quella nuova, e i piani 2-5 vanno
-               scritti lo stesso. Prima la ripresa partiva SOLO dal ramo
-               "tutto riuscito", quindi un timeout degli sprite si portava dietro
-               anche la perdita silenziosa di 16 script Lua. */
-            if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
-        }
-        return false;
-    }
-
-    /* Step B2: il processo di ripresa vive mentre si gioca. GenRunnerUpdate lo
-       raccoglie quando finisce (niente zombie) e ne applica il timeout. Il gioco
-       non lo aspetta mai: se finisce, bene; se muore, i piani non ancora scritti
-       restano sulla mini-VM. */
+    /* Step B2: sondato SEMPRE, non solo durante Gameplay (diverso da
+       pre-M1a) -- cosi' il processo di ripresa in sottofondo viene raccolto
+       (niente zombie, vedi GenRunnerUpdate) anche se il giocatore resta a
+       lungo in PauseMenu/Options/BuildScreen invece di tornare subito in
+       gioco. Non e' legato alla simulazione (che invece SI ferma fuori da
+       Gameplay): e' un processo di sistema indipendente. */
     if (gen->lazyRunning)
     {
         GenRunnerUpdate(&gen->lazyRunner);
         if (gen->lazyRunner.state != GEN_RUNNER_RUNNING) gen->lazyRunning = false;
     }
 
-    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P))
+    /* Click del mouse su una voce di menu (DEC-057: il mouse e' ammesso nei
+       menu, la tastiera resta la via primaria): tradotto in un confirm
+       sintetico sulla voce cliccata, su una copia locale di 'input' -- cosi'
+       lo switch sotto non deve sapere nulla del mouse, e --states-test (che
+       passa AppInput sintetici e non muove mai il mouse vero) non ne risente
+       mai. RendererMenuItemAt e' la fonte unica della geometria delle voci
+       (la stessa usata per disegnarle, src/render/game_renderer.c): una query,
+       non una copia duplicata del layout. */
+    AppInput effective = *input;
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-        *mode = APP_PAUSE;
-        return false;
-    }
-    if (IsKeyPressed(KEY_M))
-    {
-        *mode = APP_MENU;
-        return false;
-    }
-
-    if (gen->enabled && IsKeyPressed(KEY_R))
-    {
-        if (AppStartGeneration(gen)) *mode = APP_GENERATING;
-        else
+        int clicked = RendererMenuItemAt(*mode, GetMousePosition());
+        if (clicked >= 0)
         {
-            GameResetRun(game);
-            GameSetMessage(game, "melting-gen non disponibile: contenuti esistenti");
+            ui->focus = clicked;
+            effective.confirm = true;
         }
-        return false;
     }
 
-    /* Eventi destinati alla simulazione: latch (mai consumo diretto qui). Il
-       reset rapido con R esiste solo senza melting-gen: con la generazione
-       attiva R e' gia' stato intercettato sopra (rigenera i contenuti). */
-    if (IsKeyPressed(KEY_SPACE)) game->bombQueued = true;
-    if (!gen->enabled && IsKeyPressed(KEY_R)) game->resetQueued = true;
+    switch (*mode)
+    {
+        case APP_MAIN_MENU:
+        {
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 3 + (effective.down ? 1 : -1)) % 3; break; }
+            if (effective.quit || effective.back)
+            {
+                /* Azione distruttiva: passa SEMPRE da ExitConfirm, mai un'uscita
+                   diretta (regola KB, niente piu' scorciatoie come il vecchio Q). */
+                ui->openedFrom = APP_MAIN_MENU;
+                ui->returnFocus = ui->focus;
+                ui->exitAbandonsRun = false;
+                *mode = APP_EXIT_CONFIRM;
+                ui->focus = 1;   /* default: "Annulla", l'opzione non distruttiva */
+                break;
+            }
+            if (effective.confirm)
+            {
+                if (ui->focus == 0)   /* Nuova run */
+                {
+                    ui->seed = NextGenSeed(0u);   /* seed PROPOSTO all'ingresso in RunSetup: il giocatore puo' solo rerollarlo o accettarlo */
+                    *mode = APP_RUN_SETUP;
+                    ui->focus = 0;
+                }
+                else if (ui->focus == 1)   /* Opzioni */
+                {
+                    ui->openedFrom = APP_MAIN_MENU;
+                    ui->returnFocus = ui->focus;
+                    *mode = APP_OPTIONS;
+                    ui->focus = 0;
+                }
+                else   /* Esci */
+                {
+                    ui->openedFrom = APP_MAIN_MENU;
+                    ui->returnFocus = ui->focus;
+                    ui->exitAbandonsRun = false;
+                    *mode = APP_EXIT_CONFIRM;
+                    ui->focus = 1;
+                }
+            }
+            break;
+        }
+
+        case APP_RUN_SETUP:
+        {
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 3 + (effective.down ? 1 : -1)) % 3; break; }
+            if (effective.back) { *mode = APP_MAIN_MENU; ui->focus = 0; break; }
+            if (effective.reroll) { ui->seed = NextGenSeed(0u); break; }   /* R rigenera il seed a prescindere dal focus */
+            if (effective.confirm)
+            {
+                if (ui->focus == 0) ui->seed = NextGenSeed(0u);              /* Seed: confirm equivale a reroll */
+                else if (ui->focus == 1) AppEnterFloorZero(game, gen, mode, ui->seed);   /* Avvia */
+                else { *mode = APP_MAIN_MENU; ui->focus = 0; }               /* Indietro */
+            }
+            break;
+        }
+
+        case APP_FLOOR_ZERO:
+        {
+            /* M1a: la generazione resta BLOCCANTE, ospitata qui come overlay
+               (comportamento equivalente a pre-M1a, solo riposizionato nello
+               stato canonico: la sala d'attesa giocabile arriva in M1b). */
+            GenRunner *active = gen->inSpritesStage ? &gen->spritesRunner : &gen->runner;
+            GenRunnerUpdate(active);
+            if (effective.back)
+            {
+                GenRunnerCancel(active);
+                *mode = APP_MAIN_MENU;
+                ui->focus = 0;
+                break;
+            }
+            if (active->state == GEN_RUNNER_SUCCEEDED)
+            {
+                if (!gen->inSpritesStage && gen->spritesPlannedThisRun)
+                {
+                    /* Passo testo riuscito e modelli SD presenti: si passa al
+                       passo sprite invece di entrare subito in gioco. L'overlay
+                       resta a schermo, il progresso continua sulla stessa barra
+                       (vedi AppCombinedProgress). */
+                    if (AppStartSpritesGeneration(gen)) gen->inSpritesStage = true;
+                    else
+                    {
+                        /* fork() fallita (rarissimo): si gioca comunque con
+                           l'atlas BMP gia' scritto dal passo testo, mai bloccare
+                           la run per un secondo passo che non e' nemmeno partito. */
+                        GameResetRun(game);
+                        GameSetMessage(game, "Sprite non avviati: si gioca con l'atlas di riserva");
+                        *mode = APP_GAMEPLAY;
+                        AppStartLazyGeneration(gen);   /* il passo TESTO e' comunque riuscito: i piani 2-5 si possono scrivere */
+                    }
+                }
+                else
+                {
+                    GameResetRun(game);
+                    if (gen->inSpritesStage) GameSetMessage(game, "Sprite generati: run pronta");
+                    *mode = APP_GAMEPLAY;
+                    /* Step B2: la partita comincia ORA -> parte la ripresa dei piani
+                       2-5 in sottofondo. Solo se il passo TESTO e' andato a buon fine:
+                       la ripresa rilegge generated/current_run.json e ha bisogno dello
+                       STESSO seed di quella run (gen->lastGenSeed) -- se il passo testo
+                       fosse fallito, quel JSON sarebbe di una run precedente e la
+                       ripresa ricostruirebbe un contenuto DIVERSO da quello che si sta
+                       giocando. */
+                    if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
+                }
+            }
+            else if (active->state == GEN_RUNNER_FAILED)
+            {
+                /* Il passo testo o quello sprite e' fallito o e' andato in
+                   timeout (GenRunnerUpdate cancella e marca FAILED da sola): si
+                   gioca comunque, con qualunque atlas sia gia' su disco (vedi
+                   RunContentLoad/PreferPngAtlasIfFresh: mai una scrittura a
+                   meta'). */
+                GameResetRun(game);
+                GameSetMessage(game, gen->inSpritesStage
+                    ? "Sprite generati saltati: si gioca con l'atlas di riserva"
+                    : "Generazione fallita: uso i contenuti di riserva");
+                *mode = APP_GAMEPLAY;
+                /* Correzione da review (pre-M1a): se a fallire e' stato il passo
+                   SPRITE (timeout a 240s, o fork fallita), il passo TESTO era
+                   comunque riuscito -- la run che si sta per giocare e' quella
+                   nuova, e i piani 2-5 vanno scritti lo stesso. */
+                if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);
+            }
+            break;
+        }
+
+        case APP_GAMEPLAY:
+        {
+            /* Fine run (boss del piano 5 sconfitto, o salute a zero): rilevata
+               osservando la fase terminale del Game (combat.c la scrive), non
+               un evento a parte. Controllata PRIMA di ogni altro input: una run
+               finita non deve piu' reagire a pausa/tab/reroll dello stesso frame. */
+            if (game->phase == PHASE_WIN || game->phase == PHASE_GAME_OVER)
+            {
+                *mode = APP_RUN_RESULTS;
+                ui->focus = 0;
+                break;
+            }
+            if (effective.pause || effective.back) { *mode = APP_PAUSE_MENU; ui->focus = 0; break; }
+            if (effective.tab)
+            {
+                ui->openedFrom = APP_GAMEPLAY;
+                ui->returnFocus = ui->focus;
+                *mode = APP_BUILD_SCREEN;
+                ui->focus = 0;
+                break;
+            }
+            if (effective.reroll)
+            {
+                /* Con generazione: nuova run con seed nuovo, stesso cammino
+                   canonico di RunSetup/Avvia (niente scorciatoie). Senza: il
+                   reset rapido dev di sempre, latchato per il passo che lo
+                   consuma (vedi il commento in game_types.h). */
+                if (gen->enabled) AppEnterFloorZero(game, gen, mode, NextGenSeed(0u));
+                else game->resetQueued = true;
+                break;
+            }
+            if (effective.bomb) game->bombQueued = true;
+            break;
+        }
+
+        case APP_PAUSE_MENU:
+        {
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 4 + (effective.down ? 1 : -1)) % 4; break; }
+            if (effective.back || effective.pause) { *mode = APP_GAMEPLAY; break; }   /* "Riprendi" e' anche ESC/P diretto */
+            if (effective.confirm)
+            {
+                if (ui->focus == 0) *mode = APP_GAMEPLAY;   /* Riprendi */
+                else if (ui->focus == 1)   /* Build e sinergie */
+                {
+                    ui->openedFrom = APP_PAUSE_MENU;
+                    ui->returnFocus = ui->focus;
+                    *mode = APP_BUILD_SCREEN;
+                    ui->focus = 0;
+                }
+                else if (ui->focus == 2)   /* Opzioni */
+                {
+                    ui->openedFrom = APP_PAUSE_MENU;
+                    ui->returnFocus = ui->focus;
+                    *mode = APP_OPTIONS;
+                    ui->focus = 0;
+                }
+                else   /* Abbandona run */
+                {
+                    ui->openedFrom = APP_PAUSE_MENU;
+                    ui->returnFocus = ui->focus;
+                    ui->exitAbandonsRun = true;
+                    *mode = APP_EXIT_CONFIRM;
+                    ui->focus = 1;
+                }
+            }
+            break;
+        }
+
+        case APP_OPTIONS:
+        {
+            /* Schermata minima (M1a): una sola voce, "Indietro" -- back o
+               confirm fanno la stessa cosa. Le opzioni vere arrivano con
+               ui/options-and-accessibility.md, fuori scope qui. */
+            if (effective.back || effective.confirm)
+            {
+                *mode = ui->openedFrom;
+                ui->focus = ui->returnFocus;
+            }
+            break;
+        }
+
+        case APP_BUILD_SCREEN:
+        {
+            if (effective.back || effective.tab || effective.confirm)
+            {
+                *mode = ui->openedFrom;
+                ui->focus = ui->returnFocus;
+            }
+            break;
+        }
+
+        case APP_RUN_RESULTS:
+        {
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 2 + (effective.down ? 1 : -1)) % 2; break; }
+            if (effective.confirm)
+            {
+                if (ui->focus == 0) AppEnterFloorZero(game, gen, mode, NextGenSeed(0u));   /* Nuova run subito */
+                else { *mode = APP_MAIN_MENU; ui->focus = 0; }                             /* Menu principale */
+            }
+            break;
+        }
+
+        case APP_EXIT_CONFIRM:
+        {
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 2 + (effective.down ? 1 : -1)) % 2; break; }
+            if (effective.back) { *mode = ui->openedFrom; ui->focus = ui->returnFocus; break; }
+            if (effective.confirm)
+            {
+                if (ui->focus == 0)   /* Conferma */
+                {
+                    if (ui->exitAbandonsRun) { *mode = APP_MAIN_MENU; ui->focus = 0; }
+                    else return true;   /* uscita dall'applicazione: l'UNICO modo, niente piu' scorciatoie dirette */
+                }
+                else { *mode = ui->openedFrom; ui->focus = ui->returnFocus; }   /* Annulla */
+            }
+            break;
+        }
+    }
     return false;
 }
 
-/* Un passo di simulazione a dt FISSO: il gioco vero in APP_PLAY, le sole
-   particelle cosmetiche negli altri stati (menu, pausa, generazione). Il
-   mouse viene mappato una volta per frame dal chiamante: dentro lo stesso
-   frame non cambia. */
+/* Un passo di simulazione a dt FISSO: il gioco vero solo in Gameplay, le sole
+   particelle cosmetiche in tutti gli altri stati (menu, generazione, pausa,
+   build, risultati...). Il mouse viene mappato una volta per frame dal
+   chiamante: dentro lo stesso frame non cambia. */
 static void AppSimStep(Game *game, AppMode mode, UiLayout layout)
 {
-    if (mode == APP_PLAY)
+    if (mode == APP_GAMEPLAY)
     {
         Vector2 mouseGame = { 0.0f, 0.0f };
         bool mouseInsideGame = UiScreenToGameMouse(layout, &mouseGame);
@@ -460,6 +598,7 @@ int AppRun(int argc, char **argv)
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
     bool benchPresetTest = false;
+    bool statesTest = false;
     unsigned int scriptSeed = 12345u;
     /* --full-spec: override manuale gemello di --low-spec (vedi
        AppReadBenchmarkPreset in app.h/qui sopra) -- forza il preset di
@@ -530,6 +669,14 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             screenshotTest = true;
             menuScreenshotTest = true;
+        }
+        /* M1a: come --portal-test, gira dopo InitWindow ma prima del loop
+           principale; chiama UpdateApp direttamente con AppInput sintetici
+           (vedi GameStatesTest in src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--states-test") == 0)
+        {
+            smokeTest = true;
+            statesTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
@@ -619,7 +766,9 @@ int AppRun(int argc, char **argv)
        vedi logs/melting-run-layers-screen.png). */
     bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    InitWindow(compactTestWindow ? SCREEN_WIDTH : APP_WINDOW_WIDTH, compactTestWindow ? SCREEN_HEIGHT : APP_WINDOW_HEIGHT, "Melting Run");
+    /* Titolo della finestra WORLDSMELT (DEC-071): il repo conserva il nome
+       storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
+    InitWindow(compactTestWindow ? SCREEN_WIDTH : APP_WINDOW_WIDTH, compactTestWindow ? SCREEN_HEIGHT : APP_WINDOW_HEIGHT, "WORLDSMELT");
     SetExitKey(KEY_NULL);
     if (!smokeTest)
     {
@@ -642,6 +791,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 2;
+    }
+    if (statesTest)
+    {
+        bool ok = GameStatesTest(&game);
+        printf("States test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 15;   /* 15: il primo codice di uscita libero (vedi gli altri test sopra) */
     }
     if (scriptTest)
     {
@@ -698,7 +855,13 @@ int AppRun(int argc, char **argv)
        agganciata a passi di 1/8 (UiComputeLayout) apposta per rendere
        regolare la cadenza dei pixel raddoppiati con questo filtro. */
     SetTextureFilter(gameCanvas.texture, TEXTURE_FILTER_POINT);
-    AppMode appMode = (smokeTest && !menuScreenshotTest) ? APP_PLAY : APP_MENU;
+    AppMode appMode = (smokeTest && !menuScreenshotTest) ? APP_GAMEPLAY : APP_MAIN_MENU;
+    /* AppUi vive per l'intera sessione (posseduta da AppRun, spec M1a):
+       zero-inizializzata, il che mette il focus a 0 su qualunque stato --
+       esattamente cio' che serve per APP_MAIN_MENU (focus iniziale "Nuova
+       run", indice 0) e per --smoke-test che parte in Gameplay (dove il
+       focus non e' letto da nessuno). */
+    AppUi appUi = { 0 };
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;
     float simAccum = 0.0f;
@@ -716,16 +879,17 @@ int AppRun(int argc, char **argv)
         if (frameDt > APP_SIM_DT - 0.002f && frameDt < APP_SIM_DT + 0.002f) frameDt = APP_SIM_DT;
         simAccum += frameDt;
         UiLayout layout = UiComputeLayout();
-        if (UpdateApp(&game, &appMode, &gen)) break;
+        AppInput input = AppInputCollect();
+        if (UpdateApp(&game, &appMode, &gen, &appUi, &input)) break;
         while (simAccum >= APP_SIM_DT)
         {
             AppSimStep(&game, appMode, layout);
             simAccum -= APP_SIM_DT;
         }
         GenProgress combinedProgress = { 0 };
-        if (appMode == APP_GENERATING) combinedProgress = AppCombinedProgress(&gen);
-        RendererDrawApp(&game, gameCanvas, appMode, screenshotTest && !screenshotDone,
-                        appMode == APP_GENERATING ? &combinedProgress : NULL, "logs/melting-run-screen.png");
+        if (appMode == APP_FLOOR_ZERO) combinedProgress = AppCombinedProgress(&gen);
+        RendererDrawApp(&game, gameCanvas, appMode, &appUi, screenshotTest && !screenshotDone,
+                        appMode == APP_FLOOR_ZERO ? &combinedProgress : NULL, "logs/melting-run-screen.png");
         if (screenshotTest && !screenshotDone) screenshotDone = true;
         if (frames > 0)
         {

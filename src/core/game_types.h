@@ -146,11 +146,25 @@ typedef enum GamePhase {
     PHASE_WIN
 } GamePhase;
 
+/* Stati canonici del gioco (M1a, game-design-knowledge-base/docs/game-design/
+   05-game-states-and-flow.md, fonte unica dei NOMI: qualunque altro documento
+   di design che parli di navigazione deve usare esattamente questi nomi).
+   L'ordine e APP_MAIN_MENU=0 sono voluti (spec M1a): src/app/app.c li scrive
+   in uno switch esplicito su UpdateApp, senza "default", cosi' dimenticare un
+   caso e' un -Wswitch, non un silenzio a runtime. FloorZero assorbe la
+   vecchia schermata di generazione (mai uno stato a parte, vedi
+   ui/generation-status.md): in M1a la generazione resta bloccante e vive
+   dentro quello stato come overlay. */
 typedef enum AppMode {
-    APP_MENU,
-    APP_PLAY,
-    APP_PAUSE,
-    APP_GENERATING
+    APP_MAIN_MENU,
+    APP_RUN_SETUP,
+    APP_FLOOR_ZERO,
+    APP_GAMEPLAY,
+    APP_PAUSE_MENU,
+    APP_OPTIONS,
+    APP_BUILD_SCREEN,
+    APP_RUN_RESULTS,
+    APP_EXIT_CONFIRM
 } AppMode;
 
 typedef enum ScriptTrigger {
@@ -551,5 +565,35 @@ typedef struct GenProgress {
     int percent;
     char message[96];
 } GenProgress;
+
+/* Stato di navigazione UI (M1a): posseduto e mutato SOLO da UpdateApp
+   (src/app/app.c), ma vive qui in "core" -- non in un header di src/app --
+   perche' src/render lo deve LEGGERE per disegnare (voce col focus
+   evidenziata, valore del seed in RunSetup, testo di contesto in
+   ExitConfirm): stessa ragione per cui AppMode e GenProgress stanno gia' qui
+   invece che in src/app. AppInput (gli eventi grezzi da tastiera/mouse di UN
+   frame) resta invece un tipo INTERNO di src/app: il renderer non ne ha mai
+   bisogno, vedi src/app/app_internal.h.
+   'focus' e' l'indice della voce con la selezione da tastiera nella
+   schermata ATTIVA (il significato dell'indice e' locale a ciascuno stato,
+   deciso in UpdateApp e rispecchiato SOLO nel disegno di quello stato in
+   game_renderer.c: 0 e' sempre la prima voce elencata nel documento UI
+   corrispondente). 'openedFrom'/'returnFocus' sono la coppia che implementa
+   la regola "il focus torna sull'elemento che ha aperto la schermata"
+   (ui/navigation-map.md): chi apre Options/BuildScreen/ExitConfirm scrive
+   SEMPRE returnFocus = il proprio focus corrente PRIMA di cambiare stato, cosi'
+   un singolo "back" generico funziona per tutti e tre senza sapere da dove
+   viene. 'exitAbandonsRun' distingue i due contesti di ExitConfirm (DEC-057:
+   MainMenu/Esci = uscita dal gioco, PauseMenu/Abbandona = abbandono run).
+   'seed' e' il seed scelto/proposto in RunSetup: e' la fonte di verita' che
+   AppStartGeneration usa per avviare la run (mai piu' un seed generato al
+   volo dentro AppStartGeneration, vedi il commento li'). */
+typedef struct AppUi {
+    int focus;
+    AppMode openedFrom;
+    int returnFocus;
+    bool exitAbandonsRun;
+    unsigned int seed;
+} AppUi;
 
 #endif
