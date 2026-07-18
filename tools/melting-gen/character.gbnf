@@ -1,0 +1,36 @@
+# Grammatica minima per la proposta di personaggio generato per-run (M6b-1,
+# DEC-014, prima fetta): nome + blurb + sei manopole di statistica + palette.
+# File AUTOSUFFICIENTE come propose.gbnf/run.gbnf (nessuna regola condivisa
+# con un altro file caricato a parte): 'name'/'blurb' ripetono deliberatamente
+# lo stesso charset ASCII di propose.gbnf (DEC-052), nessuna virgoletta o
+# backslash in nessuna regola -- il gioco (che non linka cJSON, AGENTS.md) lo
+# spezza con strstr/strtod (src/content/character_proposal.c), mai un parser
+# JSON vero.
+#
+# Le bande VERE le impone il C (CharacterGenDefClamp, src/core/
+# character_type.h, applicata sia qui in melting-gen PRIMA di scrivere il
+# json sia nel gioco alla lettura): qui basta restare nell'ordine di
+# grandezza giusto e tenere la forma numerica pulita, come 'mul' in run.gbnf
+# per i tipi di colpo.
+root ::= "{\"name\":" name ",\"blurb\":" blurb ",\"stats\":{\"damage\":" statnum ",\"fireDelay\":" statdec ",\"shotSpeed\":" statnum ",\"speed\":" statnum ",\"maxHp\":" statint ",\"luck\":" statdec "},\"palette\":" color "}"
+
+name ::= "\"" namechar{4,40} "\""
+namechar ::= [A-Za-z0-9 .,'!-]
+
+# 8..140 caratteri: una riga sola (propose_character_system.txt/
+# propose_character_user.txt), non abbastanza per una divagazione.
+blurb ::= "\"" blurbchar{8,140} "\""
+blurbchar ::= [A-Za-z0-9 .,'!?-]
+
+# 1-3 cifre intere + fino a 2 decimali: copre comodamente damage (6..11),
+# shotSpeed (480..560) e speed (190..260) senza che la grammatica debba
+# conoscere le bande esatte (le impone il C dopo, come 'mul' in run.gbnf).
+statnum ::= ("0" | [1-9] [0-9]? [0-9]?) ("." [0-9] [0-9]?)?
+# Un solo intero, 1-2 cifre: maxHp (banda 3..9, margine fino a 99).
+statint ::= "0" | [1-9] [0-9]?
+# Un solo digit intero + decimali: fireDelay (0.19..0.28) e luck (0..1.5)
+# restano sempre sotto 10.
+statdec ::= ("0" | [1-9]) ("." [0-9] [0-9]?)?
+
+color ::= "\"#" hexd hexd hexd hexd hexd hexd "\""
+hexd ::= [0-9a-fA-F]

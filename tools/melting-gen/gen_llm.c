@@ -186,6 +186,33 @@ char *GenLlmBuildProposePrompt(const char *promptsDir, unsigned int seed)
     return prompt;
 }
 
+/* M6b-1: gemello di GenLlmBuildProposePrompt per il personaggio alternativo
+ * per-run -- propose_character_system.txt/propose_character_user.txt, solo
+ * {SEED} (nessuna {ISPIRAZIONI}/{EVITA}/{CHOSEN_THEME}: il personaggio non
+ * dipende dal tema, si genera PRIMA della scelta, e la banda di variazione
+ * e' gia' piccola -- sei numeri e una palette, non un mondo intero da
+ * tenere originale su piu' run). */
+char *GenLlmBuildCharacterPrompt(const char *promptsDir, unsigned int seed)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/propose_character_system.txt", promptsDir);
+    char *sys = GenReadFile(path);
+    snprintf(path, sizeof(path), "%s/propose_character_user.txt", promptsDir);
+    char *user = GenReadFile(path);
+    if (!sys || !user) { free(sys); free(user); return NULL; }
+
+    char seedText[32];
+    snprintf(seedText, sizeof(seedText), "%u", seed);
+    char *userFinal = GenReplaceAll(user, "{SEED}", seedText);
+    free(user);
+    if (!userFinal) { free(sys); return NULL; }
+
+    char *prompt = GenChatMlWrap(sys, userFinal);
+    free(sys);
+    free(userFinal);
+    return prompt;
+}
+
 GenLlmSession *GenLlmSessionOpen(const char *modelPath, int nGpuLayers, const char *outDir)
 {
     GenLlmSession *sess = calloc(1, sizeof *sess);

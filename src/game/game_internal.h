@@ -19,6 +19,29 @@ void GamePlayerResetBaseStats(Player *player);
    storico, vedi il commento nell'implementazione in game.c). */
 void GamePlayerResetBaseStatsFor(Player *player, const CharacterDef *character);
 
+/* M6b-1 (DEC-014, prima fetta): risolve un indice di
+   Game.characterChosenIndex (0..CHARACTER_COUNT-1 = rosa curata,
+   CHARACTER_COUNT = il personaggio generato per QUESTA run) nella
+   CharacterDef giusta -- l'UNICO punto che deve sapere che quel valore
+   speciale esiste, cosi' app.c/game.c/game_renderer.c non duplicano la
+   stessa scelta if/else in tre posti diversi. Ritorna NULL quando index e'
+   fuori range, o quando e' CHARACTER_COUNT ma game->generatedCharacterValid
+   e' falso (proposta non ancora arrivata, o scartata): il chiamante deve
+   trattarlo come "nessun personaggio applicato" (lo stesso -1 storico),
+   MAI come un accesso alla rosa fuori banda -- CharacterRosterGet da sola
+   ricadrebbe silenziosamente su Wayfinder per un indice cosi', che sarebbe
+   sbagliato qui. */
+const CharacterDef *GameResolveCharacterDef(const Game *game, int index);
+
+/* M6b-1: quante carte mostra/naviga la sezione PERSONAGGI del pannello del
+   Piano 0 in QUESTO momento -- CHARACTER_COUNT (la rosa curata) piu' UNO
+   quando game->generatedCharacterValid e' vero (il quarto slot dinamico).
+   Fonte unica di questo conteggio: la naviga app.c (wrap del focus), la
+   disegna game_renderer.c (DrawCharacterCards) -- due copie della stessa
+   formula avrebbero potuto divergere in silenzio se una delle due
+   dimenticasse il +1. */
+int GameCharacterCardCount(const Game *game);
+
 RoomState *WorldCurrentRoomMutable(Game *game);
 bool WorldNoEnemiesActive(const Game *game);
 void WorldStartFloor(Game *game, int floor);

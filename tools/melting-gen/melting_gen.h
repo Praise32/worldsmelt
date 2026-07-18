@@ -9,6 +9,7 @@
  * colpo lo inventa il MODELLO -- se generatore e gioco avessero due definizioni
  * separate (come e' successo per rarity/kind, due elenchi di stringhe da tenere
  * sincronizzati a mano) un giorno divergerebbero in silenzio. */
+#include "core/character_type.h"
 #include "core/enemy_type.h"
 #include "core/room_layout.h"
 #include "core/shot_type.h"
@@ -409,6 +410,17 @@ int GenWriteProvenance(const GenRun *run, const char *outDir, const char *prompt
  * scrittura. */
 int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const char *source, const char *outDir);
 
+/* M6b-1 (DEC-014, prima fetta): scrive generated/character_proposal.json
+ * (tmp+rename, come ogni altro output di questo modulo) col personaggio
+ * alternativo per-run gia' CLAMPATO (CharacterGenDefClamp, prima rete di
+ * sicurezza -- la seconda e' src/content/character_proposal.c alla lettura)
+ * e il campo "source" (stesso vocabolario di GenRun.source/
+ * GenWriteThemeProposals: "local:<modello>"). Ritorna 0 su successo, -1 su
+ * errore di scrittura. Chiamata SOLO su successo della generazione: il
+ * fallback canonico e' l'ASSENZA del file (characters.md, "Fallback"), mai
+ * un personaggio curato di riserva -- vedi RunProposeCharacter in main.c. */
+int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir);
+
 /* gen_atlas.c */
 int GenWriteAtlasBmp(const GenRun *run, const char *outDir);
 
@@ -470,6 +482,14 @@ char *GenLlmBuildJsonPrompt(const char *promptsDir, unsigned int seed, const Gen
  * qui non c'e' ancora un tema scelto, e' proprio questo prompt che ne
  * propone). Buffer malloc, NULL su fallimento (file mancanti). */
 char *GenLlmBuildProposePrompt(const char *promptsDir, unsigned int seed);
+
+/* M6b-1 (DEC-014, prima fetta): prompt ChatML per il personaggio alternativo
+ * per-run, legge prompts/propose_character_system.txt e prompts/
+ * propose_character_user.txt -- SOLO {SEED} (niente {ISPIRAZIONI}/{EVITA}/
+ * {CHOSEN_THEME}: il personaggio non dipende dal tema, si genera PRIMA
+ * della scelta, vedi RunProposeThemes in main.c). Buffer malloc, NULL su
+ * fallimento (file mancanti). */
+char *GenLlmBuildCharacterPrompt(const char *promptsDir, unsigned int seed);
 
 /* ============================================================
  * Riuso del prefisso condiviso nella KV cache (fase 3b step B1, misurato:

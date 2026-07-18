@@ -62,6 +62,21 @@ void GamePlayerResetBaseStats(Player *player)
     GamePlayerResetBaseStatsFor(player, NULL);
 }
 
+/* M6b-1 (DEC-014, prima fetta): vedi il commento su questa funzione in
+   game_internal.h. */
+const CharacterDef *GameResolveCharacterDef(const Game *game, int index)
+{
+    if (index == CHARACTER_COUNT)
+        return game->generatedCharacterValid ? &game->generatedCharacter : NULL;
+    if (index < 0 || index >= CHARACTER_COUNT) return NULL;
+    return CharacterRosterGet(index);
+}
+
+int GameCharacterCardCount(const Game *game)
+{
+    return CHARACTER_COUNT + (game->generatedCharacterValid ? 1 : 0);
+}
+
 void GameResetRun(Game *game)
 {
     GameUnloadAssets(game);
@@ -92,18 +107,32 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
     if (game->resetQueued)
     {
         /* Reset rapido R: GameResetRun azzera l'INTERO Game (compreso
-           characterChosenIndex), quindi l'indice scelto va catturato PRIMA e
-           riapplicato SUBITO dopo. Stessa regola di floorZeroExitCrossed in
-           app.c -- la run continua col personaggio scelto, non ricade sul
-           "nessun personaggio" storico che GameResetRun applicherebbe da sola.
+           characterChosenIndex E generatedCharacter/generatedCharacterValid,
+           M6b-1), quindi l'indice scelto va catturato PRIMA e riapplicato
+           SUBITO dopo. Stessa regola di floorZeroExitCrossed in app.c -- la
+           run continua col personaggio scelto, non ricade sul "nessun
+           personaggio" storico che GameResetRun applicherebbe da sola.
            GameResetRun da sola NON cambia comportamento (resta storica:
-           characterChosenIndex = -1). */
+           characterChosenIndex = -1). Se il personaggio scelto e' quello
+           GENERATO (indice CHARACTER_COUNT), l'indice da solo non basta:
+           serve una COPIA della sua CharacterDef presa PRIMA del memset,
+           altrimenti generatedCharacterValid tornerebbe falso e
+           GameResolveCharacterDef non troverebbe piu' nulla da applicare
+           (stesso punto delicato del case APP_FLOOR_ZERO in app.c). */
         int chosenCharacter = game->characterChosenIndex;
+        bool chosenIsGenerated = (chosenCharacter == CHARACTER_COUNT && game->generatedCharacterValid);
+        CharacterDef savedGenerated = chosenIsGenerated ? game->generatedCharacter : (CharacterDef){ 0 };
         GameResetRun(game);
         game->characterChosenIndex = chosenCharacter;
-        if (chosenCharacter >= 0)
+        if (chosenIsGenerated)
         {
-            GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(chosenCharacter));
+            game->generatedCharacter = savedGenerated;
+            game->generatedCharacterValid = true;
+        }
+        const CharacterDef *resolved = GameResolveCharacterDef(game, chosenCharacter);
+        if (resolved)
+        {
+            GamePlayerResetBaseStatsFor(&game->player, resolved);
             ScriptItemsInit(game);
         }
     }

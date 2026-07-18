@@ -779,6 +779,44 @@ echo "-- --propose-themes: stesso seed due volte -> proposte identiche --"
        --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-b"
 cmp "$TMP/propose-a/theme_proposals.json" "$TMP/propose-b/theme_proposals.json"
 
+# M6b-1 (DEC-014, prima fetta): il personaggio generato per-run viaggia nella
+# STESSA chiamata --propose-themes (mai un secondo processo/modello). Il
+# fallback canonico del personaggio generato e' l'ASSENZA della carta
+# (characters.md, "Fallback") -- MAI un personaggio-curato-di-riserva
+# inventato dal ripiego procedurale, a differenza dei temi sopra: senza
+# modello (o con --no-character) generated/character_proposal.json non deve
+# MAI comparire, e il golden dei temi resta intatto (nessuna regressione sul
+# ramo gia' coperto sopra).
+echo "-- --propose-themes: senza modello, nessun character_proposal.json (fallback = carta assente) --"
+rm -f "$TMP/propose-golden/character_proposal.json"
+"$GEN" --propose-themes 3 --seed 12345 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-golden"
+if [ -f "$TMP/propose-golden/character_proposal.json" ]; then
+  echo "FALLITO: character_proposal.json e' comparso senza un modello (il fallback del personaggio generato deve essere l'assenza della carta)"
+  exit 1
+fi
+cmp "$TMP/propose-golden/theme_proposals.json" tests/melting-gen/golden-theme-proposals-seed12345.txt
+
+echo "-- --propose-themes --no-character: nessun character_proposal.json, temi invariati --"
+"$GEN" --propose-themes 3 --seed 12345 --no-character --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-nochar"
+if [ -f "$TMP/propose-nochar/character_proposal.json" ]; then
+  echo "FALLITO: --no-character ha comunque scritto character_proposal.json"
+  exit 1
+fi
+cmp "$TMP/propose-nochar/theme_proposals.json" tests/melting-gen/golden-theme-proposals-seed12345.txt
+
+echo "-- --propose-themes: un character_proposal.json residuo viene rimosso anche senza rigenerarlo --"
+mkdir -p "$TMP/propose-stale"
+echo '{"name":"Stale Leftover","blurb":"a leftover from yesterday","stats":{"damage":8,"fireDelay":0.2,"shotSpeed":500,"speed":220,"maxHp":6,"luck":0.3},"palette":"#112233","source":"local:yesterday.gguf"}' \
+  > "$TMP/propose-stale/character_proposal.json"
+"$GEN" --propose-themes 3 --seed 12345 --model "$TMP/nonexistent-main.gguf" \
+       --model-fallback "$TMP/nonexistent-fallback.gguf" --out "$TMP/propose-stale"
+if [ -f "$TMP/propose-stale/character_proposal.json" ]; then
+  echo "FALLITO: un character_proposal.json di una generazione precedente non e' stato rimosso senza un modello"
+  exit 1
+fi
+
 # --theme-file + --print-json-prompt: entrambi i rami di {CHOSEN_THEME}
 # sostituiti (requisito 4), MAI il placeholder grezzo nel prompt stampato.
 echo "-- --theme-file: {CHOSEN_THEME} sostituito col tema scelto --"

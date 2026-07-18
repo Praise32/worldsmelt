@@ -1,0 +1,9 @@
+Run seed: {SEED}. Use the seed as creative fuel: two calls with different seeds should
+land on two different characters.
+
+Invent one alternative playable character for the run about to start. The player can pick
+this character instead of the regular roster, or leave it and play someone else -- so make
+it a real, distinct option, not a reskin of an existing hero, and not tied to any
+particular world or theme (this character exists before the world is chosen).
+
+Reply only with the complete JSON for this one character.

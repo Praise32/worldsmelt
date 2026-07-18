@@ -30,7 +30,7 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 ## Valori numerici da playtest
 
 5. I valori proposti in DEC-019 (pesi rarità {55,30,12,3}, pesi boss {0,0,70,30}, bande di potenza colpi/nemici/boss, 4 rarità) sono confermati dal playtest o vanno corretti?
-6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest. Per la rosa base i tetti non sono bande ma valori FISSI curati — 8/12/16, default proposti dall'implementazione M6a, vedi `systems/characters.md` — le bande restano una domanda aperta solo per il personaggio generato per run, DEC-014/M6b.)
+6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest. Per la rosa base i tetti non sono bande ma valori FISSI curati — 8/12/16, default proposti dall'implementazione M6a, vedi `systems/characters.md` — le bande restano una domanda aperta solo per il personaggio generato per run, DEC-014/M6b. L'implementazione M6b-1 propone ora un default anche per queste bande — damage/fireDelay/shotSpeed/speed/maxHp/luck e la regola hpCap=2×maxHp clampato [6,18] — vedi `systems/characters.md`, blocco "Default proposti dall'implementazione (M6b-1)": stesso status di ogni altro default proposto in questo elenco, punto di partenza giocabile, non ancora approvato dal design.)
 
 ## Personaggi
 
@@ -60,3 +60,13 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 15. Il codice breve di condivisione run (DEC-066: seed più versione di gioco) non porta la scelta del tema né quella del personaggio fatte dal giocatore nel Piano 0 — solo il seed, da cui si rigenerano contenuti proposti, non necessariamente la STESSA scelta. Come va esteso (se va esteso) perché chi riceve un codice breve possa rigiocare esattamente la stessa run, tema e personaggio inclusi, e non solo "una run con lo stesso seed"?
 16. Il Piano 0 conta come "menu" ai fini dell'ammissione del mouse (DEC-057, "il mouse è ammesso solo nei menu")? La scelta del tema nel Piano 0 (carte selezionabili) è implementata solo con tastiera/pad per non prendere questa decisione in silenzio durante l'implementazione (M5): resta da stabilire se le carte tema debbano diventare cliccabili come le voci di menu degli altri stati, o se il Piano 0 resti un'eccezione dove il mouse non è ammesso.
 17. Quante carte tema curate di fallback mostrare quando nessuna proposta dell'IA supera la validazione: vedi la stessa domanda, con lo stesso default proposto (3), in `systems/floor-zero.md`, sezione "Domande aperte residue".
+
+## Personaggio generato per-run (M6b-1, 18/07/2026)
+
+Trovate durante la ricognizione tecnica per l'implementazione M6b-1 (stats + palette + carta
+del personaggio generato, DEC-014 prima fetta): il colpo firmato (DEC-068) resta fuori scope
+di quella fetta, ma la sua implementazione (M6b-3) avrà bisogno di risposte a queste due
+domande, che DEC-068 lascia esplicitamente aperte.
+
+18. Di quanto esattamente sono più caute le statistiche del personaggio generato quando riceve un colpo firmato (DEC-068)? La decisione fissa solo il principio ("statistiche più caute rispetto a un personaggio alternativo equivalente senza colpo firmato, per compensare il vantaggio di un colpo dedicato"), senza quantificare lo sconto — un fattore fisso sulle bande di `systems/characters.md`? Una riduzione proporzionale al budget di potenza del colpo firmato stesso (stile `ShotTypePower`)? Da definire, poi da playtest come i valori di DEC-019.
+19. Quando il colpo firmato generato non supera la validazione in sandbox e si applica il fallback verso il colpo standard curato (DEC-068, `systems/generated-content-validation.md`), le statistiche del personaggio restano quelle "più caute" previste per un personaggio CON colpo firmato, o tornano alle bande piene di un personaggio SENZA colpo firmato? Le due letture hanno conseguenze opposte sul bilanciamento (un personaggio penalizzato due volte — colpo standard E statistiche caute — contro un personaggio che riceve il colpo standard "gratis" alle statistiche piene); characters.md non lo specifica.

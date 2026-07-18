@@ -3,6 +3,7 @@
 #include "content/character_roster.h"
 #include "core/game_math.h"
 #include "game/game.h"
+#include "game/game_internal.h"
 #include "gameplay/synergies.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
@@ -662,20 +663,21 @@ static void DrawPlayer(Game *game)
     Player *p = &game->player;
     /* M6a (requisito 3): lo stickman usa la palette del personaggio scelto
        invece del WHITE fisso di sempre -- MA solo quando un personaggio e'
-       davvero stato applicato (characterChosenIndex>=0, scritto dal Piano 0
-       o dall'attraversamento, vedi il commento su Game.characterChosenIndex
-       in core/game_types.h). -1 (nessun personaggio: GameResetRun chiamata
-       fuori dal cammino del Piano 0, es. molti test) ricade sul WHITE
-       storico -- CharacterRosterGet da sola non basta qui perche' ricade
-       SEMPRE su un personaggio valido (Wayfinder) anche per un indice
-       fuori range, e quel fallback e' giusto per il testo (GIOCATORE
-       mostra sempre un nome) ma sbagliato per il colore storico del
-       personaggio "di nessuno". Il flash di invulnerabilita' si COMPONE
-       sopra la tinta (alpha ridotto sullo stesso colore), non la
+       davvero stato applicato (GameResolveCharacterDef non-NULL, scritto dal
+       Piano 0 o dall'attraversamento, vedi il commento su
+       Game.characterChosenIndex in core/game_types.h). NULL (nessun
+       personaggio: GameResetRun chiamata fuori dal cammino del Piano 0, es.
+       molti test; o -1 storico) ricade sul WHITE storico -- da M6b-1
+       GameResolveCharacterDef e' anche l'unico punto che sa risolvere
+       CHARACTER_COUNT (il personaggio generato) alla sua Color vera, invece
+       della palette di Wayfinder che CharacterRosterGet da sola avrebbe
+       dato per un indice fuori dalla rosa. Il flash di invulnerabilita' si
+       COMPONE sopra la tinta (alpha ridotto sullo stesso colore), non la
        sostituisce -- altrimenti un personaggio colpito lampeggerebbe
        bianco per un istante, tradendo la sua identita' visiva proprio nel
        momento in cui il giocatore la guarda di piu'. */
-    Color base = (game->characterChosenIndex >= 0) ? CharacterRosterGet(game->characterChosenIndex)->palette : WHITE;
+    const CharacterDef *appliedCharacter = GameResolveCharacterDef(game, game->characterChosenIndex);
+    Color base = appliedCharacter ? appliedCharacter->palette : WHITE;
     Color tint = (p->invuln > 0.0f && ((int)(GetTime()*18.0)%2 == 0)) ? GameColorWithAlpha(base, 115) : base;
     DrawEquipment(p, p->pos, tint);
 }
@@ -1320,12 +1322,16 @@ static void DrawOuterUi(Game *game, UiLayout layout)
        pannello di selezione -- il giocatore deve poter controllare "chi sto
        giocando" anche a meta' run senza riaprire il pannello TAB.
        Mostra la riga SOLO se un personaggio e' davvero stato scelto
-       (characterChosenIndex >= 0): con -1 (nessun personaggio, es. reset
-       rapido o test senza Piano 0) non mostra nulla, come il comportamento
-       pre-M6a. Lo stickman gia' fa cosi' (WHITE con indice -1). */
-    if (game->characterChosenIndex >= 0)
+       (GameResolveCharacterDef non-NULL): con -1 (nessun personaggio, es.
+       reset rapido o test senza Piano 0) non mostra nulla, come il
+       comportamento pre-M6a. Lo stickman gia' fa cosi'. Da M6b-1: quando il
+       personaggio scelto e' quello generato (CHARACTER_COUNT), 'role' e'
+       gia' "FORGED THIS RUN" (RunContentLoadCharacterProposal l'ha scritto
+       li' apposta, vedi il commento nel .c) -- questa riga mostra quindi
+       l'etichetta di origine "gratis", senza un ramo dedicato. */
+    const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
+    if (character)
     {
-        const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
         DrawText(TextFormat("%s -- %s", character->name, character->role), rx, ry, UiRound(14.0f*s), character->palette);
         ry += UiRound(20.0f*s);
     }
@@ -1809,23 +1815,33 @@ static void DrawWorldCards(const Game *game, Rectangle box, float uiScale)
     }
 }
 
-/* M6a, requisito 3: le tre schede della rosa base -- nome, ruolo, blurb,
- * una piccola tabella di statistiche chiave e un pallino della palette
- * (mai il SOLO colore per identificare il personaggio: nome/ruolo restano
- * il segnale primario, il pallino e' un tocco in piu', coerente col resto
- * della UI che non affida MAI un significato al solo colore, DEC-058). */
+/* M6a, requisito 3: le schede della rosa base -- nome, ruolo, blurb, una
+ * piccola tabella di statistiche chiave e un pallino della palette (mai il
+ * SOLO colore per identificare il personaggio: nome/ruolo restano il
+ * segnale primario, il pallino e' un tocco in piu', coerente col resto
+ * della UI che non affida MAI un significato al solo colore, DEC-058).
+ * M6b-1 (DEC-014): da CHARACTER_COUNT fisso a GameCharacterCardCount(game)
+ * -- un quarto slot DINAMICO compare quando il personaggio generato per
+ * questa run e' valido, disegnato con la stessa identica geometria/gli
+ * stessi campi delle carte curate (GameResolveCharacterDef nasconde la
+ * differenza: rosa o generato, qui e' solo "la CharacterDef all'indice i").
+ * La sua etichetta di origine e' il campo 'role' stesso ("FORGED THIS RUN",
+ * scritto da RunContentLoadCharacterProposal): nessun ramo di disegno in
+ * piu' da mantenere. */
 static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
 {
     int nameFont = UiRound(15.0f*uiScale);
     int roleFont = UiRound(12.0f*uiScale);
     int blurbFont = UiRound(11.0f*uiScale);
     int statFont = UiRound(12.0f*uiScale);
-    for (int i = 0; i < CHARACTER_COUNT; i++)
+    int cardCount = GameCharacterCardCount(game);
+    for (int i = 0; i < cardCount; i++)
     {
+        const CharacterDef *c = GameResolveCharacterDef(game, i);
+        if (!c) continue;   /* difesa a buon mercato: non dovrebbe mai capitare per i < cardCount */
         bool focused = (i == game->characterCardFocus) && (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_CHARACTERS);
         bool selected = (i == game->characterChosenIndex);
-        Rectangle card = DrawFloorZeroCardFrame(box, i, CHARACTER_COUNT, uiScale, focused, selected, game->theme.accent2);
-        const CharacterDef *c = CharacterRosterGet(i);
+        Rectangle card = DrawFloorZeroCardFrame(box, i, cardCount, uiScale, focused, selected, game->theme.accent2);
 
         float dotR = 6.0f*uiScale;
         DrawCircleV((Vector2){ card.x + card.width - 16.0f*uiScale, card.y + 16.0f*uiScale }, dotR, c->palette);
@@ -1931,14 +1947,22 @@ static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiS
         y += 30.0f*uiScale;
     }
 
-    const CharacterDef *character = CharacterRosterGet(game->characterChosenIndex);
-    char ctext[64];
-    snprintf(ctext, sizeof(ctext), "Personaggio: %s", character->name);
-    int ctw = MeasureText(ctext, font);
-    Rectangle cbox = { gameRect.x + 12.0f*uiScale, y, (float)ctw + 24.0f*uiScale, 26.0f*uiScale };
-    DrawRectangleRec(cbox, (Color){ 16, 18, 24, 190 });
-    DrawRectangleLinesEx(cbox, 1.5f, character->palette);
-    DrawText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+    /* M6b-1: GameResolveCharacterDef risolve sia la rosa sia il quarto slot
+       generato -- il commento sopra ("il personaggio e' SEMPRE definito")
+       resta vero nel cammino normale (FloorZeroEnter preseleziona subito),
+       ma un NULL qui (es. un test che chiama questa funzione fuori dal
+       Piano 0) non deve leggere un puntatore morto. */
+    const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
+    if (character)
+    {
+        char ctext[64];
+        snprintf(ctext, sizeof(ctext), "Personaggio: %s", character->name);
+        int ctw = MeasureText(ctext, font);
+        Rectangle cbox = { gameRect.x + 12.0f*uiScale, y, (float)ctw + 24.0f*uiScale, 26.0f*uiScale };
+        DrawRectangleRec(cbox, (Color){ 16, 18, 24, 190 });
+        DrawRectangleLinesEx(cbox, 1.5f, character->palette);
+        DrawText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+    }
 }
 
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,

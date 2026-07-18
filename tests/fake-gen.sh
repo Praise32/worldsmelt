@@ -38,6 +38,30 @@ if [ "$is_propose" = "1" ]; then
       cat > "$out/theme_proposals.json" <<'EOF'
 {"proposals":[{"name":"Fake Orchard","blurb":"A test blurb for the first fake proposal in this scenario."},{"name":"Fake Cistern","blurb":"A test blurb for the second fake proposal in this scenario."},{"name":"Fake Belltower","blurb":"A test blurb for the third fake proposal in this scenario."}],"source":"fallback"}
 EOF
+      # M6b-1 (DEC-014): il personaggio generato per-run viaggia nella STESSA
+      # chiamata --propose-themes (mai un secondo processo) -- FAKE_GEN_CHARACTER_MODE
+      # e' un interruttore SEPARATO da FAKE_GEN_PROPOSE_MODE (come quest'ultimo lo e'
+      # da FAKE_GEN_MODE sopra): i test hanno bisogno di far succedere i temi e
+      # variare indipendentemente l'esito del personaggio (assente/in banda/fuori
+      # banda) nello STESSO scenario. "none" non scrive il file (fallback canonico
+      # del personaggio generato = carta assente, characters.md); "outofband" scrive
+      # stats deliberatamente fuori dalle bande (per il test del clamp alla lettura,
+      # lato gioco); il default "ok" scrive una proposta valida e in banda.
+      case "${FAKE_GEN_CHARACTER_MODE:-ok}" in
+        none)
+          rm -f "$out/character_proposal.json"
+          ;;
+        outofband)
+          cat > "$out/character_proposal.json" <<'EOF'
+{"name":"Fake Overclock","blurb":"A test blurb for an out-of-band fake character proposal.","stats":{"damage":99,"fireDelay":0.05,"shotSpeed":900,"speed":50,"maxHp":40,"luck":9},"palette":"#ff00aa","source":"local:fake-model.gguf"}
+EOF
+          ;;
+        *)
+          cat > "$out/character_proposal.json" <<'EOF'
+{"name":"Fake Ember Twin","blurb":"A test blurb for the fake generated character in this scenario.","stats":{"damage":9,"fireDelay":0.22,"shotSpeed":520,"speed":215,"maxHp":7,"luck":0.8},"palette":"#cc7733","source":"local:fake-model.gguf"}
+EOF
+          ;;
+      esac
       prog fine 100 "finte proposte pronte"
       exit 0
       ;;

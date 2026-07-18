@@ -578,3 +578,42 @@ int GenWriteThemeProposals(const GenThemeProposal *proposals, int count, const c
     cJSON_free(text);
     return GenPublishFile(f, tmpPath, finalPath);
 }
+
+/* M6b-1 (DEC-014, prima fetta): generated/character_proposal.json, letto dal
+ * gioco SENZA cJSON (src/content/character_proposal.c) -- stesso spirito di
+ * GenWriteThemeProposals sopra: schema fisso, charset ASCII senza
+ * virgolette/backslash interni (character.gbnf lo garantisce sia sul
+ * percorso modello sia -- per costruzione -- su ogni scrittore di questo
+ * file), tmp+rename. 'def' e' gia' CLAMPATO da chi chiama
+ * (CharacterGenDefClamp, prima rete di sicurezza -- la seconda gira alla
+ * lettura lato gioco). */
+int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir)
+{
+    if (!def) return -1;
+    if (GenEnsureDir(outDir) != 0) return -1;
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "name", def->name);
+    cJSON_AddStringToObject(root, "blurb", def->blurb);
+    cJSON *stats = cJSON_AddObjectToObject(root, "stats");
+    cJSON_AddNumberToObject(stats, "damage", def->damage);
+    cJSON_AddNumberToObject(stats, "fireDelay", def->fireDelay);
+    cJSON_AddNumberToObject(stats, "shotSpeed", def->shotSpeed);
+    cJSON_AddNumberToObject(stats, "speed", def->speed);
+    cJSON_AddNumberToObject(stats, "maxHp", def->maxHp);
+    cJSON_AddNumberToObject(stats, "luck", def->luck);
+    cJSON_AddStringToObject(root, "palette", def->palette);
+    cJSON_AddStringToObject(root, "source", source ? source : "local:unknown");
+    char *text = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!text) return -1;
+
+    char tmpPath[512], finalPath[512];
+    snprintf(finalPath, sizeof(finalPath), "%s/character_proposal.json", outDir);
+    snprintf(tmpPath, sizeof(tmpPath), "%s/character_proposal.json.tmp", outDir);
+    FILE *f = fopen(tmpPath, "w");
+    if (!f) { cJSON_free(text); return -1; }
+    fputs(text, f);
+    cJSON_free(text);
+    return GenPublishFile(f, tmpPath, finalPath);
+}

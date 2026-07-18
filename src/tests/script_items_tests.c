@@ -2229,6 +2229,25 @@ static bool TestHpCapIsPerCharacter(void)
     if (glass.player.maxHp != 8) { printf("      FALLITO: il personaggio-vetro ha superato (o non raggiunto) il proprio tetto (8)\n"); ok = false; }
     ScriptItemsShutdown(&glass);
 
+    /* M6b-1 (DEC-014, prima fetta): il personaggio GENERATO per-run alla
+       banda MASSIMA (hpCap=18=CHARACTER_HP_CAP_MAX, derivato da maxHp=9=
+       CHARACTER_MAX_HP_MAX, vedi src/core/character_type.h) -- stesso
+       script di cuori leggendari degli scenari sopra, stavolta con margine
+       generoso (8 invece di 4: 16 avrebbe potuto fermarsi appena sotto un
+       tetto piu' alto di quello della roccia) per essere certi di spingere
+       OLTRE 18 e verificare che il clamp lo fermi li', mai oltre -- e
+       comunque ben sotto la guardia assoluta di motore
+       SCRIPT_ITEMS_MAX_HP_ABSOLUTE_MAX=24. */
+    Game forged = MakeBaseGame(7004u);
+    forged.player.baseMaxHp = 9;
+    forged.player.hp = 9;
+    forged.player.hpCap = 18;
+    for (int i = 0; i < 8; i++) TestAddHeartStatUp(&forged, i);
+    printf("  [AO-generato] hpCap=18 (banda massima), baseMaxHp=9, 8 cuori leggendari -> maxHp=%d (atteso 18, mai oltre)\n", forged.player.maxHp);
+    if (forged.player.maxHp != 18) { printf("      FALLITO: il personaggio generato a banda massima non si ferma esattamente al proprio tetto (18)\n"); ok = false; }
+    if (forged.player.maxHp > 24) { printf("      FALLITO: il personaggio generato ha superato la guardia assoluta di motore (24)\n"); ok = false; }
+    ScriptItemsShutdown(&forged);
+
     /* Senza personaggio (hpCap non impostato: MakeBaseGame non lo tocca,
        esattamente come nessun test precedente a M6a) -- il tetto resta lo
        storico 12, la non-regressione che la spec M6a richiede esplicitamente. */

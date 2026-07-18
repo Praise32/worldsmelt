@@ -122,6 +122,43 @@ dedicato.
   validato in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037,
   rimando, non riformulato qui).
 
+## Personaggio generato: stato dell'implementazione (M6b-1)
+
+Nota di stato della fetta (stile delle note di gap già presenti in questo documento e nella
+KB): l'implementazione M6b-1 copre SOLO nome/blurb, statistiche in bande e palette del
+personaggio alternativo generato per run, più la sua carta nel Piano 0 (quarto slot dinamico
+accanto alla rosa base). Il **trait unico come comportamento Lua (DEC-037)** e il **colpo
+firmato (DEC-068)** sono gap di implementazione espliciti, non ancora presenti: arriveranno
+con le fette successive (M6b-2 per il trait, M6b-3 per il colpo firmato). Fino ad allora il
+personaggio generato ha statistiche e palette proprie ma nessun comportamento unico e usa
+sempre il colpo standard, esattamente come un personaggio della rosa base senza colpo firmato
+(DEC-068, "un personaggio alternativo senza colpo firmato non è penalizzato").
+
+### Default proposti dall'implementazione (stile DEC-019, M6b-1)
+
+Come i default della rosa base sopra, questi sono **valori proposti in fase di
+implementazione**, non ancora numeri approvati dal design: restano da validare col playtest
+(vedi Domande aperte residue e `../governance/open-questions.md` punto 6). Il centro di ogni
+banda è vicino alla rosa base curata (sopra), cosí il personaggio generato resta un'alternativa
+credibile alla stessa rosa, mai un caso anomalo fuori scala.
+
+| Statistica | Banda min | Banda max |
+|---|---|---|
+| Danno base | 6.0 | 11.0 |
+| Cadenza base (secondi) | 0.19 | 0.28 |
+| Velocità colpo base | 480 | 560 |
+| Velocità movimento base | 190 | 260 |
+| Salute base (maxHp) | 3 | 9 |
+| Fortuna base | 0 | 1.5 |
+
+Il tetto di salute (DEC-033) non è una settima banda indipendente: si **deriva** sempre da
+maxHp con la regola `hpCap = 2 × maxHp`, poi clampato alla propria banda `[6, 18]` — mai una
+manopola libera che il generatore possa scegliere a parte. 18 resta ben sotto la guardia
+assoluta di motore (24, indipendente dal personaggio: vedi `health-and-resources.md` per il
+dettaglio del meccanismo). Il margine tra 18 e 24 è dichiarato: serve al colpo firmato
+(DEC-068, M6b-3), la cui quantificazione esatta delle "statistiche più caute" resta una domanda
+aperta (`../governance/open-questions.md`, sezione "Personaggio generato per-run").
+
 ## Input/azioni
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |

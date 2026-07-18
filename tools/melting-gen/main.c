@@ -58,6 +58,11 @@ typedef struct GenArgs {
      * comportamento di sempre, nessuna regressione per i test che non lo
      * passano (requisito 3 della spec M5). */
     const char *themeFile;
+    /* M6b-1 (DEC-014, prima fetta): 0 = comportamento di sempre (genera
+     * ANCHE il personaggio dentro --propose-themes). 1 = --no-character,
+     * retro-compat per i test che vogliono solo i temi (scripts/test-gen.sh)
+     * -- nessun effetto fuori dal ramo --propose-themes. */
+    int noCharacter;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -91,6 +96,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->bench = 0;
     args->proposeThemes = 0;
     args->themeFile = NULL;
+    args->noCharacter = 0;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -127,6 +133,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--bench") == 0) args->bench = 1;
         else if (strcmp(argv[i], "--propose-themes") == 0 && i + 1 < argc) args->proposeThemes = atoi(argv[++i]);
         else if (strcmp(argv[i], "--theme-file") == 0 && i + 1 < argc) args->themeFile = argv[++i];
+        else if (strcmp(argv[i], "--no-character") == 0) args->noCharacter = 1;
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -418,22 +425,148 @@ static void RunLuaPhase(GenLlmSession *sess, GenRun *run, const GenArgs *args, d
 /* nPredict richiesto dalla spec: 3 coppie nome+blurb, output minuscolo. */
 #define GEN_PROPOSE_N_PREDICT 320
 
+/* M6b-1 (DEC-014, prima fetta): grammatica/nPredict del personaggio
+ * alternativo per-run -- output piccolo (nome+blurb+sei numeri+palette),
+ * nPredict piu' generoso di GEN_PROPOSE_N_PREDICT perche' lo "stats" object
+ * aggiunge struttura JSON e sei numeri, ma resta comunque un ordine di
+ * grandezza sotto il JSON di una run intera. */
+#define GEN_CHARACTER_GRAMMAR_PATH "tools/melting-gen/character.gbnf"
+#define GEN_CHARACTER_N_PREDICT 220
+
+/* M6b-1 (DEC-014, prima fetta): genera la proposta di personaggio
+ * alternativo per questa run, dentro la STESSA sessione/lo stesso processo
+ * gia' aperto da RunProposeThemes per i temi -- mai un secondo modello
+ * caricato (vedi il commento su AppStopLazyGeneration in src/app/app.c,
+ * "mai due melting-gen insieme": qui e' la stessa garanzia, un livello piu'
+ * in basso). Il fallback canonico e' l'ASSENZA della carta (characters.md,
+ * "Fallback"): questa funzione non scrive MAI un personaggio-curato-di-
+ * riserva, solo logga e torna su qualunque fallimento --
+ * character_proposal.json resta assente (gia' rimosso in testa a
+ * RunProposeThemes, prima di questo tentativo) e il gioco mostrera' solo la
+ * rosa base, silenziosamente (DEC-002/DEC-020). */
+static void RunProposeCharacter(GenLlmSession *sess, const GenArgs *args, const char *modelPath)
+{
+    char *prompt = GenLlmBuildCharacterPrompt(args->promptsDir, args->seed);
+    char *grammar = GenReadFile(GEN_CHARACTER_GRAMMAR_PATH);
+    if (!prompt || !grammar)
+    {
+        GenLogLine("propose-character: prompt o grammatica non costruibili, nessuna carta");
+        free(prompt);
+        free(grammar);
+        return;
+    }
+
+    static char json[2048];
+    int tokens = 0;
+    /* Seed diverso da quello dei temi (XOR con un letterale fisso): due
+     * chiamate indipendenti nella stessa sessione non devono campionare lo
+     * stesso identico stream, altrimenti nome/blurb del personaggio
+     * rischierebbero di rispecchiare le proposte di tema appena generate
+     * (stesso principio del salt fra i due passi in NextGenSeed, src/app/
+     * app.c) -- resta comunque deterministico a parita' di args->seed. */
+    unsigned int characterSeed = args->seed ^ 0x63484152u;
+    int rc = GenLlmComplete(sess, prompt, grammar, GEN_CHARACTER_N_PREDICT, args->temp, characterSeed,
+                             NULL, NULL, 0, 0, json, sizeof(json), &tokens);
+    free(prompt);
+    free(grammar);
+    if (rc != 0)
+    {
+        GenLogLine("propose-character: generazione fallita, nessuna carta");
+        return;
+    }
+
+    cJSON *root = cJSON_Parse(json);
+    if (!root)
+    {
+        GenLogLine("propose-character: JSON non valido, nessuna carta");
+        return;
+    }
+
+    cJSON *jn = cJSON_GetObjectItemCaseSensitive(root, "name");
+    cJSON *jb = cJSON_GetObjectItemCaseSensitive(root, "blurb");
+    cJSON *jstats = cJSON_GetObjectItemCaseSensitive(root, "stats");
+    cJSON *jpal = cJSON_GetObjectItemCaseSensitive(root, "palette");
+    int ok = cJSON_IsString(jn) && jn->valuestring && jn->valuestring[0] &&
+             cJSON_IsString(jb) && jb->valuestring && jb->valuestring[0] &&
+             cJSON_IsObject(jstats) &&
+             cJSON_IsString(jpal) && jpal->valuestring && jpal->valuestring[0] == '#' &&
+             strlen(jpal->valuestring) == 7;
+
+    CharacterGenDef def;
+    memset(&def, 0, sizeof(def));
+    if (ok)
+    {
+        cJSON *jd = cJSON_GetObjectItemCaseSensitive(jstats, "damage");
+        cJSON *jf = cJSON_GetObjectItemCaseSensitive(jstats, "fireDelay");
+        cJSON *js = cJSON_GetObjectItemCaseSensitive(jstats, "shotSpeed");
+        cJSON *jv = cJSON_GetObjectItemCaseSensitive(jstats, "speed");
+        cJSON *jh = cJSON_GetObjectItemCaseSensitive(jstats, "maxHp");
+        cJSON *jl = cJSON_GetObjectItemCaseSensitive(jstats, "luck");
+        ok = cJSON_IsNumber(jd) && cJSON_IsNumber(jf) && cJSON_IsNumber(js) &&
+             cJSON_IsNumber(jv) && cJSON_IsNumber(jh) && cJSON_IsNumber(jl);
+        if (ok)
+        {
+            snprintf(def.name, sizeof(def.name), "%s", jn->valuestring);
+            snprintf(def.blurb, sizeof(def.blurb), "%s", jb->valuestring);
+            def.damage = (float)jd->valuedouble;
+            def.fireDelay = (float)jf->valuedouble;
+            def.shotSpeed = (float)js->valuedouble;
+            def.speed = (float)jv->valuedouble;
+            def.maxHp = (int)jh->valuedouble;
+            def.luck = (float)jl->valuedouble;
+            snprintf(def.palette, sizeof(def.palette), "%s", jpal->valuestring);
+        }
+    }
+    cJSON_Delete(root);
+    if (!ok)
+    {
+        GenLogLine("propose-character: schema non valido, nessuna carta");
+        return;
+    }
+
+    CharacterGenDefClamp(&def);   /* prima rete di clamp: qui, prima di scrivere il json */
+
+    char srcBuf[128];
+    const char *base = strrchr(modelPath, '/');
+    snprintf(srcBuf, sizeof(srcBuf), "local:%s", base ? base + 1 : modelPath);
+    if (GenWriteCharacterProposal(&def, srcBuf, args->outDir) != 0)
+        GenLogLine("propose-character: scrittura fallita");
+    else
+        GenLogLine("propose-character: source=%s name=%s", srcBuf, def.name);
+}
+
 /* --propose-themes N (M5, requisito 1): ramo di uscita anticipata come
- * --print-json-prompt/--bench -- scrive SOLO generated/theme_proposals.json,
- * MAI corpus/manifest/atlas/provenance/ledger di novita' della run (per
- * questo non chiama ne' GenCorpusRecord* ne' GenNoveltyAppend, a differenza
- * del resto di questo file). La grammatica propose.gbnf genera SEMPRE 3
- * proposte (root fissa, coerente col prompt "Propose 3 possible worlds");
+ * --print-json-prompt/--bench -- scrive SOLO generated/theme_proposals.json
+ * (piu', da M6b-1, generated/character_proposal.json quando il personaggio
+ * generato valida: vedi RunProposeCharacter sopra), MAI corpus/manifest/
+ * atlas/provenance/ledger di novita' della run (per questo non chiama ne'
+ * GenCorpusRecord* ne' GenNoveltyAppend, a differenza del resto di questo
+ * file). La grammatica propose.gbnf genera SEMPRE 3 proposte di tema (root
+ * fissa, coerente col prompt "Propose 3 possible worlds");
  * 'requestedCount' (clampato 2..3) sceglie solo quante di quelle 3 il
  * chiamante vuole vedere scritte su disco -- mai meno di 2 (requisito 11:
- * mai una sola carta selezionabile). Un solo tentativo (a differenza dei 2
- * di RunJsonAttempts): e' un output piccolo e veloce, e il ripiego
- * deterministico copre comunque ogni fallimento (DEC-002). */
-static int RunProposeThemes(const GenArgs *args, int requestedCount)
+ * mai una sola carta selezionabile). Un solo tentativo per i temi (a
+ * differenza dei 2 di RunJsonAttempts): e' un output piccolo e veloce, e il
+ * ripiego deterministico copre comunque ogni fallimento (DEC-002) -- il
+ * personaggio generato NON ha un ripiego deterministico equivalente
+ * (fallback canonico = carta assente, characters.md), quindi
+ * 'includeCharacter' governa SOLO se vale la pena tentarlo, mai un secondo
+ * tentativo. */
+static int RunProposeThemes(const GenArgs *args, int requestedCount, int includeCharacter)
 {
     int count = requestedCount;
     if (count < 2) count = 2;
     if (count > GEN_THEME_PROPOSALS) count = GEN_THEME_PROPOSALS;
+
+    /* M6b-1: rimuove SEMPRE un character_proposal.json residuo di una
+     * generazione precedente PRIMA di tentare (anche con --no-character,
+     * usato dai test che vogliono solo i temi): il fallback canonico del
+     * personaggio generato e' l'ASSENZA della carta, mai un personaggio
+     * curato di riserva -- un file di ieri lasciato sul disco produrrebbe
+     * una carta vecchia travestita da carta di questa run. */
+    char characterPath[512];
+    snprintf(characterPath, sizeof(characterPath), "%s/character_proposal.json", args->outDir);
+    remove(characterPath);
 
     GenThemeProposal proposals[GEN_THEME_PROPOSALS];
     memset(proposals, 0, sizeof(proposals));
@@ -496,6 +629,15 @@ static int RunProposeThemes(const GenArgs *args, int requestedCount)
         else GenLogLine("propose-themes: prompt o grammatica non costruibili, ripiego procedurale");
         free(prompt);
         free(grammar);
+
+        /* M6b-1 (DEC-014): il personaggio si genera QUI, nella STESSA
+         * sessione gia' aperta per i temi -- indipendente dall'esito dei
+         * temi sopra (anche se il JSON dei temi fallisce e si ricade sul
+         * ripiego procedurale, la sessione resta valida e vale la pena
+         * tentare comunque il personaggio, che ha un prompt/una grammatica
+         * completamente separati). */
+        if (includeCharacter) RunProposeCharacter(sess, args, modelPath);
+
         GenLlmSessionClose(sess);
     }
 
@@ -557,7 +699,7 @@ int main(int argc, char **argv)
     /* M5 (DEC-005), requisito 1: altro ramo di uscita anticipata, PRIMA di
      * GenRemoveOldScripts -- --propose-themes non genera una run, non deve
      * toccare gli script Lua di quella in corso. */
-    if (args.proposeThemes > 0) return RunProposeThemes(&args, args.proposeThemes);
+    if (args.proposeThemes > 0) return RunProposeThemes(&args, args.proposeThemes, !args.noCharacter);
 
     /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
      * scripts/ pulita. Senza, gli script della run precedente restavano sul disco

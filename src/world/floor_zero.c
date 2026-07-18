@@ -73,6 +73,15 @@ void FloorZeroEnter(Game *game)
     game->themeCardsPanelOpen = false;
     game->themeChosenIndex = -1;
     game->floorZeroPanelSection = FLOOR_ZERO_PANEL_WORLDS;
+    /* M6b-1 (DEC-014): stesso azzeramento MIRATO del personaggio generato --
+       ogni nuova visita al Piano 0 riparte da "nessuna proposta", la vecchia
+       si scarta (spec, requisito "ESC/abbandono e RunResults -> Nuova run
+       subito = nuova proposta"). AppEnterFloorZero avvia un propose FRESCO
+       subito dopo aver chiamato questa funzione, nella stessa sessione dei
+       temi -- questo campo tornera' valido solo quando quel propose finira'
+       con una carta buona. */
+    memset(&game->generatedCharacter, 0, sizeof(game->generatedCharacter));
+    game->generatedCharacterValid = false;
 
     /* M6a (DEC-030/033): il personaggio, a differenza del tema, e' SEMPRE
        definito per costruzione -- l'indice 0 (Wayfinder) e' il

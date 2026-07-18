@@ -2,6 +2,7 @@
 
 #include "app/app.h"
 #include "app/app_internal.h"
+#include "core/character_type.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
@@ -783,14 +784,40 @@ bool GameFloorZeroScreenshotTest(Game *game)
     RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-floorzero-screen.png");
     bool worldsTextureValid = canvas.texture.id != 0;
 
+    /* M6b-1 (DEC-014, prima fetta): niente propose vero qui (gen disabilitata,
+       come il resto di questo test) -- si inietta un personaggio generato
+       FINTO direttamente nel canale dati dinamico (Game.generatedCharacter/
+       generatedCharacterValid), esattamente come farebbe
+       AppLoadCharacterProposal su un file vero, cosi' lo screenshot mostra
+       ANCHE il quarto slot dinamico (spec, "--floor-zero-screenshot-test: la
+       sezione PERSONAGGI con la quarta carta (fake), per l'occhio del
+       proprietario"). */
+    memset(&game->generatedCharacter, 0, sizeof(game->generatedCharacter));
+    snprintf(game->generatedCharacter.name, sizeof(game->generatedCharacter.name), "Screenshot Forgeling");
+    snprintf(game->generatedCharacter.role, sizeof(game->generatedCharacter.role), "FORGED THIS RUN");
+    snprintf(game->generatedCharacter.blurb, sizeof(game->generatedCharacter.blurb),
+             "A fake generated character, only for a manual screenshot check.");
+    game->generatedCharacter.baseDamage = 9.0f;
+    game->generatedCharacter.baseFireDelay = 0.22f;
+    game->generatedCharacter.baseShotSpeed = 520.0f;
+    game->generatedCharacter.baseShotRadius = 5.0f;
+    game->generatedCharacter.baseSpeed = 215.0f;
+    game->generatedCharacter.baseMaxHp = 7;
+    game->generatedCharacter.hpCap = 14;
+    game->generatedCharacter.baseLuck = 0.8f;
+    game->generatedCharacter.palette = (Color){ 204, 119, 51, 255 };
+    game->generatedCharacterValid = true;
+
     /* M6a, requisito 4 della spec ("--floor-zero-screenshot-test: aggiornato
        per mostrare anche la sezione PERSONAGGI"): un secondo scatto, stesso
        pannello ma sull'altra sezione (su, wrap fra le due) -- una schedina
        resta selezionata (SCELTO, il preselezionato di default) mentre il
-       focus e' sulla schedina 1, cosi' lo screenshot mostra ANCHE il
-       segnale di selezione distinto dal focus (requisito 3). */
+       focus e' sul quarto slot (il personaggio generato, appena iniettato
+       sopra), cosi' lo screenshot mostra ANCHE il segnale di selezione
+       distinto dal focus (requisito 3) e la carta generata fianco a fianco
+       con la rosa curata. */
     { AppInput in = InputUp();    UpdateApp(game, &mode, &gen, &ui, &in); }   /* MONDI -> PERSONAGGI */
-    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus sul personaggio 1, diverso dal preselezionato 0 */
+    for (int i = 0; i < CHARACTER_COUNT; i++) { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus sul quarto slot generato */
     RendererDrawApp(game, canvas, APP_FLOOR_ZERO, &ui, true, &status, "logs/worldsmelt-floorzero-characters-screen.png");
     bool charactersTextureValid = canvas.texture.id != 0;
 
@@ -1266,6 +1293,175 @@ bool GameFloorZeroTest(Game *game)
                 speedBeforeReset, game->player.speed, hpCapBeforeReset, game->player.hpCap, maxHpBeforeReset, game->player.maxHp);
         return false;
     }
+
+    /* --- scenario 8 (M6b-1, DEC-014 prima fetta -- spec floor-zero-test
+       (a)+(c)): il quarto slot dinamico del pannello PERSONAGGI, la carta
+       del personaggio generato per QUESTA run, letta da
+       generated/character_proposal.json (fake propose esteso, vedi
+       tests/fake-gen.sh FAKE_GEN_CHARACTER_MODE). Le sue stats applicate
+       sono quelle DEL FILE (in banda qui: il clamp fuori banda e' lo
+       scenario 10 sotto), e sopravvivono all'attraversamento -- GameResetRun
+       le azzererebbe se la def generata non venisse ricatturata a parte,
+       vedi il commento sul case APP_FLOOR_ZERO in src/app/app.c. --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_CHARACTER_MODE", "ok", 1);
+    setenv("FAKE_GEN_MODE", "ok", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (8) Avvia non porta a FloorZero\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8) il finto propose non e' mai terminato\n");
+        return false;
+    }
+    if (!game->generatedCharacterValid)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8) la carta del personaggio generato non e' arrivata\n");
+        return false;
+    }
+    if (strcmp(game->generatedCharacter.name, "Fake Ember Twin") != 0)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8) nome del personaggio generato inatteso ('%s')\n", game->generatedCharacter.name);
+        return false;
+    }
+
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* apre il pannello, sezione MONDI di default */
+    { AppInput in = InputUp();  UpdateApp(game, &mode, &gen, &ui, &in); }   /* MONDI -> PERSONAGGI */
+    for (int i = 0; i < CHARACTER_COUNT; i++) { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterCardFocus != CHARACTER_COUNT)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8) il focus non raggiunge il quarto slot generato (e' %d)\n", game->characterCardFocus);
+        return false;
+    }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterChosenIndex != CHARACTER_COUNT)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8a) confirm non sceglie il personaggio generato\n");
+        return false;
+    }
+    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 7)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8a) le stats applicate non sono quelle del file (damage=%.1f speed=%.1f hpCap=%d maxHp=%d)\n",
+                game->player.damage, game->player.speed, game->player.hpCap, game->player.maxHp);
+        return false;
+    }
+
+    { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PERSONAGGI -> MONDI */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* sceglie il mondo col focus (0), avvia la generazione completa (fake) */
+    if (game->themeChosenIndex != 0) { fprintf(stderr, "GameFloorZeroTest: (8) la scelta del mondo e' fallita\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.runner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8) la generazione completa (fake) non e' mai terminata\n");
+        return false;
+    }
+    if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (8) l'uscita non si apre dopo il successo del finto generatore\n"); return false; }
+
+    game->floorZeroExitCrossed = true;
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (8c) l'attraversamento non porta a Gameplay\n"); return false; }
+    if (game->characterChosenIndex != CHARACTER_COUNT)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8c) la run non ricorda il personaggio generato scelto\n");
+        return false;
+    }
+    if (game->player.damage != 9.0f || game->player.speed != 215.0f || game->player.hpCap != 14 || game->player.maxHp != 7)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8c) la run non parte con le stats/hpCap del personaggio generato (damage=%.1f speed=%.1f hpCap=%d maxHp=%d)\n",
+                game->player.damage, game->player.speed, game->player.hpCap, game->player.maxHp);
+        return false;
+    }
+    if (!game->generatedCharacterValid || strcmp(game->generatedCharacter.name, "Fake Ember Twin") != 0)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (8c) la def generata non sopravvive a GameResetRun (valid=%d nome='%s')\n",
+                game->generatedCharacterValid, game->generatedCharacter.name);
+        return false;
+    }
+
+    /* --- scenario 9 (spec floor-zero-test (b)): file assente -- solo le tre
+       carte base, nessun crash, il focus non raggiunge mai un quarto slot
+       inesistente. --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    remove("generated/character_proposal.json");   /* nessun residuo dello scenario 8 */
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_CHARACTER_MODE", "none", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (9) Avvia non porta a FloorZero\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (9) il finto propose non e' mai terminato\n");
+        return false;
+    }
+    if (game->generatedCharacterValid)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (9) una carta generata e' comparsa senza file\n");
+        return false;
+    }
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputUp();  UpdateApp(game, &mode, &gen, &ui, &in); }
+    for (int i = 0; i < CHARACTER_COUNT + 2; i++) { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (game->characterCardFocus < 0 || game->characterCardFocus >= CHARACTER_COUNT)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (9) il focus ha raggiunto uno slot fuori dalla rosa base senza carta generata (e' %d)\n",
+                game->characterCardFocus);
+        return false;
+    }
+
+    /* --- scenario 10 (spec floor-zero-test (d)): proposta fuori banda
+       (damage 99, maxHp 40...) -- clampata ALLA LETTURA (seconda rete di
+       sicurezza, RunContentLoadCharacterProposal), mai propagata al player
+       cosi' com'e'. hpCap non supera MAI 18 (banda) ne' 24 (guardia
+       assoluta di motore, SCRIPT_ITEMS_MAX_HP_ABSOLUTE_MAX). --- */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_CHARACTER_MODE", "outofband", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (10) Avvia non porta a FloorZero\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (10) il finto propose non e' mai terminato\n");
+        return false;
+    }
+    if (!game->generatedCharacterValid)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (10) la carta fuori banda non e' arrivata\n");
+        return false;
+    }
+    if (game->generatedCharacter.baseDamage > CHARACTER_DAMAGE_MAX + 0.001f ||
+        game->generatedCharacter.baseSpeed < CHARACTER_SPEED_MIN - 0.001f ||
+        game->generatedCharacter.baseMaxHp > CHARACTER_MAX_HP_MAX ||
+        game->generatedCharacter.hpCap > CHARACTER_HP_CAP_MAX ||
+        game->generatedCharacter.hpCap > 24)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (10) la carta fuori banda non e' stata clampata (damage=%.1f speed=%.1f maxHp=%d hpCap=%d)\n",
+                game->generatedCharacter.baseDamage, game->generatedCharacter.baseSpeed,
+                game->generatedCharacter.baseMaxHp, game->generatedCharacter.hpCap);
+        return false;
+    }
+    if (gen.proposeRunner.state == GEN_RUNNER_RUNNING) GenRunnerCancel(&gen.proposeRunner);
 
     return true;
 }

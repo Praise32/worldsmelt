@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 
+#include "content/character_proposal.h"
 #include "content/character_roster.h"
 #include "content/run_content.h"
 #include "game/game.h"
@@ -462,13 +463,44 @@ static void AppConfirmThemeChoice(Game *game, AppGen *gen, int index)
  * stessi numeri (ScriptItemsInit riparte sempre da zero, sistema delle
  * cache). Non tocca il pannello (resta aperto, a differenza della scelta
  * del tema): la sezione PERSONAGGI invita a confrontare le tre schede senza
- * richiudersi ad ogni conferma. */
+ * richiudersi ad ogni conferma.
+ * M6b-1 (DEC-014): 'index' puo' ora arrivare anche a CHARACTER_COUNT (il
+ * quarto slot, il personaggio generato) -- GameResolveCharacterDef e' l'UNICO
+ * punto che sa interpretarlo, quindi la guardia diventa "risolve a qualcosa"
+ * invece di "sta dentro la rosa": un CHARACTER_COUNT senza una proposta
+ * valida (generatedCharacterValid falso) risolve a NULL e la conferma non fa
+ * nulla, coerente con "carta assente, nessuna selezione possibile". */
 static void AppConfirmCharacterChoice(Game *game, int index)
 {
-    if (index < 0 || index >= CHARACTER_COUNT) return;
+    const CharacterDef *character = GameResolveCharacterDef(game, index);
+    if (!character) return;
     game->characterChosenIndex = index;
-    GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(index));
+    GamePlayerResetBaseStatsFor(&game->player, character);
     ScriptItemsInit(game);
+}
+
+/* M6b-1 (DEC-014, prima fetta): legge generated/character_proposal.json in
+ * una CharacterDef "generata" (RunContentLoadCharacterProposal, src/content/
+ * character_proposal.c -- scanner a mano, seconda rete di clamp) e la
+ * pubblica nel canale dati dinamico del quarto slot (Game.generatedCharacter
+ * + generatedCharacterValid), stesso schema di AppLoadThemeCards. Chiamata
+ * SOLO quando proposeRunner e' terminale (vedi il case APP_FLOOR_ZERO), sia
+ * su successo (il file potrebbe comunque non esistere: la generazione del
+ * personaggio e' indipendente da quella dei temi, e il suo fallback canonico
+ * e' l'assenza della carta, mai un errore) sia su fallimento del propose
+ * (stesso identico trattamento: nessun file, nessuna carta -- ma tentare
+ * comunque il caricamento e' innocuo e piu' semplice che duplicare la
+ * guardia in due punti diversi del chiamante). Nessun effetto se il file
+ * manca o non valida: game->generatedCharacterValid resta quello che era
+ * (falso, per costruzione: FloorZeroEnter l'ha appena azzerato). */
+static void AppLoadCharacterProposal(Game *game)
+{
+    CharacterDef proposal;
+    if (RunContentLoadCharacterProposal("generated/character_proposal.json", &proposal))
+    {
+        game->generatedCharacter = proposal;
+        game->generatedCharacterValid = true;
+    }
 }
 
 /* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
@@ -613,6 +645,20 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 {
                     AppUseFallbackThemeCards(game, gen->pendingGenSeed);
                 }
+                /* M6b-1 (DEC-014): il personaggio generato viaggia nella
+                   STESSA chiamata --propose-themes dei temi (mai un secondo
+                   processo/modello), ma la sua riuscita e' INDIPENDENTE da
+                   quella dei temi -- tentare il caricamento qui, su
+                   qualunque esito TERMINALE del runner (successo O
+                   fallimento), e' corretto: character_proposal.json o c'e'
+                   ed e' valido, o non c'e' affatto (fallback canonico =
+                   carta assente, mai un errore), indipendentemente da come
+                   sono andati i temi. La guardia 'state != RUNNING' (invece
+                   di richiamarla ad ogni frame mentre il propose e' ancora
+                   in corso) e' cio' che evita di leggere ripetutamente un
+                   file residuo di un propose PRECEDENTE prima che quello di
+                   QUESTA run abbia anche solo iniziato a scrivere. */
+                if (gen->proposeRunner.state != GEN_RUNNER_RUNNING) AppLoadCharacterProposal(game);
             }
 
             /* M5/M6a, requisito 9/3: il pannello COMBINATO MONDI/PERSONAGGI --
@@ -653,10 +699,19 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     }
                     else
                     {
+                        /* M6b-1: il conteggio e' DINAMICO (CHARACTER_COUNT
+                           piu' uno quando il quarto slot generato e' valido,
+                           vedi GameCharacterCardCount) -- se il focus era
+                           gia' sul quarto slot e la carta sparisce (non
+                           dovrebbe succedere dentro una permanenza nel Piano
+                           0, ma resta una difesa a buon mercato), il modulo
+                           lo riporta comunque dentro banda. */
+                        int cardCount = GameCharacterCardCount(game);
+                        if (game->characterCardFocus >= cardCount) game->characterCardFocus = cardCount - 1;
                         if (effective.left)
-                            game->characterCardFocus = (game->characterCardFocus + CHARACTER_COUNT - 1)%CHARACTER_COUNT;
+                            game->characterCardFocus = (game->characterCardFocus + cardCount - 1)%cardCount;
                         if (effective.right)
-                            game->characterCardFocus = (game->characterCardFocus + 1)%CHARACTER_COUNT;
+                            game->characterCardFocus = (game->characterCardFocus + 1)%cardCount;
                         if (effective.confirm) AppConfirmCharacterChoice(game, game->characterCardFocus);
                     }
                 }
@@ -727,11 +782,28 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                    Piano 0: vedi il commento su GamePlayerResetBaseStatsFor in
                    game.c). ScriptItemsInit rideriva damage/fireDelay/... dai
                    nuovi base* (0 oggetti posseduti a inizio piano 1, come
-                   sempre). */
+                   sempre).
+                   M6b-1 (DEC-014): se il personaggio scelto e' quello
+                   GENERATO (chosenCharacter == CHARACTER_COUNT), l'indice da
+                   solo non basta piu' -- il memset di GameResetRun cancella
+                   ANCHE Game.generatedCharacter/generatedCharacterValid, e
+                   GameResolveCharacterDef non troverebbe piu' nulla da
+                   applicare. Si cattura quindi una COPIA della def generata
+                   PRIMA del memset e la si riscrive subito dopo, esattamente
+                   come si fa per l'indice -- la run generata sopravvive
+                   all'attraversamento tanto quanto quella curata. */
                 int chosenCharacter = game->characterChosenIndex;
+                bool chosenIsGenerated = (chosenCharacter == CHARACTER_COUNT && game->generatedCharacterValid);
+                CharacterDef savedGenerated = chosenIsGenerated ? game->generatedCharacter : (CharacterDef){ 0 };
                 GameResetRun(game);
                 game->characterChosenIndex = chosenCharacter;
-                GamePlayerResetBaseStatsFor(&game->player, CharacterRosterGet(chosenCharacter));
+                if (chosenIsGenerated)
+                {
+                    game->generatedCharacter = savedGenerated;
+                    game->generatedCharacterValid = true;
+                }
+                const CharacterDef *chosenDef = GameResolveCharacterDef(game, chosenCharacter);
+                if (chosenDef) GamePlayerResetBaseStatsFor(&game->player, chosenDef);
                 ScriptItemsInit(game);
                 *mode = APP_GAMEPLAY;
                 if (gen->runner.state == GEN_RUNNER_SUCCEEDED) AppStartLazyGeneration(gen);

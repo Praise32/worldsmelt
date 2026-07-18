@@ -128,4 +128,44 @@ echo "$m5Themes" | sed 's/^/     /'
 rm -rf "$THEME_TMP"
 trap - EXIT
 
+# M6b-1 (DEC-014, prima fetta): --propose-themes con un modello VERO genera
+# ANCHE il personaggio alternativo per-run, nella STESSA sessione (mai un
+# secondo caricamento) -- l'unico test che campiona una proposta di
+# personaggio VERA (make test-gen resta "senza modello", vede solo
+# l'assenza della carta). Riusa generated/ (gia' validata sopra dai
+# controlli sul JSON dei piani): --propose-themes non tocca current_run.txt.
+echo "--- M6b-1: --propose-themes con un modello vero -- personaggio generato campionato ---"
+rm -f generated/character_proposal.json
+bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$((SEED + 2))" --propose-themes 3 --out generated
+if [ ! -f generated/character_proposal.json ]; then
+  echo "FALLITO: generated/character_proposal.json non scritto da --propose-themes con un modello vero"
+  exit 1
+fi
+python3 - generated/character_proposal.json <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["name"], d
+assert d["blurb"], d
+assert all(ord(c) < 128 for c in d["name"] + d["blurb"]), "personaggio generato non ASCII"
+s = d["stats"]
+assert 6.0 <= s["damage"] <= 11.0, s
+assert 0.19 <= s["fireDelay"] <= 0.28, s
+assert 480.0 <= s["shotSpeed"] <= 560.0, s
+assert 190.0 <= s["speed"] <= 260.0, s
+assert 3 <= s["maxHp"] <= 9, s
+assert 0.0 <= s["luck"] <= 1.5, s
+pal = d["palette"]
+assert pal.startswith("#") and len(pal) == 7, pal
+assert d["source"].startswith("local:"), d["source"]
+PYEOF
+charName=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['name'])")
+charBlurb=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['blurb'])")
+charHit=$(printf '%s\n%s\n' "$charName" "$charBlurb" | grep -Ei "$italianWordPattern" || true)
+if [ -n "$charHit" ]; then
+  echo "FALLITO: parola-funzione italiana nel personaggio generato (DEC-052 richiede inglese):"
+  echo "$charHit"
+  exit 1
+fi
+echo "   personaggio generato: $charName -- $charBlurb"
+
 echo "TEST-LLM: OK"
