@@ -1,6 +1,50 @@
 # Cosa fare quando torni
 
-Scritto da Claude mentre eri via. **Prima la sezione 0-ter** (la notte appena passata), il resto con calma.
+Scritto da Claude mentre eri via. **Prima la sezione 0-quater** (il 18 luglio, la piu' recente), il resto con calma.
+
+---
+
+## 0-quater. Il 18 luglio: fase 1 di Worldsmelt — la KB comincia a diventare gioco
+
+Quattro milestone implementate, verificate e pushate su `main` (come chiesto: la KB e' la
+fonte, la scala di agenti implementa e giudica, commit solo dopo verdetto APPROVA):
+
+| Commit | Cosa |
+|---|---|
+| `f019cd2` | **M1a — Macchina a stati canonica.** I 4 vecchi AppMode diventano i 9 stati della KB (MainMenu, RunSetup, FloorZero, Gameplay, PauseMenu, Options, BuildScreen, RunResults, ExitConfirm). Il seed lo scegli in RunSetup e la generazione usa DAVVERO quello. Ogni azione distruttiva passa da ExitConfirm. Titolo: WORLDSMELT. |
+| `18ec4da` | **M1b — Il Piano 0 e' la sala d'attesa giocabile** (DEC-002/004). Cammini nella stanza hub mentre i modelli generano in sottofondo; l'uscita verso il piano 1 si apre da sola quando il piano 1 e' pronto (messaggio + varco luminoso + particelle). Niente piu' overlay bloccante con la barra: l'indicatore e' una riga discreta, senza percentuali (come vuole `ui/generation-status.md`). |
+| `8f751e5` | **M2 — Stanze di numero e grandezza variabili** (DEC-009). Griglia fissa, 6+piano+(0..3) stanze, taglie tutte diverse nello stesso piano (minimo garantito 556x298, boss sempre alla massima). Valori registrati in KB come default proposti stile DEC-019: le domande aperte restano aperte. Il test nuovo ha trovato un bug vero: la forma SCATTER collassava a zero ostacoli alla taglia minima — corretto. |
+| `cdb4310` | **M3 — Generazione inglese-first** (DEC-052). Prompt, esempi few-shot, ispirazioni e TUTTI e tre i pool di fallback in inglese; guardia di lingua in `make test-llm`. Campione vero dal modello: *Ice Vault, Crystal Condo, Lava Ledge; Frozen Sentinels, Crystal Guardians; Honey Sphere, Lava Beam*. Varieta' 5/5. |
+
+### Provalo
+
+```bash
+make run-gen
+```
+
+Il flusso nuovo: menu **WORLDSMELT** → *Nuova run* → scegli/rerolla il **seed** → entri nel
+**Piano 0** e ti muovi mentre la generazione lavora → l'uscita in alto **si apre da sola** →
+la attraversi e sei nel piano 1. ESC nel Piano 0 = abbandono con conferma (la generazione
+continua finche' non confermi). Screenshot dell'hub: `logs/worldsmelt-floorzero-screen.png`.
+
+### Cose da sapere
+
+- **Il corpus QLoRA si ripulisce da solo:** i `manifest_pairs` italiani vecchi vengono
+  scartati automaticamente al prossimo `corpus_to_dataset.py build` (confronto mtime coi
+  prompt). Gli script Lua del corpus restano validi (sono codice, non prosa).
+- **Il novelty ledger** (`logs/novelty-ledger.txt`) smaltisce le parole italiane da solo
+  entro ~20 run: non serve azzerarlo.
+- **Suite nuove dentro `make test`:** `--states-test` (transizioni della mappa canonica),
+  `--floor-zero-test` (uscita chiusa/aperta con generatore finto), `--rooms-test` (DEC-009).
+- **Backlog noto (non urgente):** l'RNG di gioco e' ancora seedato con `time(NULL)` in
+  GameResetRun — i contenuti sono deterministici dal seed, il gameplay no; va agganciato al
+  seed per le gare asincrone (DEC-016/062/066). E `gen_progress_lazy.txt` non viene mai
+  scritto dai processi reali: mai costruirci UI sopra senza un `--progress-path` in melting-gen.
+- **Domanda aperta #14 in KB:** l'arco Piano 0 → MainMenu (ESC) non e' nella mappa canonica;
+  l'ho implementato via ExitConfirm e registrato come domanda, decidi tu se sancirlo.
+- Il Piano 0 per ora e' la versione statica curata prevista dalla KB come sala d'attesa:
+  scelta tema con anteprime (DEC-005/039), personaggi (DEC-014/030), museo e arene sono le
+  prossime milestone naturali.
 
 ---
 
