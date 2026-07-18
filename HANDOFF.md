@@ -15,6 +15,8 @@ fonte, la scala di agenti implementa e giudica, commit solo dopo verdetto APPROV
 | `18ec4da` | **M1b — Il Piano 0 e' la sala d'attesa giocabile** (DEC-002/004). Cammini nella stanza hub mentre i modelli generano in sottofondo; l'uscita verso il piano 1 si apre da sola quando il piano 1 e' pronto (messaggio + varco luminoso + particelle). Niente piu' overlay bloccante con la barra: l'indicatore e' una riga discreta, senza percentuali (come vuole `ui/generation-status.md`). |
 | `8f751e5` | **M2 — Stanze di numero e grandezza variabili** (DEC-009). Griglia fissa, 6+piano+(0..3) stanze, taglie tutte diverse nello stesso piano (minimo garantito 556x298, boss sempre alla massima). Valori registrati in KB come default proposti stile DEC-019: le domande aperte restano aperte. Il test nuovo ha trovato un bug vero: la forma SCATTER collassava a zero ostacoli alla taglia minima — corretto. |
 | `cdb4310` | **M3 — Generazione inglese-first** (DEC-052). Prompt, esempi few-shot, ispirazioni e TUTTI e tre i pool di fallback in inglese; guardia di lingua in `make test-llm`. Campione vero dal modello: *Ice Vault, Crystal Condo, Lava Ledge; Frozen Sentinels, Crystal Guardians; Honey Sphere, Lava Beam*. Varieta' 5/5. |
+| `9e5e7f8` | **M4 — Fullscreen + HUD adattivo** (tua richiesta del 18/07). uiScale quantizzato dall'altezza schermo (900p=1.0, 1440p=1.5, 4K=2.25) su TUTTO il chrome; via il tetto 1.375 sul canvas (1440p: 1320px, 4K: 1920px). Canvas logico e gameplay invariati al pixel. Nuovo `--layout-test` su 7 risoluzioni. Screenshot: `logs/worldsmelt-fullscreen-screen.png`. |
+| `cfe926b` | **M5 — Scelta del tema nel Piano 0** (DEC-005). Il crogiolo propone 3 mondi (carte nome+descrizione: le anteprime DEC-039 aspettano la LoRA, come mi hai detto); la generazione dei piani parte SOLO dopo la scelta ed e' guidata dal tema (`--propose-themes` / `--theme-file`, fallback deterministici ovunque, `chosenTheme` in provenance). Uscita aperta solo con tema scelto E piano 1 pronto. |
 
 ### Provalo
 
@@ -40,6 +42,13 @@ continua finche' non confermi). Screenshot dell'hub: `logs/worldsmelt-floorzero-
   GameResetRun — i contenuti sono deterministici dal seed, il gameplay no; va agganciato al
   seed per le gare asincrone (DEC-016/062/066). E `gen_progress_lazy.txt` non viene mai
   scritto dai processi reali: mai costruirci UI sopra senza un `--progress-path` in melting-gen.
+- **`make test-llm` e' FLAKY, e non e' colpa delle modifiche:** la guardia pre-esistente
+  "5 tipi di colpo distinti" fallisce ~25% delle volte col 1.5B (inferenza Vulkan non
+  deterministica + attrattore "Jolt/Jolt" del modello piccolo — dimostrato con lo stesso
+  tasso anche sul prompt vecchio). Se ti fallisce, rilancia o guarda quale check e' caduto.
+- **Il 1.5B non segue ancora bene "stesso mondo che evolve" (DEC-005/024)** nei piani 2-5
+  del percorso LLM: il C garantisce il minimo (piano 1 = tema scelto alla lettera, 5 nomi
+  distinti), la coerenza piena e' garantita solo sul fallback. Da misurare col 7B.
 - **Domanda aperta #14 in KB:** l'arco Piano 0 → MainMenu (ESC) non e' nella mappa canonica;
   l'ho implementato via ExitConfirm e registrato come domanda, decidi tu se sancirlo.
 - Il Piano 0 per ora e' la versione statica curata prevista dalla KB come sala d'attesa:
