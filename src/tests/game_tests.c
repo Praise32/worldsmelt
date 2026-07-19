@@ -12,6 +12,7 @@
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1589,6 +1590,154 @@ bool GameFloorZeroTest(Game *game)
             return false;
         }
     }
+
+    /* --- scenario 12 (M6b-3, DEC-068, requisito 6, spec floor-zero-test
+       (a)+(b)+(c)): il colpo firmato OPZIONALE del personaggio generato,
+       nei suoi tre stati (tests/fake-gen.sh, FAKE_GEN_CHARACTER_SHOT_MODE
+       none/ok/outofband -- indipendente da FAKE_GEN_CHARACTER_LUA_MODE, qui
+       sempre "ok" cosi' il trait (+1 a maxHp) resta un contributo NOTO in
+       ogni ramo). Le stesse stats "ok" di fake-gen.sh (damage=9,
+       fireDelay=0.22, maxHp=7, luck=0.8) attraversano la compressione cauta
+       (M6b-3, requisito 2) SOLO quando c'e' un colpo firmato: senza, restano
+       quelle del file (scenario 8, gia' verificato sopra); con, damage resta
+       9.0 (proprio il bordo cauto 6.0+0.6*5.0), fireDelay sale a 0.226
+       (0.28-0.6*0.09, il file dice 0.22 < banda cauta) e maxHp scende a 6
+       (int(3+0.6*6)=int(6.6), il file dice 7 > banda cauta) -- hpCap deriva
+       da QUESTO maxHp gia' compresso (12, non 14). --- */
+    for (int sm = 0; sm < 3; sm++)
+    {
+        const char *shotMode = (sm == 0) ? "none" : (sm == 1) ? "ok" : "outofband";
+        bool hasShot = (sm != 0);
+        float expectFireDelay = hasShot ? 0.226f : 0.22f;
+        int expectMaxHp = hasShot ? 6 : 7;          /* dal file, PRIMA del trait */
+        int expectHpCap = hasShot ? 12 : 14;
+        int expectFinalMaxHp = expectMaxHp + 1;      /* trait "ok": sempre +1 */
+
+        memset(&ui, 0, sizeof(ui));
+        memset(&gen, 0, sizeof(gen));
+        gen.enabled = true;
+        gen.noSprites = true;
+        gen.command = "tests/fake-gen.sh";
+        mode = APP_MAIN_MENU;
+
+        remove("generated/character_proposal.json");
+        remove("generated/scripts/character_trait.lua");
+        setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+        setenv("FAKE_GEN_CHARACTER_MODE", "ok", 1);
+        setenv("FAKE_GEN_CHARACTER_LUA_MODE", "ok", 1);
+        setenv("FAKE_GEN_CHARACTER_SHOT_MODE", shotMode, 1);
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (12-%s) Avvia non porta a FloorZero\n", shotMode); return false; }
+        if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) il finto propose non e' mai terminato\n", shotMode);
+            return false;
+        }
+        if (!game->generatedCharacterValid)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) la carta del personaggio generato non e' arrivata\n", shotMode);
+            return false;
+        }
+        if (game->generatedCharacter.signatureShot.active != hasShot)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) signatureShot.active=%d, atteso %d\n",
+                    shotMode, game->generatedCharacter.signatureShot.active, hasShot);
+            return false;
+        }
+        if (fabsf(game->generatedCharacter.baseFireDelay - expectFireDelay) > 0.001f ||
+            game->generatedCharacter.baseMaxHp != expectMaxHp ||
+            game->generatedCharacter.hpCap != expectHpCap)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) budget cauto non applicato come atteso (fireDelay=%.3f atteso %.3f, maxHp=%d atteso %d, hpCap=%d atteso %d)\n",
+                    shotMode, game->generatedCharacter.baseFireDelay, expectFireDelay,
+                    game->generatedCharacter.baseMaxHp, expectMaxHp, game->generatedCharacter.hpCap, expectHpCap);
+            return false;
+        }
+        if (hasShot)
+        {
+            /* Scenario (c): "outofband" scrive form="bogus" e ogni manopola
+               a 9 (fuori da ogni banda di shot_type.h) -- ShotTypeClamp/
+               ShotTypeBalance (RunContentLoadCharacterProposal ->
+               CharacterGenDefClamp, seconda rete lato gioco) devono averlo
+               gia' riportato in banda qui, PRIMA ancora della selezione. */
+            if (game->generatedCharacter.signatureShot.form < 0 ||
+                game->generatedCharacter.signatureShot.form >= SHOT_FORM_COUNT)
+            {
+                fprintf(stderr, "GameFloorZeroTest: (12-%s) forma del colpo firmato fuori enum dopo il clamp\n", shotMode);
+                return false;
+            }
+            float power = ShotTypePower(&game->generatedCharacter.signatureShot);
+            if (power < SHOT_TYPE_POWER_MIN - 0.001f || power > SHOT_TYPE_POWER_MAX + 0.001f)
+            {
+                fprintf(stderr, "GameFloorZeroTest: (12-%s) potenza del colpo firmato fuori banda dopo il clamp (%.3f)\n", shotMode, power);
+                return false;
+            }
+        }
+
+        { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputUp();  UpdateApp(game, &mode, &gen, &ui, &in); }
+        for (int i = 0; i < CHARACTER_COUNT; i++) { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (game->characterChosenIndex != CHARACTER_COUNT)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) confirm non sceglie il personaggio generato\n", shotMode);
+            return false;
+        }
+        /* Requisito 6, scenario (a)/(b): il colpo ATTIVO fin da subito nel
+           pannello del giocatore (prima ancora di attraversare) e' gia' il
+           firmato quando c'e', lo standard quando non c'e' -- il ricalcolo
+           (ScriptItemsInit->ScriptItemsRecomputeStats) riparte SEMPRE da
+           Player.characterShotType, gia' applicato dalla selezione. */
+        if (game->player.shotType.active != hasShot)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) colpo attivo nell'hub: active=%d, atteso %d\n",
+                    shotMode, game->player.shotType.active, hasShot);
+            return false;
+        }
+        if (hasShot)
+        {
+            const char *expectName = (sm == 1) ? "Fake Ember Fang" : "Fake Overshot";
+            if (strcmp(game->player.shotType.name, expectName) != 0)
+            {
+                fprintf(stderr, "GameFloorZeroTest: (12-%s) nome del colpo attivo inatteso ('%s', atteso '%s')\n",
+                        shotMode, game->player.shotType.name, expectName);
+                return false;
+            }
+        }
+
+        { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.runner.state, 5.0))
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) la generazione completa (fake) non e' mai terminata\n", shotMode);
+            return false;
+        }
+        if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (12-%s) l'uscita non si apre\n", shotMode); return false; }
+
+        game->floorZeroExitCrossed = true;
+        { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (12-%s) l'attraversamento non porta a Gameplay\n", shotMode); return false; }
+        /* Requisito 6, scenario (a): DOPO l'attraversamento (GameResetRun +
+           riapplicazione del personaggio scelto), il tipo di colpo attivo
+           resta il firmato -- sopravvive esattamente come stats/trait
+           (scenario 8c sopra), stesso pattern, stesso motivo (la def
+           generata viene ricatturata PRIMA del memset di GameResetRun). */
+        if (game->player.shotType.active != hasShot)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) colpo attivo dopo l'attraversamento: active=%d, atteso %d\n",
+                    shotMode, game->player.shotType.active, hasShot);
+            return false;
+        }
+        if (game->player.maxHp != expectFinalMaxHp)
+        {
+            fprintf(stderr, "GameFloorZeroTest: (12-%s) maxHp dopo l'attraversamento=%d, atteso %d (=%d dal file/budget cauto + 1 dal trait)\n",
+                    shotMode, game->player.maxHp, expectFinalMaxHp, expectMaxHp);
+            return false;
+        }
+    }
+    unsetenv("FAKE_GEN_CHARACTER_SHOT_MODE");
 
     return true;
 }

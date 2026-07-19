@@ -556,16 +556,26 @@ void ScriptItemsRecomputeStats(Game *game)
     ScriptItemsClampStats(&acc, hpCap);
 
     /* Tipo di colpo (step C): stesso identico principio delle statistiche --
-       si riparte da ZERO (nessun tipo = il colpo base) e si riscorrono gli
-       oggetti in ordine di acquisizione. Vince l'ULTIMO che ne porta uno (alla
-       Isaac: raccogliere una nuova "tear replacement" sostituisce la precedente,
-       non si sommano), quindi togliere quell'oggetto fa automaticamente tornare
-       il tipo di quello prima, senza alcuna contabilita' incrementale da
-       disfare. */
-    ShotTypeDef shotType;
-    memset(&shotType, 0, sizeof(shotType));
-    Color shotColor = (Color){ 0, 0, 0, 0 };
-    /* QUALE oggetto ha dato il tipo di colpo (-1 = nessuno). Serve alle sinergie
+       si riparte da ZERO (nessun tipo = il colpo base, o -- da M6b-3 -- il
+       colpo FIRMATO del personaggio se ne ha uno, vedi sotto) e si
+       riscorrono gli oggetti in ordine di acquisizione. Vince l'ULTIMO che
+       ne porta uno (alla Isaac: raccogliere una nuova "tear replacement"
+       sostituisce la precedente, non si sommano), quindi togliere
+       quell'oggetto fa automaticamente tornare il tipo di quello prima,
+       senza alcuna contabilita' incrementale da disfare. */
+    /* M6b-3 (DEC-068): si riparte dal colpo FIRMATO del personaggio invece
+       che da "nessun tipo" -- vedi il commento su Player.characterShotType
+       in core/game_types.h. Un personaggio senza colpo firmato (rosa base
+       sempre, generato "spesso") ha characterShotType.active falso: 'shotType'
+       nasce quindi identica a '{0}' come prima di questa fetta, nessuna
+       regressione. Un oggetto raccolto sotto lo sostituisce esattamente come
+       sostituirebbe "nessun tipo": stessa riga di codice nel ciclo qui sotto,
+       nessun ramo speciale per la provenienza "personaggio" vs "oggetto". */
+    ShotTypeDef shotType = p->characterShotType;
+    Color shotColor = shotType.active ? p->characterShotColor : (Color){ 0, 0, 0, 0 };
+    /* QUALE oggetto ha dato il tipo di colpo (-1 = nessuno, sia "nessun tipo"
+       sia "il tipo viene dal personaggio": in entrambi i casi non c'e' un
+       INDICE in items[] a cui attribuirlo). Serve alle sinergie
        (correzione da review): una sinergia e' fra DUE oggetti diversi, quindi una
        regola che condiziona sul tipo di colpo deve sapere a chi attribuirlo --
        altrimenti un oggetto che porta un tipo di colpo che salta ED e' anche

@@ -707,6 +707,58 @@ static bool TestShotTypeLastItemWinsAndReverts(void)
     return ok;
 }
 
+/* Test AP (M6b-3, DEC-068): il colpo FIRMATO del personaggio fa da BASE al
+   posto del colpo standard -- ScriptItemsRecomputeStats riparte da
+   Player.characterShotType invece che da "nessun tipo" (vedi il commento li'
+   in script_items.c). Un oggetto-colpo del piano raccolto lo SOSTITUISCE
+   esattamente come sostituirebbe il colpo standard (stessa riga di codice
+   nel ciclo degli oggetti qui sotto: nessun ramo speciale per la
+   provenienza "personaggio" vs "oggetto"), e "rimuoverlo" (ricalcolo da
+   zero senza di lui, come nel test T) fa tornare il colpo FIRMATO, non
+   "nessun colpo" -- e' proprio la differenza col test T, dove non c'e'
+   alcun personaggio col colpo firmato e la rimozione torna al colpo base
+   del motore. */
+static bool TestSignatureShotIsBaseAndItemOverrides(void)
+{
+    Game game = MakeBaseGame(6003u);
+
+    /* Simula la selezione di un personaggio generato col colpo firmato --
+       GamePlayerResetBaseStatsFor (src/game/game.c) lo farebbe cosi' per
+       davvero; qui si imposta il campo direttamente, come
+       TestHpCapIsPerCharacter fa per hpCap, per non dover costruire
+       un'intera CharacterDef in questo test a basso livello che esercita
+       solo il ricalcolo. */
+    game.player.characterShotType = MakeShotType(SHOT_FORM_BEAM, 1.3f, 0.85f, 0.6f, 1.4f, 1, 0, 1);
+    game.player.characterShotColor = (Color){ 200, 40, 220, 255 };
+    ScriptItemsRecomputeStats(&game);
+    bool baseIsSignature = game.player.shotType.active && game.player.shotType.form == SHOT_FORM_BEAM &&
+                            game.player.shotTypeItem == -1;
+
+    Item nails = { 0 };
+    nails.active = true;
+    nails.slot = SLOT_HAND;
+    snprintf(nails.name, sizeof(nails.name), "Guanto di Chiodi");
+    nails.shotType = MakeShotType(SHOT_FORM_SPIKE, 1.45f, 0.75f, 0.65f, 1.0f, 1, 0, 1);
+    TestAddItem(&game, nails);
+    bool itemWins = game.player.shotType.active && game.player.shotType.form == SHOT_FORM_SPIKE &&
+                     game.player.shotTypeItem == 0;
+
+    /* "Rimozione" (come il test T): ricalcolo da zero senza l'oggetto --
+       torna il colpo FIRMATO, non "nessun colpo". */
+    game.player.itemCount = 0;
+    ScriptItemsRecomputeStats(&game);
+    bool revertsToSignature = game.player.shotType.active && game.player.shotType.form == SHOT_FORM_BEAM &&
+                               game.player.shotTypeItem == -1;
+
+    printf("  [AP] colpo firmato come base=%s, l'oggetto raccolto vince=%s, rimosso l'oggetto torna il firmato (non 'nessun colpo')=%s\n",
+           baseIsSignature ? "si" : "NO", itemWins ? "si" : "NO", revertsToSignature ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = baseIsSignature && itemWins && revertsToSignature;
+    if (!ok) printf("      FALLITO: il colpo firmato non fa da base al posto del colpo standard (spec M6b-3, requisito 4)\n");
+    return ok;
+}
+
 /* Test U: la manopola 'chain' non e' decorativa -- all'impatto nasce DAVVERO un
    colpo verso un secondo nemico vicino. Due nemici a portata di catena, si
    spara sul primo, si aggiornano i colpi, e si verifica che ne compaia uno
@@ -2304,6 +2356,7 @@ bool ScriptItemsSelfTest(void)
         { "AM (3c: gli ostacoli fermano il movimento del giocatore e i colpi, non sono decorazione)", TestObstaclesBlockMovementAndShots },
         { "AN (review 3c: un ostacolo a ridosso del muro non spinge un'entita' oltre il bordo)", TestObstacleAgainstWallDoesNotPushThroughIt },
         { "AO (M6a, DEC-033: il tetto di salute base e' per-personaggio -- roccia 16, vetro 8, nessuno 12; DEC-008 sul percorso pickup)", TestHpCapIsPerCharacter },
+        { "AP (M6b-3, DEC-068: il colpo firmato del personaggio fa da base, un oggetto-colpo raccolto lo sostituisce, rimuoverlo lo ripristina)", TestSignatureShotIsBaseAndItemOverrides },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

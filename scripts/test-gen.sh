@@ -827,6 +827,82 @@ if [ -f "$TMP/propose-stale/scripts/character_trait.lua" ]; then
   exit 1
 fi
 
+# M6b-3 (DEC-068): il colpo firmato non ha un percorso senza modello dentro
+# --propose-themes (character.gbnf non ha un ripiego procedurale, come sopra),
+# quindi il contratto di CharacterGenDefClamp (budget cauto + ribilanciamento
+# del colpo, spec punto (b): "IDENTICO su tool e gioco, byte-determinista") si
+# verifica qui con --character-clamp-check: una guardia pura, senza modello,
+# che esercita la STESSA funzione che main.c/character_proposal.c chiamano
+# sui due lati (vedi il commento sul ramo in tools/melting-gen/main.c).
+echo "-- --character-clamp-check: deterministico su due run --"
+"$GEN" --character-clamp-check > "$TMP/clamp-a.txt"
+"$GEN" --character-clamp-check > "$TMP/clamp-b.txt"
+cmp "$TMP/clamp-a.txt" "$TMP/clamp-b.txt"
+
+echo "-- --character-clamp-check: budget cauto (0.6) SOLO con hasShot, mai senza --"
+python3 - "$TMP/clamp-a.txt" <<'PYEOF'
+import sys
+
+vals = {}
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if not line or "=" not in line:
+        continue
+    k, v = line.split("=", 1)
+    vals[k] = v
+
+def f(key):
+    return float(vals[key])
+
+def close(a, b, tol=0.01):
+    return abs(a - b) <= tol
+
+# Senza colpo firmato: le bande di sempre (character_type.h), NESSUNA
+# compressione -- stesso comportamento di prima di M6b-3, verificato con lo
+# stesso input fuori banda usato per il ramo con colpo (99, 0.01, 999...).
+assert close(f("noshot.damage"), 11.0), vals["noshot.damage"]
+assert close(f("noshot.fireDelay"), 0.19), vals["noshot.fireDelay"]
+assert close(f("noshot.shotSpeed"), 560.0), vals["noshot.shotSpeed"]
+assert close(f("noshot.speed"), 190.0), vals["noshot.speed"]
+assert vals["noshot.maxHp"] == "9", vals["noshot.maxHp"]
+assert close(f("noshot.luck"), 1.5), vals["noshot.luck"]
+assert vals["noshot.hpCap"] == "18", vals["noshot.hpCap"]
+assert vals["noshot.signature.active"] == "0", vals["noshot.signature.active"]
+
+# Con colpo firmato: damage/maxHp/luck compressi verso bandMin+0.6*ampiezza,
+# fireDelay verso bandMax-0.6*ampiezza (spec, requisito 2) -- shotSpeed/speed
+# NON compressi (il colpo firmato paga il vantaggio offensivo, non la
+# mobilita'). hpCap deriva dal maxHp GIA' compresso (2*6=12, non 2*9=18).
+assert close(f("shot.damage"), 9.0), vals["shot.damage"]         # 6.0 + 0.6*(11.0-6.0)
+assert close(f("shot.fireDelay"), 0.226), vals["shot.fireDelay"]  # 0.28 - 0.6*(0.28-0.19)
+assert close(f("shot.shotSpeed"), 560.0), vals["shot.shotSpeed"]  # banda di sempre
+assert close(f("shot.speed"), 190.0), vals["shot.speed"]          # banda di sempre
+assert vals["shot.maxHp"] == "6", vals["shot.maxHp"]               # int(3 + 0.6*(9-3)) = int(6.6)
+assert close(f("shot.luck"), 0.9), vals["shot.luck"]               # 0.0 + 0.6*(1.5-0.0)
+assert vals["shot.hpCap"] == "12", vals["shot.hpCap"]               # 2*6, non 2*9
+
+# Il colpo firmato stesso e' passato per ShotTypeClamp/ShotTypeBalance (riuso
+# puro, mai reimplementato qui): un input fuori enum/fuori banda su ogni
+# manopola (form invalida, mul=5, knob=99) non deve MAI sopravvivere tale
+# quale -- il test R di script_items_tests.c (make test-script) verifica gia'
+# per davvero l'invariante di potenza su 768 combinazioni, qui basta la prova
+# che questa funzione la ESERCITA (nome/palette non toccati, forma ricaduta
+# su "orb", ogni manopola dentro la propria banda).
+assert vals["shot.signature.active"] == "1", vals["shot.signature.active"]
+assert vals["shot.signature.name"] == "Selftest Shot", vals["shot.signature.name"]
+assert vals["shot.signature.form"] == "orb", vals["shot.signature.form"]
+assert 0.3 - 0.001 <= f("shot.signature.damageMul") <= 2.0 + 0.001, vals["shot.signature.damageMul"]
+assert 0.5 - 0.001 <= f("shot.signature.speedMul") <= 2.0 + 0.001, vals["shot.signature.speedMul"]
+assert 0.4 - 0.001 <= f("shot.signature.radiusMul") <= 2.5 + 0.001, vals["shot.signature.radiusMul"]
+assert 0.5 - 0.001 <= f("shot.signature.lifeMul") <= 2.0 + 0.001, vals["shot.signature.lifeMul"]
+assert 0 <= int(vals["shot.signature.pierce"]) <= 3, vals["shot.signature.pierce"]
+assert 0 <= int(vals["shot.signature.chain"]) <= 3, vals["shot.signature.chain"]
+assert 1 <= int(vals["shot.signature.pellets"]) <= 3, vals["shot.signature.pellets"]
+PYEOF
+# Il golden dei temi/il fallback restano intatti: gia' verificati sopra (le
+# tre echo "-- --propose-themes..." precedenti) -- questa fetta non tocca
+# --propose-themes, solo il personaggio, quindi non serve un secondo cmp qui.
+
 # --theme-file + --print-json-prompt: entrambi i rami di {CHOSEN_THEME}
 # sostituiti (requisito 4), MAI il placeholder grezzo nel prompt stampato.
 echo "-- --theme-file: {CHOSEN_THEME} sostituito col tema scelto --"

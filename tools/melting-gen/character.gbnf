@@ -1,18 +1,38 @@
 # Grammatica minima per la proposta di personaggio generato per-run (M6b-1,
 # DEC-014, prima fetta): nome + blurb + sei manopole di statistica + palette.
-# File AUTOSUFFICIENTE come propose.gbnf/run.gbnf (nessuna regola condivisa
-# con un altro file caricato a parte): 'name'/'blurb' ripetono deliberatamente
-# lo stesso charset ASCII di propose.gbnf (DEC-052), nessuna virgoletta o
-# backslash in nessuna regola -- il gioco (che non linka cJSON, AGENTS.md) lo
-# spezza con strstr/strtod (src/content/character_proposal.c), mai un parser
-# JSON vero.
+# M6b-3 (DEC-068) aggiunge un blocco "shot" OPZIONALE (il colpo firmato: "a
+# volte", mai una garanzia -- KB characters.md) con lo STESSO schema del tipo
+# di colpo di run.gbnf (nome+forma+sette manopole). File AUTOSUFFICIENTE come
+# propose.gbnf/run.gbnf (nessuna regola condivisa con un altro file caricato
+# a parte, nemmeno con run.gbnf pur avendo una regola "shot" quasi identica):
+# 'name'/'blurb' ripetono deliberatamente lo stesso charset ASCII di
+# propose.gbnf (DEC-052), nessuna virgoletta o backslash in nessuna regola --
+# il gioco (che non linka cJSON, AGENTS.md) lo spezza con strstr/strtod
+# (src/content/character_proposal.c), mai un parser JSON vero.
 #
 # Le bande VERE le impone il C (CharacterGenDefClamp, src/core/
 # character_type.h, applicata sia qui in melting-gen PRIMA di scrivere il
 # json sia nel gioco alla lettura): qui basta restare nell'ordine di
 # grandezza giusto e tenere la forma numerica pulita, come 'mul' in run.gbnf
-# per i tipi di colpo.
-root ::= "{\"name\":" name ",\"blurb\":" blurb ",\"stats\":{\"damage\":" statnum ",\"fireDelay\":" statdec ",\"shotSpeed\":" statnum ",\"speed\":" statnum ",\"maxHp\":" statint ",\"luck\":" statdec "},\"palette\":" color "}"
+# per i tipi di colpo -- vale anche per le manopole del colpo firmato: la
+# COMPRESSIONE cauta (CHARACTER_SHOT_CAUTION_FRACTION) e il ribilanciamento
+# (ShotTypeBalance) restano SOLO lato C, mai qui.
+root ::= "{\"name\":" name ",\"blurb\":" blurb ",\"stats\":{\"damage\":" statnum ",\"fireDelay\":" statdec ",\"shotSpeed\":" statnum ",\"speed\":" statnum ",\"maxHp\":" statint ",\"luck\":" statdec "},\"palette\":" color shotopt "}"
+
+# "" (niente colpo firmato, lo stato piu' comune -- prompt: circa meta' delle
+# volte) oppure ",\"shot\":{...}" in coda, DOPO "palette" -- stesso ordine di
+# chiavi del writer C (GenWriteCharacterProposal, tools/melting-gen/
+# gen_manifest.c): la coerenza scrittore<->grammatica la verifica test-gen
+# come per run.gbnf.
+shotopt ::= "" | ",\"shot\":" shot
+shot ::= "{\"name\":" name ",\"form\":" shotform ",\"speed\":" mul ",\"damage\":" mul ",\"size\":" mul ",\"life\":" mul ",\"pierce\":" knob03 ",\"chain\":" knob03 ",\"pellets\":" knob13 "}"
+shotform ::= "\"orb\"" | "\"spike\"" | "\"beam\"" | "\"arc\"" | "\"blade\""
+# Stessa forma numerica di run.gbnf ('mul'): niente zeri iniziali, al massimo
+# 2 decimali. Le bande vere (0.3..2.0/2.5 a seconda della manopola) le impone
+# ShotTypeClamp lato C, qui basta restare nell'ordine di grandezza giusto.
+mul ::= ("0" | "1" | "2") ("." [0-9] [0-9]?)?
+knob03 ::= "0" | "1" | "2" | "3"
+knob13 ::= "1" | "2" | "3"
 
 name ::= "\"" namechar{4,40} "\""
 namechar ::= [A-Za-z0-9 .,'!-]

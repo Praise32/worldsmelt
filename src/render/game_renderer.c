@@ -1869,6 +1869,22 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
                      UiRound(11.0f*uiScale), game->theme.accent2);
             blurbOffset += UiRound(15.0f*uiScale);
         }
+        /* M6b-3 (DEC-068): riga onesta sul colpo firmato -- SOLO se
+           c->signatureShot.active (mai dal solo colore, DEC-058, e mai
+           quando assente: characters.md, "senza colpo firmato non c'e' una
+           riga apposita"). Il NOME leggibile, mai una descrizione delle
+           sue manopole (le manopole si vedono gia' giocando, come per ogni
+           altro tipo di colpo). La rosa curata non imposta mai questo
+           campo (character_roster.c), quindi questa riga compare solo sul
+           quarto slot dinamico, esattamente come "Trait:" sopra. */
+        if (c->signatureShot.active)
+        {
+            char shotText[48];
+            snprintf(shotText, sizeof(shotText), "Signature: %s", c->signatureShot.name);
+            DrawText(shotText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
+                     UiRound(11.0f*uiScale), game->theme.accent2);
+            blurbOffset += UiRound(15.0f*uiScale);
+        }
 
         char lines[3][160];
         int n = WrapTextLines(c->blurb, blurbFont, card.width - 20.0f*uiScale, lines, 3);

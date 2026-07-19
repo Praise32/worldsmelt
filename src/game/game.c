@@ -55,6 +55,25 @@ void GamePlayerResetBaseStatsFor(Player *player, const CharacterDef *character)
        non hpCap: un personaggio non inizia gia' "cresciuto"), esattamente
        come lo storico 6 di sempre quando non c'e' personaggio. */
     player->hp = player->baseMaxHp;
+    /* M6b-3 (DEC-068): il colpo firmato del personaggio, se ne ha uno --
+       vedi il commento su Player.characterShotType in core/game_types.h.
+       'character' NULL o senza colpo firmato (la stragrande maggioranza dei
+       casi: rosa base sempre, personaggio generato "spesso") azzera per
+       intero, esattamente come ogni altro campo sopra quando non c'e' un
+       personaggio applicato -- mai un residuo del personaggio/colpo
+       PRECEDENTE che sopravvive a uno switch (vedi lo scenario 8d di
+       GameFloorZeroTest, che esercita proprio questo switch per il trait
+       Lua e ora anche per il colpo firmato). */
+    if (character && character->signatureShot.active)
+    {
+        player->characterShotType = character->signatureShot;
+        player->characterShotColor = character->palette;
+    }
+    else
+    {
+        memset(&player->characterShotType, 0, sizeof(player->characterShotType));
+        player->characterShotColor = (Color){ 0, 0, 0, 0 };
+    }
 }
 
 void GamePlayerResetBaseStats(Player *player)

@@ -180,6 +180,75 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
             printf("FALLITO: %s\n", err);
             exit(1);
         }
+        else if (strcmp(argv[i], "--character-clamp-check") == 0)
+        {
+            /* M6b-3 (DEC-068): guardia del budget cauto/del clamp del colpo
+             * firmato, senza alcun modello -- CharacterGenDefClamp (src/
+             * core/character_type.c) e' una funzione PURA, quindi due
+             * chiamate con lo stesso input DEVONO produrre lo stesso output
+             * byte-per-byte: scripts/test-gen.sh lancia questo ramo due
+             * volte e confronta lo stdout con cmp (determinismo), poi legge
+             * i numeri e verifica che la sotto-banda cauta
+             * (CHARACTER_SHOT_CAUTION_FRACTION) si applichi SOLO quando
+             * hasShot e' vero, mai quando e' falso -- lo stesso contratto
+             * che main.c/character_proposal.c chiedono a questa funzione,
+             * qui esercitato senza dover passare da un json/un modello.
+             * Input deliberatamente FUORI banda su ogni manopola (99, 0.01,
+             * 999, 1, 999, 99 e, per il colpo, 5/99 su ogni manopola, forma
+             * invalida): un clamp che funzionasse solo su input gia' in
+             * banda non proverebbe nulla. Stampa "campo=valore", un valore
+             * per riga, ordine fisso, ed esce con 0 -- stesso spirito di
+             * --prompt-budget-check sopra, nessun outDir/modello toccato. */
+            CharacterGenDef noShot;
+            memset(&noShot, 0, sizeof(noShot));
+            noShot.damage = 99.0f; noShot.fireDelay = 0.01f; noShot.shotSpeed = 999.0f;
+            noShot.speed = 1.0f; noShot.maxHp = 999; noShot.luck = 99.0f;
+            noShot.hasShot = false;
+            CharacterGenDefClamp(&noShot);
+
+            CharacterGenDef withShot;
+            memset(&withShot, 0, sizeof(withShot));
+            withShot.damage = 99.0f; withShot.fireDelay = 0.01f; withShot.shotSpeed = 999.0f;
+            withShot.speed = 1.0f; withShot.maxHp = 999; withShot.luck = 99.0f;
+            withShot.hasShot = true;
+            snprintf(withShot.signatureShot.name, sizeof(withShot.signatureShot.name), "Selftest Shot");
+            withShot.signatureShot.form = (ShotForm)999;   /* fuori enum: deve ricadere su ORB */
+            withShot.signatureShot.speedMul = 5.0f;
+            withShot.signatureShot.damageMul = 5.0f;
+            withShot.signatureShot.radiusMul = 5.0f;
+            withShot.signatureShot.lifeMul = 5.0f;
+            withShot.signatureShot.pierceBonus = 99;
+            withShot.signatureShot.chain = 99;
+            withShot.signatureShot.pellets = 99;
+            CharacterGenDefClamp(&withShot);
+
+            printf("noshot.damage=%.6f\n", (double)noShot.damage);
+            printf("noshot.fireDelay=%.6f\n", (double)noShot.fireDelay);
+            printf("noshot.shotSpeed=%.6f\n", (double)noShot.shotSpeed);
+            printf("noshot.speed=%.6f\n", (double)noShot.speed);
+            printf("noshot.maxHp=%d\n", noShot.maxHp);
+            printf("noshot.luck=%.6f\n", (double)noShot.luck);
+            printf("noshot.hpCap=%d\n", noShot.hpCap);
+            printf("noshot.signature.active=%d\n", noShot.signatureShot.active ? 1 : 0);
+            printf("shot.damage=%.6f\n", (double)withShot.damage);
+            printf("shot.fireDelay=%.6f\n", (double)withShot.fireDelay);
+            printf("shot.shotSpeed=%.6f\n", (double)withShot.shotSpeed);
+            printf("shot.speed=%.6f\n", (double)withShot.speed);
+            printf("shot.maxHp=%d\n", withShot.maxHp);
+            printf("shot.luck=%.6f\n", (double)withShot.luck);
+            printf("shot.hpCap=%d\n", withShot.hpCap);
+            printf("shot.signature.active=%d\n", withShot.signatureShot.active ? 1 : 0);
+            printf("shot.signature.name=%s\n", withShot.signatureShot.name);
+            printf("shot.signature.form=%s\n", ShotFormName(withShot.signatureShot.form));
+            printf("shot.signature.damageMul=%.6f\n", (double)withShot.signatureShot.damageMul);
+            printf("shot.signature.speedMul=%.6f\n", (double)withShot.signatureShot.speedMul);
+            printf("shot.signature.radiusMul=%.6f\n", (double)withShot.signatureShot.radiusMul);
+            printf("shot.signature.lifeMul=%.6f\n", (double)withShot.signatureShot.lifeMul);
+            printf("shot.signature.pierce=%d\n", withShot.signatureShot.pierceBonus);
+            printf("shot.signature.chain=%d\n", withShot.signatureShot.chain);
+            printf("shot.signature.pellets=%d\n", withShot.signatureShot.pellets);
+            exit(0);
+        }
         else
         {
             fprintf(stderr, "melting-gen: opzione sconosciuta: %s\n", argv[i]);
@@ -429,9 +498,17 @@ static void RunLuaPhase(GenLlmSession *sess, GenRun *run, const GenArgs *args, d
  * alternativo per-run -- output piccolo (nome+blurb+sei numeri+palette),
  * nPredict piu' generoso di GEN_PROPOSE_N_PREDICT perche' lo "stats" object
  * aggiunge struttura JSON e sei numeri, ma resta comunque un ordine di
- * grandezza sotto il JSON di una run intera. */
+ * grandezza sotto il JSON di una run intera.
+ * M6b-3 (DEC-068): rialzato da 220 a 320 -- il blocco "shot" opzionale (nome
+ * fino a 40 caratteri + forma + sette manopole, come il tipo di colpo di un
+ * piano intero) puo' aggiungere ~100 token quando il modello lo include; un
+ * troncamento a meta' del blocco "shot" renderebbe il JSON non parsabile e
+ * farebbe perdere l'INTERA proposta (character.gbnf non ha un ripiego
+ * procedurale, characters.md "Fallback": carta assente), non solo il colpo
+ * firmato -- stesso ragionamento del rialzo del nPredict della run intera
+ * (args->nPredict qui sopra in ParseArgs, commento sul campo). */
 #define GEN_CHARACTER_GRAMMAR_PATH "tools/melting-gen/character.gbnf"
-#define GEN_CHARACTER_N_PREDICT 220
+#define GEN_CHARACTER_N_PREDICT 320
 
 /* M6b-2 (DEC-037): budget di TEMPO dedicato al passo trait, contato
  * dall'INIZIO di quel passo (non dall'inizio del processo, a differenza di
@@ -523,6 +600,51 @@ static void RunProposeCharacter(GenLlmSession *sess, const GenArgs *args, const 
             def.maxHp = (int)jh->valuedouble;
             def.luck = (float)jl->valuedouble;
             snprintf(def.palette, sizeof(def.palette), "%s", jpal->valuestring);
+
+            /* M6b-3 (DEC-068): il colpo firmato OPZIONALE -- character.gbnf
+             * lo rende parte della grammatica solo "a volte" ('shotopt'),
+             * quindi la sua ASSENZA qui non e' un errore, e' lo stato PIU'
+             * COMUNE del generatore (KB, caso limite "il generatore non
+             * produce un colpo firmato... non e' un errore"). Se il
+             * modello lo scrive, la grammatica ne garantisce la FORMA
+             * (tutti i campi presenti coi tipi giusti): il controllo
+             * difensivo sotto e' "fidati ma verifica" come il resto di
+             * questo file, non sfiducia nella grammatica -- se un campo
+             * mancasse comunque (bug futuro nella grammatica), il colpo
+             * firmato viene semplicemente IGNORATO (fallback locale, mai
+             * la carta intera: spec M6b-3, punto (c)/requisito 3). */
+            cJSON *jshot = cJSON_GetObjectItemCaseSensitive(root, "shot");
+            if (cJSON_IsObject(jshot))
+            {
+                cJSON *sn = cJSON_GetObjectItemCaseSensitive(jshot, "name");
+                cJSON *sform = cJSON_GetObjectItemCaseSensitive(jshot, "form");
+                cJSON *sspeed = cJSON_GetObjectItemCaseSensitive(jshot, "speed");
+                cJSON *sdamage = cJSON_GetObjectItemCaseSensitive(jshot, "damage");
+                cJSON *ssize = cJSON_GetObjectItemCaseSensitive(jshot, "size");
+                cJSON *slife = cJSON_GetObjectItemCaseSensitive(jshot, "life");
+                cJSON *spierce = cJSON_GetObjectItemCaseSensitive(jshot, "pierce");
+                cJSON *schain = cJSON_GetObjectItemCaseSensitive(jshot, "chain");
+                cJSON *spellets = cJSON_GetObjectItemCaseSensitive(jshot, "pellets");
+                bool shotOk = cJSON_IsString(sn) && sn->valuestring && sn->valuestring[0] &&
+                              cJSON_IsString(sform) && sform->valuestring &&
+                              cJSON_IsNumber(sspeed) && cJSON_IsNumber(sdamage) &&
+                              cJSON_IsNumber(ssize) && cJSON_IsNumber(slife) &&
+                              cJSON_IsNumber(spierce) && cJSON_IsNumber(schain) && cJSON_IsNumber(spellets);
+                if (shotOk)
+                {
+                    memset(&def.signatureShot, 0, sizeof(def.signatureShot));
+                    snprintf(def.signatureShot.name, sizeof(def.signatureShot.name), "%s", sn->valuestring);
+                    def.signatureShot.form = ShotFormFromText(sform->valuestring);
+                    def.signatureShot.speedMul = (float)sspeed->valuedouble;
+                    def.signatureShot.damageMul = (float)sdamage->valuedouble;
+                    def.signatureShot.radiusMul = (float)ssize->valuedouble;
+                    def.signatureShot.lifeMul = (float)slife->valuedouble;
+                    def.signatureShot.pierceBonus = (int)spierce->valuedouble;
+                    def.signatureShot.chain = (int)schain->valuedouble;
+                    def.signatureShot.pellets = (int)spellets->valuedouble;
+                    def.hasShot = true;
+                }
+            }
         }
     }
     cJSON_Delete(root);
@@ -532,7 +654,7 @@ static void RunProposeCharacter(GenLlmSession *sess, const GenArgs *args, const 
         return;
     }
 
-    CharacterGenDefClamp(&def);   /* prima rete di clamp: qui, prima di scrivere il json */
+    CharacterGenDefClamp(&def);   /* prima rete di clamp (stats caute + colpo firmato): qui, prima di scrivere il json */
 
     /* M6b-2 (DEC-037), seconda fetta: il trait Lua UNICO del personaggio,
      * STESSA sessione modello gia' aperta (mai un secondo caricamento, vedi
@@ -580,7 +702,8 @@ static void RunProposeCharacter(GenLlmSession *sess, const GenArgs *args, const 
     if (GenWriteCharacterProposal(&def, srcBuf, args->outDir, true) != 0)
         GenLogLine("propose-character: scrittura fallita");
     else
-        GenLogLine("propose-character: source=%s name=%s trait=ok", srcBuf, def.name);
+        GenLogLine("propose-character: source=%s name=%s trait=ok shot=%s", srcBuf, def.name,
+                    def.hasShot ? def.signatureShot.name : "none");
 }
 
 /* --propose-themes N (M5, requisito 1): ramo di uscita anticipata come

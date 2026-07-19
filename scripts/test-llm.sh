@@ -162,16 +162,45 @@ assert d["name"], d
 assert d["blurb"], d
 assert all(ord(c) < 128 for c in d["name"] + d["blurb"]), "personaggio generato non ASCII"
 s = d["stats"]
-assert 6.0 <= s["damage"] <= 11.0, s
-assert 0.19 <= s["fireDelay"] <= 0.28, s
+hasShot = "shot" in d
+# M6b-3 (DEC-068): bande EFFETTIVE, gia' scritte post-clamp da melting-gen
+# (CharacterGenDefClamp gira PRIMA di scrivere il json, character_type.h) --
+# con un colpo firmato damage/maxHp/luck non superano la meta' cauta della
+# banda (bandMin + 0.6*ampiezza) e fireDelay non scende sotto la sua meta'
+# cauta (bandMax - 0.6*ampiezza); shotSpeed/speed restano sulla banda
+# intera in ENTRAMBI i casi (il colpo firmato non tocca la mobilita').
+damageMax = 6.0 + 0.6*(11.0 - 6.0) if hasShot else 11.0
+fireDelayMin = 0.28 - 0.6*(0.28 - 0.19) if hasShot else 0.19
+maxHpMax = 6 if hasShot else 9   # int(3 + 0.6*(9-3)) = int(6.6) = 6
+luckMax = 0.6*1.5 if hasShot else 1.5
+eps = 0.001
+assert 6.0 <= s["damage"] <= damageMax + eps, (s, hasShot)
+assert fireDelayMin - eps <= s["fireDelay"] <= 0.28, (s, hasShot)
 assert 480.0 <= s["shotSpeed"] <= 560.0, s
 assert 190.0 <= s["speed"] <= 260.0, s
-assert 3 <= s["maxHp"] <= 9, s
-assert 0.0 <= s["luck"] <= 1.5, s
+assert 3 <= s["maxHp"] <= maxHpMax, (s, hasShot)
+assert 0.0 <= s["luck"] <= luckMax + eps, (s, hasShot)
 pal = d["palette"]
 assert pal.startswith("#") and len(pal) == 7, pal
 assert d["source"].startswith("local:"), d["source"]
 assert d["lua"] is True, d   # M6b-2: la proposta esiste SOLO se il trait ha validato
+if hasShot:
+    sh = d["shot"]
+    assert sh["name"], sh
+    assert 3 <= len(sh["name"]) <= 40, sh
+    assert all(ord(c) < 128 for c in sh["name"]), "nome del colpo firmato non ASCII"
+    assert sh["name"] != d["name"], "il colpo firmato riusa il nome del personaggio"
+    assert sh["form"] in ("orb", "spike", "beam", "arc", "blade"), sh
+    # Post-ShotTypeBalance (src/core/shot_type.h): le bande FINALI, non quelle
+    # grezze che il modello poteva scrivere -- ShotTypeBalance le riporta
+    # sempre qui dentro, qualunque cosa il modello abbia inventato.
+    assert 0.3 - eps <= sh["damage"] <= 2.0 + eps, sh
+    assert 0.5 - eps <= sh["speed"] <= 2.0 + eps, sh
+    assert 0.4 - eps <= sh["size"] <= 2.5 + eps, sh
+    assert 0.5 - eps <= sh["life"] <= 2.0 + eps, sh
+    assert 0 <= sh["pierce"] <= 3, sh
+    assert 0 <= sh["chain"] <= 3, sh
+    assert 1 <= sh["pellets"] <= 3, sh
 PYEOF
   charName=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['name'])")
   charBlurb=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['blurb'])")
@@ -182,6 +211,26 @@ PYEOF
     exit 1
   fi
   echo "   personaggio generato: $charName -- $charBlurb"
+
+  # M6b-3 (DEC-068): il colpo firmato e' una POSSIBILITA' del generatore, non
+  # una garanzia (KB characters.md) -- la sua assenza qui e' un esito
+  # LEGITTIMO quanto la sua presenza, esattamente come "nessuna carta" lo e'
+  # per l'intero personaggio (M6b-2, sopra). Si riporta l'esito, non si fa
+  # fallire il test se manca.
+  hasShotOut=$(python3 -c "import json; print('shot' in json.load(open('generated/character_proposal.json')))")
+  if [ "$hasShotOut" = "True" ]; then
+    shotName=$(python3 -c "import json; print(json.load(open('generated/character_proposal.json'))['shot']['name'])")
+    shotHit=$(printf '%s\n' "$shotName" | grep -Ei "$italianWordPattern" || true)
+    if [ -n "$shotHit" ]; then
+      echo "FALLITO: parola-funzione italiana nel nome del colpo firmato (DEC-052 richiede inglese):"
+      echo "$shotHit"
+      exit 1
+    fi
+    echo "   colpo firmato campionato: $shotName"
+    python3 -c "import json; print('   ' + json.dumps(json.load(open('generated/character_proposal.json'))['shot']))"
+  else
+    echo "   nessun colpo firmato questa run: esito legittimo (DEC-068, 'a volte', mai una garanzia)"
+  fi
 
   if [ ! -f generated/scripts/character_trait.lua ]; then
     echo "FALLITO: character_proposal.json dice \"lua\":true ma generated/scripts/character_trait.lua non esiste"

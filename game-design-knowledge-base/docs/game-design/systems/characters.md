@@ -2,7 +2,7 @@
 id: gd-system-characters
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche più caute in cambio (DEC-068); i personaggi base usano sempre colpi standard curati."
 ---
 
@@ -122,18 +122,19 @@ dedicato.
   validato in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037,
   rimando, non riformulato qui).
 
-## Personaggio generato: stato dell'implementazione (M6b-1, M6b-2)
+## Personaggio generato: stato dell'implementazione (M6b-1, M6b-2, M6b-3)
 
 Nota di stato della fetta (stile delle note di gap già presenti in questo documento e nella
 KB): l'implementazione M6b-1 ha coperto nome/blurb, statistiche in bande e palette del
 personaggio alternativo generato per run, più la sua carta nel Piano 0 (quarto slot dinamico
 accanto alla rosa base). Da M6b-2 il **trait unico come comportamento Lua (DEC-037)** è
 implementato: generato e validato in sandbox nella stessa sessione modello della proposta,
-attivo dalla selezione del personaggio generato. Resta il **colpo firmato (DEC-068, M6b-3)**
-come gap di implementazione esplicito: fino ad allora il personaggio generato ha statistiche,
-palette e trait propri ma usa sempre il colpo standard, esattamente come un personaggio della
-rosa base senza colpo firmato
-(DEC-068, "un personaggio alternativo senza colpo firmato non è penalizzato").
+attivo dalla selezione del personaggio generato. Da M6b-3 il **colpo firmato (DEC-068)** è
+implementato: il personaggio generato per run è ora **completo** (statistiche + trait + colpo
+firmato opzionale), chiudendo il gap dichiarato dalle fette precedenti. Un personaggio
+alternativo senza colpo firmato (lo stato più comune del generatore) continua a usare sempre
+il colpo standard, esattamente come prima di questa fetta e come ogni personaggio della rosa
+base (DEC-068, "un personaggio alternativo senza colpo firmato non è penalizzato").
 
 ### Default proposti dall'implementazione (stile DEC-019, M6b-1)
 
@@ -156,9 +157,45 @@ Il tetto di salute (DEC-033) non è una settima banda indipendente: si **deriva*
 maxHp con la regola `hpCap = 2 × maxHp`, poi clampato alla propria banda `[6, 18]` — mai una
 manopola libera che il generatore possa scegliere a parte. 18 resta ben sotto la guardia
 assoluta di motore (24, indipendente dal personaggio: vedi `health-and-resources.md` per il
-dettaglio del meccanismo). Il margine tra 18 e 24 è dichiarato: serve al colpo firmato
-(DEC-068, M6b-3), la cui quantificazione esatta delle "statistiche più caute" resta una domanda
-aperta (`../governance/open-questions.md`, sezione "Personaggio generato per-run").
+dettaglio del meccanismo). Il margine tra 18 e 24 non è riservato al colpo firmato (vedi
+sotto: quella fetta comprime maxHp verso il basso, non lo fa mai crescere oltre la banda) —
+resta un cuscinetto generico verso la guardia assoluta.
+
+### Default proposti dall'implementazione — budget del colpo firmato (stile DEC-019, M6b-3)
+
+Come sopra, questi sono **valori proposti in fase di implementazione**, non numeri approvati
+dal design: la quantificazione esatta del budget resta una domanda aperta (open question 18
+sotto, RESTA aperta), questo è solo il numero scelto per renderla giocabile subito e
+verificabile. Un personaggio con colpo firmato ha damage/maxHp/luck/fortuna compressi verso
+`bandMin + 0.6 × (bandMax − bandMin)` (il 60% inferiore della banda, non un dimezzamento
+secco) e cadenza compressa verso `bandMax − 0.6 × (bandMax − bandMin)` (più lenta, mai più
+veloce del bordo cauto) — velocità del colpo base e velocità di movimento **non** sono
+compresse: il colpo firmato paga il proprio vantaggio offensivo, non la mobilità del
+personaggio. hpCap segue sempre `2 × maxHp` come sopra, quindi eredita automaticamente la
+compressione applicata a maxHp. La compressione si applica **solo** quando il personaggio ha
+un colpo firmato: senza, le bande sono quelle intere della tabella sopra, come prima di
+M6b-3.
+
+**Sostituibilità (default proposto, M6b-3):** il colpo firmato, quando c'è, è il colpo di
+**partenza** del personaggio — attivo dalla prima stanza, non un lucchetto che si sblocca. Un
+oggetto-colpo raccolto durante la run lo **sostituisce** esattamente come sostituirebbe il
+colpo standard di qualunque altro personaggio (stessa regola "vince l'ultimo raccolto" del
+resto del sistema dei tipi di colpo, vedi
+[Combat and Projectiles](combat-and-projectiles.md)); se quell'oggetto viene concettualmente
+"tolto" (ricalcolo da zero, come per ogni altra statistica), il colpo firmato torna ad essere
+quello attivo — non il colpo standard. Questo non è imposto da DEC-068 (che fissa solo il
+principio "statistiche più caute in cambio di un colpo dedicato"): è la lettura più semplice
+e coerente col resto del sistema dei tipi di colpo (rimando, non riformulato qui), scelta per
+evitare un secondo meccanismo di "colpo di riserva" mai discusso dal design.
+
+**Colpo che non valida dopo la generazione (default proposto, M6b-3, open question 19 sotto,
+RESTA aperta):** in pratica il tool scrive la proposta SOLO dopo che il colpo firmato ha già
+attraversato la stessa doppia rete di bilanciamento dei tipi di colpo di run (che normalizza,
+non scarta mai), quindi il caso concreto di un colpo fuori banda è solo un
+`character_proposal.json` forgiato a mano fuori dal percorso normale del generatore — quel
+caso viene semplicemente riportato in banda alla lettura (stessa rete), mai scartato: il
+personaggio resta con le statistiche caute già generate, nessun rebalance retroattivo delle
+altre statistiche se il colpo cambia.
 
 ## Input/azioni
 
@@ -287,7 +324,17 @@ applica la regola di fallback unica definita in
   [Visual Language](../content/visual-language.md), valori draft DEC-046).
 - Con quale frequenza il generatore assegna un colpo firmato rispetto al colpo standard, e di
   quanto sono esattamente più caute le statistiche compensative del personaggio che lo riceve
-  (DEC-068 fissa solo il principio; valori da playtest, stile DEC-019).
+  (DEC-068 fissa solo il principio; valori da playtest, stile DEC-019). Default proposti
+  dall'implementazione (M6b-3, RESTANO da validare): il prompt istruisce "circa metà delle
+  volte" senza imporlo (nessuna garanzia di frequenza, coerente con "a volte" di DEC-068); il
+  budget compensativo è la frazione 0.6 delle bande (vedi sopra, "Default proposti... budget
+  del colpo firmato") — non una scelta quantificata dal design, solo un numero che rende la
+  fetta giocabile e verificabile subito.
+- (M6b-3) Il colpo firmato è il colpo di **partenza**, sostituito da un oggetto-colpo raccolto
+  esattamente come il colpo standard: è la lettura più semplice compatibile con DEC-068, non
+  un'alternativa discussa esplicitamente dal design (es. un colpo firmato "protetto" che nessun
+  oggetto può sovrascrivere) — se il design la preferisse, è un cambio comportamentale
+  esplicito da questa nota, non un'assunzione già coperta.
 
 ## Scenari
 
@@ -345,3 +392,11 @@ applica la regola di fallback unica definita in
 - When il giocatore lo seleziona e inizia la run
 - Then il personaggio usa il colpo standard, lo stesso disponibile ai personaggi della rosa
   base, senza alcuna compensazione o svantaggio di statistiche (DEC-068)
+
+**Scenario: un oggetto-colpo raccolto sostituisce il colpo firmato (M6b-3, default proposto)**
+- Given il giocatore ha scelto il personaggio alternativo col suo colpo firmato, attivo fin
+  dalla prima stanza come colpo di partenza
+- When raccoglie durante la run un oggetto che porta il proprio tipo di colpo
+- Then il colpo dell'oggetto sostituisce il colpo firmato esattamente come sostituirebbe il
+  colpo standard di qualunque altro personaggio — e se quell'oggetto viene concettualmente
+  tolto, torna attivo il colpo firmato, non il colpo standard

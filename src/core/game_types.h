@@ -308,6 +308,19 @@ typedef struct CharacterDef {
        suo quando il personaggio viene selezionato, indipendentemente da
        questo campo (due letture separate, mai una a cascata dell'altra). */
     char traitHook[16];
+    /* M6b-3 (DEC-068): il colpo firmato OPZIONALE del personaggio GENERATO
+       -- 'active' falso (lo zero-default di un memset, e quindi SEMPRE il
+       caso per la rosa curata: character_roster.c non lo imposta mai) =
+       nessun colpo firmato, il personaggio usa il colpo standard come
+       prima di questa fetta. Gia' bilanciato quando arriva qui
+       (RunContentLoadCharacterProposal -> CharacterGenDefClamp, la seconda
+       rete lato gioco): questo campo non viene mai clampato per conto suo,
+       solo copiato. Consumato da GamePlayerResetBaseStatsFor (src/game/
+       game.c), che lo trasferisce su Player.characterShotType/
+       characterShotColor -- vedi il commento li' per il perche' non basta
+       tenerlo solo qui (ScriptItemsRecomputeStats non vede mai una
+       CharacterDef, solo il Player). */
+    ShotTypeDef signatureShot;
 } CharacterDef;
 
 typedef struct Theme {
@@ -437,6 +450,23 @@ typedef struct Player {
        senza questo, un oggetto che porta un tipo di colpo "che salta" ed e' anche
        l'oggetto che "rallenta" sinergizzerebbe con SE' STESSO. */
     int shotTypeItem;
+    /* M6b-3 (DEC-068): il colpo firmato del personaggio APPLICATO (copiato da
+       CharacterDef.signatureShot da GamePlayerResetBaseStatsFor, {0}/'active'
+       falso se il personaggio non ne ha uno o se nessun personaggio e'
+       applicato). ScriptItemsRecomputeStats riparte da QUESTO invece che da
+       "nessun tipo" ad ogni ricalcolo (esattamente come baseDamage ecc. sono
+       il punto di partenza delle statistiche): il colpo firmato fa da BASE al
+       posto del colpo base del motore, e un oggetto-colpo raccolto durante la
+       run lo sostituisce ESATTAMENTE come sostituirebbe il colpo base (stessa
+       riga di codice nel ciclo degli oggetti, nessun ramo speciale) --
+       togliere quell'oggetto fa tornare il colpo firmato, non "nessun colpo",
+       perche' il ricalcolo riparte sempre da qui. 'characterShotColor' e' il
+       colore con cui questo colpo (quando attivo E non ancora sovrascritto da
+       un oggetto) si disegna: la palette del personaggio stesso (non il
+       colore di un oggetto, che qui non c'e'), scelta cosi' il colpo firmato
+       si legge visivamente come "suo" fin dal primo sparo. */
+    ShotTypeDef characterShotType;
+    Color characterShotColor;
     /* Sinergie attive (step D, src/gameplay/synergies.h): un bit per SynergyId.
        E' una statistica come le altre -- ricalcolata da ZERO da
        ScriptItemsRecomputeStats sugli oggetti posseduti ORA, mai accumulata --

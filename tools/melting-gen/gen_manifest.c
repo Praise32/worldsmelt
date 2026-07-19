@@ -621,7 +621,16 @@ int GenWriteCharacterTraitLua(const char *lua, const char *outDir)
  * trait non valida, la proposta INTERA non si scrive (KB: trait invalido =
  * personaggio invalido) -- il parametro esiste comunque esplicito, non un
  * default nascosto, cosi' questa funzione non deve indovinare la regola di
- * dominio di chi la chiama. */
+ * dominio di chi la chiama.
+ * M6b-3 (DEC-068): il colpo firmato OPZIONALE viaggia dentro 'def' stesso
+ * (def->hasShot/def->signatureShot, gia' CLAMPATO/bilanciato dal chiamante
+ * con CharacterGenDefClamp -- niente parametro a parte come 'hasLua': a
+ * differenza del trait, che vive in un file separato scritto da un'altra
+ * funzione, il colpo firmato e' gia' tutto dentro CharacterGenDef). Scritto
+ * come sotto-oggetto "shot" SOLO quando def->hasShot, omesso del tutto
+ * altrimenti -- il gioco (src/content/character_proposal.c) lo rileva
+ * cercando la sottostringa letterale "\"shot\":{" nel testo, stesso stile
+ * sentinella di "\"lua\":true" per il trait. */
 int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, const char *outDir, bool hasLua)
 {
     if (!def) return -1;
@@ -640,6 +649,19 @@ int GenWriteCharacterProposal(const CharacterGenDef *def, const char *source, co
     cJSON_AddStringToObject(root, "palette", def->palette);
     cJSON_AddStringToObject(root, "source", source ? source : "local:unknown");
     cJSON_AddBoolToObject(root, "lua", hasLua);
+    if (def->hasShot)
+    {
+        cJSON *jshot = cJSON_AddObjectToObject(root, "shot");
+        cJSON_AddStringToObject(jshot, "name", def->signatureShot.name);
+        cJSON_AddStringToObject(jshot, "form", ShotFormName(def->signatureShot.form));
+        cJSON_AddNumberToObject(jshot, "speed",  RoundTo2(def->signatureShot.speedMul));
+        cJSON_AddNumberToObject(jshot, "damage", RoundTo2(def->signatureShot.damageMul));
+        cJSON_AddNumberToObject(jshot, "size",   RoundTo2(def->signatureShot.radiusMul));
+        cJSON_AddNumberToObject(jshot, "life",   RoundTo2(def->signatureShot.lifeMul));
+        cJSON_AddNumberToObject(jshot, "pierce",  def->signatureShot.pierceBonus);
+        cJSON_AddNumberToObject(jshot, "chain",   def->signatureShot.chain);
+        cJSON_AddNumberToObject(jshot, "pellets", def->signatureShot.pellets);
+    }
     char *text = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!text) return -1;

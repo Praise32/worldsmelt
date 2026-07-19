@@ -157,6 +157,61 @@ bool RunContentLoadCharacterProposal(const char *path, CharacterDef *out)
      * 'ok'). */
     bool hasLua = strstr(text, "\"lua\":true") != NULL;
 
+    /* M6b-3 (DEC-068): il colpo firmato OPZIONALE, stessa idea di "lua"
+     * sopra -- letto ORA mentre 'text' e' ancora vivo, sentinella
+     * "\"shot\":{" (GenWriteCharacterProposal lo scrive solo quando c'e').
+     * I campi si leggono da un cursore SCOPATO a partire da 'shotStart',
+     * mai da FindAfter(text, ...): "damage" e "speed" del colpo firmato
+     * altrimenti collidrebbero con "stats.damage"/"stats.speed" del
+     * personaggio, che FindAfter cerca nell'INTERO testo e trova SEMPRE la
+     * PRIMA occorrenza -- quella del personaggio, che nel json compare
+     * prima del blocco "shot". Un colpo malformato (campo mancante: non
+     * dovrebbe succedere, la grammatica lo garantisce lato tool, ma un
+     * file forgiato a mano si') NON invalida la proposta -- resta
+     * semplicemente senza colpo firmato ('ok' sopra non ne dipende),
+     * esattamente come "lua" mancante non invalida il trait (fallback
+     * locale, spec M6b-3 punto (c)/requisito 3). */
+    bool hasShot = false;
+    ShotTypeDef signatureShot;
+    memset(&signatureShot, 0, sizeof(signatureShot));
+    const char *shotStart = strstr(text, "\"shot\":{");
+    if (shotStart)
+    {
+        char shotName[32];
+        char shotForm[8];
+        shotName[0] = shotForm[0] = '\0';
+
+        const char *sc = FindAfter(shotStart, "\"name\":\"");
+        bool shotOk = sc != NULL;
+        if (shotOk) { sc = CopyJsonString(sc, shotName, sizeof(shotName)); shotOk = sc && shotName[0]; }
+        if (shotOk) { sc = FindAfter(shotStart, "\"form\":\""); shotOk = sc != NULL; }
+        if (shotOk) { sc = CopyJsonString(sc, shotForm, sizeof(shotForm)); shotOk = sc != NULL; }
+
+        double sSpeed = 0.0, sDamage = 0.0, sSize = 0.0, sLife = 0.0, sPierce = 0.0, sChain = 0.0, sPellets = 0.0;
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"speed\":"), &sSpeed);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"damage\":"), &sDamage);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"size\":"), &sSize);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"life\":"), &sLife);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"pierce\":"), &sPierce);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"chain\":"), &sChain);
+        if (shotOk) shotOk = ReadJsonNumber(FindAfter(shotStart, "\"pellets\":"), &sPellets);
+
+        if (shotOk)
+        {
+            SanitizeAscii(shotName);
+            snprintf(signatureShot.name, sizeof(signatureShot.name), "%s", shotName);
+            signatureShot.form = ShotFormFromText(shotForm);
+            signatureShot.speedMul = (float)sSpeed;
+            signatureShot.damageMul = (float)sDamage;
+            signatureShot.radiusMul = (float)sSize;
+            signatureShot.lifeMul = (float)sLife;
+            signatureShot.pierceBonus = (int)sPierce;
+            signatureShot.chain = (int)sChain;
+            signatureShot.pellets = (int)sPellets;
+            hasShot = true;
+        }
+    }
+
     UnloadFileText(text);
     if (!ok) return false;
 
@@ -174,11 +229,16 @@ bool RunContentLoadCharacterProposal(const char *path, CharacterDef *out)
     def.maxHp = (int)maxHp;
     def.luck = (float)luck;
     snprintf(def.palette, sizeof(def.palette), "%s", palette);
+    def.hasShot = hasShot;
+    def.signatureShot = signatureShot;
 
     /* Seconda rete di clamp (spec, punto (d)): riporta OGNI numero dentro
        banda qualunque cosa dica il file, prima ancora di costruire la
        CharacterDef che il gioco applica davvero -- la prima rete e' in
-       melting-gen, PRIMA di scrivere il json (vedi character_type.h). */
+       melting-gen, PRIMA di scrivere il json (vedi character_type.h). Da
+       M6b-3, questa stessa chiamata comprime ANCHE le stats verso la meta'
+       cauta e ribilancia def.signatureShot (ShotTypeBalance) quando
+       def.hasShot: un'unica funzione, nessuna regola duplicata qui. */
     CharacterGenDefClamp(&def);
 
     memset(out, 0, sizeof(*out));
@@ -218,6 +278,15 @@ bool RunContentLoadCharacterProposal(const char *path, CharacterDef *out)
      * se il trait gira, e gia' fallisce in silenzio da solo. */
     out->traitHook[0] = '\0';
     if (hasLua) DetectTraitHook(out->traitHook, sizeof(out->traitHook));
+
+    /* M6b-3 (DEC-068): gia' clampato/ribilanciato da CharacterGenDefClamp
+     * sopra ('active' falso se def.hasShot era falso, o se il colpo era
+     * malformato: vedi il commento in cima alla lettura -- in entrambi i
+     * casi 'def.signatureShot' e' gia' {0}, copiare non fa danno). Nessuna
+     * logica in piu' qui: la CharacterDef del personaggio base
+     * (character_roster.c) non tocca mai questo campo, quindi resta {0}
+     * per costruzione -- solo il personaggio generato puo' arrivare qui. */
+    out->signatureShot = def.signatureShot;
 
     return true;
 }

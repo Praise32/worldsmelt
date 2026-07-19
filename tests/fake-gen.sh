@@ -95,8 +95,27 @@ EOF
               hasLua="true"
               ;;
           esac
+          # M6b-3 (DEC-068): il colpo firmato OPZIONALE -- terzo interruttore
+          # INDIPENDENTE (FAKE_GEN_CHARACTER_SHOT_MODE), come
+          # FAKE_GEN_CHARACTER_LUA_MODE lo e' da FAKE_GEN_CHARACTER_MODE sopra:
+          # "none" (default, invariato rispetto a prima di questa fetta: nessuna
+          # chiave "shot", cosi' i test M6b-1/M6b-2 esistenti non cambiano
+          # risultato), "ok" (un colpo in banda, per lo scenario "il colpo
+          # firmato diventa il colpo di partenza"), "outofband" (numeri/forma
+          # FUORI banda, per lo scenario "clampato da ShotTypeBalance lato
+          # gioco alla lettura").
+          shotMode="${FAKE_GEN_CHARACTER_SHOT_MODE:-none}"
+          shotJson=""
+          case "$shotMode" in
+            ok)
+              shotJson=',"shot":{"name":"Fake Ember Fang","form":"spike","speed":1.2,"damage":0.8,"size":0.9,"life":1.1,"pierce":1,"chain":0,"pellets":1}'
+              ;;
+            outofband)
+              shotJson=',"shot":{"name":"Fake Overshot","form":"bogus","speed":9,"damage":9,"size":9,"life":9,"pierce":9,"chain":9,"pellets":9}'
+              ;;
+          esac
           cat > "$out/character_proposal.json" <<EOF
-{"name":"Fake Ember Twin","blurb":"A test blurb for the fake generated character in this scenario.","stats":{"damage":9,"fireDelay":0.22,"shotSpeed":520,"speed":215,"maxHp":7,"luck":0.8},"palette":"#cc7733","source":"local:fake-model.gguf","lua":$hasLua}
+{"name":"Fake Ember Twin","blurb":"A test blurb for the fake generated character in this scenario.","stats":{"damage":9,"fireDelay":0.22,"shotSpeed":520,"speed":215,"maxHp":7,"luck":0.8},"palette":"#cc7733","source":"local:fake-model.gguf","lua":$hasLua$shotJson}
 EOF
           ;;
       esac
