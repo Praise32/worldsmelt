@@ -187,6 +187,31 @@ per il contesto delle gare asincrone).
 Questo sistema non definisce la regola di fallback per i contenuti generati: vedi
 `generated-content-validation.md`.
 
+## Stato di implementazione (M7, 2026-07-19)
+
+Nota di stato tecnica, non una regola di design: il **substrato del catalogo** è
+implementato (`src/content/run_catalog.c`) — a fine run (vittoria, sconfitta o
+abbandono, incluso il reroll da `Gameplay`) il gioco registra in un file locale
+(`catalog/`, mai versionato, dati del giocatore) i contenuti generati che il
+giocatore ha davvero incontrato in quella run: temi dei piani raggiunti, layout
+stanza, oggetti presi, tipi di colpo adottati, nemici/boss incontrati, il
+personaggio generato se scelto. Il record è autosufficiente (porta la
+definizione completa, incluso il sorgente Lua dove esiste), pensato per essere
+la fonte della riconvalida (DEC-069) senza dipendere da `generated/`, che resta
+effimero.
+
+Restano **gap di implementazione espliciti**, non requisiti scartati: la
+schermata Catalogo del menu principale (enciclopedia consultabile, DEC-045), il
+museo del Piano 0, i punti sblocco e la loro spesa (DEC-027), i preferiti, e la
+riconvalida vera che sposta un contenuto tra le Reliquie (DEC-069) — oggi il
+file esiste sul disco, ma nulla lo rilegge ancora.
+
+Default v1 sulla domanda aperta "i contenuti fallback-usati contano?" (vedi
+"Domande aperte residue" sotto): **no** — una run interamente su contenuto di
+ripiego (nessuna generazione, o generazione mai avviata) non scrive alcun
+record. La domanda resta aperta per una futura decisione di design; questo è
+solo il comportamento scelto per la prima fetta implementativa.
+
 ## Non-obiettivi
 
 - Nessuna forma di potenziamento permanente del personaggio (statistiche, vite extra,

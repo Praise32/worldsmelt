@@ -3,6 +3,7 @@
 
 #include "content/character_proposal.h"
 #include "content/character_roster.h"
+#include "content/run_catalog.h"
 #include "content/run_content.h"
 #include "game/game.h"
 #include "game/game_internal.h"
@@ -523,6 +524,42 @@ static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned i
     AppUseFallbackThemeCards(game, seed);
 }
 
+/* M7 (DEC-015/041/045/069, substrato del catalogo persistente): l'hook di
+   scrittura, UNA funzione sola per i TRE chiamanti che possono chiudere una
+   run (spec, punto 3) -- vittoria/sconfitta in APP_GAMEPLAY, abbandono
+   confermato in APP_EXIT_CONFIRM (Piano 0 incluso: la guardia "floor<1" sotto
+   lo esclude gia' da sola, nessun bisogno di leggere ui->openedFrom qui), e
+   il reroll in APP_GAMEPLAY (che oggi sfuggiva a ogni hook -- coperto
+   chiamando questa funzione PRIMA di AppEnterFloorZero/game->resetQueued, mai
+   dopo: entrambi i cammini toccano/azzerano campi di Game che questa
+   funzione legge, vedi FloorZeroEnter/GameResetRun).
+   Guardie, in ordine:
+   - 'catalogWritesEnabled' (AppUi, zero-default): la guardia test-safe (spec
+     punto 3, "i game test... non devono scrivere file"). OGNI test C che
+     chiama UpdateApp direttamente costruisce la propria AppUi con "{0}"
+     (src/tests/game_tests.c e affini), quindi questa funzione ritorna subito
+     per costruzione in tutta quella suite, senza bisogno di una condizione
+     esplicita in ognuno. I due soli punti che l'accendono: AppRun piu' sotto
+     (il gioco vero) e --catalog-test (src/tests/catalog_tests.c), che la
+     accende a mano sulla propria AppUi locale per esercitare la scrittura
+     vera attraverso UpdateApp, esattamente come ogni altro *Test di
+     game_tests.c esercita UpdateApp per davvero.
+   - 'game->floor < 1': nessun piano davvero giocato (Piano 0, o un abbandono
+     prima di attraversare il varco) -- niente da registrare.
+   Il resto (contenuto DAVVERO generato o no, categorie con qualcosa da
+   scrivere o no) e' responsabilita' di RunCatalogWriteRun (src/content/
+   run_catalog.c): questa funzione non lo anticipa, solo whether-to-call. MAI
+   blocca la transizione che la chiama: il chiamante non controlla mai
+   'game->catalogRecordsWritten' per decidere se procedere, solo per il
+   feedback di RunResults (DrawRunResultsOverlay, src/render/game_renderer.c). */
+static void AppWriteRunCatalog(Game *game, AppUi *ui, const char *outcome)
+{
+    game->catalogRecordsWritten = 0;
+    if (!ui->catalogWritesEnabled) return;
+    if (game->floor < 1) return;
+    game->catalogRecordsWritten = RunCatalogWriteRun(game, ui->seed, outcome);
+}
+
 /* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
    il contratto). Regola generale di focus condivisa da Options/BuildScreen/
    ExitConfirm (ui/navigation-map.md, "il focus torna sull'elemento che ha
@@ -835,6 +872,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                finita non deve piu' reagire a pausa/tab/reroll dello stesso frame. */
             if (game->phase == PHASE_WIN || game->phase == PHASE_GAME_OVER)
             {
+                AppWriteRunCatalog(game, ui, game->phase == PHASE_WIN ? RUN_CATALOG_OUTCOME_WIN : RUN_CATALOG_OUTCOME_LOSS);
                 *mode = APP_RUN_RESULTS;
                 ui->focus = 0;
                 break;
@@ -850,6 +888,17 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             }
             if (effective.reroll)
             {
+                /* M7: terzo chiamante dell'hook (spec, punto 3) -- il reroll
+                   ABBANDONA la run corrente per rigenerarne una nuova, esattamente
+                   come una conferma di abbandono, quindi registra PRIMA di
+                   toccare 'game' in qualunque modo (sia AppEnterFloorZero, che
+                   azzera player/rooms via FloorZeroEnter, sia resetQueued, che lo
+                   fara' al prossimo GameUpdate): un ordine invertito perderebbe
+                   esattamente gli oggetti/nemici incontrati che il catalogo deve
+                   registrare. Se la run era fallback (source=fallback, es. gen
+                   disabilitata) RunCatalogWriteRun non scrive nulla da sola,
+                   nessuna guardia aggiuntiva serve qui. */
+                AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
                 /* Con generazione: nuova run con seed nuovo, stesso cammino
                    canonico di RunSetup/Avvia (niente scorciatoie). Senza: il
                    reset rapido dev di sempre, latchato per il passo che lo
@@ -939,6 +988,14 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 {
                     if (ui->exitAbandonsRun)
                     {
+                        /* M7: secondo chiamante dell'hook (spec, punto 3) --
+                           l'abbandono confermato. Un unico punto per ENTRAMBE le
+                           origini di questo dialogo (openedFrom FLOOR_ZERO o
+                           PAUSE_MENU): niente da distinguere qui, la guardia
+                           "game->floor < 1" dentro AppWriteRunCatalog esclude gia'
+                           da sola l'abbandono della preparazione nel Piano 0
+                           (floor resta 0 li', WorldStartFloor non e' mai girata). */
+                        AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
                         /* Abbandono dalla preparazione (M1b): i runner di primo
                            piano attivi vanno cancellati SOLO qui, alla conferma
                            vera -- non al semplice ESC che apre il dialogo (la
@@ -997,6 +1054,7 @@ int AppRun(int argc, char **argv)
     bool floorZeroTest = false;
     bool floorZeroScreenshotTest = false;
     bool roomsTest = false;
+    bool catalogTest = false;
     bool layoutTest = false;
     /* M4, SOLO manuale (mai in make test, come *ScreenshotTest sopra): a
        differenza di TUTTI gli altri flag *Test qui sopra, questo NON mette
@@ -1107,6 +1165,16 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             roomsTest = true;
+        }
+        /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
+           DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
+           PROPRIA AppUi locale per ogni scenario (mai la 'appUi' costruita
+           piu' sotto per il main loop): l'accensione della guardia test-safe
+           avviene dentro il test stesso, non qui. */
+        if (strcmp(argv[i], "--catalog-test") == 0)
+        {
+            smokeTest = true;
+            catalogTest = true;
         }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         /* M4: matematica pura come --gen-test (nessuna InitWindow/GetScreenWidth
@@ -1320,6 +1388,14 @@ int AppRun(int argc, char **argv)
         CloseWindow();
         return ok ? 0 : 18;   /* 18: il primo codice di uscita libero (vedi gli altri test sopra) */
     }
+    if (catalogTest)
+    {
+        bool ok = GameCatalogTest(&game);
+        printf("Catalog test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 22;   /* 22: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
     if (scriptTest)
     {
         bool ok = GameScriptSandboxTest(&game);
@@ -1382,6 +1458,16 @@ int AppRun(int argc, char **argv)
        run", indice 0) e per --smoke-test che parte in Gameplay (dove il
        focus non e' letto da nessuno). */
     AppUi appUi = { 0 };
+    /* M7 (substrato del catalogo): accesa SOLO per il gioco vero. Ogni *Test
+       che raggiunge QUESTO main loop invece di uscire prima (--smoke-test,
+       --screenshot-test, --menu-screenshot-test -- gli unici tre: ogni altro
+       *Test esce con un return sopra, prima di questo punto) resta
+       silenzioso sul catalogo esattamente come i test sintetici di
+       game_tests.c, stesso principio "test-safe di default" (spec M7, punto
+       3b). Non serve controllare menuScreenshotTest/screenshotTest a parte:
+       sono entrambi un caso di smokeTest vero (vedi il parsing di argv
+       sopra). */
+    appUi.catalogWritesEnabled = !smokeTest;
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;
     float simAccum = 0.0f;

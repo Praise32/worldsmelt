@@ -1595,6 +1595,16 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
         : "La run e' finita qui.";
     DrawText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
     DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    /* M7 (DEC-015/041/045/069, substrato del catalogo): il feedback canonico
+       "se sono stati registrati nuovi contenuti nel catalogo"
+       (05-game-states-and-flow.md, righe 83-85). game->catalogRecordsWritten
+       e' 0 (riga OMESSA, mai "0" a schermo, spec M7 punto 4) per una run
+       fallback, per una run senza nulla di nuovo da registrare, o quando
+       AppWriteRunCatalog non e' mai stata chiamata per questa run (il caso
+       "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER). */
+    if (game->catalogRecordsWritten > 0)
+        DrawText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
+                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(102.0f*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
 }

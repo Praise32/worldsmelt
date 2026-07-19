@@ -112,4 +112,13 @@ bool ScriptCharacterSelfTest(void);
    src/tests/game_tests.c per i dettagli degli scenari coperti. */
 bool AppBenchmarkPresetSelfTest(void);
 
+/* M7 (DEC-015/041/045/069, substrato del catalogo persistente): come
+   GameStatesTest, gira DOPO InitWindow (chiama UpdateApp con AppInput
+   sintetici) ma ogni scenario costruisce il proprio Game locale invece di
+   riusare quello passato (isolamento totale dallo stato che AppRun ha gia'
+   caricato da generated/, mai deterministico fra checkout diversi). Vedi
+   src/tests/catalog_tests.c per gli otto scenari coperti (guardie di
+   esclusione, scrittura vera nei tre esiti, progressivo, atomicita'). */
+bool GameCatalogTest(Game *game);
+
 #endif

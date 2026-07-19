@@ -2,6 +2,7 @@
 
 #include "core/game_types.h"
 
+#include <stdio.h>
 #include <string.h>
 
 unsigned int ItemTraitsFromText(const char *text)
@@ -33,6 +34,29 @@ const char *ItemFirstTraitName(unsigned int traits)
     if (traits & TRAIT_SLOW) return "slow";
     if (traits & TRAIT_VAMP) return "vamp";
     return "plain";
+}
+
+void ItemTraitsToText(unsigned int traits, char *out, int outSize)
+{
+    if (!out || outSize <= 0) return;
+    out[0] = '\0';
+    if (traits == 0) { snprintf(out, outSize, "plain"); return; }
+
+    static const struct { unsigned int flag; const char *name; } kAll[] = {
+        { TRAIT_BOUNCE, "bounce" }, { TRAIT_HOMING, "homing" }, { TRAIT_EXPLODE, "explode" },
+        { TRAIT_SPLIT, "split" }, { TRAIT_PIERCE, "pierce" }, { TRAIT_RAPID, "rapid" },
+        { TRAIT_GIANT, "giant" }, { TRAIT_SLOW, "slow" }, { TRAIT_VAMP, "vamp" },
+    };
+    int used = 0;
+    for (size_t i = 0; i < sizeof(kAll)/sizeof(kAll[0]); i++)
+    {
+        if (!(traits & kAll[i].flag)) continue;
+        int room = outSize - used;
+        if (room <= 1) break;
+        int written = snprintf(out + used, (size_t)room, "%s%s", used ? "," : "", kAll[i].name);
+        if (written < 0) break;
+        used += (written < room) ? written : room - 1;
+    }
 }
 
 /* Costo in monete dell'oggetto del negozio, per rarita' (fase 3b, design

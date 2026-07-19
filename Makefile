@@ -142,6 +142,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --states-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --floor-zero-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --rooms-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --catalog-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test

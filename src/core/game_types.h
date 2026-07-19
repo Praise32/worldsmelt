@@ -815,6 +815,33 @@ typedef struct Game {
        characterChosenIndex. */
     CharacterDef generatedCharacter;
     bool generatedCharacterValid;
+    /* M7 (DEC-015/041/045/069, substrato del catalogo persistente): quali TIPI
+       di nemico/boss il giocatore ha DAVVERO incontrato in questa run, per
+       piano -- non un contatore di uccisioni, un flag "questo tipo e'
+       comparso mentre il giocatore era nella stanza". Lo spawn avviene
+       SEMPRE da WorldSpawnRoomContents/WorldSpawnCombatRoom (src/world/
+       world.c), chiamate SOLO quando il giocatore entra in una stanza: "il
+       giocatore e' presente" e' quindi garantito per costruzione, nessun
+       controllo aggiuntivo necessario li' dentro. Indicizzato [piano-1][0|1]
+       per i due slot nemico del piano (vedi FloorContent.enemies), azzerato
+       a inizio run da GameResetRun col resto di Game (memset).
+       'bossEncountered'/'bossDefeated' distinguono "il boss e' comparso" da
+       "il boss e' stato sconfitto" (RunCatalog registra l'esito separato,
+       vedi src/content/run_catalog.c): defeated implica sempre encountered
+       nella pratica (WorldCheckRoomClear lo marca solo DOPO lo spawn), ma il
+       campo resta indipendente, nessuna deduzione implicita in chi legge. */
+    bool enemyEncountered[FLOOR_COUNT][2];
+    bool bossEncountered[FLOOR_COUNT];
+    bool bossDefeated[FLOOR_COUNT];
+    /* M7: quanti record il catalogo ha scritto per l'ULTIMA chiamata di
+       AppWriteRunCatalog (src/app/app.c) -- 0 se non si e' scritto nulla
+       (run fallback, nessun piano giocato, guardia test attiva). Letto SOLO
+       da DrawRunResultsOverlay (src/render/game_renderer.c) per la riga
+       "Creazioni registrate nel catalogo: N" (05-game-states-and-flow.md,
+       righe 83-85): non serve altrove, quindi non e' protetto da alcuna
+       logica di sopravvivenza a un memset come characterChosenIndex sopra --
+       torna a 0 con ogni nuova run, esattamente come deve. */
+    int catalogRecordsWritten;
     GamePhase phase;
     unsigned int rng;
     int floor;
@@ -880,6 +907,22 @@ typedef struct AppUi {
     int returnFocus;
     bool exitAbandonsRun;
     unsigned int seed;
+    /* M7 (substrato del catalogo persistente): guardia test-safe per
+       AppWriteRunCatalog (src/app/app.c) -- vive qui, non su AppGen, perche'
+       AppUi e' l'UNICO dei parametri di UpdateApp che sopravvive intatto a
+       GameResetRun/FloorZeroEnter (Game viene azzerato a meta' run in piu'
+       punti, vedi i commenti su characterChosenIndex/generatedCharacter
+       sopra) ed e' gia' uno dei tre argomenti dell'hook per spec. Zero-default
+       (falso): OGNI test C che chiama UpdateApp direttamente costruisce la
+       propria "AppUi ui = {0}" (src/tests/game_tests.c e affini), quindi il
+       catalogo resta disattivato per costruzione in tutta quella suite senza
+       bisogno di una condizione esplicita in ognuno. I due soli punti che lo
+       accendono: AppRun (src/app/app.c, il gioco vero: sempre tranne che nei
+       vari *Test raggiunti dal SUO stesso main loop, vedi il commento li') e
+       il test dedicato --catalog-test (src/tests/catalog_tests.c), che lo
+       accende a mano sulla propria AppUi locale per esercitare la scrittura
+       vera con UpdateApp. */
+    bool catalogWritesEnabled;
 } AppUi;
 
 #endif

@@ -70,3 +70,29 @@ domande, che DEC-068 lascia esplicitamente aperte.
 
 18. Di quanto esattamente sono più caute le statistiche del personaggio generato quando riceve un colpo firmato (DEC-068)? La decisione fissa solo il principio ("statistiche più caute rispetto a un personaggio alternativo equivalente senza colpo firmato, per compensare il vantaggio di un colpo dedicato"), senza quantificare lo sconto — un fattore fisso sulle bande di `systems/characters.md`? Una riduzione proporzionale al budget di potenza del colpo firmato stesso (stile `ShotTypePower`)? Da definire, poi da playtest come i valori di DEC-019.
 19. Quando il colpo firmato generato non supera la validazione in sandbox e si applica il fallback verso il colpo standard curato (DEC-068, `systems/generated-content-validation.md`), le statistiche del personaggio restano quelle "più caute" previste per un personaggio CON colpo firmato, o tornano alle bande piene di un personaggio SENZA colpo firmato? Le due letture hanno conseguenze opposte sul bilanciamento (un personaggio penalizzato due volte — colpo standard E statistiche caute — contro un personaggio che riceve il colpo standard "gratis" alle statistiche piene); characters.md non lo specifica.
+
+## Catalogo persistente v1 (M7, substrato, 19/07/2026)
+
+Trovate durante l'implementazione del substrato del catalogo
+(`src/content/run_catalog.c`, vedi `systems/save-and-meta-progression.md`,
+sezione "Stato di implementazione"): il substrato registra solo l'ESITO della
+run, non punti o metriche (i punti sblocco non esistono ancora in v1, DEC-027
+resta il gap).
+
+20. Esito e punti dell'ABBANDONO e del reroll: DEC-041 fissa cosa resta al
+    giocatore solo per vittoria e sconfitta (punti pieni/ridotti, catalogo,
+    statistiche). Un abbandono volontario (ExitConfirm da PauseMenu) o un
+    reroll da `Gameplay` (che abbandona la run corrente per rigenerarne una
+    nuova) devono contare come una sconfitta ai fini dei punti sblocco, avere
+    una categoria propria (punti ridotti ulteriormente, o nessun punto?), o
+    restare fuori da quell'economia? v1 registra comunque il catalogo dei
+    contenuti già incontrati fino a quel momento (stessa regola "una run
+    interrotta a metà non corrompe il profilo" già in
+    `systems/save-and-meta-progression.md`, sezione "Casi limite"), ma non
+    decide nulla sui punti: la domanda resta aperta.
+21. I tipi di colpo e il layout stanza meritano una "scheda" dedicata nel
+    Catalogo (come oggetti, nemici, personaggi) o restano solo un record dati
+    interno, mai esposto come categoria consultabile a sé? v1 li registra
+    entrambi come dati puri nel record (nessuna UI ancora, vedi il gap sopra),
+    scelta di implementazione non di design: la domanda su come/se il futuro
+    Catalogo li presenti resta aperta.

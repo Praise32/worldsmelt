@@ -14,6 +14,11 @@ out/
 generated/
 logs/
 
+# Catalogo persistente v1 (M7, DEC-015/041/045/069): dati del giocatore,
+# un file per run scritto da src/content/run_catalog.c -- mai versionato,
+# stessa regola di generated/ sopra.
+catalog/
+
 # RunBundle v1 (scripts/bundle-export.sh/-import.sh): tar.gz esportati e la
 # cartella di lavoro temporanea usata durante l'import (.import-tmp.*).
 bundles/

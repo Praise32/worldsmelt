@@ -354,7 +354,8 @@ void WorldSpawnCombatRoom(Game *game)
     {
         if (typeCount > 0)
         {
-            const EnemyTypeDef *type = &fc->enemies[activeIdx[GameRngRange(&game->rng, 0, typeCount - 1)]];
+            int slot = activeIdx[GameRngRange(&game->rng, 0, typeCount - 1)];
+            const EnemyTypeDef *type = &fc->enemies[slot];
             float cost = EnemyTypePower(type);
             if (cost < 0.35f) cost = 0.35f;   /* mai gratis: un nemico costa sempre qualcosa, o il ciclo non finirebbe */
             /* L'ultimo nemico si spawna anche se sfora un po': una stanza deve
@@ -367,6 +368,12 @@ void WorldSpawnCombatRoom(Game *game)
             if (type->form == ENEMY_FORM_SPIKY) kind = ENEMY_SHOOTER;
             else if (type->form == ENEMY_FORM_ARMORED) kind = ENEMY_TANK;
             EntitiesAddEnemyTyped(game, kind, WorldFreeRoomPosition(game, 58.0f), type);
+            /* M7 (substrato del catalogo): questo TIPO e' appena comparso in una
+               stanza dove il giocatore e' presente per costruzione (questa
+               funzione gira solo da WorldSpawnRoomContents, chiamata solo
+               all'ingresso in una stanza) -- vedi il commento su
+               Game.enemyEncountered in core/game_types.h. */
+            game->enemyEncountered[game->floor - 1][slot] = true;
             budget -= cost;
         }
         else
@@ -408,6 +415,11 @@ void WorldSpawnRoomContents(Game *game)
         const FloorContent *fc = &game->content.floors[game->floor - 1];
         const EnemyTypeDef *bossType = fc->bossType.active ? &fc->bossType : NULL;
         EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ center.x, rect.y + 118.0f }, bossType);
+        /* M7 (substrato del catalogo): il boss e' appena comparso -- il
+           giocatore e' per costruzione nella stanza (vedi il commento sopra
+           su WorldSpawnCombatRoom). L'esito (incontrato/sconfitto) lo marca
+           WorldCheckRoomClear quando la stanza si ripulisce. */
+        game->bossEncountered[game->floor - 1] = true;
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale: ultimo piano." : "Boss del piano.");
     }
     else if (room->kind == ROOM_TREASURE && !room->rewardTaken)
@@ -573,6 +585,11 @@ void WorldCheckRoomClear(Game *game)
     if ((room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) && !room->cleared && WorldNoEnemiesActive(game))
     {
         room->cleared = true;
+        /* M7 (substrato del catalogo): il boss di QUESTO piano e' appena
+           stato sconfitto -- vedi il commento su Game.bossDefeated in
+           core/game_types.h. game->floor e' sempre valido qui (la stanza
+           boss esiste solo dentro un piano vero, mai nel Piano 0). */
+        if (room->kind == ROOM_BOSS) game->bossDefeated[game->floor - 1] = true;
         WorldSpawnRoomReward(game);
         if (room->kind != ROOM_BOSS) GameSetMessage(game, "Stanza ripulita.");
     }

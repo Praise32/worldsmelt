@@ -72,6 +72,25 @@ static AppInput InputPause(void)   { AppInput in = { 0 }; in.pause = true; retur
 #define STATES_CHECK(cond, msg) \
     do { if (!(cond)) { fprintf(stderr, "GameStatesTest: %s\n", (msg)); return false; } } while (0)
 
+/* M7 (substrato del catalogo): quanti file ci sono OGGI in catalog/ (0 se la
+   cartella non esiste ancora -- prima di qualunque scrittura vera, es. su
+   una checkout pulita, e' il caso normale). Usata per verificare che i
+   PHASE_WIN/PHASE_GAME_OVER sintetici di questo test NON scrivano nulla
+   (spec M7, punto (b): "i game test esistenti... non devono scrivere file
+   catalogo" -- la guardia vera e' AppUi.catalogWritesEnabled, zero-default,
+   mai acceso qui sopra; questo conteggio e' la controprova osservabile su
+   disco, non solo "confidiamo nella guardia"). Stessa API raylib di
+   RunCatalogWriteRun (src/content/run_catalog.c): nessuna dipendenza in piu'
+   da trascinarsi dietro solo per un test. */
+static int CatalogFileCount(void)
+{
+    if (!DirectoryExists("catalog")) return 0;
+    FilePathList files = LoadDirectoryFilesEx("catalog", ".txt", false);
+    int count = (int)files.count;
+    UnloadDirectoryFiles(files);
+    return count;
+}
+
 /* M5 (DEC-005): un ingresso in FloorZero, con gen disabilitata (il caso di
  * TUTTO GameStatesTest, vedi il commento sotto), ha gia' le carte pronte
  * SUBITO (AppUseFallbackThemeCards, chiamata da AppEnterFloorZero): apre il
@@ -220,8 +239,16 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "rientro in ExitConfirm fallito");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }      /* Annulla -> Conferma */
     STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm non porta a Conferma");
+    /* M7: questo e' il SECONDO chiamante dell'hook (spec, punto 3) --
+       abbandono confermato da PauseMenu, game->floor >= 1 per davvero (la run
+       e' entrata in Gameplay poco sopra). Stessa controprova su disco delle
+       due sopra: la guardia test-safe deve tenere anche col piano davvero
+       giocato, non solo nei due casi PHASE_WIN/PHASE_GAME_OVER. */
+    int catalogBeforeAbandon = CatalogFileCount();
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_MAIN_MENU, "ExitConfirm/Conferma (abbandono) non torna a MainMenu");
+    STATES_CHECK(CatalogFileCount() == catalogBeforeAbandon, "ExitConfirm/Conferma (abbandono) ha scritto un file in catalog/ (guardia test-safe non attiva)");
+    STATES_CHECK(game->catalogRecordsWritten == 0, "ExitConfirm/Conferma (abbandono) ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
 
     /* MainMenu -> Esci -> ExitConfirm -> (conferma) -> UpdateApp ritorna true */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run -> Opzioni */
@@ -238,12 +265,19 @@ bool GameStatesTest(Game *game)
         STATES_CHECK(wantsExit, "ExitConfirm/Conferma (uscita dal gioco) non fa ritornare true a UpdateApp");
     }
 
-    /* Fase Game vittoria -> RunResults -> Menu principale -> MainMenu */
+    /* Fase Game vittoria -> RunResults -> Menu principale -> MainMenu.
+       M7: 'ui' e' zero-inizializzata sopra (catalogWritesEnabled falso per
+       costruzione, mai acceso in questo test) -- il conteggio prima/dopo e'
+       la controprova osservabile su disco che la guardia tiene per davvero,
+       non solo "il campo e' falso". */
+    int catalogBeforeWin = CatalogFileCount();
     mode = APP_GAMEPLAY;
     ui.focus = 0;
     game->phase = PHASE_WIN;
     { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_RUN_RESULTS, "PHASE_WIN in Gameplay non porta a RunResults");
+    STATES_CHECK(CatalogFileCount() == catalogBeforeWin, "PHASE_WIN sintetico ha scritto un file in catalog/ (guardia test-safe non attiva)");
+    STATES_CHECK(game->catalogRecordsWritten == 0, "PHASE_WIN sintetico ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
     STATES_CHECK(ui.focus == 0, "il focus iniziale di RunResults non e' 0 (Nuova run subito)");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run subito -> Menu principale */
     STATES_CHECK(ui.focus == 1, "down in RunResults non porta a Menu principale (indice 1)");
@@ -253,11 +287,14 @@ bool GameStatesTest(Game *game)
     /* Fase Game sconfitta -> RunResults -> Nuova run subito -> FloorZero (M5:
        nuove proposte, nuova scelta -- l'uscita si apre solo dopo, requisito
        10) -> attraversamento -> Gameplay */
+    int catalogBeforeLoss = CatalogFileCount();
     mode = APP_GAMEPLAY;
     ui.focus = 0;
     game->phase = PHASE_GAME_OVER;
     { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_RUN_RESULTS, "PHASE_GAME_OVER in Gameplay non porta a RunResults");
+    STATES_CHECK(CatalogFileCount() == catalogBeforeLoss, "PHASE_GAME_OVER sintetico ha scritto un file in catalog/ (guardia test-safe non attiva)");
+    STATES_CHECK(game->catalogRecordsWritten == 0, "PHASE_GAME_OVER sintetico ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* focus 0: Nuova run subito */
     STATES_CHECK(mode == APP_FLOOR_ZERO, "RunResults/Nuova run subito non porta a FloorZero");
     STATES_CHECK(!game->floorZeroExitOpen, "l'uscita del Piano 0 dopo RunResults e' aperta prima della scelta del tema");
