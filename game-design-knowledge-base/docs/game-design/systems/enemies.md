@@ -2,8 +2,8 @@
 id: gd-system-enemies
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest. Il tema genera un roster compatto di 6-8 tipi di nemici per l'intera run, distribuiti sui piani (DEC-053). Il danno da contatto è dichiarato dalla forma: solo i nemici la cui silhouette lo telegrafa feriscono al contatto, gli altri spingono soltanto (DEC-061)."
+last_reviewed: 2026-07-19
+summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest. Il tema genera un roster compatto di 6-8 tipi di nemici per l'intera run, distribuiti sui piani (DEC-053); nei piani avanzati il roster può essere esteso da 1-2 tipi 'best-of' dal Catalogo, entro budget di leggibilità e bande di potenza del piano (DEC-104). Il danno da contatto è dichiarato dalla forma: solo i nemici la cui silhouette lo telegrafa feriscono al contatto, gli altri spingono soltanto (DEC-061)."
 ---
 
 # Enemies
@@ -42,8 +42,9 @@ Ogni nemico deve essere leggibile a colpo d'occhio: ruolo, minaccia e finestra d
 ## Roster compatto per run (DEC-053)
 
 Il tema di una run non genera un numero illimitato di tipi di nemici: genera un **roster
-compatto di 6-8 tipi di nemici** per l'intera run, distribuiti sui cinque piani e potenziati
-dalla degenerazione del tema (gradi crescenti, DEC-024; vedi anche il Veterano sopra).
+compatto di 6-8 tipi di nemici** all'inizio della run, distribuiti sui cinque piani e
+potenziati dalla degenerazione del tema (gradi crescenti, DEC-024; vedi anche il Veterano
+sopra). Questo roster iniziale può essere esteso nei piani avanzati (vedi sotto, DEC-104).
 Questi 6-8 tipi sono istanze concrete generate dal tema, distinte dai **ruoli** elencati
 sopra (la tassonomia tattica fissa): più tipi generati possono condividere lo stesso ruolo.
 
@@ -52,6 +53,26 @@ rivede lo stesso piccolo insieme di nemici, sempre più potenziati, invece di un
 continuo di nemici mai visti (coerente con la difficoltà unica del gioco, senza livelli
 selezionabili — vedi [Difficulty and Progression](../07-difficulty-and-progression.md),
 DEC-038).
+
+## Estensione del roster nei piani avanzati (DEC-104)
+
+Il roster compatto di 6-8 tipi resta **fisso all'inizio della run**, ma nei **piani avanzati**
+può essere **esteso** da **1-2 tipi "best-of"**, pescati dal Catalogo tra i contenuti già
+incontrati e validati in run precedenti (fonte unica del Catalogo:
+[save-and-meta-progression.md](./save-and-meta-progression.md), rimando, non riformulato
+qui). L'estensione porta più sorpresa a run inoltrata, quando il giocatore ha già assimilato
+le sagome di base del roster fisso.
+
+I nuovi ingressi non sono un'eccezione alle regole di questo documento: rispettano lo stesso
+**budget di leggibilità** (vedi sotto, "Regole per contenuti generati") e la stessa **banda di
+potenza del piano** in cui entrano (vedi sotto, DEC-019) di qualunque altro nemico generato o
+curato. L'estensione si integra con l'**escalation del tema** (DEC-024, sotto) senza
+sostituirla: i tipi aggiunti seguono comunque il grado crescente del piano, non lo bypassano.
+
+**Default proposto da playtest (stile DEC-019):** punto di partenza **1 tipo aggiuntivo dal
+piano 3**, un **secondo tipo aggiuntivo dal piano 4**. Stato: draft, da validare col playtest —
+i valori esatti (da quale piano esattamente, quanti tipi) non sono una decisione di design
+chiusa.
 
 ## Escalation per piano (DEC-024)
 
@@ -143,8 +164,9 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Numero massimo di Veterano contemporanei per stanza.
 - Tasso esatto di crescita della frequenza di Veterani per piano (DEC-024 fissa solo che
   cresce con il piano, non i numeri).
-- Se il roster di 6-8 tipi (DEC-053) è fisso per l'intera run fin dall'inizio, o può essere
-  esteso da contenuti "best-of" incontrati durante la run.
+- Valore finale del punto di innesto dell'estensione "best-of" del roster dopo playtest
+  (DEC-104 fissa il principio e un default draft: piano 3 per il primo tipo, piano 4 per il
+  secondo; non i numeri finali).
 
 ## Scenari
 
@@ -189,3 +211,9 @@ Then il roster generato conta tra 6 e 8 tipi di nemici in totale, distribuiti su
 Given un nemico con una silhouette che mostra chiaramente spine o un corpo ustionante, e un nemico con una silhouette senza alcun elemento di pericolo di contatto
 When il giocatore tocca ciascuno dei due nemici
 Then il primo nemico infligge danno al contatto, il secondo spinge il giocatore ma non lo ferisce, coerente con DEC-061
+
+### Scenario 8 — Estensione del roster con tipi "best-of" nei piani avanzati
+
+Given una run con un roster fisso di 6-8 tipi generato al Piano 0, arrivata al Piano 3
+When il gioco genera i nemici del Piano 3 e poi del Piano 4
+Then al Piano 3 il roster può includere fino a un tipo "best-of" aggiuntivo pescato dal Catalogo, e al Piano 4 fino a un secondo tipo aggiuntivo, ciascuno entro il budget di leggibilità e la banda di potenza del piano, coerente con DEC-104

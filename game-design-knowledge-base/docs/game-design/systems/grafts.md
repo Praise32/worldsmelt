@@ -2,8 +2,8 @@
 id: gd-system-grafts
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034): comuni come piccoli modificatori passivi, rari come piega-regole di una singola regola del gioco."
+last_reviewed: 2026-07-19
+summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco."
 ---
 
 # Grafts
@@ -22,7 +22,7 @@ adattamento senza impegnare le decisioni più pesanti riservate ad attivi e pass
 rarità più alta, un Innesto può diventare qualcosa di più di un semplice modificatore: una
 piccola alterazione a una regola del gioco stesso (vedi "Doppia natura per rarità" sotto).
 
-## Doppia natura per rarità (DEC-034)
+## Doppia natura per rarità (DEC-034, DEC-107)
 
 La rarità di un Innesto non cambia solo la sua potenza numerica, ma la **natura** del suo
 effetto:
@@ -30,10 +30,14 @@ effetto:
 - **Innesti comuni:** piccoli modificatori situazionali passivi, pensati per essere
   scambiati al volo senza costo (coerente con la sostituzione immediata già descritta
   sopra).
-- **Innesti rari:** "piega-regole" — alterano in piccola misura **una sola** regola del
+- **Innesti non-comuni e rari:** modificatori più potenti dei comuni, ma restano **dentro
+  le regole** del gioco: nessuna alterazione di regola (DEC-107).
+- **Innesti leggendari:** "piega-regole" — alterano in piccola misura **una sola** regola del
   gioco (esempi concreti: le offerte disponibili nel negozio, il comportamento delle stanze
   segrete). Un piega-regole tocca sempre e solo una regola alla volta: non ne cambia più di
-  una contemporaneamente.
+  una contemporaneamente. Soglia di rarità fissata da DEC-107: solo la rarità leggendaria
+  (peso 3 su {55, 30, 12, 3}, DEC-019) piega le regole; piegare le regole del gioco è il
+  massimo effetto possibile e resta un evento raro e memorabile.
 
 La rarità dell'Innesto decide quindi la profondità del suo effetto, non solo la sua potenza.
 
@@ -85,9 +89,9 @@ Innesti è attivo.
   quando presente), senza campi divergenti specifici della categoria.
 - L'origine di un Innesto generato si dichiara con uno dei quattro valori canonici:
   `curato | composto | variato | nuovo`.
-- Un Innesto piega-regole (rarità alta, DEC-034) generato deve dichiarare esplicitamente
-  quale singola regola altera; la validazione lo respinge se il comportamento proposto tocca
-  più di una regola contemporaneamente (vedi
+- Un Innesto piega-regole (rarità leggendaria, DEC-034, DEC-107) generato deve dichiarare
+  esplicitamente quale singola regola altera; la validazione lo respinge se il comportamento
+  proposto tocca più di una regola contemporaneamente (vedi
   [Generated Content Validation](generated-content-validation.md) per il processo generale,
   non riformulato qui).
 
@@ -100,7 +104,7 @@ Innesti è attivo.
   posseduto: lo slot resta vuoto e visibile, in attesa.
 - Un Innesto piega-regole generato tenta di alterare più di una regola contemporaneamente:
   viene respinto in validazione, secondo la regola generale di
-  [Generated Content Validation](generated-content-validation.md) (DEC-034).
+  [Generated Content Validation](generated-content-validation.md) (DEC-034, DEC-107).
 
 ## Fallback
 
@@ -125,9 +129,10 @@ unica definita in
 - Quali altre regole del gioco, oltre agli esempi già dati (offerte del negozio,
   comportamento delle stanze segrete), sono bersagli ammissibili per un Innesto
   piega-regole (DEC-034)?
-- A quale soglia esatta di rarità (rara, leggendaria, o entrambe) un Innesto diventa
-  piega-regole, rispetto alle 4 rarità definite in
-  [Items, Pools and Rarity](items-pools-and-rarity.md)?
+
+Nota: la domanda sulla soglia esatta di rarità (rara, leggendaria, o entrambe) a cui un
+Innesto diventa piega-regole è risolta da DEC-107 — solo la rarità leggendaria — e non è più
+aperta qui.
 
 ## Scenari
 
@@ -159,9 +164,15 @@ unica definita in
 - Then l'Innesto applica un piccolo modificatore passivo e situazionale, senza alterare
   alcuna regola del gioco (DEC-034)
 
-**Scenario: Innesto raro come piega-regole**
-- Given un Innesto di rarità rara equipaggiato, dichiarato come piega-regole delle offerte
-  del negozio
+**Scenario: Innesto leggendario come piega-regole**
+- Given un Innesto di rarità leggendaria equipaggiato, dichiarato come piega-regole delle
+  offerte del negozio
 - When il giocatore entra in una stanza di negozio
 - Then le offerte del negozio riflettono l'alterazione dichiarata da quell'unico Innesto,
-  e nessun'altra regola del gioco risulta modificata (DEC-034)
+  e nessun'altra regola del gioco risulta modificata (DEC-034, DEC-107)
+
+**Scenario: Innesto raro potente ma dentro le regole**
+- Given un Innesto di rarità rara, equipaggiato nello slot Innesto
+- When il giocatore lo consulta o lo usa in un contesto adatto al suo effetto
+- Then l'Innesto applica un effetto meccanico più forte di un Innesto comune, senza
+  piegare alcuna regola del gioco (DEC-107)

@@ -2,8 +2,8 @@
 id: gd-content-narrative-tone
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Restano draft/aperti: tono specifico (tragico, ironico, ecc.), simboli ricorrenti, limiti di contenuto. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese."
+last_reviewed: 2026-07-19
+summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Il tono narrativo è ora deciso: ironico-leggero (DEC-105), voce del crogiolo — non del mondo generato, coerente con DEC-073. Restano draft/aperti: limiti di contenuto, simboli ricorrenti. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese."
 ---
 
 # Narrative Tone
@@ -62,26 +62,46 @@ I nomi inglesi in-game dei termini di lavoro legati alla cornice del crogiolo (P
 Fusione, Innesto, Veterano, valuta, ecc.) sono definiti nella mappa bilingue del
 [Glossary](../governance/glossary.md) (DEC-072, rimando, non riformulato qui).
 
-## Tema per-run (DEC-005) — distinto dal tono narrativo specifico
+## Tono narrativo: ironico-leggero (DEC-105)
+
+Il registro narrativo di Worldsmelt è **ironico-leggero**: il crogiolo ha coscienza di sé e
+un filo di humour asciutto nei testi che rivolge al giocatore — card di scoperta (DEC-065,
+fonte unica `../ui/hud.md`), testi del museo (fonte unica `../systems/floor-zero.md`) e
+schede del Catalogo (DEC-045, fonte unica `../systems/save-and-meta-progression.md`) — senza
+rompere l'atmosfera né scadere nella parodia.
+
+L'ironia sta nella **voce del crogiolo**, non nel **mondo generato**: coerente con DEC-073
+(fonte unica `../06-ai-content-generation-model.md`), la voce dell'interfaccia/cornice non
+contamina i prompt di generazione dei contenuti dei World. Un tema di run può restare cupo,
+epico o straniante quanto la generazione lo produce; è il crogiolo che lo racconta — non il
+tema stesso — a portare il filo di ironia asciutta.
+
+Questo chiude la domanda residua sul tono specifico registrata più sotto in questo
+documento. Restano aperti limiti di contenuto e simboli ricorrenti (vedi "Deve ancora
+definire" e "Domande aperte residue").
+
+## Tema per-run (DEC-005) — distinto dal tono narrativo
 
 Il tema di ogni singola run è un meccanismo di variazione **per run**, distinto dal tono
-narrativo specifico del gioco (tragico, ironico, inquietante, surreale o altro), che resta
-non deciso:
+narrativo del gioco (ora fissato come ironico-leggero, DEC-105, sopra): il tono è la voce
+con cui il crogiolo si rivolge al giocatore, il tema è il contenuto generato di quella
+specifica run:
 
 - l'IA propone 2-3 temi generati nel Piano 0 (vedi `../systems/floor-zero.md`);
 - il giocatore ne sceglie uno;
 - il tema evolve/degenera piano dopo piano fino al boss del piano 5.
 
 Questo meccanismo è approvato e definito operativamente in `../systems/floor-zero.md`; qui si
-registra solo la sua relazione con la cornice narrativa e col tono specifico ancora aperto: un
-tema di run resta dentro il vincolo del crogiolo (sopra) ma non equivale a una dichiarazione di
-tono specifico del gioco.
+registra solo la sua relazione con la cornice narrativa e col tono narrativo (DEC-105, sopra):
+un tema di run resta dentro il vincolo del crogiolo (sopra) ma non equivale a una dichiarazione
+di tono — il tono è fissato una volta per tutto il gioco, il tema varia run per run.
 
 ## Lingua dei contenuti generati (DEC-052)
 
 La lingua primaria del gioco — e quindi della generazione IA di nomi, descrizioni e temi —
 è l'**inglese**. L'italiano resta la lingua di sviluppo e di test del progetto, incluso il
-tono e il vocabolario specifico ancora provvisori descritti in questo documento.
+vocabolario di limiti di contenuto e simboli ricorrenti ancora provvisori descritti in questo
+documento.
 
 Questa decisione riguarda la lingua dei contenuti generati per il giocatore, non la lingua
 della KB: la knowledge base resta scritta in italiano, perché è la lingua di lavoro del
@@ -97,37 +117,38 @@ stato non toccato da questo lavoro).
 
 ## Deve ancora definire
 
-La cornice narrativa minima (DEC-067) è decisa, così come il titolo del gioco (DEC-071) e la
-nomenclatura di interfaccia (DEC-072). Restano ancora da definire, e restano quindi in stato
-**draft**:
+La cornice narrativa minima (DEC-067) è decisa, così come il titolo del gioco (DEC-071), la
+nomenclatura di interfaccia (DEC-072) e il tono narrativo (DEC-105, ironico-leggero). Restano
+ancora da definire, e restano quindi in stato **draft**:
 
-- tono specifico: tragico, ironico, inquietante, surreale o altro, dentro la cornice del
-  crogiolo;
 - limiti di contenuto;
 - simboli ricorrenti;
 - lessico per nomi e descrizioni dei singoli contenuti generati (oggetti, nemici, boss,
-  World) caso per caso — distinto dal nome del gioco e dalla nomenclatura di interfaccia,
-  ormai fissati.
+  World) caso per caso — distinto dal nome del gioco, dalla nomenclatura di interfaccia e dal
+  tono narrativo, ormai fissati.
 
 ## Regola temporanea
 
-Finché il tono specifico non è approvato, usare placeholder funzionali coerenti con la
-cornice del crogiolo (DEC-067) e non produrre grandi quantità di lore definitiva. Il campo
-semantico fusione/scioglimento/crogiolo è ora la base di vocabolario approvata (non più una
-semplice opzione), ma resta comunque priva di un tono specifico definitivo.
+Finché limiti di contenuto e simboli ricorrenti non sono approvati, usare placeholder
+funzionali coerenti con la cornice del crogiolo (DEC-067) e col tono ironico-leggero
+(DEC-105), e non produrre grandi quantità di lore definitiva. Il campo semantico
+fusione/scioglimento/crogiolo è ora la base di vocabolario approvata (non più una semplice
+opzione), e ha ora anche un tono narrativo definitivo (DEC-105); restano provvisori solo i
+limiti di contenuto e i simboli ricorrenti.
 
 ## Non-obiettivi
 
-Questo documento non sceglie un tono narrativo specifico: registra la cornice narrativa
-minima approvata (DEC-067), il titolo definitivo del gioco deciso dal proprietario (DEC-071,
-rimando) e il meccanismo di tema per-run (DEC-005). Il tono specifico resta ancora da
-definire.
+Questo documento registra la cornice narrativa minima approvata (DEC-067), il titolo
+definitivo del gioco deciso dal proprietario (DEC-071, rimando), il tono narrativo
+ironico-leggero (DEC-105) e il meccanismo di tema per-run (DEC-005). Non fissa limiti di
+contenuto né simboli ricorrenti, che restano ancora da definire.
 
 ## Domande aperte residue
 
-- Tono specifico del gioco (tragico, ironico, inquietante, surreale o altro), dentro la
-  cornice del crogiolo (DEC-067): nessuna scelta ancora fatta.
 - Limiti di contenuto e simboli ricorrenti: non ancora definiti.
+- ~~Tono specifico del gioco (tragico, ironico, inquietante, surreale o altro), dentro la
+  cornice del crogiolo (DEC-067)~~: risolto da DEC-105, registro ironico-leggero — vedi
+  "Tono narrativo: ironico-leggero (DEC-105)" sopra.
 - ~~Tempistica e percorso di migrazione della pipeline di generazione dall'italiano
   all'inglese~~: risolta con M3 (18/07/2026), vedi la nota di stato sopra (DEC-052).
 
@@ -146,13 +167,23 @@ definire.
   restando coerente con la cornice del crogiolo (DEC-067): la degenerazione è il collasso
   progressivo del mondo visitato.
 
-**Scenario: il titolo definitivo non impone da solo un tono specifico**
+**Scenario: il titolo definitivo non impone da solo il tono narrativo**
 - Given la KB registra "Worldsmelt" come titolo definitivo del gioco (DEC-071),
 - When un documento fa riferimento al campo semantico fusione/scioglimento/crogiolo per
   vocabolario o estetica,
-- Then quel riferimento resta coerente con la cornice narrativa approvata (DEC-067), ma non
-  deve essere interpretato come una decisione definitiva sul tono narrativo specifico del
-  gioco, che resta aperto.
+- Then quel riferimento resta coerente con la cornice narrativa approvata (DEC-067) e col
+  tono ironico-leggero (DEC-105), ma il titolo da solo non è la fonte del tono: il tono è
+  fissato separatamente da DEC-105.
+
+**Scenario: il filo di humour del crogiolo non contamina il mondo generato**
+- Given una card di scoperta, un testo del museo o una scheda del Catalogo che il crogiolo
+  rivolge al giocatore (DEC-105),
+- When quel testo viene scritto con un filo di humour asciutto e la coscienza di sé del
+  crogiolo,
+- Then l'ironia resta nella voce dell'interfaccia/cornice e non entra nei prompt di
+  generazione dei contenuti dei World (sprite, nemici, boss, oggetti, stanze, temi), coerente
+  con DEC-073: il mondo generato può restare cupo, epico o straniante quanto la generazione
+  lo produce.
 
 **Scenario: un tema generato non contraddice la cornice del crogiolo**
 - Given l'IA propone un tema per una run nel Piano 0,

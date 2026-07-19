@@ -3,7 +3,7 @@ id: gd-multiplayer
 status: experimental
 owner: design
 last_reviewed: 2026-07-19
-summary: "Gare tra giocatori e classifiche: due assi approvati (Leggera/Classificata × stesso seed/seed diversi), dettagli experimental. La modalità Classificata esiste in tre istanze — stesso seed, seed diversi, Classificata giornaliera pubblica ('Daily') — con classifiche divise per metrica, tempo e punteggio separati (DEC-062). La Daily premia con medaglie/cornici cosmetiche, fuori dall'economia dei punti (DEC-064), e ruota alle 00:00 UTC per tutti i giocatori (DEC-081). Una run è condivisibile fuori dalle classifiche via codice breve — esteso a seed, versione di gioco, tema e personaggio scelti (DEC-077) — o file RunBundle, sempre non classificata (DEC-066)."
+summary: "Gare tra giocatori e classifiche: due assi approvati (Leggera/Classificata × stesso seed/seed diversi), dettagli experimental. La modalità Classificata esiste in tre istanze — stesso seed, seed diversi, Classificata giornaliera pubblica ('Daily') — con classifiche divise per metrica, tempo e punteggio separati (DEC-062). La Daily premia con medaglie/cornici cosmetiche, fuori dall'economia dei punti (DEC-064), e ruota alle 00:00 UTC per tutti i giocatori (DEC-081). La Classificata a seed diversi è equa by-design, budget di generazione vincolato uguale per ogni seed della gara (DEC-096). Nelle gare a stesso seed e nella Daily le proposte di rosa, personaggio e tema sono identiche per tutti i partecipanti, la scelta resta libera (DEC-108). Una run è condivisibile fuori dalle classifiche via codice breve — esteso a seed, versione di gioco, tema e personaggio scelti (DEC-077) — o file RunBundle, sempre non classificata (DEC-066)."
 ---
 
 # Multiplayer and Competition
@@ -34,8 +34,10 @@ Il menu multiplayer offre due scelte indipendenti, entrambe approvate dal propri
 
 Le quattro combinazioni sono tutte previste. Per la combinazione Classificata + Seed
 diversi la confrontabilità dei risultati (pillar "Competizione verificabile") richiede
-un'equivalenza di difficoltà tra run diverse: il criterio di normalizzazione è una
-domanda aperta (vedi `governance/open-questions.md`).
+un'equivalenza di difficoltà tra run diverse: il criterio è ora fissato — equità by-design
+tramite budget di generazione vincolato, non correzione statistica a posteriori (DEC-096,
+vedi sezione dedicata più sotto, rimando, non riformulato qui). I valori esatti dei vincoli
+restano da playtest (vedi `governance/open-questions.md`).
 
 Ogni altro dettaglio del multiplayer (informazioni visibili durante la
 gara, assistenze consentite, dettagli implementativi) resta `experimental` e non è ancora
@@ -95,6 +97,35 @@ Questo documento resta la **fonte unica** dell'orario della Daily. La lobby most
 alla rovescia al prossimo cambio; dettaglio del feedback in interfaccia:
 [Multiplayer Lobby](ui/multiplayer-lobby.md) (rimando, non riformulato qui).
 
+## Equità della Classificata a seed diversi: budget vincolato (DEC-096)
+
+Per la combinazione Classificata + Seed diversi (DEC-021), l'equità tra run diverse è
+**by-design**: i seed della stessa gara generano dentro gli **stessi vincoli di budget** —
+difficoltà di nemici e boss, rarità disponibili, numero di stanze in banda stretta. Nessuna
+correzione statistica del punteggio a posteriori: il giocatore capisce in anticipo cosa sta
+gareggiando. I valori esatti dei vincoli (bande di difficoltà, rarità, numero di stanze)
+restano da playtest, stile DEC-019 (vedi punto 9 di `governance/open-questions.md`, che
+resta aperto solo per questi valori e per gli altri dettagli del multiplayer asincrono —
+disconnessioni, metriche extra, regole di parità e validità).
+
+## Proposte identiche nelle gare a stesso seed e nella Daily (DEC-108)
+
+Nelle gare a **stesso seed** (sfida a stesso seed, DEC-062) e nella **Daily** (DEC-062,
+DEC-081) lo stesso seed genera le **stesse proposte generate per tutti i partecipanti**: lo
+stesso personaggio alternativo generato e lo stesso tema proposto. La rosa base disponibile
+resta quella **sbloccata dal singolo giocatore** (DEC-100): la parità riguarda il contenuto
+generato dal seed, non la progressione personale. La
+**scelta resta libera e strategica** — nessun personaggio imposto dalla gara, nessuna
+esclusione del personaggio generato — l'equità è garantita dal determinismo della
+generazione dal seed, non da un vincolo sulla scelta. Dettaglio della generazione del
+personaggio alternativo e della sua relazione col seed:
+[systems/characters.md](systems/characters.md) (rimando, non riformulato qui). Gap di
+implementazione esplicito: il determinismo completo delle proposte dal seed non è ancora
+garantito dalla pipeline (backlog noto: RNG di gioco su `time(NULL)`, inferenza non
+deterministica) — vedi anche
+[Run Manifest and Reproducibility](systems/run-manifest-and-reproducibility.md) (rimando,
+non riformulato qui).
+
 ## Condivisione run a due vie (DEC-066, DEC-077)
 
 Una run è condivisibile **fuori dalle classifiche** in due modi, entrambi indipendenti dalla
@@ -120,7 +151,7 @@ dettaglio del manifest condiviso e della verifica d'integrità:
 [Run Manifest and Reproducibility](systems/run-manifest-and-reproducibility.md) (rimando, non
 riformulato qui).
 
-## Scenari (DEC-064, DEC-066, DEC-077, DEC-081)
+## Scenari (DEC-064, DEC-066, DEC-077, DEC-081, DEC-096, DEC-108)
 
 **Scenario: medaglia cosmetica dalla Daily**
 - Given un giocatore ottiene un piazzamento in una Classificata giornaliera (Daily)
@@ -147,6 +178,20 @@ riformulato qui).
 - Then chi lo importa ottiene una copia verificabile della run, sempre non classificata
   (DEC-066)
 
+**Scenario: budget vincolato nella Classificata a seed diversi**
+- Given una gara Classificata a seed diversi con più partecipanti
+- When ciascun seed genera la propria run
+- Then tutte le run generate rispettano gli stessi vincoli di budget (difficoltà di nemici
+  e boss, rarità disponibili, numero di stanze in banda stretta), senza alcuna correzione
+  statistica a posteriori del punteggio (DEC-096)
+
+**Scenario: proposte identiche in una gara a stesso seed**
+- Given due giocatori affrontano la stessa gara a stesso seed (o la stessa Daily)
+- When ciascuno arriva al Piano 0 della propria run
+- Then entrambi vedono lo stesso personaggio alternativo generato e lo stesso tema proposto
+  — ciascuno con la propria rosa base sbloccata (DEC-100) — e restano liberi di scegliere
+  autonomamente tra le proposte (DEC-108)
+
 ## Obiettivo
 
 Permettere a due o più giocatori di affrontare una sfida confrontabile e competere su tempo, punteggio o completamento.
@@ -165,8 +210,9 @@ Permettere a due o più giocatori di affrontare una sfida confrontabile e compet
 
 Ogni giocatore affronta una run propria. In modalità Leggera non serve alcuna garanzia di
 equivalenza. In modalità Classificata le run diverse devono avere budget di difficoltà
-equivalente: il criterio di normalizzazione (come si dichiara che due run sono
-confrontabili) è una domanda aperta e resta `experimental`.
+equivalente: il criterio è fissato da DEC-096 — equità **by-design**, stessi vincoli di
+budget di generazione per tutti i seed della gara (vedi sezione dedicata sopra, rimando,
+non riformulato qui). I valori esatti dei vincoli restano da playtest.
 
 ## Informazioni visibili (experimental)
 
@@ -195,17 +241,22 @@ Le classifiche richiedono regole stabili, identificazione della versione di gioc
 
 ## Decisioni aperte
 
-Risolte da DEC-016, DEC-021, DEC-062, DEC-064, DEC-066, DEC-077 e DEC-081 (non più aperte):
-multiplayer simultaneo o asincrono → **asincrono**; struttura del menu → **Leggera/Classificata
-× stesso seed/seed diversi**; numero e natura delle istanze di Classificata → **tre istanze
-(stesso seed, seed diversi, Daily)**; come si dividono le classifiche → **per metrica,
-tempo e punteggio separati**; ricompense della Daily → **cosmetiche, medaglie/cornici**
-(DEC-064); orario di rotazione della Daily → **00:00 UTC, istante globale unico** (DEC-081);
-condivisione di una run fuori classifica → **codice breve (seed, versione di gioco, tema e
-personaggio, DEC-077) o file RunBundle, sempre non classificata** (DEC-066).
+Risolte da DEC-016, DEC-021, DEC-062, DEC-064, DEC-066, DEC-077, DEC-081, DEC-096 e DEC-108
+(non più aperte): multiplayer simultaneo o asincrono → **asincrono**; struttura del menu →
+**Leggera/Classificata × stesso seed/seed diversi**; numero e natura delle istanze di
+Classificata → **tre istanze (stesso seed, seed diversi, Daily)**; come si dividono le
+classifiche → **per metrica, tempo e punteggio separati**; ricompense della Daily →
+**cosmetiche, medaglie/cornici** (DEC-064); orario di rotazione della Daily → **00:00 UTC,
+istante globale unico** (DEC-081); condivisione di una run fuori classifica → **codice breve
+(seed, versione di gioco, tema e personaggio, DEC-077) o file RunBundle, sempre non
+classificata** (DEC-066); equità della Classificata a seed diversi → **budget di
+generazione vincolato, stessi vincoli per ogni seed della gara, nessuna correzione a
+posteriori** (DEC-096); scelta del personaggio nelle gare a stesso seed e nella Daily →
+**proposte identiche per tutti i partecipanti, scelta libera e strategica** (DEC-108).
 
 Ancora aperte, tutte `experimental` o registrate in `governance/open-questions.md`:
 
 - Quali assistenze e mod sono consentite.
-- Il criterio di normalizzazione per la Classificata a seed diversi.
 - Quali informazioni della run di un avversario mostrare e quando.
+- I valori esatti dei vincoli di budget della Classificata a seed diversi (DEC-096 fissa il
+  criterio, non i numeri, vedi punto 9 di `governance/open-questions.md`).

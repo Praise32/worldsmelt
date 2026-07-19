@@ -3,7 +3,7 @@ id: gd-system-content-validation
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md)."
+summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
 ---
 
 # Generated Content Validation
@@ -91,6 +91,14 @@ riconvalida resta come prima; chi non la supera passa a **respinto** e diventa u
 unica del concetto di Reliquie e del suo effetto sul Catalogo:
 [Save and Meta Progression](save-and-meta-progression.md) (rimando, non riformulato qui).
 
+### I contenuti fallback-usati nel Catalogo (DEC-103)
+
+Un contenuto incontrato in stato fallback-usato durante una run entra comunque nel Catalogo
+persistente, marcato con la sua origine `curato` (tassonomia già esistente in
+[`../content/content-taxonomy.md`](../content/content-taxonomy.md)), accanto alle origini
+composto/variato/nuovo. Fonte unica della regola del Catalogo:
+[Save and Meta Progression](save-and-meta-progression.md) (rimando, non riformulato qui).
+
 ## Controlli minimi
 
 - schema completo;
@@ -133,7 +141,8 @@ testi) restano fuori scope in questo documento e vivono nei documenti di `ui/`.
 - `../content/content-taxonomy.md`: l'origine "curato" identifica i contenuti di riserva usati
   nei fallback.
 - `save-and-meta-progression.md`: fonte unica delle Reliquie, il risultato per il Catalogo di
-  un contenuto respinto in riconvalida a cambio versione (DEC-069).
+  un contenuto respinto in riconvalida a cambio versione (DEC-069), e dell'ingresso nel
+  Catalogo dei contenuti fallback-usati con origine curato (DEC-103).
 
 ## Regole per contenuti generati
 
@@ -205,8 +214,6 @@ regola sia verificabile.
   ancora definito).
 - Se e come comunicare al giocatore, in forma aggregata e non tecnica, quante volte un
   fallback è scattato in una run (telemetria vs interfaccia).
-- Se i contenuti fallback-usati entrano comunque nel catalogo dei contenuti generati (vedi
-  `save-and-meta-progression.md`) o restano esclusi in quanto non "generati" in quella run.
 
 ## Telemetria di design
 
@@ -247,6 +254,14 @@ nell'interfaccia normale.
   della nuova versione,
 - Then il contenuto passa allo stato respinto e diventa una Reliquia nel Catalogo del
   giocatore (DEC-069, fonte unica del dettaglio in
+  [Save and Meta Progression](save-and-meta-progression.md)).
+
+**Scenario: contenuto fallback-usato registrato nel Catalogo (DEC-103)**
+- Given un tipo di colpo passa allo stato fallback-usato durante una run perché la
+  generazione IA corrispondente ha fallito la simulazione,
+- When la run si conclude e il Catalogo persistente viene aggiornato,
+- Then il tipo di colpo incontrato compare nel Catalogo marcato con origine curato, accanto ai
+  contenuti di origine composto/variato/nuovo (fonte unica del Catalogo in
   [Save and Meta Progression](save-and-meta-progression.md)).
 
 **Scenario: run completa senza alcuna generazione disponibile (DEC-087)**

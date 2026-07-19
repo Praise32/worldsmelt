@@ -2,7 +2,7 @@
 id: gd-ui-pause
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042)."
 ---
 
@@ -30,7 +30,7 @@ Il focus iniziale è su "Riprendi".
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Apre l'elenco delle prove specifiche della run | Mostra le prove attive e il relativo stato di completamento | Al ritorno, focus su questo elemento |
 | Opzioni | Sempre | Sempre | Apre `Options` | Entra in `Options` | Al ritorno, focus sull'elemento "Opzioni" |
 | Riavvia run | Se consentito dalla modalità | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Riavvia la run con lo stesso o nuovo seed, secondo modalità | Conferma esplicita richiesta |
-| Abbandona run | Sempre | Sempre | Chiede conferma tramite `ExitConfirm` | Torna a `MainMenu`; la run è registrata come abbandonata | Conferma esplicita richiesta |
+| Abbandona run | Sempre | Sempre | Chiede conferma tramite `ExitConfirm` | Entra in `RunResults`; la run si chiude come sconfitta, con punti sblocco ridotti visibili (DEC-082, DEC-089) | Conferma esplicita richiesta |
 
 ## Decisione approvata: la pausa ferma la simulazione
 
@@ -51,7 +51,7 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 - Tornando da `Options`, il focus ritorna sull'elemento "Opzioni" di `PauseMenu`.
 - Tornando da `BuildScreen`, il focus ritorna sull'elemento "Visualizza build e sinergie".
 - Tornando dall'elenco delle prove, il focus ritorna sull'elemento "Prove".
-- L'abbandono registra correttamente esito e stato competitivo della run (vedi `ui/results-and-leaderboards.md`).
+- L'abbandono confermato conta come sconfitta ai fini dei punti sblocco (DEC-082) e porta a `RunResults`, non più a `MainMenu` diretto (DEC-089); il dettaglio dei punti ridotti, dell'esito mostrato e del ritorno al menu da lì è definito in `ui/results-and-leaderboards.md`, non ripetuto qui.
 
 ## Prove (DEC-042)
 
@@ -67,6 +67,7 @@ la voce di menu.
 - Non spiega le sinergie o la fusione: rimanda a `ui/inventory-and-synergy-screen.md`.
 - Non gestisce le opzioni: rimanda a `ui/options-and-accessibility.md`.
 - Non definisce il contenuto o il punteggio delle prove: rimanda a `systems/rewards-and-economy.md` e `systems/floor-zero.md`.
+- Non definisce il contenuto di `RunResults` né il ritorno al menu da lì: rimanda a `ui/results-and-leaderboards.md`.
 
 ## Domande aperte residue
 
@@ -77,5 +78,5 @@ la voce di menu.
 1. **Given** il giocatore è in `Gameplay` in singleplayer, **when** apre `PauseMenu`, **then** nemici e timer di run si fermano finché non seleziona "Riprendi".
 2. **Given** il giocatore è in una run competitiva asincrona, **when** apre `PauseMenu`, **then** il tempo della run continua a contare, con un'indicazione visibile di questo comportamento.
 3. **Given** il giocatore è in `PauseMenu` e apre `Options`, **when** torna indietro, **then** il focus è sull'elemento "Opzioni" di `PauseMenu`.
-4. **Given** il giocatore seleziona "Abbandona run", **when** conferma in `ExitConfirm`, **then** torna a `MainMenu` e l'esito della run viene registrato come abbandonata, non come vittoria né sconfitta per boss.
+4. **Given** il giocatore seleziona "Abbandona run", **when** conferma in `ExitConfirm`, **then** entra in `RunResults`, che mostra la run chiusa come sconfitta con i punti sblocco maturati fino a quel momento in misura ridotta (DEC-082, DEC-089); da lì il ritorno al menu segue `ui/results-and-leaderboards.md`.
 5. **Given** il giocatore ha attraversato l'uscita del Piano 0 verso il piano 1 e le prove sono state presentate (DEC-042), **when** apre `PauseMenu` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento.

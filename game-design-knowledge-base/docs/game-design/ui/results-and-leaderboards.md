@@ -3,7 +3,7 @@ id: gd-ui-results-leaderboards
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041); l'abbandono volontario (ExitConfirm) e il reroll da Gameplay contano come sconfitta ai fini dei punti sblocco (DEC-082); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
+summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
 ---
 
 # Results and Leaderboards (RunResults)
@@ -16,10 +16,11 @@ dare accesso alle classifiche coerenti con DEC-016.
 ## Condizioni di ingresso
 
 Da `Gameplay`, quando la run termina: vittoria sul boss del piano 5, morte in un piano
-qualunque (permadeath), o abbandono confermato da `PauseMenu`. (L'ingresso in `RunResults`
-all'abbandono è in tensione con `ui/pause-menu.md` e `ui/navigation-map.md`, che documentano
-il ritorno diretto a `MainMenu`: incoerenza registrata, vedi punto 11 di
-`../governance/open-questions.md`.)
+qualunque (permadeath), o abbandono confermato da `PauseMenu`. L'abbandono confermato da
+`PauseMenu` porta a `RunResults` (DEC-089): la tensione che c'era in precedenza con
+`ui/pause-menu.md` e `ui/navigation-map.md` è sanata in favore di questo documento. Il
+reroll da `Gameplay`, invece, **non** è un ingresso in `RunResults`: salta i risultati e va
+dritto alla nuova run (vedi [Alla sconfitta](#alla-sconfitta-dec-041)).
 
 ## Vittoria e sconfitta (DEC-006, aggiornata da DEC-031)
 
@@ -40,8 +41,12 @@ DEC-006).
 L'**abbandono volontario di una run in corso** (`ExitConfirm` da `PauseMenu`) e il **reroll
 da `Gameplay`** contano entrambi come **sconfitta** ai fini dei punti sblocco (DEC-082):
 punti ridotti standard su quanto maturato fino a quel momento, nessuna categoria intermedia
-rispetto a vittoria/sconfitta. Il catalogo si aggiorna comunque con le creazioni incontrate,
-come per qualunque run interrotta a metà (regola già esistente, vedi [Save and Meta
+rispetto a vittoria/sconfitta. La **presentazione** dei due casi differisce (DEC-089):
+l'**abbandono confermato passa da `RunResults`**, come una sconfitta, con i punti ridotti
+visibili lì; il **reroll salta la schermata dei risultati** e va dritto alla nuova run, con
+i punti ridotti **accreditati in silenzio** e consultabili poi nel Catalogo. Il catalogo si
+aggiorna comunque con le creazioni incontrate, come per qualunque run interrotta a metà
+(regola già esistente, vedi [Save and Meta
 Progression](../systems/save-and-meta-progression.md)). L'abbandono della sola
 **preparazione nel Piano 0** (`ExitConfirm` da `FloorZero`, DEC-074) avviene prima che la
 run giocata cominci: non conta come sconfitta e resta fuori da questa contabilità.
@@ -135,4 +140,5 @@ regole di fallback: `systems/generated-content-validation.md`.
 5. **Given** il giocatore conclude una run, **when** entra in `RunResults`, **then** vede la timeline della run per piano, le nuove scoperte con i candidati al museo evidenziati, il riepilogo punti con la scorciatoia al Catalogo e il confronto con le run passate, oltre a tempo e punteggio (DEC-056).
 6. **Given** una gara in modalità Classificata è conclusa, **when** il giocatore consulta la classifica, **then** trova una graduatoria per il tempo e una separata per il punteggio, mai un punteggio combinato (DEC-062).
 7. **Given** il giocatore conclude una run della Classificata giornaliera (Daily) con un piazzamento che merita una medaglia, **when** entra in `RunResults`, **then** vede la medaglia/cornice cosmetica guadagnata, senza alcun punto sblocco aggiuntivo (DEC-064).
-8. **Given** il giocatore abbandona volontariamente la run tramite `ExitConfirm`, oppure effettua un reroll da `Gameplay`, **when** i punti sblocco maturati fino a quel momento vengono conteggiati, **then** valgono le stesse regole ridotte della sconfitta, senza categoria intermedia, e il catalogo risulta comunque aggiornato con le creazioni incontrate (DEC-082).
+8. **Given** il giocatore abbandona volontariamente la run tramite `ExitConfirm` da `PauseMenu` e conferma l'abbandono, **when** la run si chiude, **then** entra in `RunResults` con i punti sblocco maturati mostrati in misura ridotta, come per qualunque sconfitta, senza categoria intermedia, e il catalogo risulta comunque aggiornato con le creazioni incontrate (DEC-082, DEC-089).
+9. **Given** il giocatore effettua un reroll da `Gameplay`, **when** la run in corso termina, **then** nessuna schermata `RunResults` viene mostrata: i punti sblocco maturati fino a quel momento si accreditano in silenzio, con la stessa riduzione della sconfitta, e restano consultabili poi nel Catalogo (DEC-082, DEC-089).

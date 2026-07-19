@@ -11,9 +11,18 @@ mai scartato (DEC-079), nomi e ruoli della rosa base (DEC-080), orario della Dai
 (DEC-081), punti di abbandono e reroll (DEC-082), categorie del Catalogo (DEC-083),
 Catalogo come vista interna (DEC-084), Reliquie nel museo (DEC-085), interfaccia del primo
 avvio (DEC-086), pool curato minimo (DEC-087) e soglia del minimo gioco base (DEC-088).
-Restano le domande davvero aperte, rinumerate da 1. Domande aperte più locali vivono anche
-nelle sezioni "Domande aperte" dei singoli documenti di sistema (es. `systems/floor-zero.md`
-per arene, dote e museo): quelle non sono duplicate qui.
+Un secondo giro nella stessa giornata (DEC-089...DEC-108) ha risolto venti domande residue
+dei documenti di sistema — flusso di abbandono e reroll (DEC-089), dialogo di uscita
+(DEC-090), scelte modificabili nel Piano 0 (DEC-091), arene come simulazioni senza economia
+propria (DEC-092/093), soglia best-of e prove illimitate (DEC-094/095), budget vincolato per
+la Classificata a seed diversi (DEC-096), rifiuto ripensabile, varietà del trait,
+sostituibilità del colpo firmato e sblocchi della rosa (DEC-097...100), fusione libera e
+ri-fusione (DEC-101/102), curati nel Catalogo (DEC-103), roster estendibile (DEC-104), tono
+ironico-leggero (DEC-105), boss piano 2 a fase singola (DEC-106), piega-regole solo
+leggendaria (DEC-107), proposte identiche in gara (DEC-108). Restano le domande davvero
+aperte, rinumerate da 1. Domande aperte più locali vivono anche nelle sezioni "Domande
+aperte" dei singoli documenti di sistema (es. `systems/grafts.md`, `systems/item-fusion.md`):
+quelle non sono duplicate qui.
 
 ## Economia e stanze
 
@@ -30,11 +39,11 @@ per arene, dote e museo): quelle non sono duplicate qui.
 
 ## Personaggi
 
-8. Quali sono le statistiche esatte e le condizioni di sblocco della rosa base Wayfinder/Ashblade/Bulwark? (DEC-080 approva nomi e ruoli come canone; le statistiche restano default proposti dall'implementazione M6a, da playtest; DEC-030 chiede sblocchi "presto" senza definirli.)
+8. Quali sono le statistiche esatte della rosa base Wayfinder/Ashblade/Bulwark? (DEC-080 approva nomi e ruoli; DEC-100 fissa gli sblocchi — Wayfinder subito, Ashblade alla prima run conclusa, Bulwark al primo boss abbattuto; le statistiche restano default proposti dall'implementazione M6a, da playtest.)
 
 ## Multiplayer
 
-9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e soprattutto il criterio di normalizzazione della difficoltà per la Classificata a seed diversi? (L'orario di rotazione della Daily è ora fissato: 00:00 UTC, DEC-081.)
+9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e i valori esatti dei vincoli di budget della Classificata a seed diversi? (Il criterio di normalizzazione è ora fissato: budget di generazione vincolato, DEC-096; l'orario di rotazione della Daily è 00:00 UTC, DEC-081.)
 
 ## Produzione
 
@@ -42,4 +51,4 @@ per arene, dote e museo): quelle non sono duplicate qui.
 
 ## Stati e flusso
 
-11. Flusso dell'abbandono di una run in corso (incoerenza emersa applicando DEC-082): `ui/results-and-leaderboards.md` elenca l'abbandono confermato da `PauseMenu` tra le condizioni di ingresso di `RunResults`, ma `ui/pause-menu.md` e `ui/navigation-map.md` documentano l'abbandono come ritorno diretto a `MainMenu` senza passare da `RunResults`. Va deciso dove il giocatore vede l'accredito dei punti ridotti di DEC-082 in quei flussi — passaggio da `RunResults` anche all'abbandono, o accredito silenzioso col ritorno diretto al menu — e va sanata l'incoerenza tra i documenti. Resta inoltre da documentare la collocazione UI esatta del reroll da `Gameplay` (comando, eventuale conferma).
+11. Collocazione UI esatta del reroll da `Gameplay`: quale comando lo attiva e se richiede una conferma. (Il flusso è ora fissato da DEC-089: l'abbandono di una run in corso passa da `RunResults` con i punti ridotti visibili; il reroll salta i risultati e accredita in silenzio, con i punti consultabili nel Catalogo. L'incoerenza tra `results-and-leaderboards`, `pause-menu` e `navigation-map` è sanata da DEC-089.)

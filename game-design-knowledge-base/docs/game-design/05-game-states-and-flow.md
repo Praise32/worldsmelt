@@ -66,20 +66,22 @@ flowchart TD
     MainMenu --> ExitConfirm
     PauseMenu --> ExitConfirm
     FloorZero --> ExitConfirm
+    ExitConfirm -->|Abbandono run confermato| RunResults
+    ExitConfirm -->|Abbandono preparazione confermato| MainMenu
 ```
 
 ## Condizioni di ingresso e input
 
 | Stato | Condizione di ingresso | Input consentiti principali |
 |---|---|---|
-| `MainMenu` | Avvio del gioco o ritorno da `RunResults`/`ExitConfirm` annullato | Naviga, conferma, esci |
+| `MainMenu` | Avvio del gioco, ritorno da `RunResults`, `ExitConfirm` annullato (chiusura del gioco) o confermato per l'abbandono della preparazione nel Piano 0 (DEC-074) | Naviga, conferma, esci |
 | `RunSetup` | Selezione "Nuova run" da `MainMenu` | Conferma, indietro |
 | `FloorZero` | Run avviata, ritorno da `RunResults` per preparare la prossima run, o ripresa di una run sospesa nel Piano 0 | Movimento libero, scelta tema, scelta personaggio, ingresso arena, uscita verso piano 1 quando pronto, abbandona (con `ExitConfirm`) |
 | `Gameplay` | Uscita da `FloorZero` verso il piano 1, ripresa da `PauseMenu`/`BuildScreen`, o "Continua" da `MainMenu` su una run sospesa | Movimento, combattimento, apertura pausa, apertura build |
 | `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, abbandona (con `ExitConfirm`) |
 | `Options` | Da `MainMenu` o da `PauseMenu` | Modifica opzioni, torna indietro |
 | `BuildScreen` | Comando dedicato durante `Gameplay` | Consulta oggetti, sinergie, fusioni disponibili, torna a `Gameplay` |
-| `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, o sconfitta) | Torna al Piano 0, torna al menu principale |
+| `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, sconfitta, o abbandono confermato di una run in corso da `PauseMenu`/`ExitConfirm`, DEC-089) | Torna al Piano 0, torna al menu principale |
 | `ExitConfirm` | Azione distruttiva richiesta (abbandono run, abbandono della preparazione nel Piano 0, uscita dal gioco) | Conferma, annulla |
 
 ## Risultato e feedback per transizione
@@ -97,7 +99,18 @@ flowchart TD
 - `FloorZero → ExitConfirm`: ESC nel Piano 0 apre la conferma di abbandono della
   preparazione (tema e personaggio scelti, generazione in corso). Confermato, l'abbandono
   interrompe la preparazione e riporta a `MainMenu`; annullato, il giocatore resta nel Piano
-  0 senza perdere lo stato di preparazione già scelto (DEC-074).
+  0 senza perdere lo stato di preparazione già scelto (DEC-074, perimetro confermato
+  invariato da DEC-089).
+- `PauseMenu → ExitConfirm`: l'abbandono confermato di una **run in corso** porta a
+  `RunResults`, non a `MainMenu`, come una sconfitta: la run si chiude con i punti sblocco
+  ridotti visibili lì; annullato, il giocatore resta in `PauseMenu` (DEC-089). Il **reroll**
+  da `Gameplay`, invece, non attraversa `RunResults`: i punti ridotti si accreditano in
+  silenzio e restano consultabili nel Catalogo — dettaglio in [Results and
+  Leaderboards](ui/results-and-leaderboards.md), non ripetuto qui.
+- `MainMenu → ExitConfirm` (chiusura del gioco): si presenta come un **dialogo modale
+  leggero** sopra il menu, non una schermata dedicata; gli altri usi di `ExitConfirm`
+  (abbandono di una run in corso, abbandono della preparazione nel Piano 0) mantengono la
+  presentazione già documentata nei rispettivi contratti (DEC-090).
 
 ## Regola sulla pausa (DEC-016, coerenza)
 
@@ -137,8 +150,9 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
 
 ## Domande aperte residue
 
-- Se `ExitConfirm` da `MainMenu` (chiusura del gioco) debba avere una schermata dedicata o
-  un semplice dialogo modale.
+- Nessuna: l'unica domanda residua di questo documento (se `ExitConfirm` da `MainMenu`,
+  chiusura del gioco, debba avere una schermata dedicata o un semplice dialogo modale) è
+  chiusa da DEC-090 — è un dialogo modale leggero, non una schermata dedicata.
 
 ## Scenari
 
@@ -156,3 +170,13 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
   preme ESC e conferma in `ExitConfirm`, **allora** la preparazione viene interrotta e il
   giocatore torna a `MainMenu`; **quando** invece annulla, **allora** resta in `FloorZero`
   con tema e personaggio ancora selezionati.
+- **Dato** che il giocatore è in `Gameplay` con una run in corso e apre `PauseMenu`,
+  **quando** sceglie di abbandonare e conferma in `ExitConfirm`, **allora** entra in
+  `RunResults` con i punti sblocco maturati mostrati in misura ridotta, come per qualunque
+  sconfitta; **quando** invece annulla, **allora** resta in `PauseMenu` (DEC-089).
+- **Dato** che il giocatore effettua un reroll da `Gameplay`, **quando** la run in corso
+  termina, **allora** nessuna schermata `RunResults` viene mostrata: i punti ridotti si
+  accreditano in silenzio e restano consultabili nel Catalogo (DEC-089).
+- **Dato** che il giocatore è in `MainMenu` e richiede di chiudere il gioco, **quando** entra
+  in `ExitConfirm`, **allora** vede un dialogo modale leggero sopra il menu, non una
+  schermata dedicata (DEC-090).

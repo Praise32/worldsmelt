@@ -2,8 +2,8 @@
 id: gd-system-bosses
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028): piano 1 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054)."
+last_reviewed: 2026-07-19
+summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028, DEC-106): piani 1 e 2 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054)."
 ---
 
 # Bosses
@@ -33,13 +33,14 @@ Il giocatore usa la build corrente, movimento libero e sparo nelle quattro direz
 - condizioni anti-stallo;
 - fallback.
 
-## Escalation dei boss per piano (DEC-028)
+## Escalation dei boss per piano (DEC-028, DEC-106)
 
 Come gli altri assi dell'escalation del tema (DEC-024, vedi
 [Difficulty and Progression](../07-difficulty-and-progression.md) per il principio
 generale), anche i boss crescono in complessità piano dopo piano:
 
-- il boss del **piano 1** ha una **fase singola**, leggibile fin dal primo incontro;
+- i boss dei **piani 1 e 2** hanno una **fase singola**, leggibile fin dal primo incontro
+  (DEC-106: rampa dolce, il salto di complessità coincide con la metà della run);
 - dal **piano 3** i boss hanno **due fasi**, con un cambio di comportamento leggibile alla
   transizione;
 - il boss del **piano 5** è il **più complesso** della run standard.
@@ -115,8 +116,6 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - Valore finale delle bande di potenza boss e dei pesi di rarità dopo playtest (DEC-019).
-- Il boss del piano 2 ha fase singola (come il piano 1) o già due fasi (come dal piano 3)?
-  DEC-028 non lo specifica esplicitamente.
 - Numero esatto di fasi del boss del piano 5, oltre alla qualifica di "il più complesso"
   (DEC-028).
 
@@ -163,3 +162,9 @@ Then il boss cambia fase con un comportamento nuovo, leggibile come cambio di fa
 Given una run con un tema scelto nel Piano 0
 When il giocatore affronta i boss dei 5 piani
 Then ciascuno dei 5 boss è generato dal tema di quella run e validato entro le bande di potenza boss, senza che nessuno di essi sia un'entità fissa e identica tra run diverse (DEC-054)
+
+### Scenario 8 — Boss del piano 2 a fase singola
+
+Given il giocatore raggiunge il boss del piano 2
+When lo affronta
+Then il boss ha una sola fase, leggibile fin dal primo incontro, senza cambi di comportamento a metà scontro, e la prima transizione a due fasi resta riservata al piano 3 (DEC-106)

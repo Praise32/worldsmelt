@@ -85,7 +85,9 @@ schede** restano gap di implementazione espliciti (dettaglio in
 ## Navigazione
 
 `MainMenu` è raggiungibile all'avvio del gioco, da `RunResults` e da `ExitConfirm`
-(annullamento o conferma di abbandono run). Da `MainMenu` si raggiungono `RunSetup`, lo
+all'annullamento della chiusura del gioco o alla conferma dell'abbandono della
+**preparazione** nel Piano 0 (DEC-074); l'abbandono confermato di una **run in corso** va
+invece a `RunResults`, non qui (DEC-089). Da `MainMenu` si raggiungono `RunSetup`, lo
 stato salvato della run sospesa (via Continua), `Options`, il Catalogo (vista interna a
 `MainMenu`, non una transizione di stato — DEC-084) e `ExitConfirm`; la selezione
 multiplayer resta `experimental`.

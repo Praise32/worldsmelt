@@ -2,7 +2,7 @@
 id: gd-system-item-fusion
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio)."
 ---
 
@@ -116,8 +116,15 @@ esempio entrambi modificano la traiettoria del proiettile), si applica in ordine
 - Il giocatore ha due oggetti idonei ma nessun catalizzatore di fusione: la conferma resta
   disabilitata e l'interfaccia lo segnala.
 - I due oggetti selezionati appartengono a categorie diverse (per esempio un attivo e un
-  Innesto): l'ammissibilità di fusioni tra categorie diverse non è ancora decisa (vedi
-  domande aperte).
+  Innesto): la fusione è **libera tra categorie diverse** (DEC-101), è anzi il tipo di
+  sorpresa che rende la meccanica memorabile. L'oggetto risultante dichiara la propria
+  categoria e resta dentro il budget e le regole di validazione dei contenuti generati (vedi
+  [Generated Content Validation](generated-content-validation.md)).
+- L'oggetto risultante di una fusione precedente viene selezionato come oggetto sorgente
+  per una nuova fusione: **ammesso, nessun limite concettuale** (DEC-102). La cadenza
+  attesa di 1-2 fusioni per run (DEC-022, vedi la sezione "Rarità del catalizzatore" sopra)
+  limita già naturalmente le catene. Resta aperta la domanda su un eventuale limite rigido
+  al numero totale di fusioni per run (vedi domande aperte).
 - La rifinitura IA (nome, comportamento, sprite dedicati) fallisce, non arriva o non supera
   la validazione dopo che il giocatore ha confermato: la composizione deterministica
   immediata (DEC-023, passo 1) resta l'oggetto valido e utilizzabile, senza che il
@@ -141,12 +148,10 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 
 ## Domande aperte residue
 
-- La fusione è ammessa tra oggetti di categorie diverse (attivo, passivo, stat-up,
-  Innesto), o solo tra oggetti della stessa categoria?
 - Esiste un limite rigido al numero di fusioni per run, oltre alla cadenza attesa di 1-2
-  (DEC-022) determinata dalla disponibilità di catalizzatori?
-- Il nuovo oggetto generato può a sua volta essere usato come sorgente per una fusione
-  successiva?
+  (DEC-022) determinata dalla disponibilità di catalizzatori? DEC-102 ammette la ri-fusione
+  senza limite concettuale ma lascia esplicitamente aperta questa domanda su un tetto
+  rigido.
 - Quale cap massimo ha il catalizzatore di fusione (DEC-022 fissa le fonti — drop
   boss/arena, acquisto costoso — e la cadenza attesa, non un valore numerico di cap: da
   definire in [Health and Resources](health-and-resources.md))?
@@ -193,3 +198,18 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - Then il giocatore riceve immediatamente un oggetto utilizzabile che eredita trait e
   strati visivi da entrambi i genitori, e in seguito nome, comportamento e sprite dedicati
   generati dall'IA si applicano senza interrompere la partita
+
+**Scenario: fusione tra categorie diverse**
+- Given il giocatore ha nella stanza di fusione un oggetto attivo e un oggetto passivo,
+  entrambi idonei, e un catalizzatore di fusione
+- When il giocatore seleziona i due oggetti di categorie diverse e conferma la fusione
+- Then l'operazione è ammessa (DEC-101) e l'oggetto risultante dichiara la propria
+  categoria, restando dentro le regole di validazione dei contenuti generati
+
+**Scenario: oggetto fuso riusato come sorgente**
+- Given il giocatore possiede un oggetto nato da una fusione precedente, un secondo oggetto
+  idoneo e un catalizzatore di fusione
+- When il giocatore seleziona l'oggetto fuso come uno dei due sorgente e conferma una nuova
+  fusione
+- Then l'operazione procede senza limiti concettuali (DEC-102), e la cadenza attesa di 1-2
+  fusioni per run (DEC-022) continua a limitare naturalmente le catene

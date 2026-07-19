@@ -3,7 +3,7 @@ id: gd-system-floor-zero
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
 ---
 
 # Floor Zero
@@ -42,10 +42,10 @@ degli stati: dettaglio e diagramma in
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
-| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema, con tastiera/pad o mouse (DEC-075) | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback) |
-| Selettore personaggio | Sempre | Sempre | Scegliere un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa, con tastiera/pad o mouse (DEC-075) | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
-| Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata; la sconfitta non ha alcun costo, l'arena è una simulazione (DEC-055) | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione; alla sconfitta il giocatore esce illeso |
-| Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029); non disponibile se la creazione è una Reliquia (DEC-069/DEC-085) | Galleria consultabile; feedback dedicato quando si avvia una prova |
+| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Sempre, anche dopo aver già scelto un tema: resta modificabile finché non si attraversa l'uscita (DEC-091) | Selezionare (o cambiare) una carta tema, con tastiera/pad o mouse (DEC-075) | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5; cambiare tema dopo una scelta precedente riavvia la generazione dei piani (DEC-091) | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback); cambiando tema, l'uscita torna chiusa finché il piano 1 del nuovo tema non è pronto (DEC-091) |
+| Selettore personaggio | Sempre | Sempre, anche dopo una scelta precedente: resta modificabile finché non si attraversa l'uscita (DEC-091) | Scegliere (o cambiare) un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa — il rifiuto resta ripensabile fino all'uscita, fonte unica in [Characters](characters.md) (DEC-097) — con tastiera/pad o mouse (DEC-075) | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
+| Ingresso arena di sfida | Quando esiste almeno un contenuto "best-of" valido per un'arena — basta uno solo (DEC-094); al primissimo avvio, o ogni volta che i best-of mancano, l'arena è seminata dal pool curato minimo (DEC-087, DEC-094) | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, simulazione pura senza economia propria (DEC-093): completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata; vittoria o sconfitta, il giocatore esce con esattamente la salute e lo stato con cui è entrato (DEC-092), perché l'arena è una simulazione a rischio zero (DEC-055) | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione; all'uscita, vittoria o sconfitta, il giocatore ha lo stesso stato con cui è entrato |
+| Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029); non disponibile se la creazione è una Reliquia (DEC-069/DEC-085); nessun limite di tentativi, tempo o usi per le prove (DEC-095) | Galleria consultabile; feedback dedicato quando si avvia una prova |
 | Indicatore di generazione | Sempre, da quando inizia la preparazione dei piani successivi | Sola lettura, non interagibile | Nessuna (informativo) | Comunica lo stato di preparazione dei piani | Messaggio descrittivo stabile, vedi [Generation Status](../ui/generation-status.md) |
 | Uscita verso il piano 1 | Sempre visibile nel Piano 0 | Quando il piano 1 è pronto (validato o in fallback) | Attraversare l'uscita | Avvio della run: il piano 1 viene caricato e le prove specifiche della run vengono presentate al giocatore (DEC-042) | L'uscita si apre visibilmente solo quando diventa abilitata; l'attraversamento mostra la presentazione delle prove prima o durante il caricamento del piano 1 |
 | Abbandono (ESC) | Sempre nel Piano 0 | Sempre | Premere ESC (o equivalente su controller) | Apre `ExitConfirm`; confermando si interrompe la preparazione e si torna al menu principale (DEC-074) | Vedi [Game States and Flow](../05-game-states-and-flow.md) per la mappa completa degli stati |
@@ -54,7 +54,10 @@ degli stati: dettaglio e diagramma in
 
 Al termine della preparazione nel Piano 0, il giocatore entra nella run con: un tema
 scelto tra quelli proposti, un personaggio scelto, e un piano 1 pronto. Nessuno di questi
-tre elementi può restare indefinito quando si attraversa l'uscita.
+tre elementi può restare indefinito quando si attraversa l'uscita. Fino a quel momento, sia
+il tema sia il personaggio restano liberamente modificabili (DEC-091): cambiare tema
+riavvia la generazione dei piani e richiude l'uscita finché il piano 1 del nuovo tema non
+è pronto.
 
 ## Feedback
 
@@ -66,6 +69,29 @@ tre elementi può restare indefinito quando si attraversa l'uscita.
   [Generation Status](../ui/generation-status.md).
 - Ogni carta tema comunica anteprima visiva, nome e descrizione insieme, non in sequenza:
   il giocatore deve poter confrontare le proposte a colpo d'occhio (DEC-039).
+- Cambiare il tema dopo averlo già scelto mostra chiaramente che la generazione dei piani
+  riparte e che l'uscita torna chiusa, così il giocatore capisce il costo della scelta
+  (DEC-091).
+
+## Tema e personaggio modificabili fino all'uscita (DEC-091)
+
+Il Piano 0 è il luogo della scelta, non il luogo del vincolo: sia il tema sia il
+personaggio restano modificabili in qualunque momento, finché il giocatore non attraversa
+l'uscita verso il piano 1 — coerente con la preselezione modificabile del codice di
+condivisione (DEC-077). Non esiste una "conferma" che blocchi la scelta prima di quel
+momento.
+
+Cambiare il tema dopo averne già scelto uno ha un costo esplicito: **riavvia la
+generazione dei piani** 1-5 per il nuovo tema. L'uscita verso il piano 1, se nel frattempo
+si era aperta, **torna chiusa** finché il piano 1 del nuovo tema non ha di nuovo superato
+la validazione. Cambiare personaggio non ha invece alcun costo di rigenerazione: il
+personaggio non guida la generazione dei piani.
+
+> **Nota di implementazione (M5, gap esplicito stile DEC-052-pre-M3):** la milestone M5
+> tratta la conferma del tema come definitiva, senza permettere di tornare indietro dopo la
+> scelta. DEC-091 stabilisce che il tema (e il personaggio) restano modificabili fino
+> all'uscita: colmare questo gap — incluso il riavvio della generazione al cambio tema — è
+> lavoro di implementazione ancora da fare, non una nuova decisione di design.
 
 ## Anteprime visive dei temi (DEC-039)
 
@@ -116,6 +142,11 @@ storia**. Il giocatore può inoltre **provare** una creazione esposta:
 
 Provare una creazione dal museo non altera la run in preparazione, salvo l'eventuale dote di
 un'arena completata (DEC-029).
+
+Le prove dal museo sono **illimitate** (DEC-095): nessun tetto di tentativi, di tempo o di
+usi, né per la saletta oggetto né per l'arena boss. Il museo è un parco giochi della
+memoria, non una risorsa da dosare — coerente con il rischio zero delle arene (DEC-055,
+DEC-092).
 
 ## Criteri di ingresso nel museo (DEC-063)
 
@@ -198,7 +229,9 @@ pratiche di introduzione.
 
 ## Interazioni
 
-- [Characters](characters.md): la scelta del personaggio avviene qui, nel Piano 0.
+- [Characters](characters.md): la scelta del personaggio avviene qui, nel Piano 0; il
+  rifiuto dell'alternativa generata resta ripensabile fino all'uscita, fonte unica lì
+  (DEC-097).
 - [Rooms and Floor Generation](rooms-and-floor-generation.md): il piano 1 che si apre
   dall'uscita segue le regole di struttura dei piani lì definite.
 - [Run Manifest and Reproducibility](run-manifest-and-reproducibility.md): il tema e il
@@ -239,15 +272,23 @@ parità richiesta dalle gare competitive (vedi DEC-016 e DEC-021 in
 [08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md)): una run
 Classificata non deve poter partire avvantaggiata da attività extra del Piano 0.
 
-## Le arene sono a rischio zero (DEC-055)
+Oltre a questa dote, le arene non offrono altre ricompense (DEC-093, dettaglio sotto).
 
-La sconfitta in un'arena di sfida del Piano 0 non ha **alcun costo**: l'arena è una
-simulazione. Il giocatore ne esce sconfitto ma **illeso** — nessuna perdita di salute,
-risorse o oggetti della run in preparazione — e l'unica conseguenza è non ottenere la
-dote iniziale di quell'arena (DEC-029). Questo vale sia per le arene opzionali standard sia
-per quelle riusate dal museo per riaffrontare un boss (DEC-040): il Piano 0 nel suo
-complesso resta a rischio zero, coerente con il suo essere un rifugio sicuro (vedi
-"Intento per il giocatore" sopra).
+## Le arene sono a rischio zero e ripristinano lo stato d'ingresso (DEC-055, DEC-092)
+
+Un'arena di sfida del Piano 0 è una **simulazione pura**: uscendone, che sia per vittoria o
+per sconfitta, il giocatore ha **esattamente** la salute e lo stato con cui era entrato
+(DEC-092). Non ci sono perdite da recuperare né benefici accumulati durante l'arena da
+portare fuori: l'unico effetto che sopravvive all'uscita dall'arena è la dote iniziale
+(DEC-029), e solo in caso di vittoria. La sconfitta in particolare non ha **alcun costo**
+oltre la dote mancata — nessuna perdita di salute, risorse o oggetti della run in
+preparazione. Questo vale sia per le arene opzionali standard sia per quelle riusate dal
+museo per riaffrontare un boss (DEC-040): il Piano 0 nel suo complesso resta a rischio zero,
+coerente con il suo essere un rifugio sicuro (vedi "Intento per il giocatore" sopra).
+
+Le arene non hanno inoltre un'**economia propria** (DEC-093): oltre alla dote iniziale
+(DEC-029) e all'eventuale meta-progressione (punti, sblocchi), non esistono altre
+ricompense per l'attività nel Piano 0. Il Piano 0 non è un posto dove si "farma".
 
 ## Presentazione delle prove all'ingresso nel piano 1 (DEC-042)
 
@@ -262,7 +303,10 @@ loro generazione o del loro punteggio, definito in
 ## Regole per contenuti generati
 
 - Le arene di sfida usano solo contenuti "best-of" già validati nelle run passate: non
-  generano nulla di nuovo sul momento.
+  generano nulla di nuovo sul momento. Basta **un solo** contenuto valido perché un'arena si
+  apra (DEC-094); al primissimo avvio, e ogni volta che i best-of mancano, l'arena è
+  seminata dal pool curato minimo (DEC-087), così il tutorial integrato (DEC-047) funziona
+  sempre.
 - I 2-3 temi proposti nella scelta del tema sono generati dall'IA per quella sessione nel
   Piano 0 (vedi [Characters](characters.md) per il meccanismo analogo applicato al
   personaggio alternativo).
@@ -286,12 +330,18 @@ loro generazione o del loro punteggio, definito in
   corso (tema o personaggio già scelti, generazione dei piani successivi in corso):
   `ExitConfirm` si apre prima di interrompere qualunque cosa; annullando, la preparazione
   prosegue esattamente com'era (DEC-074).
+- Il giocatore cambia tema dopo averne già scelto uno, con l'uscita eventualmente già
+  aperta: il nuovo tema riavvia la generazione dei piani e l'uscita torna chiusa finché il
+  piano 1 del nuovo tema non supera la validazione (DEC-091).
+- Non esiste ancora alcun contenuto "best-of" per nessuna arena (tipicamente al
+  primissimo avvio): le arene restano comunque disponibili, seminate dal pool curato minimo
+  (DEC-087, DEC-094), così il tutorial integrato (DEC-047) funziona normalmente.
 - Il giocatore entra in un'arena di sfida e la abbandona a metà: il ritorno al resto del
   Piano 0 deve restare disponibile senza penalità sulla run in preparazione.
-- Il giocatore viene sconfitto dentro un'arena di sfida: esce dall'arena illeso, senza
-  alcuna perdita sulla run in preparazione, e semplicemente non ottiene la dote di
-  quell'arena (DEC-055); può rientrare subito nell'arena o proseguire nel resto del
-  Piano 0.
+- Il giocatore viene sconfitto dentro un'arena di sfida: esce dall'arena con esattamente
+  la salute e lo stato con cui era entrato (DEC-092), senza alcuna perdita sulla run in
+  preparazione, e semplicemente non ottiene la dote di quell'arena (DEC-055); può rientrare
+  subito nell'arena o proseguire nel resto del Piano 0.
 - Il giocatore completa un'arena di sfida mentre sta per avviare una run in modalità
   Classificata: la dote iniziale non viene assegnata, e l'interfaccia lo segnala prima
   dell'ingresso in arena, non solo dopo.
@@ -328,23 +378,11 @@ superano la validazione, si applica la regola di fallback unica definita in
 
 ## Domande aperte residue
 
-- Oltre alla dote iniziale per la run (DEC-029), le arene di sfida hanno una propria
-  economia di ricompense separata (per l'attività nel Piano 0 stesso), o le uniche
-  ricompense sono la dote e la meta-progressione (punti, sblocchi)?
-- Il riepilogo di tema/personaggio scelto è modificabile prima di attraversare l'uscita, o
-  la scelta è definitiva non appena confermata?
-- Quanti "best-of" minimi servono perché un'arena di sfida compaia come disponibile?
 - Valore esatto della dote iniziale (quali risorse, quale oggetto comune, quantità) —
   DEC-029 fissa solo che sia "piccola", non i numeri.
-- Quanti tentativi di riaffrontare un boss dal museo in arena sono ammessi per sessione, e
-  se la saletta di prova di un oggetto ha un limite di tempo o di usi (DEC-040).
 - Soglia esatta delle metriche (uso, sopravvivenza col giocatore, contributo alle vittorie)
   che fa scattare la promozione automatica al museo (DEC-063 fissa solo il principio misto,
   non i numeri).
-- Statistiche esatte e condizioni di sblocco della rosa base scelta qui nel Piano 0 (nomi e
-  ruoli — **Wayfinder** esploratore/default, **Ashblade** offensivo di vetro, **Bulwark**
-  difensivo di roccia — sono ora canonici, DEC-080) — vedi DEC-030 in
-  [Characters](characters.md) e `../governance/open-questions.md` (punto 8).
 
 ## Scenari
 
@@ -385,6 +423,18 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Then il tema viene selezionato esattamente come con tastiera o pad, perché il Piano 0
   conta come menu ai fini della parità di input (DEC-057, DEC-075)
 
+**Scenario: cambiare tema dopo averlo già scelto**
+- Given il giocatore ha già scelto un tema nel Piano 0
+- When seleziona una carta tema diversa prima di attraversare l'uscita
+- Then il nuovo tema sostituisce il precedente, la generazione dei piani riparte da capo e
+  l'uscita torna chiusa finché il piano 1 del nuovo tema non supera la validazione (DEC-091)
+
+**Scenario: cambiare personaggio dopo averlo già scelto**
+- Given il giocatore ha già scelto un personaggio nel Piano 0
+- When seleziona un personaggio diverso prima di attraversare l'uscita
+- Then il nuovo personaggio sostituisce il precedente nel riepilogo, senza alcun effetto
+  sulla generazione dei piani (DEC-091)
+
 **Scenario: abbandono del Piano 0 confermato**
 - Given il giocatore è nel Piano 0 con la preparazione della run in corso (tema o
   personaggio già scelti, o generazione dei piani successivi in corso)
@@ -411,11 +461,24 @@ superano la validazione, si applica la regola di fallback unica definita in
   Piano 0 (DEC-004), con l'eventuale dote iniziale (DEC-029) applicabile come per le altre
   arene
 
+**Scenario: prove dal museo senza alcun limite**
+- Given un giocatore ha già completato più volte la prova di un oggetto in saletta o ha
+  riaffrontato un boss in arena dal museo
+- When tenta di ripetere la prova ancora una volta
+- Then può farlo senza alcun tetto di tentativi, tempo o usi (DEC-095)
+
 **Scenario: prima run in assoluto, senza asset dedicati generati**
 - Given non esistono ancora asset dedicati generati per il Piano 0
 - When il giocatore avvia il gioco per la prima volta
 - Then il Piano 0 mostra la versione statica curata di fallback e resta comunque
   interamente giocabile
+
+**Scenario: arena seminata dal pool curato al primissimo avvio**
+- Given il giocatore avvia il gioco per la primissima volta e non esiste ancora alcun
+  contenuto "best-of" validato nelle run passate
+- When entra nel Piano 0 e vede le arene opzionali
+- Then le arene sono comunque disponibili, seminate dal pool curato minimo (DEC-087), e il
+  tutorial integrato (DEC-047) funziona normalmente (DEC-094)
 
 **Scenario: uscita verso il piano 1 abilitata**
 - Given tema e personaggio sono stati scelti e il piano 1 ha superato la validazione
@@ -453,6 +516,12 @@ superano la validazione, si applica la regola di fallback unica definita in
 - When viene sconfitto dentro l'arena
 - Then esce dall'arena illeso, senza alcuna perdita sulla run in preparazione, e non
   ottiene la dote iniziale di quell'arena (DEC-055)
+
+**Scenario: lo stato d'ingresso è ripristinato qualunque sia l'esito dell'arena**
+- Given un giocatore entra in un'arena di sfida con una certa salute e un certo stato
+- When ne esce, sia in vittoria sia in sconfitta
+- Then ha esattamente la salute e lo stato con cui era entrato, con la sola eccezione
+  dell'eventuale dote guadagnata in caso di vittoria (DEC-092)
 
 **Scenario: presentazione delle prove all'ingresso nel piano 1**
 - Given un giocatore nel Piano 0 con tema, personaggio e piano 1 pronti

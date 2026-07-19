@@ -3,7 +3,7 @@ id: gd-system-save-meta
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia — sette categorie canoniche, Oggetti/Nemici/Boss/Personaggi/Mondi/Layout/Colpi (DEC-083) —, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile; nel museo una Reliquia resta esposta solo se era lì come preferito, altrimenti ne esce automaticamente (DEC-069, DEC-085)."
+summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia — sette categorie canoniche, Oggetti/Nemici/Boss/Personaggi/Mondi/Layout/Colpi (DEC-083), con anche i contenuti curati incontrati marcati origine `curato` (DEC-103) —, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile; nel museo una Reliquia resta esposta solo se era lì come preferito, altrimenti ne esce automaticamente (DEC-069, DEC-085)."
 ---
 
 # Save and Meta Progression
@@ -53,6 +53,12 @@ interrotta a metà (vedi "Casi limite" sotto). La distinzione vittoria/sconfitta
 riduzione dei punti sono fonte unica in
 `ui/results-and-leaderboards.md` (DEC-041); questo documento registra solo che abbandono e
 reroll rientrano nel bucket "sconfitta", senza una categoria propria.
+
+Il **flusso di uscita** differisce però tra i due: l'abbandono passa da `RunResults` come una
+sconfitta, con i punti ridotti visibili lì; il reroll salta i risultati e accredita i punti
+ridotti **in silenzio**, restando comunque consultabili nel Catalogo. Fonte unica del flusso:
+`ui/results-and-leaderboards.md` (DEC-089); questo documento registra solo che il conteggio ai
+fini punti resta identico per entrambi (rimando, non riformulato qui).
 
 ## Il Catalogo: tre funzioni (DEC-045)
 
@@ -182,8 +188,9 @@ solo cosa persiste e con quali regole.
   lì esposto diventa una Reliquia (DEC-085).
 - `run-manifest-and-reproducibility.md`: contesto sulle gare asincrone per cui gli sblocchi
   sono disattivati.
-- `generated-content-validation.md`: solo i contenuti approvati-per-run entrano nel catalogo
-  (i fallback-usati restano un caso da chiarire, vedi Domande aperte).
+- `generated-content-validation.md`: i contenuti approvati-per-run entrano nel catalogo; i
+  contenuti curati incontrati, incluso l'uso come fallback, entrano anch'essi marcati con
+  origine `curato` (DEC-103, vedi "Regole per contenuti generati" sopra).
 - `rewards-and-economy.md`: fonte del doppio canale di guadagno dei punti sblocco (DEC-027:
   punti base dal risultato della run più bonus da prove specifiche); questo documento
   descrive solo cosa persiste, non come si guadagna.
@@ -191,7 +198,8 @@ solo cosa persiste e con quali regole.
   descritta qui (DEC-045).
 - `ui/results-and-leaderboards.md`: fonte unica della distinzione vittoria/sconfitta e della
   riduzione dei punti alla sconfitta (DEC-041); questo documento registra solo che abbandono
-  e reroll rientrano nel bucket sconfitta ai fini dei punti (DEC-082).
+  e reroll rientrano nel bucket sconfitta ai fini dei punti (DEC-082) e che il flusso differisce
+  — RunResults per l'abbandono, accredito silenzioso per il reroll (DEC-089).
 - `05-game-states-and-flow.md` e `ui/navigation-map.md`: la regola "Continua" rientra nello
   stato salvato; questo documento aggiunge solo il dettaglio del ripristino della stanza
   corrente (DEC-050).
@@ -202,8 +210,12 @@ solo cosa persiste e con quali regole.
 
 ## Regole per contenuti generati
 
-- Un contenuto entra nel catalogo permanente solo se ha raggiunto lo stato approvato-per-run
-  in una run singleplayer.
+- Un contenuto **generato** entra nel catalogo permanente solo se ha raggiunto lo stato
+  approvato-per-run in una run singleplayer.
+- I **contenuti curati** incontrati durante una run (inclusi quelli usati come fallback)
+  entrano anch'essi nel Catalogo, marcati con la loro origine `curato` (DEC-103) — tassonomia
+  a quattro valori fonte unica in [Content Taxonomy](../content/content-taxonomy.md), rimando,
+  non riformulato qui.
 - Gli sblocchi acquistati con i punti ampliano i pool disponibili nelle run future, ma non
   garantiscono la comparsa di un contenuto specifico in una run specifica (restano soggetti
   alle stesse regole di generazione e di peso nel pool).
@@ -274,11 +286,15 @@ Piano 0**, gli **sprite nelle schede** del Catalogo, e la **riconvalida vera**
 che sposta un contenuto tra le Reliquie (DEC-069) — il file su disco è
 completo, ma nessuno di questi cinque punti lo consuma ancora.
 
-Default v1 sulla domanda aperta "i contenuti fallback-usati contano?" (vedi
-"Domande aperte residue" sotto): **no** — una run interamente su contenuto di
-ripiego (nessuna generazione, o generazione mai avviata) non scrive alcun
-record. La domanda resta aperta per una futura decisione di design; questo è
-solo il comportamento scelto per la prima fetta implementativa.
+La domanda "i contenuti fallback-usati contano?" è ora risolta a livello di
+design da **DEC-103**: sì, i contenuti curati incontrati (incluso il fallback)
+entrano nel Catalogo, marcati con origine `curato`. Il default v1 di questa
+fetta implementativa — una run interamente su contenuto di ripiego (nessuna
+generazione, o generazione mai avviata) non scrive alcun record — resta però
+il comportamento effettivo di `run_catalog.c`: **gap di implementazione
+esplicito**, non un requisito scartato, tra la decisione di design (DEC-103) e
+il substrato attuale, che non registra ancora né l'origine dei contenuti né i
+contenuti incontrati in run interamente di fallback.
 
 ## Non-obiettivi
 
@@ -294,8 +310,6 @@ solo il comportamento scelto per la prima fetta implementativa.
 
 ## Domande aperte residue
 
-- Se i contenuti fallback-usati durante una run singleplayer entrano comunque nel catalogo, o
-  solo i contenuti approvati-per-run (vedi anche `generated-content-validation.md`).
 - Il tasso esatto di guadagno (punti base e bonus, DEC-027) e di spesa dei punti di
   meta-progressione (non deciso).
 - Peso esatto che i preferiti aggiungono alle proposte future dell'IA (DEC-045 fissa solo
@@ -306,7 +320,10 @@ Nota: la domanda su cosa mostri il museo del Piano 0 (intero catalogo o sottoins
 soglia esatta delle metriche resta una domanda aperta specifica, registrata in
 `floor-zero.md`. La domanda su cosa succeda a un contenuto del museo che diventa una
 Reliquia è risolta da DEC-085 (vedi "Reliquie nel museo del Piano 0" sopra) e non è più
-aperta qui.
+aperta qui. La domanda se i contenuti fallback-usati entrano comunque nel catalogo è
+risolta da DEC-103 — sì, i contenuti curati incontrati entrano marcati con origine `curato`
+— e non è più aperta qui; resta come gap di implementazione esplicito, non come domanda di
+design (vedi "Stato di implementazione" sopra).
 
 ## Idee future (experimental)
 
@@ -435,3 +452,22 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - When un aggiornamento del gioco lo trasforma in una Reliquia,
 - Then il contenuto esce automaticamente dal museo, pur restando consultabile nel Catalogo
   come Reliquia.
+
+**Scenario: l'abbandono passa da RunResults con i punti visibili (DEC-089)**
+- Given un giocatore ha maturato punti sblocco durante una run in corso,
+- When abbandona volontariamente la run da `ExitConfirm`,
+- Then la run si chiude passando da `RunResults` come una sconfitta, con i punti ridotti
+  visibili lì.
+
+**Scenario: il reroll accredita in silenzio e resta consultabile nel Catalogo (DEC-089)**
+- Given un giocatore ha maturato punti sblocco durante una run in corso,
+- When effettua un reroll da `Gameplay`,
+- Then i risultati vengono saltati, i punti ridotti si accreditano in silenzio senza passare
+  da `RunResults`, e restano comunque consultabili nel Catalogo.
+
+**Scenario: un contenuto curato incontrato entra nel Catalogo marcato come tale (DEC-103)**
+- Given un giocatore incontra durante una run un contenuto curato, ad esempio impiegato come
+  fallback,
+- When quel contenuto viene registrato nel catalogo persistente,
+- Then compare nell'enciclopedia del Catalogo marcato con origine `curato` (tassonomia in
+  `content/content-taxonomy.md`), accanto ai contenuti composto/variato/nuovo già presenti.

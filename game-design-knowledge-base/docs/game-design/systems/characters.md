@@ -3,7 +3,7 @@ id: gd-system-characters
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Rosa base canonica di 3 personaggi con nomi e ruoli fissi — Wayfinder (esploratore, personaggio di partenza e default), Ashblade (offensivo di vetro), Bulwark (difensivo di roccia) (DEC-080) — più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche compresse verso il bordo cauto delle bande in cambio, criterio canonico ma fattore ancora da playtest (DEC-068, DEC-078); il colpo firmato non si scarta mai, si normalizza in banda (DEC-079); i personaggi base usano sempre colpi standard curati."
+summary: "Rosa base canonica di 3 personaggi con nomi e ruoli fissi — Wayfinder (esploratore, personaggio di partenza e default), Ashblade (offensivo di vetro), Bulwark (difensivo di roccia) (DEC-080) — più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037), con varietà anti-fotocopia rispetto alle run recenti via catalogo (DEC-098). Sblocchi della rosa base ora canonici (DEC-100): Wayfinder da subito, Ashblade alla prima run conclusa (qualunque esito), Bulwark al primo boss abbattuto — solo le statistiche restano da playtest. Il rifiuto dell'alternativa nel Piano 0 è ripensabile fino all'attraversamento dell'uscita (DEC-097). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche compresse verso il bordo cauto delle bande in cambio, criterio canonico ma fattore ancora da playtest (DEC-068, DEC-078); il colpo firmato non si scarta mai, si normalizza in banda (DEC-079); è sempre il colpo di partenza, sostituito e ripristinato come ogni altro colpo di partenza, canone (DEC-099); i personaggi base usano sempre colpi standard curati. Nelle gare a stesso seed (Classificata stesso seed, Daily) le proposte di personaggio sono identiche per tutti i partecipanti, scelta libera (DEC-108)."
 ---
 
 # Characters
@@ -21,20 +21,23 @@ tra opzioni curate.
 - La scelta avviene nel Piano 0, prima di attraversare l'uscita verso il piano 1 (vedi
   [Floor Zero](floor-zero.md)).
 - La rosa dei personaggi base è sempre disponibile, in ogni run, senza condizioni (fatti
-  salvi gli sblocchi previsti da DEC-030, vedi sotto).
+  salvi gli sblocchi previsti da DEC-030 e fissati in dettaglio da DEC-100, vedi sotto).
 - Il personaggio alternativo generato per la run si **aggiunge** alla rosa base nella scelta
   del Piano 0: esiste solo se la generazione per quella run lo ha prodotto e validato; in
   caso contrario non compare come opzione (vedi "Fallback").
 
-## Rosa di personaggi base (DEC-030, DEC-080)
+## Rosa di personaggi base (DEC-030, DEC-080, DEC-100)
 
 I personaggi base non sono un singolo personaggio ma una **piccola rosa fissa e curata di
 3 personaggi**, con nomi e ruoli ora **canonici** (DEC-080): **Wayfinder** (esploratore,
 personaggio di partenza e default), **Ashblade** (offensivo di vetro: danno alto, tetto vita
-basso), **Bulwark** (difensivo di roccia: lento, tetto vita alto). Le condizioni esatte di
-sblocco di ciascuno restano da definire (vedi Domande aperte residue e punto 8 di
-`../governance/open-questions.md`): i personaggi della rosa restano **sbloccabili presto**,
-non tutti devono essere disponibili fin dal primo avvio.
+basso), **Bulwark** (difensivo di roccia: lento, tetto vita alto). Le condizioni di sblocco
+sono ora **canoniche** (DEC-100): **Wayfinder** è disponibile da subito, è il personaggio di
+partenza; **Ashblade** si sblocca alla **prima run conclusa**, qualunque esito (vittoria,
+sconfitta o abbandono); **Bulwark** si sblocca al **primo boss abbattuto**. Sono traguardi
+naturali e precoci, come volevano gli "sbloccabili presto" di DEC-030: resta da playtest solo
+la statistica esatta di ciascun personaggio (vedi Domande aperte residue e punto 8 di
+`../governance/open-questions.md`).
 
 Il ruolo di ciascun personaggio della rosa base si riflette anche nel proprio **tetto di
 salute base** (DEC-033): il ruolo difensivo (Bulwark) ha un tetto alto ("personaggio-roccia"),
@@ -66,18 +69,11 @@ residue e `../governance/open-questions.md` punto 8).
 | Palette | teal/verde | rosso/arancio caldo | blu acciaio |
 
 Wayfinder (indice 0) è il personaggio **preselezionato di default** all'ingresso nel Piano
-0: un'assunzione dichiarata dell'implementazione, legata alla open question residua sulla
-definitività della scelta (vedi sotto) — così "nessuno dei tre elementi [mondo, pipeline,
-personaggio]" del Risultato del Piano 0 resta mai indefinito, anche senza una conferma
-esplicita del giocatore. La scelta resta comunque modificabile fino all'attraversamento
-dell'uscita, esattamente come per un personaggio scelto attivamente.
-
-Per ora l'**intera rosa base è disponibile da subito**, senza alcuna condizione: gli
-"sbloccabili presto" di DEC-030 restano un principio approvato, ma le condizioni di sblocco
-sono ancora una open question (vedi sopra e punto 8 di `open-questions.md`) — finché
-restano indefinite, non c'è nulla da bloccare per davvero, e bloccare una scheda senza una
-regola definita sarebbe un comportamento inventato in silenzio (vietato da `AGENTS.md`
-della KB).
+0: un'assunzione dichiarata dell'implementazione — così "nessuno dei tre elementi [mondo,
+pipeline, personaggio]" del Risultato del Piano 0 resta mai indefinito, anche senza una
+conferma esplicita del giocatore. La scelta resta comunque modificabile fino all'attraversamento
+dell'uscita, esattamente come per un personaggio scelto attivamente (coerente con la
+modificabilità generale di tema e personaggio nel Piano 0, DEC-091).
 
 ## Sprite dei personaggi (DEC-049)
 
@@ -182,17 +178,16 @@ subito e verificabile. Il fattore attuale è 0.6: damage/maxHp/luck/fortuna comp
 `bandMin + 0.6 × (bandMax − bandMin)` (il 60% inferiore della banda, non un dimezzamento
 secco), cadenza compressa verso `bandMax − 0.6 × (bandMax − bandMin)`.
 
-**Sostituibilità (default proposto, M6b-3):** il colpo firmato, quando c'è, è il colpo di
+**Sostituibilità (canone, DEC-099):** il colpo firmato, quando c'è, è il colpo di
 **partenza** del personaggio — attivo dalla prima stanza, non un lucchetto che si sblocca. Un
 oggetto-colpo raccolto durante la run lo **sostituisce** esattamente come sostituirebbe il
 colpo standard di qualunque altro personaggio (stessa regola "vince l'ultimo raccolto" del
 resto del sistema dei tipi di colpo, vedi
 [Combat and Projectiles](combat-and-projectiles.md)); se quell'oggetto viene concettualmente
 "tolto" (ricalcolo da zero, come per ogni altra statistica), il colpo firmato torna ad essere
-quello attivo — non il colpo standard. Questo non è imposto da DEC-068 (che fissa solo il
-principio "statistiche più caute in cambio di un colpo dedicato"): è la lettura più semplice
-e coerente col resto del sistema dei tipi di colpo (rimando, non riformulato qui), scelta per
-evitare un secondo meccanismo di "colpo di riserva" mai discusso dal design.
+quello attivo — mai il colpo standard. Questa lettura, prima un default proposto in fase di
+implementazione (M6b-3), è ora **sancita dal design** (DEC-099): nessun meccanismo di "colpo
+protetto" che nessun oggetto possa sovrascrivere.
 
 **Colpo che non valida dopo la generazione (canone, DEC-079):** sancito che il colpo firmato
 attraversa sempre la doppia rete di bilanciamento dei tipi di colpo di run, che **normalizza
@@ -206,13 +201,35 @@ altre statistiche se il colpo cambia. Un personaggio generato con colpo firmato 
 sempre il suo colpo firmato: il dilemma della doppia penalità contro il colpo standard
 "gratis" (statistiche caute più eventuale ritorno al colpo standard) sparisce alla radice.
 
+## Modalità competitive: proposte identiche a parità di seed (DEC-108)
+
+Nelle istanze di Classificata **a stesso seed** e nella **Daily** (vedi
+[Multiplayer and Competition](../08-multiplayer-and-competition.md) per la distinzione delle
+istanze di Classificata, rimando, non riformulata qui) lo stesso seed genera **le stesse
+proposte generate per tutti i partecipanti**: lo stesso personaggio alternativo generato
+(stesso trait, stesse statistiche, eventuale stesso colpo firmato) e lo stesso tema
+proposto. La **rosa base disponibile resta quella sbloccata dal singolo giocatore**
+(DEC-100): la parità riguarda il contenuto generato dal seed, non la progressione personale
+— gli sblocchi arrivano presto per costruzione, quindi la differenza tra partecipanti è
+effimera. La **scelta tra le proposte resta libera**, esattamente come in singleplayer:
+nessun personaggio è imposto dalla gara, il personaggio alternativo non viene mai escluso.
+L'equità della gara viene dal determinismo della generazione a partire dal seed, non da un
+vincolo sulla scelta del giocatore — un caso distinto dalla Classificata a **seed diversi**,
+dove l'equità passa invece dai vincoli di budget della generazione (DEC-096).
+
+Gap di implementazione esplicito: il determinismo completo delle proposte di personaggio a
+partire dal seed **non è ancora garantito** dalla pipeline attuale (backlog noto: RNG di
+gioco su `time(NULL)`, inferenza non deterministica). Il dettaglio della riproducibilità
+resta in [Run Manifest and Reproducibility](run-manifest-and-reproducibility.md), non
+riformulato qui.
+
 ## Input/azioni
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
 | Schede personaggi della rosa base | Sempre, nel Piano 0 | Per ciascuna scheda: quando quel personaggio della rosa è già sbloccato | Selezionare uno dei personaggi della rosa | Il personaggio scelto, col suo ruolo distinto, diventa il personaggio della run | Evidenziazione della scheda selezionata, ruolo messo in risalto |
 | Scheda personaggio alternativo | Quando la generazione per la run ha prodotto un'alternativa valida | Sempre, se visibile | Selezionare il personaggio alternativo | Il personaggio alternativo, con il suo trait unico, diventa il personaggio della run | Evidenziazione della scheda, trait unico messo in risalto |
-| Rifiuto dell'alternativa | Quando è presente una scheda alternativa | Sempre, se visibile | Non selezionare l'alternativa (lasciare) | Un personaggio della rosa base resta quello attivo | Nessun cambiamento visibile oltre alla non-selezione |
+| Rifiuto dell'alternativa | Quando è presente una scheda alternativa | Sempre, se visibile | Non selezionare l'alternativa (lasciare) | Un personaggio della rosa base resta quello attivo; la scheda alternativa resta comunque nel selettore e selezionabile finché non si attraversa l'uscita (DEC-097) | Nessun cambiamento visibile oltre alla non-selezione |
 
 ## Risultato
 
@@ -250,6 +267,9 @@ run.
 - [Combat and Projectiles](combat-and-projectiles.md): il colpo firmato del personaggio
   alternativo usa la stessa pipeline di generazione dei tipi di colpo, inclusi i
   comportamenti Lua validati in sandbox (DEC-037, DEC-068).
+- [Multiplayer and Competition](../08-multiplayer-and-competition.md): le istanze di
+  Classificata a stesso seed e la Daily propongono lo stesso personaggio a tutti i
+  partecipanti, con scelta libera (DEC-108).
 
 ## Regole per contenuti generati
 
@@ -266,6 +286,11 @@ run.
   [Generated Content Validation](generated-content-validation.md), rimando, non riformulare
   qui). Deve inoltre rispettare gli stessi vincoli di leggibilità di qualunque altro
   contenuto generato.
+- **Varietà anti-fotocopia del trait (DEC-098):** il generatore evita di riproporre trait
+  unici identici a quelli delle run recenti, consultando il catalogo persistente come memoria
+  (vedi [Save and Meta Progression](save-and-meta-progression.md), rimando, non riformulato
+  qui) — stessa filosofia già usata per evitare la fotocopia dei temi generati. La
+  ripetizione occasionale a distanza resta ammessa: non è un divieto assoluto.
 - Il personaggio alternativo dichiara la propria origine come `nuovo` o `variato`, secondo
   la tassonomia unica di origine del contenuto.
 - I personaggi della rosa base (DEC-030) sono `curato`: non sono generati, restano fissi tra
@@ -280,12 +305,14 @@ run.
 - La generazione del personaggio alternativo per la run non produce un risultato valido:
   nel Piano 0 compare solo la rosa dei personaggi base già sbloccati, senza errore visibile
   al giocatore.
-- Il giocatore rifiuta l'alternativa: non viene proposta una seconda alternativa nella
-  stessa run (vedi domande aperte per il caso di rigenerazione).
+- Il giocatore rifiuta l'alternativa (non la seleziona): la sua scheda resta comunque nel
+  selettore e resta selezionabile finché non si attraversa l'uscita del Piano 0 (DEC-097) —
+  non viene proposta una seconda alternativa diversa nella stessa run.
 - Il trait Lua generato per il personaggio alternativo non supera la validazione in sandbox:
   si applica il fallback, vedi sotto.
 - Un personaggio della rosa base non è ancora sbloccato: la sua scheda non è selezionabile
-  nel Piano 0 (dettagli dello sblocco da definire, vedi domande aperte).
+  nel Piano 0 (condizioni di sblocco ora canoniche, DEC-100: vedi "Rosa di personaggi base"
+  sopra).
 - Lo sprite generato del personaggio alternativo non supera la validazione: si applica il
   fallback definito in [Generated Content Validation](generated-content-validation.md), e la
   scheda del personaggio alternativo non compare (coerente con il caso limite già descritto
@@ -320,16 +347,10 @@ applica la regola di fallback unica definita in
 
 - Quali sono i valori esatti delle bande garantite per le statistiche casuali del
   personaggio alternativo, incluse le bande min/max del suo tetto di salute base (DEC-033)?
-- Il giocatore può rifiutare l'alternativa e poi tornare a valutarla più tardi nello stesso
-  Piano 0, o il rifiuto è definitivo per quella run?
-- Il trait unico del personaggio alternativo può ripetersi tra run diverse, o è garantita
-  varietà rispetto alle run precedenti (relazione con il catalogo di
-  [Save and Meta Progression](save-and-meta-progression.md))?
-- Come cambia, se cambia, la scelta del personaggio nelle modalità competitive asincrone
-  (vedi vincoli generali in [Multiplayer and Competition](../08-multiplayer-and-competition.md))?
-- Statistiche esatte e condizioni di sblocco della rosa base Wayfinder/Ashblade/Bulwark
-  (DEC-080 fissa nomi e ruoli come canone; restano aperte solo le statistiche — da playtest —
-  e le condizioni di sblocco di ciascuno, vedi punto 8 di `../governance/open-questions.md`).
+- Statistiche esatte della rosa base Wayfinder/Ashblade/Bulwark (DEC-080 fissa nomi e ruoli
+  come canone, DEC-100 fissa gli sblocchi — Wayfinder subito, Ashblade alla prima run
+  conclusa, Bulwark al primo boss abbattuto; resta aperta solo la statistica esatta di
+  ciascuno, da playtest, vedi punto 8 di `../governance/open-questions.md`).
 - Se lo sprite curato della rosa base condivide lo stesso atlas/risoluzione di riferimento
   dello sprite generato del personaggio alternativo (vedi
   [Visual Language](../content/visual-language.md), valori draft DEC-046).
@@ -341,11 +362,6 @@ applica la regola di fallback unica definita in
   proposto dall'implementazione (M6b-3, RESTA da validare): il prompt istruisce "circa metà
   delle volte" senza imporlo (nessuna garanzia di frequenza, coerente con "a volte" di
   DEC-068).
-- (M6b-3) Il colpo firmato è il colpo di **partenza**, sostituito da un oggetto-colpo raccolto
-  esattamente come il colpo standard: è la lettura più semplice compatibile con DEC-068, non
-  un'alternativa discussa esplicitamente dal design (es. un colpo firmato "protetto" che nessun
-  oggetto può sovrascrivere) — se il design la preferisse, è un cambio comportamentale
-  esplicito da questa nota, non un'assunzione già coperta.
 
 ## Scenari
 
@@ -355,6 +371,14 @@ applica la regola di fallback unica definita in
 - When il giocatore seleziona uno dei personaggi della rosa base (es. il ruolo offensivo)
 - Then quel personaggio, col suo ruolo distinto, diventa il personaggio della run e
   l'alternativa non ha alcun effetto
+
+**Scenario: sblocco di Ashblade e Bulwark (DEC-100)**
+- Given un giocatore ha solo Wayfinder disponibile nella rosa base
+- When conclude la sua prima run, qualunque esito, e in una run successiva abbatte il suo
+  primo boss
+- Then Ashblade risulta sbloccato subito dopo la prima run conclusa e Bulwark risulta
+  sbloccato subito dopo il primo boss abbattuto, entrambi selezionabili nel Piano 0 delle
+  run seguenti
 
 **Scenario: scelta del personaggio alternativo**
 - Given il giocatore è nel Piano 0 e viene proposta un'alternativa generata con trait
@@ -371,9 +395,25 @@ applica la regola di fallback unica definita in
 
 **Scenario: rifiuto dell'alternativa**
 - Given è disponibile un personaggio alternativo generato per la run
-- When il giocatore lo rifiuta e conferma un personaggio della rosa base
-- Then la run prosegue con quel personaggio della rosa base e l'alternativa generata non
-  viene più riproposta in quella run
+- When il giocatore non la seleziona e attraversa l'uscita del Piano 0 con un personaggio
+  della rosa base
+- Then la run prosegue con quel personaggio della rosa base: il Piano 0 di quella run è
+  concluso e l'alternativa generata non viene più riproposta
+
+**Scenario: il rifiuto dell'alternativa è ripensabile fino all'uscita (DEC-097)**
+- Given il giocatore ha inizialmente ignorato la scheda del personaggio alternativo e
+  selezionato un personaggio della rosa base, ma non ha ancora attraversato l'uscita del
+  Piano 0
+- When, nello stesso Piano 0, seleziona la scheda del personaggio alternativo
+- Then il personaggio alternativo diventa quello attivo per la run: la scheda alternativa
+  resta nel selettore e selezionabile finché l'uscita non viene attraversata, coerente con
+  la modificabilità generale delle scelte del Piano 0 (DEC-091)
+
+**Scenario: il generatore evita un trait già visto di recente (DEC-098)**
+- Given il catalogo persistente registra i trait unici già generati nelle run recenti
+- When il generatore prepara il personaggio alternativo per una nuova run
+- Then evita di riproporre un trait identico a quelli delle run recenti, pur restando
+  ammessa una ripetizione occasionale a distanza (nessun divieto assoluto)
 
 **Scenario: trait Lua generato per l'alternativa non supera la validazione**
 - Given il trait unico del personaggio alternativo è stato scritto dall'IA come
@@ -414,10 +454,18 @@ applica la regola di fallback unica definita in
   mantiene il proprio colpo firmato e le statistiche caute già generate, senza alcun
   rebalance retroattivo delle altre statistiche
 
-**Scenario: un oggetto-colpo raccolto sostituisce il colpo firmato (M6b-3, default proposto)**
+**Scenario: un oggetto-colpo raccolto sostituisce il colpo firmato (DEC-099)**
 - Given il giocatore ha scelto il personaggio alternativo col suo colpo firmato, attivo fin
   dalla prima stanza come colpo di partenza
 - When raccoglie durante la run un oggetto che porta il proprio tipo di colpo
 - Then il colpo dell'oggetto sostituisce il colpo firmato esattamente come sostituirebbe il
   colpo standard di qualunque altro personaggio — e se quell'oggetto viene concettualmente
   tolto, torna attivo il colpo firmato, non il colpo standard
+
+**Scenario: stesso seed, stesse proposte di personaggio in gara (DEC-108)**
+- Given due giocatori partecipano alla stessa gara Classificata a stesso seed (o alla stessa
+  Daily del giorno)
+- When entrano nel Piano 0 delle rispettive run
+- Then vedono lo stesso personaggio alternativo generato (stesso trait, stesse statistiche)
+  e lo stesso tema proposto — ciascuno con la propria rosa base sbloccata (DEC-100) — e
+  restano liberi di scegliere personaggi diversi tra loro

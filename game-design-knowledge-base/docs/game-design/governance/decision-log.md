@@ -906,3 +906,203 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** chiude la ex domanda 11 e orienta i piani di implementazione; nessun comportamento visibile al giocatore cambia, quindi nessun documento di sistema da aggiornare oltre alla governance.
 - **Documenti aggiornati:** `governance/open-questions.md`, `governance/decision-log.md`
 
+### DEC-089 — L'abbandono passa da RunResults, il reroll no
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** applicando DEC-082 era emersa un'incoerenza (ex domanda 11): `ui/results-and-leaderboards.md` elencava l'abbandono tra gli ingressi di `RunResults`, mentre `ui/pause-menu.md` e `ui/navigation-map.md` documentavano il ritorno diretto a `MainMenu`; non era chiaro dove il giocatore vedesse i punti ridotti.
+- **Decisione:** l'**abbandono di una run in corso passa da `RunResults`** come una sconfitta: chiusura della run e punti ridotti visibili lì. Il **reroll salta i risultati** e va dritto alla nuova run: i punti ridotti si accreditano in silenzio e restano consultabili nel Catalogo. L'incoerenza tra i tre documenti si sana in favore di `results-and-leaderboards.md` per l'abbandono.
+- **Alternative considerate:** entrambi passano da RunResults; entrambi diretti con accredito silenzioso.
+- **Conseguenze:** `ui/pause-menu.md` e `ui/navigation-map.md` correggono la destinazione dell'abbandono confermato (RunResults, non MainMenu diretto); resta aperta solo la collocazione UI esatta del reroll (comando, eventuale conferma).
+- **Documenti aggiornati:** `ui/results-and-leaderboards.md`, `ui/pause-menu.md`, `ui/navigation-map.md`, `05-game-states-and-flow.md`, `systems/save-and-meta-progression.md`
+
+### DEC-090 — ExitConfirm da MainMenu è un dialogo modale
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `05-game-states-and-flow.md`: la conferma di chiusura del gioco merita una schermata dedicata o un dialogo?
+- **Decisione:** da `MainMenu`, `ExitConfirm` (chiusura del gioco) è un **dialogo modale leggero** sopra il menu, non una schermata dedicata. Negli altri usi (abbandono di run o preparazione) la presentazione resta quella già documentata.
+- **Alternative considerate:** schermata dedicata uniforme per ogni uso di ExitConfirm.
+- **Conseguenze:** chiude la domanda residua di `05-game-states-and-flow.md`.
+- **Documenti aggiornati:** `05-game-states-and-flow.md`
+
+### DEC-091 — Tema e personaggio modificabili fino all'uscita del Piano 0
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/floor-zero.md`: il riepilogo di tema/personaggio è modificabile prima di attraversare l'uscita, o la scelta è definitiva appena confermata?
+- **Decisione:** il Piano 0 è il luogo della scelta: **tema e personaggio si possono cambiare finché non si attraversa l'uscita** verso il piano 1 (coerente con la preselezione modificabile di DEC-077). Cambiare il tema **riavvia la generazione** dei piani: l'uscita torna chiusa finché il piano 1 del nuovo tema non è pronto.
+- **Alternative considerate:** scelta definitiva alla conferma; personaggio libero ma tema definitivo.
+- **Conseguenze:** `systems/floor-zero.md` registra la regola e il costo del cambio tema; gap di implementazione esplicito: M5 tratta la conferma del tema come definitiva.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-092 — Le arene ripristinano lo stato d'ingresso
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `04-run-structure.md`: cosa succede a salute/stato del giocatore se muore in un'arena del Piano 0.
+- **Decisione:** l'arena è una **simulazione pura**: uscendone (vittoria o sconfitta) il giocatore ha esattamente la salute e lo stato con cui era entrato. Il rischio zero di DEC-055 vale alla lettera; l'unico effetto persistente resta la dote (DEC-029) in caso di vittoria.
+- **Alternative considerate:** la salute persa nell'arena resta persa.
+- **Conseguenze:** chiude la domanda residua di `04-run-structure.md`; `systems/floor-zero.md` allinea la descrizione delle arene.
+- **Documenti aggiornati:** `04-run-structure.md`, `systems/floor-zero.md`
+
+### DEC-093 — Le arene non hanno un'economia propria
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/floor-zero.md`: oltre alla dote (DEC-029) e alla meta-progressione, le arene premiano l'attività nel Piano 0 stesso?
+- **Decisione:** **no**: le arene restano preparazione e allenamento. Le uniche ricompense sono la dote iniziale per la run (DEC-029) e gli eventuali bonus di meta-progressione; il Piano 0 non è un posto dove si "farma".
+- **Alternative considerate:** piccole ricompense cosmetiche di attività; economia propria del Piano 0.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/floor-zero.md`.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-094 — Un'arena si apre con un solo best-of, seminata dal curato
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/floor-zero.md`: quanti "best-of" minimi servono perché un'arena compaia come disponibile; il tutorial (DEC-047) è integrato nelle arene, che quindi devono esistere dal primissimo avvio.
+- **Decisione:** basta **un** contenuto valido perché un'arena si apra; al primissimo avvio (e ogni volta che i best-of mancano) le arene sono **seminate dal pool curato minimo** (DEC-087), così il tutorial funziona sempre.
+- **Alternative considerate:** soglia di 3 best-of; arene sempre aperte senza soglia.
+- **Conseguenze:** chiude la domanda residua corrispondente; lega le arene al pool curato di DEC-087.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-095 — Le prove dal museo sono illimitate
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/floor-zero.md` (DEC-040): quanti tentativi per riaffrontare un boss in arena per sessione, e se la saletta di prova oggetto ha limiti.
+- **Decisione:** **nessun limite** di tentativi, tempo o usi: le prove dal museo sono simulazioni a rischio zero (DEC-055, DEC-092), il museo è un parco giochi della memoria, non una risorsa da dosare.
+- **Alternative considerate:** tetto per sessione; boss illimitati ma saletta a tempo.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/floor-zero.md`.
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-096 — Classificata a seed diversi: budget di generazione vincolato
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la parte principale della domanda 9 di `governance/open-questions.md`: come si rende equa una gara Classificata dove ogni partecipante gioca un seed diverso.
+- **Decisione:** l'equità è **by-design**: i seed della stessa gara generano dentro gli **stessi vincoli di budget** (difficoltà di nemici e boss, rarità disponibili, numero di stanze in banda stretta). Nessuna correzione statistica a posteriori: il giocatore capisce cosa sta gareggiando. I valori esatti dei vincoli sono da playtest, stile DEC-019.
+- **Alternative considerate:** nessuna normalizzazione (gara di adattabilità pura); correzione statistica del punteggio a posteriori.
+- **Conseguenze:** `08-multiplayer-and-competition.md` registra il criterio; la domanda 9 si restringe a disconnessioni, metriche extra, regole di parità/validità e valori dei vincoli.
+- **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `governance/open-questions.md`
+
+### DEC-097 — Il rifiuto dell'alternativa è ripensabile fino all'uscita
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/characters.md`: il giocatore che rifiuta il personaggio alternativo generato può tornare a selezionarlo nello stesso Piano 0?
+- **Decisione:** **sì**: la carta del personaggio generato resta nel selettore e si può scegliere finché non si attraversa l'uscita, coerente con DEC-091. Il "prendere-o-lasciare" si consuma solo all'uscita dal Piano 0.
+- **Alternative considerate:** rifiuto definitivo con sparizione della carta.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/characters.md`.
+- **Documenti aggiornati:** `systems/characters.md`, `systems/floor-zero.md`
+
+### DEC-098 — Varietà leggera anti-fotocopia del trait
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/characters.md`: il trait unico del personaggio generato può ripetersi tra run diverse?
+- **Decisione:** il generatore applica una **varietà leggera anti-fotocopia**: evita di riproporre trait identici a quelli delle run recenti usando il catalogo (stessa filosofia della rete anti-fotocopia dei temi); la ripetizione occasionale a distanza resta ammessa, nessun divieto assoluto.
+- **Alternative considerate:** nessun vincolo di varietà; mai ripetere finché esistono alternative.
+- **Conseguenze:** chiude la domanda residua corrispondente; il meccanismo riusa il catalogo (DEC-015) come memoria.
+- **Documenti aggiornati:** `systems/characters.md`
+
+### DEC-099 — Il colpo firmato è sostituibile come ogni colpo di partenza
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la lettura M6b-3 (colpo firmato = colpo di partenza, sostituito dagli oggetti-colpo con la regola "vince l'ultimo raccolto", ripristinato se l'oggetto viene concettualmente tolto) era un default proposto mai discusso esplicitamente dal design.
+- **Decisione:** la lettura è **sancita**: il colpo firmato è il colpo di partenza e gli oggetti-colpo lo sostituiscono esattamente come sostituirebbero un colpo standard; togliendo l'oggetto torna il colpo firmato (mai il colpo standard, DEC-079). Nessun meccanismo di "colpo protetto".
+- **Alternative considerate:** colpo firmato protetto che nessun oggetto può sovrascrivere.
+- **Conseguenze:** il blocco "Sostituibilità" di `systems/characters.md` passa da default proposto a canone.
+- **Documenti aggiornati:** `systems/characters.md`
+
+### DEC-100 — Sblocchi della rosa base
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-080 aveva approvato nomi e ruoli della rosa base lasciando aperte le condizioni di sblocco (DEC-030 chiede sblocchi "presto").
+- **Decisione:** **Wayfinder** è disponibile da subito (personaggio di partenza); **Ashblade** si sblocca alla **prima run conclusa** (qualunque esito, anche sconfitta o abbandono); **Bulwark** si sblocca al **primo boss abbattuto**. Traguardi naturali che arrivano presto, come vuole DEC-030.
+- **Alternative considerate:** tutti sbloccati da subito; sblocco a punti nell'economia DEC-027.
+- **Conseguenze:** la domanda 8 di `governance/open-questions.md` si restringe alle sole statistiche (da playtest).
+- **Documenti aggiornati:** `systems/characters.md`, `systems/floor-zero.md`, `governance/open-questions.md`
+
+### DEC-101 — La fusione è libera tra categorie
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/item-fusion.md`: la fusione esplicita (DEC-022) è ammessa tra categorie diverse (attivo, passivo, stat-up, Innesto)?
+- **Decisione:** **sì, libera tra categorie**: è la meccanica-firma, e fondere un attivo con un passivo è il tipo di sorpresa che la rende memorabile. L'oggetto risultante **dichiara la propria categoria** e resta dentro il budget e le regole di validazione dei contenuti generati (`generated-content-validation.md`).
+- **Alternative considerate:** solo stessa categoria; libera tranne gli Innesti.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/item-fusion.md`.
+- **Documenti aggiornati:** `systems/item-fusion.md`
+
+### DEC-102 — Un oggetto fuso può essere ri-fuso
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/item-fusion.md`: l'oggetto nato da una fusione può essere sorgente di una fusione successiva?
+- **Decisione:** **sì, nessun limite concettuale**: la cadenza attesa di 1-2 fusioni per run (DEC-022, limitata dalla disponibilità di Flux) rende già rarissima la catena; vietarla sarebbe una regola in più senza necessità.
+- **Alternative considerate:** oggetto fuso terminale.
+- **Conseguenze:** chiude la domanda residua corrispondente; resta aperta (non decisa qui) l'esistenza di un limite rigido al numero totale di fusioni per run.
+- **Documenti aggiornati:** `systems/item-fusion.md`
+
+### DEC-103 — I contenuti curati incontrati entrano nel Catalogo
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/generated-content-validation.md` e `systems/save-and-meta-progression.md`: i contenuti curati usati come fallback durante una run entrano nel catalogo persistente?
+- **Decisione:** **sì**: il Catalogo è l'enciclopedia completa del crogiolo. I contenuti curati incontrati compaiono marcati con la loro **origine `curato`** (tassonomia già esistente in `content/content-taxonomy.md`), accanto a composto/variato/nuovo. Coerente con la rosa base già visibile tra i Personaggi.
+- **Alternative considerate:** catalogo riservato ai soli contenuti generati.
+- **Conseguenze:** chiude le domande residue corrispondenti nei due documenti; la vista Catalogo mostra l'origine.
+- **Documenti aggiornati:** `systems/save-and-meta-progression.md`, `systems/generated-content-validation.md`
+
+### DEC-104 — Il roster nemici è estendibile nei piani avanzati
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/enemies.md`: il roster di 6-8 tipi per run (DEC-053) è fisso dall'inizio o può crescere?
+- **Decisione:** il roster parte fisso (6-8 tipi, DEC-053) ma **nei piani avanzati può essere esteso** da **1-2 tipi "best-of"** provenienti dal catalogo: più sorpresa a run inoltrata, quando il giocatore ha già assimilato le sagome di base. I nuovi ingressi rispettano il budget di leggibilità e le bande di potenza del piano. Valori esatti (da quale piano, quanti tipi) come default proposti da playtest, stile DEC-019: punto di partenza 1 tipo dal piano 3, un secondo dal piano 4.
+- **Alternative considerate:** roster fisso per l'intera run (leggibilità pura).
+- **Conseguenze:** `systems/enemies.md` registra principio e default; si integra con l'escalation del tema (DEC-024) senza sostituirla.
+- **Documenti aggiornati:** `systems/enemies.md`
+
+### DEC-105 — Il tono è ironico-leggero
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** dentro la cornice del crogiolo (DEC-067) il tono specifico restava aperto (`content/narrative-tone.md`).
+- **Decisione:** il registro di Worldsmelt è **ironico-leggero**: il crogiolo ha coscienza di sé e un filo di humour asciutto nei testi (card di scoperta, museo, schede del Catalogo), senza rompere l'atmosfera né scadere nella parodia. L'ironia sta nella voce del crogiolo, non nel mondo generato.
+- **Alternative considerate:** malinconico-contemplativo; meravigliato-alchemico; epico-solenne.
+- **Conseguenze:** `content/narrative-tone.md` registra il registro; restano aperti limiti di contenuto e simboli ricorrenti.
+- **Documenti aggiornati:** `content/narrative-tone.md`
+
+### DEC-106 — Il boss del piano 2 è a fase singola
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/bosses.md`: DEC-028 non specifica se il boss del piano 2 abbia una o due fasi.
+- **Decisione:** i boss dei piani **1 e 2 sono a fase singola**; le due fasi arrivano dal piano 3 (dove DEC-028 le fissa). Rampa dolce: il salto di complessità coincide con la metà della run.
+- **Alternative considerate:** due fasi già dal piano 2.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/bosses.md`.
+- **Documenti aggiornati:** `systems/bosses.md`
+
+### DEC-107 — Piega-regole solo alla rarità leggendaria
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/grafts.md`: a quale soglia di rarità un Innesto diventa piega-regole (DEC-034).
+- **Decisione:** solo alla rarità **leggendaria** (peso 3 su {55,30,12,3}, DEC-019): piegare le regole del gioco è il massimo effetto possibile e resta un evento raro e memorabile. Gli Innesti di rarità inferiore restano potenti ma dentro le regole.
+- **Alternative considerate:** piega-regole anche alla rarità rara, con effetti minori.
+- **Conseguenze:** chiude la domanda residua corrispondente di `systems/grafts.md`.
+- **Documenti aggiornati:** `systems/grafts.md`
+
+### DEC-108 — Nelle gare le proposte sono identiche, la scelta è libera
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/characters.md`: come funziona la scelta del personaggio nelle modalità competitive asincrone (Classificata stesso seed, Daily).
+- **Decisione:** lo stesso seed genera **le stesse proposte per tutti i partecipanti** (stesso personaggio alternativo generato, stesso tema proposto): la **scelta resta libera e strategica**, l'equità è garantita dal determinismo della generazione dal seed. Nessun personaggio imposto dalla gara, nessuna esclusione del personaggio generato. Perimetro (chiarito il 19/07 dopo verifica incrociata con DEC-100): la **rosa base disponibile resta quella sbloccata dal singolo giocatore** (DEC-100), anche in gara — la parità riguarda il contenuto generato dal seed, non la progressione personale; gli sblocchi arrivano presto per costruzione, quindi lo svantaggio di un giocatore nuovo è effimero e non merita eccezioni alle regole di sblocco. Gap di implementazione esplicito: il determinismo completo delle proposte dal seed non è ancora garantito dalla pipeline (backlog noto: RNG di gioco su `time(NULL)`, inferenza non deterministica).
+- **Alternative considerate:** personaggio fissato dalla gara; solo rosa base in Classificata.
+- **Conseguenze:** `systems/characters.md` e `08-multiplayer-and-competition.md` registrano la regola; si appoggia a `systems/run-manifest-and-reproducibility.md` per la riproducibilità.
+- **Documenti aggiornati:** `systems/characters.md`, `08-multiplayer-and-competition.md`
+

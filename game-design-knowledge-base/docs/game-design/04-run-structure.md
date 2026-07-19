@@ -2,7 +2,7 @@
 id: gd-run-structure
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Struttura di una run: Piano 0 più cinque piani generati; la vittoria al boss del piano 5 chiude la run (DEC-031, aggiorna DEC-006). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018)."
 ---
 
@@ -53,7 +53,8 @@ Una run è composta da **Piano 0** più **cinque piani** generati.
   classifiche (DEC-006, aggiornata da DEC-031). La run finisce qui: non è previsto proseguire
   oltre in questa fase del gioco.
 - La run termina anche prima, in qualunque piano, quando la salute del giocatore raggiunge
-  zero: permadeath, nessuna eccezione.
+  zero: permadeath, nessuna eccezione. Le arene di sfida opzionali del Piano 0 non
+  contano: sono una simulazione pura, non un piano della run (DEC-092, vedi Risultato).
 
 ### Prosegui oltre: idea futura, non implementata (DEC-031)
 
@@ -73,7 +74,10 @@ extra come funzionalità attiva.
 ## Risultato
 
 - Run conclusa con **vittoria** (boss del piano 5 sconfitto) o con **sconfitta** (permadeath
-  in un punto qualsiasi della run, incluse le arene di sfida del Piano 0 se applicabile).
+  in un punto qualsiasi della run). Le arene di sfida opzionali del Piano 0 ne restano fuori:
+  sono una simulazione pura e una sconfitta lì non è permadeath, si esce con esattamente lo
+  stato d'ingresso (DEC-092, dettaglio in [Floor Zero](systems/floor-zero.md), rimando, non
+  riformulato qui).
 - Alla sconfitta, i punti sblocco maturati durante la run restano ma in misura ridotta
   rispetto alla vittoria, e il catalogo si aggiorna comunque con le creazioni incontrate
   (DEC-041); nessun oggetto sopravvive alla run in nessun caso (permadeath, DEC-006). Il
@@ -114,8 +118,10 @@ extra come funzionalità attiva.
 - Il piano 1 non è ancora pronto quando il giocatore prova a uscire dal Piano 0: l'uscita
   resta chiusa e il giocatore riceve feedback che la generazione è in corso, senza blocco
   dell'interazione con il resto del Piano 0.
-- Il giocatore muore all'interno di un'arena di sfida opzionale nel Piano 0: da definire se
-  equivale a una sconfitta di run o a un evento locale reversibile (vedi Domande aperte).
+- Il giocatore muore all'interno di un'arena di sfida opzionale nel Piano 0: è un evento
+  locale reversibile, non una sconfitta di run; uscendo dall'arena il giocatore ha
+  esattamente la salute e lo stato con cui era entrato (DEC-092, dettaglio in
+  [Floor Zero](systems/floor-zero.md), rimando).
 - Un piano generato (2–5) non supera la validazione in tempo utile: si applica il fallback,
   vedi sotto.
 
@@ -138,8 +144,9 @@ non la ripete.
 
 ## Domande aperte residue
 
-- Cosa succede esattamente alla salute/allo stato del giocatore se muore in un'arena di
-  sfida opzionale del Piano 0.
+- Nessuna: l'unica domanda residua di questo documento (stato del giocatore alla sconfitta
+  in un'arena di sfida opzionale del Piano 0) è chiusa da DEC-092 — l'arena è una
+  simulazione pura, si esce con esattamente lo stato d'ingresso.
 
 ## Scenari
 
@@ -158,3 +165,7 @@ non la ripete.
   **quando** il giocatore tenta di accedervi, **allora** il gioco applica il fallback
   descritto in [Generated Content Validation](systems/generated-content-validation.md)
   senza mostrare dettagli tecnici e senza bloccare la run.
+- **Dato** che il giocatore entra in un'arena di sfida opzionale del Piano 0 con una certa
+  salute e un certo stato, **quando** viene sconfitto dentro l'arena, **allora** la run non
+  si chiude, non è permadeath, e all'uscita dall'arena il giocatore ha esattamente la stessa
+  salute e lo stesso stato con cui era entrato (DEC-092).
