@@ -756,3 +756,153 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** `06-ai-content-generation-model.md` fissa la regola (a) per i prompt dei World; `content/visual-language.md` fissa la regola (b) e registra il gap di implementazione.
 - **Documenti aggiornati:** `06-ai-content-generation-model.md`, `content/visual-language.md`
 
+### DEC-074 — L'abbandono del Piano 0 passa da ExitConfirm
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la mappa canonica dei 9 stati non prevedeva un arco FloorZero → MainMenu; l'implementazione M5 aveva realizzato l'abbandono con ESC → ExitConfirm senza copertura di design, registrandolo come domanda aperta (ex domanda 14).
+- **Decisione:** sancito ESC → ExitConfirm come arco canonico di abbandono del Piano 0: la conferma protegge la preparazione già fatta (tema e personaggio scelti, generazione in corso) ed è coerente con l'uscita confermata dagli altri stati. Confermato l'abbandono interrompe la preparazione e riporta al menu principale.
+- **Alternative considerate:** arco diretto FloorZero → MainMenu senza conferma; nessun abbandono possibile dal Piano 0 (solo entrare in run o chiudere il gioco).
+- **Conseguenze:** la mappa canonica degli stati acquisisce l'arco FloorZero → ExitConfirm; l'implementazione M5 è già conforme.
+- **Documenti aggiornati:** `05-game-states-and-flow.md`, `ui/navigation-map.md`, `systems/floor-zero.md`
+
+### DEC-075 — Il Piano 0 conta come menu per il mouse
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-057 ammette il mouse solo nei menu; l'implementazione M5 aveva lasciato le carte tema selezionabili solo con tastiera/pad proprio per non decidere in silenzio se il Piano 0 fosse un "menu" (ex domanda 16).
+- **Decisione:** il Piano 0 conta come menu ai fini dell'ammissione del mouse: gli elementi di interfaccia selezionabili del Piano 0 (carte tema, schede personaggio, pannelli) sono cliccabili come le voci di menu degli altri stati. Il movimento del personaggio nel Piano 0 e ogni meccanica giocata restano su tastiera/controller con parità rigorosa: il mouse non muove il personaggio e non è mai richiesto (DEC-057 resta intatta nel suo nucleo).
+- **Alternative considerate:** Piano 0 eccezione senza mouse (sancire l'implementazione attuale); mouse ammesso solo nei pannelli overlay ma non sulle carte.
+- **Conseguenze:** `ui/options-and-accessibility.md` (fonte unica di DEC-057) chiarisce il perimetro della regola; `systems/floor-zero.md` aggiorna input/azioni e scenari. Gap di implementazione esplicito (stile DEC-009/DEC-052): le carte tema e le schede personaggio di M5/M6a vanno rese cliccabili.
+- **Documenti aggiornati:** `ui/options-and-accessibility.md`, `systems/floor-zero.md`
+
+### DEC-076 — Tre carte tema curate di fallback
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** quando nessuna proposta di tema dell'IA supera la validazione, l'implementazione M5 mostrava 3 carte curate come default proposto (ex domanda 17).
+- **Decisione:** il numero canonico di carte tema curate di fallback è **3**, come le proposte ordinarie: il giocatore non percepisce differenza di forma tra proposta generata e fallback curato.
+- **Alternative considerate:** 2 carte (fallback più sobrio); più di 3 (l'intero pool curato disponibile).
+- **Conseguenze:** il default proposto M5 diventa canone; vincola il pool curato minimo dei temi (almeno 3, vedi DEC-087).
+- **Documenti aggiornati:** `systems/floor-zero.md`
+
+### DEC-077 — Il codice di condivisione porta anche tema e personaggio
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** il codice breve di condivisione run (DEC-066) codificava solo seed più versione di gioco: chi lo riceveva rigiocava "una run con lo stesso seed", non necessariamente con lo stesso tema e personaggio scelti nel Piano 0 (ex domanda 15).
+- **Decisione:** il codice breve si estende: codifica **seed, versione di gioco, tema scelto e personaggio scelto**, così chi lo riceve può rigiocare esattamente la stessa run. Le scelte trasportate arrivano nel Piano 0 come preselezione; il giocatore resta libero di cambiarle (a quel punto sta giocando una run con lo stesso seed, non più la stessa run — il Piano 0 resta il luogo della scelta). La run importata resta sempre non classificata (DEC-066/DEC-062 invariate). Il RunBundle, che trasporta già il manifest completo, resta la via completa e verificabile.
+- **Alternative considerate:** solo seed come design voluto (ognuno fa le proprie scelte sulla stessa base); due formati di codice (corto solo-seed e completo).
+- **Conseguenze:** `systems/run-manifest-and-reproducibility.md` (fonte unica del codice breve) aggiorna il contenuto del codice; glossario e documenti che citano "seed più versione di gioco" si allineano. Gap di implementazione esplicito: il codice attuale non trasporta ancora tema e personaggio.
+- **Documenti aggiornati:** `systems/run-manifest-and-reproducibility.md`, `08-multiplayer-and-competition.md`, `governance/glossary.md`, `ui/run-setup.md`
+
+### DEC-078 — Lo sconto del colpo firmato è una compressione fissa delle bande
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-068 chiedeva "statistiche più caute" per il personaggio con colpo firmato senza quantificare; l'implementazione M6b-3 usava una compressione fissa delle bande a fattore 0.6 come default proposto (ex domanda 18).
+- **Decisione:** il criterio canonico dello sconto è la **compressione fissa delle bande**: danno/salute/fortuna compressi verso il bordo cauto, cadenza compressa verso il lato lento, velocità del colpo e del movimento intatte (il colpo firmato paga il proprio vantaggio offensivo, non la mobilità). Il **valore** del fattore (0.6 attuale) resta un default proposto da validare col playtest, stile DEC-019.
+- **Alternative considerate:** sconto proporzionale al budget di potenza del colpo firmato (stile ShotTypePower); ibrido fisso più correzione sul budget.
+- **Conseguenze:** `systems/characters.md` promuove il criterio a canone; il valore del fattore entra nell'elenco dei valori numerici da playtest in `governance/open-questions.md`.
+- **Documenti aggiornati:** `systems/characters.md`, `governance/open-questions.md`
+
+### DEC-079 — Il colpo firmato non si scarta mai: si normalizza
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la ex domanda 19 chiedeva se, al fallback dal colpo firmato al colpo standard, le statistiche caute restassero o tornassero alle bande piene (doppia penalità contro colpo standard "gratis"). L'implementazione M6b-3 normalizza già sempre il colpo in banda con la stessa doppia rete dei colpi di run, senza mai scartarlo.
+- **Decisione:** sancito: il colpo firmato attraversa sempre la doppia rete di bilanciamento, che **normalizza e non scarta mai** — un colpo fuori banda viene riportato in banda, mai sostituito dal colpo standard. Le statistiche caute non vengono mai ricalcolate retroattivamente. Un personaggio generato con colpo firmato ha sempre il suo colpo firmato: il dilemma della doppia penalità sparisce alla radice.
+- **Alternative considerate:** fallback al colpo standard con ritorno alle bande piene; fallback al colpo standard con statistiche caute mantenute.
+- **Conseguenze:** il blocco "colpo che non valida" di `systems/characters.md` passa da default proposto a canone; la ex domanda 19 è chiusa.
+- **Documenti aggiornati:** `systems/characters.md`
+
+### DEC-080 — La rosa base ha nomi e ruoli canonici
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** l'implementazione M6a proponeva tre personaggi come default (ex domanda 7, che chiedeva la composizione esatta della rosa DEC-030).
+- **Decisione:** nomi e ruoli approvati come canone, in nomenclatura inglese coerente con DEC-072: **Wayfinder** (esploratore, personaggio di partenza e default: il feel storico del progetto, più fortuna), **Ashblade** (offensivo di vetro: danno alto, tetto vita basso), **Bulwark** (difensivo di roccia: lento, tetto vita alto). Le statistiche esatte restano default proposti da playtest; le condizioni di sblocco di Ashblade e Bulwark restano da definire. La domanda aperta si restringe a statistiche e sblocchi.
+- **Alternative considerate:** tenerli provvisori; approvare subito anche le condizioni di sblocco; rivedere nomi o ruoli.
+- **Conseguenze:** `systems/characters.md` promuove nomi e ruoli a canone; il glossario registra i tre nomi.
+- **Documenti aggiornati:** `systems/characters.md`, `systems/floor-zero.md`, `governance/glossary.md`
+
+### DEC-081 — La Daily ruota a mezzanotte UTC
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-062 fissava che la Classificata giornaliera pubblica ("Daily") usa lo stesso seed per tutti e cambia ogni giorno, senza orario (ex domanda 9).
+- **Decisione:** la rotazione della Daily avviene alle **00:00 UTC**, un istante globale unico per tutti i giocatori (lo standard dei roguelike con daily run). La lobby mostra il conto alla rovescia al prossimo cambio.
+- **Alternative considerate:** mezzanotte locale (seed per data di calendario del giocatore); orario fisso europeo (es. 10:00 CET).
+- **Conseguenze:** `08-multiplayer-and-competition.md` (fonte unica della Daily) registra l'orario; `ui/multiplayer-lobby.md` aggiorna il feedback del conto alla rovescia.
+- **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/multiplayer-lobby.md`
+
+### DEC-082 — Abbandono e reroll contano come sconfitta per i punti
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-041 fissava cosa resta al giocatore solo per vittoria (punti pieni) e sconfitta (punti ridotti); l'abbandono volontario (ExitConfirm) e il reroll da Gameplay non erano classificati (ex domanda 20, emersa dal substrato del catalogo M7).
+- **Decisione:** abbandono volontario e reroll contano entrambi come **sconfitta** ai fini dei punti sblocco: punti ridotti standard su quanto maturato fino a quel momento, nessuna categoria intermedia. Catalogo e statistiche si aggiornano comunque con quanto incontrato (regola già esistente: una run interrotta a metà non corrompe il profilo). Il farming è mitigato dal fatto che i punti maturano giocando: chi abbandona presto ha maturato poco. Perimetro: la regola riguarda una run in corso (`ExitConfirm` da `PauseMenu`, reroll da `Gameplay`); l'abbandono della sola preparazione nel Piano 0 (`ExitConfirm` da `FloorZero`, DEC-074) avviene prima che la run giocata cominci, non conta come sconfitta e resta fuori da questa contabilità.
+- **Alternative considerate:** nessun punto (fuori dall'economia); categoria propria con punti ulteriormente ridotti; trattare abbandono e reroll in modo diverso tra loro.
+- **Conseguenze:** `ui/results-and-leaderboards.md` (dettaglio di DEC-041) e `systems/save-and-meta-progression.md` registrano la regola.
+- **Documenti aggiornati:** `ui/results-and-leaderboards.md`, `systems/save-and-meta-progression.md`
+
+### DEC-083 — Le sette categorie del Catalogo
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la vista Catalogo M8 esponeva sette categorie consultabili come scelta di implementazione (ex domanda 21: layout stanza e tipi di colpo meritano una scheda o restano record interni?).
+- **Decisione:** approvate le **sette categorie consultabili**: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi. Anche i layout stanza e i tipi di colpo sono creazioni del crogiolo che il giocatore ha incontrato: hanno una scheda propria come il resto.
+- **Alternative considerate:** cinque categorie (Layout e Colpi solo record interni); sei categorie (Colpi consultabili, Layout interno).
+- **Conseguenze:** `systems/save-and-meta-progression.md` (fonte unica del catalogo) registra le categorie; `ui/main-menu.md` le riflette.
+- **Documenti aggiornati:** `systems/save-and-meta-progression.md`, `ui/main-menu.md`
+
+### DEC-084 — Il Catalogo è una vista interna del menu principale
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** M8 aveva collocato la schermata Catalogo dentro lo stato MainMenu per non introdurre un decimo stato senza decisione esplicita (ex domanda 22); `ui/main-menu.md` la chiamava "schermata", linguaggio da stato proprio, creando un'incoerenza da risolvere.
+- **Decisione:** la mappa canonica resta a **9 stati**; il Catalogo vive dentro MainMenu come **vista interna**. Nei documenti, "schermata" descrive l'esperienza del giocatore, non uno stato dell'applicazione: la scelta M8 è sancita.
+- **Alternative considerate:** promuovere il Catalogo a decimo stato canonico con archi propri (MainMenu ⇄ Catalogo).
+- **Conseguenze:** `05-game-states-and-flow.md` annota la vista interna; `ui/main-menu.md` chiarisce il linguaggio; `ui/navigation-map.md` resta coerente.
+- **Documenti aggiornati:** `05-game-states-and-flow.md`, `ui/main-menu.md`, `ui/navigation-map.md`
+
+### DEC-085 — Reliquie nel museo: la curatela vince, le metriche decadono
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) può diventare una Reliquia dopo un aggiornamento (DEC-069); non era definito se restasse esposto (ex domanda 13).
+- **Decisione:** se il contenuto è nel museo **come preferito del giocatore, resta esposto** — la curatela non esce mai finché marcata (coerente con DEC-063); la scheda museale segnala che è una Reliquia, e la prova in arena (DEC-040) non è più disponibile, perché le Reliquie non sono giocabili (DEC-069). Se era promosso **solo per metriche, esce automaticamente**: la promozione automatica riguarda contenuti ancora in circolazione.
+- **Alternative considerate:** resta sempre esposto (il museo come pura memoria); esce sempre (le Reliquie vivono solo nel Catalogo).
+- **Conseguenze:** `systems/floor-zero.md` (museo) e `systems/save-and-meta-progression.md` (Reliquie) registrano la regola con uno scenario.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `systems/save-and-meta-progression.md`
+
+### DEC-086 — Il primo avvio è una schermata dedicata; la riattivazione vive in Impostazioni
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** DEC-070 fissava principio e momento della scelta binaria completo/solo-curato (dopo il benchmark, prima della visita guidata al Piano 0), non l'interfaccia né il punto di riattivazione della generazione (ex domanda 12).
+- **Decisione:** la scelta è una **schermata dedicata a due carte** (esperienza completa / solo curato) al primissimo avvio, dopo il benchmark. Nessun default silenzioso: se il giocatore annulla o chiude il gioco senza scegliere, al rientro la schermata si ripresenta finché una scelta non è fatta. La **riattivazione** della generazione per chi ha scelto solo curato vive in **Impostazioni**, accompagnata dalla stessa informazione del benchmark sull'hardware.
+- **Alternative considerate:** overlay sopra il menu principale; rimandare la decisione sull'interfaccia.
+- **Conseguenze:** `systems/floor-zero.md` (fonte unica di dove/quando avviene la scelta, DEC-070) dettaglia l'interfaccia; `ui/options-and-accessibility.md` registra la voce di riattivazione; `06-ai-content-generation-model.md` vi rimanda.
+- **Documenti aggiornati:** `systems/floor-zero.md`, `ui/options-and-accessibility.md`, `06-ai-content-generation-model.md`
+
+### DEC-087 — Pool curato minimo per categoria (run di fallback completa)
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la ex domanda 10 chiedeva quali contenuti curati minimi debbano esistere per garantire una run completa (Piano 0 + 5 piani) senza alcuna generazione IA disponibile.
+- **Decisione:** approvato il principio del **pool curato minimo per categoria**: per ogni categoria di contenuto che il gioco propone esiste un minimo curato che garantisce run completa e fallback in ogni punto di scelta. I valori della tabella sono default proposti stile DEC-019, da confermare: 3 temi/World curati (= carte fallback, DEC-076); 5 boss (uno per piano, legati alle bande di difficoltà); 12 nemici comuni (distribuiti sulle bande dei 5 piani); 20 oggetti (distribuiti sulle 4 rarità con i pesi DEC-019, nessuna rarità vuota); 6 tipi di colpo curati (inclusi i colpi standard della rosa base); la rosa base come pool personaggi (3, DEC-080; in solo-curato non esiste il personaggio generato). I layout stanza sono generati proceduralmente senza IA (DEC-009) e non richiedono un minimo curato.
+- **Alternative considerate:** minimo assoluto di sola completabilità (1 tema, 1 boss per piano, un pugno di nemici/oggetti); minimi alti da "gioco vero" che regge più run senza ripetersi.
+- **Conseguenze:** `systems/generated-content-validation.md` diventa fonte unica della tabella del pool minimo; `06-ai-content-generation-model.md` e `content/content-taxonomy.md` vi rimandano. La domanda aperta si restringe alla conferma dei numeri.
+- **Documenti aggiornati:** `systems/generated-content-validation.md`, `06-ai-content-generation-model.md`, `content/content-taxonomy.md`, `governance/open-questions.md`
+
+### DEC-088 — Il minimo gioco base è la fase 1 più l'economia dei punti
+
+- **Data:** 2026-07-19
+- **Stato:** approved
+- **Contesto:** la ex domanda 11 chiedeva quale sia il minimo gioco base da completare prima di espandere la generazione IA.
+- **Decisione:** il minimo gioco base è la **fase 1 già implementata (M1–M8) più l'economia dei punti sblocco** (DEC-027: tasso di guadagno, costi, doppio canale) **e la spesa dei punti nel Catalogo** (DEC-045, terza funzione, oggi mancante). Raggiunto questo, la priorità passa all'espansione della generazione IA.
+- **Alternative considerate:** la fase 1 attuale basta già; servono anche il pool curato minimo completo (DEC-087) e una run di fallback senza IA prima di espandere.
+- **Conseguenze:** chiude la ex domanda 11 e orienta i piani di implementazione; nessun comportamento visibile al giocatore cambia, quindi nessun documento di sistema da aggiornare oltre alla governance.
+- **Documenti aggiornati:** `governance/open-questions.md`, `governance/decision-log.md`
+

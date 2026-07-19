@@ -2,7 +2,7 @@
 id: gd-game-states
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
 ---
 
@@ -34,6 +34,11 @@ generazione si risolvono con fallback invisibile, non con uno stato dedicato.
 generazione non è uno stato separato, è un'interfaccia dentro il Piano 0 (vedi
 [Generation Status](ui/generation-status.md) per il contratto di quell'indicatore).
 
+`MainMenu` include il Catalogo come **vista interna**, non un decimo stato: la mappa
+canonica resta a 9 stati (DEC-084). Nei documenti, "schermata" descrive l'esperienza del
+giocatore, non uno stato dell'applicazione — vedi [Main Menu](ui/main-menu.md) per il
+contratto di quella vista.
+
 "Error Recovery" **non** è uno stato: gli errori di generazione si risolvono con il
 fallback invisibile descritto in
 [Generated Content Validation](systems/generated-content-validation.md). Questo documento
@@ -60,6 +65,7 @@ flowchart TD
     Options --> MainMenu
     MainMenu --> ExitConfirm
     PauseMenu --> ExitConfirm
+    FloorZero --> ExitConfirm
 ```
 
 ## Condizioni di ingresso e input
@@ -68,13 +74,13 @@ flowchart TD
 |---|---|---|
 | `MainMenu` | Avvio del gioco o ritorno da `RunResults`/`ExitConfirm` annullato | Naviga, conferma, esci |
 | `RunSetup` | Selezione "Nuova run" da `MainMenu` | Conferma, indietro |
-| `FloorZero` | Run avviata, ritorno da `RunResults` per preparare la prossima run, o ripresa di una run sospesa nel Piano 0 | Movimento libero, scelta tema, scelta personaggio, ingresso arena, uscita verso piano 1 quando pronto |
+| `FloorZero` | Run avviata, ritorno da `RunResults` per preparare la prossima run, o ripresa di una run sospesa nel Piano 0 | Movimento libero, scelta tema, scelta personaggio, ingresso arena, uscita verso piano 1 quando pronto, abbandona (con `ExitConfirm`) |
 | `Gameplay` | Uscita da `FloorZero` verso il piano 1, ripresa da `PauseMenu`/`BuildScreen`, o "Continua" da `MainMenu` su una run sospesa | Movimento, combattimento, apertura pausa, apertura build |
 | `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, abbandona (con `ExitConfirm`) |
 | `Options` | Da `MainMenu` o da `PauseMenu` | Modifica opzioni, torna indietro |
 | `BuildScreen` | Comando dedicato durante `Gameplay` | Consulta oggetti, sinergie, fusioni disponibili, torna a `Gameplay` |
 | `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, o sconfitta) | Torna al Piano 0, torna al menu principale |
-| `ExitConfirm` | Azione distruttiva richiesta (abbandono run, uscita dal gioco) | Conferma, annulla |
+| `ExitConfirm` | Azione distruttiva richiesta (abbandono run, abbandono della preparazione nel Piano 0, uscita dal gioco) | Conferma, annulla |
 
 ## Risultato e feedback per transizione
 
@@ -88,6 +94,10 @@ flowchart TD
 - `MainMenu → Gameplay` ("Continua"): la ripresa di una run sospesa rientra direttamente
   nello stato salvato — `Gameplay` nel caso tipico, `FloorZero` se la sospensione è
   avvenuta nel Piano 0.
+- `FloorZero → ExitConfirm`: ESC nel Piano 0 apre la conferma di abbandono della
+  preparazione (tema e personaggio scelti, generazione in corso). Confermato, l'abbandono
+  interrompe la preparazione e riporta a `MainMenu`; annullato, il giocatore resta nel Piano
+  0 senza perdere lo stato di preparazione già scelto (DEC-074).
 
 ## Regola sulla pausa (DEC-016, coerenza)
 
@@ -142,3 +152,7 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
 - **Dato** che una generazione di contenuto fallisce durante `FloorZero`, **quando** il
   fallback si attiva, **allora** il giocatore resta nello stato `FloorZero` senza vedere
   alcuno stato di errore, secondo la regola di fallback invisibile.
+- **Dato** che il giocatore è in `FloorZero` con tema e personaggio già scelti, **quando**
+  preme ESC e conferma in `ExitConfirm`, **allora** la preparazione viene interrotta e il
+  giocatore torna a `MainMenu`; **quando** invece annulla, **allora** resta in `FloorZero`
+  con tema e personaggio ancora selezionati.

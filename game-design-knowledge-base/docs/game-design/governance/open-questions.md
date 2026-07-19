@@ -1,24 +1,19 @@
 # Open Questions
 
 Le risposte vanno trasferite nei documenti pertinenti e registrate in `decision-log.md`.
-Le domande risolte dalle decisioni DEC-001...DEC-020 del 2026-07-17, dalle decisioni
-DEC-025/DEC-026 del 2026-07-18, e dalla decisione DEC-032 del 2026-07-18, sono state
-rimosse da questo elenco; restano solo le domande davvero aperte. Le decisioni
-DEC-055...DEC-062 del 2026-07-18 non hanno risolto alcuna domanda preesistente di questo
-elenco, ma ne hanno aperte di nuove (vedi sotto). Le decisioni DEC-063...DEC-066 del
-2026-07-18 risolvono parzialmente la domanda sulla Daily (le ricompense dedicate sono
-ora definite come cosmetiche, DEC-064): resta aperto solo l'orario esatto di rotazione (vedi
-sotto). La decisione DEC-067 del 2026-07-18 approva una cornice narrativa minima ("il
-crogiolo dei mondi"): il tono narrativo generale non è più completamente aperto, resta
-aperto solo il tono specifico (tragico, ironico, ecc.), i simboli ricorrenti e i limiti di
-contenuto — dettagli registrati in `content/narrative-tone.md`, non duplicati qui. Le
-decisioni DEC-069 e DEC-070 del 2026-07-18 non risolvono domande preesistenti di questo
-elenco, ma ne aprono due nuove (vedi sotto). Le decisioni DEC-071 e DEC-072 del 2026-07-18
-risolvono per intero la sezione "Nome e vocabolario" che comparirebbe qui (il nome
-definitivo del gioco è Worldsmelt, e i nomi definitivi di valuta principale, strumento di
-breccia, strumento di apertura, catalizzatore di fusione, Innesto e Veterano hanno ora il
-rispettivo nome inglese in-game, vedi `governance/glossary.md`): la sezione e le sue due
-domande sono state rimosse da questo elenco, che ora inizia dalla sezione Economia e stanze.
+Le domande risolte dalle decisioni DEC-001...DEC-020 (2026-07-17) e dalle decisioni del
+2026-07-18 (DEC-025/026, DEC-032, DEC-063...DEC-067, DEC-069...DEC-072) erano già state
+rimosse da questo elenco. La sessione di design del 2026-07-19 (DEC-074...DEC-088) ha
+risolto le domande emerse dall'implementazione M5→M8: abbandono del Piano 0 (DEC-074),
+mouse nel Piano 0 (DEC-075), carte tema di fallback (DEC-076), contenuto del codice di
+condivisione (DEC-077), criterio dello sconto del colpo firmato (DEC-078), colpo firmato
+mai scartato (DEC-079), nomi e ruoli della rosa base (DEC-080), orario della Daily
+(DEC-081), punti di abbandono e reroll (DEC-082), categorie del Catalogo (DEC-083),
+Catalogo come vista interna (DEC-084), Reliquie nel museo (DEC-085), interfaccia del primo
+avvio (DEC-086), pool curato minimo (DEC-087) e soglia del minimo gioco base (DEC-088).
+Restano le domande davvero aperte, rinumerate da 1. Domande aperte più locali vivono anche
+nelle sezioni "Domande aperte" dei singoli documenti di sistema (es. `systems/floor-zero.md`
+per arene, dote e museo): quelle non sono duplicate qui.
 
 ## Economia e stanze
 
@@ -30,88 +25,21 @@ domande sono state rimosse da questo elenco, che ora inizia dalla sezione Econom
 ## Valori numerici da playtest
 
 5. I valori proposti in DEC-019 (pesi rarità {55,30,12,3}, pesi boss {0,0,70,30}, bande di potenza colpi/nemici/boss, 4 rarità) sono confermati dal playtest o vanno corretti?
-6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest. Per la rosa base i tetti non sono bande ma valori FISSI curati — 8/12/16, default proposti dall'implementazione M6a, vedi `systems/characters.md` — le bande restano una domanda aperta solo per il personaggio generato per run, DEC-014/M6b. L'implementazione M6b-1 propone ora un default anche per queste bande — damage/fireDelay/shotSpeed/speed/maxHp/luck e la regola hpCap=2×maxHp clampato [6,18] — vedi `systems/characters.md`, blocco "Default proposti dall'implementazione (M6b-1)": stesso status di ogni altro default proposto in questo elenco, punto di partenza giocabile, non ancora approvato dal design.)
+6. Quali sono le bande min/max dei tetti di salute dei personaggi? (DEC-033 fissa il principio che ogni personaggio ha il proprio tetto di salute base come parte delle sue statistiche; i valori delle bande, soprattutto per il personaggio generato per run, restano da validare col playtest. Per la rosa base i tetti non sono bande ma valori FISSI curati — 8/12/16, default proposti dall'implementazione M6a, vedi `systems/characters.md` — le bande restano una domanda aperta solo per il personaggio generato per run, DEC-014/M6b. L'implementazione M6b-1 propone un default anche per queste bande — damage/fireDelay/shotSpeed/speed/maxHp/luck e la regola hpCap=2×maxHp clampato [6,18] — vedi `systems/characters.md`, blocco "Default proposti dall'implementazione": punto di partenza giocabile, non ancora approvato dal design.)
+7. Il valore del fattore di compressione delle bande per il colpo firmato (0.6, default proposto M6b-3) è confermato dal playtest o va corretto? (DEC-078 fissa il criterio — compressione fissa delle bande — non il valore.)
 
 ## Personaggi
 
-7. Composizione esatta della rosa dei personaggi base: nomi, ruoli precisi oltre alle indicazioni offensivo/difensivo/esploratore, e condizioni esatte di sblocco di ciascuno (DEC-030 fissa solo il principio di una rosa di 2-3 personaggi curati, sbloccabili presto). L'implementazione M6a propone dei default (Wayfinder/Ashblade/Bulwark, vedi `systems/characters.md`, blocco "Default proposti dall'implementazione"): nomi, ruoli e statistiche sono un punto di partenza giocabile, non ancora approvati dal design; la domanda resta aperta.
+8. Quali sono le statistiche esatte e le condizioni di sblocco della rosa base Wayfinder/Ashblade/Bulwark? (DEC-080 approva nomi e ruoli come canone; le statistiche restano default proposti dall'implementazione M6a, da playtest; DEC-030 chiede sblocchi "presto" senza definirli.)
 
 ## Multiplayer
 
-8. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e soprattutto il criterio di normalizzazione della difficoltà per la Classificata a seed diversi?
-9. Qual è l'orario esatto di rotazione del cambio giornaliero della Classificata giornaliera pubblica ("Daily")? (DEC-062 fissa che la Daily esiste, usa lo stesso seed per tutti i giocatori e cambia ogni giorno; DEC-064 fissa che premia con medaglie/cornici cosmetiche legate a piazzamenti e streak, risolvendo la parte "ricompense dedicate?" di questa domanda. Resta aperto solo l'orario esatto di rotazione.)
+9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e soprattutto il criterio di normalizzazione della difficoltà per la Classificata a seed diversi? (L'orario di rotazione della Daily è ora fissato: 00:00 UTC, DEC-081.)
 
 ## Produzione
 
-10. Quali contenuti curati minimi devono esistere per garantire una run di fallback completa (Piano 0 + 5 piani) senza alcuna generazione IA disponibile?
-11. Qual è il minimo gioco base da completare prima di espandere la generazione IA?
-
-## Primo avvio e migrazione del catalogo
-
-12. Dettagli dell'interfaccia della scelta binaria completo/solo-curato al primo avvio (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva la generazione per chi ha scelto solo curato inizialmente. (DEC-070 fissa solo il principio e il punto in cui avviene la scelta, non l'interfaccia esatta.)
-13. Un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) che diventa una Reliquia dopo un aggiornamento (DEC-069): resta esposto nel museo o ne esce automaticamente?
+10. I numeri della tabella del pool curato minimo per categoria (DEC-087: 3 temi, 5 boss, 12 nemici, 20 oggetti, 6 colpi) sono confermati man mano che i contenuti curati vengono prodotti, o vanno corretti? (DEC-087 approva il principio; i valori sono default proposti stile DEC-019.)
 
 ## Stati e flusso
 
-14. Abbandono del Piano 0: la mappa canonica non prevede un arco FloorZero → MainMenu; l'implementazione attuale usa ESC → ExitConfirm (abbandona la preparazione). Va sancito o sostituito?
-
-## Piano 0 e scelta del tema (M5, 18/07/2026)
-
-15. Il codice breve di condivisione run (DEC-066: seed più versione di gioco) non porta la scelta del tema né quella del personaggio fatte dal giocatore nel Piano 0 — solo il seed, da cui si rigenerano contenuti proposti, non necessariamente la STESSA scelta. Come va esteso (se va esteso) perché chi riceve un codice breve possa rigiocare esattamente la stessa run, tema e personaggio inclusi, e non solo "una run con lo stesso seed"?
-16. Il Piano 0 conta come "menu" ai fini dell'ammissione del mouse (DEC-057, "il mouse è ammesso solo nei menu")? La scelta del tema nel Piano 0 (carte selezionabili) è implementata solo con tastiera/pad per non prendere questa decisione in silenzio durante l'implementazione (M5): resta da stabilire se le carte tema debbano diventare cliccabili come le voci di menu degli altri stati, o se il Piano 0 resti un'eccezione dove il mouse non è ammesso.
-17. Quante carte tema curate di fallback mostrare quando nessuna proposta dell'IA supera la validazione: vedi la stessa domanda, con lo stesso default proposto (3), in `systems/floor-zero.md`, sezione "Domande aperte residue".
-
-## Personaggio generato per-run (M6b-1, 18/07/2026)
-
-Trovate durante la ricognizione tecnica per l'implementazione M6b-1 (stats + palette + carta
-del personaggio generato, DEC-014 prima fetta): il colpo firmato (DEC-068) resta fuori scope
-di quella fetta, ma la sua implementazione (M6b-3) avrà bisogno di risposte a queste due
-domande, che DEC-068 lascia esplicitamente aperte.
-
-18. Di quanto esattamente sono più caute le statistiche del personaggio generato quando riceve un colpo firmato (DEC-068)? La decisione fissa solo il principio ("statistiche più caute rispetto a un personaggio alternativo equivalente senza colpo firmato, per compensare il vantaggio di un colpo dedicato"), senza quantificare lo sconto — un fattore fisso sulle bande di `systems/characters.md`? Una riduzione proporzionale al budget di potenza del colpo firmato stesso (stile `ShotTypePower`)? Da definire, poi da playtest come i valori di DEC-019.
-19. Quando il colpo firmato generato non supera la validazione in sandbox e si applica il fallback verso il colpo standard curato (DEC-068, `systems/generated-content-validation.md`), le statistiche del personaggio restano quelle "più caute" previste per un personaggio CON colpo firmato, o tornano alle bande piene di un personaggio SENZA colpo firmato? Le due letture hanno conseguenze opposte sul bilanciamento (un personaggio penalizzato due volte — colpo standard E statistiche caute — contro un personaggio che riceve il colpo standard "gratis" alle statistiche piene); characters.md non lo specifica.
-
-## Catalogo persistente v1 (M7, substrato, 19/07/2026)
-
-Trovate durante l'implementazione del substrato del catalogo
-(`src/content/run_catalog.c`, vedi `systems/save-and-meta-progression.md`,
-sezione "Stato di implementazione"): il substrato registra solo l'ESITO della
-run, non punti o metriche (i punti sblocco non esistono ancora in v1, DEC-027
-resta il gap).
-
-20. Esito e punti dell'ABBANDONO e del reroll: DEC-041 fissa cosa resta al
-    giocatore solo per vittoria e sconfitta (punti pieni/ridotti, catalogo,
-    statistiche). Un abbandono volontario (ExitConfirm da PauseMenu) o un
-    reroll da `Gameplay` (che abbandona la run corrente per rigenerarne una
-    nuova) devono contare come una sconfitta ai fini dei punti sblocco, avere
-    una categoria propria (punti ridotti ulteriormente, o nessun punto?), o
-    restare fuori da quell'economia? v1 registra comunque il catalogo dei
-    contenuti già incontrati fino a quel momento (stessa regola "una run
-    interrotta a metà non corrompe il profilo" già in
-    `systems/save-and-meta-progression.md`, sezione "Casi limite"), ma non
-    decide nulla sui punti: la domanda resta aperta.
-21. I tipi di colpo e il layout stanza meritano una "scheda" dedicata nel
-    Catalogo (come oggetti, nemici, personaggi) o restano solo un record dati
-    interno, mai esposto come categoria consultabile a sé? Aggiornamento M8
-    (vedi sezione sotto): la vista Catalogo v1 li presenta ORA entrambi come
-    categorie consultabili a sé (Layout/Colpi, accanto a Oggetti/Nemici/
-    Boss/Personaggi/Mondi) — scelta di implementazione (default giocabile,
-    stesso status di ogni altro "default proposto dall'implementazione" in
-    questo elenco), non ancora approvata dal design: la domanda se questo
-    raggruppamento sia quello voluto resta aperta.
-
-## Vista Catalogo v1 (M8, 19/07/2026)
-
-Trovata durante l'implementazione della schermata Catalogo (enciclopedia
-consultabile, DEC-045 prima fetta; vedi `systems/save-and-meta-progression.md`,
-sezione "Stato di implementazione", e `ui/main-menu.md`).
-
-22. Il Catalogo merita un nodo di navigazione canonico nella mappa dei 9 stati
-    (`05-game-states-and-flow.md`), o resta corretto che viva DENTRO
-    `APP_MAIN_MENU` come vista interna (scelta di implementazione di M8, per
-    non introdurre un decimo stato senza una decisione di design esplicita)?
-    Incoerenza KB da risolvere: `ui/main-menu.md` chiama il Catalogo una
-    "schermata" (linguaggio che suggerisce un proprio stato), ma la mappa
-    canonica dei 9 stati non lo elenca affatto. Finché la domanda resta
-    aperta, l'implementazione tratta "schermata" come descrittivo
-    dell'esperienza per il giocatore, non come sinonimo di `AppMode`.
+11. Flusso dell'abbandono di una run in corso (incoerenza emersa applicando DEC-082): `ui/results-and-leaderboards.md` elenca l'abbandono confermato da `PauseMenu` tra le condizioni di ingresso di `RunResults`, ma `ui/pause-menu.md` e `ui/navigation-map.md` documentano l'abbandono come ritorno diretto a `MainMenu` senza passare da `RunResults`. Va deciso dove il giocatore vede l'accredito dei punti ridotti di DEC-082 in quei flussi — passaggio da `RunResults` anche all'abbandono, o accredito silenzioso col ritorno diretto al menu — e va sanata l'incoerenza tra i documenti. Resta inoltre da documentare la collocazione UI esatta del reroll da `Gameplay` (comando, eventuale conferma).

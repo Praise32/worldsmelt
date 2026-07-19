@@ -7,7 +7,7 @@
 - **Tema della run** (in-game: **World**, DEC-072): identità tematica scelta dal giocatore tra 2-3 proposte generate dall'IA nel Piano 0; evolve/degenera piano dopo piano fino al boss del piano 5 (DEC-005). Fonte unica: `systems/floor-zero.md`.
 - **Run:** sessione completa dall'avvio alla vittoria (boss del piano 5) o alla sconfitta (permadeath). La vittoria al boss del piano 5 chiude la run (DEC-006, DEC-031); una prosecuzione oltre il piano 5 resta solo un'idea futura non implementata (DEC-018).
 - **Manifest di run:** descrizione stabile dei contenuti e delle regole di una run (seed compreso), usata per riproducibilità e classifiche.
-- **Codice run:** codice breve testuale (seed più versione di gioco) che permette di condividere e rigenerare localmente una run fuori dalle classifiche; alternativa più leggera al file RunBundle esportato per la condivisione di una run (DEC-066). Fonte unica: `08-multiplayer-and-competition.md`.
+- **Codice run:** codice breve testuale che codifica seed, versione di gioco, tema scelto e personaggio scelto (DEC-077), permettendo di rigiocare esattamente la stessa run fuori dalle classifiche; le scelte trasportate arrivano nel Piano 0 come preselezione, modificabile dal giocatore. Alternativa più leggera al file RunBundle esportato per la condivisione di una run (DEC-066). Fonte unica del contenuto del codice: `systems/run-manifest-and-reproducibility.md` (DEC-077); la regola di condivisione sempre non classificata resta in `08-multiplayer-and-competition.md` (DEC-066).
 - **RunBundle:** file esportato di una run, con verifica d'integrità già esistente nel progetto; via completa e verificabile per condividere o archiviare una run fuori dalle classifiche (DEC-066), adatta a gare private e archivio. Fonte unica: `08-multiplayer-and-competition.md`.
 - **Build:** insieme corrente di oggetti, statistiche e sinergie del giocatore.
 
@@ -52,6 +52,9 @@
   generatore; è parte del budget del personaggio — chi lo riceve ha statistiche più caute. I
   personaggi della rosa base usano sempre colpi standard curati, mai un colpo firmato. Fonte
   unica: `systems/characters.md`.
+- **Wayfinder** (DEC-080, nomenclatura DEC-072): personaggio della rosa base (DEC-030) con ruolo esploratore; è il personaggio di partenza, preselezionato di default all'ingresso nel Piano 0. Fonte unica: `systems/characters.md`.
+- **Ashblade** (DEC-080, nomenclatura DEC-072): personaggio della rosa base (DEC-030) con ruolo offensivo "di vetro": danno alto, tetto di salute basso. Fonte unica: `systems/characters.md`.
+- **Bulwark** (DEC-080, nomenclatura DEC-072): personaggio della rosa base (DEC-030) con ruolo difensivo "di roccia": lento, tetto di salute alto. Fonte unica: `systems/characters.md`.
 
 ## Generazione e validazione
 

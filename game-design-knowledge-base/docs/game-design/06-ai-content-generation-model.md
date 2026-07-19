@@ -2,8 +2,8 @@
 id: gd-ai-content-model
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
+last_reviewed: 2026-07-19
+summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070); la scelta al primo avvio è una schermata dedicata a due carte e la riattivazione vive in Impostazioni (DEC-086); il pool curato minimo che garantisce la run senza IA è definito in systems/generated-content-validation.md (DEC-087). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
 ---
 
 # AI Content Generation Model
@@ -119,8 +119,11 @@ Il giocatore può scegliere, al primo avvio del gioco (dettaglio completo in
 [Floor Zero](systems/floor-zero.md), rimando, non riformulato qui), di giocare in modalità
 **solo curato**: nessun modello IA attivo, solo contenuti curati e fallback procedurale.
 Questa modalità NON è un fallback d'emergenza temporaneo: è uno stato legittimo e
-**permanente** del gioco, tanto quanto la modalità con generazione attiva. Il giocatore può
-riattivare la generazione in un secondo momento.
+**permanente** del gioco, tanto quanto la modalità con generazione attiva. La scelta al
+primo avvio è una **schermata dedicata a due carte** (esperienza completa / solo curato); la
+**riattivazione** della generazione per chi ha scelto solo curato vive in **Impostazioni**
+(DEC-086; fonte unica dell'interfaccia in [Floor Zero](systems/floor-zero.md) e
+[Options and Accessibility](ui/options-and-accessibility.md), rimando, non riformulato qui).
 
 Questa distinzione è concettualmente separata dal fallback per singolo contenuto descritto in
 [Generated Content Validation](systems/generated-content-validation.md): quel fallback
@@ -196,6 +199,10 @@ fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
 - Non definisce i valori numerici delle bande di garanzia: quelli sono default
   d'implementazione `draft`, vedi [Difficulty and Progression](07-difficulty-and-progression.md)
   (DEC-019).
+- Non definisce i numeri del pool curato minimo per categoria (temi, boss, nemici comuni,
+  oggetti, tipi di colpo) che garantisce una run completa senza alcuna generazione IA: quella
+  tabella vive in [Generated Content Validation](systems/generated-content-validation.md)
+  (DEC-087).
 
 ## Domande aperte residue
 
@@ -237,3 +244,10 @@ fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
   piano 1 un nome diverso da quello scelto, **allora** il motore lo sostituisce col tema
   scelto alla lettera prima che la run venga scritta, senza alcun errore visibile al
   giocatore (DEC-005/M5).
+- **Dato** che il giocatore avvia il gioco per la prima volta dopo il benchmark, **quando**
+  arriva al punto di scelta tra generazione completa e solo curato, **allora** vede una
+  schermata dedicata a due carte che si ripresenta finché non sceglie, e se sceglie solo
+  curato trova la voce per riattivare la generazione in Impostazioni (DEC-086).
+- **Dato** che il giocatore gioca in modalità solo curato, **quando** affronta un Piano 0 più
+  cinque piani senza alcuna generazione IA disponibile, **allora** il pool curato minimo per
+  categoria copre ogni punto di scelta della run senza lasciare vuoti (DEC-087).

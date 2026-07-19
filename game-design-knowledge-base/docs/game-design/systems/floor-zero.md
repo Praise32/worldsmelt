@@ -2,8 +2,8 @@
 id: gd-system-floor-zero
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara; completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato (DEC-070). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
+last_reviewed: 2026-07-19
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono a rischio zero: la sconfitta non ha alcun costo oltre la dote mancata (DEC-055). Il museo permette anche di provare le creazioni esposte (DEC-040) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
 ---
 
 # Floor Zero
@@ -27,16 +27,28 @@ fuori dal tempo dove i mondi generati nascono, si fondono e si sciolgono. Cornic
 - Il Piano 0 non richiede che alcun contenuto della run futura sia già pronto: è sempre
   giocabile, per costruzione (vedi "Regole per contenuti generati").
 
+## Abbandono del Piano 0 (DEC-074)
+
+L'abbandono del Piano 0 passa da `ExitConfirm`, come dagli altri stati di gioco: premere ESC
+(o l'azione equivalente su controller) apre la conferma, che protegge la preparazione già
+fatta (tema e personaggio scelti, generazione dei piani successivi in corso). Confermando,
+la preparazione si interrompe e il giocatore torna al menu principale; annullando, resta nel
+Piano 0 senza alcuna conseguenza. L'arco `FloorZero → ExitConfirm` è canonico nella mappa
+degli stati: dettaglio e diagramma in
+[Game States and Flow](../05-game-states-and-flow.md) e
+[Navigation Map](../ui/navigation-map.md) (rimando, non riformulato qui).
+
 ## Input/azioni
 
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
-| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback) |
-| Selettore personaggio | Sempre | Sempre | Scegliere un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
+| Carte tema (2-3 proposte) | Sempre, all'ingresso nel Piano 0 | Finché il tema della run non è stato scelto | Selezionare una carta tema, con tastiera/pad o mouse (DEC-075) | Il tema guida la generazione dei piani 1-5 e la sua evoluzione/degenerazione fino al boss del piano 5 | Ogni carta mostra nome, breve descrizione e, quando pronta, un'anteprima visiva già generata (es. uno sprite campione di un nemico del tema, DEC-039); se l'anteprima non è ancora pronta, la carta mostra comunque nome e descrizione (fallback) |
+| Selettore personaggio | Sempre | Sempre | Scegliere un personaggio della rosa base o l'alternativa generata per la run, oppure rifiutare l'alternativa, con tastiera/pad o mouse (DEC-075) | Il personaggio scelto definisce statistiche e trait per l'intera run (vedi [Characters](characters.md)) | Scheda personaggio con statistiche e trait in evidenza |
 | Ingresso arena di sfida | Quando esistono contenuti "best-of" già validati disponibili per un'arena | Quando il giocatore non è già impegnato in un'altra attività del Piano 0 | Entrare nell'arena opzionale | Sfida autonoma locale al Piano 0, con ricompense proprie; completarla dà una piccola dote iniziale (risorse o un oggetto comune) per la run che sta per cominciare (DEC-029), salvo modalità Classificata dove la dote è disattivata; la sconfitta non ha alcun costo, l'arena è una simulazione (DEC-055) | Segnale d'ingresso dedicato, esito mostrato a fine sfida; segnale distinto quando la dote viene assegnata alla run in preparazione; alla sconfitta il giocatore esce illeso |
-| Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029) | Galleria consultabile; feedback dedicato quando si avvia una prova |
+| Museo delle creazioni | Sempre | Sempre | Sfogliare la galleria delle migliori creazioni (oggetti, nemici, boss, fusioni, personaggi), ciascuna con nome e storia; selezionare una creazione per provarla (DEC-040) | Consultazione libera senza effetto meccanico; provare una creazione apre una saletta dedicata (per un oggetto) o un'arena di sfida (per riaffrontare un boss, collegata alle arene DEC-004/DEC-029); non disponibile se la creazione è una Reliquia (DEC-069/DEC-085) | Galleria consultabile; feedback dedicato quando si avvia una prova |
 | Indicatore di generazione | Sempre, da quando inizia la preparazione dei piani successivi | Sola lettura, non interagibile | Nessuna (informativo) | Comunica lo stato di preparazione dei piani | Messaggio descrittivo stabile, vedi [Generation Status](../ui/generation-status.md) |
 | Uscita verso il piano 1 | Sempre visibile nel Piano 0 | Quando il piano 1 è pronto (validato o in fallback) | Attraversare l'uscita | Avvio della run: il piano 1 viene caricato e le prove specifiche della run vengono presentate al giocatore (DEC-042) | L'uscita si apre visibilmente solo quando diventa abilitata; l'attraversamento mostra la presentazione delle prove prima o durante il caricamento del piano 1 |
+| Abbandono (ESC) | Sempre nel Piano 0 | Sempre | Premere ESC (o equivalente su controller) | Apre `ExitConfirm`; confermando si interrompe la preparazione e si torna al menu principale (DEC-074) | Vedi [Game States and Flow](../05-game-states-and-flow.md) per la mappa completa degli stati |
 
 ## Risultato
 
@@ -75,6 +87,21 @@ fallback specifico, riconducibile alla regola generale di
 > resta il comportamento di riferimento; questa nota si aggiorna/si rimuove quando il modello
 > immagini smette di essere provvisorio.
 
+## Il Piano 0 conta come menu per il mouse (DEC-075)
+
+Ai fini della parità rigorosa di input, il mouse è ammesso solo nei menu (DEC-057, fonte
+unica in [Options and Accessibility](../ui/options-and-accessibility.md), rimando, non
+riformulato qui). Il Piano 0 conta come **menu** in questo senso: le carte tema, le schede
+personaggio e i pannelli selezionabili del Piano 0 sono cliccabili col mouse, esattamente
+come le voci di menu degli altri stati. Il movimento del personaggio nel Piano 0 e ogni
+meccanica giocata (arene comprese) restano su tastiera/controller con parità rigorosa: il
+mouse non muove il personaggio e non è mai richiesto — il nucleo di DEC-057 resta intatto.
+
+> **Nota di implementazione (gap esplicito stile DEC-009/DEC-052):** le carte tema e le
+> schede personaggio realizzate in M5/M6a rispondono oggi solo a tastiera/pad; vanno rese
+> cliccabili col mouse per essere conformi a DEC-075. Non è una nuova decisione di design,
+> è un gap da colmare nell'implementazione esistente.
+
 ## Museo con interazione (DEC-040)
 
 Il museo del Piano 0 non è solo consultazione passiva. È una galleria delle creazioni
@@ -107,6 +134,21 @@ metriche di gioco, metà curatela diretta del giocatore.
 Un contenuto promosso solo per metriche può invece essere sostituito da un altro contenuto
 se le metriche di quest'ultimo lo superano.
 
+## Reliquie nel museo (DEC-085)
+
+Un contenuto esposto nel museo può diventare una **Reliquia** dopo un aggiornamento del
+gioco: fonte unica delle Reliquie in
+[Save and Meta Progression](save-and-meta-progression.md) (DEC-069, rimando, non riformulato
+qui). Cosa succede al museo dipende da come il contenuto vi era entrato:
+
+- se era esposto **come preferito del giocatore**, resta esposto: la curatela non esce mai
+  finché marcata (DEC-063, sopra). La scheda museale segnala che si tratta di una Reliquia, e
+  la prova in arena (DEC-040) non è più disponibile, perché le Reliquie non sono giocabili
+  (DEC-069);
+- se era esposto **solo per promozione automatica per metriche**, esce automaticamente dal
+  museo: la promozione automatica riguarda solo contenuti ancora in circolazione, non le
+  Reliquie.
+
 ## Scelta al primo avvio: completo o solo curato (DEC-070)
 
 Al primissimo avvio del gioco — prima ancora della primissima visita guidata al Piano 0
@@ -127,6 +169,16 @@ chiaramente e consiglia "solo curato", ma non impedisce al giocatore di sceglier
 gioco legittima e permanente (dettaglio in
 [AI Content Generation Model](../06-ai-content-generation-model.md), rimando, non
 riformulato qui).
+
+**Interfaccia della scelta (DEC-086):** la scelta è una **schermata dedicata a due carte**
+(esperienza completa / solo curato), mostrata subito dopo il benchmark. Non esiste un
+default silenzioso: se il giocatore annulla la scelta o chiude il gioco senza sceglierne
+una, la schermata si ripresenta al rientro, finché una scelta non viene fatta — il gioco non
+procede alla primissima visita guidata del Piano 0 (DEC-047) senza una scelta esplicita. Chi
+ha scelto "solo curato" può **riattivare** la generazione IA in un secondo momento dalle
+**Impostazioni**, accompagnata dalla stessa informazione del benchmark sull'hardware:
+questo documento è la fonte unica della regola (DEC-086); la voce corrispondente è
+registrata in [Options and Accessibility](../ui/options-and-accessibility.md).
 
 Dopo questa scelta iniziale, il gioco procede alla primissima visita guidata al Piano 0
 (DEC-047, sotto), in entrambe le modalità.
@@ -166,6 +218,13 @@ pratiche di introduzione.
 - [Pause Menu](../ui/pause-menu.md) e
   [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md): le prove restano
   consultabili da lì per tutta la run (DEC-042).
+- [Options and Accessibility](../ui/options-and-accessibility.md): fonte unica della parità
+  rigorosa di input e del perimetro dell'ammissione del mouse, di cui il Piano 0 fa parte
+  come menu (DEC-057, DEC-075); ospita anche la voce di riattivazione della generazione IA
+  per chi ha scelto solo curato al primo avvio (DEC-086).
+- [Game States and Flow](../05-game-states-and-flow.md) e
+  [Navigation Map](../ui/navigation-map.md): l'abbandono del Piano 0 passa da `ExitConfirm`
+  (DEC-074).
 
 ## Dote iniziale dall'arena di sfida (DEC-029)
 
@@ -220,9 +279,13 @@ loro generazione o del loro punteggio, definito in
 - Il giocatore raggiunge l'uscita prima che il piano 1 sia pronto: l'uscita resta chiusa e
   il giocatore può continuare a usare il resto del Piano 0 (museo, arene) senza essere
   bloccato in un'attesa passiva.
-- Nessuna delle 2-3 proposte di tema generate supera la validazione: si applica il
-  fallback (vedi sotto); il giocatore non deve mai vedersi presentare meno di un'opzione
-  di tema selezionabile.
+- Nessuna delle 2-3 proposte di tema generate supera la validazione: il giocatore vede
+  sempre le 3 carte tema curate di fallback, il numero canonico (DEC-076), della stessa
+  forma delle proposte ordinarie — mai meno di un'opzione di tema selezionabile.
+- Il giocatore preme ESC (o l'azione equivalente) mentre la preparazione della run è in
+  corso (tema o personaggio già scelti, generazione dei piani successivi in corso):
+  `ExitConfirm` si apre prima di interrompere qualunque cosa; annullando, la preparazione
+  prosegue esattamente com'era (DEC-074).
 - Il giocatore entra in un'arena di sfida e la abbandona a metà: il ritorno al resto del
   Piano 0 deve restare disponibile senza penalità sulla run in preparazione.
 - Il giocatore viene sconfitto dentro un'arena di sfida: esce dall'arena illeso, senza
@@ -278,17 +341,10 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Soglia esatta delle metriche (uso, sopravvivenza col giocatore, contributo alle vittorie)
   che fa scattare la promozione automatica al museo (DEC-063 fissa solo il principio misto,
   non i numeri).
-- Composizione esatta della rosa dei personaggi base scelti qui nel Piano 0 (nomi, ruoli
-  precisi, condizioni di sblocco) — vedi DEC-030 in [Characters](characters.md) e
-  `../governance/open-questions.md`.
-- Dettagli dell'interfaccia della scelta binaria completo/solo-curato al primo avvio
-  (schermata dedicata, overlay, punto esatto di rientro se annullata) e dove/come si riattiva
-  la generazione per chi ha scelto solo curato inizialmente — DEC-070 fissa solo il principio,
-  vedi anche `../governance/open-questions.md`.
-- Quante carte tema curate di fallback mostrare quando nessuna proposta dell'IA supera la
-  validazione (scenario sopra): il numero non è fissato da nessuna decisione — default
-  proposto in implementazione (M5, 18/07/2026): 3, come il numero massimo di proposte
-  ordinarie, vedi anche `../governance/open-questions.md`.
+- Statistiche esatte e condizioni di sblocco della rosa base scelta qui nel Piano 0 (nomi e
+  ruoli — **Wayfinder** esploratore/default, **Ashblade** offensivo di vetro, **Bulwark**
+  difensivo di roccia — sono ora canonici, DEC-080) — vedi DEC-030 in
+  [Characters](characters.md) e `../governance/open-questions.md` (punto 8).
 
 ## Scenari
 
@@ -320,8 +376,25 @@ superano la validazione, si applica la regola di fallback unica definita in
 **Scenario: nessuna proposta di tema supera la validazione**
 - Given l'IA propone 2-3 temi per il Piano 0
 - When nessuna delle proposte supera la validazione (o l'IA non è disponibile)
-- Then il giocatore vede comunque carte tema curate di fallback, mai meno di
-  un'opzione selezionabile
+- Then il giocatore vede le 3 carte tema curate di fallback, il numero canonico (DEC-076),
+  indistinguibili nella forma dalle proposte generate
+
+**Scenario: selezione di una carta tema col mouse**
+- Given il giocatore è nel Piano 0 con le carte tema visibili
+- When clicca una carta tema col mouse
+- Then il tema viene selezionato esattamente come con tastiera o pad, perché il Piano 0
+  conta come menu ai fini della parità di input (DEC-057, DEC-075)
+
+**Scenario: abbandono del Piano 0 confermato**
+- Given il giocatore è nel Piano 0 con la preparazione della run in corso (tema o
+  personaggio già scelti, o generazione dei piani successivi in corso)
+- When preme ESC e conferma in `ExitConfirm`
+- Then la preparazione si interrompe e il giocatore torna al menu principale (DEC-074)
+
+**Scenario: abbandono del Piano 0 annullato**
+- Given il giocatore è nel Piano 0 e apre `ExitConfirm` premendo ESC
+- When annulla la conferma
+- Then resta nel Piano 0 con la preparazione della run intatta (DEC-074)
 
 **Scenario: provare un oggetto del museo in saletta**
 - Given il giocatore consulta il museo e seleziona un oggetto tra le migliori creazioni
@@ -399,18 +472,44 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Then il contenuto preferito resta comunque esposto nel museo, perché la curatela del
   giocatore ha la precedenza sulla promozione per metriche (DEC-063)
 
+**Scenario: un preferito diventato Reliquia resta esposto ma non più provabile**
+- Given un contenuto del museo era esposto come preferito del giocatore e diventa una
+  Reliquia dopo un aggiornamento del gioco (DEC-069)
+- When il giocatore consulta il museo
+- Then il contenuto resta esposto con la scheda che segnala "Reliquia", ma la prova in
+  arena (DEC-040) non è più disponibile, perché le Reliquie non sono giocabili (DEC-085)
+
+**Scenario: un contenuto promosso solo per metriche esce dal museo diventando Reliquia**
+- Given un contenuto del museo era esposto solo per promozione automatica per metriche
+  (DEC-063) e diventa una Reliquia dopo un aggiornamento del gioco (DEC-069)
+- When il museo si aggiorna
+- Then il contenuto esce automaticamente dal museo (DEC-085)
+
 **Scenario: primo avvio con hardware sufficiente**
 - Given un giocatore avvia il gioco per la primissima volta
 - When il benchmark misura un hardware che regge la generazione
-- Then il gioco propone la scelta binaria completo/solo curato senza sconsigliare nessuna
-  delle due opzioni, e procede poi alla primissima visita guidata al Piano 0 (DEC-070,
-  DEC-047)
+- Then il gioco mostra la schermata dedicata a due carte (DEC-086) con la scelta binaria
+  completo/solo curato, senza sconsigliare nessuna delle due opzioni, e procede poi alla
+  primissima visita guidata al Piano 0 dopo che il giocatore ha scelto (DEC-070, DEC-047)
 
 **Scenario: primo avvio con hardware insufficiente**
 - Given un giocatore avvia il gioco per la primissima volta
 - When il benchmark misura un hardware che non regge la generazione
-- Then il gioco lo dichiara chiaramente e consiglia "solo curato", pur lasciando al
-  giocatore la possibilità di scegliere comunque "completo" (DEC-070)
+- Then il gioco lo dichiara chiaramente e consiglia "solo curato" nella schermata dedicata a
+  due carte, pur lasciando al giocatore la possibilità di scegliere comunque "completo"
+  (DEC-070, DEC-086)
+
+**Scenario: il giocatore annulla la scelta binaria al primo avvio**
+- Given il giocatore vede la schermata dedicata a due carte dopo il benchmark
+- When annulla la scelta o chiude il gioco senza sceglierne una
+- Then al rientro la schermata si ripresenta, e il gioco non procede alla primissima visita
+  guidata al Piano 0 finché una scelta non viene fatta (DEC-086)
+
+**Scenario: riattivare la generazione dopo aver scelto solo curato**
+- Given un giocatore ha scelto "solo curato" al primo avvio
+- When apre le Impostazioni in una sessione successiva
+- Then trova la voce per riattivare la generazione IA, con la stessa informazione del
+  benchmark sull'hardware mostrata al primo avvio (DEC-086)
 
 **Scenario: "solo curato" resta una modalità permanente, non un'attesa**
 - Given un giocatore ha scelto "solo curato" al primo avvio

@@ -2,7 +2,7 @@
 id: gd-content-taxonomy
 status: approved
 owner: design
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-19
 summary: "Vocabolario condiviso per contenuti e tag; fonte unica dei 4 valori di origine del contenuto (curato, composto, variato, nuovo)."
 ---
 
@@ -65,7 +65,9 @@ duplicati.
 
 Questo documento non definisce i controlli di validazione o gli stati che un contenuto
 attraversa prima di comparire in gioco (vedi `../systems/generated-content-validation.md`);
-definisce solo da dove il contenuto proviene concettualmente.
+definisce solo da dove il contenuto proviene concettualmente. Non definisce nemmeno il pool
+curato minimo per categoria che garantisce la run di fallback completa: quella tabella vive
+in `../systems/generated-content-validation.md` (DEC-087, rimando, non riformulato qui).
 
 ## Domande aperte residue
 

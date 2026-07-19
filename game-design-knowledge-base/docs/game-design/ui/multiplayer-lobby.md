@@ -2,7 +2,7 @@
 id: gd-ui-multiplayer-lobby
 status: experimental
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Menu multiplayer a due assi (DEC-021: Leggera/Classificata × stesso seed/seed diversi) e selezione asincrona della gara (DEC-016); la Classificata si estende a tre istanze con la Classificata giornaliera pubblica ('Daily') e classifiche divise per metrica (DEC-062); la Daily premia con medaglie/cornici cosmetiche (DEC-064). La condivisione di una run tramite codice breve o file RunBundle (DEC-066) è un canale separato dalla lobby, sempre non classificato. I dettagli restano experimental."
 ---
 
@@ -46,7 +46,7 @@ La run/seed pubblicata più recente o più rilevante per il giocatore.
 |---|---|---|---|---|---|
 | Selettore Modalità: Leggera / Classificata | Sempre | Sempre | Sceglie la modalità (DEC-021) | Filtra le gare mostrate | La scelta corrente è sempre visibile |
 | Selettore Tipo di gara: Stesso seed / Seed diversi / Daily | Sempre | Le tre opzioni sono disponibili solo con Modalità = Classificata (DEC-062); con Modalità = Leggera solo Stesso seed / Seed diversi | Sceglie il tipo di gara (DEC-021, esteso da DEC-062) | Filtra le gare mostrate | La scelta corrente è sempre visibile |
-| Classificata giornaliera pubblica ("Daily") | Modalità = Classificata (DEC-062) | Sempre | Seleziona la Daily del giorno corrente | Mostra la run del giorno, uguale per tutti i giocatori | Indica quanto manca al cambio del giorno corrente e se il giocatore l'ha già completata |
+| Classificata giornaliera pubblica ("Daily") | Modalità = Classificata (DEC-062) | Sempre | Seleziona la Daily del giorno corrente | Mostra la run del giorno, uguale per tutti i giocatori | Conto alla rovescia al prossimo cambio, alle 00:00 UTC (DEC-081; fonte unica in `08-multiplayer-and-competition.md`), e se il giocatore l'ha già completata |
 | Elenco gare pubblicate | Sempre | Almeno una gara disponibile per i filtri scelti | Seleziona una gara | Mostra dettagli della gara | Indica se già completata dal giocatore |
 | Regole della gara | Una gara è selezionata | Sempre, se visibile | Consulta le regole | Mostra modalità, tipo di gara (inclusa l'istanza Daily se applicabile), versione e manifest | — |
 | Avvia | Una gara è selezionata | Manifest validato (stesso seed, incluso Daily) o run generabile (seed diversi) | Entra in `FloorZero` | Avvia la run asincrona | Blocco input duplicati |
@@ -59,11 +59,10 @@ La run/seed pubblicata più recente o più rilevante per il giocatore.
 - Regole di parità tra risultati identici.
 - Criterio di normalizzazione per la Classificata a seed diversi (come garantire run
   confrontabili; vedi `08-multiplayer-and-competition.md`).
-- Orario esatto di rotazione della Daily (DEC-062 fissa solo che esiste e cambia ogni giorno;
-  le ricompense sono ora definite come cosmetiche — medaglie/cornici — da DEC-064, non i
-  dettagli operativi di rotazione).
 
-Queste voci restano in `governance/open-questions.md` finché non vengono decise.
+Queste voci restano in `governance/open-questions.md` finché non vengono decise. (L'orario di
+rotazione della Daily è ora fissato: 00:00 UTC, DEC-081; fonte unica in
+`08-multiplayer-and-competition.md`, rimando, non riformulato qui.)
 
 ## Condivisione fuori lobby (DEC-066, rimando)
 
@@ -100,3 +99,4 @@ modalità (vedi `ui/results-and-leaderboards.md`).
 6. **Given** il giocatore seleziona Modalità = Classificata, **when** apre il selettore Tipo di gara, **then** vede tre opzioni (stesso seed, seed diversi, Daily), mentre con Modalità = Leggera ne vede solo due (DEC-062).
 7. **Given** il giocatore seleziona la Classificata giornaliera pubblica (Daily), **when** avvia la run, **then** riceve esattamente lo stesso seed di tutti gli altri giocatori che giocano la Daily quel giorno, e il risultato entra nella classifica globale giornaliera, divisa per tempo e per punteggio (DEC-062).
 8. **Given** il giocatore riceve un codice breve di run condivisa da un altro giocatore, **when** lo incolla in `RunSetup` invece di passare dalla lobby, **then** ottiene una run rigenerata identica, sempre non classificata (DEC-066).
+9. **Given** il giocatore ha aperto la lobby con Modalità = Classificata, **when** guarda la voce Daily, **then** vede il conto alla rovescia al prossimo cambio, calcolato sulle 00:00 UTC (DEC-081), non su un orario locale o europeo.

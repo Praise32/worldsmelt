@@ -2,8 +2,8 @@
 id: gd-system-run-manifest
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve o file RunBundle, sempre non classificata (DEC-066); dettagli multiplayer restano experimental."
+last_reviewed: 2026-07-19
+summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); dettagli multiplayer restano experimental."
 ---
 
 # Run Manifest and Reproducibility
@@ -72,17 +72,24 @@ Ogni altro dettaglio del multiplayer oltre a questa visione fissata (matchmaking
 delle classifiche, gestione di lobby, sincronizzazione di eventi non deterministici) resta in
 stato **experimental**: non è stato deciso nel dettaglio.
 
-## Condivisione del manifest: codice breve e RunBundle (DEC-066)
+## Condivisione del manifest: codice breve e RunBundle (DEC-066/DEC-077)
 
 Il manifest di run può essere condiviso fuori dalle classifiche in due forme, entrambe
 descritte in dettaglio nei documenti di interfaccia:
 
-1. **Codice breve testuale** (seed più versione di gioco): la forma minima, sufficiente
-   perché chi lo riceve rigeneri localmente lo stesso manifest, a patto che la versione di
-   gioco combaci (vedi [ui/run-setup.md](../ui/run-setup.md)).
+1. **Codice breve testuale** (seed, versione di gioco, tema scelto e personaggio scelto —
+   DEC-077): la forma minima, sufficiente perché chi lo riceve rigeneri localmente lo stesso
+   manifest e riparta esattamente dalla stessa run, a patto che la versione di gioco combaci
+   (vedi [ui/run-setup.md](../ui/run-setup.md)). Tema e personaggio trasportati dal codice
+   arrivano nel Piano 0 come **preselezione**: il giocatore resta libero di cambiarli, ma a
+   quel punto sta giocando una run con lo stesso seed, non più la stessa run — il Piano 0
+   resta il luogo della scelta. **Gap di implementazione esplicito:** il codice attuale
+   trasporta solo seed più versione di gioco; l'estensione a tema e personaggio non è ancora
+   implementata.
 2. **File RunBundle esportato**: il formato con **verifica d'integrità** già esistente nel
    progetto, che porta con sé il manifest completo e i contenuti registrati, adatto a gare
-   private e archivio.
+   private e archivio. Resta la via completa e verificabile, indipendentemente dall'estensione
+   del codice breve (DEC-077).
 
 In entrambi i casi la run risultante è sempre **non classificata** (DEC-066, coerenza con
 DEC-062): fonte unica della regola in
@@ -128,11 +135,6 @@ avvenuti. La regola stessa è definita in `generated-content-validation.md`.
 - Che formato assume la condivisione di un manifest tra giocatori (experimental).
 - Se e come un manifest di run singleplayer può essere "promosso" a run competitiva dopo il
   fatto (non deciso).
-- Il codice breve (DEC-066: seed più versione di gioco) non porta la scelta del tema né
-  quella del personaggio fatte dal giocatore nel Piano 0 — come va esteso (se va esteso)
-  perché chi riceve un codice breve rigiochi esattamente la stessa run, non solo "una run
-  con lo stesso seed"? Stessa domanda, stesso testo, in
-  `governance/open-questions.md` (M5, 18/07/2026).
 
 ## Scenari
 
@@ -164,10 +166,18 @@ avvenuti. La regola stessa è definita in `generated-content-validation.md`.
   esclusi dalle modalità competitive.
 
 **Scenario: condivisione tramite codice breve**
-- Given un giocatore genera un codice breve (seed più versione di gioco) dalla propria run,
+- Given un giocatore genera un codice breve (seed, versione di gioco, tema scelto e
+  personaggio scelto) dalla propria run,
 - When un altro giocatore con la stessa versione di gioco lo incolla in `RunSetup`,
-- Then rigenera localmente un manifest identico, e la run che ne risulta è sempre non
-  classificata (DEC-066).
+- Then tema e personaggio arrivano preselezionati nel Piano 0, il manifest rigenerato è
+  identico e la run che ne risulta è sempre non classificata (DEC-066).
+
+**Scenario: il giocatore cambia una scelta preselezionata dal codice breve**
+- Given un giocatore ha importato un codice breve che preseleziona tema e personaggio nel
+  Piano 0,
+- When cambia una di quelle scelte prima di avviare la run,
+- Then ottiene una run con lo stesso seed ma non più la stessa run originale, perché il
+  Piano 0 resta il luogo della scelta (DEC-077).
 
 **Scenario: condivisione tramite RunBundle**
 - Given un giocatore esporta un file RunBundle della propria run,

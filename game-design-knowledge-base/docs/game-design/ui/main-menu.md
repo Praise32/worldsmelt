@@ -3,7 +3,7 @@ id: gd-ui-main-menu
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069)."
+summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile (sette categorie canoniche: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi — DEC-083) più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069). Il Catalogo è una vista interna dello stato `MainMenu`, non un decimo stato applicativo: la mappa canonica resta a 9 stati (DEC-084)."
 ---
 
 # Main Menu
@@ -42,13 +42,21 @@ Se esiste una run sospesa, "Continua" ha il focus iniziale invece di "Nuova run"
 "Nuova run" con una run sospesa attiva richiede una conferma esplicita di abbandono prima
 di aprire `RunSetup`. La voce Catalogo è sempre presente (DEC-015).
 
-## Catalogo (DEC-045)
+## Catalogo (DEC-045, DEC-083, DEC-084)
 
-Il Catalogo, raggiungibile dal menu principale, è la schermata che riunisce tre funzioni:
+Il Catalogo, raggiungibile dal menu principale, è la schermata che riunisce tre funzioni.
+"Schermata" qui descrive l'esperienza vissuta dal giocatore, non uno stato dell'applicazione:
+il Catalogo è una **vista interna** dello stato `MainMenu`, e la mappa canonica resta a 9
+stati (DEC-084; vedi `05-game-states-and-flow.md` per la mappa).
 
-- **enciclopedia consultabile** di tutto il generato incontrato dal giocatore (oggetti,
-  nemici, boss, fusioni, personaggi, temi), con schede che mostrano nome, sprite, storia e
-  statistiche d'uso;
+Le tre funzioni:
+
+- **enciclopedia consultabile**, organizzata nelle **sette categorie canoniche** (DEC-083):
+  Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi — anche i layout stanza e i tipi di
+  colpo sono creazioni del crogiolo incontrate dal giocatore e hanno una scheda propria come
+  il resto. Ogni scheda mostra nome, sprite, storia e statistiche d'uso; dettaglio dei
+  contenuti e delle metriche per categoria in `systems/save-and-meta-progression.md` (fonte
+  unica, rimando, non riformulato qui);
 - **preferiti**: il giocatore può segnare contenuti preferiti, che pesano leggermente sulle
   proposte future dell'IA nelle run successive;
 - **spesa dei punti sblocco**: è il luogo dove si spendono i punti guadagnati in singleplayer
@@ -68,7 +76,8 @@ più sbloccabile nei pool. Fonte unica della regola:
 
 **Nota di stato implementazione (M8, 2026-07-19, tecnica, non una regola di design):** la voce
 "Catalogo" apre oggi la sola **enciclopedia v1** (prima delle tre funzioni sopra, consultazione
-soltanto — categorie, conteggio incontri/run, esito sconfitto/non sconfitto per i boss). I
+soltanto — le sette categorie canoniche (DEC-083), conteggio incontri/run, esito
+sconfitto/non sconfitto per i boss). I
 **preferiti**, la **spesa dei punti sblocco**, la sezione **Reliquie** e gli **sprite nelle
 schede** restano gap di implementazione espliciti (dettaglio in
 `systems/save-and-meta-progression.md`).
@@ -77,8 +86,9 @@ schede** restano gap di implementazione espliciti (dettaglio in
 
 `MainMenu` è raggiungibile all'avvio del gioco, da `RunResults` e da `ExitConfirm`
 (annullamento o conferma di abbandono run). Da `MainMenu` si raggiungono `RunSetup`, lo
-stato salvato della run sospesa (via Continua), `Options`, il Catalogo e
-`ExitConfirm`; la selezione multiplayer resta `experimental`.
+stato salvato della run sospesa (via Continua), `Options`, il Catalogo (vista interna a
+`MainMenu`, non una transizione di stato — DEC-084) e `ExitConfirm`; la selezione
+multiplayer resta `experimental`.
 
 ## Comando Indietro
 
@@ -106,7 +116,7 @@ ordine di navigazione della tabella.
 
 ## Domande aperte residue
 
-- Nessuna per questo documento: il comportamento del menu è coperto da DEC-004, DEC-015, DEC-016, DEC-045 e dalla decisione di focus/conferma qui sopra.
+- Nessuna per questo documento: il comportamento del menu è coperto da DEC-004, DEC-015, DEC-016, DEC-045, DEC-083, DEC-084 e dalla decisione di focus/conferma qui sopra.
 
 ## Scenari verificabili
 
@@ -115,3 +125,5 @@ ordine di navigazione della tabella.
 3. **Given** non esiste alcuna run sospesa, **when** il giocatore apre `MainMenu`, **then** il focus iniziale è su "Nuova run" e la voce "Continua" non è visibile.
 4. **Given** il servizio multiplayer non è disponibile, **when** il giocatore apre `MainMenu`, **then** la voce Multiplayer risulta disabilitata ma il resto del menu, incluso "Nuova run", resta pienamente utilizzabile.
 5. **Given** il giocatore apre il Catalogo dal menu principale, **when** consulta la schermata, **then** trova insieme l'enciclopedia dei contenuti incontrati, i preferiti e la spesa dei punti sblocco (DEC-045).
+6. **Given** il giocatore apre l'enciclopedia del Catalogo, **when** consulta le categorie disponibili, **then** trova esattamente le sette categorie canoniche: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi (DEC-083).
+7. **Given** il giocatore apre il Catalogo dal menu principale, **when** lo consulta e poi torna indietro, **then** il gioco resta nello stato `MainMenu` per l'intera interazione: nessuna transizione verso un decimo stato canonico ha luogo, perché il Catalogo è una vista interna (DEC-084).

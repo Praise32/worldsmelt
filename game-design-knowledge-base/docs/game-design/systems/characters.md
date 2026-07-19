@@ -3,7 +3,7 @@ id: gd-system-characters
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Piccola rosa di 2-3 personaggi base fissi con ruoli distinti, più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche più caute in cambio (DEC-068); i personaggi base usano sempre colpi standard curati."
+summary: "Rosa base canonica di 3 personaggi con nomi e ruoli fissi — Wayfinder (esploratore, personaggio di partenza e default), Ashblade (offensivo di vetro), Bulwark (difensivo di roccia) (DEC-080) — più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche compresse verso il bordo cauto delle bande in cambio, criterio canonico ma fattore ancora da playtest (DEC-068, DEC-078); il colpo firmato non si scarta mai, si normalizza in banda (DEC-079); i personaggi base usano sempre colpi standard curati."
 ---
 
 # Characters
@@ -26,18 +26,19 @@ tra opzioni curate.
   del Piano 0: esiste solo se la generazione per quella run lo ha prodotto e validato; in
   caso contrario non compare come opzione (vedi "Fallback").
 
-## Rosa di personaggi base (DEC-030)
+## Rosa di personaggi base (DEC-030, DEC-080)
 
 I personaggi base non sono un singolo personaggio ma una **piccola rosa fissa e curata di
-2-3 personaggi**, ciascuno con un ruolo distinto (indicativamente: un ruolo offensivo, uno
-difensivo, uno da esploratore). Nomi e dettagli esatti dei personaggi della rosa restano da
-definire (vedi Domande aperte residue). I personaggi della rosa sono **sbloccabili presto**:
-non tutti devono essere disponibili fin dal primo avvio (dettagli dello sblocco non
-definiti, vedi Domande aperte residue).
+3 personaggi**, con nomi e ruoli ora **canonici** (DEC-080): **Wayfinder** (esploratore,
+personaggio di partenza e default), **Ashblade** (offensivo di vetro: danno alto, tetto vita
+basso), **Bulwark** (difensivo di roccia: lento, tetto vita alto). Le condizioni esatte di
+sblocco di ciascuno restano da definire (vedi Domande aperte residue e punto 8 di
+`../governance/open-questions.md`): i personaggi della rosa restano **sbloccabili presto**,
+non tutti devono essere disponibili fin dal primo avvio.
 
 Il ruolo di ciascun personaggio della rosa base si riflette anche nel proprio **tetto di
-salute base** (DEC-033): un ruolo difensivo può avere un tetto alto ("personaggio-roccia"),
-un ruolo più aggressivo o mobile un tetto più basso ("personaggio-vetro"), come parte
+salute base** (DEC-033): il ruolo difensivo (Bulwark) ha un tetto alto ("personaggio-roccia"),
+il ruolo offensivo (Ashblade) un tetto più basso ("personaggio-vetro"), come parte
 curata delle sue statistiche — non un valore unico condiviso da tutta la rosa. Il dettaglio
 del meccanismo del tetto vive in
 [Health and Resources](health-and-resources.md) (rimando, non riformulato qui).
@@ -46,12 +47,13 @@ Il personaggio alternativo generato per run (vedi sotto) non sostituisce la rosa
 scelta nel Piano 0 avviene tra i personaggi della rosa (quelli già sbloccati) più
 l'eventuale alternativa generata per quella run.
 
-### Default proposti dall'implementazione (stile DEC-019, M6a)
+### Statistiche: default proposti dall'implementazione (stile DEC-019, M6a)
 
-Come i valori numerici di DEC-019 (pesi rarità, bande di potenza), questi sono **default
-proposti in fase di implementazione** per rendere la rosa giocabile subito, non ancora
-numeri approvati dal design: restano da validare col playtest (vedi Domande aperte residue
-e `../governance/open-questions.md` punto 7).
+Nomi e ruoli della rosa qui sopra sono canone (DEC-080); restano **default proposti in fase
+di implementazione**, come i valori numerici di DEC-019 (pesi rarità, bande di potenza), solo
+le **statistiche esatte** della tabella sotto, per rendere la rosa giocabile subito senza
+ancora numeri approvati dal design: restano da validare col playtest (vedi Domande aperte
+residue e `../governance/open-questions.md` punto 8).
 
 | | Wayfinder | Ashblade | Bulwark |
 |---|---|---|---|
@@ -72,7 +74,7 @@ dell'uscita, esattamente come per un personaggio scelto attivamente.
 
 Per ora l'**intera rosa base è disponibile da subito**, senza alcuna condizione: gli
 "sbloccabili presto" di DEC-030 restano un principio approvato, ma le condizioni di sblocco
-sono ancora una open question (vedi sopra e punto 7 di `open-questions.md`) — finché
+sono ancora una open question (vedi sopra e punto 8 di `open-questions.md`) — finché
 restano indefinite, non c'è nulla da bloccare per davvero, e bloccare una scheda senza una
 regola definita sarebbe un comportamento inventato in silenzio (vietato da `AGENTS.md`
 della KB).
@@ -86,7 +88,7 @@ rosa) **È** lo sprite curato placeholder di cui parla questo paragrafo — non 
 temporaneo fuori standard. Il gap verso pixel art dedicata per personaggio resta esplicito e
 noto, non risolto da questo default.
 
-I 2-3 personaggi della rosa base (DEC-030) hanno sprite pixel art **curati a mano**: sono
+I 3 personaggi della rosa base (DEC-030, DEC-080) hanno sprite pixel art **curati a mano**: sono
 contenuto `curato`, non generato, come il resto della rosa. Il personaggio alternativo
 generato per la run ha invece uno sprite **generato dalla pipeline di generazione sprite già
 esistente**, la stessa usata per i nemici (vedi
@@ -161,20 +163,24 @@ dettaglio del meccanismo). Il margine tra 18 e 24 non è riservato al colpo firm
 sotto: quella fetta comprime maxHp verso il basso, non lo fa mai crescere oltre la banda) —
 resta un cuscinetto generico verso la guardia assoluta.
 
-### Default proposti dall'implementazione — budget del colpo firmato (stile DEC-019, M6b-3)
+### Budget del colpo firmato: criterio canonico (DEC-078) e valore in default proposto (M6b-3)
 
-Come sopra, questi sono **valori proposti in fase di implementazione**, non numeri approvati
-dal design: la quantificazione esatta del budget resta una domanda aperta (open question 18
-sotto, RESTA aperta), questo è solo il numero scelto per renderla giocabile subito e
-verificabile. Un personaggio con colpo firmato ha damage/maxHp/luck/fortuna compressi verso
+Il **criterio** della compressione è ora canone (DEC-078): un personaggio con colpo firmato
+ha damage/maxHp/luck/fortuna compressi verso il **bordo cauto** della banda e cadenza
+compressa verso il **lato lento** (più lenta, mai più veloce del bordo cauto) — velocità del
+colpo base e velocità di movimento **non** sono mai compresse: il colpo firmato paga il
+proprio vantaggio offensivo, non la mobilità del personaggio. hpCap segue sempre `2 × maxHp`
+come sopra, quindi eredita automaticamente la compressione applicata a maxHp. La compressione
+si applica **solo** quando il personaggio ha un colpo firmato: senza, le bande sono quelle
+intere della tabella sopra, come prima di M6b-3.
+
+Il **valore** esatto del fattore resta invece, come i valori numerici di DEC-019, un
+**default proposto in fase di implementazione**, non ancora un numero approvato dal design:
+la conferma o correzione del fattore resta una domanda aperta (vedi punto 7 di
+`../governance/open-questions.md`), questo è solo il numero scelto per renderla giocabile
+subito e verificabile. Il fattore attuale è 0.6: damage/maxHp/luck/fortuna compressi verso
 `bandMin + 0.6 × (bandMax − bandMin)` (il 60% inferiore della banda, non un dimezzamento
-secco) e cadenza compressa verso `bandMax − 0.6 × (bandMax − bandMin)` (più lenta, mai più
-veloce del bordo cauto) — velocità del colpo base e velocità di movimento **non** sono
-compresse: il colpo firmato paga il proprio vantaggio offensivo, non la mobilità del
-personaggio. hpCap segue sempre `2 × maxHp` come sopra, quindi eredita automaticamente la
-compressione applicata a maxHp. La compressione si applica **solo** quando il personaggio ha
-un colpo firmato: senza, le bande sono quelle intere della tabella sopra, come prima di
-M6b-3.
+secco), cadenza compressa verso `bandMax − 0.6 × (bandMax − bandMin)`.
 
 **Sostituibilità (default proposto, M6b-3):** il colpo firmato, quando c'è, è il colpo di
 **partenza** del personaggio — attivo dalla prima stanza, non un lucchetto che si sblocca. Un
@@ -188,14 +194,17 @@ principio "statistiche più caute in cambio di un colpo dedicato"): è la lettur
 e coerente col resto del sistema dei tipi di colpo (rimando, non riformulato qui), scelta per
 evitare un secondo meccanismo di "colpo di riserva" mai discusso dal design.
 
-**Colpo che non valida dopo la generazione (default proposto, M6b-3, open question 19 sotto,
-RESTA aperta):** in pratica il tool scrive la proposta SOLO dopo che il colpo firmato ha già
-attraversato la stessa doppia rete di bilanciamento dei tipi di colpo di run (che normalizza,
-non scarta mai), quindi il caso concreto di un colpo fuori banda è solo un
-`character_proposal.json` forgiato a mano fuori dal percorso normale del generatore — quel
-caso viene semplicemente riportato in banda alla lettura (stessa rete), mai scartato: il
-personaggio resta con le statistiche caute già generate, nessun rebalance retroattivo delle
-altre statistiche se il colpo cambia.
+**Colpo che non valida dopo la generazione (canone, DEC-079):** sancito che il colpo firmato
+attraversa sempre la doppia rete di bilanciamento dei tipi di colpo di run, che **normalizza
+e non scarta mai** — un colpo fuori banda viene riportato in banda, **mai sostituito dal
+colpo standard**. In pratica il tool scrive la proposta SOLO dopo che il colpo firmato ha già
+attraversato quella stessa doppia rete, quindi il caso concreto di un colpo fuori banda è solo
+un `character_proposal.json` forgiato a mano fuori dal percorso normale del generatore — quel
+caso viene comunque riportato in banda alla lettura (stessa rete): il personaggio resta con il
+suo colpo firmato e le statistiche caute già generate, senza alcun rebalance retroattivo delle
+altre statistiche se il colpo cambia. Un personaggio generato con colpo firmato ha quindi
+sempre il suo colpo firmato: il dilemma della doppia penalità contro il colpo standard
+"gratis" (statistiche caute più eventuale ritorno al colpo standard) sparisce alla radice.
 
 ## Input/azioni
 
@@ -284,11 +293,13 @@ run.
 - Il generatore non produce un colpo firmato per il personaggio alternativo di questa run:
   non è un errore, è lo stato più comune del generatore (DEC-068); il personaggio alternativo
   usa il colpo standard, con le statistiche non caute della sua banda garantita.
-- Il colpo firmato generato non supera la validazione in sandbox: si applica il fallback
-  verso il colpo standard curato equivalente (vedi
+- Il comportamento Lua del colpo firmato non supera la validazione in sandbox: il colpo
+  firmato ripiega sulla propria forma parametrica — le manopole parametriche sono la
+  garanzia e il fallback di ogni comportamento Lua (DEC-037, vedi
   [Generated Content Validation](generated-content-validation.md) e
-  [Combat and Projectiles](combat-and-projectiles.md), rimando, non riformulato qui), senza
-  che il giocatore veda alcun errore.
+  [Combat and Projectiles](combat-and-projectiles.md), rimando, non riformulato qui) — e
+  **mai** sul colpo standard: il personaggio con colpo firmato conserva sempre il suo colpo
+  firmato (DEC-079), senza che il giocatore veda alcun errore.
 
 ## Fallback
 
@@ -303,7 +314,7 @@ applica la regola di fallback unica definita in
   meta-progressione riguarda contenuti sbloccati nei pool, non il personaggio stesso (vedi
   [Save and Meta Progression](save-and-meta-progression.md)).
 - Non è un roster ampio o liberamente configurabile: resta una piccola rosa fissa e curata
-  di 2-3 personaggi (DEC-030) più l'unica alternativa generata per quella run.
+  di 3 personaggi (DEC-030, DEC-080) più l'unica alternativa generata per quella run.
 
 ## Domande aperte residue
 
@@ -316,20 +327,20 @@ applica la regola di fallback unica definita in
   [Save and Meta Progression](save-and-meta-progression.md))?
 - Come cambia, se cambia, la scelta del personaggio nelle modalità competitive asincrone
   (vedi vincoli generali in [Multiplayer and Competition](../08-multiplayer-and-competition.md))?
-- Composizione esatta della rosa dei personaggi base (DEC-030): nomi, ruoli precisi oltre
-  alle indicazioni offensivo/difensivo/esploratore, e condizioni esatte di sblocco di
-  ciascuno (vedi `../governance/open-questions.md`).
+- Statistiche esatte e condizioni di sblocco della rosa base Wayfinder/Ashblade/Bulwark
+  (DEC-080 fissa nomi e ruoli come canone; restano aperte solo le statistiche — da playtest —
+  e le condizioni di sblocco di ciascuno, vedi punto 8 di `../governance/open-questions.md`).
 - Se lo sprite curato della rosa base condivide lo stesso atlas/risoluzione di riferimento
   dello sprite generato del personaggio alternativo (vedi
   [Visual Language](../content/visual-language.md), valori draft DEC-046).
-- Con quale frequenza il generatore assegna un colpo firmato rispetto al colpo standard, e di
-  quanto sono esattamente più caute le statistiche compensative del personaggio che lo riceve
-  (DEC-068 fissa solo il principio; valori da playtest, stile DEC-019). Default proposti
-  dall'implementazione (M6b-3, RESTANO da validare): il prompt istruisce "circa metà delle
-  volte" senza imporlo (nessuna garanzia di frequenza, coerente con "a volte" di DEC-068); il
-  budget compensativo è la frazione 0.6 delle bande (vedi sopra, "Default proposti... budget
-  del colpo firmato") — non una scelta quantificata dal design, solo un numero che rende la
-  fetta giocabile e verificabile subito.
+- Con quale frequenza il generatore assegna un colpo firmato rispetto al colpo standard, e
+  qual è il valore esatto del fattore di compressione delle bande (DEC-078 fissa il
+  **criterio** della compressione come canone — bordo cauto per danno/salute/fortuna, lato
+  lento per la cadenza — non il valore; il fattore attuale, 0.6, resta un default proposto da
+  playtest, stile DEC-019, vedi punto 7 di `../governance/open-questions.md`). Default
+  proposto dall'implementazione (M6b-3, RESTA da validare): il prompt istruisce "circa metà
+  delle volte" senza imporlo (nessuna garanzia di frequenza, coerente con "a volte" di
+  DEC-068).
 - (M6b-3) Il colpo firmato è il colpo di **partenza**, sostituito da un oggetto-colpo raccolto
   esattamente come il colpo standard: è la lettura più semplice compatibile con DEC-068, non
   un'alternativa discussa esplicitamente dal design (es. un colpo firmato "protetto" che nessun
@@ -392,6 +403,16 @@ applica la regola di fallback unica definita in
 - When il giocatore lo seleziona e inizia la run
 - Then il personaggio usa il colpo standard, lo stesso disponibile ai personaggi della rosa
   base, senza alcuna compensazione o svantaggio di statistiche (DEC-068)
+
+**Scenario: colpo firmato fuori banda viene normalizzato, mai scartato (DEC-079)**
+- Given il personaggio alternativo di questa run ha un colpo firmato i cui parametri
+  risultano fuori dalla banda garantita (es. un `character_proposal.json` forgiato fuori dal
+  percorso normale del generatore)
+- When il gioco legge la proposta del personaggio
+- Then il colpo firmato viene riportato in banda dalla stessa doppia rete di bilanciamento
+  dei tipi di colpo di run, senza mai essere sostituito dal colpo standard: il personaggio
+  mantiene il proprio colpo firmato e le statistiche caute già generate, senza alcun
+  rebalance retroattivo delle altre statistiche
 
 **Scenario: un oggetto-colpo raccolto sostituisce il colpo firmato (M6b-3, default proposto)**
 - Given il giocatore ha scelto il personaggio alternativo col suo colpo firmato, attivo fin

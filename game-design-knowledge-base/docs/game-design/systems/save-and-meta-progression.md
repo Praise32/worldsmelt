@@ -3,7 +3,7 @@ id: gd-system-save-meta
 status: approved
 owner: design
 last_reviewed: 2026-07-19
-summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile (DEC-069)."
+summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia — sette categorie canoniche, Oggetti/Nemici/Boss/Personaggi/Mondi/Layout/Colpi (DEC-083) —, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile; nel museo una Reliquia resta esposta solo se era lì come preferito, altrimenti ne esce automaticamente (DEC-069, DEC-085)."
 ---
 
 # Save and Meta Progression
@@ -41,13 +41,27 @@ competitive interagiscono con questo sistema solo in lettura limitata (vedi sott
   [rewards-and-economy.md](rewards-and-economy.md) come fonte unica; questo documento non lo
   ripete, registra solo che quei punti persistono.
 
+## Abbandono e reroll contano come sconfitta per i punti (DEC-082)
+
+Ai fini dei punti sblocco, l'abbandono volontario di una run in corso (`ExitConfirm` da
+`PauseMenu`) e il reroll da `Gameplay` contano entrambi come **sconfitta**: punti ridotti
+standard su quanto maturato fino a quel momento, nessuna categoria intermedia. L'abbandono
+della sola preparazione nel Piano 0 (`ExitConfirm` da `FloorZero`, DEC-074) avviene prima
+che la run giocata cominci: non è una sconfitta e resta fuori da questa contabilità. Il catalogo e le statistiche si
+aggiornano comunque con quanto incontrato — è la stessa regola già valida per ogni run
+interrotta a metà (vedi "Casi limite" sotto). La distinzione vittoria/sconfitta e l'esatta
+riduzione dei punti sono fonte unica in
+`ui/results-and-leaderboards.md` (DEC-041); questo documento registra solo che abbandono e
+reroll rientrano nel bucket "sconfitta", senza una categoria propria.
+
 ## Il Catalogo: tre funzioni (DEC-045)
 
 Il Catalogo, raggiungibile dal menu principale (vedi `ui/main-menu.md`), è la schermata che
 espone la meta-progressione persistente sopra descritta attraverso tre funzioni:
 
-- **enciclopedia consultabile** di tutto il contenuto generato incontrato dal giocatore:
-  ogni scheda mostra nome, sprite, storia e statistiche d'uso;
+- **enciclopedia consultabile** di tutto il contenuto generato incontrato dal giocatore,
+  organizzata nelle sette categorie canoniche elencate sotto (DEC-083): ogni scheda mostra
+  nome, sprite, storia e statistiche d'uso;
 - **preferiti**: il giocatore può segnare contenuti come preferiti; i preferiti pesano
   leggermente sulle proposte future dell'IA nelle run successive, senza garantirne la
   comparsa (restano soggette alle stesse regole di generazione e di peso nel pool); i
@@ -55,6 +69,20 @@ espone la meta-progressione persistente sopra descritta attraverso tre funzioni:
   rimando a `floor-zero.md`);
 - **spesa dei punti sblocco**: è il luogo dove si spendono i punti guadagnati in
   singleplayer (DEC-015, DEC-027) per sbloccare contenuti generati nei pool delle run future.
+
+Le **sette categorie consultabili** dell'enciclopedia sono canone (DEC-083; questo documento
+è fonte unica del catalogo): ognuna ha una scheda propria, nessuna resta un semplice record
+interno.
+
+| Categoria | Cosa include |
+|---|---|
+| Oggetti | oggetti generati raccolti durante le run |
+| Nemici | nemici generati incontrati |
+| Boss | boss generati incontrati, con l'esito sconfitto/non sconfitto |
+| Personaggi | personaggi generati scelti in una run |
+| Mondi | temi dei piani generati raggiunti |
+| Layout | layout stanza generati incontrati |
+| Colpi | tipi di colpo generati adottati |
 
 Il Catalogo è distinto dal museo del Piano 0: il museo è una galleria curata delle sole
 creazioni migliori, provabile in loco (DEC-040); il Catalogo è l'enciclopedia completa più
@@ -79,6 +107,22 @@ nell'enciclopedia personale del giocatore, semplicemente non più attivo in run.
 "Reliquie" è coerente con la cornice del crogiolo (DEC-067, fonte unica in
 [Narrative Tone](../content/narrative-tone.md)): ciò che il crogiolo ha sciolto lascia
 comunque una traccia consultabile.
+
+### Reliquie nel museo del Piano 0 (DEC-085)
+
+Un contenuto esposto nel museo del Piano 0 (DEC-063) che diventa una Reliquia non esce
+sempre allo stesso modo:
+
+- se era esposto **come preferito del giocatore**, resta esposto — la curatela per
+  preferiti non esce mai dal museo finché marcata (DEC-063) — con la scheda museale che
+  segnala che si tratta ormai di una Reliquia, e senza più la prova in arena (DEC-040),
+  perché le Reliquie non sono giocabili (DEC-069);
+- se era esposto **solo per promozione automatica per metriche**, esce automaticamente dal
+  museo: la promozione per metriche riguarda solo contenuti ancora in circolazione, non le
+  Reliquie.
+
+I criteri di curatela del museo (soglie, precedenza dei preferiti) restano descritti in
+`floor-zero.md`, fonte unica; questo documento registra solo l'effetto sulle Reliquie.
 
 ## Sospensione della run e ripresa (DEC-050)
 
@@ -133,7 +177,9 @@ solo cosa persiste e con quali regole.
 
 ## Interazioni
 
-- `floor-zero.md`: il museo del Piano 0 espone i migliori contenuti del catalogo persistente.
+- `floor-zero.md`: il museo del Piano 0 espone i migliori contenuti del catalogo persistente;
+  la sezione "Reliquie nel museo del Piano 0" sopra registra cosa succede quando un contenuto
+  lì esposto diventa una Reliquia (DEC-085).
 - `run-manifest-and-reproducibility.md`: contesto sulle gare asincrone per cui gli sblocchi
   sono disattivati.
 - `generated-content-validation.md`: solo i contenuti approvati-per-run entrano nel catalogo
@@ -143,6 +189,9 @@ solo cosa persiste e con quali regole.
   descrive solo cosa persiste, non come si guadagna.
 - `ui/main-menu.md`: la voce Catalogo del menu principale apre la schermata a tre funzioni
   descritta qui (DEC-045).
+- `ui/results-and-leaderboards.md`: fonte unica della distinzione vittoria/sconfitta e della
+  riduzione dei punti alla sconfitta (DEC-041); questo documento registra solo che abbandono
+  e reroll rientrano nel bucket sconfitta ai fini dei punti (DEC-082).
 - `05-game-states-and-flow.md` e `ui/navigation-map.md`: la regola "Continua" rientra nello
   stato salvato; questo documento aggiunge solo il dettaglio del ripristino della stanza
   corrente (DEC-050).
@@ -170,9 +219,11 @@ per il contesto delle gare asincrone).
 
 - Un giocatore con un catalogo molto ampio non ottiene alcun vantaggio di potenza: solo più
   varietà potenziale nei pool delle run future singleplayer.
-- Una run interrotta a metà (abbandono) non deve corrompere il profilo: i contenuti già
-  approvati-per-run fino a quel momento restano acquisiti nel catalogo secondo le stesse
-  regole di una run completata.
+- Una run interrotta a metà (abbandono volontario da `ExitConfirm` o reroll da `Gameplay`)
+  non deve corrompere il profilo: i contenuti già approvati-per-run fino a quel momento
+  restano acquisiti nel catalogo secondo le stesse regole di una run completata; ai fini dei
+  punti sblocco, abbandono e reroll contano entrambi come sconfitta, con la riduzione
+  standard su quanto maturato (DEC-082).
 - Il giocatore sospende la run a metà di un combattimento in una stanza: al rientro la
   stanza riparte dall'ingresso con i nemici ripristinati, non dal punto esatto di
   sospensione.
@@ -181,6 +232,9 @@ per il contesto delle gare asincrone).
 - Un aggiornamento del gioco riconvalida il catalogo e un contenuto già approvato-per-run in
   passato non supera più la riconvalida: diventa una Reliquia, resta consultabile nel
   Catalogo ma esce dai pool sbloccabili delle run future (DEC-069).
+- Un contenuto esposto nel museo del Piano 0 diventa una Reliquia dopo un aggiornamento: se
+  era lì come preferito del giocatore, resta esposto con la scheda che segnala la Reliquia e
+  senza prova in arena; se era lì solo per metriche, esce automaticamente dal museo (DEC-085).
 
 ## Fallback
 
@@ -198,14 +252,21 @@ stanza, oggetti presi, tipi di colpo adottati, nemici/boss incontrati, il
 personaggio generato se scelto. Il record è autosufficiente (porta la
 definizione completa, incluso il sorgente Lua dove esiste), pensato per essere
 la fonte della riconvalida (DEC-069) senza dipendere da `generated/`, che resta
-effimero.
+effimero. Se abbandono e reroll dovessero contare come sconfitta ai fini dei
+punti sblocco, e non solo come casi da registrare nel catalogo, restava una
+domanda aperta a questo punto dell'implementazione: è ora risolta da DEC-082
+(entrambi contano come sconfitta, punti ridotti standard, vedi sopra).
 
 M8 aggiunge la **prima fetta consultabile**: la voce "Catalogo" del menu
 principale (`ui/main-menu.md`, DEC-015) apre ora un'enciclopedia v1 che
-aggrega ON-DEMAND tutti i file di `catalog/` (mai per-frame) per categoria —
-mondi/temi, layout, oggetti, tipi di colpo, nemici, boss, personaggi generati
+aggrega ON-DEMAND tutti i file di `catalog/` (mai per-frame) per le sette
+categorie canoniche — Mondi, Layout, Oggetti, Colpi, Nemici, Boss, Personaggi
 — con conteggio incontri/run e, per i boss, l'esito sconfitto/non sconfitto.
-Consultazione soltanto: nessuna azione sulle voci, nessuna scrittura.
+Al momento di questa implementazione era ancora una scelta aperta se layout
+stanza e tipi di colpo meritassero una scheda propria o restassero solo
+record interni: DEC-083 la scioglie sancendo le sette categorie come canone
+(vedi tabella sopra). Consultazione soltanto: nessuna azione sulle voci,
+nessuna scrittura.
 
 Restano **gap di implementazione espliciti**, non requisiti scartati: i
 **preferiti**, i **punti sblocco e la loro spesa** (DEC-027), il **museo del
@@ -239,14 +300,13 @@ solo il comportamento scelto per la prima fetta implementativa.
   meta-progressione (non deciso).
 - Peso esatto che i preferiti aggiungono alle proposte future dell'IA (DEC-045 fissa solo
   che il peso è "leggero", non il valore).
-- Un contenuto promosso al museo del Piano 0 (per metriche o come preferito, DEC-063) che
-  diventa una Reliquia dopo un aggiornamento (DEC-069): resta esposto nel museo o ne esce
-  automaticamente?
 
 Nota: la domanda su cosa mostri il museo del Piano 0 (intero catalogo o sottoinsieme curato)
 è risolta da DEC-063 — criterio misto, metriche più preferiti — e non è più aperta qui; la
 soglia esatta delle metriche resta una domanda aperta specifica, registrata in
-`floor-zero.md`.
+`floor-zero.md`. La domanda su cosa succeda a un contenuto del museo che diventa una
+Reliquia è risolta da DEC-085 (vedi "Reliquie nel museo del Piano 0" sopra) e non è più
+aperta qui.
 
 ## Idee future (experimental)
 
@@ -346,3 +406,32 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - Then il contenuto si sposta nella sezione Reliquie del Catalogo: resta consultabile con
   nome, sprite e storia, ma non è più giocabile né sbloccabile nei pool delle run future
   (DEC-069).
+
+**Scenario: abbandono e reroll contano come sconfitta per i punti (DEC-082)**
+- Given un giocatore ha maturato punti sblocco durante una run in corso,
+- When abbandona volontariamente la run da `ExitConfirm` oppure effettua un reroll da
+  `Gameplay`,
+- Then i punti sblocco maturati fino a quel momento vengono conteggiati con la stessa
+  riduzione standard della sconfitta (DEC-041), senza una categoria intermedia, e il
+  catalogo e le statistiche si aggiornano comunque con quanto incontrato.
+
+**Scenario: le sette categorie del Catalogo sono tutte consultabili (DEC-083)**
+- Given un giocatore ha incontrato almeno un layout stanza generato e un tipo di colpo
+  generato durante le sue run,
+- When apre l'enciclopedia del Catalogo,
+- Then trova anche Layout e Colpi tra le sette categorie consultabili (Oggetti, Nemici,
+  Boss, Personaggi, Mondi, Layout, Colpi), ciascuna con scheda propria come per le altre
+  categorie, non solo record interni.
+
+**Scenario: una Reliquia preferita resta esposta nel museo (DEC-085)**
+- Given un contenuto è esposto nel museo del Piano 0 come preferito del giocatore,
+- When un aggiornamento del gioco lo trasforma in una Reliquia,
+- Then il contenuto resta esposto nel museo, con la scheda che segnala che è una Reliquia e
+  senza più la possibilità di provarlo in arena.
+
+**Scenario: una Reliquia promossa solo per metriche esce dal museo (DEC-085)**
+- Given un contenuto è esposto nel museo del Piano 0 solo per promozione automatica da
+  metriche, senza essere un preferito del giocatore,
+- When un aggiornamento del gioco lo trasforma in una Reliquia,
+- Then il contenuto esce automaticamente dal museo, pur restando consultabile nel Catalogo
+  come Reliquia.

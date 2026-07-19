@@ -2,8 +2,8 @@
 id: gd-system-content-validation
 status: approved
 owner: design
-last_reviewed: 2026-07-18
-summary: "Fonte unica: modello di generazione, sei stati di validazione e regola di fallback per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md)."
+last_reviewed: 2026-07-19
+summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md)."
 ---
 
 # Generated Content Validation
@@ -122,7 +122,12 @@ testi) restano fuori scope in questo documento e vivono nei documenti di `ui/`.
 
 - `systems/floor-zero.md`: la versione statica curata del Piano 0 è un caso concreto di
   fallback-usato.
-- `systems/items-pools-and-rarity.md`: i pool curati fungono da riserva per gli oggetti.
+- `systems/items-pools-and-rarity.md`: i pool curati fungono da riserva per gli oggetti; fonte
+  unica dei pesi di rarità usati anche per distribuire il minimo curato di 20 oggetti (DEC-087).
+- `systems/characters.md`: fonte unica della rosa base (DEC-080), che in modalità solo-curato è
+  l'intero pool personaggi del minimo curato (DEC-087).
+- `systems/rooms-and-floor-generation.md`: fonte unica della variabilità procedurale dei layout
+  di stanza (DEC-009), per cui il minimo curato non si applica.
 - `systems/run-manifest-and-reproducibility.md`: registra quali fallback sono avvenuti nella
   run.
 - `../content/content-taxonomy.md`: l'origine "curato" identifica i contenuti di riserva usati
@@ -158,6 +163,31 @@ Ogni categoria generabile possiede un pool curato sufficiente a completare la ru
 generazione nuova (DEC-020). Il fallback è invisibile al giocatore per design: non è uno stato
 di errore da recuperare in interfaccia, è una regola di continuità che garantisce che mai un
 contenuto rotto e mai un blocco della partita raggiungano il giocatore.
+
+## Pool curato minimo (DEC-087)
+
+Questo documento è la fonte UNICA della tabella del pool curato minimo per categoria: per ogni
+categoria di contenuto che il gioco propone al giocatore esiste un minimo curato che, da solo
+(nessuna generazione IA disponibile), garantisce una run completa — Piano 0 più i 5 piani — e
+la scelta di fallback in ogni punto in cui il giocatore sceglie.
+
+I valori sono default proposti stile DEC-019, da confermare col playtest (vedi
+`../governance/open-questions.md`, punto 10):
+
+| Categoria | Minimo curato | Note |
+|---|---|---|
+| Temi/World | 3 | Coincidono con le carte fallback del Piano 0 (DEC-076, dettaglio in `floor-zero.md`). |
+| Boss | 5 | Uno per piano, legati alle bande di difficoltà dei 5 piani. |
+| Nemici comuni | 12 | Distribuiti sulle bande di difficoltà dei 5 piani. |
+| Oggetti | 20 | Distribuiti sulle 4 rarità con i pesi DEC-019 (dettaglio in `items-pools-and-rarity.md`); nessuna rarità resta vuota. |
+| Tipi di colpo | 6 | Includono i colpi standard della rosa base. |
+| Personaggi | 3 (la rosa base) | La rosa base è l'intero pool personaggi in modalità solo-curato (DEC-080, dettaglio in `characters.md`); il personaggio generato per run non esiste in questa modalità. |
+| Layout di stanza | — | Generati proceduralmente senza IA (DEC-009, dettaglio in `rooms-and-floor-generation.md`): nessun minimo curato richiesto. |
+
+Questa tabella è il caso quantificato della regola generale già enunciata sopra ("ogni
+categoria generabile possiede un pool curato sufficiente a completare l'intera run senza
+generazione nuova"): qui si dichiara quanto basta, categoria per categoria, perché quella
+regola sia verificabile.
 
 ## Non-obiettivi
 
@@ -218,3 +248,11 @@ nell'interfaccia normale.
 - Then il contenuto passa allo stato respinto e diventa una Reliquia nel Catalogo del
   giocatore (DEC-069, fonte unica del dettaglio in
   [Save and Meta Progression](save-and-meta-progression.md)).
+
+**Scenario: run completa senza alcuna generazione disponibile (DEC-087)**
+- Given nessuna generazione IA è disponibile per nessuna categoria (temi, boss, nemici comuni,
+  oggetti, tipi di colpo, personaggi),
+- When il giocatore avvia e gioca una run dal Piano 0 fino al boss del piano 5,
+- Then il pool curato minimo per categoria copre da solo ogni contenuto necessario e ogni
+  scelta del giocatore trova sempre un'opzione di fallback, senza che la run risulti
+  incompleta, ripetuta in modo degenere o bloccata.

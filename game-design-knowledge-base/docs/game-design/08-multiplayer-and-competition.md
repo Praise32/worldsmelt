@@ -2,8 +2,8 @@
 id: gd-multiplayer
 status: experimental
 owner: design
-last_reviewed: 2026-07-18
-summary: "Gare tra giocatori e classifiche: due assi approvati (Leggera/Classificata × stesso seed/seed diversi), dettagli experimental. La modalità Classificata esiste in tre istanze — stesso seed, seed diversi, Classificata giornaliera pubblica ('Daily') — con classifiche divise per metrica, tempo e punteggio separati (DEC-062). La Daily premia con medaglie/cornici cosmetiche, fuori dall'economia dei punti (DEC-064). Una run è condivisibile fuori dalle classifiche via codice breve o file RunBundle, sempre non classificata (DEC-066)."
+last_reviewed: 2026-07-19
+summary: "Gare tra giocatori e classifiche: due assi approvati (Leggera/Classificata × stesso seed/seed diversi), dettagli experimental. La modalità Classificata esiste in tre istanze — stesso seed, seed diversi, Classificata giornaliera pubblica ('Daily') — con classifiche divise per metrica, tempo e punteggio separati (DEC-062). La Daily premia con medaglie/cornici cosmetiche, fuori dall'economia dei punti (DEC-064), e ruota alle 00:00 UTC per tutti i giocatori (DEC-081). Una run è condivisibile fuori dalle classifiche via codice breve — esteso a seed, versione di gioco, tema e personaggio scelti (DEC-077) — o file RunBundle, sempre non classificata (DEC-066)."
 ---
 
 # Multiplayer and Competition
@@ -84,17 +84,33 @@ singleplayer) restano intatte. Dettaglio di persistenza nel profilo:
 (rimando).
 
 Questa decisione risolve la parte "ricompense dedicate?" della domanda aperta sulla Daily;
-resta aperto solo l'orario esatto di rotazione (vedi `governance/open-questions.md`).
+l'orario di rotazione è ora fissato da DEC-081 (sezione seguente): non restano punti aperti
+sulla Daily.
 
-## Condivisione run a due vie (DEC-066)
+## Orario di rotazione della Daily (DEC-081)
+
+La Classificata giornaliera pubblica (Daily, DEC-062) ruota alle **00:00 UTC**: un istante
+globale unico per tutti i giocatori (non mezzanotte locale, non un orario fisso regionale).
+Questo documento resta la **fonte unica** dell'orario della Daily. La lobby mostra il conto
+alla rovescia al prossimo cambio; dettaglio del feedback in interfaccia:
+[Multiplayer Lobby](ui/multiplayer-lobby.md) (rimando, non riformulato qui).
+
+## Condivisione run a due vie (DEC-066, DEC-077)
 
 Una run è condivisibile **fuori dalle classifiche** in due modi, entrambi indipendenti dalla
 visione multiplayer asincrona fissata sopra (DEC-016):
 
-1. **Codice breve testuale** (seed più versione di gioco), da incollare in `RunSetup`:
-   richiede che chi lo riceve possa rigenerare i contenuti localmente con lo stesso manifest.
+1. **Codice breve testuale** — codifica **seed, versione di gioco, tema scelto e personaggio
+   scelto** (DEC-077, estende DEC-066), da incollare in `RunSetup`: chi lo riceve rigioca
+   esattamente la stessa run. Le scelte trasportate arrivano nel Piano 0 come preselezione;
+   il giocatore resta libero di cambiarle (a quel punto sta giocando una run con lo stesso
+   seed, non più la stessa run — il Piano 0 resta il luogo della scelta). Dettaglio esatto
+   del contenuto del codice: [Run Manifest and Reproducibility](systems/run-manifest-and-reproducibility.md)
+   (fonte unica, rimando, non riformulato qui). Gap di implementazione esplicito: il codice
+   attuale non trasporta ancora tema e personaggio (DEC-077).
 2. **File RunBundle esportato**, il formato con verifica d'integrità già esistente nel
-   progetto: una via completa e verificabile, adatta a gare private e archivio.
+   progetto: una via completa e verificabile, adatta a gare private e archivio, che trasporta
+   già il manifest completo.
 
 Le run condivise in questo modo sono **sempre non classificate**, per coerenza con DEC-062:
 la Classificata passa solo dalle gare pubblicate nella lobby o dalla Daily, non da una
@@ -104,7 +120,7 @@ dettaglio del manifest condiviso e della verifica d'integrità:
 [Run Manifest and Reproducibility](systems/run-manifest-and-reproducibility.md) (rimando, non
 riformulato qui).
 
-## Scenari (DEC-064, DEC-066)
+## Scenari (DEC-064, DEC-066, DEC-077, DEC-081)
 
 **Scenario: medaglia cosmetica dalla Daily**
 - Given un giocatore ottiene un piazzamento in una Classificata giornaliera (Daily)
@@ -112,12 +128,18 @@ riformulato qui).
 - Then il giocatore riceve una medaglia o cornice cosmetica nel profilo, senza alcun punto
   sblocco aggiuntivo (DEC-064)
 
+**Scenario: rotazione della Daily alle 00:00 UTC**
+- Given una Classificata giornaliera pubblica (Daily) attiva per il giorno corrente
+- When l'orologio globale raggiunge le 00:00 UTC
+- Then la Daily ruota verso una nuova run scelta centralmente, uguale per tutti i giocatori
+  nel mondo nello stesso istante (DEC-081)
+
 **Scenario: condivisione via codice breve**
 - Given un giocatore vuole condividere la propria run con un altro giocatore fuori dalle
-  classifiche
-- When genera un codice breve testuale (seed più versione di gioco)
-- Then chi lo incolla in `RunSetup` rigenera localmente la stessa run, sempre come run non
-  classificata (DEC-066)
+  classifiche, comprese le scelte di tema e personaggio fatte nel Piano 0
+- When genera un codice breve testuale (seed, versione di gioco, tema e personaggio, DEC-077)
+- Then chi lo incolla in `RunSetup` ottiene quelle stesse scelte come preselezione nel Piano
+  0 e può rigiocare esattamente la stessa run, sempre come run non classificata (DEC-066)
 
 **Scenario: condivisione via RunBundle**
 - Given un giocatore vuole archiviare o condividere una run per una gara privata
@@ -173,17 +195,17 @@ Le classifiche richiedono regole stabili, identificazione della versione di gioc
 
 ## Decisioni aperte
 
-Risolte da DEC-016, DEC-021, DEC-062, DEC-064 e DEC-066 (non più aperte): multiplayer
-simultaneo o asincrono → **asincrono**; struttura del menu → **Leggera/Classificata × stesso
-seed/seed diversi**; numero e natura delle istanze di Classificata → **tre istanze
+Risolte da DEC-016, DEC-021, DEC-062, DEC-064, DEC-066, DEC-077 e DEC-081 (non più aperte):
+multiplayer simultaneo o asincrono → **asincrono**; struttura del menu → **Leggera/Classificata
+× stesso seed/seed diversi**; numero e natura delle istanze di Classificata → **tre istanze
 (stesso seed, seed diversi, Daily)**; come si dividono le classifiche → **per metrica,
 tempo e punteggio separati**; ricompense della Daily → **cosmetiche, medaglie/cornici**
-(DEC-064); condivisione di una run fuori classifica → **codice breve o file RunBundle,
-sempre non classificata** (DEC-066).
+(DEC-064); orario di rotazione della Daily → **00:00 UTC, istante globale unico** (DEC-081);
+condivisione di una run fuori classifica → **codice breve (seed, versione di gioco, tema e
+personaggio, DEC-077) o file RunBundle, sempre non classificata** (DEC-066).
 
 Ancora aperte, tutte `experimental` o registrate in `governance/open-questions.md`:
 
 - Quali assistenze e mod sono consentite.
 - Il criterio di normalizzazione per la Classificata a seed diversi.
 - Quali informazioni della run di un avversario mostrare e quando.
-- Orario esatto di rotazione della Daily (le ricompense dedicate sono ora definite, DEC-064).
