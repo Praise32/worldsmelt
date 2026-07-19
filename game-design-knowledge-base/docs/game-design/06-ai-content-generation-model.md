@@ -134,6 +134,16 @@ L'IA non può modificare arbitrariamente regole fondamentali come input, condizi
 vittoria, significato delle risorse o segnali di pericolo senza una modalità esplicitamente
 dedicata.
 
+## Nota — il piano 1 è sempre il mondo scelto alla lettera (DEC-005/M5)
+
+Quando il giocatore sceglie un tema nel Piano 0, il piano 1 si apre in quel mondo **alla
+lettera**, non in un'approssimazione: è una garanzia del motore, con la stessa filosofia
+delle manopole parametriche per i tipi di colpo (vedi sopra) — un nome che il modello scrive
+leggermente diverso da quello scelto viene sostituito prima che la run venga scritta, senza
+che il giocatore veda nulla. L'aderenza dei piani successivi (2-5) alla stessa
+evoluzione/degenerazione del mondo scelto (DEC-005, DEC-024) resta invece affidata al solo
+prompt, senza una garanzia equivalente: backlog aperto, non risolto da questa nota.
+
 ## Nota — priorità delle anteprime visive dei temi (DEC-039)
 
 Tra le generazioni richieste a inizio run, le anteprime visive dei 2-3 temi proposti nel
@@ -223,3 +233,7 @@ fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
   **quando** quel prompt viene composto, **allora** descrive solo funzione e tema del World,
   senza includere termini della nomenclatura di interfaccia come Smelting, Flux o Tempered
   (DEC-073a).
+- **Dato** che il giocatore ha scelto un tema nel Piano 0, **quando** il modello scrive per il
+  piano 1 un nome diverso da quello scelto, **allora** il motore lo sostituisce col tema
+  scelto alla lettera prima che la run venga scritta, senza alcun errore visibile al
+  giocatore (DEC-005/M5).

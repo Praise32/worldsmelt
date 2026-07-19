@@ -89,10 +89,15 @@ echo "--- script Lua scritti in generated/scripts/ ---"
 ls -1 generated/scripts/*.lua 2>/dev/null || echo "(nessuno: tutti gli oggetti sono ripiegati sulla mini-VM)"
 
 # M5 (DEC-005), requisito 12: --theme-file con un modello VERO -- floor1.theme
-# deriva dal tema scelto, i 5 temi restano distinti (guardia anti-fotocopia
-# invariata), la guardia di lingua vale anche qui. Cartella --out SEPARATA
-# (mai generated/, gia' verificata dai controlli sopra): un secondo processo
-# non deve toccare l'output della prima generazione.
+# e' il tema scelto ALLA LETTERA, non piu' una speranza sul modello: e' una
+# garanzia del motore (GenNormalizeRun forza floor[0].theme, vedi il commento
+# in tools/melting-gen/gen_validate.c), quindi il check sotto e' deterministico
+# -- non e' piu' flaky sul nome esatto del piano 1 (era il bug osservato:
+# "Glass Cathedral" scritto dal modello al posto di "Foundry of Glass"). I 5
+# temi restano distinti (guardia anti-fotocopia invariata, ora vede anche il
+# piano 1 forzato), la guardia di lingua vale anche qui. Cartella --out
+# SEPARATA (mai generated/, gia' verificata dai controlli sopra): un secondo
+# processo non deve toccare l'output della prima generazione.
 echo "--- M5: --theme-file con un modello vero -- il tema scelto guida i 5 piani ---"
 THEME_TMP=$(mktemp -d)
 trap 'rm -rf "$THEME_TMP"' EXIT

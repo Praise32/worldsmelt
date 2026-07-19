@@ -535,8 +535,37 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, const GenCh
         floor->bossItem = fbFloor->bossItem;
     }
 
-    /* Ultima cosa, quando tutti i piani sono normalizzati: la rete anti-fotocopia
-       (vedi DedupeFloors sopra). Va per forza QUI e non dentro il ciclo: per sapere
+    /* Garanzia del motore (stessa filosofia di ShotTypeBalance per i tipi di
+       colpo, DEC-052/M3): quando il giocatore ha scelto un tema (--theme-file),
+       DEC-005/M5 dice "Floor 1 opens in this exact world" -- alla lettera, non
+       "un tema simile". Il modello a volte scrive un nome leggermente diverso
+       da quello scelto (osservato: "Glass Cathedral" al posto di "Foundry of
+       Glass"), rendendo il check M5 di scripts/test-llm.sh non deterministico.
+       Si forza QUI, DOPO che il piano 1 e' stato normalizzato dal JSON grezzo
+       (quindi vale per entrambi i chiamanti di GenNormalizeRun: i due tentativi
+       LLM di RunJsonAttempts e --from-json/--resume in main.c) e PRIMA della
+       rete anti-fotocopia sotto, cosi' un'eventuale collisione col piano 1
+       forzato viene gia' presa in carico da DedupeFloors. Il ramo --fallback
+       puro (GenFallbackRun chiamato direttamente, mai attraverso questa
+       funzione) non e' toccato: scrive gia' chosen->name da solo. Il valore
+       scartato del modello non si perde in silenzio: una riga in
+       logs/melting-gen.log (GenLogLine, stesso canale di sviluppo usato da
+       DedupeFloors qui sotto), mai player-facing. I piani 2-5 restano quelli
+       del modello (l'aderenza "stesso mondo che evolve" e' backlog separato,
+       non questa garanzia). */
+    if (chosen && chosen->name[0])
+    {
+        if (!SameTextIgnoreCase(out->floors[0].theme, chosen->name))
+        {
+            GenLogLine("piano 1: il modello ha scritto il tema \"%s\", forzato al tema scelto \"%s\"",
+                       out->floors[0].theme, chosen->name);
+        }
+        snprintf(out->floors[0].theme, sizeof(out->floors[0].theme), "%s", chosen->name);
+    }
+
+    /* Ultima cosa, quando tutti i piani sono normalizzati (e il piano 1 e'
+       stato eventualmente forzato sopra): la rete anti-fotocopia (vedi
+       DedupeFloors sopra). Va per forza QUI e non dentro il ciclo: per sapere
        se un piano ripete un altro bisogna averli tutti. */
     DedupeFloors(out, &fb);
 }

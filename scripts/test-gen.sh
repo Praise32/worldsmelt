@@ -878,4 +878,33 @@ echo "-- --fallback SENZA tema: provenance.txt porta chosenTheme=none (nessuna r
 grep -q "^chosenTheme=none$" "$TMP/no-theme-fallback/provenance.txt" || {
   echo "FALLITO: provenance.txt senza --theme-file non riporta chosenTheme=none"; exit 1; }
 
+# Garanzia del motore (GenNormalizeRun, gen_validate.c): con --theme-file,
+# floor1.theme e' SEMPRE il tema scelto alla lettera, qualunque cosa il
+# "modello" (qui un JSON sintetico via --from-json, nessun modello vero
+# coinvolto) abbia scritto -- il problema PROVATO su main con un modello
+# reale ("Glass Cathedral" al posto di "Foundry of Glass", check M5 di
+# scripts/test-llm.sh reso non deterministico). Il json sintetico mette
+# ANCHE il tema scelto, invariato, sul piano 2 (collisione costruita ad
+# arte con quello che diventera' il piano 1 forzato): la rete anti-fotocopia
+# esistente (DedupeFloors) deve risolverla come farebbe con qualunque altra
+# fotocopia, sostituendo il piano col suo equivalente procedurale "tema
+# scelto + suffisso di stadio" -- nessun secondo meccanismo.
+echo "-- --from-json + --theme-file: floor1.theme forzato al tema scelto, 5 temi restano distinti --"
+"$GEN" --from-json tests/melting-gen/theme-force.json --seed 999 \
+       --theme-file "$TMP/chosen-theme.txt" --out "$TMP/theme-force"
+grep -q "^floor1.theme=Foundry of Glass$" "$TMP/theme-force/current_run.txt" || {
+  echo "FALLITO: floor1.theme non e' stato forzato al tema scelto (il JSON diceva 'Glass Cathedral')"
+  grep '^floor1.theme=' "$TMP/theme-force/current_run.txt"
+  exit 1
+}
+grep -q "^floor2.theme=Foundry of Glass$" "$TMP/theme-force/current_run.txt" && {
+  echo "FALLITO: floor2.theme e' rimasto identico al piano 1 forzato (collisione non risolta)"; exit 1; }
+themes2=$(grep -E "^floor[0-9]\.theme=" "$TMP/theme-force/current_run.txt" | cut -d= -f2)
+[ "$(echo "$themes2" | wc -l)" -eq 5 ] || { echo "FALLITO: non ci sono 5 righe floorN.theme"; exit 1; }
+[ "$(echo "$themes2" | sort -u | wc -l)" -eq 5 ] || {
+  echo "FALLITO: i 5 floorN.theme non sono tutti distinti dopo la forzatura + la collisione costruita ad arte"
+  echo "$themes2"
+  exit 1
+}
+
 echo "TEST-GEN: OK"
