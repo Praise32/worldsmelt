@@ -879,6 +879,80 @@ typedef struct GenProgress {
     char message[96];
 } GenProgress;
 
+/* M8 (DEC-045, vista Catalogo v1 -- enciclopedia consultabile dal MainMenu):
+ * la FORMA di una voce aggregata e del suo contenitore, letta on-demand da
+ * TUTTI i file .txt di catalog/ (RunCatalogAggregate, src/content/run_catalog.c)
+ * -- vive qui in core, non in src/content, per lo STESSO motivo di ThemeCard
+ * sopra: sia AppUi (che la possiede, vedi il campo 'catalog' sotto) sia
+ * src/render (che la disegna) ne hanno bisogno, e core e' l'unico modulo che
+ * entrambi gia' includono senza creare una dipendenza all'indietro (content
+ * dipende da core, mai il contrario, vedi AGENTS.md). L'ordine dei sette
+ * valori e' quello con cui la vista elenca le categorie (sinistra/destra):
+ * mondi/temi, layout, oggetti, tipi di colpo, nemici, boss, personaggi
+ * generati -- lo stesso ordine della spec M8. */
+typedef enum RunCatalogCategory {
+    RUN_CATALOG_CAT_WORLD,
+    RUN_CATALOG_CAT_LAYOUT,
+    RUN_CATALOG_CAT_ITEM,
+    RUN_CATALOG_CAT_SHOT,
+    RUN_CATALOG_CAT_ENEMY,
+    RUN_CATALOG_CAT_BOSS,
+    RUN_CATALOG_CAT_CHARACTER,
+    RUN_CATALOG_CATEGORY_COUNT   /* non e' una categoria vera: conta quelle sopra, per dimensionare gli array */
+} RunCatalogCategory;
+
+/* Tetto DICHIARATO per categoria (spec M8, stile "buffer fissi" del
+ * progetto): oltre questo numero di voci DISTINTE in una categoria, le
+ * occorrenze aggiuntive contano solo in RunCatalogSummary.overflowCount,
+ * mai un'allocazione dinamica ne' una scrittura fuori banda. 256 e' larghezza
+ * di margine per una collezione che cresce per run intere (un file per run,
+ * mai per singolo oggetto): anche giocando centinaia di run, oggetti/nemici/
+ * boss distinti restano ben sotto -- il tetto esiste per la garanzia, non
+ * perche' ci si aspetti di raggiungerlo davvero. */
+#define RUN_CATALOG_ENTRY_MAX 256
+
+/* Una voce aggregata: TUTTE le occorrenze con lo stesso (categoria, nome) in
+ * TUTTI i file .txt di catalog/ confluiscono qui. 'detail' e' testo gia' pronto
+ * per la UI (mai ricostruito a ogni frame di disegno) -- la PRIMA descrizione
+ * vista per questo nome, mai sovrascritta dalle successive (spec M8: slot/
+ * rarita'/tratti per gli oggetti, forma/movimento per i nemici, ruolo/trait
+ * hook/colpo firmato per i personaggi -- RunCatalogAggregate la compone per
+ * categoria, vedi run_catalog.c). 'encounterCount' conta OGNI occorrenza
+ * (anche piu' volte nella stessa run, es. lo stesso nemico su due piani);
+ * 'runCount' conta le run DISTINTE in cui e' comparso (al massimo una volta
+ * per file, indipendentemente da quante volte compare dentro). 'bossDefeated'
+ * ha significato SOLO per RUN_CATALOG_CAT_BOSS: vero se sconfitto in ALMENO
+ * una delle run aggregate (spec M8: "per i boss: sconfitto si'/no" -- un
+ * singolo bool basta, la vista non deve raccontare la storia run-per-run). */
+typedef struct RunCatalogEntry {
+    char name[40];
+    char detail[128];
+    int encounterCount;
+    int runCount;
+    unsigned int firstSeed;
+    unsigned int lastSeed;
+    bool bossDefeated;
+} RunCatalogEntry;
+
+/* Il contenitore intero: un array FISSO di voci per ciascuna delle sette
+ * categorie sopra, mai una lista dinamica (stile del progetto, AGENTS.md).
+ * 'entryCount[cat]' e' quante voci sono davvero popolate in
+ * 'entries[cat][0..entryCount[cat]-1]' (il resto dell'array resta a zero,
+ * mai letto); 'overflowCount[cat]' e' quante occorrenze IN PIU' (oltre le
+ * prime RUN_CATALOG_ENTRY_MAX voci distinte) RunCatalogAggregate ha dovuto
+ * scartare per quella categoria -- la vista le mostra come "e altre N",
+ * mai silenziosamente. 'filesRead'/'filesSkipped' sono la controprova
+ * osservabile della robustezza (spec M8: "file corrotti/troncati -> voce
+ * saltata in silenzio, log stderr, mai crash") -- utili soprattutto ai test,
+ * la vista non li mostra. */
+typedef struct RunCatalogSummary {
+    RunCatalogEntry entries[RUN_CATALOG_CATEGORY_COUNT][RUN_CATALOG_ENTRY_MAX];
+    int entryCount[RUN_CATALOG_CATEGORY_COUNT];
+    int overflowCount[RUN_CATALOG_CATEGORY_COUNT];
+    int filesRead;
+    int filesSkipped;
+} RunCatalogSummary;
+
 /* Stato di navigazione UI (M1a): posseduto e mutato SOLO da UpdateApp
    (src/app/app.c), ma vive qui in "core" -- non in un header di src/app --
    perche' src/render lo deve LEGGERE per disegnare (voce col focus
@@ -923,6 +997,30 @@ typedef struct AppUi {
        accende a mano sulla propria AppUi locale per esercitare la scrittura
        vera con UpdateApp. */
     bool catalogWritesEnabled;
+    /* M8 (DEC-045, vista Catalogo v1): la vista vive DENTRO APP_MAIN_MENU
+       (nessun nuovo AppMode, nota architetturale della spec M8) -- questi
+       campi la governano esattamente come 'focus' governa le voci del menu,
+       ma sono un ramo SEPARATO nel case APP_MAIN_MENU di UpdateApp (vedi
+       src/app/app.c): quando 'catalogOpen' e' vero, su/giu/sinistra/destra
+       muovono la vista, mai le voci del menu sottostante. 'catalogOpen'
+       false = si disegna DrawMainMenuOverlay come sempre; vero =
+       DrawCatalogOverlay lo sostituisce (game_renderer.c), col menu (e
+       ui->focus, gia' fermo su 1/"Catalogo" da quando la vista si e'
+       aperta) intatto sotto, cosi' un ESC torna li' senza ricalcolare nulla.
+       'catalogCategory' e' l'indice (RunCatalogCategory) con la selezione
+       sinistra/destra; 'catalogItemFocus' l'indice su/giu' DENTRO quella
+       categoria -- azzerato ad ogni cambio di categoria (mai un indice che
+       sopravvive a una lista diversa da quella per cui e' stato scelto).
+       'catalog' e' l'aggregato letto ON-DEMAND (RunCatalogAggregate,
+       src/content/run_catalog.c) alla CONFERMA della voce "Catalogo", mai
+       per-frame: catalog/ e' dati del giocatore su disco, non cambia
+       mentre la vista resta aperta (a differenza di 'catalogWritesEnabled'
+       sopra, che governa la SCRITTURA a fine run, questo campo governa
+       solo la LETTURA per la consultazione -- due percorsi indipendenti). */
+    bool catalogOpen;
+    int catalogCategory;
+    int catalogItemFocus;
+    RunCatalogSummary catalog;
 } AppUi;
 
 #endif

@@ -592,7 +592,17 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        (la stessa usata per disegnarle, src/render/game_renderer.c): una query,
        non una copia duplicata del layout. */
     AppInput effective = *input;
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    /* M8: la vista Catalogo (DENTRO APP_MAIN_MENU, nessun nuovo AppMode) ha
+       una geometria propria (categorie/righe, DrawCatalogOverlay), NON quella
+       delle 4 voci di menu che RendererMenuItemAt conosce per questo mode --
+       un click qui sotto interrogherebbe i rettangoli SBAGLIATI (quelli del
+       menu che non e' nemmeno disegnato in questo momento), potendo
+       corrompere ui->focus/simulare un confirm a caso. v1 resta quindi
+       tastiera-solo DENTRO la vista (parita' tastiera comunque garantita,
+       DEC-057: il mouse resta "ammesso", mai l'unica via); la voce "Catalogo"
+       stessa, nel menu, resta cliccabile come ogni altra voce quando la vista
+       e' chiusa. */
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(*mode == APP_MAIN_MENU && ui->catalogOpen))
     {
         int clicked = RendererMenuItemAt(*mode, GetMousePosition());
         if (clicked >= 0)
@@ -606,7 +616,33 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
     {
         case APP_MAIN_MENU:
         {
-            if (effective.up || effective.down) { ui->focus = (ui->focus + 3 + (effective.down ? 1 : -1)) % 3; break; }
+            /* M8 (DEC-045): la vista Catalogo vive DENTRO questo stato (nessun
+               nuovo AppMode, nota architetturale della spec M8) -- un ramo
+               SEPARATO, controllato PRIMA di tutto il resto: quando e' aperta,
+               su/giu/sinistra/destra/back muovono la VISTA, mai le voci del
+               menu sottostante (ui->focus non viene mai toccato qui, resta
+               fermo su 1/"Catalogo" per tutta la permanenza nella vista). v1 e'
+               SOLO consultazione (spec M8, "SOLO l'enciclopedia"): confirm non
+               fa nulla, non c'e' ancora un'azione da compiere su una voce. */
+            if (ui->catalogOpen)
+            {
+                if (effective.back) { ui->catalogOpen = false; break; }   /* torna a MainMenu, focus gia' su "Catalogo" */
+                if (effective.left || effective.right)
+                {
+                    ui->catalogCategory = (ui->catalogCategory + RUN_CATALOG_CATEGORY_COUNT + (effective.right ? 1 : -1)) % RUN_CATALOG_CATEGORY_COUNT;
+                    ui->catalogItemFocus = 0;   /* mai un indice che punta a una voce di un'altra lista */
+                    break;
+                }
+                if (effective.up || effective.down)
+                {
+                    int count = ui->catalog.entryCount[ui->catalogCategory];
+                    if (count > 0) ui->catalogItemFocus = (ui->catalogItemFocus + count + (effective.down ? 1 : -1)) % count;
+                    break;   /* categoria vuota: su/giu' non fa nulla, mai una divisione per zero */
+                }
+                break;
+            }
+
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 4 + (effective.down ? 1 : -1)) % 4; break; }
             if (effective.quit || effective.back)
             {
                 /* Azione distruttiva: passa SEMPRE da ExitConfirm, mai un'uscita
@@ -626,7 +662,14 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     *mode = APP_RUN_SETUP;
                     ui->focus = 0;
                 }
-                else if (ui->focus == 1)   /* Opzioni */
+                else if (ui->focus == 1)   /* Catalogo (M8, DEC-045): aggregazione ON-DEMAND, mai per-frame */
+                {
+                    RunCatalogAggregate(&ui->catalog);
+                    ui->catalogOpen = true;
+                    ui->catalogCategory = 0;
+                    ui->catalogItemFocus = 0;
+                }
+                else if (ui->focus == 2)   /* Opzioni */
                 {
                     ui->openedFrom = APP_MAIN_MENU;
                     ui->returnFocus = ui->focus;
@@ -1055,6 +1098,13 @@ int AppRun(int argc, char **argv)
     bool floorZeroScreenshotTest = false;
     bool roomsTest = false;
     bool catalogTest = false;
+    /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
+       gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
+    bool catalogScreenTest = false;
+    /* SOLO manuale (mai in make test, stessa tradizione di
+       --floor-zero-screenshot-test): apre la vista Catalogo su un catalogo
+       sintetico popolato e scatta logs/worldsmelt-catalog-screen.png. */
+    bool catalogScreenshotTest = false;
     bool layoutTest = false;
     /* M4, SOLO manuale (mai in make test, come *ScreenshotTest sopra): a
        differenza di TUTTI gli altri flag *Test qui sopra, questo NON mette
@@ -1176,6 +1226,24 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             catalogTest = true;
         }
+        /* M8 (DEC-045, vista Catalogo v1): come --catalog-test, gira DOPO
+           InitWindow con la SUA PROPRIA AppUi locale per ogni scenario. Vedi
+           GameCatalogScreenTest in src/tests/catalog_tests.c. */
+        if (strcmp(argv[i], "--catalog-screen-test") == 0)
+        {
+            smokeTest = true;
+            catalogScreenTest = true;
+        }
+        /* SOLO manuale (mai in make test): finestra GRANDE (vedi
+           compactTestWindow piu' sotto, stessa tradizione di
+           --floor-zero-screenshot-test), percorso DEDICATO -- non passa dal
+           ciclo principale/screenshotTest generico, vedi GameCatalogScreenshotTest
+           in src/tests/catalog_tests.c. */
+        if (strcmp(argv[i], "--catalog-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            catalogScreenshotTest = true;
+        }
         if (strcmp(argv[i], "--gen-test") == 0) genTest = true;
         /* M4: matematica pura come --gen-test (nessuna InitWindow/GetScreenWidth
            dentro UiLayoutSelfTest, vedi src/render/game_renderer.c), quindi gira
@@ -1290,7 +1358,7 @@ int AppRun(int argc, char **argv)
        che nella finestra compatta 960x640 finisce in parte sotto il
        riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
        vedi logs/melting-run-layers-screen.png). */
-    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest;
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest && !catalogScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     /* Titolo della finestra WORLDSMELT (DEC-071): il repo conserva il nome
        storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
@@ -1395,6 +1463,29 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 22;   /* 22: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
+    /* M8 (DEC-045, vista Catalogo v1): come --catalog-test, gira DOPO
+       InitWindow (esercita UpdateApp/RendererDrawApp per davvero). 23: il
+       primo codice di uscita libero. */
+    if (catalogScreenTest)
+    {
+        bool ok = GameCatalogScreenTest(&game);
+        printf("Catalog screen test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 23;
+    }
+    /* SOLO manuale (mai in make test): scrive un catalogo sintetico popolato,
+       apre la vista e scatta logs/worldsmelt-catalog-screen.png, poi ripulisce
+       i propri file (stessa pulizia snapshot-based degli altri test del
+       catalogo). 24: il primo codice di uscita libero. */
+    if (catalogScreenshotTest)
+    {
+        bool ok = GameCatalogScreenshotTest(&game);
+        printf("Catalog screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 24;
     }
     if (scriptTest)
     {

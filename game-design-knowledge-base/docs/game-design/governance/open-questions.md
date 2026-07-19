@@ -92,7 +92,26 @@ resta il gap).
     decide nulla sui punti: la domanda resta aperta.
 21. I tipi di colpo e il layout stanza meritano una "scheda" dedicata nel
     Catalogo (come oggetti, nemici, personaggi) o restano solo un record dati
-    interno, mai esposto come categoria consultabile a sé? v1 li registra
-    entrambi come dati puri nel record (nessuna UI ancora, vedi il gap sopra),
-    scelta di implementazione non di design: la domanda su come/se il futuro
-    Catalogo li presenti resta aperta.
+    interno, mai esposto come categoria consultabile a sé? Aggiornamento M8
+    (vedi sezione sotto): la vista Catalogo v1 li presenta ORA entrambi come
+    categorie consultabili a sé (Layout/Colpi, accanto a Oggetti/Nemici/
+    Boss/Personaggi/Mondi) — scelta di implementazione (default giocabile,
+    stesso status di ogni altro "default proposto dall'implementazione" in
+    questo elenco), non ancora approvata dal design: la domanda se questo
+    raggruppamento sia quello voluto resta aperta.
+
+## Vista Catalogo v1 (M8, 19/07/2026)
+
+Trovata durante l'implementazione della schermata Catalogo (enciclopedia
+consultabile, DEC-045 prima fetta; vedi `systems/save-and-meta-progression.md`,
+sezione "Stato di implementazione", e `ui/main-menu.md`).
+
+22. Il Catalogo merita un nodo di navigazione canonico nella mappa dei 9 stati
+    (`05-game-states-and-flow.md`), o resta corretto che viva DENTRO
+    `APP_MAIN_MENU` come vista interna (scelta di implementazione di M8, per
+    non introdurre un decimo stato senza una decisione di design esplicita)?
+    Incoerenza KB da risolvere: `ui/main-menu.md` chiama il Catalogo una
+    "schermata" (linguaggio che suggerisce un proprio stato), ma la mappa
+    canonica dei 9 stati non lo elenca affatto. Finché la domanda resta
+    aperta, l'implementazione tratta "schermata" come descrittivo
+    dell'esperienza per il giocatore, non come sinonimo di `AppMode`.

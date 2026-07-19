@@ -2,7 +2,7 @@
 id: gd-ui-main-menu
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069)."
 ---
 
@@ -65,6 +65,13 @@ Il Catalogo include inoltre una sezione **Reliquie**, che raccoglie i contenuti 
 più giocabili dopo la riconvalida a un aggiornamento del gioco: scheda consultabile, ma non
 più sbloccabile nei pool. Fonte unica della regola:
 `systems/save-and-meta-progression.md` (DEC-069, rimando, non riformulato qui).
+
+**Nota di stato implementazione (M8, 2026-07-19, tecnica, non una regola di design):** la voce
+"Catalogo" apre oggi la sola **enciclopedia v1** (prima delle tre funzioni sopra, consultazione
+soltanto — categorie, conteggio incontri/run, esito sconfitto/non sconfitto per i boss). I
+**preferiti**, la **spesa dei punti sblocco**, la sezione **Reliquie** e gli **sprite nelle
+schede** restano gap di implementazione espliciti (dettaglio in
+`systems/save-and-meta-progression.md`).
 
 ## Navigazione
 

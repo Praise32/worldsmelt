@@ -1435,7 +1435,7 @@ static int MenuItemCountForMode(AppMode mode)
 {
     switch (mode)
     {
-        case APP_MAIN_MENU: return 3;    /* Nuova run, Opzioni, Esci */
+        case APP_MAIN_MENU: return 4;    /* Nuova run, Catalogo (M8, DEC-045), Opzioni, Esci */
         case APP_RUN_SETUP: return 3;    /* Seed, Avvia, Indietro ("Modalita'" non e' selezionabile: unica modalita' esistente) */
         case APP_PAUSE_MENU: return 4;   /* Riprendi, Build e sinergie, Opzioni, Abbandona run */
         case APP_OPTIONS: return 1;      /* Indietro */
@@ -1496,20 +1496,30 @@ static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, C
 
 /* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
    schermo (mette in pausa visiva la scena sotto) + pannello raygui col
-   titolo. Ritorna il box, cosi' il chiamante posiziona il resto del proprio
-   contenuto senza ricalcolarlo. */
-static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, Color accent)
+   titolo. Estratta da BeginMenuOverlay (M8) perche' il Catalogo (vedi
+   BeginCatalogOverlay sotto) ha bisogno della STESSA cornice ma di un box di
+   dimensioni proprie -- MenuBoxForMode e' agganciato a un AppMode dei 7
+   overlay canonici, e il Catalogo vive dentro APP_MAIN_MENU (nessun nuovo
+   AppMode, spec M8), quindi non puo' fornirne uno adatto da solo. */
+static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, Color accent)
 {
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
     float uiScale = UiScaleForHeight((float)sh);
     DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
     UiApplyTheme(&game->theme, uiScale);
-    Rectangle box = MenuBoxForMode(mode);
     GuiPanel(box, title);
     /* Il "24" non scala: stesso motivo di DrawPanel (RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
        e' un #define fisso di raygui). */
     DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
+}
+
+/* Ritorna il box, cosi' il chiamante posiziona il resto del proprio
+   contenuto senza ricalcolarlo. */
+static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, Color accent)
+{
+    Rectangle box = MenuBoxForMode(mode);
+    DrawMenuOverlayChrome(box, game, title, accent);
     return box;
 }
 
@@ -1519,8 +1529,9 @@ static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
     Rectangle box = BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2);
     DrawText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 1, "Opzioni", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 2, "Esci", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 1, "Catalogo", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 3, "Esci", ui->focus, game->theme.accent2);
 }
 
 static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
@@ -1699,6 +1710,200 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
         snprintf(last, 160, "%.*s...", (int)len, original);
     }
     return lineCount;
+}
+
+/* ============================================================
+   M8 (DEC-045, vista Catalogo v1): enciclopedia consultabile, DENTRO
+   APP_MAIN_MENU (nessun nuovo AppMode, nota architetturale della spec).
+   Sostituisce DrawMainMenuOverlay quando ui->catalogOpen e' vero (vedi il
+   dispatch in RendererDrawApp piu' sotto) -- il menu resta INTATTO sotto
+   (ui->focus fermo su 1/"Catalogo"), niente lo ridisegna finche' la vista
+   non si richiude. Dopo WrapTextLines (sopra) apposta: DrawCatalogDetail lo
+   usa per il testo del dettaglio, e in questo file le funzioni si usano solo
+   dopo essere state definite (nessun blocco di forward declaration).
+   ============================================================ */
+
+/* Stessa formula "box grande" di BuildScreen (760x520*uiScale, l'unico
+   overlay canonico che non e' 600x400): il Catalogo ha bisogno dello stesso
+   spazio (tabs di categoria + lista + dettaglio) ma non e' quell'AppMode,
+   quindi non puo' passare da MenuBoxForModeFor -- una copia dei due soli
+   letterali che servono, non l'intera funzione. */
+static Rectangle CatalogBoxFor(float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    float w = 760.0f*uiScale;
+    float h = 520.0f*uiScale;
+    return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
+}
+
+static Rectangle BeginCatalogOverlay(Game *game, const char *title, Color accent)
+{
+    Rectangle box = CatalogBoxFor((float)GetScreenWidth(), (float)GetScreenHeight());
+    DrawMenuOverlayChrome(box, game, title, accent);
+    return box;
+}
+
+static const char *CatalogCategoryLabel(RunCatalogCategory cat)
+{
+    switch (cat)
+    {
+        case RUN_CATALOG_CAT_WORLD: return "Mondi";
+        case RUN_CATALOG_CAT_LAYOUT: return "Stanze";
+        case RUN_CATALOG_CAT_ITEM: return "Oggetti";
+        case RUN_CATALOG_CAT_SHOT: return "Colpi";
+        case RUN_CATALOG_CAT_ENEMY: return "Nemici";
+        case RUN_CATALOG_CAT_BOSS: return "Boss";
+        case RUN_CATALOG_CAT_CHARACTER: default: return "Personaggi";
+    }
+}
+
+/* Le sette schedine di categoria in cima al pannello: sinistra/destra le
+   scorre (UpdateApp, src/app/app.c), qui solo disegno. Focus MAI dal solo
+   colore (DEC-058): la categoria attiva ha bordo piu' spesso E il conteggio
+   fra parentesi (un secondo segnale indipendente, non decorativo). */
+static void DrawCatalogTabs(Rectangle box, const RunCatalogSummary *cat, int active, float uiScale, Color accent)
+{
+    float tabY = box.y + 46.0f*uiScale;
+    float tabW = (box.width - 40.0f*uiScale)/(float)RUN_CATALOG_CATEGORY_COUNT;
+    for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++)
+    {
+        Rectangle tab = { box.x + 20.0f*uiScale + (float)c*tabW, tabY, tabW - 4.0f*uiScale, 26.0f*uiScale };
+        bool isActive = (c == active);
+        DrawRectangleRec(tab, isActive ? GameColorWithAlpha(accent, 55) : GameColorWithAlpha(BLACK, 90));
+        DrawRectangleLinesEx(tab, isActive ? 2.5f : 1.0f, isActive ? accent : GameColorWithAlpha(accent, 130));
+        char label[24];
+        snprintf(label, sizeof(label), "%s (%d)", CatalogCategoryLabel((RunCatalogCategory)c), cat->entryCount[c]);
+        int font = UiRound(11.0f*uiScale);
+        DrawText(label, (int)tab.x + UiRound(6.0f*uiScale), (int)tab.y + UiRound(6.0f*uiScale), font, isActive ? RAYWHITE : (Color){ 190, 196, 206, 255 });
+    }
+}
+
+/* La colonna sinistra: le voci della categoria attiva, in una finestra
+   SCORREVOLE larga 'visibleMax' righe (spec M8: fino a 256 voci per
+   categoria -- non entrano mai tutte nel box, serve scorrere). 'focus' e'
+   gia' clampato dal chiamante (DrawCatalogOverlay). Il rientro (DEC-058:
+   focus mai dal solo colore) usa lo stesso schema di DrawMenuRow -- bordo
+   piu' spesso sulla voce a fuoco, non solo un colore di sfondo diverso. */
+static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCatalogCategory active, int focus,
+                             float listTop, float rowH, int visibleMax, float uiScale, Color accent)
+{
+    int count = cat->entryCount[active];
+    if (count == 0)
+    {
+        DrawText("Nessuna voce in questa categoria.", (int)box.x + UiRound(24.0f*uiScale), (int)listTop,
+                 UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        return;
+    }
+
+    int start = focus - visibleMax/2;
+    if (start > count - visibleMax) start = count - visibleMax;
+    if (start < 0) start = 0;
+
+    float listW = box.width*0.55f - 30.0f*uiScale;
+    int shown = 0;
+    for (int i = start; i < count && shown < visibleMax; i++, shown++)
+    {
+        const RunCatalogEntry *e = &cat->entries[active][i];
+        Rectangle row = { box.x + 20.0f*uiScale, listTop + (float)shown*rowH, listW, rowH - 4.0f*uiScale };
+        bool hasFocus = (i == focus);
+        DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : GameColorWithAlpha(BLACK, 70));
+        DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 110));
+        char label[96];
+        if (active == RUN_CATALOG_CAT_BOSS)
+            snprintf(label, sizeof(label), "%s -- %s", e->name, e->bossDefeated ? "sconfitto" : "incontrato");
+        else
+            snprintf(label, sizeof(label), "%s (x%d)", e->name, e->encounterCount);
+        DrawText(label, (int)row.x + UiRound(8.0f*uiScale), (int)row.y + UiRound(5.0f*uiScale),
+                 UiRound(13.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 200, 206, 216, 255 });
+    }
+
+    if (count > visibleMax)
+    {
+        char pos[24];
+        snprintf(pos, sizeof(pos), "%d/%d", focus + 1, count);
+        DrawText(pos, (int)(box.x + 20.0f*uiScale + listW - UiRound(40.0f*uiScale)), (int)(listTop - UiRound(16.0f*uiScale)),
+                 UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
+    }
+    if (cat->overflowCount[active] > 0)
+    {
+        char more[48];
+        snprintf(more, sizeof(more), "-- e altre %d", cat->overflowCount[active]);
+        DrawText(more, (int)box.x + UiRound(20.0f*uiScale), (int)(listTop + (float)visibleMax*rowH + 2.0f*uiScale),
+                 UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
+    }
+}
+
+/* La colonna destra: dettaglio della voce a fuoco (spec M8: "dettaglio breve
+   alla voce a fuoco" -- slot/rarita'/tratti per gli oggetti, forma/
+   movimento per i nemici, ruolo/trait hook/colpo firmato per i personaggi,
+   gia' composto in RunCatalogEntry.detail da RunCatalogAggregate). Word-wrap
+   con lo stesso WrapTextLines del blurb dei temi/personaggi (M5/M6a): stesso
+   trattamento testuale in tutta la UI, non una regola nuova qui. */
+static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float listTop, float uiScale, Color accent)
+{
+    float detailX = box.x + box.width*0.58f;
+    float detailW = box.width - box.width*0.58f - 20.0f*uiScale;
+    int nameFont = UiRound(15.0f*uiScale);
+    DrawText(e->name, (int)detailX, (int)listTop, nameFont, accent);
+
+    int lineY = (int)listTop + UiRound(26.0f*uiScale);
+    if (e->detail[0])
+    {
+        int detailFont = UiRound(12.0f*uiScale);
+        char lines[6][160];
+        int n = WrapTextLines(e->detail, detailFont, detailW, lines, 6);
+        for (int l = 0; l < n; l++)
+        {
+            DrawText(lines[l], (int)detailX, lineY, detailFont, (Color){ 205, 210, 220, 255 });
+            lineY += UiRound(16.0f*uiScale);
+        }
+    }
+    lineY += UiRound(6.0f*uiScale);
+    DrawText(TextFormat("Incontri: %d  --  Run: %d", e->encounterCount, e->runCount),
+             (int)detailX, lineY, UiRound(12.0f*uiScale), (Color){ 176, 184, 198, 255 });
+}
+
+static void DrawCatalogOverlay(Game *game, const AppUi *ui)
+{
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    Rectangle box = BeginCatalogOverlay(game, "CATALOGO", game->theme.accent2);
+    const RunCatalogSummary *cat = &ui->catalog;
+
+    int totalEntries = 0;
+    for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++) totalEntries += cat->entryCount[c];
+    if (totalEntries == 0)
+    {
+        /* Catalogo vuoto (spec M8): un messaggio sobrio, MAI un errore -- vale
+           per l'intera vista (nessuna categoria ha nulla da mostrare, quindi
+           niente tabs/lista/dettaglio vuoti a fare da rumore). */
+        DrawText("Il crogiolo non ricorda ancora nulla: gioca una run.",
+                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(70.0f*uiScale),
+                 UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
+        DrawText("ESC -- torna al menu.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(98.0f*uiScale),
+                 UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        return;
+    }
+
+    DrawCatalogTabs(box, cat, ui->catalogCategory, uiScale, game->theme.accent2);
+
+    RunCatalogCategory active = (RunCatalogCategory)ui->catalogCategory;
+    int count = cat->entryCount[active];
+    int focus = ui->catalogItemFocus;
+    if (focus >= count) focus = count > 0 ? count - 1 : 0;
+    if (focus < 0) focus = 0;
+
+    float listTop = box.y + 92.0f*uiScale;
+    float rowH = 26.0f*uiScale;
+    float detailH = 78.0f*uiScale;
+    int visibleMax = (int)((box.y + box.height - detailH - listTop)/rowH);
+    if (visibleMax < 1) visibleMax = 1;
+
+    DrawCatalogList(box, cat, active, focus, listTop, rowH, visibleMax, uiScale, game->theme.accent2);
+    if (count > 0) DrawCatalogDetail(box, &cat->entries[active][focus], listTop, uiScale, game->theme.accent2);
+
+    DrawText("Sinistra/destra: categoria -- Su/giu': voce -- ESC: torna al menu",
+             (int)box.x + UiRound(20.0f*uiScale), (int)(box.y + box.height - UiRound(24.0f*uiScale)),
+             UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
 }
 
 /* M5 (DEC-005), requisito 9: geometria PROPRIA del pannello di scelta del
@@ -2038,7 +2243,9 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
        genProgress, non ui). */
     switch (mode)
     {
-        case APP_MAIN_MENU: DrawMainMenuOverlay(game, ui); break;
+        /* M8 (DEC-045): la vista Catalogo sostituisce il disegno del menu
+           quando aperta -- nessun nuovo AppMode, il case resta uno solo. */
+        case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
         case APP_FLOOR_ZERO:
             DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);

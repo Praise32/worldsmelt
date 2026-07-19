@@ -18,6 +18,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 #include "content/run_catalog.h"
+#include "render/game_renderer.h"
 
 #include "raylib.h"
 
@@ -31,6 +32,15 @@
 static AppInput InputNone(void)    { AppInput in = { 0 }; return in; }
 static AppInput InputConfirm(void) { AppInput in = { 0 }; in.confirm = true; return in; }
 static AppInput InputReroll(void)  { AppInput in = { 0 }; in.reroll = true; return in; }
+/* M8 (DEC-045, vista Catalogo v1): le quattro direzioni + back, usate SOLO
+   dai due scenari di GameCatalogScreenTest sotto -- copia privata locale,
+   stessa convenzione gia' in uso in questo file (InputNone/InputConfirm/
+   InputReroll sopra) e in src/tests/game_tests.c. */
+static AppInput InputBack(void)  { AppInput in = { 0 }; in.back = true; return in; }
+static AppInput InputUp(void)    { AppInput in = { 0 }; in.up = true; return in; }
+static AppInput InputDown(void)  { AppInput in = { 0 }; in.down = true; return in; }
+static AppInput InputLeft(void)  { AppInput in = { 0 }; in.left = true; return in; }
+static AppInput InputRight(void) { AppInput in = { 0 }; in.right = true; return in; }
 
 /* ---- fixture su disco: gli stessi tre file che una run vera lascia in
    generated/ e che RunCatalogWriteRun rilegge (mai provenance.txt: la
@@ -604,4 +614,286 @@ bool GameCatalogTest(Game *game)
     RemoveManifest();
     CleanupCatalog(&before, dirExistedBefore);   /* il --catalog-test scrive E pulisce: catalog/ resta com'era (o inesistente) */
     return allOk;
+}
+
+/* ============================================================
+   M8 (DEC-045, vista Catalogo v1): test della schermata (--catalog-screen-
+   test, aggregazione + navigazione dentro APP_MAIN_MENU). Stesso stile del
+   blocco sopra: sotto-scenari con la propria etichetta, pulizia snapshot-
+   based UNA volta sola a livello della funzione esposta (GameCatalogScreenTest
+   in fondo), mai per singolo scenario -- l'invariante che ha causato la prima
+   bocciatura della scala di implementazione (vedi CLAUDE.md): catalog/ deve
+   restare esattamente com'era dopo la suite.
+   ============================================================ */
+
+#define CATALOG_SCREEN_TEST_CHECK(cond, msg) \
+    do { if (!(cond)) { fprintf(stderr, "GameCatalogScreenTest: %s\n", (msg)); return false; } } while (0)
+
+/* Ricerca lineare in sola lettura -- copia privata di test dello stesso
+   schema di FindOrCreateCatalogEntry (run_catalog.c), qui solo per le
+   asserzioni. NULL se non trovata: i chiamanti lo trattano come un
+   fallimento esplicito, mai un puntatore sporco. */
+static const RunCatalogEntry *FindCatalogEntry(const RunCatalogSummary *sum, RunCatalogCategory cat, const char *name)
+{
+    for (int i = 0; i < sum->entryCount[cat]; i++)
+        if (strcmp(sum->entries[cat][i].name, name) == 0) return &sum->entries[cat][i];
+    return NULL;
+}
+
+/* Scenario 1 (spec M8: "catalogo vuoto -> messaggio senza crash"): catalog/
+   spostata TEMPORANEAMENTE fuori dai piedi (rename, mai una cancellazione --
+   ripristinata subito dopo, qualunque record reale del checkout resta
+   intatto) cosi' l'aggregato e' DETERMINISTICAMENTE vuoto, indipendentemente
+   da quante run vere chi lancia le suite ha gia' giocato su questo stesso
+   checkout. Disegna anche un frame vero (RendererDrawApp, come GameLayerTest)
+   perche' "senza crash" deve valere per davvero, non solo per l'aggregato. */
+static bool CatalogScreenEmptyScenario(Game *game)
+{
+    bool hadDir = DirectoryExists("catalog");
+    if (hadDir && rename("catalog", "catalog.GameCatalogScreenTest.bak") != 0)
+    {
+        fprintf(stderr, "GameCatalogScreenTest: impossibile spostare catalog/ da parte, scenario 'vuoto' saltato\n");
+        return true;   /* non un fallimento del test: solo impossibile isolare l'ambiente qui */
+    }
+
+    AppGen gen = { 0 };
+    AppUi ui = { 0 };
+    AppMode mode = APP_MAIN_MENU;
+    ui.focus = 1;   /* Catalogo */
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_MAIN_MENU || !ui.catalogOpen)
+    {
+        fprintf(stderr, "GameCatalogScreenTest: (vuoto) confirm su Catalogo non apre la vista dentro APP_MAIN_MENU\n");
+        if (hadDir) rename("catalog.GameCatalogScreenTest.bak", "catalog");
+        return false;
+    }
+    int total = 0;
+    for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++) total += ui.catalog.entryCount[c];
+    bool ok = (total == 0);
+    if (!ok) fprintf(stderr, "GameCatalogScreenTest: (vuoto) l'aggregato non e' vuoto su catalog/ assente\n");
+
+    /* "senza crash" per davvero: un frame vero, non solo i dati. */
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, mode, &ui, false, NULL, NULL);
+    UnloadRenderTexture(canvas);
+
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_MAIN_MENU || ui.catalogOpen || ui.focus != 1)
+    {
+        fprintf(stderr, "GameCatalogScreenTest: (vuoto) ESC non torna a MainMenu con focus su Catalogo\n");
+        ok = false;
+    }
+
+    if (hadDir) rename("catalog.GameCatalogScreenTest.bak", "catalog");
+    return ok;
+}
+
+/* Scenario 2 (spec M8: aggregazione, boss sconfitto, navigazione con wrap,
+   file corrotto -> ignorato senza crash): due run sintetiche VERE (stessa
+   BuildSyntheticGame/DriveWin/DriveLoss di GameCatalogTest sopra) piu' un
+   file corrotto scritto a mano. Le due run condividono lo STESSO mondo/
+   oggetto/personaggio (fixture fissa di BuildSyntheticGame) apposta: e' cio'
+   che permette di verificare runCount/encounterCount aggregati su PIU' di un
+   file, non solo "un file si legge". La pulizia di catalog/ (snapshot-based)
+   e' responsabilita' della funzione esposta in fondo al file, NON di questo
+   scenario -- scrive soltanto. */
+static bool CatalogScreenPopulatedScenario(Game *game)
+{
+    WriteManifestSource("local:test-model");
+    WriteChosenTheme("Test World", "A blurb for the test world.");
+    Game gameA;
+    BuildSyntheticGame(&gameA, 2);
+    {
+        AppGen genA = { 0 };
+        AppUi uiA = { 0 };
+        uiA.catalogWritesEnabled = true;
+        uiA.seed = 5001;
+        AppMode modeA = APP_GAMEPLAY;
+        DriveWin(&gameA, &genA, &uiA, &modeA);
+    }
+
+    WriteManifestSource("local:test-model");
+    WriteChosenTheme("Test World", "A blurb for the test world.");
+    Game gameB;
+    BuildSyntheticGame(&gameB, 1);
+    {
+        AppGen genB = { 0 };
+        AppUi uiB = { 0 };
+        uiB.catalogWritesEnabled = true;
+        uiB.seed = 5002;
+        AppMode modeB = APP_GAMEPLAY;
+        DriveLoss(&gameB, &genB, &uiB, &modeB);
+    }
+
+    /* Un file corrotto (nessun catalogSchema=1 valido): RunCatalogAggregate lo
+       deve ignorare con una riga di log, mai un crash (vedi il commento su
+       RunCatalogAggregate in src/content/run_catalog.h). */
+    FILE *corrupted = fopen("catalog/GameCatalogScreenTest-corrupted.txt", "w");
+    if (corrupted)
+    {
+        fputs("questo file non e' un record di catalogo valido\nseed=42\n", corrupted);
+        fclose(corrupted);
+    }
+    else fprintf(stderr, "GameCatalogScreenTest: impossibile scrivere il file corrotto di fixture\n");
+
+    AppGen gen = { 0 };
+    AppUi ui = { 0 };
+    AppMode mode = APP_MAIN_MENU;
+    ui.focus = 1;   /* Catalogo */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogOpen, "confirm su Catalogo non apre la vista");
+    CATALOG_SCREEN_TEST_CHECK(ui.catalog.filesRead >= 2, "l'aggregato non ha letto almeno i due file scritti da questo scenario");
+
+    const RunCatalogSummary *sum = &ui.catalog;
+
+    /* Aggregazione corretta: conteggi su un tema/oggetto/personaggio comuni
+       alle due run VS uno presente in una sola. */
+    const RunCatalogEntry *themeCommon = FindCatalogEntry(sum, RUN_CATALOG_CAT_WORLD, "Test Theme 1");
+    CATALOG_SCREEN_TEST_CHECK(themeCommon && themeCommon->runCount == 2 && themeCommon->encounterCount == 2,
+                               "conteggi errati per il tema comune alle due run (Test Theme 1)");
+    const RunCatalogEntry *themeSolo = FindCatalogEntry(sum, RUN_CATALOG_CAT_WORLD, "Test Theme 2");
+    CATALOG_SCREEN_TEST_CHECK(themeSolo && themeSolo->runCount == 1, "conteggi errati per il tema della sola run A (Test Theme 2)");
+
+    /* Boss sconfitto (spec M8): Test Boss 1 e' incontrato in ENTRAMBE le run
+       ma mai sconfitto; Test Boss 2 e' sconfitto nella run A. */
+    const RunCatalogEntry *bossNeverDown = FindCatalogEntry(sum, RUN_CATALOG_CAT_BOSS, "Test Boss 1");
+    CATALOG_SCREEN_TEST_CHECK(bossNeverDown && bossNeverDown->runCount == 2 && !bossNeverDown->bossDefeated,
+                               "Test Boss 1 (mai sconfitto) risulta sconfitto o coi conteggi sbagliati");
+    const RunCatalogEntry *bossDown = FindCatalogEntry(sum, RUN_CATALOG_CAT_BOSS, "Test Boss 2");
+    CATALOG_SCREEN_TEST_CHECK(bossDown && bossDown->runCount == 1 && bossDown->bossDefeated,
+                               "Test Boss 2 (sconfitto nella run A) non risulta sconfitto");
+
+    /* Oggetto: slot/rarita'/tratti nel dettaglio (spec M8). */
+    const RunCatalogEntry *item = FindCatalogEntry(sum, RUN_CATALOG_CAT_ITEM, "Test Blade");
+    CATALOG_SCREEN_TEST_CHECK(item && item->runCount == 2 && strstr(item->detail, "rare") && strstr(item->detail, "pierce"),
+                               "l'oggetto comune alle due run ha conteggi o dettaglio sbagliati");
+
+    /* Voce personaggio con trait (spec M8: "voce personaggio con trait"). */
+    const RunCatalogEntry *character = FindCatalogEntry(sum, RUN_CATALOG_CAT_CHARACTER, "Testforge");
+    CATALOG_SCREEN_TEST_CHECK(character && character->runCount == 2 && strstr(character->detail, "on_evaluate"),
+                               "il personaggio generato non ha il trait hook nel dettaglio, o i conteggi sono sbagliati");
+
+    /* Navigazione categorie con wrap (7 categorie, spec M8). */
+    int startCategory = ui.catalogCategory;
+    for (int step = 0; step < RUN_CATALOG_CATEGORY_COUNT; step++)
+    {
+        AppInput in = InputRight();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+    }
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogCategory == startCategory, "RUN_CATALOG_CATEGORY_COUNT 'destra' non tornano alla categoria di partenza (wrap rotto)");
+    { AppInput in = InputLeft(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogCategory == (startCategory + RUN_CATALOG_CATEGORY_COUNT - 1) % RUN_CATALOG_CATEGORY_COUNT,
+                               "sinistra dalla prima categoria non fa wrap sull'ultima");
+
+    /* Navigazione voci con wrap, dentro la categoria Boss (2 voci: Test Boss
+       1/2, gia' verificate sopra -- il caso giusto per un wrap non banale). */
+    while (ui.catalogCategory != RUN_CATALOG_CAT_BOSS)
+    {
+        AppInput in = InputRight();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+    }
+    CATALOG_SCREEN_TEST_CHECK(ui.catalog.entryCount[RUN_CATALOG_CAT_BOSS] == 2, "la categoria Boss non ha le due voci attese per la navigazione");
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogItemFocus == 0, "il cambio categoria non riparte dalla prima voce");
+    { AppInput in = InputUp(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* su dalla voce 0 -> wrap sull'ultima (1) */
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogItemFocus == 1, "su' dalla prima voce non fa wrap sull'ultima");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* giu' dall'ultima -> wrap sulla prima (0) */
+    CATALOG_SCREEN_TEST_CHECK(ui.catalogItemFocus == 0, "giu' dall'ultima voce non fa wrap sulla prima");
+
+    /* ESC torna a MainMenu con focus su Catalogo (spec M8). */
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    CATALOG_SCREEN_TEST_CHECK(mode == APP_MAIN_MENU && !ui.catalogOpen && ui.focus == 1,
+                               "ESC dal Catalogo popolato non torna a MainMenu con focus su Catalogo");
+
+    return true;
+}
+
+bool GameCatalogScreenTest(Game *game)
+{
+    /* Stesso schema di GameCatalogTest sopra: snapshot PRIMA di qualunque
+       scenario, pulizia UNA volta sola alla fine -- catalog/ resta esattamente
+       com'era (o inesistente) qualunque cosa gli scenari abbiano scritto. */
+    bool dirExistedBefore = DirectoryExists("catalog");
+    CatalogSnapshot before;
+    SnapshotCatalog(&before);
+
+    struct { const char *label; bool (*fn)(Game *); } tests[] = {
+        { "1 (catalogo vuoto -> messaggio senza crash)", CatalogScreenEmptyScenario },
+        { "2 (catalogo popolato -> aggregazione/boss sconfitto/personaggio con trait/navigazione con wrap/file corrotto)", CatalogScreenPopulatedScenario },
+    };
+    bool allOk = true;
+    for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)
+    {
+        printf("-- test %s --\n", tests[i].label);
+        bool ok = tests[i].fn(game);
+        if (!ok) { fprintf(stderr, "  FALLITO: %s\n", tests[i].label); allOk = false; }
+    }
+
+    RemoveManifest();
+    CleanupCatalog(&before, dirExistedBefore);
+    return allOk;
+}
+
+/* ============================================================
+   SOLO manuale (mai in make test, stessa tradizione di
+   GameFloorZeroScreenshotTest): stessa fixture di
+   CatalogScreenPopulatedScenario sopra (due run sintetiche + un file
+   corrotto, cosi' lo screenshot mostra la vista con piu' di una voce per
+   categoria), ma disegna e scatta DAVVERO invece di solo asserire sui dati.
+   Pulizia snapshot-based come ogni altro test del catalogo: catalog/ resta
+   com'era anche dopo una corsa manuale.
+   ============================================================ */
+bool GameCatalogScreenshotTest(Game *game)
+{
+    bool dirExistedBefore = DirectoryExists("catalog");
+    CatalogSnapshot before;
+    SnapshotCatalog(&before);
+
+    WriteManifestSource("local:test-model");
+    WriteChosenTheme("Test World", "A blurb for the test world.");
+    Game gameA;
+    BuildSyntheticGame(&gameA, 2);
+    {
+        AppGen genA = { 0 };
+        AppUi uiA = { 0 };
+        uiA.catalogWritesEnabled = true;
+        uiA.seed = 6001;
+        AppMode modeA = APP_GAMEPLAY;
+        DriveWin(&gameA, &genA, &uiA, &modeA);
+    }
+
+    WriteManifestSource("local:test-model");
+    WriteChosenTheme("Test World", "A blurb for the test world.");
+    Game gameB;
+    BuildSyntheticGame(&gameB, 1);
+    {
+        AppGen genB = { 0 };
+        AppUi uiB = { 0 };
+        uiB.catalogWritesEnabled = true;
+        uiB.seed = 6002;
+        AppMode modeB = APP_GAMEPLAY;
+        DriveLoss(&gameB, &genB, &uiB, &modeB);
+    }
+
+    FILE *corrupted = fopen("catalog/GameCatalogScreenshotTest-corrupted.txt", "w");
+    if (corrupted)
+    {
+        fputs("questo file non e' un record di catalogo valido\nseed=42\n", corrupted);
+        fclose(corrupted);
+    }
+
+    AppGen gen = { 0 };
+    AppUi ui = { 0 };
+    AppMode mode = APP_MAIN_MENU;
+    ui.focus = 1;
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    bool ok = ui.catalogOpen;
+    if (!ok) fprintf(stderr, "GameCatalogScreenshotTest: confirm su Catalogo non apre la vista\n");
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, mode, &ui, true, NULL, "logs/worldsmelt-catalog-screen.png");
+    UnloadRenderTexture(canvas);
+
+    RemoveManifest();
+    CleanupCatalog(&before, dirExistedBefore);
+    return ok;
 }

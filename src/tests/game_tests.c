@@ -250,10 +250,37 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(CatalogFileCount() == catalogBeforeAbandon, "ExitConfirm/Conferma (abbandono) ha scritto un file in catalog/ (guardia test-safe non attiva)");
     STATES_CHECK(game->catalogRecordsWritten == 0, "ExitConfirm/Conferma (abbandono) ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
 
+    /* MainMenu -> Catalogo (M8, DEC-045): niente nuovo AppMode, la vista vive
+       dentro APP_MAIN_MENU (spec M8, nota architetturale). Catalogo vuoto per
+       costruzione qui (nessun file scritto in questo processo finora:
+       'catalogWritesEnabled' resta falso per tutta la durata di questo
+       test): verifica il messaggio sobrio via aggregato vuoto, la
+       navigazione categorie/voci senza crash su una vista vuota, ed ESC che
+       richiude la vista SENZA lasciare MainMenu, col focus che resta su
+       "Catalogo" (indice 1). Copre anche l'invariante di M8: la vista NON
+       cambia AppMode. */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run -> Catalogo */
+    STATES_CHECK(ui.focus == 1, "down da Nuova run non porta il focus su Catalogo (indice 1)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "confirm su Catalogo cambia AppMode (nessun nuovo stato atteso, spec M8)");
+    STATES_CHECK(ui.catalogOpen, "confirm su Catalogo non apre la vista");
+    STATES_CHECK(ui.catalogCategory == 0, "l'apertura del Catalogo non riparte dalla prima categoria");
+    STATES_CHECK(ui.catalogItemFocus == 0, "l'apertura del Catalogo non riparte dal primo elemento");
+    { AppInput in = InputLeft(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(ui.catalogCategory == RUN_CATALOG_CATEGORY_COUNT - 1, "sinistra dalla prima categoria non fa wrap sull'ultima");
+    { AppInput in = InputRight(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(ui.catalogCategory == 0, "destra dall'ultima categoria non fa wrap sulla prima");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* su una categoria vuota: mai un crash, ne' uno spostamento di focus */
+    STATES_CHECK(ui.catalogItemFocus == 0, "su/giu' su una categoria vuota ha spostato il focus voce");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "ESC dal Catalogo lascia APP_MAIN_MENU");
+    STATES_CHECK(!ui.catalogOpen, "ESC dal Catalogo non richiude la vista");
+    STATES_CHECK(ui.focus == 1, "il ritorno dal Catalogo non lascia il focus su 'Catalogo' (indice 1)");
+
     /* MainMenu -> Esci -> ExitConfirm -> (conferma) -> UpdateApp ritorna true */
-    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Nuova run -> Opzioni */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Catalogo -> Opzioni */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Esci */
-    STATES_CHECK(ui.focus == 2, "la navigazione in MainMenu non arriva su Esci (indice 2)");
+    STATES_CHECK(ui.focus == 3, "la navigazione in MainMenu non arriva su Esci (indice 3)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Esci non apre ExitConfirm");
     STATES_CHECK(!ui.exitAbandonsRun, "il contesto di ExitConfirm da MainMenu non e' 'uscita dal gioco'");

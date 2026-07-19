@@ -2,7 +2,7 @@
 id: gd-system-save-meta
 status: approved
 owner: design
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile (DEC-069)."
 ---
 
@@ -187,7 +187,7 @@ per il contesto delle gare asincrone).
 Questo sistema non definisce la regola di fallback per i contenuti generati: vedi
 `generated-content-validation.md`.
 
-## Stato di implementazione (M7, 2026-07-19)
+## Stato di implementazione (M7, 2026-07-19; M8, 2026-07-19)
 
 Nota di stato tecnica, non una regola di design: il **substrato del catalogo** è
 implementato (`src/content/run_catalog.c`) — a fine run (vittoria, sconfitta o
@@ -200,11 +200,18 @@ definizione completa, incluso il sorgente Lua dove esiste), pensato per essere
 la fonte della riconvalida (DEC-069) senza dipendere da `generated/`, che resta
 effimero.
 
-Restano **gap di implementazione espliciti**, non requisiti scartati: la
-schermata Catalogo del menu principale (enciclopedia consultabile, DEC-045), il
-museo del Piano 0, i punti sblocco e la loro spesa (DEC-027), i preferiti, e la
-riconvalida vera che sposta un contenuto tra le Reliquie (DEC-069) — oggi il
-file esiste sul disco, ma nulla lo rilegge ancora.
+M8 aggiunge la **prima fetta consultabile**: la voce "Catalogo" del menu
+principale (`ui/main-menu.md`, DEC-015) apre ora un'enciclopedia v1 che
+aggrega ON-DEMAND tutti i file di `catalog/` (mai per-frame) per categoria —
+mondi/temi, layout, oggetti, tipi di colpo, nemici, boss, personaggi generati
+— con conteggio incontri/run e, per i boss, l'esito sconfitto/non sconfitto.
+Consultazione soltanto: nessuna azione sulle voci, nessuna scrittura.
+
+Restano **gap di implementazione espliciti**, non requisiti scartati: i
+**preferiti**, i **punti sblocco e la loro spesa** (DEC-027), il **museo del
+Piano 0**, gli **sprite nelle schede** del Catalogo, e la **riconvalida vera**
+che sposta un contenuto tra le Reliquie (DEC-069) — il file su disco è
+completo, ma nessuno di questi cinque punti lo consuma ancora.
 
 Default v1 sulla domanda aperta "i contenuti fallback-usati contano?" (vedi
 "Domande aperte residue" sotto): **no** — una run interamente su contenuto di

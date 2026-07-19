@@ -121,4 +121,18 @@ bool AppBenchmarkPresetSelfTest(void);
    esclusione, scrittura vera nei tre esiti, progressivo, atomicita'). */
 bool GameCatalogTest(Game *game);
 
+/* M8 (DEC-045, vista Catalogo v1): come GameCatalogTest, gira DOPO InitWindow
+   (esercita davvero UpdateApp/RendererDrawApp con AppInput sintetici) e usa
+   la STESSA pulizia snapshot-based di catalog/ per non lasciare residui.
+   Vedi src/tests/catalog_tests.c per i due scenari (catalogo vuoto, catalogo
+   popolato con aggregazione/navigazione/file corrotto). */
+bool GameCatalogScreenTest(Game *game);
+
+/* SOLO manuale (mai in make test, stessa tradizione di
+   GameFloorZeroScreenshotTest): scrive un catalogo sintetico popolato, apre
+   la vista e scatta logs/worldsmelt-catalog-screen.png, poi ripulisce i
+   propri file (stessa pulizia snapshot-based degli altri test del
+   catalogo). Vedi src/tests/catalog_tests.c. */
+bool GameCatalogScreenshotTest(Game *game);
+
 #endif

@@ -61,4 +61,31 @@ int RunCatalogWriteRun(const Game *game, unsigned int seed, const char *outcome)
  * rileggere questi stessi campi. 'out' troncato in sicurezza su 'outSize'. */
 void RunCatalogUnescapeText(const char *escaped, char *out, int outSize);
 
+/* M8 (DEC-045, vista Catalogo v1 -- enciclopedia consultabile dal MainMenu):
+ * scandisce TUTTI i file .txt di catalog/ e li aggrega per (categoria, nome) in
+ * 'out' -- letta ON-DEMAND, MAI per-frame (src/app/app.c la chiama una sola
+ * volta, alla conferma della voce "Catalogo": vedi il commento su
+ * AppUi.catalog in core/game_types.h). Azzera 'out' con un memset PRIMA di
+ * scandire (mai un aggregato a meta' se la funzione viene richiamata su un
+ * buffer gia' popolato): ogni apertura della vista riparte da zero, coerente
+ * con "i dati sono su disco, non cambiano mentre la vista resta aperta".
+ * Nessun cJSON (AGENTS.md): stesso schema chiave=valore/ReadManifestValue
+ * gia' in uso nel resto del modulo.
+ *
+ * Robustezza (spec M8, "buffer fissi... mai crash"): un file a cui manca
+ * "catalogSchema=1" (assente, o un valore diverso da 1 -- corrotto,
+ * troncato prima di quella riga, o un formato futuro che non riconosciamo)
+ * viene SALTATO per intero con una riga di log su stderr (out->filesSkipped
+ * incrementato), mai un crash; un file che supera quel controllo ma ha campi
+ * mancanti a valle (troncamento a meta' record) si limita a non scrivere
+ * quei campi (ReadManifestValue ritorna stringa vuota su una chiave assente,
+ * gia' innocuo per costruzione), niente di piu' drastico. 'catalog/'
+ * assente (nessuna run ha ancora scritto nulla) lascia 'out' a zero, mai un
+ * errore -- il chiamante mostra il messaggio sobrio del catalogo vuoto. Ogni
+ * categoria e' limitata a RUN_CATALOG_ENTRY_MAX voci DISTINTE (core/
+ * game_types.h): oltre quel tetto le occorrenze aggiuntive contano solo in
+ * out->overflowCount[cat] ("e altre N"), mai un'allocazione o una scrittura
+ * fuori banda. */
+void RunCatalogAggregate(RunCatalogSummary *out);
+
 #endif

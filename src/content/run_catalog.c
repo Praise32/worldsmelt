@@ -28,6 +28,29 @@ static void ReadManifestValue(const char *text, const char *key, char *out, int 
     out[i] = '\0';
 }
 
+/* M8 (DEC-045, RunCatalogAggregate sotto): come ReadManifestValue, ma la
+   chiave e' ANCORATA all'inizio di una riga (un '\n' subito prima) invece di
+   un semplice strstr ovunque nel testo. Necessario perche' alcune chiavi di
+   questo formato sono la suffissatura ESATTA di un'altra -- "character.name="
+   e "character.active=" sono entrambe un suffisso letterale di
+   "shot.character.name="/"shot.character.active=" (vedi il blocco
+   shot.character.* scritto da RunCatalogWriteRun sopra) -- un semplice
+   strstr(text, "character.name=") troverebbe la PRIMA occorrenza ovunque
+   compaia, cioe' dentro "shot.character.name=", non la riga "character.name="
+   vera piu' avanti nel file. Ogni riga scritta da RunCatalogWriteRun e'
+   sempre preceduta da un '\n' (compresa la seconda riga del file, "seed=":
+   la primissima riga "catalogSchema=1" e' l'UNICA eccezione, letta a parte
+   con ReadManifestValue prima che serva quest'ancora), quindi "\n"+chiave e'
+   sempre corretto per tutto cio' che RunCatalogAggregate legge dopo lo
+   schema. 'key' resta entro 63 char (il piu' lungo qui e'
+   "character.signatureShot.pierceBonus=", ampio margine). */
+static void ReadCatalogLineValue(const char *text, const char *key, char *out, int outSize)
+{
+    char anchored[80];
+    snprintf(anchored, sizeof(anchored), "\n%s", key);
+    ReadManifestValue(text, anchored, out, outSize);
+}
+
 /* Direzione OPPOSTA di SlotFromText/ItemKindFromText/RarityFromText
    (src/content/run_content.c): quel modulo legge un manifest, questo ne
    scrive uno nuovo. Stessi identici testi -- se cambiano LI', vanno
@@ -432,4 +455,265 @@ int RunCatalogWriteRun(const Game *game, unsigned int seed, const char *outcome)
         return 0;
     }
     return records;
+}
+
+/* ============================================================
+   M8 (DEC-045, vista Catalogo v1): l'aggregazione. Vedi il commento su
+   RunCatalogAggregate in run_catalog.h per il contratto completo -- da qui
+   in giu' solo l'implementazione.
+   ============================================================ */
+
+/* Trova la voce '(cat, name)' gia' presente in 'agg' (confronto esatto sul
+   nome: due generazioni diverse con lo STESSO nome sono per costruzione la
+   stessa voce di catalogo, spec M8 "aggrega per (categoria, nome)") o ne
+   crea una nuova in coda. Ritorna l'indice, o -1 se la categoria ha gia'
+   raggiunto RUN_CATALOG_ENTRY_MAX voci DISTINTE -- il chiamante incrementa
+   overflowCount in quel caso (RecordOccurrence sotto), mai una scrittura
+   fuori dall'array. */
+static int FindOrCreateCatalogEntry(RunCatalogSummary *agg, RunCatalogCategory cat, const char *name)
+{
+    int count = agg->entryCount[cat];
+    for (int i = 0; i < count; i++)
+        if (strcmp(agg->entries[cat][i].name, name) == 0) return i;
+    if (count >= RUN_CATALOG_ENTRY_MAX)
+    {
+        agg->overflowCount[cat]++;
+        return -1;
+    }
+    RunCatalogEntry *e = &agg->entries[cat][count];
+    memset(e, 0, sizeof(*e));
+    snprintf(e->name, sizeof(e->name), "%s", name);
+    agg->entryCount[cat] = count + 1;
+    return count;
+}
+
+/* Registra UN'occorrenza di '(cat, name)' nel file corrente (identificato da
+   'seed' e dal flag 'seenThisFile', locale a RunCatalogAggregateOneFile: una
+   sola voce per file puo' incrementare runCount, quante volte vuole
+   encounterCount -- vedi il commento su RunCatalogEntry in core/
+   game_types.h). 'detail' e' scritto SOLO la prima volta che la voce viene
+   creata/vista (mai sovrascritto dopo): la prima descrizione e' gia' buona
+   quanto le successive per lo stesso nome (stesso oggetto/nemico/tema
+   generato, i campi non cambiano fra un'occorrenza e l'altra). Ritorna
+   l'indice della voce (per i chiamanti che devono aggiornare campi extra,
+   es. RUN_CATALOG_CAT_BOSS/bossDefeated sotto), o -1 se name e' vuoto o la
+   categoria e' in overflow -- in entrambi i casi non c'e' nulla in piu' da
+   fare. */
+static int RecordCatalogOccurrence(RunCatalogSummary *agg, bool seenThisFile[RUN_CATALOG_CATEGORY_COUNT][RUN_CATALOG_ENTRY_MAX],
+                                    RunCatalogCategory cat, const char *name, const char *detail, unsigned int seed)
+{
+    if (!name || !name[0]) return -1;
+    int idx = FindOrCreateCatalogEntry(agg, cat, name);
+    if (idx < 0) return -1;
+    RunCatalogEntry *e = &agg->entries[cat][idx];
+    e->encounterCount++;
+    if (detail && detail[0] && !e->detail[0]) snprintf(e->detail, sizeof(e->detail), "%s", detail);
+    if (e->runCount == 0) e->firstSeed = seed;
+    e->lastSeed = seed;
+    if (!seenThisFile[cat][idx]) { seenThisFile[cat][idx] = true; e->runCount++; }
+    return idx;
+}
+
+/* Un singolo file .txt di catalog/: legge ogni categoria con la STESSA tecnica
+   "chiave formattata + ReadManifestValue" di RunCatalogWriteRun sopra (le
+   chiavi che scrive quella funzione sono ESATTAMENTE quelle che questa
+   rilegge -- stesso schema, direzione opposta, come SlotName/KindName/
+   RarityName in cima al file). 'seenThisFile' e' locale a QUESTA chiamata
+   (una voce puo' contare come "una run" al massimo una volta per file): un
+   array sullo stack di RUN_CATALOG_CATEGORY_COUNT*RUN_CATALOG_ENTRY_MAX bool
+   (~1.8 KB), innocuo da riazzerare ad ogni file. */
+static void RunCatalogAggregateOneFile(RunCatalogSummary *out, const char *path)
+{
+    char *text = LoadFileText(path);
+    if (!text)
+    {
+        fprintf(stderr, "RunCatalogAggregate: impossibile leggere %s, file saltato\n", path);
+        out->filesSkipped++;
+        return;
+    }
+
+    /* Guardia principale di robustezza (spec M8, requisito 1: "schema
+       diversi: ignora il file con una riga di log, mai crash"). Un file
+       corrotto/estraneo che non porta questa riga (o la porta con un valore
+       diverso da "1") si ferma qui, PRIMA di leggere qualunque altro campo:
+       non sappiamo interpretarne il resto in sicurezza. */
+    char schema[8] = { 0 };
+    ReadManifestValue(text, "catalogSchema=", schema, sizeof(schema));
+    if (strcmp(schema, "1") != 0)
+    {
+        fprintf(stderr, "RunCatalogAggregate: %s ha catalogSchema='%s' (atteso 1), file ignorato\n", path, schema);
+        out->filesSkipped++;
+        UnloadFileText(text);
+        return;
+    }
+
+    bool seenThisFile[RUN_CATALOG_CATEGORY_COUNT][RUN_CATALOG_ENTRY_MAX] = { { false } };
+
+    char seedText[32] = { 0 };
+    ReadCatalogLineValue(text, "seed=", seedText, sizeof(seedText));
+    unsigned int seed = (unsigned int)strtoul(seedText, NULL, 10);
+
+    char value[256];
+    char key[64];
+
+    /* Mondo scelto della run (spec M8: categoria "mondi/temi" copre SIA il
+       tema scelto SIA i temi per-piano sotto -- lo stesso raggruppamento
+       concettuale della KB). */
+    ReadCatalogLineValue(text, "world.name=", value, sizeof(value));
+    RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_WORLD, value, "Il mondo scelto della run", seed);
+
+    char floorCountText[16] = { 0 };
+    ReadCatalogLineValue(text, "floor.count=", floorCountText, sizeof(floorCountText));
+    int floorCount = atoi(floorCountText);
+    if (floorCount < 0) floorCount = 0;
+    if (floorCount > FLOOR_COUNT) floorCount = FLOOR_COUNT;   /* difensivo: un file forgiato non deve far leggere piani inesistenti */
+
+    for (int f = 1; f <= floorCount; f++)
+    {
+        snprintf(key, sizeof(key), "floor%d.theme.name=", f);
+        ReadCatalogLineValue(text, key, value, sizeof(value));
+        RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_WORLD, value, "Il tema di un piano raggiunto", seed);
+
+        char roomName[64] = { 0 };
+        snprintf(key, sizeof(key), "floor%d.room.name=", f);
+        ReadCatalogLineValue(text, key, roomName, sizeof(roomName));
+        if (roomName[0])
+        {
+            char roomForm[32] = { 0 };
+            snprintf(key, sizeof(key), "floor%d.room.form=", f);
+            ReadCatalogLineValue(text, key, roomForm, sizeof(roomForm));
+            char detail[128];
+            snprintf(detail, sizeof(detail), "Forma: %s", roomForm[0] ? roomForm : "?");
+            RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_LAYOUT, roomName, detail, seed);
+        }
+
+        for (int slot = 1; slot <= 2; slot++)
+        {
+            char ename[64] = { 0 };
+            snprintf(key, sizeof(key), "floor%d.enemy%d.name=", f, slot);
+            ReadCatalogLineValue(text, key, ename, sizeof(ename));
+            if (!ename[0]) continue;   /* slot non incontrato in questa run: RunCatalogWriteRun non l'ha scritto */
+            char form[32] = { 0 }, move[32] = { 0 };
+            snprintf(key, sizeof(key), "floor%d.enemy%d.form=", f, slot); ReadCatalogLineValue(text, key, form, sizeof(form));
+            snprintf(key, sizeof(key), "floor%d.enemy%d.move=", f, slot); ReadCatalogLineValue(text, key, move, sizeof(move));
+            char detail[128];
+            snprintf(detail, sizeof(detail), "Forma: %s -- Movimento: %s", form[0] ? form : "?", move[0] ? move : "?");
+            RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_ENEMY, ename, detail, seed);
+        }
+
+        char bossName[64] = { 0 };
+        snprintf(key, sizeof(key), "floor%d.boss.name=", f);
+        ReadCatalogLineValue(text, key, bossName, sizeof(bossName));
+        if (bossName[0])
+        {
+            char form[32] = { 0 }, move[32] = { 0 }, outcome[32] = { 0 };
+            snprintf(key, sizeof(key), "floor%d.boss.form=", f); ReadCatalogLineValue(text, key, form, sizeof(form));
+            snprintf(key, sizeof(key), "floor%d.boss.move=", f); ReadCatalogLineValue(text, key, move, sizeof(move));
+            snprintf(key, sizeof(key), "floor%d.boss.outcome=", f); ReadCatalogLineValue(text, key, outcome, sizeof(outcome));
+            char detail[128];
+            snprintf(detail, sizeof(detail), "Forma: %s -- Movimento: %s", form[0] ? form : "?", move[0] ? move : "?");
+            int idx = RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_BOSS, bossName, detail, seed);
+            /* 'outcome' e' testo, non un enum (stesso principio di
+               RUN_CATALOG_OUTCOME_* in cima a run_catalog.h): confronto per
+               stringa contro l'ESATTO valore che RunCatalogWriteRun scrive
+               sopra ("sconfitto"/"incontrato"), mai il contrario. */
+            if (idx >= 0 && strcmp(outcome, "sconfitto") == 0) out->entries[RUN_CATALOG_CAT_BOSS][idx].bossDefeated = true;
+        }
+    }
+
+    /* Oggetti presi (e il tipo di colpo che ciascuno conferisce, se lo
+       conferisce: spec M8, categoria "tipi di colpo" separata da "oggetti"
+       anche se il dato viaggia nello stesso record, esattamente come
+       RunCatalogWriteRun lo scrive nello stesso item%d.*). */
+    char itemCountText[16] = { 0 };
+    ReadCatalogLineValue(text, "item.count=", itemCountText, sizeof(itemCountText));
+    int itemCount = atoi(itemCountText);
+    if (itemCount < 0) itemCount = 0;
+    if (itemCount > MAX_ITEMS) itemCount = MAX_ITEMS;
+
+    for (int i = 1; i <= itemCount; i++)
+    {
+        char iname[64] = { 0 };
+        snprintf(key, sizeof(key), "item%d.name=", i);
+        ReadCatalogLineValue(text, key, iname, sizeof(iname));
+        if (!iname[0]) continue;
+
+        char slot[32] = { 0 }, rarity[32] = { 0 }, traits[160] = { 0 };
+        snprintf(key, sizeof(key), "item%d.slot=", i); ReadCatalogLineValue(text, key, slot, sizeof(slot));
+        snprintf(key, sizeof(key), "item%d.rarity=", i); ReadCatalogLineValue(text, key, rarity, sizeof(rarity));
+        snprintf(key, sizeof(key), "item%d.traits=", i); ReadCatalogLineValue(text, key, traits, sizeof(traits));
+        char detail[128];
+        snprintf(detail, sizeof(detail), "Slot: %s -- Rarita': %s -- Tratti: %s",
+                 slot[0] ? slot : "?", rarity[0] ? rarity : "?", traits[0] ? traits : "nessuno");
+        RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_ITEM, iname, detail, seed);
+
+        /* 'item%d.shotType.name=' NON collide con 'shot.floor.name='/
+           'shot.character.name=' (prefissi diversi: "item1." vs "shot."),
+           l'ancora a inizio riga serve comunque per coerenza e per non
+           dipendere da un'assenza di collisione che un futuro campo
+           potrebbe introdurre. */
+        char shotName[64] = { 0 };
+        snprintf(key, sizeof(key), "item%d.shotType.name=", i);
+        ReadCatalogLineValue(text, key, shotName, sizeof(shotName));
+        if (shotName[0])
+        {
+            char form[32] = { 0 };
+            snprintf(key, sizeof(key), "item%d.shotType.form=", i); ReadCatalogLineValue(text, key, form, sizeof(form));
+            char sdetail[96];
+            snprintf(sdetail, sizeof(sdetail), "Forma: %s -- dall'oggetto %s", form[0] ? form : "?", iname);
+            RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_SHOT, shotName, sdetail, seed);
+        }
+    }
+
+    /* Personaggio generato, SOLO se scelto per questa run (stessa guardia di
+       RunCatalogWriteRun: "character.active=1" c'e' solo quando lo era).
+       ATTENZIONE (bug corretto in fase di test): "character.active="/
+       "character.name=" sono un suffisso LETTERALE di "shot.character.active="/
+       "shot.character.name=" (le due righe del colpo firmato attivo, scritte
+       PRIMA di questo blocco -- vedi RunCatalogWriteRun sopra) -- da qui
+       ReadCatalogLineValue (ancorata a inizio riga) invece del semplice
+       ReadManifestValue per OGNI chiave di questo blocco, non solo le due
+       che collidono davvero: la stessa protezione vale gratis per tutte. */
+    char charActive[8] = { 0 };
+    ReadCatalogLineValue(text, "character.active=", charActive, sizeof(charActive));
+    if (strcmp(charActive, "1") == 0)
+    {
+        char cname[32] = { 0 }, role[24] = { 0 }, hook[16] = { 0 };
+        ReadCatalogLineValue(text, "character.name=", cname, sizeof(cname));
+        ReadCatalogLineValue(text, "character.role=", role, sizeof(role));
+        ReadCatalogLineValue(text, "character.traitHook=", hook, sizeof(hook));
+        if (cname[0])
+        {
+            char detail[128];
+            snprintf(detail, sizeof(detail), "Ruolo: %s%s%s", role[0] ? role : "?",
+                     hook[0] ? " -- trait: " : "", hook[0] ? hook : "");
+            RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_CHARACTER, cname, detail, seed);
+        }
+
+        char sigName[64] = { 0 };
+        ReadCatalogLineValue(text, "character.signatureShot.name=", sigName, sizeof(sigName));
+        if (sigName[0])
+        {
+            char form[32] = { 0 };
+            ReadCatalogLineValue(text, "character.signatureShot.form=", form, sizeof(form));
+            char sdetail[96];
+            snprintf(sdetail, sizeof(sdetail), "Forma: %s -- colpo firmato di %s", form[0] ? form : "?", cname[0] ? cname : "?");
+            RecordCatalogOccurrence(out, seenThisFile, RUN_CATALOG_CAT_SHOT, sigName, sdetail, seed);
+        }
+    }
+
+    UnloadFileText(text);
+    out->filesRead++;
+}
+
+void RunCatalogAggregate(RunCatalogSummary *out)
+{
+    if (!out) return;
+    memset(out, 0, sizeof(*out));
+    if (!DirectoryExists("catalog")) return;   /* nessuna run ha ancora scritto nulla: aggregato vuoto, mai un errore */
+
+    FilePathList files = LoadDirectoryFilesEx("catalog", ".txt", false);
+    for (unsigned int i = 0; i < files.count; i++)
+        RunCatalogAggregateOneFile(out, files.paths[i]);
+    UnloadDirectoryFiles(files);
 }
