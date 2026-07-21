@@ -97,7 +97,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark docs-check docs-index docs-audit clean
 
 all: game gen sprites
 
@@ -185,6 +185,17 @@ sprite-baseline: sprites
 # manuale, via questo target); l'auto-run arrivera' con la UI dedicata.
 benchmark: gen sprites
 	bash scripts/benchmark.sh
+
+# Knowledge base (docs/): indice derivato, verifica vincolante e report.
+# Vedi docs/_meta/DOCUMENT-STANDARDS.md.
+docs-index:
+	python3 scripts/docs/build_knowledge_index.py --index
+
+docs-check:
+	python3 scripts/docs/build_knowledge_index.py --check
+
+docs-audit:
+	python3 scripts/docs/build_knowledge_index.py --audit
 
 clean:
 	rm -rf bin

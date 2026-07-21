@@ -1,0 +1,55 @@
+{
+  "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
+  "count": 2,
+  "documents": [
+    {
+      "id": "meta-document-standards",
+      "path": "docs/_meta/DOCUMENT-STANDARDS.md",
+      "title": "Standard documentale di Worldsmelt",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "meta",
+      "summary": "Regole vincolanti per tutta la documentazione sotto docs/: albero dei domini, front matter obbligatorio, stati, autorita', gerarchia delle fonti, formati DOC-CONFLICT/DOC-CODE-DRIFT e strumenti make docs-check/docs-index/docs-audit.",
+      "topics": [
+        "standard",
+        "front-matter",
+        "governance",
+        "indice"
+      ],
+      "related": [
+        "meta-topic-router"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/docs/build_knowledge_index.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "75c8ab2"
+    },
+    {
+      "id": "meta-topic-router",
+      "path": "docs/_meta/TOPIC-ROUTER.md",
+      "title": "Topic router — da task a dominio documentale",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "meta",
+      "summary": "Mappa ogni tipo di task alla parte giusta della knowledge base: quale dominio consultare, con quale strumento, e chi implementa/giudica secondo la scala agenti.",
+      "topics": [
+        "router",
+        "navigazione",
+        "agenti"
+      ],
+      "related": [
+        "meta-document-standards"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/docs/build_knowledge_index.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "75c8ab2"
+    }
+  ]
+}
