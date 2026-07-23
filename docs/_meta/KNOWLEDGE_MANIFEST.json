@@ -1,7 +1,29 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 68,
+  "count": 141,
   "documents": [
+    {
+      "id": "docs-readme",
+      "path": "docs/README.md",
+      "title": "Documentazione di Worldsmelt — mappa dei domini",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "meta",
+      "summary": "Pagina d'ingresso di docs/: la knowledge base unica del progetto, organizzata per domini (design, engineering, ai-production, plans, references, archive, _meta) con indici generati e verifica automatica.",
+      "topics": [
+        "documentazione",
+        "indice",
+        "domini"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/docs/build_knowledge_index.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
     {
       "id": "meta-doc-code-drift",
       "path": "docs/_meta/DOC-CODE-DRIFT.md",
@@ -120,6 +142,883 @@
       ],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": "75c8ab2"
+    },
+    {
+      "id": "aiprod-decisioni-canoniche",
+      "path": "docs/ai-production/00-DECISIONI-CANONICHE.md",
+      "title": "Decisioni canoniche",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Sintesi delle decisioni tecniche proposte su modelli, LoRA, training, dataset, generazione in-game, animazione, agenti e licenze; stato 'proposta consolidata'.",
+      "topics": [
+        "decisioni",
+        "stable-diffusion",
+        "lora",
+        "kaggle",
+        "dataset",
+        "licenze",
+        "animazione"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-audit-del-progetto",
+      "path": "docs/ai-production/01-AUDIT-DEL-PROGETTO.md",
+      "title": "Audit del progetto Worldsmelt",
+      "domain": "ai-production",
+      "status": "superseded",
+      "authority": "historical",
+      "owner": "ai-production",
+      "summary": "Fotografia dello stato reale della pipeline AI (melting-gen/melting-sprites), limiti correnti (una sola LoRA, atlas fisso, player non generato) e gap principali.",
+      "topics": [
+        "audit",
+        "melting-sprites",
+        "melting-gen",
+        "atlas",
+        "gap-analysis",
+        "benchmark"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "tools/melting-gen",
+        "tools/melting-sprites"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-stack-modelli",
+      "path": "docs/ai-production/02-STACK-MODELLI.md",
+      "title": "Stack dei modelli",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Motiva la scelta di SD1.5 come base immagini, il ruolo di LCM-LoRA e TAESD, i compiti/limiti di Qwen2.5-Coder e i criteri per valutare modelli alternativi.",
+      "topics": [
+        "stable-diffusion",
+        "lcm-lora",
+        "taesd",
+        "qwen",
+        "model-selection"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-piano-lora",
+      "path": "docs/ai-production/03-PIANO-LORA.md",
+      "title": "Piano LoRA",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo.",
+      "topics": [
+        "lora",
+        "training",
+        "caption",
+        "stable-diffusion",
+        "dataset-split"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-dataset-licenze",
+      "path": "docs/ai-production/04-DATASET-LICENZE.md",
+      "title": "Dataset e licenze",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Strategia prudente su provenienza del dataset Kaggle 89k immagini, separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.",
+      "topics": [
+        "dataset",
+        "licenze",
+        "kaggle",
+        "provenienza",
+        "openrail-m"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-kaggle-training-runbook",
+      "path": "docs/ai-production/05-KAGGLE-TRAINING-RUNBOOK.md",
+      "title": "Kaggle Training Runbook — SD1.5 LoRA",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Runbook operativo per il training LoRA su Kaggle Notebook: struttura ml/, preflight, smoke test, config v0, output obbligatori e comando di riferimento.",
+      "topics": [
+        "kaggle",
+        "training",
+        "runbook",
+        "lora",
+        "smoke-test"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-agenti-kaggle-mcp",
+      "path": "docs/ai-production/06-AGENTI-KAGGLE-MCP.md",
+      "title": "Codex/Claude + Kaggle MCP",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Architettura e configurazione per collegare Codex CLI/Claude Code a Kaggle via MCP o CLI fallback, policy di autorizzazione GPU e flusso settimanale.",
+      "topics": [
+        "kaggle-mcp",
+        "agenti",
+        "codex",
+        "claude-code",
+        "policy-gpu"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "AGENTS.md"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-architettura-runtime",
+      "path": "docs/ai-production/07-ARCHITETTURA-RUNTIME.md",
+      "title": "Architettura runtime della generazione",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Definisce i 4 tier di generazione (solo curato -> grafica completa), scheduling Qwen/SD, chiave di cache, pubblicazione atomica e failure policy.",
+      "topics": [
+        "tier",
+        "scheduling",
+        "cache",
+        "pubblicazione-atomica",
+        "failure-policy",
+        "vram"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-pipeline-sprite-animazioni",
+      "path": "docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md",
+      "title": "Pipeline sprite e animazioni",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib.",
+      "topics": [
+        "sprite-bundle",
+        "animazione",
+        "raylib",
+        "pixel-art-fixer",
+        "validazione",
+        "controlnet"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "src/render",
+        "src/assets"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-nemici-body-plan-rig",
+      "path": "docs/ai-production/09-NEMICI-BODY-PLAN-RIG.md",
+      "title": "Nemici: body plan e rig",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Catalogo di 11 body plan e 10 ruoli meccanici per i nemici, formato EnemySpec, regole di validazione e vincoli di roster per run.",
+      "topics": [
+        "body-plan",
+        "rig",
+        "enemy-spec",
+        "roster",
+        "nemici"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-piano-integrazione-c",
+      "path": "docs/ai-production/10-PIANO-INTEGRAZIONE-C.md",
+      "title": "Piano di integrazione nel codice C",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Piano in 8 fasi (A-H) per portare multi-LoRA, SpriteBundle, registry dei rig, animator ed EnemySpec esteso nel motore C, con migrazione graduale dell'atlas.",
+      "topics": [
+        "piano-implementazione",
+        "multi-lora",
+        "sprite-bundle",
+        "rig-registry",
+        "atlas-migration"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "tools/melting-sprites/melting_sprites.h",
+        "tools/melting-sprites/sprite_sd.c",
+        "tools/melting-sprites/main.c",
+        "AGENTS.md",
+        "src/gen"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-protocollo-esperimenti",
+      "path": "docs/ai-production/11-PROTOCOLLO-ESPERIMENTI.md",
+      "title": "Protocollo degli esperimenti",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Metodologia per esperimenti LoRA: una domanda per run, massimo due variabili, baseline obbligatoria, metriche automatiche, review umana e regola di promozione.",
+      "topics": [
+        "esperimenti",
+        "metodologia",
+        "metriche",
+        "promozione",
+        "id-esperimento"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-roadmap",
+      "path": "docs/ai-production/12-ROADMAP.md",
+      "title": "Roadmap operativa",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Roadmap in 9 milestone (repository ML -> Style LoRA -> multi-LoRA -> SpriteBundle -> body plan -> Enemy LoRA -> Piano 0 -> umanoide -> produttizzazione) con gate e ordine da non invertire.",
+      "topics": [
+        "roadmap",
+        "milestone",
+        "piano-0",
+        "lora",
+        "produttizzazione"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "tools/melting-sprites"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-prompt-agenti",
+      "path": "docs/ai-production/13-PROMPT-AGENTI.md",
+      "title": "Prompt per agenti",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Cinque prompt di esempio per sessioni agente: preparazione esperimento, analisi output Kaggle, multi-LoRA, primo SpriteBundle blob, review licenze.",
+      "topics": [
+        "prompt",
+        "agenti",
+        "kaggle",
+        "multi-lora",
+        "licenze",
+        "sprite-bundle"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "game-design-knowledge-base/",
+        "tools/melting-sprites"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-fonti",
+      "path": "docs/ai-production/14-FONTI.md",
+      "title": "Fonti verificate",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Elenco di link esterni verificati il 20/07/2026 (SD1.5, Qwen, Kaggle, agenti, pixel art, audio) piu' riferimenti a documenti interni del repo.",
+      "topics": [
+        "fonti",
+        "licenze",
+        "stable-diffusion",
+        "qwen",
+        "kaggle",
+        "penpot",
+        "stable-audio"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "docs/archive/superseded/architecture-2026-07-13.md",
+        "docs/archive/superseded/benchmarks-2026-07-13.md",
+        "docs/archive/legacy-notes/roguelike-ai-appunti/03-personaggio-grafica-60fps.md",
+        "docs/archive/legacy-notes/roguelike-ai-appunti/05-dataset-e-licenze.md",
+        "docs/archive/legacy-notes/roguelike-ai-appunti/06-training-hardware-costi.md",
+        "docs/archive/legacy-notes/roguelike-ai-appunti/08-roadmap-vertical-slice.md"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-ui-design-pipeline",
+      "path": "docs/ai-production/15-UI-DESIGN-PIPELINE.md",
+      "title": "Pipeline UI e GUI",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Proposta di pipeline UI: Penpot come sorgente design, token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni.",
+      "topics": [
+        "ui",
+        "penpot",
+        "9-slice",
+        "token",
+        "raygui",
+        "raylib",
+        "accessibilita"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-audio-generation-pipeline",
+      "path": "docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md",
+      "title": "Pipeline audio",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, in esplicito conflitto con DEC-036 che considera l'audio generativo futuro.",
+      "topics": [
+        "audio",
+        "rfxgen",
+        "stable-audio",
+        "dec-036",
+        "licenza",
+        "fallback"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-asset-curation-and-floor-zero",
+      "path": "docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md",
+      "title": "Curation degli asset e Piano 0",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato.",
+      "topics": [
+        "curation",
+        "floor-zero",
+        "manifest",
+        "licenze",
+        "asset-review"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-agent-orchestration",
+      "path": "docs/ai-production/18-AGENT-ORCHESTRATION.md",
+      "title": "Orchestrazione degli agenti",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Path Orchestrator che classifica i task in 7 percorsi (design/technical/ML/UI/audio/curation/implementation) e regola quando porre domande bloccanti.",
+      "topics": [
+        "orchestrazione",
+        "path-orchestrator",
+        "agenti",
+        "claude-code",
+        "codex",
+        "decision-facilitator"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        ".claude/agents/"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-decision-questionnaire",
+      "path": "docs/ai-production/19-DECISION-QUESTIONNAIRE.md",
+      "title": "Questionario decisionale",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Coda di 24 domande (audio, UI, immagini, animazioni, Piano 0, agenti, distribuzione, budget) con priorita' BLOCKING/SOON/LATER da risolvere prima di implementare.",
+      "topics": [
+        "domande",
+        "decision-log",
+        "blocking",
+        "audio",
+        "ui",
+        "distribuzione",
+        "budget"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-session-protocol",
+      "path": "docs/ai-production/20-SESSION-PROTOCOL.md",
+      "title": "Protocollo delle sessioni",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Definisce 6 tipi di sessione (decision, planning, implementation, ML experiment, curation, release audit), gate di ingresso e formato di handoff.",
+      "topics": [
+        "sessioni",
+        "gate",
+        "handoff",
+        "processo",
+        "esperimenti"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-readme",
+      "path": "docs/ai-production/README.md",
+      "title": "AI production — modelli, LoRA, dataset e asset generati",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "ai-production",
+      "summary": "Punto d'ingresso del dominio ai-production: come si selezionano, allenano e integrano modelli, LoRA, dataset e asset generati. Erede dei contenuti canonici della worldsmelt-ai-production-blueprint-v2.",
+      "topics": [
+        "ai-production",
+        "modelli",
+        "lora",
+        "dataset",
+        "training"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/download-models.sh",
+        "scripts/dataset_ledger.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-dataset-readme",
+      "path": "docs/ai-production/dataset/README.md",
+      "title": "Dataset — regole d'oro e registro di provenienza",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "ai-production",
+      "summary": "Regole del dataset per le LoRA (solo CC0 verificate, asset propri o commissioni con cessione chiara), fonti candidate e registro di provenienza ledger.jsonl gestito da scripts/dataset_ledger.py.",
+      "topics": [
+        "dataset",
+        "licenze",
+        "provenienza",
+        "ledger",
+        "cc0"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/dataset_ledger.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-training-runbook",
+      "path": "docs/ai-production/dataset/TRAINING-RUNBOOK.md",
+      "title": "Runbook: prima campagna Style LoRA su RunPod",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Runbook passo-passo per addestrare la prima Style LoRA su RunPod: prerequisiti, scelta pod, dataset, comandi kohya_ss, sweep iperparametri, valutazione cieca.",
+      "topics": [
+        "LoRA",
+        "RunPod",
+        "kohya_ss",
+        "training",
+        "SD1.5",
+        "sweep"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "bin/melting-sprites",
+        "tools/melting-sprites/main.c",
+        "logs/sprite-baseline/20260717-053243/"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-sprites-spike",
+      "path": "docs/ai-production/experiments/sprites-spike.md",
+      "title": "Spike: sprite generati in locale con Stable Diffusion",
+      "domain": "ai-production",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Spike del 13/07 su generazione locale sprite con stable-diffusion.cpp su RX 5600 XT: misure di performance e tecnica di chroma-key con flood fill.",
+      "topics": [
+        "stable-diffusion.cpp",
+        "SD1.5",
+        "LCM-LoRA",
+        "chroma-key",
+        "flood fill",
+        "RDNA1"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "tools/melting-sprites"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-licenze",
+      "path": "docs/ai-production/licenze.md",
+      "title": "Licenze dello stack",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "ai-production",
+      "summary": "Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD).",
+      "topics": [
+        "licenze",
+        "OpenRAIL-M",
+        "Apache 2.0",
+        "zlib",
+        "commercializzazione",
+        "CREDITS.txt"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/download-models.sh"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-regole-agenti-ml",
+      "path": "docs/ai-production/regole-agenti-ml.md",
+      "title": "Regole per gli agenti nei task ML",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "ai-production",
+      "summary": "Regole vincolanti per qualunque agente (Claude Code, Codex) che tocca training, dataset, modelli o asset generati. Fusione delle appendici ML della blueprint-v2 (AGENTS-ML-APPENDIX, CLAUDE-ML-APPENDIX, appendice Codex).",
+      "topics": [
+        "agenti",
+        "ml",
+        "training",
+        "gpu",
+        "dataset",
+        "regole"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/dataset_ledger.py",
+        "scripts/download-models.sh"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-asset-review",
+      "path": "docs/ai-production/templates/ASSET-REVIEW.md",
+      "title": "Asset Review",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Modulo di revisione asset: metadata, checklist tecnica, punteggi in-engine (leggibilità, coerenza, ruolo, originalità), decisione finale con motivazione.",
+      "topics": [
+        "template",
+        "asset review",
+        "curation",
+        "checklist"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-audio-spec",
+      "path": "docs/ai-production/templates/AUDIO-SPEC.md",
+      "title": "AudioSpec Template",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Schema JSON per AudioSpec: musica, famiglie di suoni, generation_policy (curated/rfxgen/stable-audio/hybrid), fallback_pack, license_branch.",
+      "topics": [
+        "template",
+        "audio",
+        "JSON schema",
+        "fallback",
+        "licenze"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-dataset-ledger",
+      "path": "docs/ai-production/templates/DATASET-LEDGER.md",
+      "title": "Dataset Ledger Specification",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Formato JSONL per il ledger dei dataset: provenance, licenza, split, caption, hash originale/processato; regole su provenance_status e split_group.",
+      "topics": [
+        "template",
+        "dataset",
+        "licenze",
+        "provenance",
+        "JSONL"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-decision-record",
+      "path": "docs/ai-production/templates/DECISION-RECORD.md",
+      "title": "DEC-AI-XXX — Titolo",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Frontmatter e struttura per registrare decisioni AI-production (DEC-AI-XXX): contesto, decisione, alternative, motivazione, conseguenze, migrazione, test.",
+      "topics": [
+        "template",
+        "decision record",
+        "governance",
+        "DEC-AI"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-enemy-spec",
+      "path": "docs/ai-production/templates/ENEMY-SPEC.md",
+      "title": "EnemySpec Template",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Schema JSON tecnico per nemici: origin, role, body_plan, rig, stats_band, attacco/telegraph, asset richiesti, prompt di generazione, checklist di validazione.",
+      "topics": [
+        "template",
+        "nemici",
+        "JSON schema",
+        "rig",
+        "generazione"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-experiment-report",
+      "path": "docs/ai-production/templates/EXPERIMENT-REPORT.md",
+      "title": "Experiment Report",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Report esperimento ML completo: metadata, domanda unica, variabili, preflight, tabella metriche baseline/candidate, review umana, decisione, artifact.",
+      "topics": [
+        "template",
+        "esperimento",
+        "ML",
+        "metriche",
+        "report"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-question-batch",
+      "path": "docs/ai-production/templates/QUESTION-BATCH.md",
+      "title": "Decision Session — Question Batch",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Modulo per sessioni decisionali: fino a 7 domande con priorità BLOCKING/SOON/LATER, opzioni, raccomandazione, default temporaneo, sezione di chiusura.",
+      "topics": [
+        "template",
+        "decision session",
+        "domande",
+        "governance"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-sprite-bundle",
+      "path": "docs/ai-production/templates/SPRITE-BUNDLE.md",
+      "title": "SpriteBundle Template",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Schema JSON per bundle sprite: rig, canvas/pivot/hitbox, texture, sockets, animazioni, metadata di generazione (seed, steps, cfg, LoRA), validazione e fallback.",
+      "topics": [
+        "template",
+        "sprite",
+        "JSON schema",
+        "generazione",
+        "fallback"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "tools/melting-sprites"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-ui-skin-spec",
+      "path": "docs/ai-production/templates/UI-SKIN-SPEC.md",
+      "title": "UISkinSpec Template",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Schema JSON per skin UI: risoluzione logica 640x360, integer scale, token, componenti (panel/button/card/slot/tooltip/focus), input supportati, fallback_skin.",
+      "topics": [
+        "template",
+        "UI",
+        "JSON schema",
+        "design system",
+        "raylib"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "aiprod-weekly-issue",
+      "path": "docs/ai-production/templates/WEEKLY-ISSUE.md",
+      "title": "Weekly ML/Generation Issue",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Template per issue settimanale ML/generazione: obiettivo, scope, baseline, variabili ammesse, checklist, autorizzazione GPU, criteri di accettazione.",
+      "topics": [
+        "template",
+        "weekly issue",
+        "ML",
+        "GPU authorization",
+        "planning"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
     },
     {
       "id": "gd-vision",
@@ -1516,6 +2415,253 @@
       "last_verified_commit": null
     },
     {
+      "id": "eng-readme",
+      "path": "docs/engineering/README.md",
+      "title": "Engineering di Worldsmelt — stato tecnico reale",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Punto d'ingresso del dominio engineering: cosa contiene la cartella, il principio \"stato tecnico verificato contro il codice\" e come si mantiene allineata con gli strumenti docs-check/docs-index/docs-audit.",
+      "topics": [
+        "indice",
+        "engineering",
+        "navigazione",
+        "adr"
+      ],
+      "related": [
+        "eng-adr-001",
+        "eng-adr-002",
+        "eng-adr-003",
+        "meta-document-standards"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "Makefile",
+        "scripts/setup-deps.sh"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-adr-001",
+      "path": "docs/engineering/adr/ADR-001-backend-vulkan-only.md",
+      "title": "ADR-001: backend GPU Vulkan obbligatorio, mai ROCm, mai flash-attention su RDNA1",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "llama.cpp e stable-diffusion.cpp usano sempre il backend Vulkan (mai ROCm) sulla RX 5600 XT di riferimento, con flash-attention disattivata; versioni di raylib/llama.cpp/Lua pinnate in scripts/setup-deps.sh.",
+      "topics": [
+        "vulkan",
+        "rocm",
+        "gpu",
+        "rdna1",
+        "dipendenze",
+        "adr"
+      ],
+      "related": [
+        "eng-adr-002"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/setup-deps.sh",
+        "Makefile"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-adr-002",
+      "path": "docs/engineering/adr/ADR-002-generatori-processi-esterni.md",
+      "title": "ADR-002: i generatori girano come processi esterni, mai linkati nel gioco",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Il binario del gioco non linka mai llama.cpp/stable-diffusion.cpp/cJSON; melting-gen e melting-sprites sono due eseguibili separati (ggml incompatibili, VRAM condivisa) e il gioco legge solo file validati in generated/.",
+      "topics": [
+        "architettura",
+        "processi",
+        "generated",
+        "vram",
+        "adr"
+      ],
+      "related": [
+        "eng-adr-001"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "Makefile",
+        "scripts/test-script.sh",
+        "AGENTS.md",
+        "src/app/app.c"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-adr-003",
+      "path": "docs/engineering/adr/ADR-003-lua-sandbox-non-dsl.md",
+      "title": "ADR-003: script degli oggetti generati in Lua 5.5 sandboxato, niente DSL tipizzata",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Gli script dei contenuti generati sono Lua 5.5 sandboxato (allowlist _ENV, tetto memoria, budget istruzioni, solo caricamento testuale), non una DSL tipizzata dedicata; la mini-VM CSV resta come fallback e melting-gen fa un dry-run nella stessa sandbox prima che il gioco veda lo script.",
+      "topics": [
+        "lua",
+        "sandbox",
+        "script",
+        "dsl",
+        "adr"
+      ],
+      "related": [
+        "eng-adr-002",
+        "eng-spec-lua-sandbox"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "docs/engineering/specs/2026-07-13-lua-sandbox-design.md",
+        "src/script/script_sandbox.c",
+        "src/script/script_sandbox.h",
+        "tools/melting-gen/gen_lua.c",
+        "scripts/test-script.sh"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-architecture",
+      "path": "docs/engineering/architecture.md",
+      "title": "Architettura del codice",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Mappa verificata dei moduli C, dei processi esterni (melting-gen, melting-sprites) e dei confini di sicurezza (sandbox Lua, mini-VM di ripiego) del motore di Worldsmelt.",
+      "topics": [
+        "architettura",
+        "moduli",
+        "sandbox-lua",
+        "melting-gen",
+        "melting-sprites",
+        "build"
+      ],
+      "related": [
+        "meta-doc-code-drift"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "src/main.c",
+        "src/app/app.c",
+        "src/core/game_types.h",
+        "AGENTS.md",
+        "Makefile"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-benchmarks",
+      "path": "docs/engineering/benchmarks.md",
+      "title": "Benchmark melting-gen e melting-sprites — macchina di riferimento",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento, contesto della misura, disambiguazione tra i due meccanismi di benchmark del repo e il meccanismo del tier automatico letto dal gioco a --generate.",
+      "topics": [
+        "benchmark",
+        "performance",
+        "tier",
+        "vulkan",
+        "gpu"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/benchmark.sh",
+        "scripts/test-llm.sh",
+        "tools/melting-gen/main.c",
+        "tools/melting-sprites/main.c",
+        "src/app/app.c"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-dependencies",
+      "path": "docs/engineering/dependencies.md",
+      "title": "Dipendenze vendorizzate e riferimenti locali",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Librerie native in deps/ (versioni pinnate da scripts/setup-deps.sh) con ruolo e binario che le linka, piu' i repository locali di sola consultazione e i modelli GGUF/SD scaricati da scripts/download-models.sh.",
+      "topics": [
+        "dipendenze",
+        "deps",
+        "raylib",
+        "llama.cpp",
+        "lua",
+        "stable-diffusion.cpp",
+        "raygui",
+        "modelli"
+      ],
+      "related": [
+        "eng-architecture"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/setup-deps.sh",
+        "scripts/download-models.sh",
+        "Makefile",
+        "src/render/raygui_impl.c"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-known-issues",
+      "path": "docs/engineering/known-issues.md",
+      "title": "Registro dei difetti e limiti noti",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo, evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di design.",
+      "topics": [
+        "difetti",
+        "limiti",
+        "test",
+        "rng",
+        "generazione",
+        "catalogo"
+      ],
+      "related": [
+        "eng-dependencies",
+        "meta-doc-code-drift"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "src/tests/game_tests.c",
+        "src/content/run_catalog.c",
+        "scripts/test-llm.sh",
+        "scripts/test-gen.sh",
+        "src/game/game.c",
+        "src/app/app.c",
+        "tools/melting-gen/gen_util.c",
+        "tools/melting-sprites/sprite_util.c",
+        "tools/melting-gen/gen_lua.h",
+        "tools/melting-gen/melting_gen.h",
+        "tools/melting-gen/gen_validate.c",
+        "docs/archive/legacy-notes/issue-notes.md"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
       "id": "eng-multiplayer-steam-direction",
       "path": "docs/engineering/multiplayer-steam.md",
       "title": "Multiplayer su Steamworks — direzione proposta",
@@ -1538,6 +2684,166 @@
       "last_verified_commit": null
     },
     {
+      "id": "eng-spec-items-synergy-vision",
+      "path": "docs/engineering/specs/2026-07-13-items-synergy-vision.md",
+      "title": "Vision oggetti e sinergie (fase 3)",
+      "domain": "engineering",
+      "status": "superseded",
+      "authority": "historical",
+      "owner": "engineering",
+      "summary": "Vision doc della fase 3 (oggetti attivi/stat-up, personaggio a strati, sinergie): implementata e poi superata dai documenti KB systems (items, synergies) e dalle decisioni DEC-001..108.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "eng-spec-local-llm-linux",
+      "path": "docs/engineering/specs/2026-07-13-local-llm-linux-design.md",
+      "title": "Design del ciclo build Linux + LLM locale (fase 1)",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Spec della fase 1: build Linux, melting-gen come processo esterno llama.cpp/Vulkan con GBNF+validatore+fallback deterministico; la roadmap delle fasi vive qui.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-local-sprites",
+      "path": "docs/engineering/specs/2026-07-13-local-sprites-design.md",
+      "title": "Design degli sprite locali (fase 2)",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Spec della fase 2: melting-sprites su stable-diffusion.cpp, due eseguibili separati per i due ggml incompatibili, post-processing e controlli qualita.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-lua-sandbox",
+      "path": "docs/engineering/specs/2026-07-13-lua-sandbox-design.md",
+      "title": "Design della sandbox Lua (fase 3a)",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Spec di sicurezza della sandbox Lua 5.5: allowlist _ENV, tetto memoria, budget istruzioni, vie di fuga chiuse e limiti di determinismo; citata da AGENTS.md, test e codice.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-pools-rarity",
+      "path": "docs/engineering/specs/2026-07-13-pools-rarity-design.md",
+      "title": "Design di pool e rarita (fase 3b)",
+      "domain": "engineering",
+      "status": "superseded",
+      "authority": "historical",
+      "owner": "engineering",
+      "summary": "Spec di pool/rarita a 4 livelli con tabelle pesi e tetti: implementata; i valori sono oggi i default proposti registrati da DEC-019 e docs/design/systems/items-pools-and-rarity.md.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "eng-spec-feedback-roadmap",
+      "path": "docs/engineering/specs/2026-07-14-feedback-roadmap.md",
+      "title": "Roadmap dal feedback del 14/07",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "historical",
+      "owner": "engineering",
+      "summary": "Roadmap C/D/E/B2 (shot type bilanciati, sinergie implicite, resa 2.5D, generazione pigra): eseguita nella notte del 14/07, conservata per i riferimenti nel codice.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-step-3b-enemies",
+      "path": "docs/engineering/specs/2026-07-14-step-3b-enemies.md",
+      "title": "Step 3b: nemici e boss inventati dal modello",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Vocabolario parametrico dei nemici (form/move/fire), EnemyTypeBalance e budget di difficolta della stanza: il motore da mattoni e garanzie, il modello compone.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-step-c-shottype",
+      "path": "docs/engineering/specs/2026-07-14-step-c-shottype-balance.md",
+      "title": "Step C: tipi di colpo inventati e bilanciati",
+      "domain": "engineering",
+      "status": "implemented",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Tipi di colpo senza enum fisso: ShotForm+manopole inventati dal modello, ShotTypeBalance riporta ogni tipo a potenza ~1.0 (sidegrade mai dud), curve alla Isaac e fortuna.",
+      "topics": [
+        "spec",
+        "implementazione",
+        "fase-storica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
       "id": "template-plan",
       "path": "docs/plans/PLAN_TEMPLATE.md",
       "title": "Piano: titolo (template)",
@@ -1556,6 +2862,438 @@
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-19",
+      "last_verified_commit": null
+    },
+    {
+      "id": "plans-aiprod-proposed-kb-updates",
+      "path": "docs/plans/active/aiprod-proposed-kb-updates.md",
+      "title": "Aggiornamenti proposti alla knowledge base",
+      "domain": "plans",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Elenco di modifiche da trasferire nella KB canonica (audio, visual language, floor zero, validazione contenuti, run manifest) solo dopo decisione umana.",
+      "topics": [
+        "kb-updates",
+        "audio",
+        "floor-zero",
+        "run-manifest",
+        "visual-language"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "plans-benchmark-primo-avvio",
+      "path": "docs/plans/active/benchmark-primo-avvio.md",
+      "title": "Benchmark al primo avvio con UI dedicata (differito, v1 manuale)",
+      "domain": "plans",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Gap di design differito di proposito: oggi make benchmark è solo manuale e il gioco applica il preset lowspec leggendo logs/benchmark.txt; l'auto-run al primo avvio con UI dedicata resta da progettare e costruire.",
+      "topics": [
+        "benchmark",
+        "low-spec",
+        "primo-avvio",
+        "ui",
+        "tier"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/benchmark.sh",
+        "src/app/app.c"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-design-sinergie",
+      "path": "docs/references/research/design-sinergie.md",
+      "title": "Design delle sinergie implicite (il prossimo passo)",
+      "domain": "references",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Appunto tecnico che mappa il modello di sinergie implicite di Isaac (stats cache + tear flags) sul motore Melting Run e propone l'Opzione 1 (tavola C) come prima versione; e' la spec da cui e' stato costruito src/gameplay/synergies.c.",
+      "topics": [
+        "sinergie",
+        "stats-cache",
+        "tear-flags",
+        "item-archetype",
+        "rarity-scaling",
+        "isaac-reference"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "ref-formule-statistiche",
+      "path": "docs/references/research/formule-statistiche.md",
+      "title": "Le formule delle statistiche (cadenza, danno, velocita, gittata, fortuna)",
+      "domain": "references",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Formule esatte di Isaac (cadenza a radice, danno a radice, shot speed, gittata, fortuna) mappate sui campi Player/clamp attuali, con raccomandazioni adottare-vs-adattare; piu' raccomandazioni sono gia' state implementate (floor fireDelay, luck).",
+      "topics": [
+        "formule",
+        "bilanciamento",
+        "cadenza-di-tiro",
+        "danno",
+        "luck",
+        "clamp",
+        "isaac-reference"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "ref-generazione-piani-stanze",
+      "path": "docs/references/research/generazione-piani-stanze.md",
+      "title": "Generazione dei piani e delle stanze (algoritmo, per la fase 3c)",
+      "domain": "references",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Algoritmo esatto di generazione piani di Isaac (griglia 9x8, formula stanze, BFS con 4 regole, boss=ultimo vicolo cieco, segreta a punteggio) mappato su un piano di modifica per WorldGenerateFloorMap.",
+      "topics": [
+        "generazione-piani",
+        "bfs",
+        "vicoli-ciechi",
+        "boss-placement",
+        "stanza-segreta",
+        "world-c",
+        "isaac-reference"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "ref-meccaniche-callback-e-cache",
+      "path": "docs/references/research/meccaniche-callback-e-cache.md",
+      "title": "Il modello a callback e il sistema delle cache (da Isaac, per Melting Run)",
+      "domain": "references",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Mappa il modello MC_* di Isaac sulle callback Lua esistenti (on_evaluate/on_fire/on_hit/on_tick) e propone tre nuove callback (on_enemy_update, on_room_enter, on_synergy) con firme e punti di invocazione.",
+      "topics": [
+        "callback-lua",
+        "evaluate-cache",
+        "cacheflag",
+        "recompute-from-zero",
+        "on-enemy-update",
+        "on-room-enter",
+        "isaac-reference"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "ref-pattern-nemici-e-boss",
+      "path": "docs/references/research/pattern-nemici-e-boss.md",
+      "title": "Pattern di nemici e boss (per la fase 3b)",
+      "domain": "references",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Catalogo di 8 pattern di comportamento nemico e il sistema boss a parti, mappati su on_enemy_update/spawn_enemy/MonsterPart, con piano di adozione incrementale in 6 passi per la fase 3b, non ancora avviata.",
+      "topics": [
+        "pattern-nemici",
+        "boss-a-parti",
+        "on-enemy-update",
+        "spawn-enemy",
+        "part-system",
+        "isaac-reference"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "ref-pack-readme",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/00-README.md",
+      "title": "Worldsmelt — dossier tecnico e strategico",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Indice del pacchetto di ricerca 21/07: tesi centrale (LLM locale scrive Lua sandboxato per meccaniche), 8 decisioni consolidate, elenco file analizzati e fonti.",
+      "topics": [
+        "research-pack",
+        "indice",
+        "lua-sandboxato",
+        "modello-unico",
+        "architettura"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-visione-prodotto-e-posizionamento",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/01-visione-prodotto-e-posizionamento.md",
+      "title": "Visione del prodotto e posizionamento",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Riposiziona Worldsmelt come arcade action roguelite AI-native; confronta con NVIDIA NVIGI e AI Roguelite 2D; ribadisce modello unico per tutti.",
+      "topics": [
+        "posizionamento",
+        "marketing",
+        "modello-unico",
+        "visione-prodotto",
+        "confronto-competitor"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-stato-repository-e-architettura",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/02-stato-repository-e-architettura.md",
+      "title": "Stato della repository e architettura",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Audit dell'architettura reale: benchmark LLM/immagini gia' misurati, separazione processi esterni, sandbox Lua, API attuale, gap del 'test del laser'.",
+      "topics": [
+        "audit-architettura",
+        "sandbox-lua",
+        "benchmark",
+        "generative-gameplay-kernel",
+        "gap-primitive"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-nvidia-code-agent-lua",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/03-nvidia-code-agent-lua.md",
+      "title": "NVIDIA NVIGI Code Agent Lua — cosa fa davvero",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Analisi del sample NVIDIA NVIGI Code Agent Lua (LLM locale scrive funzioni Lua per compagno AI); lezioni di sicurezza e design API applicabili a Worldsmelt.",
+      "topics": [
+        "nvidia",
+        "nvigi",
+        "code-agent",
+        "sicurezza-lua",
+        "design-api",
+        "ricerca-esterna"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-runtime-specializzato-ds4",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/04-runtime-specializzato-ds4.md",
+      "title": "Runtime di inferenza specializzato — lezione di DS4",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Analizza antirez/ds4 (runtime MoE specializzato); conclude che non e' direttamente applicabile a Worldsmelt (modello denso 4-7B) e propone strategia a 4 livelli su llama.cpp.",
+      "topics": [
+        "ds4",
+        "runtime-inferenza",
+        "llama-cpp",
+        "quantizzazione",
+        "moe",
+        "strategia-runtime"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-modello-linguistico-unico",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/05-modello-linguistico-unico.md",
+      "title": "Modello linguistico unico per generare codice e run",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Definisce baseline (Qwen2.5-Coder-7B) e candidato (Qwen3-4B-Instruct-2507), criteri di benchmark Worldsmelt-specifico e requisiti di riproducibilita' cross-hardware.",
+      "topics": [
+        "scelta-modello-llm",
+        "qwen",
+        "benchmark",
+        "riproducibilita",
+        "quantizzazione"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-modelli-immagine-audio-stability",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/06-modelli-immagine-audio-stability.md",
+      "title": "Modelli Stability AI — immagini e audio",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Confronta SD 1.5 pixel+LCM (baseline), SD 3.5 Medium quantizzato (candidato) e SD 3.5 Large Turbo (studio); propone strategia audio con Stable Audio 3 e licenze da tracciare.",
+      "topics": [
+        "stable-diffusion",
+        "stable-audio",
+        "pipeline-immagini",
+        "licenze",
+        "modello-audio"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-steam-steam-deck-e-mercato",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/07-steam-steam-deck-e-mercato.md",
+      "title": "Steam, Steam Deck, compatibilità e mercato",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Analizza dati Steam Hardware Survey, specifiche Steam Deck, struttura depot con modello incluso, AI disclosure Valve e piano di test a budget ridotto.",
+      "topics": [
+        "steam",
+        "steam-deck",
+        "distribuzione",
+        "ai-disclosure",
+        "hardware-survey",
+        "mercato"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-sicurezza-e-generazione-meccaniche",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/08-sicurezza-e-generazione-meccaniche.md",
+      "title": "Sicurezza e kernel di generazione delle meccaniche",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Propone architettura command-queue, primitive query/azioni/visualizzazione/stato, budget, pipeline di accettazione a 11 fasi, eventi per sinergie e piano fuzzing/CI.",
+      "topics": [
+        "sicurezza-lua",
+        "command-queue",
+        "primitive-gameplay",
+        "sinergie-eventi",
+        "determinismo",
+        "fuzzing"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-benchmark-e-roadmap",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/09-benchmark-e-roadmap.md",
+      "title": "Benchmark e roadmap proposta",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Roadmap in 8 fasi (A-H) da congelamento tesi tecnica a decisione su runtime proprietario, con criterio di release finale per una build candidata.",
+      "topics": [
+        "roadmap",
+        "benchmark",
+        "fasi-sviluppo",
+        "criterio-release",
+        "steam-deck"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-decisioni-e-domande-aperte",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/10-decisioni-e-domande-aperte.md",
+      "title": "Registro decisioni e domande aperte",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Riepiloga 10 decisioni consolidate (D1-D10) del pacchetto, 12 domande aperte ad alta priorita', rischi maggiori e propone esperimento 'mechanics-lab'.",
+      "topics": [
+        "decisioni",
+        "domande-aperte",
+        "rischi",
+        "esperimento",
+        "roadmap"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": null
+    },
+    {
+      "id": "ref-pack-fonti",
+      "path": "docs/references/research/worldsmelt-research-pack-2026-07-21/11-fonti.md",
+      "title": "Fonti e riferimenti",
+      "domain": "references",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "design",
+      "summary": "Bibliografia del pacchetto: link a NVIDIA NVIGI, DS4, llama.cpp/GGML, modelli Qwen/Phi, Stability AI, Steam/Steam Deck e progetti comparabili.",
+      "topics": [
+        "fonti",
+        "bibliografia",
+        "link-esterni",
+        "verifica"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": null
     }
   ]

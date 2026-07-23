@@ -1,284 +1,111 @@
-# Melting Run GPU
+# Worldsmelt
 
-Piccolo action roguelite top-down GPU. I contenuti di ogni run (temi, boss,
-oggetti, sinergie) sono generati da un LLM prima di iniziare a giocare. Di
-serie questo succede in locale: `tools/melting-gen` (C99 + llama.cpp su
-backend Vulkan) carica un modello Qwen2.5-Coder in GGUF, genera un JSON
-vincolato da una grammatica GBNF, lo valida e lo normalizza; niente rete,
-niente chiave API, niente dipendenze npm. Se il modello manca o la
-generazione fallisce, un generatore deterministico con seed prende il posto
-del modello: la run parte comunque. Il percorso storico con OpenAI + un
-piccolo sidecar Node resta disponibile come alternativa (sezione
-["OpenAI API"](#openai-api) più sotto) e non e' stato rimosso.
+Action roguelite top-down in C99 + raylib in cui **i contenuti di ogni run li inventa
+un'IA locale**: temi dei piani, oggetti (con comportamento scritto in **Lua sandboxato**),
+tipi di colpo, nemici, boss, stanze e perfino un personaggio "forgiato" per la run.
+Niente rete, niente chiave API: `tools/melting-gen` (llama.cpp su Vulkan, modello
+Qwen2.5-Coder GGUF) genera un JSON vincolato da grammatica GBNF e lo valida;
+`tools/melting-sprites` (stable-diffusion.cpp, SD1.5 pixel-art) disegna gli sprite del
+tema. Se un modello manca o sbaglia, un generatore deterministico con seed e i fallback
+geometrici prendono il suo posto: la run parte comunque, sempre.
 
-Il gameplay segue una struttura da dungeon shooter stanza per stanza: 5 piani,
-mappa di stanze, nemici, boss, negozio, bombe, chiavi, monete, stanze tesoro e
-oggetti visibili sul personaggio.
+> Il repository conserva il nome storico *melting-run-gpu*; il gioco è **Worldsmelt**
+> (DEC-071). Il design canonico vive in [`docs/design/`](docs/design/README.md).
 
-## Avvio rapido
-
-Da questa cartella:
-
-```bat
-build_gpu.bat
-run_gpu.bat
-```
-
-Generazione solo testo con OpenAI o fallback locale:
-
-```bat
-run_gpu_llm.bat
-```
-
-Generazione testo + spritesheet via Image API:
-
-```bat
-run_gpu_dynamic.bat
-```
-
-Se vuoi solo generare i contenuti senza avviare il gioco:
-
-```bat
-generate_llm_content.bat
-```
-
-Fallback offline, utile per testare senza chiave API o senza consumare crediti:
-
-```bat
-generate_llm_content.bat --fallback --seed=12345
-```
-
-Spritesheet dinamico, con qualita' media consigliata:
-
-```bat
-generate_dynamic_assets.bat --seed=12345 --quality=medium
-```
-
-Per forzare l'atlas locale invece del PNG API:
-
-```bat
-generate_dynamic_assets.bat --seed=12345 --quality=medium --local-atlas
-```
-
-## Avvio rapido su Linux
+## Avvio rapido (Linux, percorso di riferimento)
 
 ```bash
-scripts/setup-deps.sh          # una tantum: apt + raylib + llama.cpp (chiede la password)
-make                           # compila gioco + melting-gen
-make run                       # gioca (manifest esistente o fallback interno)
-scripts/download-models.sh     # scarica i modelli GGUF (~5,8 GB, riprendibile)
-make run-gen                   # nuova run generata in locale: INVIO dal menu, R in gioco
-make test && make test-gen     # test senza modello
-make test-llm                  # generazione reale + tempi (vedi docs/BENCHMARKS.md)
+scripts/setup-deps.sh          # una tantum: apt + raylib + llama.cpp + Lua + sd.cpp
+make                           # compila gioco + melting-gen + melting-sprites
+scripts/download-models.sh     # scarica i modelli GGUF/safetensors (riprendibile)
+make run-gen                   # nuova run generata in locale (testo + sprite)
+make run-gen-fast              # solo testo: salta gli ~85s di sprite
+make run                       # gioca con l'ultimo manifest (o il fallback interno)
 ```
 
-La generazione locale usa Qwen2.5-Coder 7B (GGUF Q4_K_M, Apache 2.0) con
-llama.cpp su backend Vulkan e una grammatica GBNF che rende impossibile un
-JSON malformato; senza modelli scaricati il gioco ripiega sempre sul
-generatore deterministico interno. `make run` da solo non genera nulla di
-nuovo: serve `make run-gen` (o il flag `--generate` sul binario del gioco a
-mano) per abilitare la generazione dal menu/in partita. Design e roadmap in
-`docs/superpowers/specs/`.
-
-`make test` apre finestre (i test dei portali, dello smoke test, ecc.): se
-`xvfb-run` è installato (lo installa `scripts/setup-deps.sh`) il Makefile li
-fa girare da solo su un display X11 virtuale, quindi funziona anche senza
-monitor o su una sessione Wayland bloccata, senza far comparire nulla sullo
-schermo.
-
-## OpenAI API
-
-La chiave API non viene mai salvata nel gioco e non entra nell'eseguibile C.
-Resta in una variabile d'ambiente o in `.env.local`, che e' ignorato da git.
-
-Esempio `.env.local`:
-
-```text
-OPENAI_API_KEY=la_tua_chiave
-OPENAI_MODEL=gpt-5.5
-OPENAI_REASONING_EFFORT=medium
-OPENAI_IMAGE_MODEL=gpt-image-2
-OPENAI_IMAGE_QUALITY=medium
-```
-
-La generazione testo usa la Responses API con JSON strutturato. La generazione
-grafica usa la Image API per salvare uno spritesheet PNG 1024x1024. Il gioco
-ritaglia le celle 128x128 da quel PNG e applica una pulizia chroma-key sui pixel
-quasi neri, cosi' gli sprite possono essere disegnati senza quadrati di sfondo.
-
-## Pipeline dinamica
-
-Percorso locale, di serie (`make run-gen` o `--generate` sul binario):
-
-```text
-gioco (C + raylib)
-  -> lancia bin/melting-gen come processo figlio (llama.cpp su Vulkan)
-       -> carica il modello Qwen2.5-Coder GGUF
-       -> genera JSON vincolato da una grammatica GBNF (tools/melting-gen/run.gbnf)
-       -> valida e normalizza con cJSON (fino a 2 retry se il JSON e' incoerente)
-       -> generated/current_run.json
-       -> generated/current_run.txt
-       -> generated/current_atlas.bmp
-       -> esce, libera la VRAM
-  -> il gioco rilegge il manifest e riparte
-```
-
-La grammatica rende impossibile un JSON malformato; il validatore controlla
-che i valori abbiano senso (slot, trait, range ammessi). Se il modello manca,
-il caricamento fallisce o i retry si esauriscono, `melting-gen` ripiega da
-solo su un generatore deterministico con seed: in ogni caso il manifest
-scritto e' valido e il gioco non vede mai un errore.
-
-Percorso storico, con OpenAI + sidecar Node (opzionale, vedi sezione
-["OpenAI API"](#openai-api) sopra):
-
-```text
-OpenAI Responses API
-  -> generated/current_run.json
-  -> generated/current_run.txt
-  -> raylib C
-
-OpenAI Image API
-  -> generated/current_atlas.png
-  -> celle 128x128 ritagliate da raylib
-
-Fallback/forzatura locale
-  -> generated/current_atlas.bmp
-```
-
-Il gioco legge sempre un manifest semplice, non JSON diretto, indipendentemente
-da quale dei due percorsi lo ha scritto. Questo tiene il C leggero e rende
-facile capire cosa e' stato generato.
-
-## Script sandboxati
-
-L'LLM non genera codice C. Genera piccole istruzioni dichiarative che il gioco
-interpreta con una mini VM interna.
-
-Formato nel manifest:
-
-```text
-floor1.item1.script=on_fire:burst,3,0.36,split|on_hit:area,54,0.22,slow
-```
-
-Operazioni ammesse:
-
-- `on_fire:burst,count,spread,trait`: aggiunge colpi extra quando spari.
-- `on_hit:projectile,count,speed,trait`: genera colpi extra quando colpisci.
-- `on_hit:area,radius,damageScale,trait`: danno ad area sul colpo.
-- `on_hit:heal,chancePercent,amount,trait`: cura con probabilita' controllata.
-
-Ogni script ha un budget massimo di operazioni e non puo' accedere a file,
-rete, memoria libera o funzioni arbitrarie. In pratica l'LLM puo' inventare
-sinergie nuove mescolando mattoncini sicuri, ma non puo' eseguire codice libero.
+Il flusso: menu **WORLDSMELT** → *Nuova run* → scegli il seed → entri nel **Piano 0**
+(l'hub giocabile) e ti muovi mentre la generazione lavora in sottofondo → scegli il tema
+fra tre proposte e il personaggio → l'uscita verso il piano 1 si apre da sola quando è
+pronto. ESC apre sempre una conferma; **R** rigenera.
 
 ## Test
 
-Smoke test automatico:
-
-```bat
-bin\melting_run_gpu.exe --smoke-test
+```bash
+make test            # suite del gioco (usa xvfb se installato: nessuna finestra visibile)
+make test-gen        # generatore di testo, senza modello (veloce)
+make test-script     # sandbox Lua: fughe note, determinismo, API a handle, cache
+make test-sprites    # post-processing sprite, senza modello (--dry-run)
+make test-llm        # generazione reale col modello (~1 min; flaky noto ~25% col 1.5B)
+make docs-check      # verifica della knowledge base documentale
 ```
 
-Regression test del portale boss:
+Difetti noti e loro stato: [`docs/engineering/known-issues.md`](docs/engineering/known-issues.md).
 
-```bat
-bin\melting_run_gpu.exe --portal-test
-```
-
-Test della mini VM degli script:
-
-```bat
-bin\melting_run_gpu.exe --script-test
-```
-
-Screenshot test, utile per controllare HUD e rendering:
-
-```bat
-bin\melting_run_gpu.exe --screenshot-test
-```
-
-Lo screenshot viene salvato in:
+## Come funziona (pipeline locale, di serie)
 
 ```text
-logs/melting-run-screen.png
+gioco (C + raylib, linka solo Lua statica)
+  -> bin/melting-gen   (processo figlio: llama.cpp/Vulkan + GBNF + validatore
+                        + dry-run del Lua nella STESSA sandbox del gioco;
+                        fallback deterministico con seed su ogni errore)
+       -> generated/current_run.{json,txt} + generated/scripts/*.lua
+  -> bin/melting-sprites (processo figlio: stable-diffusion.cpp, SD1.5 pixel-art;
+                        celle scartate -> fallback geometrico, mai un crash)
+       -> generated/current_atlas.png
+  -> il gioco rilegge il manifest e riparte; i piani 2-5 si generano MENTRE giochi
 ```
+
+I due generatori non sono mai linkati nel binario del gioco e non stanno mai insieme in
+VRAM (6 GB di riferimento): si alternano e ognuno libera tutto quando esce. Dettagli:
+[`docs/engineering/architecture.md`](docs/engineering/architecture.md) e gli ADR in
+`docs/engineering/adr/`.
+
+## Script sandboxati (il cuore della faccenda)
+
+L'IA scrive **vero codice Lua** per il comportamento degli oggetti («ogni terzo colpo si
+sdoppia e i frammenti inseguono il nemico più vicino, ma solo se hai meno di tre cuori»),
+eseguito in una sandbox blindata: allowlist di `_ENV`, tetto di memoria, budget di
+istruzioni, mai bytecode. Ogni script fa un giro di prova dentro melting-gen prima che il
+gioco lo veda; se fallisce, l'oggetto ripiega sulla mini-VM dichiarativa storica (quattro
+operazioni sicure). Spec: [`docs/engineering/specs/2026-07-13-lua-sandbox-design.md`](docs/engineering/specs/2026-07-13-lua-sandbox-design.md).
 
 ## Controlli
 
-- `WASD`: movimento.
-- `Mouse + click sinistro` oppure `Frecce`: spara.
-- `SPACE`: piazza una bomba, se ne hai almeno una.
-- `R`: nuova run.
-- `ESC`: esce.
+- `WASD` movimento; `mouse + click` o frecce per sparare.
+- `SPACE` bomba, `TAB` pannello build/personaggi (nel Piano 0), `R` nuova run, `ESC` conferma di uscita.
 
-I pickup si raccolgono camminandoci sopra. Le stanze con nemici o boss bloccano
-le porte finche' non le ripulisci.
+## Stato del gioco (fase 1 completa)
 
-## Meccaniche presenti
+9 stati canonici (menu, run setup, Piano 0, gameplay, pausa, opzioni, build, risultati,
+conferma d'uscita); 5 piani con stanze di taglia variabile; scelta del tema e rosa di
+personaggi (3 curati + 1 generato per run con trait Lua e colpo firmato); tipi di colpo,
+nemici, boss e stanze inventati dal modello dentro bande di bilanciamento garantite dal
+motore (`ShotTypeBalance`, `EnemyTypeBalance`, budget di difficoltà); sinergie implicite
+visibili; resa 2.5D; catalogo persistente delle creazioni incontrate; punteggi e daily
+in arrivo. La roadmap vive in [`docs/plans/`](docs/plans/) e nel
+[decision log](docs/design/governance/decision-log.md) (108 decisioni).
 
-- 5 piani completi.
-- Ogni piano ha una mappa 5x5 con stanza iniziale, stanze combattimento, stanza
-  tesoro, negozio e boss.
-- Stanza tesoro con oggetto, sbloccata da una chiave.
-- Negozio con oggetto, cuore, chiave e bomba acquistabili con monete.
-- Boss a ogni piano.
-- Boss del piano 5 piu' resistente e aggressivo.
-- Bombe con esplosione ad area.
-- Drop di cuori, monete, bombe, chiavi e oggetti.
-- Oggetti visibili sullo stickman: cappelli impilati, occhiali, oggetti in mano,
-  mantelli, corpo colorato e aura.
-- Effetti sugli spari: rimbalzo, homing, esplosione, split, perforazione,
-  rapidita', proiettili grandi, rallentamento e vampirismo.
-- Script sandboxati per sinergie generate.
-- Spritesheet API con estrazione celle e chroma-key, piu' fallback locale.
-- Finestra fullscreen con viewport di gioco interna e pannelli UI laterali.
-- Menu principale e menu pausa.
+## Percorso storico Windows / OpenAI
 
-## Architettura
+Gli script `.bat` (MinGW) e il sidecar Node per OpenAI (`llm/`) restano nel repo come
+percorso storico funzionante ma **non sono più il riferimento**: la documentazione vive in
+[`docs/archive/superseded/openai-setup.md`](docs/archive/superseded/openai-setup.md).
+La chiave API, se usata, resta in `.env.local` (mai nel C, mai in git).
 
-- `src/main.c`: punto di ingresso minimo che delega ad `AppRun`.
-- `src/app/`: ciclo applicativo, finestra e modalità menu/gioco/pausa/generazione.
-- `src/assets/`: caricamento e rilascio delle risorse Raylib.
-- `src/content/`: manifest e contenuti della run.
-- `src/core/`: strutture dati, costanti, matematica, colori e RNG.
-- `src/game/`: inizializzazione e orchestrazione dello stato.
-- `src/gameplay/`: entità, combattimento, oggetti e mini VM.
-- `src/gen/`: ciclo di vita del processo di generazione locale (avvio, progresso, timeout, annullamento); nessuna logica di gioco.
-- `src/render/`: rendering del gioco e dell'interfaccia.
-- `src/tests/`: test interni richiamabili da riga di comando.
-- `src/world/`: stanze, mappe, transizioni e ricompense.
-- `tools/melting-gen/`: generatore locale (llama.cpp Vulkan + grammatica GBNF + validatore + fallback deterministico), lanciato dal gioco come processo figlio con `--generate`.
-- `llm/run_content.mjs`: chiamate OpenAI, schema, fallback e scrittura file (percorso storico).
-- `llm/generate_run.mjs`: comando da terminale per generare una run con OpenAI.
-- `llm/server.mjs`: piccolo sidecar HTTP locale opzionale per il percorso OpenAI.
-- `generated/current_run.json`: risposta strutturata dell'LLM (locale o OpenAI).
-- `generated/current_run.txt`: manifest letto dal gioco C.
-- `generated/current_atlas.png`: spritesheet generato dalla Image API di OpenAI (percorso storico).
-- `generated/current_atlas.bmp`: atlas scritto dal percorso locale `melting-gen`, oppure fallback/atlas forzato del percorso OpenAI con `--local-atlas`.
-- `generated/current_atlas.json`: mappa celle dell'atlas.
-- `generated/gen_progress.txt`: progresso della generazione locale, letto dalla barra di caricamento in gioco.
-- `docs/`: appunti, decisioni architetturali, setup e problemi noti.
+## Documentazione
 
-I file in `generated/` sono ignorati da git per non committare contenuti
-temporanei, asset generati o dati legati alla tua macchina.
-
-La struttura completa e le regole per aggiungere nuovi moduli sono descritte in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Tutta sotto [`docs/`](docs/README.md), per domini: `design/` (che cosa deve essere il
+gioco — canonico), `engineering/` (come è fatto davvero), `ai-production/` (modelli, LoRA,
+dataset, licenze), `plans/`, `references/`, `archive/`. Indice generato:
+[`docs/INDEX.md`](docs/INDEX.md); regole: [`docs/_meta/DOCUMENT-STANDARDS.md`](docs/_meta/DOCUMENT-STANDARDS.md).
+Licenze di modelli e dipendenze: [`docs/ai-production/licenze.md`](docs/ai-production/licenze.md).
 
 ## Limiti intenzionali
 
-- L'LLM lavora prima della run, non durante il gameplay.
-- Il percorso locale genera solo testo: lo spritesheet resta sempre l'atlas
-  BMP interno (sprite generati in locale sono una fase futura della roadmap).
-  Lo spritesheet IA del percorso storico OpenAI puo' non rispettare
-  perfettamente la griglia; per questo il prompt e' molto vincolato e resta
-  disponibile `--local-atlas` come fallback.
-- Niente dipendenze npm.
-- Niente chiavi API dentro il C.
-- Niente audio per ora.
-- Il sistema resta volutamente piccolo: valida la generazione di contenuti via
-  LLM (locale di serie, OpenAI come alternativa) applicata a un roguelite
-  semplice. Le fasi future (sprite locali, sandbox Lua per sinergie uniche,
-  UI raygui, benchmark automatico) sono nella roadmap in
-  `docs/superpowers/specs/`.
+- Nessuna inferenza durante il combattimento: l'IA lavora nel Piano 0 e fra un piano e
+  l'altro.
+- Niente audio per ora (DEC-036: arriverà con mezzi curati; l'audio generativo è una
+  proposta aperta).
+- Il motore non dipende mai da rete, chiavi o modelli: modalità solo-curato sempre
+  disponibile e dignitosa.
+- Niente dipendenze npm nel percorso di riferimento.

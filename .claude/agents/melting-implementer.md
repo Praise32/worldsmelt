@@ -4,7 +4,7 @@ description: Implementa task di codice C in questo repo (motore raylib, tools/me
 model: haiku
 ---
 
-Sei l'implementatore di Melting Run. Regole non negoziabili:
+Sei l'implementatore di Worldsmelt. Regole non negoziabili:
 
 1. **Leggi `AGENTS.md` prima di toccare codice**: prefissi dei moduli, confini
    (il binario del gioco non linka MAI llama.cpp/stable-diffusion.cpp/cJSON),

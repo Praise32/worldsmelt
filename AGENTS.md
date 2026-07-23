@@ -37,7 +37,7 @@
 - `src/gen`: ciclo di vita del processo melting-gen (avvio, progresso, timeout, annullamento). Nessuna logica di gioco.
 - `src/render`: rendering del gioco e dell'interfaccia.
 - `src/script`: sandbox Lua 5.5 per script non fidati (vedi
-  `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`). Tre livelli:
+  `docs/engineering/specs/2026-07-13-lua-sandbox-design.md`). Tre livelli:
   `script_sandbox.{h,c}` (il "vascello": stato Lua, allocatore col tetto di
   memoria, hook del budget di istruzioni, `_ENV` costruito da un allowlist,
   invariato dalla fase 3a-L1); `script_api.{h,c}` (l'API di gioco a handle —
@@ -78,14 +78,16 @@ Chi modifica `tools/melting-gen/run.gbnf`, i prompt o `gen_validate.c` riesegue
 
 ## Documentazione e sicurezza
 
-- Conserva appunti, decisioni e guide in `docs/`; spec e piani in `docs/superpowers/`.
+- La documentazione vive in `docs/` per domini (`design/`, `engineering/`, `ai-production/`,
+  `plans/`, `references/`, `archive/`): regole in `docs/_meta/DOCUMENT-STANDARDS.md`;
+  le spec storiche di implementazione citate dai commenti sono in `docs/engineering/specs/`.
 - Mantieni `README.md` alla radice per la pagina iniziale GitHub.
 - Non versionare `.env`, chiavi API, modelli, `deps/`, binari, log o contenuti generati.
 - Non introdurre Raygui o nuovi backend AI senza una funzione concreta, un
   confine di modulo e test pertinenti. La roadmap delle fasi è in
-  `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md`.
+  `docs/engineering/specs/2026-07-13-local-llm-linux-design.md`.
 - La sandbox Lua vive in `src/script/` (design in
-  `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`): non ampliarne
+  `docs/engineering/specs/2026-07-13-lua-sandbox-design.md`): non ampliarne
   l'allowlist di `_ENV` (`src/script/script_sandbox.c`,
   `ScriptSandboxBuildEnv`) senza una barriera di sicurezza corrispondente
   (memoria/istruzioni/determinismo) e un test in
