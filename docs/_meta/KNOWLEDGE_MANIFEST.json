@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 141,
+  "count": 143,
   "documents": [
     {
       "id": "docs-readme",
@@ -1388,13 +1388,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 137 decisioni di design approvate (DEC-001..DEC-137) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 138 decisioni di design approvate (DEC-001..DEC-138) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..137"
+        "DEC-001..138"
       ],
       "related": [],
       "supersedes": [],
@@ -1498,7 +1498,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-137; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-138; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -2627,6 +2627,36 @@
       "last_verified_commit": "fe27f6d"
     },
     {
+      "id": "eng-espressivita-colpi",
+      "path": "docs/engineering/espressivita-colpi.md",
+      "title": "Espressività dei tipi di colpo — cosa può inventare davvero il modello oggi",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Verifica puntuale (file:riga) di cosa il vocabolario attuale dei colpi permette al modello: variazioni sullo stesso scheletro fisico sì (catena inclusa, già nativa), laser/stazionari/orbite no. Base fattuale di DEC-138 (mechanics-lab).",
+      "topics": [
+        "colpi",
+        "shot-type",
+        "lua",
+        "espressivita",
+        "mechanics-lab",
+        "DEC-138"
+      ],
+      "related": [
+        "eng-spec-step-c-shottype"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "src/core/shot_type.h",
+        "src/gameplay/combat.c",
+        "src/script/script_api.c",
+        "tools/melting-gen/run.gbnf"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "bd2cf04"
+    },
+    {
       "id": "eng-known-issues",
       "path": "docs/engineering/known-issues.md",
       "title": "Registro dei difetti e limiti noti",
@@ -2889,6 +2919,34 @@
       "source_files": [],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": null
+    },
+    {
+      "id": "plans-mechanics-lab",
+      "path": "docs/plans/active/mechanics-lab.md",
+      "title": "Mechanics-lab — scoprire le primitive minime dei colpi componibili",
+      "domain": "plans",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Esperimento isolato (DEC-138) per scoprire le primitive fisiche minime che permettono al modello di COMPORRE classi di colpo nuove (laser, catena, orbita e oltre) senza primitive dedicate; le vincitrici entrano poi nel motore con le garanzie di sempre.",
+      "topics": [
+        "mechanics-lab",
+        "colpi",
+        "primitive",
+        "lua",
+        "esperimento",
+        "DEC-138"
+      ],
+      "related": [
+        "eng-espressivita-colpi"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "src/script/script_sandbox.c",
+        "src/script/script_api.c"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "bd2cf04"
     },
     {
       "id": "plans-benchmark-primo-avvio",

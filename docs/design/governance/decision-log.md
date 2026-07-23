@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 137 decisioni di design approvate (DEC-001..DEC-137) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 138 decisioni di design approvate (DEC-001..DEC-138) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..137]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..138]
 related: []
 supersedes: []
 source_files: []
@@ -1471,3 +1471,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** mantenere il layout a pannelli laterali.
 - **Conseguenze:** refactor del renderer (gradino 3 della scala); `ui/hud.md` e gli screenshot di riferimento andranno aggiornati con l'implementazione.
 - **Documenti aggiornati:** `ui/hud.md` (nota), implementazione in corso
+
+---
+
+### DEC-138 — Le classi fisiche dei colpi le comporrà il modello: prima il mechanics-lab
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** l'indagine tecnica del 22/07 (`docs/engineering/espressivita-colpi.md`) ha accertato che il vocabolario attuale (5 forme × 7 manopole + trait + Lua) permette solo variazioni sullo stesso scheletro fisico — proiettile puntiforme, moto rettilineo, vita breve. Laser veri, colpi stazionari e orbite non sono esprimibili; la catena fra nemici sì (già nativa). L'utente vuole di più: **il gioco deve poter generare classi fisiche nuove**, non scegliere da un menu.
+- **Decisione:** l'espansione dell'espressività NON passa da un elenco fisso di classi cablate (un enum «laser/torretta/orbita» sarebbe di nuovo un menu): passa da **primitive fisiche minime e componibili** che il modello combina per inventare classi che non abbiamo previsto. Per scoprire QUALI primitive servono si costruisce prima il **mechanics-lab** (piano attivo dedicato): build isolata con la stessa sandbox Lua del gioco, arena minima, primitive candidate (query a segmento, ancoraggio/velocità dei colpi, vita parametrica, forze/steering), prompt «impossibili» per l'API attuale, report comparativo. **Criterio di successo:** generare un laser, una catena e un'orbita **senza** primitive ad alto livello dedicate a «laser», «catena» o «orbita». Le primitive vincenti entrano poi nel motore con le garanzie di sempre (clamp, budget, ShotTypeBalance, fallback) e il vocabolario GBNF/Lua si estende. Restano fermi: il floor anti-«colpo che striscia» per i colpi in volo (una classe stazionaria, se nascerà, sarà una classe distinta, non un colpo lento); nessuna inferenza in combattimento; la mini-VM/parametrico come rete di sicurezza.
+- **Alternative considerate:** aggiungere subito 3 classi fisse nel motore (più rapido, ma resta un menu); esporre al Lua la manipolazione libera dei colpi senza esperimento (garanzie fragili).
+- **Conseguenze:** piano `docs/plans/active/mechanics-lab.md`; le domande 4-5 del research pack (primitive minime, composizione senza loop) trovano qui il loro veicolo; implementazione dopo il refactor GUI in corso.
+- **Documenti aggiornati:** `docs/engineering/espressivita-colpi.md` (nuovo), `docs/plans/active/mechanics-lab.md` (nuovo)
