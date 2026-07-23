@@ -11,7 +11,7 @@ last_reviewed: 2026-07-22
 topics: [fonti, licenze, stable-diffusion, qwen, kaggle, penpot, stable-audio]
 related: []
 supersedes: []
-source_files: [docs/ARCHITECTURE.md, docs/BENCHMARKS.md, docs/archive/legacy-notes/roguelike-ai-appunti/03-personaggio-grafica-60fps.md, docs/archive/legacy-notes/roguelike-ai-appunti/05-dataset-e-licenze.md, docs/archive/legacy-notes/roguelike-ai-appunti/06-training-hardware-costi.md, docs/archive/legacy-notes/roguelike-ai-appunti/08-roadmap-vertical-slice.md]
+source_files: [docs/archive/superseded/architecture-2026-07-13.md, docs/archive/superseded/benchmarks-2026-07-13.md, docs/archive/legacy-notes/roguelike-ai-appunti/03-personaggio-grafica-60fps.md, docs/archive/legacy-notes/roguelike-ai-appunti/05-dataset-e-licenze.md, docs/archive/legacy-notes/roguelike-ai-appunti/06-training-hardware-costi.md, docs/archive/legacy-notes/roguelike-ai-appunti/08-roadmap-vertical-slice.md]
 ---
 # Fonti verificate
 
@@ -57,21 +57,21 @@ versioni e ricontrollare prima della release.
 
 ## Fonti interne del progetto
 
-- `docs/ARCHITECTURE.md`
-- `docs/BENCHMARKS.md`
-- `docs/SPRITES-SPIKE.md`
-- `docs/LICENZE.md`
-- `docs/dataset/TRAINING-RUNBOOK.md`
+- `docs/archive/superseded/architecture-2026-07-13.md`
+- `docs/archive/superseded/benchmarks-2026-07-13.md`
+- `docs/ai-production/experiments/sprites-spike.md`
+- `docs/ai-production/licenze.md`
+- `docs/ai-production/dataset/TRAINING-RUNBOOK.md`
 - `docs/archive/legacy-notes/roguelike-ai-appunti/03-personaggio-grafica-60fps.md`
 - `docs/archive/legacy-notes/roguelike-ai-appunti/05-dataset-e-licenze.md`
 - `docs/archive/legacy-notes/roguelike-ai-appunti/06-training-hardware-costi.md`
 - `docs/archive/legacy-notes/roguelike-ai-appunti/08-roadmap-vertical-slice.md`
-- `game-design-knowledge-base/docs/game-design/06-ai-content-generation-model.md`
-- `game-design-knowledge-base/docs/game-design/content/visual-language.md`
-- `game-design-knowledge-base/docs/game-design/systems/enemies.md`
-- `game-design-knowledge-base/docs/game-design/systems/generated-content-validation.md`
-- `game-design-knowledge-base/docs/game-design/systems/run-manifest-and-reproducibility.md`
-- `game-design-knowledge-base/docs/game-design/ui/generation-status.md`
+- `docs/design/06-ai-content-generation-model.md`
+- `docs/design/content/visual-language.md`
+- `docs/design/systems/enemies.md`
+- `docs/design/systems/generated-content-validation.md`
+- `docs/design/systems/run-manifest-and-reproducibility.md`
+- `docs/design/ui/generation-status.md`
 
 ## UI e strumenti
 

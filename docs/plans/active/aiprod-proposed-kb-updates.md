@@ -22,7 +22,7 @@ Questo file non modifica automaticamente il design canonico.
 Documento:
 
 ```text
-game-design-knowledge-base/docs/game-design/content/audio-and-feedback.md
+docs/design/content/audio-and-feedback.md
 ```
 
 Conflitto:

@@ -11,14 +11,14 @@ last_reviewed: 2026-07-22
 topics: [prompt, agenti, kaggle, multi-lora, licenze, sprite-bundle]
 related: []
 supersedes: []
-source_files: [AGENTS.md, CLAUDE.md, game-design-knowledge-base/, tools/melting-sprites]
+source_files: [AGENTS.md, CLAUDE.md, tools/melting-sprites]
 ---
 # Prompt per agenti
 
 ## Preparazione esperimento
 
 ```text
-Leggi AGENTS.md, CLAUDE.md, game-design-knowledge-base/ e
+Leggi AGENTS.md, CLAUDE.md, docs/design/ e
 worldsmelt-ai-blueprint/.
 
 Obiettivo: preparare l'esperimento indicato nell'issue corrente.

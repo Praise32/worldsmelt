@@ -472,7 +472,6 @@
       "source_files": [
         "AGENTS.md",
         "CLAUDE.md",
-        "game-design-knowledge-base/",
         "tools/melting-sprites"
       ],
       "last_reviewed": "2026-07-22",

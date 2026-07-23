@@ -140,7 +140,7 @@ runtime che rimuove lo sfondo quasi nero. Nessun controllo automatico rifiuta
 un atlas mal tagliato prima che entri in gioco.
 
 **Evidenza**: `docs/archive/legacy-notes/issue-notes.md` (era
-`docs/ISSUE_NOTES.md`, archiviata dalla ristrutturazione docs/), sezioni "Da verificare prima di aprire
+`docs/archive/legacy-notes/issue-notes.md`), sezioni "Da verificare prima di aprire
 issue" ("I PNG della Image API possono ancora avere celle non perfette... 
 Possibile miglioramento: validatore visuale prima di accettare la PNG come
 atlas giocabile" e "I PNG generati... possono avere sfondo opaco... chroma-key

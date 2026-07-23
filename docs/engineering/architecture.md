@@ -19,7 +19,7 @@ source_files: [src/main.c, src/app/app.c, src/core/game_types.h, AGENTS.md, Make
 
 # Architettura del codice
 
-Questo documento sostituisce `docs/ARCHITECTURE.md` (superato: descriveva la mini-VM
+Questo documento sostituisce `docs/archive/superseded/architecture-2026-07-13.md` (superato: descriveva la mini-VM
 come comportamento predefinito e ignorava `src/script/`, vedi
 `docs/_meta/DOC-CODE-DRIFT.md` DOC-CODE-DRIFT-001..007). Stato reale: **la sandbox Lua è
 il percorso primario per il comportamento degli oggetti e del trait personaggio

@@ -83,7 +83,7 @@ prestazioni.
 - I numeri di prestazioni indicativi (7B Q4_K_M al limite dei 6 GB di VRAM,
   ~40-50 tok/s attesi a pieno offload) restano nella spec storica citata sotto
   come contesto della decisione; i numeri misurati per davvero sono in
-  `docs/BENCHMARKS.md` (generato da `make test-llm`/`make benchmark`).
+  `docs/engineering/benchmarks.md` (generato da `make test-llm`/`make benchmark`).
 
 ## Fonti
 

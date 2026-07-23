@@ -17,7 +17,7 @@ source_files: []
 
 # Step C — Bilanciamento alla Isaac + tipi di colpo generati dall'AI
 
-Riferimenti: `docs/superpowers/specs/2026-07-14-feedback-roadmap.md` (punto 3),
+Riferimenti: `docs/engineering/specs/2026-07-14-feedback-roadmap.md` (punto 3),
 `docs/references/formule-statistiche.md`, `docs/references/design-sinergie.md`.
 
 Feedback che ha rifatto questa spec (2026-07-14, durante la run notturna):

@@ -22,7 +22,7 @@ La knowledge base definisce **cosa** deve mostrare l'interfaccia. Questo documen
 
 Prima di implementare una schermata:
 
-1. leggere `game-design-knowledge-base/docs/game-design/INDEX.md`;
+1. leggere `docs/design/README.md`;
 2. leggere il documento UI specifico;
 3. verificare `governance/open-questions.md`;
 4. non inventare nuove interazioni per adattarsi a un mockup;

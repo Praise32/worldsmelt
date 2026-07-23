@@ -29,7 +29,7 @@ source_files: [scripts/benchmark.sh, scripts/test-llm.sh, tools/melting-gen/main
   misure del meccanismo di tier automatico (`logs/benchmark.txt`, sezione più sotto) sono
   successive, del **17/07/2026** (introduzione del tier automatico, vedi sotto).
 - **Commit di riferimento di questo documento**: `fe27f6d` (HEAD al momento della stesura).
-- Il file originale (`docs/BENCHMARKS.md`, non aveva front matter) non registrava data né
+- Il file originale (`docs/archive/superseded/benchmarks-2026-07-13.md`, non aveva front matter) non registrava data né
   commit: entrambi sono stati ricavati da `git log` per questa migrazione.
 
 ## Tabella misurata — sweep manuale (`make test-llm`)

@@ -19,7 +19,7 @@ source_files: []
 
 Data: 2026-07-13
 Ciclo: 2 di 5 (vedi la roadmap in `2026-07-13-local-llm-linux-design.md`)
-Stato: progettata sui numeri dello spike (`docs/SPRITES-SPIKE.md`), da approvare dall'autore
+Stato: progettata sui numeri dello spike (`docs/ai-production/experiments/sprites-spike.md`), da approvare dall'autore
 
 ## 1. Obiettivo
 
@@ -32,7 +32,7 @@ oggetti equipaggiati sul personaggio (restano i layer geometrici attuali).
 
 ## 2. Fattibilita', gia' misurata
 
-Lo spike (`docs/SPRITES-SPIKE.md`) ha misurato sulla macchina di riferimento:
+Lo spike (`docs/ai-production/experiments/sprites-spike.md`) ha misurato sulla macchina di riferimento:
 **~5,3 s per sprite**, **~75 s per i 12 sprite** dell'atlas, **2,0 GB di VRAM**.
 Il post-processing costa ~70 ms. La qualita' a 128x128 e' buona (immagini nel documento).
 
