@@ -1,7 +1,77 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 2,
+  "count": 5,
   "documents": [
+    {
+      "id": "meta-doc-code-drift",
+      "path": "docs/_meta/DOC-CODE-DRIFT.md",
+      "title": "Registro drift documentazione-codice (DOC-CODE-DRIFT-001..035)",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "meta",
+      "summary": "Divergenze fra cio' che i documenti dichiarano e cio' che il codice mostra, verificate con Codebase Memory + conferma diretta (file:riga) e giudice opus. 35 divergenze reali, 43 conferme di allineamento.",
+      "topics": [
+        "audit",
+        "drift",
+        "codice"
+      ],
+      "related": [
+        "meta-doc-conflicts"
+      ],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "a2d5df7"
+    },
+    {
+      "id": "meta-doc-conflicts",
+      "path": "docs/_meta/DOC-CONFLICTS.md",
+      "title": "Registro dei conflitti documentali (DOC-CONFLICT-001..046)",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "meta",
+      "summary": "46 conflitti rilevati dall'audit del 2026-07-22 (sonnet propone, opus verifica, Fable arbitra i needs-human), con raccomandazione secondo la gerarchia delle fonti e risoluzione adottata.",
+      "topics": [
+        "audit",
+        "conflitti",
+        "governance"
+      ],
+      "related": [
+        "meta-document-standards"
+      ],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "a2d5df7"
+    },
+    {
+      "id": "meta-document-audit",
+      "path": "docs/_meta/DOCUMENT-AUDIT.md",
+      "title": "Audit documentale completo — 2026-07-22",
+      "domain": "meta",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "meta",
+      "summary": "Fotografia pre-migrazione dell'intera documentazione (180 documenti, 8 contenitori), con verdetti dei giudici, 46 conflitti, 35 drift doc-codice reali e il piano di promozione verso docs/. Prodotto dal workflow ws-doc-audit (68 agenti) e arbitrato da Fable.",
+      "topics": [
+        "audit",
+        "inventario",
+        "migrazione"
+      ],
+      "related": [
+        "meta-doc-conflicts",
+        "meta-doc-code-drift",
+        "meta-document-standards"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/docs/build_knowledge_index.py"
+      ],
+      "last_reviewed": "2026-07-22",
+      "last_verified_commit": "a2d5df7"
+    },
     {
       "id": "meta-document-standards",
       "path": "docs/_meta/DOCUMENT-STANDARDS.md",
