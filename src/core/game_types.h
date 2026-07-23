@@ -54,7 +54,7 @@
 #define MAX_SCRIPT_OPS 4
 #define SCRIPT_TEXT_LEN 256
 /* Sorgente Lua opzionale di un oggetto (fase 3a-L2, vedi
-   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md sezioni 5-9).
+   docs/engineering/specs/2026-07-13-lua-sandbox-design.md sezioni 5-9).
    Vuota ("") per un oggetto che usa solo la mini-VM (tutti gli oggetti
    generati oggi, dato che tools/melting-gen non scrive ancora Lua: e'
    deliberatamente fuori scopo per questo task, vedi il task brief). Quando
@@ -127,7 +127,7 @@ typedef enum ItemSlot {
     SLOT_AURA
 } ItemSlot;
 
-/* Tassonomia degli oggetti (fase 3, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+/* Tassonomia degli oggetti (fase 3, docs/engineering/specs/2026-07-13-items-synergy-vision.md
    sezioni 1,2,5): ITEM_ACTIVE modifica come spari o ti muovi (i mattoni delle
    sinergie: stanze tesoro e negozio), ITEM_STATUP e' un puro aumento di
    statistiche (ricompensa del boss, nessun comportamento nuovo). ITEM_ACTIVE
@@ -139,7 +139,7 @@ typedef enum ItemKind {
     ITEM_STATUP
 } ItemKind;
 
-/* Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md
+/* Rarita' (fase 3b, docs/engineering/specs/2026-07-13-pools-rarity-design.md
    sezioni 1-3): determina SIA la potenza (il tetto per-oggetto scalato per
    rarita', vedi src/script/script_items.c, SCRIPT_ITEMS_RARITY_ITEM_DELTA_FRACTION)
    SIA la frequenza di drop (le tabelle di peso per pool, vedi
@@ -348,7 +348,7 @@ typedef struct Item {
     char script[SCRIPT_TEXT_LEN];
     char luaSource[SCRIPT_LUA_LEN];   /* vedi il commento su SCRIPT_LUA_LEN sopra */
     /* Tipo di colpo che questo oggetto conferisce, se ne conferisce uno (step C,
-       docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md). 'active'
+       docs/engineering/specs/2026-07-14-step-c-shottype-balance.md). 'active'
        falso (lo zero-default di "{0}", di un memset e di ogni manifest scritto
        prima di questa fase) = l'oggetto NON cambia il modo di sparare: e' il
        caso della grande maggioranza degli oggetti, e di TUTTI gli stat-up del
@@ -372,8 +372,8 @@ typedef struct FloorContent {
     RoomLayoutDef roomLayout;
     Item items[3];   /* oggetti ATTIVI del piano: stanza tesoro e negozio pescano da qui (world.c) */
     /* Oggetto STAT-UP del piano, campo esplicito e non un quarto slot di
-       items[] (scelta deliberata, vedi il report di fase: docs/superpowers/sdd/
-       phase3-items-report.md): src/render/game_renderer.c gia' itera
+       items[] (scelta deliberata, vedi il report di fase locale
+       .superpowers/sdd/phase3-items-report.md): src/render/game_renderer.c gia' itera
        "items[3]" con un letterale "3" per l'anteprima del piano (fuori scopo
        di questo task, di proprieta' di un lavoro parallelo sulla grafica) -
        crescere items[] a 4 avrebbe silenziosamente infilato l'oggetto del

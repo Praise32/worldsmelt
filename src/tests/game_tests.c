@@ -530,7 +530,7 @@ bool GameAtlasFallbackTest(Game *game)
     return playerDrew && enemyDrew && exitDrew;
 }
 
-/* Il personaggio a strati (fase 3, vedi docs/superpowers/specs/2026-07-13-
+/* Il personaggio a strati (fase 3, vedi docs/engineering/specs/2026-07-13-
    items-synergy-vision.md sezione 3, e src/render/item_layers.h). Due parti:
 
    1. BuildItemLayers e' una funzione PURA (item_layers.c): la si esercita
@@ -632,7 +632,7 @@ bool GameLayerTest(Game *game)
     return textureValid;
 }
 
-/* Fase 3b VISIVA (docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+/* Fase 3b VISIVA (docs/engineering/specs/2026-07-13-pools-rarity-design.md,
    sezione 6): verifica manuale/screenshot che RarityColor/RarityName
    (src/render/rarity_style.h) si leggano bene DAVVERO, sia sul pickup a
    terra (DrawPickup) sia nel pannello (DrawItemPreview). Come GameLayerTest
@@ -690,7 +690,7 @@ bool GameRarityScreenshotTest(Game *game)
     return textureValid;
 }
 
-/* Step C (docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md): il
+/* Step C (docs/engineering/specs/2026-07-14-step-c-shottype-balance.md): il
    COMPORTAMENTO dei tipi di colpo e' verificato per davvero dai test R-W della
    suite --script-items-test (bilanciamento, catena, perforazione, ricalcolo). Ma
    il feedback che ha aperto questa fase chiedeva anche un ASPETTO diverso per

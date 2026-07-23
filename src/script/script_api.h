@@ -2,7 +2,7 @@
 #define MELTING_RUN_SCRIPT_API_H
 
 /* ScriptApi: l'API di gioco esposta dentro l'_ENV di una ScriptSandbox (spec,
-   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md, sezione 5). Vive
+   docs/engineering/specs/2026-07-13-lua-sandbox-design.md, sezione 5). Vive
    in src/script/ (non src/gameplay/): e' l'unico modulo, insieme a
    script_items.c, che tocca sia lua_State sia i tipi di gioco (Game, Enemy,
    Shot...) nello stesso file. src/gameplay/ non include mai lua.h (vedi

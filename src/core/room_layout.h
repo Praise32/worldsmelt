@@ -3,7 +3,8 @@
 
 #include <stdbool.h>
 
-/* Layout delle stanze (fase 3c, docs/superpowers/specs/2026-07-16-step-3c-rooms.md).
+/* Layout delle stanze (fase 3c; la spec dedicata non fu mai scritta, il
+ * design canonico e' docs/design/systems/rooms-and-floor-generation.md).
  *
  * STESSO PRINCIPIO di tutto il resto (tipi di colpo, nemici): il motore NON ha un
  * catalogo di stanze. Espone un vocabolario parametrico -- una FORMA di layout

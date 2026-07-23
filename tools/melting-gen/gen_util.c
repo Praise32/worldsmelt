@@ -249,7 +249,7 @@ const GenTraitRule *GenTraitRuleFor(const char *trait)
 }
 
 /* ============================================================
-   Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+   Rarita' (fase 3b, docs/engineering/specs/2026-07-13-pools-rarity-design.md,
    sezioni 1-3). Tavole dichiarative -- MODIFICA QUI per bilanciare/espandere.
    ============================================================ */
 

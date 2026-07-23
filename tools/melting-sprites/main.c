@@ -10,7 +10,7 @@
    scrivere l'atlas ne' toccare il manifest (vedi RunGenerate piu' sotto):
    le celle sintetiche di --dry-run restano disponibili solo dietro quel
    flag esplicito, mai come ripiego silenzioso (vedi
-   docs/superpowers/specs/2026-07-13-local-sprites-design.md).
+   docs/engineering/specs/2026-07-13-local-sprites-design.md).
 
    --gen-size <px> (256 o 512, default 512, vedi ParseArgs): dimensione a cui
    Stable Diffusion genera ogni cella prima del post-processing. E' il
@@ -54,7 +54,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
     args->dryRun = 0;
     args->check = 0;
     args->cells = SPRITE_CELLS;
-    /* Misurati nello spike (docs/SPRITES-SPIKE.md): non ridiscussi qui. */
+    /* Misurati nello spike (docs/ai-production/experiments/sprites-spike.md): non ridiscussi qui. */
     args->model = "models/Public-Prompts-Pixel-Model.ckpt";
     args->lora = "models/lcm-lora-sdv1-5.safetensors";
     args->useTaesd = 0;   /* di default la VAE reale: piu' nitida, ~1s in piu' per cella */
@@ -115,7 +115,7 @@ static int ParseArgs(int argc, char **argv, SpritesArgs *args)
  * dentro lo sprite (l'"occhio"), un'ombreggiatura quasi nera, una macchia
  * del colore esatto di sfondo racchiusa nel corpo, e uno sfondo rumoroso
  * (non piatto). Sono esattamente i casi che lo spike ha misurato rompere
- * una soglia di luminosita' globale (docs/SPRITES-SPIKE.md, "Le due cose
+ * una soglia di luminosita' globale (docs/ai-production/experiments/sprites-spike.md, "Le due cose
  * imparate"): se il ritaglio regredisse a quell'approccio, questi test
  * fallirebbero.
  *

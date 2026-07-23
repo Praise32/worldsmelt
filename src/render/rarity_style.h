@@ -3,7 +3,7 @@
 
 #include "core/game_types.h"
 
-/* Fase 3b VISIVA (docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+/* Fase 3b VISIVA (docs/engineering/specs/2026-07-13-pools-rarity-design.md,
    sezioni 1 e 6): unica fonte di verita' per come la rarita' si vede sullo
    schermo -- colore "classico" e nome in italiano. Ogni punto del renderer
    che mostra la rarita' (bordo/glow del pickup in DrawPickup, bordo +

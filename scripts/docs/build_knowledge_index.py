@@ -27,7 +27,7 @@ GENERATED_MARKER = "<!-- GENERATED"
 
 # Domini vivi sottoposti a verifica. docs/archive/ e' escluso per contratto;
 # tutto cio' che sta fuori da queste cartelle (durante la migrazione: i vecchi
-# docs/*.md, docs/superpowers/, docs/dataset/) non e' ancora nel perimetro.
+# docs/*.md, docs/ai-production/dataset/) non e' ancora nel perimetro.
 SCAN_DIRS = ["design", "engineering", "ai-production", "plans", "references", "_meta"]
 SCAN_ROOT_FILES = ["README.md"]
 

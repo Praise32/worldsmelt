@@ -3,7 +3,7 @@
 
 #include "core/game_types.h"
 
-/* Sinergie IMPLICITE alla Isaac (step D, docs/references/design-sinergie.md,
+/* Sinergie IMPLICITE alla Isaac (step D, docs/references/research/design-sinergie.md,
    sezione 6 "la prima versione minima"; decisione di alto livello gia' presa
    nella vision doc, sezione 4: modello A, implicito).
  *

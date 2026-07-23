@@ -1,6 +1,6 @@
 /* Test dell'API di gioco a handle e delle callback degli oggetti (fase
    3a-L2, src/script/script_api.c e src/script/script_items.c). Vedi la
-   spec, docs/superpowers/specs/2026-07-13-lua-sandbox-design.md, sezioni
+   spec, docs/engineering/specs/2026-07-13-lua-sandbox-design.md, sezioni
    5-9, e il task brief (criteri di successo).
 
    Come src/tests/script_sandbox_tests.c, ogni test costruisce un Game LOCALE
@@ -302,7 +302,7 @@ static bool TestRecomputeIdempotent(void)
 }
 
 /* ============================================================
-   Test I/J/K (fase 3, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+   Test I/J/K (fase 3, docs/engineering/specs/2026-07-13-items-synergy-vision.md
    sezioni 1,2,5 + il task brief "items synergy vision"): oggetti stat-up
    (ITEM_STATUP), il budget di potenza per-oggetto e il ripiego C "mai un
    dud". Stesso pattern degli altri test qui sopra: Game locale, TestAddItem
@@ -533,7 +533,7 @@ static bool TestFallbackBossItemIsRare(void)
 }
 
 /* ============================================================
-   Test R-W (step C, docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md):
+   Test R-W (step C, docs/engineering/specs/2026-07-14-step-c-shottype-balance.md):
    i tipi di colpo INVENTATI DAL MODELLO e le curve alla Isaac. Il punto di
    questi test e' che il motore non ha un elenco di tipi di colpo da verificare
    (non esiste: li inventa il modello a ogni run) -- si verifica quindi la
@@ -912,7 +912,7 @@ static bool TestDamageCurveDiminishesButNeverHurts(void)
 }
 
 /* ============================================================
-   Test X-Z (step D, docs/references/design-sinergie.md, sezione 6 punto 5: i
+   Test X-Z (step D, docs/references/research/design-sinergie.md, sezione 6 punto 5: i
    criteri di successo della prima versione delle sinergie implicite). Le
    sinergie sono coppie: nessun oggetto sa dell'altro, ma il gioco riconosce la
    coppia e aggiunge UN effetto leggibile.
@@ -1052,7 +1052,7 @@ static bool TestSynergyPowerScalesWithRarity(void)
 }
 
 /* ============================================================
-   Test AD-AF (fase 3b, docs/superpowers/specs/2026-07-14-step-3b-enemies.md): i
+   Test AD-AF (fase 3b, docs/engineering/specs/2026-07-14-step-3b-enemies.md): i
    nemici inventati dal modello. Stessa struttura dei test dei tipi di colpo, perche'
    e' lo stesso principio: il motore non ha un catalogo di nemici, ha un vocabolario
    e DUE GARANZIE -- l'equilibrio del singolo nemico (EnemyTypeBalance) e il budget

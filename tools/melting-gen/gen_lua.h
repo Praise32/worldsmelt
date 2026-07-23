@@ -2,7 +2,7 @@
 #define MELTING_GEN_LUA_H
 
 /* gen_lua.{h,c}: fase 3a-L3 (vedi
-   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md, sezioni 6 e 9).
+   docs/engineering/specs/2026-07-13-lua-sandbox-design.md, sezioni 6 e 9).
    Chiude il cerchio aperto dalla spec: fino a qui l'LLM sceglieva SOLO fra
    le quattro operazioni della mini-VM (script CSV); da qui puo' scrivere
    Lua vero per il comportamento speciale di un oggetto, opzionale, validato

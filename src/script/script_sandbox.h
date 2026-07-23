@@ -4,7 +4,7 @@
 /* ScriptSandbox: la "gabbia" C attorno a un interprete Lua 5.5 vendorizzato,
    pensata per eseguire codice scritto da un modello da 7B che gira sulla
    macchina del giocatore. Vedi la spec:
-   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md (sezioni 2,3,4,9).
+   docs/engineering/specs/2026-07-13-lua-sandbox-design.md (sezioni 2,3,4,9).
 
    Decisione di design: UNO STATO LUA PER SCRIPT, non uno stato condiviso fra
    tutti gli oggetti/nemici della run. Ogni ScriptSandbox e' un lua_State

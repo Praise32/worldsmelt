@@ -568,7 +568,7 @@ static void WorldSpawnRoomReward(Game *game)
     }
     else if (room->kind == ROOM_BOSS)
     {
-        /* Fase 3 (vedi la vision doc, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+        /* Fase 3 (vedi la vision doc, docs/engineering/specs/2026-07-13-items-synergy-vision.md
            sezioni 1,2,5): il boss lascia SEMPRE l'oggetto stat-up del piano,
            mai uno a caso fra i tre attivi (quelli restano la ricompensa di
            tesoro/negozio, vedi WorldSpawnRoomContents sopra e

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test della sandbox Lua (src/script/script_sandbox.c). Vedi la spec:
-# docs/superpowers/specs/2026-07-13-lua-sandbox-design.md (sezioni 2,3,4,9).
+# docs/engineering/specs/2026-07-13-lua-sandbox-design.md (sezioni 2,3,4,9).
 #
 # A differenza di test-gen.sh/test-sprites.sh, qui non serve xvfb-run: i due
 # flag usati sotto (--script-sandbox-test, --script-determinism-test) girano

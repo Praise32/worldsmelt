@@ -19,7 +19,7 @@ const char *ItemFirstTraitName(unsigned int traits);
  * attivi insieme. */
 void ItemTraitsToText(unsigned int traits, char *out, int outSize);
 
-/* Fase 3b (design doc, docs/superpowers/specs/2026-07-13-pools-rarity-design.md,
+/* Fase 3b (design doc, docs/engineering/specs/2026-07-13-pools-rarity-design.md,
    sezione 4): "il costo del negozio scala con la rarita'". Usata da
    src/world/world.c quando piazza l'oggetto attivo del negozio (l'unico
    pool a pagamento: il tesoro costa una chiave, non monete). */

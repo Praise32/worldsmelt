@@ -55,7 +55,7 @@
    che NON e' la stessa cosa del controllo "prompt+nPredict <= n_ctx" gia'
    presente in GenLlmComplete (quello logga un errore e ritorna -1, questo
    fa un ggml_abort() e uccide l'intero processo). Scoperto in fase 3
-   (docs/superpowers/sdd/phase3-items-report.md): il cheat-sheet Lua e' cresciuto
+   (report di fase locale .superpowers/sdd/phase3-items-report.md): il cheat-sheet Lua e' cresciuto
    (tavolozza di archetipi per gli oggetti attivi + il prompt dedicato agli
    oggetti stat-up) fino a superare 2048 token pur restando ben sotto n_ctx,
    e la sessione condivisa e' andata in crash A META' RUN (dopo il JSON,
@@ -119,7 +119,7 @@ typedef struct GenScriptOp {
 } GenScriptOp;
 
 /* Sorgente Lua opzionale dell'oggetto (fase 3a-L3, vedi
- * docs/superpowers/specs/2026-07-13-lua-sandbox-design.md sezioni 6,9 e
+ * docs/engineering/specs/2026-07-13-lua-sandbox-design.md sezioni 6,9 e
  * gen_lua.h). Deve restare comodamente sotto SCRIPT_LUA_LEN=2048 di
  * core/game_types.h (il campo del lato gioco che la ospita): GenLuaValidate
  * rifiuta qui in melting-gen qualunque script che sfori questo margine,
@@ -142,7 +142,7 @@ typedef struct GenItem {
     int traitCount;     /* 1..2 */
     char color[8];      /* "#rrggbb" */
     char kind[8];        /* uno dei GEN_KINDS */
-    /* Rarita' (fase 3b, docs/superpowers/specs/2026-07-13-pools-rarity-design.md):
+    /* Rarita' (fase 3b, docs/engineering/specs/2026-07-13-pools-rarity-design.md):
      * uno dei GEN_RARITIES sotto. Stesso trattamento testuale di 'kind' e
      * per lo stesso motivo: mai scritta dal modello (non fa parte della
      * grammatica JSON, run.gbnf), sempre tirata in C da una tabella di pesi
@@ -186,7 +186,7 @@ typedef struct GenFloor {
     RoomLayoutDef roomLayout;
     GenItem items[GEN_ITEMS];   /* oggetti ATTIVI: la stessa grammatica JSON di sempre (run.gbnf), il modello li scrive */
     /* Oggetto STAT-UP del piano, ricompensa del boss (fase 3, vedi
-     * docs/superpowers/specs/2026-07-13-items-synergy-vision.md sezioni
+     * docs/engineering/specs/2026-07-13-items-synergy-vision.md sezioni
      * 1,2,5): campo esplicito, non un quarto elemento di items[] (stessa
      * scelta e stessa motivazione del lato gioco, vedi FloorContent in
      * core/game_types.h). Nome/slot/colore/trait sono generati

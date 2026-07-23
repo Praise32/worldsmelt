@@ -1,5 +1,5 @@
 /* Un test per ciascuna delle fughe elencate nella spec (sezioni 2 e 4 di
-   docs/superpowers/specs/2026-07-13-lua-sandbox-design.md): ognuno esegue
+   docs/engineering/specs/2026-07-13-lua-sandbox-design.md): ognuno esegue
    DAVVERO lo snippet ostile attraverso l'API pubblica di ScriptSandbox e
    verifica che sia stato fermato, non che una stringa sia assente da un
    file. Il test di determinismo (escape 9) e' separato: richiede due

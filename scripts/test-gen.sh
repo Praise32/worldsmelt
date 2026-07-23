@@ -428,7 +428,7 @@ echo "-- il manifest e' completo --"
 grep -q "^floor5.item3.script=" "$TMP/a/current_run.txt"
 grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 
-# Fase 3 (tassonomia degli oggetti, docs/superpowers/specs/2026-07-13-items-synergy-vision.md
+# Fase 3 (tassonomia degli oggetti, docs/engineering/specs/2026-07-13-items-synergy-vision.md
 # sezioni 1,2,5): un campo "kind" per oggetto, gli oggetti attivi vanno in
 # items[1..3], l'oggetto stat-up del piano (ricompensa del boss) e' un
 # quarto campo esplicito "bossItem". Round-trip attraverso il manifest di
@@ -450,7 +450,7 @@ for n in 1 2 3 4 5; do
 done
 
 
-# Fase 3b (design doc, docs/superpowers/specs/2026-07-13-pools-rarity-design.md
+# Fase 3b (design doc, docs/engineering/specs/2026-07-13-pools-rarity-design.md
 # sezioni 1-3): ogni oggetto porta una rarita', il boss la tira SEMPRE da una
 # tabella raro/leggendario (mai comune/non-comune), tesoro/negozio danno la
 # mista. Round-trip attraverso il manifest di testo, per ciascuno dei 5 piani
@@ -496,7 +496,7 @@ if [ "$distinctActive" -lt 2 ]; then
 fi
 echo "   rarita' distinte viste negli oggetti attivi su 7 semi: $distinctActive/4"
 
-# Step C (docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md): ogni
+# Step C (docs/engineering/specs/2026-07-14-step-c-shottype-balance.md): ogni
 # piano porta UN tipo di colpo, su UNO dei tre oggetti attivi (mai sul bossItem:
 # uno stat-up e' solo numeri). I tipi li INVENTA IL MODELLO -- qui si esercita il
 # ripiego procedurale, che e' quello che il gioco vede quando il modello non c'e',

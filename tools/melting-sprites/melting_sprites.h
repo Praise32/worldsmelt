@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-/* Dimensioni fisse della pipeline, misurate nello spike (docs/SPRITES-SPIKE.md):
+/* Dimensioni fisse della pipeline, misurate nello spike (docs/ai-production/experiments/sprites-spike.md):
    Stable Diffusion genera di default a 512x512, il gioco usa celle da
    128x128 in un atlas 1024x1024 a 8 colonne (stesso layout di AtlasSprite in
    src/core/game_types.h: cella i alla colonna i%8, riga i/8).
@@ -36,7 +36,7 @@
 /* Il gioco fa chroma-key sul quasi-nero (src/assets/game_assets.c): nessun
    pixel opaco dello sprite puo' avere max(r,g,b) sotto questa soglia, o il
    caricamento lo tratterebbe come sfondo trasparente. Vedi "Le due cose
-   imparate" in docs/SPRITES-SPIKE.md. */
+   imparate" in docs/ai-production/experiments/sprites-spike.md. */
 #define SPRITE_KEY_FLOOR 16
 
 /* Tolleranze del ritaglio a flood fill: la prima per il flood fill vero e
@@ -53,7 +53,7 @@ typedef struct SpritePostStats {
 
 /* sprite_post.c: downscale modale, ritaglio dello sfondo, riduzione palette.
    Porting diretto della pipeline provata su hardware reale (vedi
-   docs/SPRITES-SPIKE.md). Operano su un buffer di cella SPRITE_CELL x
+   docs/ai-production/experiments/sprites-spike.md). Operano su un buffer di cella SPRITE_CELL x
    SPRITE_CELL, RGBA a meno che sia specificato altrimenti. */
 
 /* src: genSize*genSize*3 (RGB), genSize deve essere 256 o 512 (vedi

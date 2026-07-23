@@ -1,6 +1,6 @@
 /* Post-processing degli sprite: downscale modale, ritaglio dello sfondo a
    flood fill, riduzione della palette con KEY_FLOOR. Porting diretto della
-   pipeline provata su hardware reale (vedi docs/SPRITES-SPIKE.md, sezione
+   pipeline provata su hardware reale (vedi docs/ai-production/experiments/sprites-spike.md, sezione
    "Le due cose imparate"): non ridisegnare l'algoritmo, e' stato misurato. */
 #include "melting_sprites.h"
 

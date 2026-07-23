@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Esperimento 0 (roadmap 16/07/2026, settimana 2; vedi
 # roguelike-ai-appunti/06-training-hardware-costi.md, "Piano di
-# addestramento SD" e docs/dataset/baseline-prompts.txt): baseline sprite a
+# addestramento SD" e docs/ai-production/dataset/baseline-prompts.txt): baseline sprite a
 # prompt e seed FISSI con la pipeline attuale, SENZA alcun training. Il
 # risultato e' il metro di paragone per ogni Style/Item LoRA futura.
 #
-# Per ogni coppia tema/stile di docs/dataset/baseline-prompts.txt e per ogni
+# Per ogni coppia tema/stile di docs/ai-production/dataset/baseline-prompts.txt e per ogni
 # seed fisso, scrive un mini-manifest temporaneo con SOLO floor1.theme= e
 # floor1.style= -- i due unici campi che SpritesLoadManifest legge da
 # current_run.txt (tools/melting-sprites/sprite_manifest.c) -- e lancia
@@ -34,11 +34,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SPR="bin/melting-sprites"
-PROMPTS_FILE="docs/dataset/baseline-prompts.txt"
+PROMPTS_FILE="docs/ai-production/dataset/baseline-prompts.txt"
 START_PAIR="${START_PAIR:-1}"
 MAX_PAIRS="${MAX_PAIRS:-15}"
 SEEDS="${SEEDS:-5 17}"
-SECS_PER_ATLAS=85   # misurato nello spike (docs/SPRITES-SPIKE.md); solo una stima
+SECS_PER_ATLAS=85   # misurato nello spike (docs/ai-production/experiments/sprites-spike.md); solo una stima
 
 # Stesso default di ParseArgs in tools/melting-sprites/main.c: si controlla
 # QUI, una volta sola, invece di lasciar fallire ogni singola chiamata dopo

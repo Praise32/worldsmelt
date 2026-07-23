@@ -6,7 +6,7 @@ RAYLIB_LIB := $(RAYLIB_DIR)/build/raylib/libraylib.a
 # Lua 5.5.0 (fase 3, sandbox script): compilata con la propria Makefile
 # ufficiale (target "linux") in scripts/setup-deps.sh, come raylib/llama.cpp/
 # stable-diffusion.cpp qui sotto. Statica, MIT: il binario del gioco la
-# linka (vedi docs/LICENZE.md), ma NON linka mai llama.cpp/stable-diffusion.cpp/
+# linka (vedi docs/ai-production/licenze.md), ma NON linka mai llama.cpp/stable-diffusion.cpp/
 # cJSON (vedi i commenti su GEN_LIBS/SPRITES_LIBS piu' sotto e AGENTS.md).
 LUA_DIR := deps/lua-5.5.0
 LUA_LIB := $(LUA_DIR)/src/liblua.a
@@ -173,7 +173,7 @@ gen-metrics: all
 # Baseline sprite "Esperimento 0" (roadmap 16/07/2026, settimana 2): 15
 # coppie tema/stile fisse x 2 seed fissi con la pipeline ATTUALE, senza
 # alcun training -- il metro di paragone per ogni Style/Item LoRA futura.
-# Vedi scripts/sprite-baseline.sh e docs/dataset/baseline-prompts.txt.
+# Vedi scripts/sprite-baseline.sh e docs/ai-production/dataset/baseline-prompts.txt.
 sprite-baseline: sprites
 	bash scripts/sprite-baseline.sh
 

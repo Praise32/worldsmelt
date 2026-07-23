@@ -116,7 +116,7 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
         /* Step C (fortuna): la probabilita' di rubare vita non e' piu' un 18%
            fisso, e' 18% + 3 punti per ogni punto di fortuna, clampata in
            [0, 60]. E' lo schema lineare di Isaac ("chance = base + luck*incr",
-           vedi docs/references/formule-statistiche.md), il primo consumatore
+           vedi docs/references/research/formule-statistiche.md), il primo consumatore
            della nuova statistica: con fortuna 0 il comportamento e' identico a
            prima di questa fase, con fortuna al massimo (15) si arriva al tetto
            del 60% -- alto, mai garantito. */
@@ -274,7 +274,7 @@ void CombatFirePlayer(Game *game, Vector2 dir)
        dava (non lo sostituiscono): un tipo a tre pallettoni su un giocatore con
        split spara 4 colpi, non 3. Tetto a 5 perche' oltre il ventaglio diventa
        un muro e MAX_SHOTS si consuma in un attimo. */
-    /* Sinergie, CANALE B (step D, docs/references/design-sinergie.md 4.3): il
+    /* Sinergie, CANALE B (step D, docs/references/research/design-sinergie.md 4.3): il
        punto di innesto naturale e' proprio qui, subito dopo la creazione del
        colpo -- e' l'equivalente delle "tear flags" di Isaac. La maschera e' gia'
        in cache (ricalcolata da zero insieme alle statistiche, vedi

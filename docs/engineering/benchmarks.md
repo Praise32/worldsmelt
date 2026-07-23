@@ -1,0 +1,211 @@
+---
+id: eng-benchmarks
+title: Benchmark melting-gen e melting-sprites — macchina di riferimento
+domain: engineering
+status: implemented
+authority: supporting
+owner: engineering
+summary: >-
+  Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento,
+  contesto della misura, disambiguazione tra i due meccanismi di benchmark del
+  repo e il meccanismo del tier automatico letto dal gioco a --generate.
+last_reviewed: 2026-07-23
+last_verified_commit: fe27f6d
+topics: [benchmark, performance, tier, vulkan, gpu]
+related: []
+supersedes: []
+source_files: [scripts/benchmark.sh, scripts/test-llm.sh, tools/melting-gen/main.c, tools/melting-sprites/main.c, src/app/app.c]
+---
+
+# Benchmark melting-gen e melting-sprites — macchina di riferimento
+
+## Contesto della misura
+
+- **Macchina di riferimento**: Ryzen 5 3600, **AMD RX 5600 XT 6 GB VRAM** (RDNA1, Mesa RADV,
+  backend **Vulkan**), Ubuntu 26.04.
+- **Periodo delle misure**: la tabella sotto (`make test-llm`, sweep manuale per modello/ngl)
+  risale al **13/07/2026**, commit `b836e96` ("calibrate default model and gpu offload from
+  measured benchmarks" — unico commit che ha toccato questo file, `git log --follow`). Le
+  misure del meccanismo di tier automatico (`logs/benchmark.txt`, sezione più sotto) sono
+  successive, del **17/07/2026** (introduzione del tier automatico, vedi sotto).
+- **Commit di riferimento di questo documento**: `fe27f6d` (HEAD al momento della stesura).
+- Il file originale (`docs/BENCHMARKS.md`, non aveva front matter) non registrava data né
+  commit: entrambi sono stati ricavati da `git log` per questa migrazione.
+
+## Tabella misurata — sweep manuale (`make test-llm`)
+
+Comando: `MODEL=... NGL=... SEED=42 make test-llm`. Una riga per corsa, copiata da
+`logs/melting-gen.log`. Colonna VRAM = somma dei buffer Vulkan0 riportati dal log di
+caricamento di llama.cpp (model buffer + KV buffer + compute buffer); è il consumo reale
+sulla scheda, non la dimensione del file .gguf.
+
+| Modello | ngl | load (s) | gen (s) | totale (s) | token | tok/s | VRAM Vulkan0 | Esito |
+|---|---|---|---|---|---|---|---|---|
+| 1.5B Q4_K_M | 99 | 0.7 | 28.1 | 28.8 | 1291 | 46.0 | 1.29 GiB (29/29 layer) | ok |
+| 7B Q4_K_M | 99 | 2.6 | 47.0 | 49.6 | 1321 | 28.1 | 4.53 GiB (29/29 layer) | ok |
+| 7B Q4_K_M | 28 | 2.5 | 53.3 | 55.8 | 1321 | 24.8 | 4.39 GiB (28/29 layer) | ok |
+| 7B Q4_K_M | 24 | 2.2 | 71.4 | 73.6 | 1339 | 18.8 | 3.84 GiB (24/29 layer) | ok |
+| 7B Q4_K_M | 20 | 2.0 | 94.7 | 96.7 | 1434 | 15.1 | 3.30 GiB (20/29 layer) | ok |
+
+Default scelti in `tools/melting-gen/main.c`: modello = 7B Q4_K_M
+(`models/qwen2.5-coder-7b-instruct-q4_k_m.gguf`), ngl = 99.
+Criterio: la corsa più veloce che completa in modo stabile entro il budget di
+1-2 minuti (spec §2); a parità di stabilità vince la qualità (7B > 1.5B).
+
+### Cosa dicono questi numeri, in pratica
+
+La sorpresa di questo giro di misure è che il 7B **ci sta comodamente** nei 6GB
+della RX 5600 XT: a `ngl=99` (tutti i 29 layer sulla GPU) llama.cpp riporta un
+consumo di 4,53 GiB su Vulkan0, quindi resta più di 1 GiB di margine libero. Il
+timore iniziale — che il file da 4,7 GB non entrasse a offload pieno — non si è
+verificato su questa macchina: nessun fallimento di caricamento, nessun
+rallentamento anomalo. La colonna "load (s)" resta bassa e stabile (2-2,6s) a
+ogni livello di `ngl`, segno che il caricamento dei pesi via mmap è sempre stato
+rapido; è la fase di generazione a rallentare quando si tolgono layer dalla GPU.
+
+Il pattern è lineare e prevedibile: ogni layer del 7B tolto dalla GPU e rimasto
+sulla CPU (mmap, non copiato in RAM dedicata) costa velocità di generazione,
+perché quel layer va calcolato sulla CPU e i risultati intermedi devono
+attraversare il bus PCIe per tornare al resto della pipeline sulla GPU. Si vede
+bene nella progressione dei tok/s: 28,1 (ngl 99, tutto in GPU) → 24,8 (ngl 28,
+un solo layer fuori) → 18,8 (ngl 24, 5 layer fuori) → 15,1 (ngl 20, 9 layer
+fuori). Nessuna di queste corse ha "sforato" il budget di 1-2 minuti — anche la
+più lenta (ngl 20) chiude a 96,7s totali, sotto i 120s — ma il margine si
+assottiglia man mano che si scende con `ngl`, ed è ragionevole aspettarsi che
+schede con meno VRAM (es. 4GB) debbano scendere ulteriormente e quindi
+avvicinarsi o superare il limite dei 2 minuti: è per questo che questa tabella
+serve da base per il meccanismo di tier automatico descritto più sotto.
+
+Il "muro della VRAM" quindi non è stato osservato direttamente su questa scheda
+(6GB bastano per il 7B Q4_K_M a offload pieno con margine), ma la tabella lascia
+comunque la traccia di cosa succede quando ci si avvicina: più layer restano
+sulla CPU, più tempo passa nel trasferimento dati sul bus, e la generazione
+rallenta in modo continuo e proporzionale, non a scalino. Su una scheda con
+meno di ~4,5 GiB liberi il 7B a `ngl=99` fallirebbe l'allocazione o (a seconda
+del driver) andrebbe in overflow verso la RAM di sistema con un crollo molto
+più marcato dei tok/s — scenario da verificare quando si testerà su hardware
+diverso.
+
+Il default scelto è quindi il 7B a `ngl=99`: è insieme la configurazione più
+veloce (49,6s totali, quasi un terzo del budget di 1-2 minuti) e quella con la
+qualità di contenuto migliore, perché il 7B genera testi più vari e non ripete
+i nomi degli oggetti tra un piano e l'altro come si era osservato con l'1.5B nel
+Task 7. Non c'è quindi nessun compromesso da fare su questa macchina: il 7B
+vince su entrambi i fronti. Il modello 1.5B resta il fallback automatico (già
+cablato in `main.c`, `APP_LOW_SPEC_MODEL` in `src/app/app.c:91`) per le macchine
+dove il 7B non dovesse caricare, e per il preset `--low-spec` (vedi sotto).
+
+## Disambiguazione: due "tok/s" diversi nel repo
+
+Il repo contiene **due meccanismi di misura distinti**, che producono entrambi un
+numero in tok/s (o img/s) ma **non misurano la stessa cosa**. Confonderli porta a
+confrontare mele con pere.
+
+### `make test-llm` (la tabella sopra) — generazione reale col prompt del gioco
+
+`scripts/test-llm.sh` invoca `bin/melting-gen --model ... --ngl ... --seed ... --out generated`
+**senza** `--bench`: è la stessa identica strada di produzione che il gioco percorre a
+`--generate`. Genera l'intera run (5 piani, oggetti, script Lua per oggetto, eventuale
+personaggio proposto), usando i prompt reali in `prompts/` e la grammatica GBNF del gioco
+(`run.gbnf`). Il tok/s riportato in tabella viene letto a posteriori dall'ultima riga
+`ok: model=...` di `logs/melting-gen.log`: è quindi il throughput di una generazione vera,
+comprensiva del costo reale del prompt di produzione e della grammatica vincolata.
+`test-llm.sh` verifica anche varietà dei contenuti (5 temi/tipi di colpo distinti, guardia
+"anti-fotocopia") e assenza di italiano nei campi generati — non è un benchmark puro, è il
+test end-to-end che *incidentalmente* riporta anche i tempi.
+
+### `melting-gen --bench` / `melting-sprites --bench` — throughput puro, isolato dai prompt di produzione
+
+`scripts/benchmark.sh` invoca invece `bin/melting-gen --bench` e `bin/melting-sprites --bench`
+in sequenza (mai insieme: i due modelli non convivono nella VRAM di riferimento). Qui il
+codice (`tools/melting-gen/main.c`, funzione `RunBench`, righe 341-410) è esplicito:
+
+> "Carica lo STESSO modello di una generazione vera... genera `GEN_BENCH_TOKENS` token da un
+> prompt FISSO hardcoded... nessuna dipendenza da `prompts/`... NON tocca `generated/`."
+
+Cioè `--bench` misura **la velocità pura del modello** (caricamento + tok/s su un prompt
+fisso, breve e sempre uguale, non i prompt di produzione del gioco), apposta per essere
+confrontabile fra macchine e non inquinato dal costo della grammatica GBNF del JSON di
+produzione (il commento nel codice nota esplicitamente che il costo del prompt fisso è
+trascurabile rispetto ai token generati, e che non vale la pena separare le due fasi "per
+soglie grossolane come quelle del tier"). Il gemello lato sprite (`tools/melting-sprites/main.c`,
+funzione `RunBench`) genera sempre a 512px (indipendente da `--gen-size`) perché misura "la
+pipeline di riferimento", non il preset alleggerito.
+
+In sintesi: **la tabella di questo documento** (da `make test-llm`) è la calibrazione una
+tantum dei default di produzione in `tools/melting-gen/main.c` (modello e `ngl` di default);
+**`--bench`** è il meccanismo runtime che alimenta il tier automatico per-utente descritto
+sotto. Sono complementari, non intercambiabili: uno misura "quanto è buona/veloce una
+generazione vera", l'altro "quanto è veloce il modello nudo su questa macchina".
+
+## Meccanismo del tier automatico
+
+`make benchmark` (target che esegue `scripts/benchmark.sh`) orchestra i due `--bench` in
+sequenza e scrive `logs/benchmark.txt` in formato chiave=valore:
+
+```
+benchSchema=1
+tokS=42.29
+imgS=5.62
+tier=full
+measuredAt=1784275965
+```
+
+(valori reali osservati in `logs/benchmark.txt` in questo repo).
+
+Soglie (`scripts/benchmark.sh`, righe 56-74), misurate non dedotte:
+
+- `tokS >= 12` **e** `imgS <= 8` → tier `full` (hardware alla pari/sopra la scheda di
+  riferimento);
+- altrimenti `tokS >= 6` → tier `lowspec` (testo comunque utilizzabile anche senza SD);
+- sotto → tier `unsupported` (si può comunque giocare, fallback procedurale sempre presente,
+  ma la generazione IA sarà lenta o assente).
+
+Al successivo avvio del gioco con `--generate`, `AppReadBenchmarkPreset`
+(`src/app/app.c:44-78`) rilegge `logs/benchmark.txt` e applica **da solo**, senza alcuna
+interazione dell'utente:
+
+- `tier=lowspec` → preset `--low-spec` equivalente: modello di testo **1.5B**
+  (`APP_LOW_SPEC_MODEL = models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`, `app.c:91`) e
+  sprite generati a **256px** invece di 512 (`--gen-size 256`, `app.c:228-233`);
+- `tier=unsupported` → nessun blocco, solo un messaggio d'avviso (il fallback procedurale
+  esiste sempre);
+- `tier=full` o schema sconosciuto → nessuna azione, comportamento di sempre.
+
+**I flag espliciti vincono sempre**: se l'utente passa `--low-spec` o `--full-spec` a mano,
+`AppReadBenchmarkPreset` ignora del tutto il file di benchmark, sia il preset sia il
+messaggio (`app.c:48-50`, guardia `if (manualLowSpec || manualFullSpec) return;`).
+
+Il gioco **non linka mai** llama.cpp o stable-diffusion.cpp (vincolo architetturale,
+`AGENTS.md`): legge solo il file di testo `logs/benchmark.txt` prodotto dai due binari esterni,
+mai i modelli direttamente.
+
+### Il warmup Vulkan della prima immagine si scarta
+
+`melting-sprites --bench` (`tools/melting-sprites/main.c`, funzione `RunBench`, righe
+639-664) genera **due** immagini di prova e tiene solo la seconda:
+
+> "DUE generazioni: la prima paga il warmup Vulkan (compilazione delle pipeline/shader) e
+> viene scartata, la misura è la SECONDA, a regime... Misurato sulla scheda di riferimento:
+> prima immagine ~14.9s, seconda ~5.7s — contare il warmup mandava una 5600 XT (che regge il
+> full) nel tier lowspec."
+
+Il valore effettivamente scritto in `logs/benchmark.txt` (`imgS=5.62` nella misura osservata
+in questo repo) è quindi il tempo della seconda generazione, non della prima: se si contasse
+il warmup (~14,9s) come tempo "di regime", la soglia `imgS <= 8` del tier `full` fallirebbe
+anche su hardware che in realtà lo supera comodamente a regime.
+
+## Nota di ambiguità aperta (nessuna posizione presa qui)
+
+DEC-070 (decision-log, approved 2026-07-18) stabilisce una **scelta binaria** al primo avvio
+(esperienza completa vs solo curato) e dice esplicitamente "Nessun tier intermedio di
+download". Il preset `--low-spec` descritto sopra, però, è un **preset automatico applicato
+in silenzio** dal meccanismo di tier (mai offerto come scelta al giocatore): modello di testo
+1.5B invece di 7B, sprite a 256px invece di 512px.
+
+Se questo preset automatico sia (a) un dettaglio implementativo dentro l'"esperienza
+completa" di DEC-070, oppure (b) il "tier di qualità" che DEC-070 esplicitamente scarta, è
+una domanda aperta non risolta da questo documento: vedi la **domanda 13** in
+`docs/design/governance/open-questions.md` ("Preset lowspec automatico vs DEC-070"), il cui
+default dichiarato è "il codice resta com'è, ambiguità annotata in engineering" — che è
+esattamente quello che questo paragrafo fa.

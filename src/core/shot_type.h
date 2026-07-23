@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-/* Tipi di colpo (step C, docs/superpowers/specs/2026-07-14-step-c-shottype-balance.md).
+/* Tipi di colpo (step C, docs/engineering/specs/2026-07-14-step-c-shottype-balance.md).
  *
  * DECISIONE DI DESIGN CHE GOVERNA TUTTO QUESTO FILE (feedback del proprietario,
  * 2026-07-14): "i tipi di colpo nuovi devono SEMPRE essere creati dai modelli

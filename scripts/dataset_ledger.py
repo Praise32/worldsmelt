@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Registro di provenienza del dataset (roadmap 16/07/2026, settimana 2).
 
-Mantiene docs/dataset/ledger.jsonl: una riga JSON per file, coi campi del
+Mantiene docs/ai-production/dataset/ledger.jsonl: una riga JSON per file, coi campi del
 "Registro obbligatorio" di roguelike-ai-appunti/05-dataset-e-licenze.md.
-Vedi docs/dataset/README.md per le regole d'oro (solo CC0 verificate o asset
+Vedi docs/ai-production/dataset/README.md per le regole d'oro (solo CC0 verificate o asset
 propri, niente output Retro Diffusion senza permesso scritto, niente
 scraping, dedup con sha256, split per pack/autore mai per frame).
 
@@ -36,7 +36,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LEDGER_PATH = REPO_ROOT / "docs" / "dataset" / "ledger.jsonl"
+LEDGER_PATH = REPO_ROOT / "docs" / "ai-production" / "dataset" / "ledger.jsonl"
 
 # Whitelist delle licenze accettate per il corpus principale (05, "Fonti da
 # evitare" + "Ordine consigliato"): CC0 verificata, asset proprio, asset
@@ -269,8 +269,8 @@ def cmd_stats(args):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="dataset_ledger.py",
-        description="Registro di provenienza del dataset (docs/dataset/ledger.jsonl). "
-                     "Vedi docs/dataset/README.md.")
+        description="Registro di provenienza del dataset (docs/ai-production/dataset/ledger.jsonl). "
+                     "Vedi docs/ai-production/dataset/README.md.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_add = sub.add_parser("add", help="registra un file o una cartella (ricorsivo)")

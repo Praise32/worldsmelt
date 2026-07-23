@@ -2,7 +2,7 @@
 #define MELTING_RUN_SCRIPT_ITEMS_H
 
 /* ScriptItems: il confine pulito fra src/gameplay/ (combat.c) e la sandbox
-   Lua (spec, docs/superpowers/specs/2026-07-13-lua-sandbox-design.md,
+   Lua (spec, docs/engineering/specs/2026-07-13-lua-sandbox-design.md,
    sezioni 5-9). QUESTO header non include mai lua.h ne' script_sandbox.h:
    Game.itemScripts (vedi core/game_types.h, ScriptItemRuntime) tiene il
    puntatore alla sandbox come void*, cosi' combat.c puo' chiamare le

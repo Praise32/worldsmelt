@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test di melting-sprites senza modello Stable Diffusion (solo post-processing,
-# via --dry-run). Vedi docs/SPRITES-SPIKE.md per il perche' degli algoritmi.
+# via --dry-run). Vedi docs/ai-production/experiments/sprites-spike.md per il perche' degli algoritmi.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -219,7 +219,7 @@ typedef struct ScriptItemsStatsAccum
    non si muove piu', o e' immortale/istantaneamente morto. */
 #define SCRIPT_ITEMS_DAMAGE_MIN      0.5f
 #define SCRIPT_ITEMS_DAMAGE_MAX      200.0f
-/* Step C (curve alla Isaac, docs/references/formule-statistiche.md + spec
+/* Step C (curve alla Isaac, docs/references/research/formule-statistiche.md + spec
    2026-07-14-step-c-shottype-balance.md): la banda della cadenza non e' piu'
    [0.05, 2.0] ma [0.10, 1.2], e sono PAVIMENTI PRATICI, non solo confini di
    sicurezza. 0.05 s significa 20 colpi al secondo: nessun nemico di questo gioco
@@ -657,7 +657,7 @@ void ScriptItemsRecomputeStats(Game *game)
     p->shotColor = shotColor;
     p->shotTypeItem = shotTypeItem;
 
-    /* Sinergie, CANALE A (step D, docs/references/design-sinergie.md sezione 4.3):
+    /* Sinergie, CANALE A (step D, docs/references/research/design-sinergie.md sezione 4.3):
        il contributo statistico delle coppie attive si applica QUI -- dopo i
        contributi di tutti i singoli oggetti, prima dei clamp finali. E' l'intero
        motivo per cui questo passo e' poco codice: una sinergia e' solo "un altro

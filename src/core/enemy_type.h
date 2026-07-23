@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-/* Tipi di nemico (fase 3b, docs/superpowers/specs/2026-07-14-step-3b-enemies.md).
+/* Tipi di nemico (fase 3b, docs/engineering/specs/2026-07-14-step-3b-enemies.md).
  *
  * STESSO PRINCIPIO DEI TIPI DI COLPO (core/shot_type.h), che ormai e' la regola
  * della casa: il motore NON ha un catalogo di nemici. Espone un vocabolario

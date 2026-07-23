@@ -27,7 +27,7 @@ MODEL_15B="qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 URL_15B="https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/$MODEL_15B"
 SHA_15B="cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046"
 
-# Modello SD1.5 per pixel art (spike misurato in docs/SPRITES-SPIKE.md), trigger "pixelsprite".
+# Modello SD1.5 per pixel art (spike misurato in docs/ai-production/experiments/sprites-spike.md), trigger "pixelsprite".
 MODEL_SD="Public-Prompts-Pixel-Model.ckpt"
 URL_SD="https://huggingface.co/PublicPrompts/All-In-One-Pixel-Model/resolve/main/Public-Prompts-Pixel-Model.ckpt"
 SHA_SD="d7fb6396ab39b73019f37040977e15ec76a2548372daa534f9ac44b61c3d9548"
@@ -79,7 +79,7 @@ Sprite (melting-sprites, fase 2 — scaricati a meno di --no-sprites):
   PESI col gioco devi propagare le restrizioni d'uso della licenza. In quel
   caso l'alternativa Apache 2.0 e' SD_PixelArt_SpriteSheet_Generator
   (leggermente peggiore in resa), non scaricata da questo script.
-- lcm-lora-sdv1-5.safetensors — latent-consistency/lcm-lora-sdv1-5 (Apache 2.0, salvato con questo nome perche' stable-diffusion.cpp risolve le LoRA per nome file)
+- lcm-lora-sdv1-5.safetensors — latent-consistency/lcm-lora-sdv1-5 (openrail++, vedi docs/ai-production/licenze.md; salvato con questo nome perche' stable-diffusion.cpp risolve le LoRA per nome file)
 - taesd.safetensors — madebyollin/taesd (MIT)
 
 Scaricati e verificati da scripts/download-models.sh.

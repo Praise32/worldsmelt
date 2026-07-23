@@ -190,8 +190,8 @@ static Color RoomMapColor(RoomKind kind)
 }
 
 /* ============================================================
-   Resa 2.5D (step E, docs/superpowers/specs/2026-07-14-feedback-roadmap.md
-   punto 5, e docs/APPUNTI.md sezione 7).
+   Resa 2.5D (step E, docs/engineering/specs/2026-07-14-feedback-roadmap.md
+   punto 5, e docs/archive/legacy-notes/appunti.md sezione 7).
  *
  * La valutazione chiesta dal proprietario ha dato questo esito: il 2.5D "alla
  * Isaac" si ottiene quasi tutto COL RENDERING, non generando piu' roba. Costa
@@ -616,7 +616,7 @@ static void DrawPickup(Game *game, const Pickup *p)
 }
 
 /* Lo stickman minimale e FISSO: il personaggio base, mai generato (vision
-   doc, docs/superpowers/specs/2026-07-13-items-synergy-vision.md, sezione
+   doc, docs/engineering/specs/2026-07-13-items-synergy-vision.md, sezione
    3; APPUNTI.md sezioni 4 e 6, "la tela vuota"). Decisione esplicita del
    proprietario: la base NON usa mai lo sprite generato SPR_PLAYER, anche
    quando l'atlas e' caricato e la cella e' presente. Due motivi, entrambi
@@ -684,7 +684,7 @@ static void DrawPlayer(Game *game)
 
 /* Il vecchio DrawHud (titolo, FPS, "Piano X/Y HP.. Monete.. Bombe.. Chiavi..",
    riga del tema, minimappa) e' stato tolto (GUI fix, step A,
-   docs/superpowers/specs/2026-07-14-feedback-roadmap.md punto 1): duplicava
+   docs/engineering/specs/2026-07-14-feedback-roadmap.md punto 1): duplicava
    in pieno il pannello sinistro "RUN" (titolo/tema/piano/stanza/minimappa,
    vedi DrawOuterUi) e il pannello destro "GIOCATORE" (HP/monete/bombe/chiavi).
    La vista centrale ora mostra solo gameplay -- stanza, entita', proiettili,

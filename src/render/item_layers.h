@@ -3,7 +3,7 @@
 
 #include "core/game_types.h"
 
-/* Il personaggio a strati (vision doc, docs/superpowers/specs/2026-07-13-
+/* Il personaggio a strati (vision doc, docs/engineering/specs/2026-07-13-
    items-synergy-vision.md, sezione 3; APPUNTI.md sezioni 4 e 6): la base e'
    uno stickman minimale e FISSO (vedi DrawPlayer in game_renderer.c), e ogni
    oggetto equipaggiato aggiunge un layer geometrico sopra di essa, ancorato
