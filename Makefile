@@ -97,7 +97,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark docs-check docs-index docs-audit clean
+.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark model-comparison image-comparison docs-check docs-index docs-audit clean
 
 all: game gen sprites
 
@@ -186,6 +186,29 @@ sprite-baseline: sprites
 # rende solo la generazione piu' veloce, mai diversa. Vedi scripts/benchmark.sh.
 benchmark: gen sprites
 	bash scripts/benchmark.sh
+
+# Suite di comparazione dei modelli candidati (decisione 22/07/2026, piano in
+# docs/plans/active/model-comparison.md): NON fa parte di `make test` -- e'
+# lunga (piu' modelli x piu' run vere, tutte in sequenza per la VRAM, mai in
+# parallelo). Scarica i candidati con scripts/download-comparison-models.sh
+# PRIMA di lanciare questo target (non e' una dipendenza make: i download
+# sono grossi e riprendibili, non vanno rifatti a ogni chiamata). Vedi
+# scripts/model-comparison.sh per l'elenco di argomenti/variabili.
+model-comparison: gen
+	bash scripts/model-comparison.sh
+
+# Stessa suite, dominio immagini (estensione 22/07/2026 della missione,
+# stessa cartella di piano): richiede un elenco esplicito nome:modello[:lora]
+# (nessun default "tutti i checkpoint in models/" -- a differenza del testo,
+# non ogni .ckpt/.safetensors in models/ e' un candidato valido, es. la LoRA
+# LCM o il VAE TAESD condividono la cartella). NON lanciare mentre
+# `model-comparison` sta ancora usando la GPU (mai due modelli GPU insieme).
+# Vedi scripts/image-comparison.sh per l'elenco di argomenti/variabili.
+image-comparison: sprites
+	bash scripts/image-comparison.sh \
+	  pixel-baseline:models/Public-Prompts-Pixel-Model.ckpt \
+	  sd15-vanilla:models/sd15-vanilla-pruned-emaonly.safetensors \
+	  pixelart-alt:models/pixelart-spritesheet-generator-v1.ckpt
 
 # Knowledge base (docs/): indice derivato, verifica vincolante e report.
 # Vedi docs/_meta/DOCUMENT-STANDARDS.md.

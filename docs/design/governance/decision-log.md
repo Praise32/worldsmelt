@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 139 decisioni di design approvate (DEC-001..DEC-139) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 140 decisioni di design approvate (DEC-001..DEC-140) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..139]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..140]
 related: []
 supersedes: []
 source_files: []
@@ -1495,3 +1495,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** solo da Pausa.
 - **Conseguenze:** verificato in scala (gradino 1) che il binding **esiste già dal M1a** (`f019cd2`, con test in GameStatesTest: Gameplay→TAB→BuildScreen→ritorno): la decisione rende canonico il comportamento implementato, nessun cambio di codice necessario. `ui/inventory-and-synergy-screen.md` registra l'ingresso rapido; la mappa canonica dei 9 stati non cambia.
 - **Documenti aggiornati:** `ui/inventory-and-synergy-screen.md`
+
+---
+
+### DEC-140 — Il modello testuale di riferimento diventa Gemma-3-4B-IT (Q4_K_M)
+
+- **Data:** 2026-07-23
+- **Stato:** approved
+- **Contesto:** la suite di comparison del 23/07 (11 modelli × 3 seed fissi, report congelato in `docs/ai-production/experiments/model-comparison-testo-2026-07-23.md`) ha misurato gemma-3-4b-it Q4_K_M sopra il baseline Qwen2.5-Coder-7B Q4_K_M: punteggio 84.9 vs 76.9, Lua valido al primo colpo 93% vs 73% (100% dopo retry), JSON 100%, metà del peso (2.3 vs 4.4 GiB), +21% tok/s. Decisione dell'utente.
+- **Decisione:** `gemma-3-4b-it-q4_k_m.gguf` diventa il **modello testuale di riferimento** di melting-gen (default). Il fallback su errore di caricamento resta il Coder 1.5B Q4 (più piccolo accettabile: sopra tutte le soglie). Il 7B resta scaricabile e selezionabile con `--model`, quindi la scelta è **reversibile con un flag**. Licenza: Gemma è distribuito sotto i **Gemma Terms of Use** di Google (uso commerciale consentito con condizioni; i pesi non vengono comunque mai ridistribuiti col gioco) — registrata in `licenze.md`. Nota di rigore: il campione era di 3 seed; una **validazione estesa** (10+ seed via `make gen-metrics`) resta raccomandata come follow-up.
+- **Alternative considerate:** restare sul 7B salendo a Q5_K_M (+15 punti di Lua sul Q4); Coder 1.5B per il minimo assoluto.
+- **Conseguenze:** default aggiornato in tools/melting-gen e in `scripts/download-models.sh` (scala, gradino 2, con `make test-llm` sul nuovo default); `00-DECISIONI-CANONICHE.md` e `licenze.md` aggiornati.
+- **Documenti aggiornati:** `docs/ai-production/00-DECISIONI-CANONICHE.md`, `docs/ai-production/licenze.md`, `docs/ai-production/experiments/model-comparison-testo-2026-07-23.md`

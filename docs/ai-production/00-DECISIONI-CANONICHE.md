@@ -7,7 +7,7 @@ authority: supporting
 owner: ai-production
 summary: >-
   Sintesi delle decisioni tecniche proposte su modelli, LoRA, training, dataset, generazione in-game, animazione, agenti e licenze; stato 'proposta consolidata'.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-23
 topics: [decisioni, stable-diffusion, lora, kaggle, dataset, licenze, animazione]
 related: []
 supersedes: []
@@ -22,7 +22,7 @@ Stato: proposta consolidata da adottare come baseline tecnica.
 - Base immagini: **Stable Diffusion 1.5 vanilla**.
 - Non addestrare un checkpoint completo nella prima fase.
 - Addestrare LoRA separate per stile e ruolo.
-- Qwen2.5-Coder resta il modello testuale locale già integrato.
+- Modello testuale locale: **Gemma-3-4B-IT Q4_K_M** dal 23/07 (DEC-140, scelto con la suite di comparison; fallback su errore di caricamento: Qwen2.5-Coder 1.5B; il 7B resta selezionabile con `--model`).
 - Qwen e Stable Diffusion restano processi separati e caricati in sequenza.
 - LCM-LoRA è un acceleratore di inferenza, non la LoRA di stile.
 - `stable-diffusion.cpp` resta il backend runtime locale preferito perché il progetto ha

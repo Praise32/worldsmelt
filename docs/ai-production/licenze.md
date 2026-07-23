@@ -7,7 +7,7 @@ authority: canonical
 owner: ai-production
 summary: >-
   Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD, Stable Audio Small con Stability Community License, DEC-113).
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-23
 last_verified_commit: fe27f6d
 topics: [licenze, OpenRAIL-M, Apache 2.0, zlib, commercializzazione, CREDITS.txt]
 related: []
@@ -54,6 +54,7 @@ di licenza.
 | LCM-LoRA SD1.5 | openrail++ | si' | si' | come sopra |
 | TAESD | MIT | si' | si' | nessun vincolo |
 | Stable Audio Small (audio, DEC-109) | Stability AI **Community License** | si', fino a 1M$/anno di ricavi (DEC-113) | si' | non previsto: i pesi non si ridistribuiscono mai |
+| Gemma-3-4B-IT (testo, DEC-140) | **Gemma Terms of Use** (Google) | si', con le condizioni d'uso Google (prohibited use policy) | si' | non previsto: i pesi non si ridistribuiscono mai |
 
 **Il punto che ti preoccupava.** OpenRAIL-M **non e' una licenza non-commerciale**: permette
 di usare il modello e di vendere le immagini che produce. L'unico obbligo scatta se

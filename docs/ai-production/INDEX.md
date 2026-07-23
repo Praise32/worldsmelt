@@ -33,6 +33,7 @@
 
 ## experiments/
 
+- [Comparison dei modelli di testo — 23/07/2026](experiments/model-comparison-testo-2026-07-23.md) — Suite di comparison su 11 modelli GGUF (3 seed fissi): gemma-3-4b-it Q4 migliore complessivo (84.9), Coder 1.5B Q4 miglior rapporto e minimo accettabile; base di DEC-140. Artefatti e valori grezzi in logs/model-comparison/20260723-125614/. `[implemented/supporting]`
 - [Spike: sprite generati in locale con Stable Diffusion](experiments/sprites-spike.md) — Spike del 13/07 su generazione locale sprite con stable-diffusion.cpp su RX 5600 XT: misure di performance e tecnica di chroma-key con flood fill. `[implemented/supporting]`
 
 ## templates/

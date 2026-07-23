@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 144,
+  "count": 145,
   "documents": [
     {
       "id": "docs-readme",
@@ -164,7 +164,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-23",
       "last_verified_commit": null
     },
     {
@@ -724,6 +724,32 @@
       "last_verified_commit": "fe27f6d"
     },
     {
+      "id": "aiprod-exp-model-comparison-testo-2026-07-23",
+      "path": "docs/ai-production/experiments/model-comparison-testo-2026-07-23.md",
+      "title": "Comparison dei modelli di testo — 23/07/2026",
+      "domain": "ai-production",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Suite di comparison su 11 modelli GGUF (3 seed fissi): gemma-3-4b-it Q4 migliore complessivo (84.9), Coder 1.5B Q4 miglior rapporto e minimo accettabile; base di DEC-140. Artefatti e valori grezzi in logs/model-comparison/20260723-125614/.",
+      "topics": [
+        "comparison",
+        "modelli",
+        "benchmark",
+        "gemma",
+        "qwen",
+        "DEC-140"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/model-comparison.sh",
+        "scripts/model_comparison_report.py"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "6ba3f40"
+    },
+    {
       "id": "aiprod-sprites-spike",
       "path": "docs/ai-production/experiments/sprites-spike.md",
       "title": "Spike: sprite generati in locale con Stable Diffusion",
@@ -770,7 +796,7 @@
       "source_files": [
         "scripts/download-models.sh"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-23",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -1387,13 +1413,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 139 decisioni di design approvate (DEC-001..DEC-139) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 140 decisioni di design approvate (DEC-001..DEC-140) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..139"
+        "DEC-001..140"
       ],
       "related": [],
       "supersedes": [],
@@ -1497,7 +1523,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-139; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-140; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -2950,29 +2976,37 @@
     {
       "id": "plans-model-comparison",
       "path": "docs/plans/active/model-comparison.md",
-      "title": "Piano — suite di comparazione dei modelli candidati",
+      "title": "Piano — suite di comparazione dei modelli candidati (testo, immagini, audio)",
       "domain": "plans",
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Obiettivo, metodo e candidati della suite che confronta modelli GGUF alternativi al 7B Coder di produzione su throughput, validità JSON/Lua, varietà e aderenza al tema, con soglie di accettabilità e istruzioni per rieseguirla.",
+      "summary": "Obiettivo, metodo e candidati della suite che confronta modelli alternativi ai default di produzione nei tre domini (testo GGUF, immagine SD, audio Stable Audio Open Small) su throughput/qualità/artefatti, con soglie di accettabilità, struttura degli output e istruzioni per rieseguirla.",
       "topics": [
         "modelli",
         "benchmark",
         "gguf",
         "llama.cpp",
+        "stable-diffusion",
+        "stable-audio",
         "comparazione",
         "vram"
       ],
       "related": [
-        "eng-benchmarks"
+        "eng-benchmarks",
+        "aiprod-audio-generation-pipeline",
+        "aiprod-regole-agenti-ml"
       ],
       "supersedes": [],
       "source_files": [
         "scripts/model-comparison.sh",
         "scripts/model_comparison_report.py",
         "scripts/download-comparison-models.sh",
-        "tools/melting-gen/main.c"
+        "scripts/image-comparison.sh",
+        "scripts/audio-benchmark.sh",
+        "scripts/audio_benchmark.py",
+        "tools/melting-gen/main.c",
+        "tools/melting-sprites/main.c"
       ],
       "last_reviewed": "2026-07-23",
       "last_verified_commit": "9b515a6"

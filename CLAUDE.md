@@ -5,7 +5,7 @@ Questo profilo governa il lavoro sul codice (motore raylib, tools, sandbox Lua, 
 Per le sessioni di documentazione/design vale il profilo gemello **`docs/CLAUDE.md`**.
 
 Regole tecniche dei moduli: vedi `AGENTS.md`. La fonte canonica del game design è
-**`docs/design/`** (139 decisioni in `docs/design/governance/decision-log.md`): prima di
+**`docs/design/`** (140 decisioni in `docs/design/governance/decision-log.md`): prima di
 implementare comportamento visibile al giocatore, consultare `docs/design/README.md`
 (percorso curato) o `docs/design/INDEX.md` (indice generato). Il router
 task→dominio è `docs/_meta/TOPIC-ROUTER.md`. Per i task ML valgono anche le regole di

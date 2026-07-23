@@ -10,6 +10,12 @@ out/
 *.lib
 *.pdb
 
+# Bytecode Python: scripts/ importano moduli fra loro (es.
+# scripts/model_comparison_report.py importa gen_metrics), il che crea
+# scripts/__pycache__/ -- rigenerabile, mai versionato.
+__pycache__/
+*.pyc
+
 # Contenuti generati e log
 generated/
 logs/
