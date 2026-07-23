@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 145,
+  "count": 146,
   "documents": [
     {
       "id": "docs-readme",
@@ -722,6 +722,32 @@
       ],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-exp-audio-benchmark-2026-07-23",
+      "path": "docs/ai-production/experiments/audio-benchmark-2026-07-23.md",
+      "title": "Primo benchmark audio — Stable Audio 3 Small su CPU (23/07/2026)",
+      "domain": "ai-production",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Prima esecuzione reale di DEC-109: Stable Audio 3 Small (sfx+music) su CPU — SFX 4s in ~7.7s, musica 20s in ~13.6s (0.68x realtime), 5 GB RAM; 20 clip salvate per revisione umana in logs/model-comparison/audio-20260723-172702/. Ricetta ambiente in scripts/.",
+      "topics": [
+        "audio",
+        "stable-audio-3",
+        "benchmark",
+        "cpu",
+        "DEC-109",
+        "DEC-113"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/audio_benchmark.py",
+        "scripts/audio-benchmark.sh"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "8c5aec8"
     },
     {
       "id": "aiprod-exp-model-comparison-testo-2026-07-23",

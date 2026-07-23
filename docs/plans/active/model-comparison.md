@@ -330,3 +330,15 @@ finché non vengono ripulite a mano.
 - La guardia anti-fotocopia confronta i nomi normalizzati esatti: varianti con suffisso
   («Volcano of Glowing Mold - Rotting/Boiling/…») la eludono — limite reale
   dell'euristica lessicale, da tenere a mente leggendo la colonna Fotocopie.
+
+
+## Aggiornamento 23/07 sera: AUDIO SBLOCCATO ed eseguito
+
+I due blocchi documentati sono stati superati: il gate HF è stato aperto dal token
+dell'utente (licenza accettata su entrambe le varianti) e il problema dei pin Python è
+stato aggirato con un venv CPython 3.12 creato da `uv` e la libreria ufficiale
+`stable-audio-3` installata da git con torch CPU pinnato (`--no-deps`; ricetta completa in
+`scripts/audio-benchmark.sh`). Prima esecuzione reale: SFX 4s in ~7.7s/clip, musica 20s in
+~13.6s/clip (0.68x realtime) su CPU, 5 GB RAM di picco — risultati e 20 clip in
+`docs/ai-production/experiments/audio-benchmark-2026-07-23.md` e
+`logs/model-comparison/audio-20260723-172702/`.
