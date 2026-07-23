@@ -22,7 +22,7 @@ source_files: []
 Questa cartella è il **game design unico e canonico** del progetto: non esiste un'altra
 fonte di verità per comportamento, contenuti, flussi e interfaccia del gioco. Ogni decisione
 sul gioco va cercata, verificata e registrata qui — in particolare nel
-[Decision Log](governance/decision-log.md) (DEC-001..DEC-136).
+[Decision Log](governance/decision-log.md) (DEC-001..DEC-137).
 
 Il gioco si chiama **Worldsmelt** (titolo definitivo, DEC-071). «Melting Run» resta solo il
 nome storico del repository e il titolo di lavoro citato nel decision-log; nei documenti

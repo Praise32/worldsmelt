@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 136 decisioni di design approvate (DEC-001..DEC-136) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 137 decisioni di design approvate (DEC-001..DEC-137) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..136]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..137]
 related: []
 supersedes: []
 source_files: []
@@ -1459,3 +1459,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Cindermonger, Quenchbroker, Emberlien, Cinderpit (sconsigliata per prossimità a un titolo esistente).
 - **Conseguenze:** glossario DEC-072 esteso; la domanda residua di `special-rooms.md` si chiude.
 - **Documenti aggiornati:** `governance/glossary.md`, `systems/special-rooms.md`
+
+---
+
+### DEC-137 — Una sola schermata: la game view a tutto schermo con GUI in overlay
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** il layout attuale affianca il canvas di gioco a pannelli laterali dedicati (due zone distinte dello schermo). L'utente vuole un'unica superficie.
+- **Decisione:** esiste **una sola schermata**: la **game view occupa tutto lo schermo** e la GUI vive **in overlay sopra di essa** — HUD sovrapposto ai bordi, pannelli (build, log, minimappa) come overlay adattivi/a comparsa, mai come colonne che sottraggono spazio al mondo. Restano validi: pixel-art per tutta la UI (DEC-046), uiScale adattivo (M4), leggibilità degli overlay sopra il gioco (contrasto/pannelli semitrasparenti da definire con l'implementazione), stati canonici invariati.
+- **Alternative considerate:** mantenere il layout a pannelli laterali.
+- **Conseguenze:** refactor del renderer (gradino 3 della scala); `ui/hud.md` e gli screenshot di riferimento andranno aggiornati con l'implementazione.
+- **Documenti aggiornati:** `ui/hud.md` (nota), implementazione in corso

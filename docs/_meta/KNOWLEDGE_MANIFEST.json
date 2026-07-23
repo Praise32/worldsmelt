@@ -1388,13 +1388,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 136 decisioni di design approvate (DEC-001..DEC-136) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 137 decisioni di design approvate (DEC-001..DEC-137) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..136"
+        "DEC-001..137"
       ],
       "related": [],
       "supersedes": [],
@@ -1498,7 +1498,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-136; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-137; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",

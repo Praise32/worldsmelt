@@ -16,6 +16,10 @@ source_files: []
 
 # HUD
 
+> Aggiunta del 22/07 (DEC-137): la GUI vive **in overlay sulla game view a tutto schermo**
+> — una sola schermata, niente pannelli laterali che sottraggono spazio al mondo; i
+> pannelli diventano overlay adattivi/a comparsa. Refactor in corso.
+
 ## Intento
 
 Mostrare durante `Gameplay` solo le informazioni necessarie a decisioni immediate di

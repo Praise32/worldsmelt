@@ -24,12 +24,12 @@
 
 ## governance/
 
-- [Decision Log](governance/decision-log.md) — Registro delle 136 decisioni di design approvate (DEC-001..DEC-136) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
+- [Decision Log](governance/decision-log.md) — Registro delle 137 decisioni di design approvate (DEC-001..DEC-137) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
 - [Definition of Done — Comportamento di Gioco](governance/definition-of-done.md) — Checklist dei criteri che rendono completa una modifica al comportamento di gioco: coerenza col design, test, vocabolario canonico, fallback e documentazione aggiornata. `[approved/canonical]`
 - [Definition of Ready — Feature di Game Design](governance/definition-of-ready.md) — Checklist dei criteri che rendono una feature di design pronta per la pianificazione tecnica: obiettivo, scenari, fallback, vocabolario canonico. `[approved/canonical]`
 - [Design Probes](governance/design-probes.md) — Otto domande-risposta usate per verificare che un agente recuperi correttamente il design (Piano 0, fusione, personaggi, meta-punti, sinergia visiva, casualità, classifica, ambiguità). `[approved/supporting]`
 - [Glossary](governance/glossary.md) — Vocabolario canonico bilingue (italiano/in-game inglese) di stati, oggetti, risorse, nemici, personaggi e presentazione; fonte unica della nomenclatura DEC-072. `[approved/canonical]`
-- [Open Questions](governance/open-questions.md) — Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-136; economia, valori numerici, personaggi, multiplayer, produzione. `[draft/canonical]`
+- [Open Questions](governance/open-questions.md) — Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-137; economia, valori numerici, personaggi, multiplayer, produzione. `[draft/canonical]`
 
 ## systems/
 
