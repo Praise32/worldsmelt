@@ -7,7 +7,7 @@ Standard e regole: [_meta/DOCUMENT-STANDARDS.md](_meta/DOCUMENT-STANDARDS.md).
 
 - [`design/`](design/INDEX.md) — 61 documenti
 - [`engineering/`](engineering/INDEX.md) — 18 documenti
-- [`ai-production/`](ai-production/INDEX.md) — 39 documenti
+- [`ai-production/`](ai-production/INDEX.md) — 40 documenti
 - `plans/`:
   - [Piano: titolo (template)](plans/PLAN_TEMPLATE.md) — Scheletro per piani di implementazione temporanei: obiettivo, documenti consultati, ambiguità, sequenza di lavoro, verifiche.
   - [Aggiornamenti proposti alla knowledge base](plans/active/aiprod-proposed-kb-updates.md) — Elenco di modifiche da trasferire nella KB canonica (audio, visual language, floor zero, validazione contenuti, run manifest) solo dopo decisione umana.

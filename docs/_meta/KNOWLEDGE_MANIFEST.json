@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 146,
+  "count": 147,
   "documents": [
     {
       "id": "docs-readme",
@@ -748,6 +748,33 @@
       ],
       "last_reviewed": "2026-07-23",
       "last_verified_commit": "8c5aec8"
+    },
+    {
+      "id": "aiprod-exp-image-comparison-2026-07-23",
+      "path": "docs/ai-production/experiments/image-comparison-2026-07-23.md",
+      "title": "Comparison dei checkpoint immagine — 23/07/2026",
+      "domain": "ai-production",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Suite immagini su 3 checkpoint SD1.5 (15 coppie tema/stile della baseline x 2 seed, 90 atlas totali salvati per revisione umana): tempi, celle scartate dal quality gate e incidente dei 9 timeout transitori documentato. Artefatti in logs/model-comparison/20260723-164914/images/.",
+      "topics": [
+        "comparison",
+        "immagini",
+        "sd15",
+        "checkpoint",
+        "atlas",
+        "baseline"
+      ],
+      "related": [
+        "aiprod-exp-model-comparison-testo-2026-07-23"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/image-comparison.sh"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "a737aba"
     },
     {
       "id": "aiprod-exp-model-comparison-testo-2026-07-23",
