@@ -1,0 +1,179 @@
+---
+id: gd-run-structure
+title: Run Structure
+domain: design
+status: approved
+authority: canonical
+owner: design
+summary: "Struttura di una run: Piano 0 più cinque piani generati; la vittoria al boss del piano 5 chiude la run (DEC-031, aggiorna DEC-006). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018)."
+last_reviewed: 2026-07-19
+last_verified_commit: 0ec60d0
+topics: [struttura-run, piano-0, piani, permadeath, chiusura-run]
+related: []
+supersedes: []
+source_files: []
+---
+
+# Run Structure
+
+## Intento per il giocatore
+
+Il giocatore deve poter avviare il gioco senza attese morte, capire in ogni momento in
+quale fase della run si trova, e riconoscere chiaramente quando la run si conclude: al boss
+del piano 5 con la vittoria, oppure prima con la sconfitta (permadeath).
+
+## Struttura canonica (DEC-001)
+
+Una run è composta da **Piano 0** più **cinque piani** generati.
+
+### Piano 0 — hub sempre giocabile (DEC-002, DEC-004)
+
+- Il gioco è sempre avviabile: il Piano 0 fa da spazio di attesa giocabile mentre l'IA
+  genera il piano 1. Finché non esistono asset dedicati, una versione statica curata del
+  Piano 0 fa da sala d'attesa.
+- Contiene: il museo delle creazioni migliori (contenuti "best-of" già validati di run
+  passate), la scelta del tema della run tra 2–3 proposte dell'IA (DEC-005), la scelta del
+  personaggio (base o alternativo generato, DEC-014), e l'indicatore di generazione (vedi
+  [Generation Status](ui/generation-status.md)).
+- Il Piano 0 è anche hub: oltre al rifugio sicuro, offre arene di sfida opzionali che
+  riusano contenuti già validati del museo.
+- **Condizione di ingresso:** avvio di una nuova run o ritorno da una run conclusa.
+- **Condizione di uscita verso il piano 1:** il piano 1 è pronto (generato e validato).
+- Vedi [Floor Zero](systems/floor-zero.md) per il contratto completo del sistema.
+
+### Piano 1
+
+- Introduce il tema scelto dal giocatore nella sua forma iniziale.
+- Usa una base di contenuti curati sufficiente a garantire un'esperienza leggibile fin da
+  subito, anche se parti del piano sono generate.
+
+### Piani 2–4 — evoluzione del tema
+
+- Il tema scelto nel Piano 0 evolve o degenera piano dopo piano (DEC-005): varietà,
+  difficoltà e interazioni aumentano gradualmente, mantenendo riconoscibile la relazione
+  con il tema di partenza.
+- Contenuti generati o composti aumentano di proporzione rispetto ai contenuti curati.
+
+### Piano 5 — culmine e chiusura della run
+
+- Contiene il boss del piano 5, la forma più evoluta o degenerata del tema della run.
+- Sconfiggere questo boss **chiude la run con vittoria**: il risultato è valido per le
+  classifiche (DEC-006, aggiornata da DEC-031). La run finisce qui: non è previsto proseguire
+  oltre in questa fase del gioco.
+- La run termina anche prima, in qualunque piano, quando la salute del giocatore raggiunge
+  zero: permadeath, nessuna eccezione. Le arene di sfida opzionali del Piano 0 non
+  contano: sono una simulazione pura, non un piano della run (DEC-092, vedi Risultato).
+
+### Prosegui oltre: idea futura, non implementata (DEC-031)
+
+La prima versione di DEC-006 prevedeva piani extra facoltativi dopo la vittoria al piano 5.
+Questa prosecuzione è stata **parcheggiata tra le idee future** (vedi la lista in DEC-018 nel
+[decision log](governance/decision-log.md)) e **non va implementata ora**: la vittoria al
+boss del piano 5 chiude la run e basta. Nessun documento di questa KB descrive più i piani
+extra come funzionalità attiva.
+
+## Input e azioni
+
+- Nel Piano 0: navigazione libera, selezione del tema, selezione del personaggio, ingresso
+  nelle arene di sfida opzionali, uscita verso il piano 1 quando disponibile.
+- Nei piani 1–5: gli stessi input di gioco definiti in [Player](systems/player.md) e
+  [Combat and Projectiles](systems/combat-and-projectiles.md).
+
+## Risultato
+
+- Run conclusa con **vittoria** (boss del piano 5 sconfitto) o con **sconfitta** (permadeath
+  in un punto qualsiasi della run). Le arene di sfida opzionali del Piano 0 ne restano fuori:
+  sono una simulazione pura e una sconfitta lì non è permadeath, si esce con esattamente lo
+  stato d'ingresso (DEC-092, dettaglio in [Floor Zero](systems/floor-zero.md), rimando, non
+  riformulato qui).
+- Alla sconfitta, i punti sblocco maturati durante la run restano ma in misura ridotta
+  rispetto alla vittoria, e il catalogo si aggiorna comunque con le creazioni incontrate
+  (DEC-041); nessun oggetto sopravvive alla run in nessun caso (permadeath, DEC-006). Il
+  dettaglio della presentazione dell'esito vive in
+  [Results and Leaderboards](ui/results-and-leaderboards.md) (rimando, non riformulato qui).
+
+## Feedback
+
+- L'indicatore di generazione nel Piano 0 comunica lo stato di preparazione senza mostrare
+  dettagli tecnici (regola unica in
+  [AI Content Generation Model](06-ai-content-generation-model.md)).
+- Al boss del piano 5, il gioco segnala chiaramente che la run si sta per chiudere con la
+  vittoria, senza presentare alcuna scelta di prosecuzione (DEC-031).
+
+## Interazioni
+
+- Con [Item Fusion](systems/item-fusion.md): la stanza di fusione è disponibile in ogni
+  piano generato secondo le regole di [Special Rooms](systems/special-rooms.md).
+- Con [Difficulty and Progression](07-difficulty-and-progression.md): la crescita di
+  difficoltà tra piani segue le curve lì definite.
+- Con [Save and Meta Progression](systems/save-and-meta-progression.md): l'esito della run
+  (vittoria o sconfitta) alimenta il catalogo e i punti sblocco, in misura ridotta alla
+  sconfitta rispetto alla vittoria (DEC-041).
+
+## Regole per contenuti generati
+
+- Ogni piano generato deve rispettare i budget di novità: non tutto deve essere nuovo
+  contemporaneamente (nuove famiglie di nemici, nuove regole ambientali, nuove categorie di
+  ricompensa, nuovi effetti visivi dominanti). Questi budget sono `draft`, da tarare col
+  playtest (DEC-019).
+- L'evoluzione/degenerazione del tema è un vincolo di generazione: i contenuti dei piani
+  2–5 devono restare riconoscibilmente derivati dal tema scelto nel Piano 0, non arbitrari.
+- La pre-generazione di una run futura, quando risorse e tempo lo consentono, è opzionale e
+  non deve ridurre la stabilità o la leggibilità della run corrente.
+
+## Casi limite
+
+- Il piano 1 non è ancora pronto quando il giocatore prova a uscire dal Piano 0: l'uscita
+  resta chiusa e il giocatore riceve feedback che la generazione è in corso, senza blocco
+  dell'interazione con il resto del Piano 0.
+- Il giocatore muore all'interno di un'arena di sfida opzionale nel Piano 0: è un evento
+  locale reversibile, non una sconfitta di run; uscendo dall'arena il giocatore ha
+  esattamente la salute e lo stato con cui era entrato (DEC-092, dettaglio in
+  [Floor Zero](systems/floor-zero.md), rimando).
+- Un piano generato (2–5) non supera la validazione in tempo utile: si applica il fallback,
+  vedi sotto.
+
+## Fallback
+
+Per la regola di fallback quando un piano generato non è pronto o non supera la
+validazione, fonte unica è
+[Generated Content Validation](systems/generated-content-validation.md). Questo documento
+non la ripete.
+
+## Non-obiettivi
+
+- La struttura Piano 0 + 5 piani non implica un numero fisso di stanze per piano: il numero
+  di stanze è variabile e definito in
+  [Rooms and Floor Generation](systems/rooms-and-floor-generation.md).
+- Il Piano 0 non è un tutorial obbligatorio con contenuti bloccati: resta un hub navigabile
+  liberamente.
+- Questo documento non implementa piani extra oltre il piano 5: l'idea resta parcheggiata
+  tra le idee future (DEC-018, DEC-031), non un requisito di questa fase del gioco.
+
+## Domande aperte residue
+
+- Nessuna: l'unica domanda residua di questo documento (stato del giocatore alla sconfitta
+  in un'arena di sfida opzionale del Piano 0) è chiusa da DEC-092 — l'arena è una
+  simulazione pura, si esce con esattamente lo stato d'ingresso.
+
+## Scenari
+
+- **Dato** che il giocatore avvia una nuova run e il piano 1 non è ancora pronto, **quando**
+  entra nel Piano 0, **allora** può muoversi liberamente, consultare il museo e scegliere
+  tema e personaggio, e l'uscita verso il piano 1 resta chiusa finché la generazione non è
+  completata.
+- **Dato** che il giocatore sconfigge il boss del piano 5, **quando** il gioco chiude la
+  run, **allora** il risultato viene registrato come vittoria valida per classifiche, e la
+  run finisce lì: non viene proposta alcuna prosecuzione in piani extra (DEC-031).
+- **Dato** che il giocatore muore (permadeath) in un punto qualsiasi della run, **quando** la
+  salute base raggiunge zero, **allora** la run si chiude con sconfitta e i punti sblocco
+  maturati restano in misura ridotta rispetto alla vittoria, col catalogo aggiornato con le
+  creazioni incontrate (DEC-041).
+- **Dato** che un piano generato non supera la validazione entro il tempo previsto,
+  **quando** il giocatore tenta di accedervi, **allora** il gioco applica il fallback
+  descritto in [Generated Content Validation](systems/generated-content-validation.md)
+  senza mostrare dettagli tecnici e senza bloccare la run.
+- **Dato** che il giocatore entra in un'arena di sfida opzionale del Piano 0 con una certa
+  salute e un certo stato, **quando** viene sconfitto dentro l'arena, **allora** la run non
+  si chiude, non è permadeath, e all'uscita dall'arena il giocatore ha esattamente la stessa
+  salute e lo stesso stato con cui era entrato (DEC-092).

@@ -165,7 +165,7 @@ typedef enum GamePhase {
     PHASE_WIN
 } GamePhase;
 
-/* Stati canonici del gioco (M1a, game-design-knowledge-base/docs/game-design/
+/* Stati canonici del gioco (M1a, docs/design/
    05-game-states-and-flow.md, fonte unica dei NOMI: qualunque altro documento
    di design che parli di navigazione deve usare esattamente questi nomi).
    L'ordine e APP_MAIN_MENU=0 sono voluti (spec M1a): src/app/app.c li scrive
@@ -258,7 +258,7 @@ typedef struct ThemeCard {
  * json su disco): nome/blurb/stats/palette sono generati, il trait Lua
  * unico (DEC-037) e il colpo firmato (DEC-068) restano gap di
  * implementazione espliciti, non ancora campi di questa struct (vedi
- * game-design-knowledge-base/docs/game-design/systems/characters.md, nota
+ * docs/design/systems/characters.md, nota
  * di stato della fetta). 'hpCap' e' il tetto di salute BASE proprio di
  * questo personaggio (DEC-033): ScriptItemsRecomputeStats lo usa al posto
  * del tetto globale storico [1,12], che resta il ripiego SOLO quando nessun

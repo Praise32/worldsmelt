@@ -3,7 +3,7 @@
 
 #include "core/game_types.h"
 
-/* Piano 0 (M1b, game-design-knowledge-base/docs/game-design/systems/floor-zero.md):
+/* Piano 0 (M1b, docs/design/systems/floor-zero.md):
    la sala d'attesa GIOCABILE, non piu' un overlay bloccante (M1a). Prepara
    'game' per una stanza hub statica e curata -- una sola stanza esistente,
    kind ROOM_HUB, nessun nemico/pickup/ostacolo distruttibile -- SENZA MAI

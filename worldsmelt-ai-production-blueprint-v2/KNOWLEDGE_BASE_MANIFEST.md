@@ -1,0 +1,59 @@
+# AI Production Knowledge Base Manifest
+
+- **Generated on:** 2026-07-20
+- **Language:** Italian
+- **Canonical game design:** `game-design-knowledge-base/docs/game-design/`
+- **Blueprint root:** `docs/worldsmelt-ai-production-blueprint/`
+- **Markdown documents:** 48
+- **Review rule:** `proposed`, `proposed-conflict` ed `experimental` non sono requisiti vincolanti.
+
+## Contents
+
+- [`00-DECISIONI-CANONICHE.md`](00-DECISIONI-CANONICHE.md) — Decisioni canoniche
+- [`01-AUDIT-DEL-PROGETTO.md`](01-AUDIT-DEL-PROGETTO.md) — Audit del progetto Worldsmelt
+- [`02-STACK-MODELLI.md`](02-STACK-MODELLI.md) — Stack dei modelli
+- [`03-PIANO-LORA.md`](03-PIANO-LORA.md) — Piano LoRA
+- [`04-DATASET-LICENZE.md`](04-DATASET-LICENZE.md) — Dataset e licenze
+- [`05-KAGGLE-TRAINING-RUNBOOK.md`](05-KAGGLE-TRAINING-RUNBOOK.md) — Kaggle Training Runbook — SD1.5 LoRA
+- [`06-AGENTI-KAGGLE-MCP.md`](06-AGENTI-KAGGLE-MCP.md) — Codex/Claude + Kaggle MCP
+- [`07-ARCHITETTURA-RUNTIME.md`](07-ARCHITETTURA-RUNTIME.md) — Architettura runtime della generazione
+- [`08-PIPELINE-SPRITE-ANIMAZIONI.md`](08-PIPELINE-SPRITE-ANIMAZIONI.md) — Pipeline sprite e animazioni
+- [`09-NEMICI-BODY-PLAN-RIG.md`](09-NEMICI-BODY-PLAN-RIG.md) — Nemici: body plan e rig
+- [`10-PIANO-INTEGRAZIONE-C.md`](10-PIANO-INTEGRAZIONE-C.md) — Piano di integrazione nel codice C
+- [`11-PROTOCOLLO-ESPERIMENTI.md`](11-PROTOCOLLO-ESPERIMENTI.md) — Protocollo degli esperimenti
+- [`12-ROADMAP.md`](12-ROADMAP.md) — Roadmap operativa
+- [`13-PROMPT-AGENTI.md`](13-PROMPT-AGENTI.md) — Prompt per agenti
+- [`14-FONTI.md`](14-FONTI.md) — Fonti verificate
+- [`15-UI-DESIGN-PIPELINE.md`](15-UI-DESIGN-PIPELINE.md) — Pipeline UI e GUI — `proposed`
+- [`16-AUDIO-GENERATION-PIPELINE.md`](16-AUDIO-GENERATION-PIPELINE.md) — Pipeline audio — `proposed-conflict`
+- [`17-ASSET-CURATION-AND-FLOOR-ZERO.md`](17-ASSET-CURATION-AND-FLOOR-ZERO.md) — Curation degli asset e Piano 0 — `proposed`
+- [`18-AGENT-ORCHESTRATION.md`](18-AGENT-ORCHESTRATION.md) — Orchestrazione degli agenti — `proposed`
+- [`19-DECISION-QUESTIONNAIRE.md`](19-DECISION-QUESTIONNAIRE.md) — Questionario decisionale — `active`
+- [`20-SESSION-PROTOCOL.md`](20-SESSION-PROTOCOL.md) — Protocollo delle sessioni — `proposed`
+- [`21-DOCUMENT-GOVERNANCE.md`](21-DOCUMENT-GOVERNANCE.md) — Governance dei documenti — `proposed`
+- [`22-TOPIC-ROUTER.md`](22-TOPIC-ROUTER.md) — Topic Router — `active`
+- [`23-INTEGRATION-INSTRUCTIONS.md`](23-INTEGRATION-INSTRUCTIONS.md) — Integrazione nel repository — `active`
+- [`24-PROPOSED-KB-UPDATES.md`](24-PROPOSED-KB-UPDATES.md) — Aggiornamenti proposti alla knowledge base — `proposed-conflict`
+- [`INDEX.md`](INDEX.md) — Worldsmelt AI Production Blueprint — Index
+- [`README.md`](README.md) — Worldsmelt — AI Asset & Training Blueprint
+- [`agent-config/AGENTS-ML-APPENDIX.md`](agent-config/AGENTS-ML-APPENDIX.md) — Worldsmelt ML agent rules
+- [`agent-config/CLAUDE-ML-APPENDIX.md`](agent-config/CLAUDE-ML-APPENDIX.md) — Worldsmelt — Claude ML instructions
+- [`agent-config/claude/README.md`](agent-config/claude/README.md) — Claude agents
+- [`agent-config/claude/agents/worldsmelt-asset-curator.md`](agent-config/claude/agents/worldsmelt-asset-curator.md) — worldsmelt-asset-curator
+- [`agent-config/claude/agents/worldsmelt-audio-systems-designer.md`](agent-config/claude/agents/worldsmelt-audio-systems-designer.md) — worldsmelt-audio-systems-designer
+- [`agent-config/claude/agents/worldsmelt-decision-facilitator.md`](agent-config/claude/agents/worldsmelt-decision-facilitator.md) — worldsmelt-decision-facilitator
+- [`agent-config/claude/agents/worldsmelt-knowledge-librarian.md`](agent-config/claude/agents/worldsmelt-knowledge-librarian.md) — worldsmelt-knowledge-librarian
+- [`agent-config/claude/agents/worldsmelt-ml-pipeline-architect.md`](agent-config/claude/agents/worldsmelt-ml-pipeline-architect.md) — worldsmelt-ml-pipeline-architect
+- [`agent-config/claude/agents/worldsmelt-path-orchestrator.md`](agent-config/claude/agents/worldsmelt-path-orchestrator.md) — worldsmelt-path-orchestrator
+- [`agent-config/claude/agents/worldsmelt-ui-systems-designer.md`](agent-config/claude/agents/worldsmelt-ui-systems-designer.md) — worldsmelt-ui-systems-designer
+- [`agent-config/codex/AGENTS-AI-PRODUCTION-APPENDIX.md`](agent-config/codex/AGENTS-AI-PRODUCTION-APPENDIX.md) — Appendix — AI Production
+- [`templates/ASSET-REVIEW.md`](templates/ASSET-REVIEW.md) — Asset Review
+- [`templates/AUDIO-SPEC.md`](templates/AUDIO-SPEC.md) — AudioSpec Template
+- [`templates/DATASET-LEDGER.md`](templates/DATASET-LEDGER.md) — Dataset Ledger Specification
+- [`templates/DECISION-RECORD.md`](templates/DECISION-RECORD.md) — DEC-AI-XXX — Titolo — `approved`
+- [`templates/ENEMY-SPEC.md`](templates/ENEMY-SPEC.md) — EnemySpec Template
+- [`templates/EXPERIMENT-REPORT.md`](templates/EXPERIMENT-REPORT.md) — Experiment Report
+- [`templates/QUESTION-BATCH.md`](templates/QUESTION-BATCH.md) — Decision Session — Question Batch
+- [`templates/SPRITE-BUNDLE.md`](templates/SPRITE-BUNDLE.md) — SpriteBundle Template
+- [`templates/UI-SKIN-SPEC.md`](templates/UI-SKIN-SPEC.md) — UISkinSpec Template
+- [`templates/WEEKLY-ISSUE.md`](templates/WEEKLY-ISSUE.md) — Weekly ML/Generation Issue

@@ -4,7 +4,7 @@
  * differenza del personaggio alternativo per-run, DEC-014/037, fuori scope
  * qui) -- coerente con AGENTS.md ("i dati curati vivono in un modulo
  * dedicato, la FORMA in core"). Valori DEFAULT PROPOSTI stile DEC-019 (da
- * validare col playtest, vedi game-design-knowledge-base/docs/game-design/
+ * validare col playtest, vedi docs/design/
  * systems/characters.md, blocco "Default proposti dall'implementazione", e
  * governance/open-questions.md punto 7): non sono ancora numeri approvati
  * dal design, sono un punto di partenza giocabile.

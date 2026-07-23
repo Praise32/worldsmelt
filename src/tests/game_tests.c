@@ -1820,8 +1820,8 @@ bool GameFloorZeroTest(Game *game)
 
 /* ============================================================
    M2 (DEC-009, default PROPOSTO): stanze di numero e grandezza variabili.
-   Vedi il commento in game_tests.h e game-design-knowledge-base/docs/
-   game-design/systems/rooms-and-floor-generation.md ("Default proposti
+   Vedi il commento in game_tests.h e
+   docs/design/systems/rooms-and-floor-generation.md ("Default proposti
    dall'implementazione"). Portabile (nessuna dipendenza da melting-gen/
    Xvfb): gira su entrambe le piattaforme, a differenza del blocco sopra.
    ============================================================ */

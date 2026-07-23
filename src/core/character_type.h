@@ -27,8 +27,8 @@
  * A differenza dei tipi di colpo/nemico, qui il modello non inventa un
  * vocabolario nuovo per le SEI manopole di statistica: i campi sono fissi
  * (nome, blurb, sei manopole, una palette), e le bande sono DEFAULT
- * PROPOSTI stile DEC-019 (da playtest, vedi game-design-knowledge-base/
- * docs/game-design/systems/characters.md, blocco "Default proposti
+ * PROPOSTI stile DEC-019 (da playtest, vedi
+ * docs/design/systems/characters.md, blocco "Default proposti
  * dall'implementazione" per il personaggio generato) centrati sulla rosa
  * curata (src/content/character_roster.c): il personaggio generato puo'
  * risultare piu' o meno estremo di un personaggio base, ma sempre dentro

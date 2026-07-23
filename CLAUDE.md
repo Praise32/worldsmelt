@@ -2,10 +2,10 @@
 
 Il gioco si chiama **Worldsmelt** (il repo conserva il nome storico in locale).
 Regole tecniche dei moduli: vedi `AGENTS.md`. La fonte canonica del game design è
-`game-design-knowledge-base/` (108 decisioni in `docs/game-design/governance/decision-log.md`):
-prima di implementare comportamento visibile al giocatore, consultare l'INDEX della KB.
-La cartella della KB ha un proprio CLAUDE.md per le sessioni di design: queste istruzioni
-valgono per il lavoro di implementazione nella cartella principale.
+`docs/design/` (108 decisioni in `docs/design/governance/decision-log.md`):
+prima di implementare comportamento visibile al giocatore, consultare
+`docs/design/README.md`. Queste istruzioni valgono per il lavoro di implementazione;
+per le sessioni di documentazione e design vale il profilo dedicato in `docs/`.
 
 ## Scala di implementazione (delega ed escalation)
 

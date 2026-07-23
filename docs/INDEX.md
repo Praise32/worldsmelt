@@ -5,9 +5,11 @@
 Rigenerato da `make docs-index`. Punto d'ingresso umano: [README.md](README.md).
 Standard e regole: [_meta/DOCUMENT-STANDARDS.md](_meta/DOCUMENT-STANDARDS.md).
 
-- [`design/`](design/INDEX.md) — 0 documenti
-- [`engineering/`](engineering/INDEX.md) — 0 documenti
+- [`design/`](design/INDEX.md) — 61 documenti
+- [`engineering/`](engineering/INDEX.md) — 1 documenti
 - [`ai-production/`](ai-production/INDEX.md) — 0 documenti
+- `plans/`:
+  - [Piano: titolo (template)](plans/PLAN_TEMPLATE.md) — Scheletro per piani di implementazione temporanei: obiettivo, documenti consultati, ambiguità, sequenza di lavoro, verifiche.
 - `_meta/`:
   - [Registro drift documentazione-codice (DOC-CODE-DRIFT-001..035)](_meta/DOC-CODE-DRIFT.md) — Divergenze fra cio' che i documenti dichiarano e cio' che il codice mostra, verificate con Codebase Memory + conferma diretta (file:riga) e giudice opus. 35 divergenze reali, 43 conferme di allineamento.
   - [Registro dei conflitti documentali (DOC-CONFLICT-001..046)](_meta/DOC-CONFLICTS.md) — 46 conflitti rilevati dall'audit del 2026-07-22 (sonnet propone, opus verifica, Fable arbitra i needs-human), con raccomandazione secondo la gerarchia delle fonti e risoluzione adottata.
