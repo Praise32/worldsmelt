@@ -24,7 +24,7 @@ Le stanze speciali offrono decisioni fuori dal combattimento standard: rischio, 
 
 La tassonomia completa dei tipi di stanza (standard + speciali) è definita in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md); questo documento non la ridefinisce. Qui si dettagliano i quattro archetipi speciali dichiarati da DEC-010 — stanza di fusione, stanza segreta, arena di sfida, scambio ad alto rischio — più il quinto archetipo aggiunto da DEC-051: la stanza a tempo.
 
-**Nota sul negozio:** il negozio è un tipo di stanza **standard** (definito in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), non uno dei quattro archetipi speciali qui descritti. Il negozio ha prezzi base fissi per fascia di rarità più un'offerta speciale generata per negozio (DEC-026): il dettaglio economico vive in [rewards-and-economy.md](./rewards-and-economy.md), non ripetuto qui. Lo scambio ad alto rischio è un archetipo diverso dal negozio: offre scambi rischiosi o non convenzionali, con presentazione e regole originali — mai nominato o presentato con riferimenti a giochi esistenti. **Confine netto (DEC-026):** i "patti" a costo salute (cedere salute in cambio di un guadagno) non esistono nel negozio; restano esclusivi dello scambio ad alto rischio.
+**Nota sul negozio:** il negozio è un tipo di stanza **standard** (definito in [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), non uno dei quattro archetipi speciali qui descritti. Il negozio ha prezzi base fissi per fascia di rarità più un'offerta speciale generata per negozio (DEC-026): il dettaglio economico vive in [rewards-and-economy.md](./rewards-and-economy.md), non ripetuto qui. Lo scambio ad alto rischio — in-game **Pourhouse**, «Casa della Colata» (DEC-136) — è un archetipo diverso dal negozio: offre scambi rischiosi o non convenzionali, con presentazione e regole originali — mai nominato o presentato con riferimenti a giochi esistenti. **Confine netto (DEC-026):** i "patti" a costo salute (cedere salute in cambio di un guadagno) non esistono nel negozio; restano esclusivi dello scambio ad alto rischio.
 
 ## I cinque archetipi
 
@@ -137,7 +137,7 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 ## Domande aperte residue
 
-- Nome e presentazione definitivi dello scambio ad alto rischio: in arrivo una rosa di proposte in tema forgia dal content designer (sessione 22/07), da cui scegliere.
+- ~~Nome e presentazione definitivi dello scambio ad alto rischio~~: risolto da DEC-136 — **Pourhouse** («Casa della Colata»), presentazione canonica nel glossario.
 - Frequenza esatta di ciascun archetipo per piano.
 - Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
 - ~~Quali rivelatori esistono per le super-segrete~~: risolto da DEC-127 (Innesti sensore + oggetti rari), vedi `secrets-and-obstacles.md`.

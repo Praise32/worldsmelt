@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: >-
   Vocabolario canonico bilingue (italiano/in-game inglese) di stati, oggetti, risorse, nemici, personaggi e presentazione; fonte unica della nomenclatura DEC-072.
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [glossario, nomenclatura, in-game naming, DEC-072, vocabolario canonico]
 related: []
@@ -46,6 +46,7 @@ source_files: []
 - **Stat-up:** incremento diretto di una statistica; nessun limite di slot.
 - **Fusione** (in-game: **Smelting**, DEC-072): meccanica-firma del gioco (DEC-012). Nella stanza di fusione il giocatore consuma due oggetti e ottiene un oggetto nuovo generato dall'IA che eredita comportamento e presentazione da entrambi.
 - **Stanza di fusione** (in-game: **Smeltery**, DEC-072): archetipo speciale di stanza dove si pratica la fusione esplicita (DEC-010, DEC-012). Fonte unica: `systems/item-fusion.md`, `systems/special-rooms.md`.
+- **Scambio ad alto rischio** (in-game: **Pourhouse**, «Casa della Colata», DEC-136): archetipo speciale dei patti a costo salute e degli scambi non convenzionali (DEC-026, DEC-044). Presentazione canonica: «Non è un negozio, è una colata: quello che porti dentro si scioglie, quello che esce non lo scegli tu.» Fonte unica: `systems/special-rooms.md`.
 - **Sinergia (implicita):** interazione automatica tra due o più componenti compatibili della build, senza consumo di oggetti; distinta dalla fusione esplicita.
 
 ## Risorse

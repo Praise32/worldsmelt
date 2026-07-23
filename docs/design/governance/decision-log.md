@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 135 decisioni di design approvate (DEC-001..DEC-135) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 136 decisioni di design approvate (DEC-001..DEC-136) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..135]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..136]
 related: []
 supersedes: []
 source_files: []
@@ -1447,3 +1447,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** ritenere sufficiente la croce libera; rinvio al playtest.
 - **Conseguenze:** `06-ai-content-generation-model.md` e `systems/generated-content-validation.md` registrano la categoria.
 - **Documenti aggiornati:** `06-ai-content-generation-model.md`, `systems/generated-content-validation.md`
+
+---
+
+### DEC-136 — Lo scambio ad alto rischio si chiama Pourhouse
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** `systems/special-rooms.md` lasciava aperti nome e presentazione dello scambio ad alto rischio. Rosa di cinque proposte del content designer (con verifica di originalità: un candidato scartato perché collideva con un'area di un gioco esistente), scelta dell'utente.
+- **Decisione:** il nome in-game è **Pourhouse** (resa italiana per il glossario bilingue: **Casa della Colata**). Doppio registro nella stessa parola: il luogo dove si versa il metallo fuso (simboli del crogiolo, DEC-120) e quasi-omofono di *poorhouse* — chi entra rischia di uscirne più povero, che è la meccanica (DEC-044). Presentazione canonica nella voce del crogiolo (DEC-105): «Non è un negozio, è una colata: quello che porti dentro si scioglie, quello che esce non lo scegli tu.» Il termine funzionale «scambio ad alto rischio» resta invariato nei documenti di design.
+- **Alternative considerate:** Cindermonger, Quenchbroker, Emberlien, Cinderpit (sconsigliata per prossimità a un titolo esistente).
+- **Conseguenze:** glossario DEC-072 esteso; la domanda residua di `special-rooms.md` si chiude.
+- **Documenti aggiornati:** `governance/glossary.md`, `systems/special-rooms.md`
