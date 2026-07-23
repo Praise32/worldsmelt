@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107]
 related: []
@@ -125,15 +125,26 @@ unica definita in
 - L'Innesto non sostituisce il ruolo degli oggetti attivi o passivi nella build.
 - L'Innesto non è pensato per essere il fulcro di una build: resta un elemento di rifinitura.
 
+## Stacking, slot e meta (DEC-122, DEC-123)
+
+- Gli effetti di più Innesti equipaggiati **coesistono e si combinano**, dentro i clamp e
+  i budget del motore (DEC-122); il bilanciamento fine è materia di playtest.
+- Gli slot Innesto aggiuntivi ottenuti da eventi rari valgono **solo per quella run**
+  (DEC-123): la meta-progressione resta sblocco di contenuti, mai di potenza
+  (DEC-015/DEC-027).
+
+## Drop e persistenza (DEC-115, DEC-116)
+
+- Un Innesto equipaggiato può essere **sganciato volontariamente**: lo slot si libera
+  (DEC-115). Il destino dell'Innesto sganciato (a terra recuperabile nella stanza o perso)
+  è un dettaglio da definire con l'implementazione.
+- Gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della
+  build (DEC-116): nessun legame col piano in cui li trovi.
+
 ## Domande aperte residue
 
-- Il drop volontario di un Innesto equipaggiato è permesso?
-- Gli Innesti possono avere stacking tra loro?
-- Gli Innesti persistono tra un piano e l'altro della stessa run, o sono legati a
-  condizioni locali?
-- Gli slot Innesto aggiuntivi ottenuti durante la run persistono solo per quella run, o
-  contribuiscono in qualche forma alla meta-progressione descritta in
-  [Save and Meta Progression](save-and-meta-progression.md)?
+
+
 - Quali altre regole del gioco, oltre agli esempi già dati (offerte del negozio,
   comportamento delle stanze segrete), sono bersagli ammissibili per un Innesto
   piega-regole (DEC-034)?

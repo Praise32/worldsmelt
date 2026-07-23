@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 114 decisioni di design approvate (DEC-001..DEC-114) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 125 decisioni di design approvate (DEC-001..DEC-125) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..114]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..125]
 related: []
 supersedes: []
 source_files: []
@@ -1195,3 +1195,135 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** tasto rapido `R` con conferma; `R` diretto senza conferma; rinvio al playtest.
 - **Conseguenze:** open question 11 chiusa; `ui/pause-menu.md` registra la voce.
 - **Documenti aggiornati:** `ui/pause-menu.md`, `governance/open-questions.md`
+
+---
+
+### DEC-115 — Gli Innesti si possono sganciare volontariamente
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda aperta residua di `systems/grafts.md`: il drop volontario di un Innesto equipaggiato è permesso?
+- **Decisione:** sì: un Innesto equipaggiato può essere **sganciato volontariamente**, liberando lo slot. È coerente con la natura situazionale degli Innesti (si agganciano e sganciano secondo il contesto). Il destino dell'Innesto sganciato (resta a terra recuperabile nella stanza o si perde) è un dettaglio da definire con l'implementazione.
+- **Alternative considerate:** Innesto fisso fino a sostituzione; rinvio al playtest.
+- **Conseguenze:** `systems/grafts.md` aggiornato; la domanda esce dalle residue.
+- **Documenti aggiornati:** `systems/grafts.md`
+
+---
+
+### DEC-116 — Gli Innesti valgono per tutta la run
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda aperta residua di `systems/grafts.md`: gli Innesti persistono tra i piani o sono legati a condizioni locali?
+- **Decisione:** gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della build (stessa regola già scritta per gli attivi): semplice, prevedibile, coerente con l'inventario.
+- **Alternative considerate:** Innesti legati al piano (risorse tattiche locali).
+- **Conseguenze:** `systems/grafts.md` aggiornato.
+- **Documenti aggiornati:** `systems/grafts.md`
+
+---
+
+### DEC-117 — Gli attivi si scambiano sui piedistalli
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda aperta residua di `systems/active-items.md` sul riordino/scambio volontario degli attivi. L'utente ha risposto con un design più preciso.
+- **Decisione:** gli oggetti attivi usano un **sistema a piedistalli**: un attivo trovato (es. nella stanza del tesoro) **fluttua su un piedistallo**; raccogliendolo, il nuovo attivo entra nell'inventario (visibile nella sezione UI dedicata agli attivi) e **l'attivo che possedevi finisce sul piedistallo al suo posto**. Lo scambio è quindi sempre reversibile finché resti nella stanza: il vecchio attivo non sparisce, fluttua lì. Con uno slot libero la raccolta riempie lo slot senza scambio. Perimetro (chiarito nello stesso giro): con più slot pieni va sul piedistallo **l'attivo attualmente selezionato per l'attivazione** — quello «in mano».
+- **Alternative considerate:** riordino libero fra slot fuori combattimento; ordine fisso di raccolta.
+- **Conseguenze:** `systems/active-items.md` registra il sistema; gap di implementazione esplicito (oggi la raccolta non ha piedistalli di scambio).
+- **Documenti aggiornati:** `systems/active-items.md`
+
+---
+
+### DEC-118 — L'audio della fusione ha priorità massima dedicata
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda aperta residua di `content/audio-and-feedback.md`: la fusione (meccanica-firma, DEC-023) merita una priorità sonora superiore agli altri eventi prioritari?
+- **Decisione:** sì: l'evento sonoro della fusione ha **priorità massima dedicata** — il segnale più riconoscibile del gioco, che interrompe/attenua gli altri suoni mentre suona. Il momento-firma deve sentirsi tale.
+- **Alternative considerate:** stessa famiglia degli altri eventi prioritari; rinvio al playtest.
+- **Conseguenze:** `content/audio-and-feedback.md` aggiornato.
+- **Documenti aggiornati:** `content/audio-and-feedback.md`
+
+---
+
+### DEC-119 — Limiti di contenuto: fantasy dark stilizzato (~16+)
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** `content/narrative-tone.md` lasciava i limiti di contenuto per i contenuti generati fra le cose «da definire». Il tono della voce dell'interfaccia è ironico-leggero (DEC-105); mancavano i confini su violenza e temi sensibili per ciò che il modello può inventare.
+- **Decisione:** i contenuti generati (mondi, nemici, nomi, descrizioni) possono essere **dark (~16+)**: gore stilizzato da pixel-art e temi cupi/disturbanti sono ammessi. Restano **fuori**: contenuti sessuali espliciti e riferimenti al mondo reale (religioni, politica, etnie, persone). Non contraddice DEC-105: il registro ironico-leggero riguarda la *voce del crogiolo* (interfaccia), i World generati possono essere cupi — l'ironia del crogiolo può anzi fare da contrappunto. I limiti vanno tradotti in vincoli nei prompt di generazione e nel validatore.
+- **Alternative considerate:** fantasy stilizzato ~PEGI 12; family ~PEGI 7; lista scritta da rivedere.
+- **Conseguenze:** `content/narrative-tone.md` definisce i limiti; i prompt di melting-gen andranno allineati (gap di implementazione).
+- **Documenti aggiornati:** `content/narrative-tone.md`
+
+---
+
+### DEC-120 — Il set di simboli ricorrenti del crogiolo
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** `content/narrative-tone.md` lasciava i simboli ricorrenti «da definire»; la cornice è il Crogiolo dei mondi (DEC-067) con nomenclatura inglese (DEC-072) mai imposta ai World generati (DEC-073).
+- **Decisione:** esiste un **piccolo set fisso di simboli ricorrenti della forgia** che lega le run: **fuoco/colata, metallo e crogiolo, lingotti (Ingots), scintille (Embers)**. Vive solo nella voce dell'interfaccia, nel Piano 0 e nei testi del crogiolo; i World generati restano liberi (coerente con DEC-067/072/073).
+- **Alternative considerate:** nessun simbolismo oltre la nomenclatura; proposta scritta successiva.
+- **Conseguenze:** `content/narrative-tone.md` registra il set; il visual language del Piano 0 potrà attingervi.
+- **Documenti aggiornati:** `content/narrative-tone.md`
+
+---
+
+### DEC-121 — Una famiglia sonora per il Piano 0, con due voci
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** ultima domanda residua di `content/audio-and-feedback.md`: «scelta del tema» e «generazione completata» nel Piano 0 devono avere segnali distinti o condividere una famiglia?
+- **Decisione:** gli eventi del Piano 0 condividono **una stessa famiglia sonora «del crogiolo»**, con **due segnali riconoscibili** al suo interno: coerenza d'insieme e distinguibilità dei momenti. Si integra naturalmente col set di simboli di DEC-120.
+- **Alternative considerate:** due segnali indipendenti; rinvio al playtest.
+- **Conseguenze:** `content/audio-and-feedback.md` chiude le sue domande residue.
+- **Documenti aggiornati:** `content/audio-and-feedback.md`
+
+---
+
+### DEC-122 — Gli Innesti si combinano fra loro
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/grafts.md`: due Innesti equipaggiati (con più slot) possono avere stacking?
+- **Decisione:** sì: gli effetti di più Innesti equipaggiati **coesistono e si combinano** naturalmente, dentro i soliti clamp e budget del motore (mai oltre le bande). Più profondità di build, coerente con la filosofia delle sinergie.
+- **Alternative considerate:** Innesti isolati; rinvio al playtest.
+- **Conseguenze:** `systems/grafts.md` aggiornato; il bilanciamento fine resta materia di playtest.
+- **Documenti aggiornati:** `systems/grafts.md`
+
+---
+
+### DEC-123 — Gli slot Innesto aggiuntivi valgono solo per la run
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/grafts.md`: gli slot extra da eventi rari entrano nella meta-progressione?
+- **Decisione:** no: gli slot Innesto aggiuntivi sono **fortuna della run**, come il resto della build. La meta-progressione resta **sblocco di contenuti, mai di potenza** (DEC-015/DEC-027): anche l'equilibrio delle gare a parità di seed ne dipende.
+- **Alternative considerate:** slot permanente sbloccabile con gli Embers.
+- **Conseguenze:** `systems/grafts.md` aggiornato; nessun impatto su `save-and-meta-progression.md` (che resta sblocco-contenuti).
+- **Documenti aggiornati:** `systems/grafts.md`
+
+---
+
+### DEC-124 — I contenuti «variati» si rivalidano sempre da zero
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `content/content-taxonomy.md`: un contenuto `variato` derivato da un `nuovo` già validato eredita le prove superate dal genitore?
+- **Decisione:** no: **ogni contenuto passa sempre l'intera validazione**, anche se deriva da un genitore valido. Nessuna scorciatoia: «i contenuti generati non sono automaticamente validi» vale anche per le variazioni (una variazione può rompere esattamente ciò che il genitore garantiva).
+- **Alternative considerate:** eredità dei vincoli con rivalidazione del solo delta; decisione rinviata a una misura dei costi.
+- **Conseguenze:** `content/content-taxonomy.md` aggiornato; coerente con `systems/generated-content-validation.md`.
+- **Documenti aggiornati:** `content/content-taxonomy.md`
+
+---
+
+### DEC-125 — Nessun limite rigido al numero di fusioni per run
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/item-fusion.md`: oltre alla cadenza attesa di 1-2 fusioni (DEC-022), serve un tetto rigido?
+- **Decisione:** no: il limite è già **nell'economia** (catalizzatore raro, stanza dedicata), non serve un tetto artificiale. Se una run fortunata concede una terza fusione, è festa, non un bug. La cadenza attesa 1-2 resta il riferimento di bilanciamento delle fonti del catalizzatore.
+- **Alternative considerate:** tetto rigido a 2; rinvio al playtest.
+- **Conseguenze:** `systems/item-fusion.md` aggiornato; il cap del catalizzatore resta domanda numerica da playtest.
+- **Documenti aggiornati:** `systems/item-fusion.md`

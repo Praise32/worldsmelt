@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio]
 related: []
@@ -156,10 +156,9 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 
 ## Domande aperte residue
 
-- Esiste un limite rigido al numero di fusioni per run, oltre alla cadenza attesa di 1-2
-  (DEC-022) determinata dalla disponibilità di catalizzatori? DEC-102 ammette la ri-fusione
-  senza limite concettuale ma lascia esplicitamente aperta questa domanda su un tetto
-  rigido.
+- ~~Esiste un limite rigido al numero di fusioni per run~~: risolto da DEC-125 — nessun
+  tetto artificiale, il limite è l'economia del catalizzatore (cadenza attesa 1-2 resta il
+  riferimento di bilanciamento).
 - Quale cap massimo ha il catalizzatore di fusione (DEC-022 fissa le fonti — drop
   boss/arena, acquisto costoso — e la cadenza attesa, non un valore numerico di cap: da
   definire in [Health and Resources](health-and-resources.md))?

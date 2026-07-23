@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Vocabolario condiviso per contenuti e tag; fonte unica dei 4 valori di origine del contenuto (curato, composto, variato, nuovo)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [tassonomia, tag, origine contenuto, curato/composto/variato/nuovo, DEC-020]
 related: []
@@ -79,8 +79,9 @@ in `../systems/generated-content-validation.md` (DEC-087, rimando, non riformula
 
 ## Domande aperte residue
 
-- Se un contenuto `variato` derivato da un contenuto `nuovo` debba ereditare eventuali vincoli
-  aggiuntivi del genitore oltre alle bande di garanzia generali della categoria.
+- ~~Se un contenuto `variato` derivato da un `nuovo` debba ereditare i vincoli già
+  superati dal genitore~~: risolto da DEC-124 — **ogni contenuto si rivalida sempre da
+  zero**, nessuna eredità di validazioni.
 
 ## Scenari
 

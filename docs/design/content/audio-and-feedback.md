@@ -34,7 +34,9 @@ source_files: []
 - boss in nuova fase;
 - generazione o fallback che richiede intervento del giocatore;
 - **fusione**: evento della meccanica-firma, quando il giocatore completa una fusione
-  esplicita nella stanza di fusione (vedi `../systems/item-fusion.md`);
+  esplicita nella stanza di fusione (vedi `../systems/item-fusion.md`) — ha **priorità
+  massima dedicata**: il segnale più riconoscibile del gioco, interrompe/attenua gli altri
+  (DEC-118);
 - **scelta del tema nel Piano 0**: quando il giocatore sceglie uno dei 2-3 temi proposti
   dall'IA (vedi `../systems/floor-zero.md`);
 - **generazione completata**: quando l'indicatore di generazione del Piano 0 segnala che il
@@ -73,12 +75,15 @@ resta stato draft e non è definita nel dettaglio qui.
 La pipeline tecnica della generazione audio (modelli, formati, budget) non vive qui ma in
 `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` (DEC-109).
 
+## Famiglia sonora del Piano 0 (DEC-121)
+
+Gli eventi del Piano 0 («scelta del tema», «generazione completata») condividono una
+stessa **famiglia sonora del crogiolo**, con due segnali riconoscibili al suo interno:
+coerenza d'insieme, momenti distinguibili. Si integra col set di simboli di DEC-120.
+
 ## Domande aperte residue
 
-- Se l'evento "fusione" debba avere una priorità sonora superiore agli altri eventi
-  prioritari, data la sua natura di meccanica-firma (non deciso).
-- Se "generazione completata" nel Piano 0 debba avere un segnale distinto da "scelta del tema"
-  o condividere una stessa famiglia sonora (non deciso).
+- Nessuna: priorità della fusione risolta da DEC-118, famiglia del Piano 0 da DEC-121.
 
 ## Scenari
 

@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Oggetti attivabili volontariamente dal giocatore, una delle 4 categorie della tassonomia oggetti. Ricarica a doppio canale di base — stanze completate ed energia droppata dai nemici — estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059)."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [oggetti, attivi, ricarica, slot, DEC-059, budget di potenza]
 related: []
@@ -35,8 +35,9 @@ insieme automaticamente.
 
 ## Condizioni di ingresso
 
-Un attivo entra in gioco quando viene raccolto e assegnato a uno slot attivo libero (o
-sostituisce volontariamente l'occupante dello slot, se il gioco lo consente).
+Un attivo entra in gioco quando viene raccolto da un **piedistallo** e assegnato a uno
+slot attivo libero; a slot pieni la raccolta è uno **scambio col piedistallo** (DEC-117,
+sezione dedicata più sotto).
 
 ## Input/azioni
 
@@ -118,11 +119,20 @@ riformulata qui.
 - Non ridefinisce i campi obbligatori dell'oggetto: vivono in
   [Items, Pools and Rarity](items-pools-and-rarity.md).
 
+## Raccolta e scambio: i piedistalli (DEC-117)
+
+Gli attivi offerti dal gioco (stanza del tesoro, negozio, drop) **fluttuano su un
+piedistallo**. Raccogliere un attivo nuovo lo mette nell'inventario — visibile nella
+sezione della UI dedicata agli attivi — e, se gli slot sono pieni, **l'attivo che
+possedevi finisce sul piedistallo al suo posto** — con più slot pieni, quello
+**attualmente selezionato per l'attivazione** (DEC-117): lo scambio è sempre reversibile
+finché resti nella stanza, perché il vecchio attivo non sparisce, fluttua lì. Con uno slot
+libero la raccolta riempie lo slot senza scambio. Gap di implementazione esplicito: il
+piedistallo di scambio non è ancora implementato.
+
 ## Domande aperte residue
 
 - Numero massimo di slot attivi ottenibili in una run.
-- Se e come il giocatore possa riordinare o scambiare volontariamente gli attivi tra
-  slot.
 - Dosaggio esatto della ricarica a doppio canale (quanta carica per stanza, quanta
   energia per nemico) — DEC-059 fissa solo i due canali di base, non i numeri.
 

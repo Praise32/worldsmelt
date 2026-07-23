@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Il tono narrativo è ora deciso: ironico-leggero (DEC-105), voce del crogiolo — non del mondo generato, coerente con DEC-073. Restano draft/aperti: limiti di contenuto, simboli ricorrenti. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [narrativa, cornice, crogiolo, tono, Worldsmelt, DEC-105, DEC-052]
 related: []
@@ -151,9 +151,24 @@ definitivo del gioco deciso dal proprietario (DEC-071, rimando), il tono narrati
 ironico-leggero (DEC-105) e il meccanismo di tema per-run (DEC-005). Non fissa limiti di
 contenuto né simboli ricorrenti, che restano ancora da definire.
 
-## Domande aperte residue
+## Limiti di contenuto (DEC-119)
 
-- Limiti di contenuto e simboli ricorrenti: non ancora definiti.
+I contenuti generati (mondi, nemici, nomi, descrizioni) possono essere **dark, ~16+**:
+gore stilizzato da pixel-art e temi cupi o disturbanti sono ammessi. Restano **fuori dai
+limiti**: contenuti sessuali espliciti e riferimenti al mondo reale (religioni, politica,
+etnie, persone reali). Il registro ironico-leggero di DEC-105 riguarda la voce del
+crogiolo, non i World: un mondo può essere cupo mentre il crogiolo lo commenta asciutto —
+il contrappunto è parte del tono. Gap di implementazione: questi limiti vanno tradotti in
+vincoli nei prompt di melting-gen e nel validatore.
+
+## Simboli ricorrenti del crogiolo (DEC-120)
+
+Un piccolo set fisso di simboli della forgia lega le run fra loro: **fuoco/colata**,
+**metallo e crogiolo**, **lingotti (Ingots)**, **scintille (Embers)**. Vive solo nella
+voce dell'interfaccia, nel Piano 0 e nei testi del crogiolo; i World generati non lo
+ereditano mai (DEC-073).
+
+## Domande aperte residue
 - ~~Tono specifico del gioco (tragico, ironico, inquietante, surreale o altro), dentro la
   cornice del crogiolo (DEC-067)~~: risolto da DEC-105, registro ironico-leggero — vedi
   "Tono narrativo: ironico-leggero (DEC-105)" sopra.
