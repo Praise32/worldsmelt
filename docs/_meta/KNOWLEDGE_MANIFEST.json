@@ -2574,7 +2574,7 @@
       "status": "implemented",
       "authority": "supporting",
       "owner": "engineering",
-      "summary": "Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento, contesto della misura, disambiguazione tra i due meccanismi di benchmark del repo e il meccanismo del tier automatico letto dal gioco a --generate.",
+      "summary": "Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento, contesto della misura, disambiguazione tra i due meccanismi di benchmark del repo e la storia del meccanismo di tier automatico, rimosso da DEC-110 (il gioco non legge più logs/benchmark.txt).",
       "topics": [
         "benchmark",
         "performance",

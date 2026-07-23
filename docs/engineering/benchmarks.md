@@ -8,7 +8,7 @@ owner: engineering
 summary: >-
   Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento,
   contesto della misura, disambiguazione tra i due meccanismi di benchmark del
-  repo e il meccanismo del tier automatico letto dal gioco a --generate.
+  repo e la storia del meccanismo di tier automatico, rimosso da DEC-110 (il gioco non legge più logs/benchmark.txt).
 last_reviewed: 2026-07-23
 last_verified_commit: fe27f6d
 topics: [benchmark, performance, tier, vulkan, gpu]
@@ -74,7 +74,7 @@ più lenta (ngl 20) chiude a 96,7s totali, sotto i 120s — ma il margine si
 assottiglia man mano che si scende con `ngl`, ed è ragionevole aspettarsi che
 schede con meno VRAM (es. 4GB) debbano scendere ulteriormente e quindi
 avvicinarsi o superare il limite dei 2 minuti: è per questo che questa tabella
-serve da base per il meccanismo di tier automatico descritto più sotto.
+serviva da base per il vecchio meccanismo di tier automatico (rimosso da DEC-110, vedi sotto).
 
 Il "muro della VRAM" quindi non è stato osservato direttamente su questa scheda
 (6GB bastano per il 7B Q4_K_M a offload pieno con margine), ma la tabella lascia
@@ -91,9 +91,9 @@ veloce (49,6s totali, quasi un terzo del budget di 1-2 minuti) e quella con la
 qualità di contenuto migliore, perché il 7B genera testi più vari e non ripete
 i nomi degli oggetti tra un piano e l'altro come si era osservato con l'1.5B nel
 Task 7. Non c'è quindi nessun compromesso da fare su questa macchina: il 7B
-vince su entrambi i fronti. Il modello 1.5B resta il fallback automatico (già
-cablato in `main.c`, `APP_LOW_SPEC_MODEL` in `src/app/app.c:91`) per le macchine
-dove il 7B non dovesse caricare, e per il preset `--low-spec` (vedi sotto).
+vince su entrambi i fronti. Il modello 1.5B resta il fallback automatico su errore di
+caricamento del 7B (`modelFallback` in `tools/melting-gen/main.c`): fallback di
+robustezza, tuttora attivo e indipendente dal vecchio preset di qualità (DEC-110).
 
 ## Disambiguazione: due "tok/s" diversi nel repo
 
@@ -134,8 +134,7 @@ pipeline di riferimento", non il preset alleggerito.
 
 In sintesi: **la tabella di questo documento** (da `make test-llm`) è la calibrazione una
 tantum dei default di produzione in `tools/melting-gen/main.c` (modello e `ngl` di default);
-**`--bench`** è il meccanismo runtime che alimenta il tier automatico per-utente descritto
-sotto. Sono complementari, non intercambiabili: uno misura "quanto è buona/veloce una
+**`--bench`** alimenta il report diagnostico di `make benchmark` descritto sotto. Sono complementari, non intercambiabili: uno misura "quanto è buona/veloce una
 generazione vera", l'altro "quanto è veloce il modello nudo su questa macchina".
 
 ## Meccanismo del tier automatico
@@ -161,24 +160,15 @@ Soglie (`scripts/benchmark.sh`, righe 56-74), misurate non dedotte:
 - sotto → tier `unsupported` (si può comunque giocare, fallback procedurale sempre presente,
   ma la generazione IA sarà lenta o assente).
 
-Al successivo avvio del gioco con `--generate`, `AppReadBenchmarkPreset`
-(`src/app/app.c:44-78`) rilegge `logs/benchmark.txt` e applica **da solo**, senza alcuna
-interazione dell'utente:
-
-- `tier=lowspec` → preset `--low-spec` equivalente: modello di testo **1.5B**
-  (`APP_LOW_SPEC_MODEL = models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`, `app.c:91`) e
-  sprite generati a **256px** invece di 512 (`--gen-size 256`, `app.c:228-233`);
-- `tier=unsupported` → nessun blocco, solo un messaggio d'avviso (il fallback procedurale
-  esiste sempre);
-- `tier=full` o schema sconosciuto → nessuna azione, comportamento di sempre.
-
-**I flag espliciti vincono sempre**: se l'utente passa `--low-spec` o `--full-spec` a mano,
-`AppReadBenchmarkPreset` ignora del tutto il file di benchmark, sia il preset sia il
-messaggio (`app.c:48-50`, guardia `if (manualLowSpec || manualFullSpec) return;`).
-
-Il gioco **non linka mai** llama.cpp o stable-diffusion.cpp (vincolo architetturale,
-`AGENTS.md`): legge solo il file di testo `logs/benchmark.txt` prodotto dai due binari esterni,
-mai i modelli direttamente.
+**Dal 22/07/2026 (DEC-110) il gioco NON legge più questo file.** Il preset automatico
+`--low-spec` (testo 1.5B + sprite 256px), i flag `--low-spec`/`--full-spec` e il test
+`--bench-preset-test` sono stati rimossi dal codice: nessun tier di qualità automatico, i
+requisiti minimi del gioco completo sono quelli per far girare i modelli di riferimento
+(7B + SD1.5) e l'hardware migliore significa solo attese più brevi. `make benchmark` resta
+uno **strumento diagnostico manuale**: misura la macchina e scrive il report qui sopra
+(tier compreso, come pura informazione), ma nulla nel gioco lo rilegge. Restano intatti i
+fallback di robustezza: 1.5B quando il 7B non si carica (`tools/melting-gen/main.c`,
+`modelFallback`), generatore deterministico, modalità solo-curato.
 
 ### Il warmup Vulkan della prima immagine si scarta
 
@@ -195,17 +185,10 @@ in questo repo) è quindi il tempo della seconda generazione, non della prima: s
 il warmup (~14,9s) come tempo "di regime", la soglia `imgS <= 8` del tier `full` fallirebbe
 anche su hardware che in realtà lo supera comodamente a regime.
 
-## Nota di ambiguità aperta (nessuna posizione presa qui)
+## Nota storica: l'ambiguità con DEC-070 (risolta da DEC-110)
 
-DEC-070 (decision-log, approved 2026-07-18) stabilisce una **scelta binaria** al primo avvio
-(esperienza completa vs solo curato) e dice esplicitamente "Nessun tier intermedio di
-download". Il preset `--low-spec` descritto sopra, però, è un **preset automatico applicato
-in silenzio** dal meccanismo di tier (mai offerto come scelta al giocatore): modello di testo
-1.5B invece di 7B, sprite a 256px invece di 512px.
-
-Se questo preset automatico sia (a) un dettaglio implementativo dentro l'"esperienza
-completa" di DEC-070, oppure (b) il "tier di qualità" che DEC-070 esplicitamente scarta, è
-una domanda aperta non risolta da questo documento: vedi la **domanda 13** in
-`docs/design/governance/open-questions.md` ("Preset lowspec automatico vs DEC-070"), il cui
-default dichiarato è "il codice resta com'è, ambiguità annotata in engineering" — che è
-esattamente quello che questo paragrafo fa.
+DEC-070 stabiliva la scelta binaria «nessun tier intermedio», ma il codice applicava in
+silenzio il preset `--low-spec`: l'audit documentale del 22/07 aveva registrato la tensione
+come open question 13. **Risolta lo stesso giorno da DEC-110**: il preset è stato rimosso
+(lettura stretta di DEC-070 confermata); questo documento conserva la descrizione storica
+del meccanismo qui sopra come contesto delle misure.

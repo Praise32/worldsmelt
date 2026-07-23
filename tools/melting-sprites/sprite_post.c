@@ -20,9 +20,9 @@ static int ColorDist2(const unsigned char *a, const unsigned char *b)
 void SpritesModalDownscale(const unsigned char *src, unsigned char *dst, int genSize)
 {
     /* f e' oggi 4 (genSize=512) o 2 (genSize=256, --gen-size): il fattore
-       era un #define fisso prima del preset --low-spec, ora e' derivato a
-       runtime da genSize. key[] resta dimensionato al PIU' GRANDE f
-       possibile (SPRITE_DOWNSCALE_F_MAX=4) e ne usa solo i primi f*f slot. */
+       era un #define fisso prima dell'introduzione di --gen-size, ora e'
+       derivato a runtime da genSize. key[] resta dimensionato al PIU' GRANDE
+       f possibile (SPRITE_DOWNSCALE_F_MAX=4) e ne usa solo i primi f*f slot. */
     const int f = genSize / SPRITE_CELL;
     for (int cy = 0; cy < SPRITE_CELL; cy++)
     for (int cx = 0; cx < SPRITE_CELL; cx++)

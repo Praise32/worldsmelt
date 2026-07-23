@@ -148,7 +148,6 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --screenshot-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --gen-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layout-test
-	$(TEST_RUNNER) ./$(GAME_BIN) --bench-preset-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --shot-forms-screenshot-test
@@ -177,12 +176,14 @@ gen-metrics: all
 sprite-baseline: sprites
 	bash scripts/sprite-baseline.sh
 
-# Benchmark della macchina (piano strategico 16/07/2026, sezione tier): esegue
-# in sequenza melting-gen --bench e melting-sprites --bench (mai insieme:
-# VRAM) e scrive logs/benchmark.txt, che il gioco rilegge al prossimo
-# --generate per applicare da solo il preset --low-spec quando serve. Vedi
-# scripts/benchmark.sh. NON parte da solo al primo avvio del gioco (v1: solo
-# manuale, via questo target); l'auto-run arrivera' con la UI dedicata.
+# Benchmark della macchina (strumento diagnostico manuale, DEC-110): esegue in
+# sequenza melting-gen --bench e melting-sprites --bench (mai insieme: VRAM) e
+# scrive logs/benchmark.txt come report per chi sviluppa/misura l'hardware.
+# Da DEC-110 non esiste piu' nessun tier di qualita' automatico: il gioco NON
+# rilegge mai questo file, non lo linka a nessuna scelta di modello o
+# dimensione sprite. I requisiti minimi del gioco completo sono quelli per
+# far girare i modelli di riferimento (Qwen 7B + SD1.5); hardware migliore
+# rende solo la generazione piu' veloce, mai diversa. Vedi scripts/benchmark.sh.
 benchmark: gen sprites
 	bash scripts/benchmark.sh
 

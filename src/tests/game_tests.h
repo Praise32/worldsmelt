@@ -106,12 +106,6 @@ bool ScriptItemsSelfTest(void);
    InitWindow. */
 bool ScriptCharacterSelfTest(void);
 
-/* Piano strategico 16/07/2026, sezione tier: AppReadBenchmarkPreset
-   (src/app/app.h) e' solo I/O di file (nessun Game, nessuna finestra),
-   quindi questo test gira prima di InitWindow come i tre sopra. Vedi
-   src/tests/game_tests.c per i dettagli degli scenari coperti. */
-bool AppBenchmarkPresetSelfTest(void);
-
 /* M7 (DEC-015/041/045/069, substrato del catalogo persistente): come
    GameStatesTest, gira DOPO InitWindow (chiama UpdateApp con AppInput
    sintetici) ma ogni scenario costruisce il proprio Game locale invece di

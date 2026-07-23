@@ -9,10 +9,10 @@
    128x128 in un atlas 1024x1024 a 8 colonne (stesso layout di AtlasSprite in
    src/core/game_types.h: cella i alla colonna i%8, riga i/8).
 
-   Dalla fase --gen-size (preset --low-spec del gioco, roadmap 16/07/2026) la
-   dimensione di generazione e' un parametro a riga di comando: 512 (default,
-   scheda di riferimento 5600 XT) o 256 (hardware sotto la scheda di
-   riferimento). SPRITE_SRC resta la dimensione MASSIMA/di default, usata per
+   Dalla fase --gen-size (capacita' CLI generica del tool, mai invocata in
+   automatico dal gioco -- DEC-110, nessun preset di qualita') la dimensione
+   di generazione e' un parametro a riga di comando: 512 (default) o 256.
+   SPRITE_SRC resta la dimensione MASSIMA/di default, usata per
    dimensionare i buffer sorgente allocati una sola volta: la dimensione
    EFFETTIVA di ogni run gira come parametro "genSize" nelle funzioni di
    sprite_post.c/sprite_sd.c/main.c. La cella finale nell'atlas resta SEMPRE

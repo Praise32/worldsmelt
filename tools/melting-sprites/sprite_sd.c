@@ -9,8 +9,8 @@
    Parametri (modello, LoRA, 512x512, 8 passi, LCM, cfg 1.8, vae_conv_direct,
    flash-attn OFF) misurati nello spike, vedi docs/ai-production/experiments/sprites-spike.md: non
    ridiscussi qui. La dimensione 512x512 e' il default; --gen-size in main.c
-   permette 256x256 (preset --low-spec del gioco) passando "genSize" a
-   SpriteSdGenerate qui sotto. */
+   permette 256x256 (capacita' CLI generica del tool, mai usata in automatico
+   dal gioco, DEC-110) passando "genSize" a SpriteSdGenerate qui sotto. */
 #include "melting_sprites.h"
 
 #include "stable-diffusion.h"

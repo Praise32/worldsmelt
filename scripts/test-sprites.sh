@@ -89,7 +89,7 @@ echo "-- determinismo: stesso seed = atlas identico byte per byte --"
 "$SPR" --dry-run --seed 12345 --out "$TMP/b" >/dev/null
 cmp "$TMP/a/current_atlas.png" "$TMP/b/current_atlas.png"
 
-echo "-- --gen-size 256 (preset --low-spec, roadmap 16/07/2026) produce comunque un atlas 1024x1024 con celle 128x128 --"
+echo "-- --gen-size 256 (capacita' CLI generica, DEC-110: nessun preset del gioco la usa in automatico) produce comunque un atlas 1024x1024 con celle 128x128 --"
 # La cella finale nell'atlas NON deve cambiare: solo il downscale modale
 # interno cambia fattore (genSize/128, oggi 2 invece di 4). Stesso controllo
 # IHDR grezzo usato sopra per il default 512, cosi' un eventuale regressione

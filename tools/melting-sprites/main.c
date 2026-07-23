@@ -13,12 +13,13 @@
    docs/engineering/specs/2026-07-13-local-sprites-design.md).
 
    --gen-size <px> (256 o 512, default 512, vedi ParseArgs): dimensione a cui
-   Stable Diffusion genera ogni cella prima del post-processing. E' il
-   mattone del preset --low-spec del gioco (roadmap 16/07/2026, hardware
-   sotto la scheda di riferimento 5600 XT): a 256px il downscale modale in
-   sprite_post.c usa un fattore 2 invece di 4, generazione piu' leggera. La
-   cella finale nell'atlas resta SEMPRE 128x128: il gioco non vede alcuna
-   differenza tra i due valori. */
+   Stable Diffusion genera ogni cella prima del post-processing. Capacita' CLI
+   generica del tool (mai invocata automaticamente da src/app/app.c, DEC-110:
+   nessun preset di qualita' -- i requisiti minimi del gioco sono quelli per
+   far girare i modelli di riferimento, hardware migliore e' solo piu'
+   veloce): a 256px il downscale modale in sprite_post.c usa un fattore 2
+   invece di 4, generazione piu' leggera. La cella finale nell'atlas resta
+   SEMPRE 128x128: il gioco non vede alcuna differenza tra i due valori. */
 #include "melting_sprites.h"
 
 #include "stb_image.h"
@@ -593,14 +594,13 @@ static const char *SPRITES_BENCH_PROMPT =
 static const char *SPRITES_BENCH_NEG_PROMPT = "blurry, text, watermark, photo, 3d render";
 #define SPRITES_BENCH_SEED 20260717u
 
-/* --bench (piano 16/07/2026, sezione tier): genera UNA immagine 512px con la
- * pipeline di sempre (LCM, stessi step/cfg di ParseArgs, eventualmente
- * ritoccati da --steps/--cfg/--taesd come una generazione vera) da un
- * prompt FISSO hardcoded (vedi sopra), e stampa una riga machine-readable su
- * stdout. Sempre 512px (SPRITE_SRC), indipendente da --gen-size: il bench
- * misura la pipeline di RIFERIMENTO, la stessa che --gen-size 256 (preset
- * --low-spec) alleggerisce SOLO quando il tier misurato lo richiede -- vedi
- * scripts/benchmark.sh.
+/* --bench (misurazione pura, DEC-110: nessun preset di qualita' collegato):
+ * genera UNA immagine 512px con la pipeline di sempre (LCM, stessi step/cfg
+ * di ParseArgs, eventualmente ritoccati da --steps/--cfg/--taesd come una
+ * generazione vera) da un prompt FISSO hardcoded (vedi sopra), e stampa una
+ * riga machine-readable su stdout. Sempre 512px (SPRITE_SRC), indipendente da
+ * --gen-size: il bench misura la pipeline di RIFERIMENTO, quella che il gioco
+ * usa sempre -- vedi scripts/benchmark.sh (strumento diagnostico manuale).
  *
  * NON scrive l'atlas ne' tocca 'args->outDir' in alcun modo: sdCfg.outDir e'
  * NULL apposta, che rende innocuo il progress callback di caricamento del

@@ -53,13 +53,6 @@ typedef struct AppInput {
 typedef struct AppGen {
     bool enabled;
     bool noSprites;              /* --no-sprites: salta sempre il passo sprite */
-    /* --low-spec: preset MANUALE per hardware sotto la scheda di riferimento
-       (5600 XT, che resta il default: senza questo flag non cambia nulla).
-       Qui si limita a passare due argomenti in piu' ai processi figli (vedi
-       AppStartGeneration/AppStartSpritesGeneration in app.c): NESSUN
-       benchmark o rilevamento automatico del tier hardware, quello arrivera'
-       dopo. */
-    bool lowSpec;
     const char *command;         /* melting-gen (passo 1: testo) */
     const char *spritesCommand;  /* melting-sprites (passo 2: sprite) */
     GenRunner runner;            /* passo 1 */
