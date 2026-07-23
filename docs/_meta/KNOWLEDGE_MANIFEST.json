@@ -1172,7 +1172,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1388,13 +1388,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 125 decisioni di design approvate (DEC-001..DEC-125) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 135 decisioni di design approvate (DEC-001..DEC-135) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..125"
+        "DEC-001..135"
       ],
       "related": [],
       "supersedes": [],
@@ -1498,7 +1498,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-125; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-135; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -1602,7 +1602,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1674,7 +1674,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1721,7 +1721,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1811,7 +1811,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1925,7 +1925,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1947,7 +1947,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2194,7 +2194,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2367,7 +2367,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {

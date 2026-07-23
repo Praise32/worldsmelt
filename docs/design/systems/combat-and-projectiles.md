@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md)."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [combattimento, proiettili, budget di leggibilità, DEC-007, DEC-037, tipi di colpo]
 related: []
@@ -150,7 +150,7 @@ Vedi [generated-content-validation.md](generated-content-validation.md) — font
 ## Domande aperte residue
 
 - Esiste una soglia numerica esplicita (es. massimo N proiettili nemici leggibili in scena) o il budget resta un principio qualitativo affidato al playtest?
-- Le bande di potenza [0.75–1.25] restano invariate per tutte le stanze o variano con la difficoltà del piano?
+- ~~Le bande di potenza [0.75–1.25] variano con la difficoltà?~~: risolto da DEC-133 — invariate per tutta la run; la difficoltà cresce col budget di stanza e l'escalation del tema (DEC-024/043).
 - Come si comporta il budget di leggibilità in multiplayer asincrono, dove più run indipendenti potrebbero condividere l'interfaccia dei risultati (`experimental`)?
 
 ## Scenari verificabili

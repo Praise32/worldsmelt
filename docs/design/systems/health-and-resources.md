@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione (DEC-013), ora affiancate dai nomi inglesi in-game fissati da DEC-072."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita]
 related: []
@@ -55,7 +55,7 @@ variazione ammessa solo in palette e dettagli (DEC-073b, fonte unica
 
 - **Funzione:** economia di run (acquisti in stanze di negozio, prezzi in stanze ad alto rischio — vedi [special-rooms.md](special-rooms.md)).
 - **Come si ottiene:** fonti canoniche definite da DEC-048 — nemici sconfitti e stanze ripulite (completate); il negozio inoltre ricompra oggetti e Innesti indesiderati a prezzo ridotto, unica via per convertirli in valuta durante la run. Fonte unica del dettaglio: [rewards-and-economy.md](rewards-and-economy.md) (rimando, non riformulare).
-- **Cap/limite massimo:** non definito (domanda aperta).
+- **Cap/limite massimo:** **nessuno** (DEC-129): accumulo libero, il limite è la rarità delle fonti (DEC-022).
 - **HUD:** mostra il totale corrente (rimando concettuale, fuori scope UI).
 - **Fine piano:** presumibilmente persiste tra i piani della stessa run (draft, non confermato da nessuna DEC).
 - **Fine run:** si azzera al termine della run, salvo un ruolo nella meta-progressione — domanda aperta, vedi [save-and-meta-progression.md](save-and-meta-progression.md) (rimando).

@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025)."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [ostacoli, segreti, strumento-di-breccia, telegraph, budget-difficoltà]
 related: []
@@ -56,7 +56,7 @@ stessa stanza, e viceversa (fonte del principio di budget condiviso:
 
 ## Input/azioni
 
-Il giocatore usa lo **strumento di breccia** (DEC-013; in-game: **Blast Charges**, DEC-072) per distruggere ostacoli, muri deboli o aprire varchi. Le regole della risorsa stessa (come si ottiene, cap massimo, ordine di consumo, rarità e fonti) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento descrive solo il suo **uso** nel contesto di ostacoli e segreti, senza ripetere quelle regole.
+Il giocatore usa lo **strumento di breccia** — che **è la bomba** (DEC-128; in-game: **Blast Charges**, DEC-013/DEC-072), universale: un uso = un'esplosione, e la variabilità sta solo in che cosa è colpito e che cosa no, sempre dichiarato prima dell'uso — per distruggere ostacoli, muri deboli o aprire varchi. Le regole della risorsa stessa (come si ottiene, cap massimo, ordine di consumo, rarità e fonti) sono definite in [health-and-resources.md](./health-and-resources.md) come fonte unica; questo documento descrive solo il suo **uso** nel contesto di ostacoli e segreti, senza ripetere quelle regole.
 
 ## Risultato
 
@@ -78,7 +78,8 @@ diversa, mai da tentativi puramente casuali:
   che il giocatore può osservare e interpretare; si aprono con lo **strumento di breccia**
   (vedi sotto), come qualunque altro ostacolo distruttibile compatibile.
 - **Stanze "super-segrete"**: non hanno alcun indizio visivo leggibile. Si trovano solo
-  con oggetti o Innesti rivelatori dedicati, oppure per intuizione estrema del giocatore
+  con i rivelatori — Innesti «sensore» dedicati o oggetti rari che offrono la rivelazione
+  come effetto secondario (DEC-127) — oppure per intuizione estrema del giocatore
   (esplorazione sistematica senza alcun aiuto di sistema).
 
 Questo risolve la domanda di design precedentemente aperta sul metodo di scoperta delle
@@ -123,10 +124,12 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 ## Domande aperte residue
 
-- Quali oggetti/Innesti rivelatori esistono per le stanze "super-segrete" (DEC-025) e con
-  quale tasso compaiono nei pool.
-- Se lo strumento di breccia ha un solo tipo di bersaglio o più categorie di ostacolo con
-  costi diversi.
+- ~~Come esistono i rivelatori delle super-segrete~~: risolto da DEC-127 — Innesti
+  «sensore» dedicati + oggetti rari con la rivelazione come effetto secondario, con almeno
+  un'occasione realistica per run; restano da playtest solo i tassi esatti.
+- ~~Un solo tipo di bersaglio o categorie a costi diversi~~: risolto da DEC-128 — lo
+  strumento di breccia è la bomba (Blast Charges), universale: un uso = un'esplosione, la
+  variabilità sta solo in che cosa è breccia-bile e che cosa no.
 - Proporzione esatta tra blocchi e pericoli passivi telegrafati nella generazione a tema, e
   valori numerici del budget di difficoltà condiviso tra ostacoli e nemici (DEC-043 fissa il
   principio, non i numeri).

@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065)."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, DEC-065, DEC-051]
 related: []
@@ -40,7 +40,7 @@ Sempre visibile durante `Gameplay`; nascosto o attenuato durante `PauseMenu` e `
 | Piano e stanza | Sempre | — (sola lettura) | Nessuna | — | Indicatore di progressione |
 | Timer di run | Sempre, durante `Gameplay` | — (sola lettura) | Nessuna | — | Contatore del tempo trascorso, sempre visibile in ogni modalità (DEC-051) |
 | Stato competitivo essenziale | Modalità competitiva attiva | — (sola lettura) | Nessuna | — | Indicatore minimo aggiuntivo, distinto dal timer di run sempre visibile (DEC-051) |
-| Card di scoperta breve (DEC-065) | Alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione) | — (non bloccante, non mette in pausa) | Nessuna azione richiesta; si accoda automaticamente se altre card sono in corso | Mostra sprite, nome e una riga di descrizione del contenuto scoperto | Appare e scompare da sola senza bloccare l'input; una sola card visibile alla volta, le altre attendono in coda |
+| Card di scoperta breve (DEC-065) | Alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione) | — (non bloccante, non mette in pausa) | Nessuna azione richiesta; si accoda automaticamente se altre card sono in corso (coda limitata ~5, le più vecchie si perdono senza essere mostrate: DEC-131) | Mostra sprite, nome e una riga di descrizione del contenuto scoperto | Appare e scompare da sola senza bloccare l'input; una sola card visibile alla volta, le altre attendono in coda |
 
 ## Principio
 
@@ -128,9 +128,9 @@ L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regol
 
 ## Domande aperte residue
 
-- Casi limite della coda delle card di scoperta (DEC-065): quante scoperte possono restare in
-  attesa, se esiste un tempo massimo prima di scartarle o comprimerle, e come si comporta la
-  coda se il giocatore muore o cambia stanza mentre una card è in attesa.
+- ~~Casi limite della coda delle card di scoperta~~: risolto da DEC-131 — coda limitata
+  (~5, valore esatto da playtest); quando trabocca le più vecchie escono senza essere
+  mostrate, la scoperta resta comunque registrata nel Catalogo.
 
 ## Scenari verificabili
 

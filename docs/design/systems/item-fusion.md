@@ -159,9 +159,9 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - ~~Esiste un limite rigido al numero di fusioni per run~~: risolto da DEC-125 — nessun
   tetto artificiale, il limite è l'economia del catalizzatore (cadenza attesa 1-2 resta il
   riferimento di bilanciamento).
-- Quale cap massimo ha il catalizzatore di fusione (DEC-022 fissa le fonti — drop
-  boss/arena, acquisto costoso — e la cadenza attesa, non un valore numerico di cap: da
-  definire in [Health and Resources](health-and-resources.md))?
+- ~~Quale cap massimo ha il catalizzatore di fusione~~: risolto da DEC-129 — **nessun
+  cap**, accumulo libero, il limite è la rarità delle fonti (vedi
+  [Health and Resources](health-and-resources.md)).
 
 ## Scenari
 

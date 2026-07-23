@@ -145,9 +145,10 @@ unica definita in
 
 
 
-- Quali altre regole del gioco, oltre agli esempi già dati (offerte del negozio,
-  comportamento delle stanze segrete), sono bersagli ammissibili per un Innesto
-  piega-regole (DEC-034)?
+- ~~Quali regole sono bersagli ammissibili per un piega-regole~~: risolto da DEC-126 —
+  lista chiusa curata: **economia** (offerte, prezzi, valute), **stanze** (segrete,
+  tesoro, ricompense), **drop e rarità** (pesi dei pool), **risorse** (cap e ricariche);
+  esclusioni dure: mai difficoltà (DEC-038), competitivo, validazione o fallback.
 
 Nota: la domanda sulla soglia esatta di rarità (rara, leggendaria, o entrambe) a cui un
 Innesto diventa piega-regole è risolta da DEC-107 — solo la rarità leggendaria — e non è più

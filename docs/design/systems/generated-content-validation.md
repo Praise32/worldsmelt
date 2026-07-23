@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [validazione, fallback, sei stati, DEC-020, DEC-087, pool curato minimo]
 related: []
@@ -15,6 +15,11 @@ source_files: []
 ---
 
 # Generated Content Validation
+
+> Aggiunta del 22/07 (DEC-135): fra le categorie di validazione esiste la **validazione
+> strutturale dei layout di stanza**: croce centrale libera (già garantita dal motore),
+> raggiungibilità di porte e ricompense, spazio minimo di manovra. Un layout non valido
+> segue la normale catena di fallback.
 
 Questo documento è la fonte UNICA della regola di fallback e degli stati di validazione del
 contenuto generato per l'intera knowledge base. Gli altri documenti di sistema vi rimandano
@@ -220,8 +225,9 @@ regola sia verificabile.
 
 - Quanto tempo massimo è accettabile prima che scatti un fallback per timeout (valore non
   ancora definito).
-- Se e come comunicare al giocatore, in forma aggregata e non tecnica, quante volte un
-  fallback è scattato in una run (telemetria vs interfaccia).
+- ~~Se e come comunicare i fallback al giocatore~~: risolto da DEC-132 — una riga
+  discreta e aggregata in `RunResults`, nel registro ironico del crogiolo (DEC-105);
+  durante la run il fallback resta invisibile.
 
 ## Telemetria di design
 

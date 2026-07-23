@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [run-results, classifiche, vittoria-sconfitta, punti-sblocco, daily, DEC-041, DEC-056, DEC-062]
 related: []
@@ -15,6 +15,11 @@ source_files: []
 ---
 
 # Results and Leaderboards (RunResults)
+
+> Aggiunta del 22/07 (DEC-132): `RunResults` include una **riga discreta e aggregata** sui
+> fallback della generazione, nel registro ironico del crogiolo (es. «il crogiolo ha
+> attinto due volte alla riserva») — accanto al conteggio delle creazioni entrate nel
+> Catalogo. Niente tecnicismi; il dettaglio per-scheda vive nel Catalogo (DEC-103).
 
 ## Intento
 

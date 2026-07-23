@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Capacità e responsabilità del personaggio giocato: movimento, mira, gestione di risorse e oggetti. Controlli decisi da DEC-007. Per identità e statistiche dei personaggi vedi characters.md."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [player, controlli, movimento, mira, statistiche]
 related: []
@@ -91,8 +91,8 @@ Se un contenuto generato altera le capacità del personaggio in modo non valido,
 
 Proprietà non coperte da nessuna DEC — restano aperte, non vanno considerate decise:
 
-- invulnerabilità dopo il danno (durata, feedback, se esiste);
-- interazione dettagliata con ostacoli (knockback, blocco totale, scivolamento);
+- ~~se esiste l'invulnerabilità dopo il danno~~: risolto da DEC-130 — sì, breve, con lampeggio; resta da playtest solo la durata;
+- ~~interazione con ostacoli e danno da contatto~~: risolto da DEC-134 — il danno da contatto respinge brevemente (knockback dentro la finestra di i-frames DEC-130); gli ostacoli solidi bloccano, con scivolamento lungo le pareti; restano da playtest distanza e durata della respinta;
 - dettagli di interazione tra il personaggio e gli slot di equipaggiamento oltre al numero iniziale già fissato da DEC-011 (1 attivo + 1 Innesto, ampliabili);
 - comportamento del personaggio in multiplayer (`experimental`; la visione di gara asincrona è in DEC-016, vedi [../08-multiplayer-and-competition.md](../08-multiplayer-and-competition.md), ma non è definito se ogni partecipante ha le stesse regole di controllo o se esistono differenze).
 

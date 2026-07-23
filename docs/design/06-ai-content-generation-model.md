@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Modello reale di generazione: invenzione parametrica entro bande di garanzia e comportamenti validati in sandbox con fallback curato. La pipeline comportamentale copre anche il trait del personaggio generato e i tipi di colpo, con le manopole parametriche come garanzia/fallback (DEC-037). La lingua primaria di generazione è l'inglese; gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese (DEC-052). La modalità 'solo curato', scelta al primo avvio, è uno stato legittimo e permanente, non un fallback temporaneo (DEC-070); la scelta al primo avvio è una schermata dedicata a due carte e la riattivazione vive in Impostazioni (DEC-086); il pool curato minimo che garantisce la run senza IA è definito in systems/generated-content-validation.md (DEC-087). La nomenclatura di interfaccia del crogiolo (DEC-072) non entra nei prompt di generazione dei World: quei prompt descrivono solo funzione e tema (DEC-073a)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [generazione-ia, sandbox, fallback, tassonomia-origine, solo-curato, lingua-generazione]
 related: []
@@ -214,8 +214,9 @@ fonderia appartiene all'interfaccia e alla cornice del Crucible (DEC-067, vedi
 
 ## Domande aperte residue
 
-- Se i layout di stanza generati richiedano una categoria di validazione strutturale
-  dedicata, separata dai controlli minimi generali.
+- ~~Se i layout richiedano una validazione strutturale dedicata~~: risolto da DEC-135 —
+  sì: croce centrale libera + raggiungibilità di porte/ricompense + spazio minimo di
+  manovra, come categoria del contratto (vedi `systems/generated-content-validation.md`).
 
 ## Scenari
 

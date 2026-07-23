@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo]
 related: []
@@ -137,11 +137,10 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 
 ## Domande aperte residue
 
-- Nome e presentazione definitivi dello scambio ad alto rischio.
+- Nome e presentazione definitivi dello scambio ad alto rischio: in arrivo una rosa di proposte in tema forgia dal content designer (sessione 22/07), da cui scegliere.
 - Frequenza esatta di ciascun archetipo per piano.
 - Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
-- Quali oggetti/Innesti rivelatori esistono per le stanze "super-segrete" (DEC-025, vedi
-  [secrets-and-obstacles.md](./secrets-and-obstacles.md)).
+- ~~Quali rivelatori esistono per le super-segrete~~: risolto da DEC-127 (Innesti sensore + oggetti rari), vedi `secrets-and-obstacles.md`.
 
 ## Scenari
 

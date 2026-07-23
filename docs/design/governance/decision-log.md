@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 125 decisioni di design approvate (DEC-001..DEC-125) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 135 decisioni di design approvate (DEC-001..DEC-135) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..125]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..135]
 related: []
 supersedes: []
 source_files: []
@@ -1327,3 +1327,123 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** tetto rigido a 2; rinvio al playtest.
 - **Conseguenze:** `systems/item-fusion.md` aggiornato; il cap del catalizzatore resta domanda numerica da playtest.
 - **Documenti aggiornati:** `systems/item-fusion.md`
+
+---
+
+### DEC-126 — I bersagli dei piega-regole: lista chiusa curata
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/grafts.md`: quali regole del gioco, oltre a offerte del negozio e stanze segrete, sono bersagli ammissibili per un Innesto piega-regole (DEC-034, solo leggendari per DEC-107)?
+- **Decisione:** i bersagli ammissibili sono una **lista chiusa curata** di quattro domini: **economia** (offerte, prezzi, valute), **stanze** (segrete, tesoro, ricompense), **drop e rarità** (pesi dei pool), **risorse** (cap e ricariche). **Esclusioni dure**: mai la difficoltà (DEC-038), mai le regole competitive/classifiche, mai la validazione e i fallback. Il modello inventa piega-regole dentro questa lista; il validatore la fa rispettare.
+- **Alternative considerate:** solo economia e stanze; lista aperta con sole esclusioni; rinvio al playtest.
+- **Conseguenze:** `systems/grafts.md` registra la lista; i prompt e il validatore dei contenuti generati andranno allineati (gap di implementazione).
+- **Documenti aggiornati:** `systems/grafts.md`
+
+---
+
+### DEC-127 — I rivelatori delle super-segrete: Innesti sensore + oggetti rari
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/secrets-and-obstacles.md`: come esistono i rivelatori delle stanze super-segrete (DEC-025)?
+- **Decisione:** la rivelazione passa da una **categoria di Innesti «sensore» dedicati** più **qualche oggetto raro** che la offre come effetto secondario. Rari nei pool, ma con **almeno un'occasione realistica per run**. I tassi esatti restano materia di playtest (open question numerica).
+- **Alternative considerate:** solo Innesti dedicati; solo indizi ambientali senza oggetti.
+- **Conseguenze:** `systems/secrets-and-obstacles.md` aggiornato; i pool dei contenuti dovranno prevedere la categoria.
+- **Documenti aggiornati:** `systems/secrets-and-obstacles.md`
+
+---
+
+### DEC-128 — Lo strumento di breccia sono le bombe, universali
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/secrets-and-obstacles.md`: lo strumento di breccia ha un solo tipo di bersaglio o più categorie di ostacolo con costi diversi?
+- **Decisione:** lo strumento di breccia **è la bomba** (Blast Charges, DEC-013/DEC-072): nessun oggetto separato, nessuna categoria a costo diverso. **Universale**: un uso = un'esplosione, e la variabilità sta **nel bersaglio** — che cosa è colpito dall'esplosione e che cosa no (dichiarato e leggibile prima dell'uso, mai una lotteria). Un ostacolo o è breccia-bile o non lo è.
+- **Alternative considerate:** categorie di ostacolo con costi diversi.
+- **Conseguenze:** `systems/secrets-and-obstacles.md` e `systems/health-and-resources.md` allineati.
+- **Documenti aggiornati:** `systems/secrets-and-obstacles.md`, `systems/health-and-resources.md`
+
+---
+
+### DEC-129 — Il Flux non ha cap
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/item-fusion.md` e `systems/health-and-resources.md`: il catalizzatore di fusione (Flux) ha un cap massimo trasportabile?
+- **Decisione:** **nessun cap**: l'accumulo è libero, il limite è già nella rarità delle fonti (DEC-022). Stessa filosofia niente-tetti-artificiali di DEC-125: se una run generosa regala Flux, la festa è legittima.
+- **Alternative considerate:** cap 1 con conversione in valuta; cap piccolo 2-3; rinvio al playtest.
+- **Conseguenze:** `systems/health-and-resources.md` registra il cap; resta aperto solo il comportamento a fine piano/fine run (già domanda del documento).
+- **Documenti aggiornati:** `systems/item-fusion.md`, `systems/health-and-resources.md`
+
+---
+
+### DEC-130 — Invulnerabilità breve dopo il danno, con lampeggio
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/player.md`: esistono gli i-frames?
+- **Decisione:** sì: dopo aver subito danno il personaggio ha una **breve invulnerabilità** con **feedback di lampeggio**. Evita le morti-frullatore contro i gruppi, standard leggibile del genere. La **durata esatta** è materia di playtest.
+- **Alternative considerate:** nessun i-frame (hardcore); rinvio totale al playtest.
+- **Conseguenze:** `systems/player.md` registra il principio; resta aperta solo la durata.
+- **Documenti aggiornati:** `systems/player.md`
+
+---
+
+### DEC-131 — La coda delle card di scoperta ha un cap piccolo
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** caso limite di DEC-065 (`ui/hud.md`): con molte scoperte ravvicinate la coda delle card può crescere.
+- **Decisione:** la coda è **limitata** (ordine di ~5 card, valore esatto da playtest): quando trabocca, le card **più vecchie escono senza essere mostrate**. Nessuna perdita reale: ogni scoperta resta comunque registrata nel Catalogo con la sua scheda. L'HUD resta pulito.
+- **Alternative considerate:** coda illimitata con scorrimento accelerato.
+- **Conseguenze:** `ui/hud.md` aggiornato.
+- **Documenti aggiornati:** `ui/hud.md`
+
+---
+
+### DEC-132 — I fallback si raccontano a fine run, con discrezione
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/generated-content-validation.md`: comunicare al giocatore, in forma aggregata e non tecnica, quante volte è scattato un fallback?
+- **Decisione:** sì, con **una riga discreta in `RunResults`**, nel registro ironico-leggero del crogiolo (DEC-105) — ad es. «il crogiolo ha attinto due volte alla riserva». Trasparenza senza tecnicismi; durante la run il fallback resta invisibile. Si integra con RunResults che già conta le creazioni entrate nel Catalogo e con l'origine registrata per scheda (DEC-103).
+- **Alternative considerate:** origine visibile solo nel Catalogo; silenzio totale.
+- **Conseguenze:** `systems/generated-content-validation.md` e `ui/results-and-leaderboards.md` registrano la riga.
+- **Documenti aggiornati:** `systems/generated-content-validation.md`, `ui/results-and-leaderboards.md`
+
+---
+
+### DEC-133 — Le bande di potenza restano invariate per tutta la run
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/combat-and-projectiles.md`: le bande [0.75–1.25] valgono uguali ovunque o si allargano coi piani?
+- **Decisione:** le bande sono **invariate per tutta la run**: la difficoltà cresce col **budget di stanza** e con l'escalation leggibile del tema (DEC-024/DEC-043), mai gonfiando i singoli contenuti. Ogni tipo di colpo/nemico resta un sidegrade leggibile in qualunque piano: è la garanzia già implementata da `ShotTypeBalance`/`EnemyTypeBalance` e questa decisione la rende canonica.
+- **Alternative considerate:** bande che si allargano/spostano nei piani avanzati.
+- **Conseguenze:** `systems/combat-and-projectiles.md` aggiornato; nessun cambio al codice (già conforme).
+- **Documenti aggiornati:** `systems/combat-and-projectiles.md`
+
+---
+
+### DEC-134 — Il danno da contatto respinge: knockback breve
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `systems/player.md` sull'interazione fisica con ostacoli e danno da contatto.
+- **Decisione:** il danno da contatto **respinge brevemente** il personaggio (knockback): più fisicità e leggibilità del colpo subito. Lavora insieme all'invulnerabilità breve (DEC-130): la respinta avviene dentro la finestra di i-frames, quindi niente rimbalzi-frullatore. Distanza e durata della respinta sono da playtest; gli ostacoli solidi restano bloccanti nel movimento normale (lo scivolamento lungo le pareti in diagonale resta il comportamento atteso, dettaglio implementativo).
+- **Alternative considerate:** blocco semplice senza knockback; rinvio al playtest.
+- **Conseguenze:** `systems/player.md` aggiornato; il tuning fine è materia di playtest.
+- **Documenti aggiornati:** `systems/player.md`
+
+---
+
+### DEC-135 — La validazione strutturale dei layout è una categoria dedicata
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** domanda residua di `06-ai-content-generation-model.md`: i layout di stanza generati richiedono una categoria di validazione strutturale oltre alla croce centrale libera già garantita dal motore?
+- **Decisione:** sì: il contratto dei contenuti generati include una **categoria di validazione strutturale dei layout**: croce centrale libera (già implementata), **raggiungibilità garantita** di porte e ricompense, **spazio minimo di manovra**. Un layout che non la supera segue la normale catena di fallback. Gap di implementazione: la croce libera esiste già nel motore; la verifica formale di raggiungibilità e spazio va aggiunta al validatore.
+- **Alternative considerate:** ritenere sufficiente la croce libera; rinvio al playtest.
+- **Conseguenze:** `06-ai-content-generation-model.md` e `systems/generated-content-validation.md` registrano la categoria.
+- **Documenti aggiornati:** `06-ai-content-generation-model.md`, `systems/generated-content-validation.md`
