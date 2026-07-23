@@ -717,7 +717,6 @@
       "related": [],
       "supersedes": [],
       "source_files": [
-        "bin/melting-sprites",
         "tools/melting-sprites/main.c",
         "logs/sprite-baseline/20260717-053243/"
       ],

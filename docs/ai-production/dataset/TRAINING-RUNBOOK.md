@@ -12,7 +12,7 @@ last_verified_commit: fe27f6d
 topics: [LoRA, RunPod, kohya_ss, training, SD1.5, sweep]
 related: []
 supersedes: []
-source_files: [bin/melting-sprites, tools/melting-sprites/main.c, logs/sprite-baseline/20260717-053243/]
+source_files: [tools/melting-sprites/main.c, logs/sprite-baseline/20260717-053243/]
 ---
 # Runbook: prima campagna Style LoRA su RunPod
 
