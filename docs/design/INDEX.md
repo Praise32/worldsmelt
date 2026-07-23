@@ -17,19 +17,19 @@
 
 ## content/
 
-- [Audio and Feedback](content/audio-and-feedback.md) — Feedback per azioni, rischi e sinergie; elenco eventi prioritari aggiornato con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Per ora musica e suoni sono curati e statici; la generazione audio a tema resta un'idea futura (DEC-036). `[draft/canonical]`
+- [Audio and Feedback](content/audio-and-feedback.md) — Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback. `[draft/canonical]`
 - [Content Taxonomy](content/content-taxonomy.md) — Vocabolario condiviso per contenuti e tag; fonte unica dei 4 valori di origine del contenuto (curato, composto, variato, nuovo). `[approved/canonical]`
 - [Narrative Tone](content/narrative-tone.md) — Cornice narrativa minima canonica approvata: 'il crogiolo dei mondi' (DEC-067) — dà senso a hub, museo, temi e fusione senza imporre lore fissa ai temi generati. Il titolo definitivo del gioco è Worldsmelt (DEC-071, risolve DEC-003) e la nomenclatura inglese in-game è fissata da DEC-072 (fonte unica: governance/glossary.md). Il tono narrativo è ora deciso: ironico-leggero (DEC-105), voce del crogiolo — non del mondo generato, coerente con DEC-073. Restano draft/aperti: limiti di contenuto, simboli ricorrenti. La lingua primaria dei contenuti generati è l'inglese, con l'italiano lingua di sviluppo e test (DEC-052); gap chiuso (M3, 18/07/2026): la pipeline genera ora in inglese. `[approved/canonical]`
 - [Visual Language](content/visual-language.md) — Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). `[approved/canonical]`
 
 ## governance/
 
-- [Decision Log](governance/decision-log.md) — Registro delle 108 decisioni di design approvate (DEC-001..DEC-108) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
+- [Decision Log](governance/decision-log.md) — Registro delle 114 decisioni di design approvate (DEC-001..DEC-114) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
 - [Definition of Done — Comportamento di Gioco](governance/definition-of-done.md) — Checklist dei criteri che rendono completa una modifica al comportamento di gioco: coerenza col design, test, vocabolario canonico, fallback e documentazione aggiornata. `[approved/canonical]`
 - [Definition of Ready — Feature di Game Design](governance/definition-of-ready.md) — Checklist dei criteri che rendono una feature di design pronta per la pianificazione tecnica: obiettivo, scenari, fallback, vocabolario canonico. `[approved/canonical]`
 - [Design Probes](governance/design-probes.md) — Otto domande-risposta usate per verificare che un agente recuperi correttamente il design (Piano 0, fusione, personaggi, meta-punti, sinergia visiva, casualità, classifica, ambiguità). `[approved/supporting]`
 - [Glossary](governance/glossary.md) — Vocabolario canonico bilingue (italiano/in-game inglese) di stati, oggetti, risorse, nemici, personaggi e presentazione; fonte unica della nomenclatura DEC-072. `[approved/canonical]`
-- [Open Questions](governance/open-questions.md) — Coda ufficiale delle domande di design ancora aperte (16 voci: 1-11 rinumerate dopo DEC-001..DEC-108 + 12-16 dall'audit documentale del 22/07); economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso, governance. `[draft/canonical]`
+- [Open Questions](governance/open-questions.md) — Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-114; economia, valori numerici, personaggi, multiplayer, produzione. `[draft/canonical]`
 
 ## systems/
 

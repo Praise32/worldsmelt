@@ -2,18 +2,23 @@
 id: aiprod-agent-orchestration
 title: Orchestrazione degli agenti
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
   Path Orchestrator che classifica i task in 7 percorsi (design/technical/ML/UI/audio/curation/implementation) e regola quando porre domande bloccanti.
 last_reviewed: 2026-07-22
+last_verified_commit: 892911a
 topics: [orchestrazione, path-orchestrator, agenti, claude-code, codex, decision-facilitator]
 related: []
 supersedes: []
 source_files: [.claude/agents/]
 ---
 # Orchestrazione degli agenti
+
+> **Approvato il 2026-07-22** con una precisazione: per i ruoli di implementazione e
+> giudizio prevale sempre la scala di implementazione di `CLAUDE.md` (root); questo
+> documento la integra per l'orchestrazione dei domini di produzione IA, non la sostituisce.
 
 ## Obiettivo
 

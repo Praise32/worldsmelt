@@ -2,12 +2,13 @@
 id: aiprod-ui-design-pipeline
 title: Pipeline UI e GUI
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
   Proposta di pipeline UI: Penpot come sorgente design, token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni.
 last_reviewed: 2026-07-22
+last_verified_commit: 892911a
 topics: [ui, penpot, 9-slice, token, raygui, raylib, accessibilita]
 related: []
 supersedes: []

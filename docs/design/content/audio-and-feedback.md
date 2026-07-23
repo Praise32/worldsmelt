@@ -5,9 +5,9 @@ domain: design
 status: draft
 authority: canonical
 owner: design
-summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari aggiornato con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Per ora musica e suoni sono curati e statici; la generazione audio a tema resta un'idea futura (DEC-036)."
-last_reviewed: 2026-07-18
-topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036]
+summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback."
+last_reviewed: 2026-07-22
+topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036, DEC-109, stable-audio, rfxgen]
 related: []
 supersedes: []
 source_files: []
@@ -53,14 +53,16 @@ generale, non riformulato qui). Anche nei piani più avanzati, l'intensificazion
 libreria/grammatica sonora deve restare **ascoltabile**: l'audio non deve mai degradare in
 rumore indistinguibile, indipendentemente da quanto il tema si sia intensificato.
 
-## Audio curato per ora, generazione futura (DEC-036)
+## Audio generativo con catena di fallback (DEC-109, sostituisce la parte «futuro» di DEC-036)
 
-Per ora musica e suoni sono **curati e statici**: non generati dall'IA. L'asse audio
-dell'escalation del tema (DEC-024, sopra) si realizza oggi con i mezzi curati disponibili —
-selezione e mix di suoni già pronti — senza alcuna generazione audio a tema. La
-parametrizzazione o generazione audio a tema è un'**idea futura**, parcheggiata insieme alle
-altre idee non ancora requisiti (vedi DEC-018 nel
-[decision log](../governance/decision-log.md)).
+Dal 22/07 la via primaria per musica e SFX è **generativa**: **Stable Audio Small in
+locale**, con catena di fallback obbligatoria **rFXGen** (SFX procedurali) → **audio
+curato/statico**. La garanzia storica di DEC-036 sopravvive come rete: ogni evento critico
+ha sempre un suono curato o di fallback, e la modalità solo-curato resta completa e
+dignitosa. Vincoli architetturali: nessuna generazione durante il combattimento; il modello
+audio si carica in sequenza con Qwen e SD (mai insieme nei 6 GB di riferimento); cache e
+pubblicazione atomica (pipeline tecnica in
+`docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`; licenza: DEC-113).
 
 ## Non-obiettivi
 
@@ -68,8 +70,8 @@ Questo documento non definisce suoni, asset o implementazione tecnica del feedba
 solo quali eventi meritano priorità di progettazione. La grammatica audio/visiva completa
 resta stato draft e non è definita nel dettaglio qui.
 
-Non copre la generazione o parametrizzazione audio a tema: quella resta un'idea futura non
-progettata (DEC-036).
+La pipeline tecnica della generazione audio (modelli, formati, budget) non vive qui ma in
+`docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` (DEC-109).
 
 ## Domande aperte residue
 
@@ -105,8 +107,9 @@ progettata (DEC-036).
 - Then l'audio resta ascoltabile e riconoscibile come parte della stessa grammatica sonora,
   senza degradare in rumore indistinguibile (DEC-024).
 
-**Scenario: intensificazione audio con mezzi curati, senza generazione**
-- Given una run che degenera verso i piani più avanzati,
-- When il sistema intensifica l'asse audio del tema secondo DEC-024,
-- Then lo fa componendo selezione e mix di suoni già curati, senza alcuna generazione audio
-  a tema: la generazione resta un'idea futura non ancora implementata (DEC-036).
+**Scenario: la generazione audio fallisce e la catena di fallback tiene**
+- Given una run con audio generato da Stable Audio Small per il tema corrente,
+- When la generazione di un suono fallisce o produce un output non valido,
+- Then il gioco ripiega senza interruzioni sulla catena di fallback (rFXGen, poi il suono
+  curato equivalente): l'evento critico ha comunque il suo segnale (DEC-109; garanzia
+  ereditata da DEC-036).

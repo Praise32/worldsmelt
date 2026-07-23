@@ -6,7 +6,7 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale delle domande di design ancora aperte (16 voci: 1-11 rinumerate dopo DEC-001..DEC-108 + 12-16 dall'audit documentale del 22/07); economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso, governance.
+  Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-114; economia, valori numerici, personaggi, multiplayer, produzione.
 last_reviewed: 2026-07-22
 topics: [open-questions, governance, domande aperte, playtest, backlog design]
 related: []
@@ -35,8 +35,12 @@ la Classificata a seed diversi (DEC-096), rifiuto ripensabile, varietà del trai
 sostituibilità del colpo firmato e sblocchi della rosa (DEC-097...100), fusione libera e
 ri-fusione (DEC-101/102), curati nel Catalogo (DEC-103), roster estendibile (DEC-104), tono
 ironico-leggero (DEC-105), boss piano 2 a fase singola (DEC-106), piega-regole solo
-leggendaria (DEC-107), proposte identiche in gara (DEC-108). Restano le domande davvero
-aperte, rinumerate da 1. Domande aperte più locali vivono anche nelle sezioni "Domande
+leggendaria (DEC-107), proposte identiche in gara (DEC-108). La sessione decisionale del
+2026-07-22 ha risolto la 11 (reroll dal PauseMenu con conferma, DEC-114) e le cinque domande
+nate dall'audit documentale: audio generativo con fallback (DEC-109), rimozione del preset
+lowspec (DEC-110), scelta binaria confermata (DEC-111), director-per-stile parcheggiato
+(DEC-112), licenza Stability Community accettata (DEC-113). Restano le domande davvero
+aperte, con la numerazione originale 1-10. Domande aperte più locali vivono anche nelle sezioni "Domande
 aperte" dei singoli documenti di sistema (es. `systems/grafts.md`, `systems/item-fusion.md`):
 quelle non sono duplicate qui.
 
@@ -64,34 +68,3 @@ quelle non sono duplicate qui.
 ## Produzione
 
 10. I numeri della tabella del pool curato minimo per categoria (DEC-087: 3 temi, 5 boss, 12 nemici, 20 oggetti, 6 colpi) sono confermati man mano che i contenuti curati vengono prodotti, o vanno corretti? (DEC-087 approva il principio; i valori sono default proposti stile DEC-019.)
-
-## Stati e flusso
-
-11. Collocazione UI esatta del reroll da `Gameplay`: quale comando lo attiva e se richiede una conferma. (Il flusso è ora fissato da DEC-089: l'abbandono di una run in corso passa da `RunResults` con i punti ridotti visibili; il reroll salta i risultati e accredita in silenzio, con i punti consultabili nel Catalogo. L'incoerenza tra `results-and-leaderboards`, `pause-menu` e `navigation-map` è sanata da DEC-089.)
-
-## Dall'audit documentale del 2026-07-22
-
-Emerse dall'unificazione della documentazione (dettaglio e fonti in
-`docs/_meta/DOC-CONFLICTS.md`); i default temporanei sono tutti reversibili e nessuna
-decisione approvata è stata modificata.
-
-12. **Audio generativo (già Q-AUD-001 della blueprint):** adottare una pipeline audio
-    generativa (rFXGen/Stable Audio) o confermare DEC-036 (audio con mezzi curati)?
-    La proposta `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` resta bloccata da
-    DEC-036 finché questa domanda non riceve risposta. Default: audio curato.
-13. **Preset lowspec automatico vs DEC-070:** il preset `--low-spec` (testo 1.5B, sprite
-    256px, applicato in automatico dal benchmark, mai offerto come scelta) è un dettaglio
-    implementativo dentro l'«esperienza completa» (basta una riga di chiarimento in
-    DEC-070/floor-zero) o è il «tier di qualità» che DEC-070 scarta e va rimosso?
-    Default: il codice resta com'è, ambiguità annotata in engineering.
-14. **Fallback granulare per hardware sotto il minimo:** la tabella tier S/A/B/C degli
-    appunti (es. «logic-only con sprite da libreria», pool di bundle pre-generati)
-    interessa ancora come estensione di DEC-070, o resta la scelta binaria secca?
-    Default: scelta binaria (DEC-070), tabella conservata in archivio.
-15. **Director-per-stile:** l'adattamento dei contenuti allo *stile* di gioco (mai alla
-    difficoltà/abilità: DEC-038 resta intatta) proposto negli appunti 04 va esplorato come
-    estensione di DEC-018 o scartato? Default: non fa parte del design.
-16. **Licenze Stability AI (SD3.5 / Stable Audio):** la soglia Enterprise (ricavi > 1M$)
-    è accettabile per il progetto? Il research pack del 21/07 la dà per accettata, ma non
-    esiste alcuna decisione. Default: restano canoniche solo le licenze già verificate in
-    `docs/ai-production/licenze.md` (SD1.5 openrail/OpenRAIL-M, Qwen Apache 2.0).

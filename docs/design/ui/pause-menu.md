@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [pause-menu, pausa, prove, abbandono-run, DEC-042, DEC-082, DEC-089]
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114]
 related: []
 supersedes: []
 source_files: []
@@ -37,7 +37,7 @@ Il focus iniziale è su "Riprendi".
 | Visualizza build e sinergie | Sempre | Sempre | Apre `BuildScreen` | Entra in `BuildScreen` | Al ritorno, focus su questo elemento |
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Apre l'elenco delle prove specifiche della run | Mostra le prove attive e il relativo stato di completamento | Al ritorno, focus su questo elemento |
 | Opzioni | Sempre | Sempre | Apre `Options` | Entra in `Options` | Al ritorno, focus sull'elemento "Opzioni" |
-| Riavvia run | Se consentito dalla modalità | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Riavvia la run con lo stesso o nuovo seed, secondo modalità | Conferma esplicita richiesta |
+| Riavvia run (reroll) | Se consentito dalla modalità | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Reroll di DEC-089: salta i risultati, accredita i punti in silenzio, riavvia con lo stesso o nuovo seed secondo modalità | Conferma esplicita richiesta; è l'UNICA via per il reroll (DEC-114) |
 | Abbandona run | Sempre | Sempre | Chiede conferma tramite `ExitConfirm` | Entra in `RunResults`; la run si chiude come sconfitta, con punti sblocco ridotti visibili (DEC-082, DEC-089) | Conferma esplicita richiesta |
 
 ## Decisione approvata: la pausa ferma la simulazione
@@ -55,6 +55,7 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 ## Regole
 
 - Nessuna azione distruttiva immediata: riavvio e abbandono passano sempre da una conferma (`ExitConfirm`).
+- Il reroll non ha tasti rapidi diretti in `Gameplay` (DEC-114): l'unica collocazione è questa voce. Gap di implementazione: oggi il tasto `R` rigenera direttamente, da adeguare.
 - Il focus iniziale è "Riprendi".
 - Tornando da `Options`, il focus ritorna sull'elemento "Opzioni" di `PauseMenu`.
 - Tornando da `BuildScreen`, il focus ritorna sull'elemento "Visualizza build e sinergie".

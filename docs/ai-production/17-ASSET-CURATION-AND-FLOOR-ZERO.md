@@ -2,12 +2,13 @@
 id: aiprod-asset-curation-and-floor-zero
 title: Curation degli asset e Piano 0
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
   Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato.
 last_reviewed: 2026-07-22
+last_verified_commit: 892911a
 topics: [curation, floor-zero, manifest, licenze, asset-review]
 related: []
 supersedes: []

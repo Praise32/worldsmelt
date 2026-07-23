@@ -26,7 +26,7 @@ del design è `docs/design/README.md`; l'indice completo generato è `docs/desig
 |---|---|---|
 | Gameplay, regole, contenuti, bilanciamento, flussi | `docs/design/` (systems/, content/, governance/decision-log.md) | Le 108+ decisioni DEC-NNN fanno fede; dubbi → `governance/open-questions.md` |
 | UI / schermate / HUD | `docs/design/ui/` + `docs/design/05-game-states-and-flow.md` | Stati canonici in `src/app` |
-| Audio | `docs/design/content/audio-and-feedback.md` (DEC-036) + `docs/ai-production/` | Conflitti audio → decision-log prima di tutto |
+| Audio | `docs/design/content/audio-and-feedback.md` (DEC-109, fallback da DEC-036) + `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` | Conflitti audio → decision-log prima di tutto |
 | Modifica a un modulo C | `docs/engineering/` + Codebase Memory (`search_graph`, `trace_path`, `get_code_snippet`) | Poi `AGENTS.md` per i confini dei moduli |
 | Architettura / dipendenze / build | `docs/engineering/architecture.md`, `Makefile`, `AGENTS.md` | Decisioni datate in `docs/engineering/adr/` |
 | Sandbox Lua / sicurezza script | `docs/engineering/specs/2026-07-13-lua-sandbox-design.md` + `src/script/` | Mai ampliare l'allowlist senza barriera + test |

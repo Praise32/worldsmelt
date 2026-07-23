@@ -39,12 +39,13 @@ qualità visiva vera arriverà con le LoRA; non investire ora in rifiniture visi
    il runbook RunPod/kohya locale è in [dataset/TRAINING-RUNBOOK.md](dataset/TRAINING-RUNBOOK.md).
 4. [07-ARCHITETTURA-RUNTIME.md](07-ARCHITETTURA-RUNTIME.md) …
    [11-PROTOCOLLO-ESPERIMENTI.md](11-PROTOCOLLO-ESPERIMENTI.md) — integrazione e metodo.
-5. Proposte **non ancora approvate** (status `proposed`, non canoniche):
+5. Pipeline approvate il 22/07:
    [15-UI-DESIGN-PIPELINE.md](15-UI-DESIGN-PIPELINE.md),
-   [16-AUDIO-GENERATION-PIPELINE.md](16-AUDIO-GENERATION-PIPELINE.md) (bloccata da DEC-036),
-   [17-ASSET-CURATION-AND-FLOOR-ZERO.md](17-ASSET-CURATION-AND-FLOOR-ZERO.md),
-   [18-AGENT-ORCHESTRATION.md](18-AGENT-ORCHESTRATION.md),
-   [19-DECISION-QUESTIONNAIRE.md](19-DECISION-QUESTIONNAIRE.md) (coda viva di domande).
+   [16-AUDIO-GENERATION-PIPELINE.md](16-AUDIO-GENERATION-PIPELINE.md) (adottata da DEC-109,
+   licenza DEC-113), [17-ASSET-CURATION-AND-FLOOR-ZERO.md](17-ASSET-CURATION-AND-FLOOR-ZERO.md),
+   [18-AGENT-ORCHESTRATION.md](18-AGENT-ORCHESTRATION.md) (la scala di CLAUDE.md prevale
+   per i ruoli). Resta proposta viva: [19-DECISION-QUESTIONNAIRE.md](19-DECISION-QUESTIONNAIRE.md)
+   (coda di domande verso il decision-log).
 
 ## Contenuti operativi
 

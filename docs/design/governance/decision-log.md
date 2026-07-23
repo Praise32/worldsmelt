@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 108 decisioni di design approvate (DEC-001..DEC-108) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-19
+  Registro delle 114 decisioni di design approvate (DEC-001..DEC-114) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..108]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..114]
 related: []
 supersedes: []
 source_files: []
@@ -1123,3 +1123,75 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** `systems/characters.md` e `08-multiplayer-and-competition.md` registrano la regola; si appoggia a `systems/run-manifest-and-reproducibility.md` per la riproducibilità.
 - **Documenti aggiornati:** `systems/characters.md`, `08-multiplayer-and-competition.md`
 
+
+---
+
+### DEC-109 — L'audio diventa generativo: Stable Audio Small con catena di fallback
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** DEC-036 (18/07) fissava musica e suoni curati/statici con la generazione audio come idea futura. La blueprint ai-production proponeva una pipeline generativa, rimasta bloccata dall'audit documentale come open question 12. L'utente ha sciolto la riserva nella sessione decisionale del 22/07.
+- **Decisione:** la via primaria per musica e SFX è **Stable Audio Small in locale**, con catena di fallback obbligatoria: **rFXGen** (SFX procedurali, ecosistema raylib) → **audio curato/statico**. La garanzia di DEC-036 sopravvive come rete: ogni evento critico ha sempre un suono curato o di fallback, e la modalità solo-curato resta completa e dignitosa. Vincoli architetturali invariati: nessuna generazione durante il combattimento; il modello audio si carica **in sequenza** con Qwen e SD (mai insieme nei 6 GB di riferimento); cache e pubblicazione atomica; nessun peso ridistribuito col gioco. **Sostituisce la parte «generazione = futuro» di DEC-036.**
+- **Alternative considerate:** confermare DEC-036 (solo curato); solo rFXGen senza modelli generativi.
+- **Conseguenze:** `content/audio-and-feedback.md` aggiornato; `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` sbloccata e promossa; licenza del modello → DEC-113; open question 12 chiusa.
+- **Documenti aggiornati:** `content/audio-and-feedback.md`, `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`, `docs/ai-production/licenze.md`, `docs/ai-production/regole-agenti-ml.md`
+
+---
+
+### DEC-110 — Niente preset lowspec: i requisiti minimi sono i modelli di riferimento
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** DEC-070 dichiara «un solo set di modelli, nessun tier intermedio», ma il codice applicava in automatico un preset `--low-spec` (testo 1.5B, sprite 256px) deciso dal benchmark della macchina (open question 13 dell'audit).
+- **Decisione:** il preset di qualità viene **rimosso dal codice**. I requisiti minimi del gioco completo sono quelli necessari a far girare i modelli di riferimento (Qwen 7B + SD1.5); hardware più potente significa solo attese più brevi, mai qualità diversa. `make benchmark` resta come strumento diagnostico manuale, ma il gioco non ne legge più l'esito. Restano intatti i fallback di robustezza (1.5B quando il 7B non si carica, generatore deterministico, solo-curato): sono reti su errore, non tier di qualità.
+- **Alternative considerate:** chiarire DEC-070 ammettendo il preset come dettaglio interno; renderlo visibile al giocatore.
+- **Conseguenze:** rimozione implementata via scala (gradino 2); il piano `benchmark-primo-avvio` è annullato; open question 13 chiusa.
+- **Documenti aggiornati:** `docs/engineering/benchmarks.md`, `docs/plans/cancelled/benchmark-primo-avvio.md`
+
+---
+
+### DEC-111 — Confermata la scelta binaria: nessun fallback granulare per hardware debole
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** gli appunti storici proponevano tier hardware S/A/B/C (fino a «logic-only con sprite da libreria» e pool di bundle pre-generati); l'audit li aveva segnalati come possibile estensione di DEC-070 (open question 14).
+- **Decisione:** DEC-070 e DEC-086 sono confermate nella lettura stretta: al primo avvio la scelta è **binaria** — esperienza completa o solo-curato — senza livelli intermedi né modalità degradate. La tabella dei tier resta solo memoria storica in `docs/archive/legacy-notes/roguelike-ai-appunti/`.
+- **Alternative considerate:** parcheggiare i tier in DEC-018; esplorarli subito per Steam Deck.
+- **Conseguenze:** open question 14 chiusa.
+- **Documenti aggiornati:** `governance/open-questions.md`
+
+---
+
+### DEC-112 — Il director-per-stile è parcheggiato fra le idee future
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** gli appunti 04 proponevano un adattamento dei contenuti allo *stile* di gioco osservato (mai alla difficoltà: DEC-038 resta intatta in ogni caso); la KB non l'aveva mai recepito (open question 15).
+- **Decisione:** l'idea entra nell'elenco delle **idee parcheggiate di DEC-018** (come caos, obiettivi a tema, integrità melting, lobby custom): nessun lavoro previsto, nessuna promessa, ripresa possibile con una decisione futura.
+- **Alternative considerate:** scarto definitivo; design probe immediata.
+- **Conseguenze:** open question 15 chiusa; DEC-038 (difficoltà unica) non toccata.
+- **Documenti aggiornati:** `governance/open-questions.md`
+
+---
+
+### DEC-113 — Accettata la Stability AI Community License per Stable Audio Small
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** l'adozione di Stable Audio Small (DEC-109) rende operativa la domanda di licenza che il research pack dava per scontata senza alcuna decisione (open question 16): i modelli Stability recenti usano la Community License, gratuita per uso commerciale fino a 1M$ di ricavi annui, oltre i quali serve la licenza Enterprise.
+- **Decisione:** si **accettano i termini della Stability AI Community License** per Stable Audio Small. La soglia Enterprise si rivaluta solo se i ricavi si avvicinassero a 1M$/anno. Invarianti confermate: i pesi non vengono mai ridistribuiti col gioco (li scarica l'utente); la verifica puntuale della licenza si fa alla revisione corrente dell'upstream al momento dell'integrazione.
+- **Alternative considerate:** rifiutare Stability (avrebbe annullato DEC-109); rimandare al momento dell'integrazione.
+- **Conseguenze:** open question 16 chiusa; registro licenze aggiornato.
+- **Documenti aggiornati:** `docs/ai-production/licenze.md`
+
+---
+
+### DEC-114 — Il reroll vive nel menu di pausa, con conferma
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** DEC-089 fissava il flusso del reroll da run in corso (salta i risultati, accredita i punti in silenzio) ma non la collocazione UI (open question 11).
+- **Decisione:** il reroll si attiva **solo dal PauseMenu**, come voce dedicata con **dialogo di conferma modale** (coerente con DEC-090: ogni azione distruttiva passa da una conferma). Nessun tasto rapido diretto: buttare una run per un tasto sbagliato è il caso peggiore. Gap di implementazione esplicito: oggi `R` rigenera direttamente, da adeguare.
+- **Alternative considerate:** tasto rapido `R` con conferma; `R` diretto senza conferma; rinvio al playtest.
+- **Conseguenze:** open question 11 chiusa; `ui/pause-menu.md` registra la voce.
+- **Documenti aggiornati:** `ui/pause-menu.md`, `governance/open-questions.md`

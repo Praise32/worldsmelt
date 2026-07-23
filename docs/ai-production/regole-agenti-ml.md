@@ -60,7 +60,8 @@ una decisione registrata.
 
 - SD1.5 resta la baseline immagini finché una decisione non la sostituisce; LoRA prima dei
   checkpoint completi.
-- Stable Audio è bloccato finché la open question 12 (audio generativo vs DEC-036) non è
-  risolta.
+- L'audio generativo è adottato (DEC-109: Stable Audio Small, fallback rFXGen → curato;
+  licenza Community accettata, DEC-113): ogni integrazione deve preservare la catena di
+  fallback e caricare il modello in sequenza, mai in combattimento.
 - Per l'implementazione C delegare a `melting-implementer`; ogni modifica passa dal
   giudice del gradino superiore (`melting-verifier` o su).

@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: ai-production
 summary: >-
-  Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD).
+  Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD, Stable Audio Small con Stability Community License, DEC-113).
 last_reviewed: 2026-07-22
 last_verified_commit: fe27f6d
 topics: [licenze, OpenRAIL-M, Apache 2.0, zlib, commercializzazione, CREDITS.txt]
@@ -53,6 +53,7 @@ di licenza.
 | All-In-One-Pixel-Model (sprite) | CreativeML **OpenRAIL-M** | si' | **si', le immagini sono tue** | devi propagare le restrizioni d'uso dell'Attachment A |
 | LCM-LoRA SD1.5 | openrail++ | si' | si' | come sopra |
 | TAESD | MIT | si' | si' | nessun vincolo |
+| Stable Audio Small (audio, DEC-109) | Stability AI **Community License** | si', fino a 1M$/anno di ricavi (DEC-113) | si' | non previsto: i pesi non si ridistribuiscono mai |
 
 **Il punto che ti preoccupava.** OpenRAIL-M **non e' una licenza non-commerciale**: permette
 di usare il modello e di vendere le immagini che produce. L'unico obbligo scatta se
@@ -94,3 +95,12 @@ copiarne il testo**.
 2. Tieni i modelli fuori dal pacchetto: falli scaricare al primo avvio.
 3. Nomi, sprite e testi tutti tuoi (gia' cosi': li genera l'IA a ogni run).
 4. Fai leggere il tutto a un legale, perche' questo documento non lo e'.
+
+## Stability Community License (Stable Audio Small — DEC-109/DEC-113)
+
+Adottando Stable Audio Small per l'audio (DEC-109) entra nello stack la **Stability AI
+Community License**: uso commerciale **gratuito fino a 1M$ di ricavi annui**; oltre quella
+soglia serve la licenza Enterprise a pagamento. La decisione DEC-113 accetta questi termini;
+la soglia si rivaluta solo a ridosso di 1M$/anno. Come per gli altri modelli: i pesi **non
+si ridistribuiscono mai col gioco** (li scarica l'utente) e la licenza va riverificata
+all'upstream al momento dell'integrazione vera del modello.

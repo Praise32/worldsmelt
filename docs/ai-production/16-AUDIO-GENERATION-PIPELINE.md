@@ -2,12 +2,13 @@
 id: aiprod-audio-generation-pipeline
 title: Pipeline audio
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
   Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, in esplicito conflitto con DEC-036 che considera l'audio generativo futuro.
 last_reviewed: 2026-07-22
+last_verified_commit: 892911a
 topics: [audio, rfxgen, stable-audio, dec-036, licenza, fallback]
 related: []
 supersedes: []
@@ -15,10 +16,10 @@ source_files: []
 ---
 # Pipeline audio
 
-> **PROPOSTA NON APPROVATA — bloccata da DEC-036.** L'audio del gioco resta curato/statico
-> finché la open question 12 (già Q-AUD-001) in
-> `docs/design/governance/open-questions.md` non riceve risposta dal proprietario. Se
-> approvata, la decisione va registrata nel decision-log (nuova DEC-NNN), mai qui.
+> **ADOTTATA da DEC-109 (2026-07-22):** via primaria Stable Audio Small in locale, catena
+> di fallback rFXGen → curato; licenza Stability Community accettata (DEC-113). Ogni evento
+> critico mantiene un suono curato/fallback (garanzia ereditata da DEC-036); nessuna
+> generazione in combattimento; modello audio caricato in sequenza con Qwen e SD.
 
 ## Conflitto da risolvere
 

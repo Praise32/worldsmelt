@@ -513,7 +513,7 @@
       "path": "docs/ai-production/15-UI-DESIGN-PIPELINE.md",
       "title": "Pipeline UI e GUI",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
       "summary": "Proposta di pipeline UI: Penpot come sorgente design, token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni.",
@@ -530,14 +530,14 @@
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_verified_commit": "892911a"
     },
     {
       "id": "aiprod-audio-generation-pipeline",
       "path": "docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md",
       "title": "Pipeline audio",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
       "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, in esplicito conflitto con DEC-036 che considera l'audio generativo futuro.",
@@ -553,14 +553,14 @@
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_verified_commit": "892911a"
     },
     {
       "id": "aiprod-asset-curation-and-floor-zero",
       "path": "docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md",
       "title": "Curation degli asset e Piano 0",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
       "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato.",
@@ -575,14 +575,14 @@
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_verified_commit": "892911a"
     },
     {
       "id": "aiprod-agent-orchestration",
       "path": "docs/ai-production/18-AGENT-ORCHESTRATION.md",
       "title": "Orchestrazione degli agenti",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
       "summary": "Path Orchestrator che classifica i task in 7 percorsi (design/technical/ML/UI/audio/curation/implementation) e regola quando porre domande bloccanti.",
@@ -600,7 +600,7 @@
         ".claude/agents/"
       ],
       "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_verified_commit": "892911a"
     },
     {
       "id": "aiprod-decision-questionnaire",
@@ -757,7 +757,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "ai-production",
-      "summary": "Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD).",
+      "summary": "Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD, Stable Audio Small con Stability Community License, DEC-113).",
       "topics": [
         "licenze",
         "OpenRAIL-M",
@@ -1293,18 +1293,21 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari aggiornato con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Per ora musica e suoni sono curati e statici; la generazione audio a tema resta un'idea futura (DEC-036).",
+      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback.",
       "topics": [
         "audio",
         "feedback",
         "eventi prioritari",
         "DEC-024",
-        "DEC-036"
+        "DEC-036",
+        "DEC-109",
+        "stable-audio",
+        "rfxgen"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": null
     },
     {
@@ -1385,18 +1388,18 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 108 decisioni di design approvate (DEC-001..DEC-108) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 114 decisioni di design approvate (DEC-001..DEC-114) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..108"
+        "DEC-001..114"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1495,7 +1498,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (16 voci: 1-11 rinumerate dopo DEC-001..DEC-108 + 12-16 dall'audit documentale del 22/07); economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso, governance.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-114; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -2330,14 +2333,16 @@
         "pausa",
         "prove",
         "abbandono-run",
+        "reroll",
         "DEC-042",
         "DEC-082",
-        "DEC-089"
+        "DEC-089",
+        "DEC-114"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2887,10 +2892,10 @@
     },
     {
       "id": "plans-benchmark-primo-avvio",
-      "path": "docs/plans/active/benchmark-primo-avvio.md",
-      "title": "Benchmark al primo avvio con UI dedicata (differito, v1 manuale)",
+      "path": "docs/plans/cancelled/benchmark-primo-avvio.md",
+      "title": "Benchmark al primo avvio (ANNULLATO da DEC-110)",
       "domain": "plans",
-      "status": "proposed",
+      "status": "superseded",
       "authority": "supporting",
       "owner": "engineering",
       "summary": "Gap di design differito di proposito: oggi make benchmark è solo manuale e il gioco applica il preset lowspec leggendo logs/benchmark.txt; l'auto-run al primo avvio con UI dedicata resta da progettare e costruire.",

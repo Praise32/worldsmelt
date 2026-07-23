@@ -1,8 +1,8 @@
 ---
 id: plans-benchmark-primo-avvio
-title: Benchmark al primo avvio con UI dedicata (differito, v1 manuale)
+title: Benchmark al primo avvio (ANNULLATO da DEC-110)
 domain: plans
-status: proposed
+status: superseded
 authority: supporting
 owner: engineering
 summary: >-
@@ -16,7 +16,12 @@ supersedes: []
 source_files: [scripts/benchmark.sh, src/app/app.c]
 ---
 
-# Benchmark al primo avvio (piano attivo, differito)
+# Benchmark al primo avvio (ANNULLATO)
+
+> **Piano annullato il 2026-07-22 da DEC-110:** il preset lowspec è stato rimosso dal
+> codice — nessun tier di qualità automatico, i requisiti minimi sono i modelli di
+> riferimento. Non serve più alcuna UI di benchmark al primo avvio; `make benchmark` resta
+> solo come strumento diagnostico manuale. Testo originale conservato qui sotto.
 
 ## Stato attuale (v1, implementato)
 
