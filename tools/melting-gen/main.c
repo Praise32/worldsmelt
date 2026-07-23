@@ -73,7 +73,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->outDir = "generated";
     args->fromJson = NULL;
     /* Calibrati nel Task 8 su Ryzen 5 3600 + RX 5600 XT 6GB (dettagli in
-     * docs/BENCHMARKS.md): a ngl=99 il 7B occupa ~4.53 GiB di VRAM e completa
+     * docs/engineering/benchmarks.md): a ngl=99 il 7B occupa ~4.53 GiB di VRAM e completa
      * in 49.6s totali, la corsa piu' veloce E con la qualita' migliore
      * dell'intera matrice misurata (batte anche il fallback 1.5B). */
     args->model = "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf";
@@ -979,7 +979,7 @@ int main(int argc, char **argv)
          * (AppStartGeneration) manda SIGTERM a questo processo dopo 420s
          * (alzato da 180s proprio per fare posto alla fase Lua, vedi il
          * commento li'). Un tentativo JSON costa fino a ~76s (nPredict=2048
-         * token a 28,1 tok/s sul 7B, docs/BENCHMARKS.md); 2 tentativi
+         * token a 28,1 tok/s sul 7B, docs/engineering/benchmarks.md); 2 tentativi
          * restano a ~152s, lasciando margine sia per GEN_LUA_PHASE_BUDGET_SEC
          * (300s assoluti dall'avvio del processo, vedi melting_gen.h) sia
          * per la scrittura finale se anche il secondo tentativo fallisce. */

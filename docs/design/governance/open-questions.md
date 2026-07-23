@@ -6,8 +6,8 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale delle domande di design ancora aperte (11 voci rinumerate) dopo le sessioni DEC-001..DEC-108; economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso.
-last_reviewed: 2026-07-19
+  Coda ufficiale delle domande di design ancora aperte (16 voci: 1-11 rinumerate dopo DEC-001..DEC-108 + 12-16 dall'audit documentale del 22/07); economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso, governance.
+last_reviewed: 2026-07-22
 topics: [open-questions, governance, domande aperte, playtest, backlog design]
 related: []
 supersedes: []
@@ -77,7 +77,7 @@ decisione approvata è stata modificata.
 
 12. **Audio generativo (già Q-AUD-001 della blueprint):** adottare una pipeline audio
     generativa (rFXGen/Stable Audio) o confermare DEC-036 (audio con mezzi curati)?
-    La proposta `docs/ai-production/audio-generation-pipeline.md` resta bloccata da
+    La proposta `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` resta bloccata da
     DEC-036 finché questa domanda non riceve risposta. Default: audio curato.
 13. **Preset lowspec automatico vs DEC-070:** il preset `--low-spec` (testo 1.5B, sprite
     256px, applicato in automatico dal benchmark, mai offerto come scelta) è un dettaglio
@@ -94,4 +94,4 @@ decisione approvata è stata modificata.
 16. **Licenze Stability AI (SD3.5 / Stable Audio):** la soglia Enterprise (ricavi > 1M$)
     è accettabile per il progetto? Il research pack del 21/07 la dà per accettata, ma non
     esiste alcuna decisione. Default: restano canoniche solo le licenze già verificate in
-    `docs/engineering/licenze.md` (SD1.5 openrail/OpenRAIL-M, Qwen Apache 2.0).
+    `docs/ai-production/licenze.md` (SD1.5 openrail/OpenRAIL-M, Qwen Apache 2.0).

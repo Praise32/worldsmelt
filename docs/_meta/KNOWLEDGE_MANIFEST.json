@@ -1495,7 +1495,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (11 voci rinumerate) dopo le sessioni DEC-001..DEC-108; economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (16 voci: 1-11 rinumerate dopo DEC-001..DEC-108 + 12-16 dall'audit documentale del 22/07); economia, valori numerici, personaggi, multiplayer, produzione, stati e flusso, governance.",
       "topics": [
         "open-questions",
         "governance",
@@ -1506,7 +1506,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": null
     },
     {

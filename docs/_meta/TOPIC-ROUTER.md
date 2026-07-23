@@ -29,12 +29,12 @@ del design è `docs/design/README.md`; l'indice completo generato è `docs/desig
 | Audio | `docs/design/content/audio-and-feedback.md` (DEC-036) + `docs/ai-production/` | Conflitti audio → decision-log prima di tutto |
 | Modifica a un modulo C | `docs/engineering/` + Codebase Memory (`search_graph`, `trace_path`, `get_code_snippet`) | Poi `AGENTS.md` per i confini dei moduli |
 | Architettura / dipendenze / build | `docs/engineering/architecture.md`, `Makefile`, `AGENTS.md` | Decisioni datate in `docs/engineering/adr/` |
-| Sandbox Lua / sicurezza script | `docs/engineering/lua-sandbox.md` + `src/script/` | Mai ampliare l'allowlist senza barriera + test |
+| Sandbox Lua / sicurezza script | `docs/engineering/specs/2026-07-13-lua-sandbox-design.md` + `src/script/` | Mai ampliare l'allowlist senza barriera + test |
 | Modelli, LoRA, SD, Kaggle, training, dataset | `docs/ai-production/` | Licenze e separazione research/commercial-clean incluse |
 | Sprite / asset generati / Piano 0 curato | `docs/ai-production/` + `docs/design/systems/floor-zero.md` | |
 | Piani di lavoro | `docs/plans/active/` (poi completed/cancelled) | Un piano finito si sposta, non si riscrive |
 | Ricerca esterna, benchmark di mercato | `docs/references/research/` | Mai canonico: informa, non decide |
-| Pulizia/риorganizzazione documentazione | `docs/_meta/` + `make docs-check` | Standard in `_meta/DOCUMENT-STANDARDS.md` |
+| Pulizia/riorganizzazione documentazione | `docs/_meta/` + `make docs-check` | Standard in `_meta/DOCUMENT-STANDARDS.md` |
 | Storia del progetto, vecchi appunti | `docs/archive/` | Escluso da indici e ricerca di default |
 
 ## Scala agenti (implementa/giudica)

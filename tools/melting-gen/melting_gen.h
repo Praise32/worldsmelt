@@ -448,7 +448,7 @@ void GenNormalizeRun(const struct cJSON *raw, unsigned int seed, const GenChosen
  * l'intero processo (fase 3a-L3). Prima di questa fase melting-gen faceva
  * un caricamento per ogni tentativo di generazione JSON (fino a 2): con
  * l'aggiunta dei 15 script Lua per run, ricaricare il modello ad ogni
- * generazione indipendente costerebbe ~2.6s x 15 sul 7B (docs/BENCHMARKS.md),
+ * generazione indipendente costerebbe ~2.6s x 15 sul 7B (docs/engineering/benchmarks.md),
  * tempo tolto al budget di 180s che il gioco concede al processo (vedi
  * src/app/app.c, AppStartGeneration) prima di mandargli SIGTERM. Una
  * sessione condivisa paga quel costo una volta sola. */

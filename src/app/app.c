@@ -334,7 +334,7 @@ static AppInput AppInputCollect(void)
 
 /* M5 (DEC-005), requisito 1/8: avvia il processo "proponi 3 temi" (early-exit
  * come il passo testo, ma un ordine di grandezza piu' corto: ~8-12s misurati,
- * docs/BENCHMARKS.md). Stesso comando di gen->command (bin/melting-gen o il
+ * docs/engineering/benchmarks.md). Stesso comando di gen->command (bin/melting-gen o il
  * finto sostituto dei test): --propose-themes non e' un binario a parte. */
 static bool AppStartProposeThemes(AppGen *gen, unsigned int seed)
 {
