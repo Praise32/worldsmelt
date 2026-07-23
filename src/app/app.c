@@ -1017,6 +1017,10 @@ int AppRun(int argc, char **argv)
        (il ramo "!smokeTest" piu' sotto, lo stesso avvio fullscreen del gioco
        vero), non la finestra grande di test APP_WINDOW_WIDTH/HEIGHT. */
     bool fullscreenScreenshotTest = false;
+    /* DEC-137, SOLO manuale: come fullscreenScreenshotTest (stessa finestra a
+       dimensione del monitor, NON smokeTest), ma scatta l'HUD in overlay in
+       APP_GAMEPLAY -- vedi GameOverlayScreenshotTest. */
+    bool overlayScreenshotTest = false;
     unsigned int scriptSeed = 12345u;
     AppGen gen = { 0 };
     gen.command = "bin/melting-gen";
@@ -1148,6 +1152,7 @@ int AppRun(int argc, char **argv)
            nello stesso punto, PRIMA di InitWindow. */
         if (strcmp(argv[i], "--layout-test") == 0) layoutTest = true;
         if (strcmp(argv[i], "--fullscreen-screenshot-test") == 0) fullscreenScreenshotTest = true;
+        if (strcmp(argv[i], "--overlay-screenshot-test") == 0) overlayScreenshotTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
         if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
@@ -1251,7 +1256,7 @@ int AppRun(int argc, char **argv)
            fisica pur riportando gia' le dimensioni nuove. Guardia dietro
            'fullscreenScreenshotTest' apposta: il gioco vero non deve pagare
            qualche frame nero in piu' per un problema che non ha. */
-        if (fullscreenScreenshotTest)
+        if (fullscreenScreenshotTest || overlayScreenshotTest)
         {
             for (int warmup = 0; warmup < 5; warmup++)
             {
@@ -1308,6 +1313,17 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 20;
+    }
+    /* DEC-137, SOLO manuale: come --fullscreen-screenshot-test (finestra a
+       dimensione del monitor), ma scatta l'HUD in overlay in Gameplay. 25: il
+       primo codice di uscita libero (l'ultimo era --catalog-screen-test=24). */
+    if (overlayScreenshotTest)
+    {
+        bool ok = GameOverlayScreenshotTest(&game);
+        printf("Overlay screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 25;
     }
     if (roomsTest)
     {

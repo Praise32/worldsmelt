@@ -923,6 +923,99 @@ bool GameFullscreenScreenshotTest(Game *game)
     return textureValid;
 }
 
+/* DEC-137, SOLO manuale (--overlay-screenshot-test): uno scatto dell'HUD in
+   overlay sulla game view a tutto schermo, per il giudizio di gusto del
+   proprietario. Come GameFullscreenScreenshotTest gira mentre la finestra e' a
+   dimensione del MONITOR (src/app/app.c), cosi' l'HUD si vede alla risoluzione
+   vera; a differenza di quello scatta APP_GAMEPLAY (non il Piano 0) con una
+   scena ricca -- personaggio scelto, oggetti con un tipo di colpo e sinergie,
+   risorse, vita intaccata, mappa svelata, qualche nemico -- perche' ciascun
+   cluster dell'HUD (cuori, risorse, build, mappa, log) mostri contenuto vero
+   sopra il gioco. Il file esce in logs/worldsmelt-overlay-<W>x<H>.png: il nome
+   porta la risoluzione, cosi' due scatti a risoluzioni diverse non si pestano. */
+bool GameOverlayScreenshotTest(Game *game)
+{
+    /* Un personaggio scelto: il cluster vitali mostra nome/ruolo (rosa base,
+       indice 0). GameResetRun ha gia' preparato piano 1 e statistiche base. */
+    game->characterChosenIndex = 0;
+
+    /* Mappa svelata: marca visitate tutte le stanze esistenti del piano, cosi'
+       la minimappa in alto a destra mostra i colori e le lettere delle stanze
+       speciali invece di una griglia quasi vuota (e' uno screenshot di gusto). */
+    for (int y = 0; y < GRID_SIZE; y++)
+        for (int x = 0; x < GRID_SIZE; x++)
+            if (game->rooms[y][x].exists) game->rooms[y][x].visited = true;
+
+    /* Tre oggetti con un tipo di colpo firmato in mano (il primo) e due trait,
+       come lo screenshot delle forme di colpo -- riempiono la lista di
+       BuildScreen e danno alla barra del colpo un nome vero. */
+    memset(game->player.items, 0, sizeof(game->player.items));
+    Item *hand = &game->player.items[0];
+    hand->active = true;
+    snprintf(hand->name, sizeof(hand->name), "Guanto di Schegge");
+    hand->slot = SLOT_HAND; hand->rarity = RARITY_RARE; hand->kind = ITEM_ACTIVE;
+    hand->color = game->theme.accent;
+    ShotTypeExample(&hand->shotType, 0);
+
+    Item *eyes = &game->player.items[1];
+    eyes->active = true;
+    snprintf(eyes->name, sizeof(eyes->name), "Occhio Rapace");
+    eyes->slot = SLOT_EYES; eyes->rarity = RARITY_UNCOMMON; eyes->kind = ITEM_ACTIVE;
+    eyes->color = game->theme.accent2; eyes->traits = TRAIT_HOMING;
+
+    Item *back = &game->player.items[2];
+    back->active = true;
+    snprintf(back->name, sizeof(back->name), "Punteruolo Lungo");
+    back->slot = SLOT_BACK; back->rarity = RARITY_UNCOMMON; back->kind = ITEM_ACTIVE;
+    back->color = game->theme.accent; back->traits = TRAIT_PIERCE;
+
+    game->player.itemCount = 3;
+    ScriptItemsRecomputeStats(game);
+
+    /* Risorse e vita intaccata: i contatori in alto a sinistra mostrano numeri
+       veri e i cuori mostrano un mix pieno/mezzo/vuoto (ordine di consumo a
+       parte, e' resa). Sinergie forzate DOPO il ricalcolo, cosi' le pillole
+       dorate del cluster build compaiono nello scatto (il ricalcolo azzera la
+       maschera). */
+    game->player.coins = 27;
+    game->player.bombs = 3;
+    game->player.keys = 2;
+    if (game->player.maxHp > 3) game->player.hp = game->player.maxHp - 3;
+    game->player.synergies = (1u << 0) | (1u << 2);
+
+    /* Un paio di nemici e un pickup, cosi' il gioco sotto l'HUD non e' vuoto. */
+    for (int i = 0; i < 3; i++)
+    {
+        EnemyTypeDef foe; memset(&foe, 0, sizeof(foe));
+        foe.active = true; foe.form = ENEMY_FORM_BLOB; foe.move = ENEMY_MOVE_CHASE; foe.fire = ENEMY_FIRE_NONE;
+        foe.hpMul = 1.0f; foe.speedMul = 1.0f; foe.sizeMul = 1.2f; foe.pellets = 1;
+        snprintf(foe.name, sizeof(foe.name), "Sentinella %d", i + 1);
+        EntitiesAddEnemyTyped(game, ENEMY_CHASER,
+                              (Vector2){ ROOM_X + 220.0f + (float)i*200.0f, ROOM_Y + ROOM_H*0.4f }, &foe);
+    }
+    EntitiesAddPickup(game, PICKUP_COIN, (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.7f }, 3, 0);
+
+    /* Un colpo vero in volo, per un po' di vita nella scena. */
+    CombatFirePlayer(game, (Vector2){ 0.0f, -1.0f });
+    for (int frame = 0; frame < 10; frame++) CombatUpdateShots(game, 1.0f/60.0f);
+
+    /* Zittisci il messaggio transitorio di inizio stanza ("Scegli una porta"):
+       vive dentro il canvas, al fondo, dove ora si appoggia il cluster build
+       dell'HUD -- per lo scatto di gusto meglio pulito (in gioco vero il
+       messaggio e' comunque effimero e sfuma da solo). */
+    game->messageTimer = 0.0f;
+
+    char path[96];
+    snprintf(path, sizeof(path), "logs/worldsmelt-overlay-%dx%d.png", GetScreenWidth(), GetScreenHeight());
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);   /* pixel-perfect come il canvas del gioco vero */
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, path);
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+    return textureValid;
+}
+
 #ifndef _WIN32
 #include "gen/gen_runner.h"
 

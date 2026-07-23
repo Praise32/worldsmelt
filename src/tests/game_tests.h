@@ -49,6 +49,13 @@ bool GameFloorZeroScreenshotTest(Game *game);
    di test. Scrive logs/worldsmelt-fullscreen-screen.png. */
 bool GameFullscreenScreenshotTest(Game *game);
 
+/* DEC-137, SOLO manuale (--overlay-screenshot-test): scatto dell'HUD in overlay
+   sulla game view a tutto schermo, alla risoluzione del monitor (come
+   GameFullscreenScreenshotTest), ma in APP_GAMEPLAY con una scena ricca. Scrive
+   logs/worldsmelt-overlay-<W>x<H>.png (il nome porta la risoluzione). Serve al
+   giudizio di gusto del proprietario, non e' in make test. */
+bool GameOverlayScreenshotTest(Game *game);
+
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);
 bool GameAtlasFallbackTest(Game *game);

@@ -854,12 +854,15 @@ typedef struct Game {
 } Game;
 
 typedef struct UiLayout {
+    /* DEC-137: una sola superficie. La game view (il canvas 960x640 campionato
+       POINT) riempie TUTTO lo schermo -- niente piu' colonne riservate alla UI,
+       che ora vive in overlay sopra il canvas (DrawOuterUi, ancorata ai bordi di
+       gameRect). Di quel layout a pannelli restano solo le tre grandezze del
+       canvas: dove sta, quanto e' scalato, e la scala del chrome sovrapposto. I
+       vecchi leftPanel/rightPanel/bottomPanel sono spariti col layout a colonne. */
     Rectangle gameRect;
-    Rectangle leftPanel;
-    Rectangle rightPanel;
-    Rectangle bottomPanel;
     float gameScale;
-    /* M4 (fullscreen-first): fattore di scala dell'INTERFACCIA esterna (pannelli,
+    /* M4 (fullscreen-first): fattore di scala dell'INTERFACCIA in overlay (HUD,
        font, overlay dei menu) -- MAI del canvas di gioco, che resta 960x640 sempre
        e usa la sua scala indipendente 'gameScale' sopra. Derivato dalla sola
        altezza dello schermo (UiComputeLayoutFor, src/render/game_renderer.c) e
