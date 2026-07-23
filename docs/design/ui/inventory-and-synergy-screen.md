@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
 topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042]
 related: []
@@ -15,6 +15,10 @@ source_files: []
 ---
 
 # Inventory and Synergy Screen (BuildScreen)
+
+> Aggiunta del 22/07 (DEC-139): `BuildScreen` si apre anche con **TAB direttamente da
+> `Gameplay`** (e TAB la richiude), oltre che da Pausa; la simulazione resta ferma mentre
+> è aperta. Coerente col TAB del Piano 0.
 
 ## Intento
 

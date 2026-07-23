@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 143,
+  "count": 144,
   "documents": [
     {
       "id": "docs-readme",
@@ -1388,13 +1388,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 138 decisioni di design approvate (DEC-001..DEC-138) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 139 decisioni di design approvate (DEC-001..DEC-139) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..138"
+        "DEC-001..139"
       ],
       "related": [],
       "supersedes": [],
@@ -1498,7 +1498,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-138; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-139; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -2218,7 +2218,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-22",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2947,6 +2947,36 @@
       ],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": "bd2cf04"
+    },
+    {
+      "id": "plans-model-comparison",
+      "path": "docs/plans/active/model-comparison.md",
+      "title": "Piano — suite di comparazione dei modelli candidati",
+      "domain": "plans",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Obiettivo, metodo e candidati della suite che confronta modelli GGUF alternativi al 7B Coder di produzione su throughput, validità JSON/Lua, varietà e aderenza al tema, con soglie di accettabilità e istruzioni per rieseguirla.",
+      "topics": [
+        "modelli",
+        "benchmark",
+        "gguf",
+        "llama.cpp",
+        "comparazione",
+        "vram"
+      ],
+      "related": [
+        "eng-benchmarks"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/model-comparison.sh",
+        "scripts/model_comparison_report.py",
+        "scripts/download-comparison-models.sh",
+        "tools/melting-gen/main.c"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "9b515a6"
     },
     {
       "id": "plans-benchmark-primo-avvio",

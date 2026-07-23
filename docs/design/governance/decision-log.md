@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 138 decisioni di design approvate (DEC-001..DEC-138) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+  Registro delle 139 decisioni di design approvate (DEC-001..DEC-139) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-22
 last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..138]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..139]
 related: []
 supersedes: []
 source_files: []
@@ -1483,3 +1483,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** aggiungere subito 3 classi fisse nel motore (più rapido, ma resta un menu); esporre al Lua la manipolazione libera dei colpi senza esperimento (garanzie fragili).
 - **Conseguenze:** piano `docs/plans/active/mechanics-lab.md`; le domande 4-5 del research pack (primitive minime, composizione senza loop) trovano qui il loro veicolo; implementazione dopo il refactor GUI in corso.
 - **Documenti aggiornati:** `docs/engineering/espressivita-colpi.md` (nuovo), `docs/plans/active/mechanics-lab.md` (nuovo)
+
+---
+
+### DEC-139 — TAB apre la build anche in Gameplay
+
+- **Data:** 2026-07-22
+- **Stato:** approved
+- **Contesto:** con l'overlay di DEC-137 il pannello build completo vive in `BuildScreen`, raggiungibile da Pausa → «Build e sinergie». L'utente vuole la consultazione immediata.
+- **Decisione:** **TAB in `Gameplay` apre/chiude `BuildScreen`** direttamente (la simulazione si ferma come già accade in `BuildScreen`): coerente col TAB del Piano 0 che apre le carte. La via da Pausa resta.
+- **Alternative considerate:** solo da Pausa.
+- **Conseguenze:** binding implementato (scala, gradino 1); `ui/inventory-and-synergy-screen.md` registra l'ingresso rapido; la mappa canonica dei 9 stati non cambia (è una transizione in più verso uno stato esistente).
+- **Documenti aggiornati:** `ui/inventory-and-synergy-screen.md`

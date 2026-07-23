@@ -6,7 +6,7 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-138; economia, valori numerici, personaggi, multiplayer, produzione.
+  Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-139; economia, valori numerici, personaggi, multiplayer, produzione.
 last_reviewed: 2026-07-22
 topics: [open-questions, governance, domande aperte, playtest, backlog design]
 related: []
