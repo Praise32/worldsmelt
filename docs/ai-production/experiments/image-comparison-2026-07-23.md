@@ -30,7 +30,7 @@ atlas sono in `logs/model-comparison/20260723-164914/images/<checkpoint>/`
 
 | Checkpoint | imgS bench (s) | load (s) | warmup (s) | Atlas | Timeout 1a corsa | Rigenerati | s/atlas medio | Celle scartate |
 |---|---|---|---|---|---|---|---|---|
-| pixel-baseline | 5.63 | 1.34 | 15.13 | 30/30 | 9 | 0 | 88s | 0 su 21 misurate |
+| pixel-baseline | 5.63 | 1.34 | 15.13 | 30/30 | 9 | 9 | 88s | 0 su 21 misurate |
 | pixelart-alt | 5.68 | 1.28 | 23.97 | 30/30 | 0 | 0 | 87s | 0 su 30 misurate |
 | sd15-vanilla | 5.68 | 0.13 | 14.82 | 30/30 | 0 | 0 | 124s | 161 su 30 misurate |
 
