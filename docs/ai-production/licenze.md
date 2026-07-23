@@ -53,7 +53,7 @@ di licenza.
 | All-In-One-Pixel-Model (sprite) | CreativeML **OpenRAIL-M** | si' | **si', le immagini sono tue** | devi propagare le restrizioni d'uso dell'Attachment A |
 | LCM-LoRA SD1.5 | openrail++ | si' | si' | come sopra |
 | TAESD | MIT | si' | si' | nessun vincolo |
-| Stable Audio Small (audio, DEC-109) | Stability AI **Community License** | si', fino a 1M$/anno di ricavi (DEC-113) | si' | non previsto: i pesi non si ridistribuiscono mai |
+| Stable Audio 3 Small, varianti sfx e music (audio, DEC-109) | Stability AI **Community License** + componente T5Gemma sotto **Gemma Terms of Use** | si', fino a 1M$/anno di ricavi (DEC-113) | si' | non previsto: i pesi non si ridistribuiscono mai |
 | Gemma-3-4B-IT (testo, DEC-140) | **Gemma Terms of Use** (Google) | si', con le condizioni d'uso Google (prohibited use policy) | si' | non previsto: i pesi non si ridistribuiscono mai |
 
 **Il punto che ti preoccupava.** OpenRAIL-M **non e' una licenza non-commerciale**: permette
@@ -105,3 +105,14 @@ soglia serve la licenza Enterprise a pagamento. La decisione DEC-113 accetta que
 la soglia si rivaluta solo a ridosso di 1M$/anno. Come per gli altri modelli: i pesi **non
 si ridistribuiscono mai col gioco** (li scarica l'utente) e la licenza va riverificata
 all'upstream al momento dell'integrazione vera del modello.
+
+Note dalla model card ufficiale (verificate al download del 23/07):
+
+- Il text-encoder e' un **T5Gemma** (`t5gemma-b-b-ul2`) ridistribuito nel repo sotto i
+  **Gemma Terms of Use** (file `LICENSE_GEMMA.md` accanto ai pesi): valgono anche le sue
+  restrizioni d'uso — stessa famiglia di licenza del modello di testo (DEC-140).
+- **Provenienza del training dichiarata**: ~806k registrazioni licenziate da AudioSparx +
+  ~472k da Freesound (solo CC-0, CC-BY, CC-Sampling+), con filtro anti-copyright
+  documentato. Le attribuzioni Freesound sono pubblicate da Stability:
+  https://info.stability.ai/attributions — da citare nel CREDITS.txt se l'audio generato
+  finisce nel gioco pubblicato.
