@@ -1493,5 +1493,5 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Contesto:** con l'overlay di DEC-137 il pannello build completo vive in `BuildScreen`, raggiungibile da Pausa → «Build e sinergie». L'utente vuole la consultazione immediata.
 - **Decisione:** **TAB in `Gameplay` apre/chiude `BuildScreen`** direttamente (la simulazione si ferma come già accade in `BuildScreen`): coerente col TAB del Piano 0 che apre le carte. La via da Pausa resta.
 - **Alternative considerate:** solo da Pausa.
-- **Conseguenze:** binding implementato (scala, gradino 1); `ui/inventory-and-synergy-screen.md` registra l'ingresso rapido; la mappa canonica dei 9 stati non cambia (è una transizione in più verso uno stato esistente).
+- **Conseguenze:** verificato in scala (gradino 1) che il binding **esiste già dal M1a** (`f019cd2`, con test in GameStatesTest: Gameplay→TAB→BuildScreen→ritorno): la decisione rende canonico il comportamento implementato, nessun cambio di codice necessario. `ui/inventory-and-synergy-screen.md` registra l'ingresso rapido; la mappa canonica dei 9 stati non cambia.
 - **Documenti aggiornati:** `ui/inventory-and-synergy-screen.md`
