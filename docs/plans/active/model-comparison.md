@@ -10,8 +10,8 @@ summary: >-
   default di produzione nei tre domini (testo GGUF, immagine SD, audio Stable Audio
   Open Small) su throughput/qualità/artefatti, con soglie di accettabilità, struttura
   degli output e istruzioni per rieseguirla.
-last_reviewed: 2026-07-23
-last_verified_commit: 9b515a6
+last_reviewed: 2026-07-24
+last_verified_commit: fbfb02d
 topics: [modelli, benchmark, gguf, llama.cpp, stable-diffusion, stable-audio, comparazione, vram]
 related: [eng-benchmarks, aiprod-audio-generation-pipeline, aiprod-regole-agenti-ml]
 supersedes: []
@@ -342,3 +342,170 @@ stato aggirato con un venv CPython 3.12 creato da `uv` e la libreria ufficiale
 ~13.6s/clip (0.68x realtime) su CPU, 5 GB RAM di picco — risultati e 20 clip in
 `docs/ai-production/experiments/audio-benchmark-2026-07-23.md` e
 `logs/model-comparison/audio-20260723-172702/`.
+
+
+## Estensione gen-2 (23-24/07): modelli immagine "moderni" su sd.cpp raw
+
+Estensione della sezione immagini (finora solo SD1.5) ai modelli che il build pinnato di
+`deps/stable-diffusion.cpp` (`master-775-b5d8120`, binari `sd-cli`/`sd-server`) supporta
+oltre SD1.x: **SD3.5 Medium**, **SDXL**, **Flux.1-schnell** — verificato leggendo
+`README.md`/`docs/*.md` del checkout locale (SD3/SD3.5, FLUX.1-dev/schnell, SDXL/SDXL-Turbo,
+GGUF anche per i text encoder — confermato da `docs/wan.md`). Obiettivo: capire quale
+candidato "moderno" sia il più piccolo/veloce/allenabile-con-LoRA per una futura campagna.
+
+**Metodo — "raw pipeline"**: generato con `sd-cli` direttamente, non `bin/melting-sprites`
+(cablato su SD1.5): niente quality-gate del gioco, niente LoRA/prompt del progetto. Prompt
+"pixelsprite, `<tema>`, `<stile>`" sulle 6 coppie rappresentative della baseline (righe 01,
+02, 08, 09, 12, 15 di `docs/ai-production/dataset/baseline-prompts.txt`) × seed 5, 17.
+Artefatti in `logs/model-comparison/images-gen2-20260723-202847/<config>/`, report
+completo in `logs/model-comparison/images-gen2-20260723-202847/risultati-gen2.md`.
+
+**Nota sull'andamento della sessione**: la prima metà ha avuto la GPU condivisa con un
+verifier (`bin/melting-gen`) quasi continuamente — la matrice SD3.5 è stata interrotta a
+2/12 immagini per questo (dati "sporchi", numero di riferimento preso da un probe isolato).
+Dopo la liberazione della GPU (confermata dal coordinatore) la sessione è ripartita e ha
+completato le matrici Flux.1-schnell (piena) e SDXL (768 piena, 1024 con 4 varianti
+accelerate a campione ridotto) con GPU dedicata.
+
+### Cosa è stato scaricato
+
+- **SD3.5 Medium**: diffusion GGUF Q4_K_M (`city96/stable-diffusion-3.5-medium-gguf`,
+  1.79 GB) + `clip_l`/`clip_g` (`Comfy-Org/stable-diffusion-3.5-fp8`) + T5-XXL GGUF Q4_K_M
+  (`city96/t5-v1_1-xxl-encoder-gguf`, 2.90 GB, **condiviso con Flux**) + VAE. Il repo
+  diffusion-only di city96 non include i tensori VAE (errore esplicito verificato per
+  tentativo); il repo ufficiale con VAE è gated (form Stability, dati anagrafici non
+  completato — un agente non inventa dati anagrafici per conto dell'utente). Usato invece
+  `Shio-Koube/SD-3.5-vae`, **SHA256 identico byte per byte** all'ufficiale (verificato via
+  API HF autenticata, che espone gli hash dei repo gated senza doverli scaricare).
+- **Flux.1-schnell**: diffusion GGUF Q2_K (4.11 GB) e Q3_K (5.31 GB) da
+  `leejet/FLUX.1-schnell-gguf` (non gated) + `clip_l` (`comfyanonymous/flux_text_encoders`)
+  + VAE (`Comfy-Org/Lumina_Image_2.0_Repackaged`, dimensione byte-identica all'ufficiale
+  gated `black-forest-labs/FLUX.1-schnell`).
+- **SDXL**: checkpoint base (`stabilityai/stable-diffusion-xl-base-1.0`, 6.94 GB) + VAE
+  fp16-fix (`madebyollin/sdxl-vae-fp16-fix`, necessario per instabilità numerica del VAE
+  embedded) + TAESD-XL (`madebyollin/taesdxl`) + LCM-LoRA-XL
+  (`latent-consistency/lcm-lora-sdxl`) + SDXL-Lightning 4-step LoRA
+  (`ByteDance/SDXL-Lightning`) + pixel-art-xl LoRA di stile (`nerijs/pixel-art-xl`).
+- **SDXL-Turbo/SD-Turbo**: volutamente **non scaricati** (esclusione richiesta) — la
+  verifica upstream ha trovato che la loro licenza attuale è la Stability AI Community
+  License (commerciale sotto-soglia, come SD3.5), NON la vecchia licenza non-commerciale
+  assunta come motivo dell'esclusione: correzione registrata in `docs/ai-production/licenze.md`.
+- Circa 25 GB totali (budget 30-40 GB), sotto `models/gen2-comparison/` (non versionato).
+
+### SD3.5 Medium Q4_K_M
+
+- **1024×1024: NON REGGE** — crash dopo il 3° step (`vk::DeviceLostError`/"context is
+  lost", reset driver RADV per saturazione VRAM). mmdit compute 1878 MB + params 2166 MB
+  già oltre margine prima del decode VAE.
+- **768×768: FUNZIONA** — probe isolato pulito (GPU/CPU libere): **89.23s/immagine**
+  (~15.5s encoding CPU T5-XXL + ~65s sampling, 3.25s/step a regime + ~4.15s decode).
+- Matrice reale interrotta a **2/12** (209.14s, 885.41s — contesa GPU con verifier prima
+  della liberazione). Non ripresa dopo la liberazione: priorità data a Flux/SDXL su
+  richiesta esplicita del coordinatore.
+
+### Flux.1-schnell — matrice completa (GPU dedicata)
+
+| Config | Esito | VRAM (params+compute) |
+|---|---|---:|
+| Q2_K, 1024×1024 | **CRASH** (device-lost) | 3920+3933 = 7853 MB |
+| **Q2_K, 768×768** | **OK — 12/12** | 3920+973 = 4893 MB |
+| Q3_K, 768×768 | **CRASH** (device-lost) | 5067+973 = 6040 MB, appena sopra 6 GB |
+
+Q2_K@768 è il punto di equilibrio: Q3_K sfora il budget di soli ~40 MB. **Tempi
+(matrice 6×2=12 immagini)**: warmup 65.34s, **regime 62.94s/immagine** (11 immagini,
+deviazione ±0.7s). Il decode VAE (15.11s su ~63s totali, 24%) è il singolo passo più
+lento — il VAE 16 canali di Flux ha un compute buffer sproporzionato (5652 MB anche a
+768×768). 12/12 riuscite, zero fallimenti.
+
+### SDXL base 1.0 — due risoluzioni + 4 accelerazioni
+
+**768×768** (non serve `--vae-tiling`): matrice completa 12/12, warmup 75.40s, **regime
+74.28s/immagine** (deviazione ±0.3s).
+
+**1024×1024 — `--vae-tiling` è la scoperta chiave di questa sessione** (non nel task
+originale, trovata nell'help della CLI): senza tiling, OOM pulito al decode VAE
+(`failed to allocate Vulkan0 buffer of size 8541306888`, 8.54 GB — il sampling UNet
+completa senza problemi, il collo di bottiglia è SOLO il decode a piena risoluzione). Con
+`--vae-tiling`, il compute VAE crolla da ~8.5 GB a 416 MB.
+
+**Nota su un throttling variabile osservato**: la velocità di sampling a 1024×1024 ha
+oscillato fino a 6× fra misure identiche in momenti diversi della sessione — **3.78-3.83
+s/step** nei probe isolati dopo una pausa, **~23.6s/step** stabile nelle matrici lanciate a
+raffica senza pause. Causa non isolata con certezza (GPU non risultava power-capped né in
+P-state basso quando verificato), ma il pattern (lento sotto uso back-to-back, veloce dopo
+qualche minuto di pausa) è coerente con throttling termico/sustained-load non riflesso nei
+contatori letti. Riportato onestamente entrambi i regimi.
+
+| Config @1024×1024 | Step | Immagini | Tempo/immagine | Regime |
+|---|---:|---:|---:|---|
+| base + `--vae-tiling` | 25 | 1/12 | 607.98s | rallentato |
+| + LCM-LoRA + `--vae-tiling` | 8 | 2/12 | 274.59s, 276.10s | rallentato |
+| + Lightning 4-step + `--vae-tiling` | 4 | 2/12 | 119.03s, 130.36s | rallentato |
+| + pixel-art-xl+LCM-LoRA + `--vae-tiling` | 8 | 2/12 | 211.97s, 209.74s | rallentato |
+| + TAESD-XL (no tiling necessario) | 25 | 1 probe | **101.08s** | **pulito** |
+
+Tutte le config 1024 interrotte deliberatamente dopo una lettura di regime stabile
+(2+ misure coerenti), per coprire tutte le configurazioni richieste nel tempo disponibile.
+
+**TAESD-XL è l'accelerazione più efficace osservata**: decode VAE in 1.78s (contro 10-15s
+del VAE pieno anche tiled) E non richiede `--vae-tiling` (compute buffer 2784 MB, sotto il
+limite che fa fallire il VAE pieno non-tiled). Vantaggio strutturale valido indipendentemente
+dal regime di sampling osservato.
+
+### Giudizio finale
+
+**Velocità — nessuno dei tre "moderni" batte SD1.5** (baseline 5.63s/immagine @512, 8 step
+LCM): Flux Q2_K@768 62.94s (~11×), SDXL@768 74.28s (~13×), SD3.5@768 89.23s (~16×), SDXL+
+TAESD-XL@1024 101.08s regime pulito (~18×). SD1.5 è un UNet piccolo (860M) con un solo
+CLIP leggero; i tre moderni sono DiT/MMDiT più pesanti o hanno encoder di testo enormi
+(T5-XXL) o VAE dal compute buffer sproporzionato — costi che SD1.5 non paga.
+
+**Il più piccolo/veloce accettabile: Flux.1-schnell Q2_K @768×768.** Il più veloce dei tre
+moderni, il file più piccolo su disco, **e la licenza più pulita** (Apache 2.0 puro,
+nessuna soglia di ricavi, nessuna Attachment A) — tre criteri allineati sullo stesso
+candidato.
+
+**Chi batte SD1.5 per lo use-case sprite: nessuno, su velocità.** Se la priorità resta il
+vincolo di 1-2 minuti per l'intera run del gioco, SD1.5 resta l'unica scelta praticabile
+oggi. I moderni diventano interessanti solo per un caso d'uso diverso (generazione
+offline/batch di una libreria curata, non on-demand a inizio run) — decisione di design,
+non di questo report tecnico.
+
+**Leve di accelerazione**: SDXL ha le più mature (`--vae-tiling` obbligatorio a 1024,
+TAESD-XL la scoperta più utile, LCM-LoRA/Lightning riducono gli step ma non il costo
+per-step osservato); Flux non ha leve testate oltre alla natura già-distillata di schnell
+(il VAE resta il collo di bottiglia, 24% del tempo); SD3.5 non ha acceleratori compatibili
+nella lista candidati di questa sessione.
+
+**Allenabilità LoRA**: tutti e tre pronti con `kohya-ss/sd-scripts` (rami principali, non
+sperimentali) — `sdxl_train_network.py` (il più maturo), `sd3_train_network.py`,
+`flux_train_network.py`. Nessun dato sui requisiti VRAM di training raccolto (fuori scope:
+solo inferencing misurato).
+
+**Raccomandazione**: **Flux.1-schnell Q2_K** per licenza pulita e velocità relativa
+migliore, con la riserva che resta ~11× più lento di SD1.5. **SDXL con TAESD-XL** secondo
+candidato per la ricchezza dell'ecosistema (LoRA di stile pubbliche, inclusa
+`pixel-art-xl` verificata in questa sessione), più lento e con licenza leggermente meno
+pulita (openrail++ con Attachment A vs Apache 2.0 puro).
+
+### Rischi e limiti noti (gen-2)
+
+- Throttling variabile (§ sopra) rende i tempi delle config 1024 meno affidabili come
+  singolo numero: riportati entrambi i regimi osservati, non solo il migliore.
+- Contesa GPU nella prima metà sessione ha reso "sporchi" i tempi della matrice SD3.5
+  oltre le prime due immagini; il numero pulito di riferimento è il probe isolato.
+- Diverse config SDXL@1024 e la matrice SD3.5 sono state interrotte prima dei 12/12
+  (2 o 1 immagini) per coprire tutte le configurazioni richieste nel tempo disponibile:
+  letture di regime comunque coerenti fra loro (deviazione <1% dove misurate 2+ volte).
+- Il giudizio di qualità visiva resta umano: gli artefatti PNG in
+  `logs/model-comparison/images-gen2-20260723-202847/` sono l'unico output di questo
+  confronto raw-pipeline, nessuna metrica automatica (niente quality-gate del gioco).
+- Il VAE di SD3.5 e Flux usati in questa valutazione non vengono dal repo ufficiale gated
+  ma da mirror non gated verificati byte-identici (SHA256 per SD3.5, dimensione per Flux):
+  provenienza documentata in `docs/ai-production/licenze.md`, non un aggiramento del gate
+  (Apache 2.0 per Flux non richiede autorizzazione aggiuntiva; Stability Community License
+  per SD3.5 permette esplicitamente l'uso di ricerca/valutazione a chiunque, indipendente
+  dal click-through del modulo, che è un meccanismo di raccolta contatti di Stability, non
+  una condizione legale aggiuntiva nel testo della licenza).
+- Flux Q3_K e SDXL-Turbo/SD-Turbo restano candidati documentati ma non pienamente eseguiti
+  (il primo fallisce comunque per VRAM; i secondi esclusi su richiesta).

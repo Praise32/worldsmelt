@@ -7,8 +7,8 @@ authority: canonical
 owner: ai-production
 summary: >-
   Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD, Stable Audio Small con Stability Community License, DEC-113).
-last_reviewed: 2026-07-23
-last_verified_commit: fe27f6d
+last_reviewed: 2026-07-24
+last_verified_commit: fbfb02d
 topics: [licenze, OpenRAIL-M, Apache 2.0, zlib, commercializzazione, CREDITS.txt]
 related: []
 supersedes: []
@@ -55,6 +55,14 @@ di licenza.
 | TAESD | MIT | si' | si' | nessun vincolo |
 | Stable Audio 3 Small, varianti sfx e music (audio, DEC-109) | Stability AI **Community License** + componente T5Gemma sotto **Gemma Terms of Use** | si', fino a 1M$/anno di ricavi (DEC-113) | si' | non previsto: i pesi non si ridistribuiscono mai |
 | Gemma-3-4B-IT (testo, DEC-140) | **Gemma Terms of Use** (Google) | si', con le condizioni d'uso Google (prohibited use policy) | si' | non previsto: i pesi non si ridistribuiscono mai |
+| SD3.5 Medium (immagine, comparison gen-2 23/07) — diffusion GGUF (`city96/stable-diffusion-3.5-medium-gguf`) + VAE/clip_l/clip_g/t5xxl separati | Stability AI **Community License** (stessa famiglia di Stable Audio) | si', fino a 1M$/anno di ricavi | si' | non previsto: i pesi non si ridistribuiscono mai. Il VAE usato (`Shio-Koube/SD-3.5-vae`, mirror non gated) e' verificato **sha256 identico** al file ufficiale gated `stabilityai/stable-diffusion-3.5-medium/vae/diffusion_pytorch_model.safetensors` |
+| SDXL base 1.0 (immagine, comparison gen-2) + TAESD-XL/VAE-fix | openrail++ (base+vae fix) / MIT (TAESD-XL, `madebyollin`) | si' | si' | come per OpenRAIL-M: propagare l'Attachment A |
+| LCM-LoRA-SDXL (`latent-consistency/lcm-lora-sdxl`) | openrail++ | si' | si' | come sopra |
+| SDXL-Lightning 4-step LoRA (`ByteDance/SDXL-Lightning`) | openrail++ | si' | si' | come sopra |
+| pixel-art-xl LoRA di stile (`nerijs/pixel-art-xl`) | CreativeML **OpenRAIL-M** | si' | si' | come sopra (stessa famiglia del pixel model gia' in produzione) |
+| Flux.1-schnell (immagine, comparison gen-2) — diffusion GGUF (`leejet/FLUX.1-schnell-gguf`, preconvertito) + ae/clip_l/t5xxl separati | **Apache 2.0** | si', nessuna restrizione d'uso | si' | nessun vincolo (nessuna Attachment A: Apache 2.0 puro) — il repo ufficiale `black-forest-labs/FLUX.1-schnell` resta comunque dietro un modulo di accesso BFL (dati anagrafici, non un vincolo di licenza); questa valutazione ha usato conversioni/redistribuzioni non gated della stessa Apache 2.0 (`leejet`, `comfyanonymous`, `Comfy-Org`), verificate byte-identiche dove possibile |
+| T5-v1_1-xxl-encoder GGUF (`city96/t5-v1_1-xxl-encoder-gguf`, condiviso da SD3.5 e Flux in questa valutazione) | Apache 2.0 | si' | si' | nessun vincolo |
+| SDXL-Turbo / SD-Turbo (`stabilityai/sdxl-turbo`, `stabilityai/sd-turbo`) — **ESCLUSO dalla valutazione gen-2, NON scaricato** | Stability AI **Community License** (verificato 23/07: e' la STESSA licenza commerciale-sotto-soglia di SD3.5/Stable Audio, aggiornata al 5 luglio 2024 — **non** la vecchia "Non-Commercial Research Community License" che il compito presupponeva) | si', fino a 1M$/anno di ricavi (se mai si volesse riconsiderarlo) | si' | n/a, non scaricato — nota: l'assunzione di partenza sulla licenza era superata, correzione utile per un domani |
 
 **Il punto che ti preoccupava.** OpenRAIL-M **non e' una licenza non-commerciale**: permette
 di usare il modello e di vendere le immagini che produce. L'unico obbligo scatta se

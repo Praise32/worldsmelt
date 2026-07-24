@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 147,
+  "count": 148,
   "documents": [
     {
       "id": "docs-readme",
@@ -777,6 +777,35 @@
       "last_verified_commit": "a737aba"
     },
     {
+      "id": "aiprod-exp-image-gen2-2026-07-23",
+      "path": "docs/ai-production/experiments/image-comparison-gen2-2026-07-23.md",
+      "title": "Comparison immagini gen-2 — SD3.5, SDXL, Flux su 6 GB (23/07/2026)",
+      "domain": "ai-production",
+      "status": "implemented",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Probe empirici dei modelli moderni su RX 5600 XT/Vulkan: nessuno batte la baseline SD1.5 (5.6s/img) — Flux.1-schnell Q2K@768 il piu' vicino a ~63s (11x), SDXL@768 74s, SD3.5 Medium@768 89s; TAESD-XL sblocca il decode 1024 (1.78s); licenze verificate. Artefatti in logs/model-comparison/images-gen2-20260723-202847/.",
+      "topics": [
+        "comparison",
+        "immagini",
+        "sdxl",
+        "flux",
+        "sd35",
+        "taesd",
+        "licenze",
+        "gen2"
+      ],
+      "related": [
+        "aiprod-exp-image-comparison-2026-07-23"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "docs/plans/active/model-comparison.md"
+      ],
+      "last_reviewed": "2026-07-23",
+      "last_verified_commit": "c3f3005"
+    },
+    {
       "id": "aiprod-exp-model-comparison-testo-2026-07-23",
       "path": "docs/ai-production/experiments/model-comparison-testo-2026-07-23.md",
       "title": "Comparison dei modelli di testo — 23/07/2026",
@@ -849,8 +878,8 @@
       "source_files": [
         "scripts/download-models.sh"
       ],
-      "last_reviewed": "2026-07-23",
-      "last_verified_commit": "fe27f6d"
+      "last_reviewed": "2026-07-24",
+      "last_verified_commit": "fbfb02d"
     },
     {
       "id": "aiprod-regole-agenti-ml",
@@ -3061,8 +3090,8 @@
         "tools/melting-gen/main.c",
         "tools/melting-sprites/main.c"
       ],
-      "last_reviewed": "2026-07-23",
-      "last_verified_commit": "9b515a6"
+      "last_reviewed": "2026-07-24",
+      "last_verified_commit": "fbfb02d"
     },
     {
       "id": "plans-benchmark-primo-avvio",
