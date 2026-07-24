@@ -9,8 +9,9 @@
 # logs/benchmark.txt in formato chiave=valore come REPORT per chi sviluppa: da
 # DEC-110 il gioco non lo rilegge piu' e non esiste nessun tier di qualita'
 # automatico -- i requisiti minimi del gioco completo sono quelli per far
-# girare i modelli di riferimento (Qwen 7B + SD1.5), hardware migliore rende
-# solo la generazione piu' veloce, mai diversa. Vedi il vincolo architetturale
+# girare i modelli di riferimento (gemma-3-4b-it + SD1.5, testo aggiornato da
+# DEC-110 con DEC-140), hardware migliore rende solo la generazione piu'
+# veloce, mai diversa. Vedi il vincolo architetturale
 # in AGENTS.md: il gioco NON linka MAI llama.cpp/sd.cpp.
 #
 # Uso:      scripts/benchmark.sh   (anche "make benchmark")
@@ -92,7 +93,7 @@ case "$tier" in
   full)
     echo "tier=full: hardware alla pari o sopra la scheda di riferimento (5600 XT)." ;;
   lowspec)
-    echo "tier=lowspec: sotto la scheda di riferimento in throughput misurato. Nessun preset diverso (DEC-110): il gioco genera comunque con i modelli di riferimento (Qwen 7B + SD1.5), solo piu' lentamente." ;;
+    echo "tier=lowspec: sotto la scheda di riferimento in throughput misurato. Nessun preset diverso (DEC-110): il gioco genera comunque con i modelli di riferimento (gemma-3-4b-it + SD1.5, DEC-140), solo piu' lentamente." ;;
   unsupported)
     echo "tier=unsupported: throughput sotto ogni soglia utile. Si puo' comunque giocare (fallback procedurale, nessun blocco), ma la generazione IA sara' lenta o assente." ;;
 esac

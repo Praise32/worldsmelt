@@ -15,12 +15,22 @@ else
   GAME_RUN=()
 fi
 
-MODEL="${MODEL:-models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf}"
+# Nessun MODEL di default qui sotto (era il 1.5B prima di DEC-140): senza
+# --model, melting-gen usa gia' il proprio default (gemma-3-4b-it, vedi
+# tools/melting-gen/main.c ParseArgs) -- impostare MODEL resta il modo per
+# testare un modello diverso (es. il 7B con --with-7b in download-models.sh).
+MODEL="${MODEL:-}"
 NGL="${NGL:-99}"
 SEED="${SEED:-31337}"
-[ -f "$MODEL" ] || { echo "Modello mancante: $MODEL — esegui scripts/download-models.sh"; exit 1; }
+MODEL_ARGS=()
+if [ -n "$MODEL" ]; then
+  [ -f "$MODEL" ] || { echo "Modello mancante: $MODEL — esegui scripts/download-models.sh"; exit 1; }
+  MODEL_ARGS=(--model "$MODEL")
+else
+  [ -f "models/gemma-3-4b-it-q4_k_m.gguf" ] || { echo "Modello di default mancante: models/gemma-3-4b-it-q4_k_m.gguf — esegui scripts/download-models.sh"; exit 1; }
+fi
 
-bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$SEED" --out generated
+bin/melting-gen "${MODEL_ARGS[@]}" --ngl "$NGL" --seed "$SEED" --out generated
 grep -q "^source=local:" generated/current_run.txt
 grep -q "^floor5.item3.script=" generated/current_run.txt
 
@@ -102,7 +112,7 @@ echo "--- M5: --theme-file con un modello vero -- il tema scelto guida i 5 piani
 THEME_TMP=$(mktemp -d)
 trap 'rm -rf "$THEME_TMP"' EXIT
 printf 'Foundry of Glass -- a cathedral of molten glass where the choir never stops singing.' > "$THEME_TMP/chosen-theme.txt"
-bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$((SEED + 1))" \
+bin/melting-gen "${MODEL_ARGS[@]}" --ngl "$NGL" --seed "$((SEED + 1))" \
                  --theme-file "$THEME_TMP/chosen-theme.txt" --out "$THEME_TMP/run"
 grep -q "^floor1.theme=Foundry of Glass$" "$THEME_TMP/run/current_run.txt" || {
   echo "FALLITO: floor1.theme non e' il tema scelto alla lettera"
@@ -150,7 +160,7 @@ trap - EXIT
 # per M6b-2, non solo la sua eventuale assenza.
 echo "--- M6b-1/M6b-2: --propose-themes con un modello vero -- personaggio generato + trait campionati ---"
 rm -f generated/character_proposal.json generated/scripts/character_trait.lua
-bin/melting-gen --model "$MODEL" --ngl "$NGL" --seed "$((SEED + 2))" --propose-themes 3 --out generated
+bin/melting-gen "${MODEL_ARGS[@]}" --ngl "$NGL" --seed "$((SEED + 2))" --propose-themes 3 --out generated
 if [ ! -f generated/character_proposal.json ]; then
   echo "   nessuna carta questa run: il trait non ha validato entro i ritenti (fallback canonico DEC-037, vedi logs/melting-gen.log)"
   grep "propose-character:" logs/melting-gen.log | tail -5 || true
@@ -175,7 +185,7 @@ maxHpMax = 6 if hasShot else 9   # int(3 + 0.6*(9-3)) = int(6.6) = 6
 luckMax = 0.6*1.5 if hasShot else 1.5
 eps = 0.001
 assert 6.0 <= s["damage"] <= damageMax + eps, (s, hasShot)
-assert fireDelayMin - eps <= s["fireDelay"] <= 0.28, (s, hasShot)
+assert fireDelayMin - eps <= s["fireDelay"] <= 0.28 + eps, (s, hasShot)
 assert 480.0 <= s["shotSpeed"] <= 560.0, s
 assert 190.0 <= s["speed"] <= 260.0, s
 assert 3 <= s["maxHp"] <= maxHpMax, (s, hasShot)

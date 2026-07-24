@@ -72,11 +72,17 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->seed = (unsigned int)time(NULL);
     args->outDir = "generated";
     args->fromJson = NULL;
-    /* Calibrati nel Task 8 su Ryzen 5 3600 + RX 5600 XT 6GB (dettagli in
-     * docs/engineering/benchmarks.md): a ngl=99 il 7B occupa ~4.53 GiB di VRAM e completa
-     * in 49.6s totali, la corsa piu' veloce E con la qualita' migliore
-     * dell'intera matrice misurata (batte anche il fallback 1.5B). */
-    args->model = "models/qwen2.5-coder-7b-instruct-q4_k_m.gguf";
+    /* Modello testuale di riferimento (DEC-140, 23/07/2026): la suite di
+     * comparazione su 11 modelli (docs/ai-production/experiments/
+     * model-comparison-testo-2026-07-23.md, 3 seed fissi) misura gemma-3-4b-it
+     * Q4_K_M sopra il precedente default (7B Coder Q4_K_M, calibrato nel Task
+     * 8 su Ryzen 5 3600 + RX 5600 XT 6GB): punteggio 84.9 vs 76.9, Lua valido
+     * al primo colpo 93% vs 73% (dopo i ritenti 100% vs 75%), JSON 100% su
+     * entrambi, meta' del peso su disco (2.32 vs 4.36 GiB) e +21% tok/s (52.6
+     * vs 43.6). Il 7B resta scaricabile e selezionabile con --model (scelta
+     * reversibile con un flag, vedi scripts/download-models.sh); il ripiego
+     * su errore di caricamento resta il Coder 1.5B Q4 sotto, invariato. */
+    args->model = "models/gemma-3-4b-it-q4_k_m.gguf";
     args->modelFallback = "models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
     args->modelText = NULL;
     args->ngl = 99;

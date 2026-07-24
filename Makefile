@@ -164,8 +164,9 @@ test-script: game
 test-llm: all
 	bash scripts/test-llm.sh
 
-# Metriche di generazione (validita' Lua + varieta' fra run): ~2-3 min a run
-# col 7B, 3 run di default. Vedi scripts/gen-metrics.sh e gen_metrics.py.
+# Metriche di generazione (validita' Lua + varieta' fra run): ~4-5 min a run
+# col modello di riferimento (gemma-3-4b-it, DEC-140), 3 run di default.
+# Vedi scripts/gen-metrics.sh e gen_metrics.py.
 gen-metrics: all
 	bash scripts/gen-metrics.sh
 
@@ -182,8 +183,8 @@ sprite-baseline: sprites
 # Da DEC-110 non esiste piu' nessun tier di qualita' automatico: il gioco NON
 # rilegge mai questo file, non lo linka a nessuna scelta di modello o
 # dimensione sprite. I requisiti minimi del gioco completo sono quelli per
-# far girare i modelli di riferimento (Qwen 7B + SD1.5); hardware migliore
-# rende solo la generazione piu' veloce, mai diversa. Vedi scripts/benchmark.sh.
+# far girare i modelli di riferimento (gemma-3-4b-it + SD1.5, DEC-140); hardware
+# migliore rende solo la generazione piu' veloce, mai diversa. Vedi scripts/benchmark.sh.
 benchmark: gen sprites
 	bash scripts/benchmark.sh
 

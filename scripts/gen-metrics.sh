@@ -2,10 +2,14 @@
 # Harness delle metriche di generazione (roadmap 16/07/2026, settimana 1).
 # Lancia RUNS generazioni VERE su seed diversi (serve un modello in models/) e
 # poi misura validita' del Lua e varieta' FRA run con scripts/gen_metrics.py.
-# Ogni run col 7B costa ~2-3 minuti: il default (3 run) e' ~6-9 minuti.
+# Ogni run col modello di riferimento costa ~4-5 minuti (gemma-3-4b-it, DEC-140:
+# 272s/run misurati nella suite di comparazione): il default (3 run) e' ~14-16
+# minuti.
 #
 # Uso: scripts/gen-metrics.sh [RUNS] [SEED_BASE]     (default: 3 run, base 4242)
-# Variabili: MODEL (default: il 7B se c'e', altrimenti l'1.5B), NGL.
+# Variabili: MODEL (default: gemma-3-4b-it se c'e', altrimenti l'1.5B — stesso
+# ordine di preferenza del default di melting-gen, tools/melting-gen/main.c
+# ParseArgs), NGL.
 # MODEL_TEXT (esperimento due-modelli, roadmap 17/07/2026): se impostata, passata
 # a melting-gen come --model-text -- una sessione SEPARATA (Instruct generalista,
 # migliore in prosa/nomi italiani) genera il JSON, poi il Coder di sempre genera
@@ -19,7 +23,7 @@ NGL="${NGL:-99}"
 MODEL="${MODEL:-}"
 MODEL_TEXT="${MODEL_TEXT:-}"
 if [ -z "$MODEL" ]; then
-  for m in models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
+  for m in models/gemma-3-4b-it-q4_k_m.gguf \
            models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf; do
     if [ -f "$m" ]; then MODEL="$m"; break; fi
   done
