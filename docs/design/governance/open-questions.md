@@ -6,8 +6,8 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-140; economia, valori numerici, personaggi, multiplayer, produzione.
-last_reviewed: 2026-07-22
+  Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-143; economia, valori numerici, personaggi, multiplayer, produzione.
+last_reviewed: 2026-07-25
 topics: [open-questions, governance, domande aperte, playtest, backlog design]
 related: []
 supersedes: []
@@ -39,7 +39,13 @@ leggendaria (DEC-107), proposte identiche in gara (DEC-108). La sessione decisio
 2026-07-22 ha risolto la 11 (reroll dal PauseMenu con conferma, DEC-114) e le cinque domande
 nate dall'audit documentale: audio generativo con fallback (DEC-109), rimozione del preset
 lowspec (DEC-110), scelta binaria confermata (DEC-111), director-per-stile parcheggiato
-(DEC-112), licenza Stability Community accettata (DEC-113). Restano le domande davvero
+(DEC-112), licenza Stability Community accettata (DEC-113). Un'ulteriore sessione di audit
+del 2026-07-25 ha risolto tre domande residue emerse dalla revisione documentale, anch'esse
+fuori dalla numerazione 1-10 sotto: il fix del RNG di gameplay come prerequisito bloccante
+della Classificata a stesso seed (DEC-141), i requisiti hardware minimi espressi in numeri
+misurati anziché in nomi di modello (DEC-142), e la categoria ereditata da una fusione
+cross-categoria — vince la sorgente dominante per rarità (DEC-143). Nessuna delle 10 domande
+numerate sotto è chiusa da questa sessione. Restano le domande davvero
 aperte, con la numerazione originale 1-10. Domande aperte più locali vivono anche nelle sezioni "Domande
 aperte" dei singoli documenti di sistema (es. `systems/grafts.md`, `systems/item-fusion.md`):
 quelle non sono duplicate qui.

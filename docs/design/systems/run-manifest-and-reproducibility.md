@@ -5,13 +5,13 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); dettagli multiplayer restano experimental."
-last_reviewed: 2026-07-19
-last_verified_commit: 0ec60d0
-topics: [manifest, seed, riproducibilità, multiplayer-asincrono, run-bundle]
-related: []
+summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il determinismo del gameplay (non solo del contenuto generato) resta un prerequisito bloccante non ancora soddisfatto per la Classificata a stesso seed (DEC-141); dettagli multiplayer restano experimental."
+last_reviewed: 2026-07-25
+last_verified_commit: 047e62c
+topics: [manifest, seed, riproducibilità, multiplayer-asincrono, run-bundle, determinismo-rng]
+related: [eng-known-issues]
 supersedes: []
-source_files: []
+source_files: [src/game/game.c]
 ---
 
 # Run Manifest and Reproducibility
@@ -66,12 +66,23 @@ della run, così che due esecuzioni con lo stesso manifest producano gli stessi 
 ## Multiplayer asincrono (DEC-016)
 
 La visione fissata per il multiplayer è: **gare asincrone sulla stessa run**. Lo stesso
-seed/manifest di run garantisce che due giocatori affrontino contenuti identici — piani,
+seed/manifest di run garantisce che due giocatori affrontino **contenuti** identici — piani,
 stanze, nemici e oggetti generati sono gli stessi per entrambi, perché il determinismo della
-generazione esiste già nel sistema (lo stesso seed produce sempre lo stesso esito di
+**generazione** esiste già nel sistema (lo stesso seed produce sempre lo stesso esito di
 generazione, indipendentemente da quando o da chi gioca). È il manifest di run a rendere
 possibili le classifiche a tempo o a punteggio su queste gare: senza un manifest condiviso e
 riproducibile non ci sarebbe base per confrontare i risultati di due giocatori diversi.
+
+**Stato reale (DEC-141, corregge la formulazione precedente di questo paragrafo):** il
+determinismo sopra descritto vale oggi solo per il **contenuto generato**. Il **gameplay**
+(spawn, drop, RNG di combattimento durante la run) non è ancora derivato dal seed di run:
+`GameResetRun` lo seeda con l'orologio di sistema (`time(NULL)`), un difetto noto e verificato
+nel codice (`docs/engineering/known-issues.md`, voce 3, `src/game/game.c:99-103`). Due
+giocatori con lo stesso seed affrontano quindi gli stessi piani/nemici/oggetti ma possono
+vivere un combattimento diverso. **DEC-141 fissa il fix di questo RNG come prerequisito
+bloccante di qualunque gara Classificata a stesso seed**: nessuna gara del genere va abilitata
+finché il gameplay non deriva dal seed di run quanto il contenuto generato. Il fix stesso
+resta backlog aperto.
 
 I punti guadagnati per la meta-progressione e i relativi sblocchi sono esclusi dalle modalità
 competitive (vedi `save-and-meta-progression.md`).

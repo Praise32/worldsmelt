@@ -9,10 +9,10 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-23
+last_reviewed: 2026-07-25
 last_verified_commit: fe27f6d
 topics: [difetti, limiti, test, rng, generazione, catalogo]
-related: [eng-dependencies, meta-doc-code-drift]
+related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
 source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, docs/archive/legacy-notes/issue-notes.md]
 ---
@@ -82,7 +82,11 @@ RNG di combattimento durante la run) no.
 con lo stesso seed di generazione possono comunque divergere nel gameplay
 perche' l'RNG di run non e' derivato da quel seed.
 
-**Stato**: backlog aperto, nessuna correzione applicata.
+**Stato**: backlog aperto, nessuna correzione applicata. **DEC-141** (25/07) fissa il fix
+come prerequisito bloccante di qualunque gara Classificata a stesso seed: nessuna gara del
+genere va abilitata finché questo RNG non deriva dal seed di run (vedi anche
+`docs/design/systems/run-manifest-and-reproducibility.md` e
+`docs/engineering/multiplayer-steam.md`).
 
 ## 4 — `generated/gen_progress_lazy.txt` non viene mai scritto dai processi reali
 

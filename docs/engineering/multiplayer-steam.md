@@ -7,9 +7,9 @@ authority: supporting
 owner: engineering
 summary: >-
   Nota tecnica non decisionale: valuta Steamworks (API C, leaderboard, achievement, Workshop, cloud save) per il multiplayer asincrono già approvato (DEC-016, DEC-021).
-last_reviewed: 2026-07-19
-topics: [steamworks, multiplayer, leaderboard, distribuzione, tecnico]
-related: []
+last_reviewed: 2026-07-25
+topics: [steamworks, multiplayer, leaderboard, distribuzione, tecnico, determinismo-rng]
+related: [eng-known-issues]
 supersedes: []
 source_files: []
 ---
@@ -37,7 +37,11 @@ da zero:
 - **API C**: adatta al motore in C del progetto, senza livelli di traduzione aggiuntivi.
 - **Leaderboards**: classifiche a tempo/punteggio, separabili per asse — Leggera/Classificata
   × stesso seed/seed diversi (`DEC-021`) — usando leaderboard distinte o filtrate per
-  combinazione.
+  combinazione. **Nota (DEC-141):** le leaderboard sull'asse "stesso seed" presuppongono che
+  due giocatori con lo stesso seed affrontino un gameplay identico, non solo contenuti
+  identici; oggi non è così (RNG di gameplay su `time(NULL)`, non derivato dal seed —
+  `docs/engineering/known-issues.md` voce 3). DEC-141 fissa il fix come prerequisito
+  bloccante: nessuna leaderboard "stesso seed" va attivata prima che sia risolto.
 - **Identità giocatore**: la Steam ID autentica il giocatore e può dare validità alla run
   pubblicata (chi ha giocato cosa), senza richiedere un sistema account separato.
 - **Achievement**: candidati naturali per esporre le prove specifiche della run (`DEC-027`,

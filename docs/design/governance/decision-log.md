@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 140 decisioni di design approvate (DEC-001..DEC-140) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-22
-last_verified_commit: 0ec60d0
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..140]
+  Registro delle 143 decisioni di design approvate (DEC-001..DEC-143) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-25
+last_verified_commit: 047e62c
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..143]
 related: []
 supersedes: []
 source_files: []
@@ -197,6 +197,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Gara simultanea online in tempo reale.
 - **Conseguenze:** La lobby multiplayer diventa selezione di una run/seed pubblicata, non una lobby live con partecipanti in attesa.
 - **Documenti aggiornati:** `08-multiplayer-and-competition.md`, `ui/multiplayer-lobby.md`, `ui/results-and-leaderboards.md`
+- **Nota (2026-07-25):** corretta da DEC-141 — la premessa «il determinismo esiste già» non regge per il gameplay: l'RNG di spawn/drop/combattimento è ancora seedato con `time(NULL)` (known-issues.md #3), non dal seed di run. Il determinismo vale oggi solo per il contenuto generato (tema, layout, oggetti); il fix del RNG di gameplay è prerequisito bloccante di qualunque gara a stesso seed.
 
 ### DEC-017 — Durata obiettivo 30-45 minuti
 
@@ -1147,6 +1148,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** chiarire DEC-070 ammettendo il preset come dettaglio interno; renderlo visibile al giocatore.
 - **Conseguenze:** rimozione implementata via scala (gradino 2); il piano `benchmark-primo-avvio` è annullato; open question 13 chiusa.
 - **Documenti aggiornati:** `docs/engineering/benchmarks.md`, `docs/plans/cancelled/benchmark-primo-avvio.md`
+- **Nota (2026-07-25):** superata parzialmente da DEC-142 — dopo DEC-140 (Gemma-3-4B-IT Q4 sostituisce Qwen 7B come modello testuale di riferimento) l'ancoraggio del requisito minimo ai **nomi dei modelli di riferimento** non è più la formulazione canonica: il requisito minimo si esprime ora in **numeri misurati** (VRAM/RAM/sistema operativo) sulla macchina di riferimento. Il principio di questa decisione (un solo set di riferimento, nessun tier di qualità) resta valido; cambia solo come il requisito viene espresso.
 
 ---
 
@@ -1507,3 +1509,39 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** restare sul 7B salendo a Q5_K_M (+15 punti di Lua sul Q4); Coder 1.5B per il minimo assoluto.
 - **Conseguenze:** default aggiornato in tools/melting-gen e in `scripts/download-models.sh` (scala, gradino 2, con `make test-llm` sul nuovo default); `00-DECISIONI-CANONICHE.md` e `licenze.md` aggiornati.
 - **Documenti aggiornati:** `docs/ai-production/00-DECISIONI-CANONICHE.md`, `docs/ai-production/licenze.md`, `docs/ai-production/experiments/model-comparison-testo-2026-07-23.md`
+
+---
+
+### DEC-141 — Il RNG di gameplay deterministico è prerequisito bloccante della Classificata a stesso seed
+
+- **Data:** 2026-07-25
+- **Stato:** approved
+- **Contesto:** l'audit documentale del 25/07 ha verificato nel codice (`src/game/game.c:99-103`, `GameResetRun`) che l'RNG di gameplay (spawn, drop, combattimento) è seedato con `time(NULL)`, non con un seed derivato dal seed di run — difetto già registrato in `docs/engineering/known-issues.md` voce 3. `systems/run-manifest-and-reproducibility.md` (riga ~70) affermava però il determinismo del gameplay come già garantito: un drift doc↔codice fra la premessa di DEC-016 (gare asincrone sullo stesso seed/manifest, "il determinismo esiste già") e lo stato reale. Domanda: la premessa regge ancora per abilitare gare Classificate a stesso seed?
+- **Decisione:** **fix prima della Classificata.** Nessuna gara a stesso seed viene abilitata finché l'RNG di gameplay non deriva dal seed di run: il fix è **prerequisito bloccante** della modalità Classificata a stesso seed (DEC-021). Il determinismo oggi garantito riguarda solo il contenuto generato (tema, layout, oggetti dal seed di `melting-gen`), non spawn/drop/combattimento durante la run: due giocatori con lo stesso seed possono affrontare gli stessi piani ma vivere un combattimento diverso. Fino al fix, la Classificata a stesso seed resta non offerta o segnalata come non garantita.
+- **Alternative considerate:** abilitare comunque la Classificata a stesso seed accettando la divergenza di gameplay come rumore tollerato; derivare l'RNG di gameplay dal seed solo come palliativo lato client senza correggere `GameResetRun`.
+- **Conseguenze:** `systems/run-manifest-and-reproducibility.md` corregge l'affermazione di determinismo del gameplay già garantito, dichiarando lo stato reale e il prerequisito; `docs/engineering/multiplayer-steam.md` registra che le classifiche a stesso seed dipendono dal fix; `docs/engineering/known-issues.md` voce 3 rimanda a questa decisione. Il fix stesso (derivare `game->rng` dal seed di run in `GameResetRun`) resta backlog aperto: nessun cambio di codice in questo lavoro.
+- **Documenti aggiornati:** `docs/design/systems/run-manifest-and-reproducibility.md`, `docs/engineering/multiplayer-steam.md`, `docs/engineering/known-issues.md`
+
+---
+
+### DEC-142 — I requisiti hardware minimi si esprimono in numeri misurati, non in nomi di modello
+
+- **Data:** 2026-07-25
+- **Stato:** approved
+- **Contesto:** DEC-110 ancora i requisiti minimi del gioco completo ai "modelli di riferimento (Qwen 7B + SD1.5)"; DEC-140 (23/07) ha però sostituito Qwen 7B con Gemma-3-4B-IT Q4_K_M come modello testuale di riferimento, lasciando ambiguo a quale nome di modello sia oggi ancorato il requisito minimo dichiarato.
+- **Decisione:** **esprimerlo in numeri.** Il requisito hardware minimo dichiarato del gioco completo si esprime in **VRAM, RAM e sistema operativo misurati sulla macchina di riferimento**, non in nomi di modello: un nome di modello cambia a ogni comparison (come è appena successo con DEC-140), un numero misurato no. Questa decisione registra la **policy di formulazione**; le misure concrete (nuovo benchmark sulla macchina di riferimento coi modelli di DEC-140) sono un'attività successiva, fuori da questo lavoro. Limite esplicito: l'allineamento più ampio di `docs/engineering/benchmarks.md` e `docs/engineering/dependencies.md` a DEC-140 è materia di un'altra domanda dello stesso batch di audit, non ancora chiusa — quei due documenti **non vengono riscritti ora**.
+- **Alternative considerate:** continuare ad ancorare il requisito ai nomi di modello, aggiornandoli a ogni cambio di default; esprimere il requisito come fascia qualitativa ("fascia media") senza numeri.
+- **Conseguenze:** supera **parzialmente** DEC-110 nella parte che definisce il requisito minimo per nome di modello: il principio di DEC-110 (un solo set di riferimento, nessun tier di qualità intermedio, hardware migliore = solo attese più brevi) resta valido, cambia solo la sua **espressione**, che diventa numerica. Nessun documento oltre al decision-log viene aggiornato in questo lavoro; la nota di sostituzione parziale è registrata su DEC-110 stesso.
+- **Documenti aggiornati:** nessuno (nota di sostituzione parziale su DEC-110 in questo registro); `docs/engineering/benchmarks.md` e `docs/engineering/dependencies.md` restano da allineare in lavoro successivo.
+
+---
+
+### DEC-143 — Fusione cross-categoria: la categoria la eredita la sorgente dominante
+
+- **Data:** 2026-07-25
+- **Stato:** approved
+- **Contesto:** DEC-101 ammette la fusione libera tra categorie diverse (es. attivo + Innesto) e stabilisce che l'oggetto risultante "dichiara la propria categoria", ma non specifica **quale** categoria erediti né, di conseguenza, quali campi obbligatori (`systems/items-pools-and-rarity.md`) la validazione (`systems/generated-content-validation.md`) deve pretendere. Il caso limite era già annotato in `systems/item-fusion.md` senza una regola di risoluzione.
+- **Decisione:** **vince la sorgente dominante.** L'oggetto risultante eredita la categoria dell'oggetto sorgente di **rarità più alta**; a parità di rarità si applica la stessa regola di priorità già usata da `item-fusion.md` per i tratti in conflitto sulla stessa proprietà (punto 4 di "Priorità e conflitti": vince l'oggetto selezionato per primo dal giocatore). La validazione applica i campi obbligatori della categoria così ereditata.
+- **Alternative considerate:** categoria decisa dal modello caso per caso senza regola fissa; sempre la categoria del primo oggetto selezionato indipendentemente dalla rarità; una categoria ibrida dedicata alle fusioni cross-categoria.
+- **Conseguenze:** `systems/item-fusion.md` (sezione "Casi limite") recepisce la regola, con rimando alla priorità già definita per i tratti; nessun punto aperto corrispondente in `systems/active-items.md` o `systems/generated-content-validation.md` (non marcavano la domanda come aperta, nessuna modifica lì).
+- **Documenti aggiornati:** `docs/design/systems/item-fusion.md`

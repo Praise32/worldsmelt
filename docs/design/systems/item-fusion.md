@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio)."
-last_reviewed: 2026-07-22
+summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143)."
+last_reviewed: 2026-07-25
 last_verified_commit: 0ec60d0
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio]
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante]
 related: []
 supersedes: []
 source_files: []
@@ -127,7 +127,13 @@ esempio entrambi modificano la traiettoria del proiettile), si applica in ordine
   Innesto): la fusione è **libera tra categorie diverse** (DEC-101), è anzi il tipo di
   sorpresa che rende la meccanica memorabile. L'oggetto risultante dichiara la propria
   categoria e resta dentro il budget e le regole di validazione dei contenuti generati (vedi
-  [Generated Content Validation](generated-content-validation.md)).
+  [Generated Content Validation](generated-content-validation.md)). **Quale categoria
+  erediti l'oggetto risultante è deciso dalla sorgente dominante (DEC-143):** vince la
+  categoria dell'oggetto sorgente di **rarità più alta**; a parità di rarità si applica la
+  stessa regola di priorità del punto 4 di ["Priorità e conflitti"](#priorità-e-conflitti)
+  qui sotto (vince l'oggetto selezionato per primo dal giocatore). La validazione applica i
+  campi obbligatori ([Items, Pools and Rarity](items-pools-and-rarity.md)) della categoria
+  così ereditata.
 - L'oggetto risultante di una fusione precedente viene selezionato come oggetto sorgente
   per una nuova fusione: **ammesso, nessun limite concettuale** (DEC-102). La cadenza
   attesa di 1-2 fusioni per run (DEC-022, vedi la sezione "Rarità del catalizzatore" sopra)
@@ -212,6 +218,13 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - When il giocatore seleziona i due oggetti di categorie diverse e conferma la fusione
 - Then l'operazione è ammessa (DEC-101) e l'oggetto risultante dichiara la propria
   categoria, restando dentro le regole di validazione dei contenuti generati
+
+**Scenario: la sorgente dominante decide la categoria**
+- Given i due oggetti sorgente appartengono a categorie diverse e hanno rarità diverse
+- When la fusione viene confermata
+- Then l'oggetto risultante eredita la categoria dell'oggetto sorgente di rarità più alta
+  (DEC-143), e la validazione applica i campi obbligatori di quella categoria; a parità di
+  rarità vince la categoria dell'oggetto selezionato per primo dal giocatore
 
 **Scenario: oggetto fuso riusato come sorgente**
 - Given il giocatore possiede un oggetto nato da una fusione precedente, un secondo oggetto

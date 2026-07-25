@@ -1495,19 +1495,19 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 140 decisioni di design approvate (DEC-001..DEC-140) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 143 decisioni di design approvate (DEC-001..DEC-143) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..140"
+        "DEC-001..143"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-25",
+      "last_verified_commit": "047e62c"
     },
     {
       "id": "design-definition-of-done",
@@ -1605,7 +1605,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-140; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-143; economia, valori numerici, personaggi, multiplayer, produzione.",
       "topics": [
         "open-questions",
         "governance",
@@ -1616,7 +1616,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-25",
       "last_verified_commit": null
     },
     {
@@ -1839,19 +1839,21 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio).",
+      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143).",
       "topics": [
         "fusione",
         "meccanica-firma",
         "DEC-023",
         "DEC-022",
         "catalizzatore",
-        "doppio stadio"
+        "doppio stadio",
+        "DEC-143",
+        "categoria-dominante"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-25",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1974,19 +1976,24 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); dettagli multiplayer restano experimental.",
+      "summary": "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il determinismo del gameplay (non solo del contenuto generato) resta un prerequisito bloccante non ancora soddisfatto per la Classificata a stesso seed (DEC-141); dettagli multiplayer restano experimental.",
       "topics": [
         "manifest",
         "seed",
         "riproducibilità",
         "multiplayer-asincrono",
-        "run-bundle"
+        "run-bundle",
+        "determinismo-rng"
       ],
-      "related": [],
+      "related": [
+        "eng-known-issues"
+      ],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-19",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/game/game.c"
+      ],
+      "last_reviewed": "2026-07-25",
+      "last_verified_commit": "047e62c"
     },
     {
       "id": "gd-system-save-meta",
@@ -2782,7 +2789,8 @@
       ],
       "related": [
         "eng-dependencies",
-        "meta-doc-code-drift"
+        "meta-doc-code-drift",
+        "gd-system-run-manifest"
       ],
       "supersedes": [],
       "source_files": [
@@ -2799,7 +2807,7 @@
         "tools/melting-gen/gen_validate.c",
         "docs/archive/legacy-notes/issue-notes.md"
       ],
-      "last_reviewed": "2026-07-23",
+      "last_reviewed": "2026-07-25",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -2816,12 +2824,15 @@
         "multiplayer",
         "leaderboard",
         "distribuzione",
-        "tecnico"
+        "tecnico",
+        "determinismo-rng"
       ],
-      "related": [],
+      "related": [
+        "eng-known-issues"
+      ],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-25",
       "last_verified_commit": null
     },
     {
