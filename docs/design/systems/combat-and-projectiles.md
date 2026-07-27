@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità, col suo proxy primario (percentuale massima di schermo coperta, DEC-146, soglia provvisoria da playtest). Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [combattimento, proiettili, budget di leggibilità, DEC-007, DEC-037, tipi di colpo, DEC-146]
 related: []
 supersedes: []
@@ -90,6 +90,43 @@ sui cinque elementi resta un controllo complementare ammesso, verificato indipen
 dal proxy percentuale (vedi anche
 [Generated Content Validation](generated-content-validation.md#controlli-minimi), che
 rimanda qui per il dettaglio).
+
+### Prima formula e soglia implementate (2026-07-27)
+
+`tools/melting-gen` (`gen_validate.c`, condiviso col motore via `src/core/shot_type.c`)
+applica una prima stima chiusa del proxy sul tipo di colpo dichiarato dal piano —
+**default proposto dall'implementazione (stile DEC-019), entrambi da confermare col
+playtest**:
+
+```
+percentuale ≈ BASELINE × radiusMul² × pellets × (0.5 + 0.5 × lifeMul)
+```
+
+`BASELINE` (4%) è la percentuale stimata del colpo base (raggio/pellets/vita = 1);
+`radiusMul²` pesa l'AREA di ciascun proiettile; `pellets × (0.5+0.5×lifeMul)` pesa quanti
+segnali stanno a schermo insieme e per quanto (più pallettoni, più a lungo restano vivi).
+La soglia oltre cui un tipo di colpo generato eccede il budget è **18%**. Non è una
+simulazione (nessun conteggio reale di nemici o proiettili a schermo), solo una stima sui
+parametri dichiarati dal tipo di colpo — coerente con l'essere un proxy, non i cinque
+elementi non negoziabili sopra, che restano verificati altrove.
+
+Coerente con DEC-146 ("un contenuto che la supera non passa la validazione e segue la
+normale catena di fallback"), un tipo di colpo che eccede la soglia **non viene riparato
+sul posto**: l'intero tipo generato viene scartato e sostituito con quello procedurale del
+piano (già verificato dentro budget per costruzione), esattamente come ogni altro campo del
+manifest che non supera il proprio controllo. Una prima versione di questo controllo
+correggeva il tipo eccedente riducendo prima `pellets` poi `radiusMul`: scartata (round di
+correzione, stessa revisione) perché contraddiceva alla lettera DEC-146 e, girando dopo il
+bilanciamento di potenza senza rigirarlo, poteva lasciare nel manifest un tipo fuori dalla
+propria banda di potenza dichiarata (fino al ~60% di `damageMul` perso sul caso peggiore),
+facendo divergere manifest e gioco.
+
+La soglia si applica **due volte** allo stesso tipo di colpo: una sul tipo come lo dichiara
+il contenuto, una sul **risultato** della sinergia che quel tipo eventualmente dichiara da
+sé (`chain`/`pierce`), con la stessa soglia — il budget di leggibilità non si allarga per le
+sinergie, a differenza di quello di potenza. Il secondo controllo, la sua motivazione e il
+suo perimetro vivono in [Synergies — DEC-162](synergies.md#budget-di-potenza-del-risultato),
+fonte unica: qui si registra solo che la soglia è la stessa.
 
 ## Risultato
 

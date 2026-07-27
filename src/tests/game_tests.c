@@ -509,15 +509,44 @@ bool GameManifestTest(Game *game)
         for (int i = 0; i < 3; i++)
         {
             const Item *item = &game->content.floors[f].items[i];
-            if (!item->name[0] || !strchr(item->script, ':')) return false;
-            /* Tassonomia a 4 categorie: i 3 oggetti del piano restano quello
-               che sono sempre stati, cioe' PASSIVI. Il manifest scrive
-               ancora "kind=active" (il vocabolario storico, che melting-gen
-               non tocca in questo passo) e ItemKindFromText lo mappa su
-               ITEM_PASSIVE perche' nessuno di quei record dichiara cariche o
-               cooldown: questa riga verifica proprio quella mappatura di
-               compatibilita', non un dettaglio di scrittura del manifest. */
-            if (item->kind != ITEM_PASSIVE) return false;
+            if (!item->name[0]) return false;
+            /* Tassonomia a 4 categorie (task "melting-gen emette e valida le
+               4 categorie", 2026-07-27): i 3 oggetti normali del piano ora
+               ricevono un MIX delle 4 categorie
+               (docs/design/systems/items-pools-and-rarity.md), non piu'
+               sempre passivi -- questo test verificava prima solo la
+               mappatura di compatibilita' "kind=active senza ricarica ->
+               ITEM_PASSIVE"; ora verifica invece l'invariante vero per
+               OGNI categoria: uno stat-up nel pool normale non ha
+               comportamento mini-VM (stessa regola del bossItem sotto, mai
+               una riga ".script="; RunContentLoad in run_content.c azzera
+               esplicitamente item->script quando il kind risolve a
+               ITEM_STATUP, altrimenti il per-key-fallback lascerebbe lo
+               script procedurale sottostante), ogni altra categoria ne ha
+               sempre uno (nessun oggetto senza comportamento esce da
+               melting-gen), e un attivo vero dichiara sempre cariche o
+               cooldown (active-items.md). */
+            if (item->kind == ITEM_STATUP)
+            {
+                if (item->script[0] != '\0') return false;
+                /* Bloccante round 0 (stessa revisione): uno stat-up del pool
+                   normale non porta MAI il tipo di colpo del piano -- stessa
+                   regola sopra, applicata al campo "comportamento" gemello
+                   (shotType invece di script). Prova il round-trip vero
+                   Item.shotType, non solo il manifest testuale (quello lo
+                   copre scripts/test-gen.sh via grep). Difesa applicata sia a
+                   monte (melting-gen non assegna piu' shotItem a una
+                   posizione statup, gen_fallback.c/gen_validate.c) sia qui a
+                   valle (run_content.c azzera item->shotType.active per
+                   ITEM_STATUP): questo test verifica il risultato finale
+                   qualunque delle due reti l'abbia garantito. */
+                if (item->shotType.active) return false;
+            }
+            else if (!strchr(item->script, ':'))
+            {
+                return false;
+            }
+            if (item->kind == ITEM_ACTIVE && item->charges <= 0 && item->cooldown <= 0.0f) return false;
             if (!ManifestLuaLoads(game, item)) return false;
         }
         /* Fase 3: l'oggetto stat-up del piano (ricompensa del boss) e'

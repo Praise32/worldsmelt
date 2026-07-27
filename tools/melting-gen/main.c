@@ -255,6 +255,64 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
             printf("shot.signature.pellets=%d\n", withShot.signatureShot.pellets);
             exit(0);
         }
+        else if (strcmp(argv[i], "--taxonomy-check") == 0)
+        {
+            /* Task "melting-gen emette e valida le 4 categorie" (correzione
+             * round 1): le due garanzie di TASSONOMIA di questo tool sono
+             * funzioni PURE (nessun modello, nessun outDir, nessun RNG) che
+             * pero' nessuna run osservabile dall'esterno esercita al valore
+             * che i documenti citano come normativo -- il floor di rarita'
+             * DEC-144 si vede solo indirettamente nel manifest (che usa
+             * poolSize=15, non i 20 dell'esempio del documento) e il ripiego
+             * cariche/cooldown non e' raggiungibile da un --from-json (kind e
+             * ricarica si prendono SEMPRE dal fallback, mai dal JSON: vedi
+             * GenNormalizeRun). Senza questo ramo le tre funzioni restano due
+             * COPIE a mano dell'algoritmo del motore (ItemPoolMinimumCounts)
+             * verificate solo... di la'. Qui si stampano i numeri veri, un
+             * valore per riga, ordine fisso, exit 0 -- stesso spirito di
+             * --character-clamp-check e --prompt-budget-check sopra, e
+             * scripts/test-gen.sh li confronta con gli attesi del documento.
+             *
+             * (a) L'ESEMPIO NORMATIVO di DEC-144 (docs/design/systems/
+             * generated-content-validation.md): pool curato minimo di 20
+             * oggetti, pesi standard tesoro/negozio -> {11,6,2,1}, lo stesso
+             * numero che ItemPoolTestMinimumCounts verifica lato motore.
+             * (b) Il pool VERO che melting-gen emette: le 15 posizioni
+             * normali della run, per rarita' e per categoria.
+             * (c) Il ripiego del difetto "kind=active senza cariche ne'
+             * cooldown" (active-items.md), su un GenItem costruito a mano
+             * apposta, piu' il caso di controllo (una categoria diversa da
+             * active con gli stessi zeri non viene toccata). */
+            int counts[GEN_KIND_COUNT];
+
+            GenRarityMinimumCounts(20, 0, counts);
+            printf("rarity.pool20=%d,%d,%d,%d\n", counts[0], counts[1], counts[2], counts[3]);
+            GenRarityMinimumCounts(GEN_FLOORS*GEN_ITEMS, 0, counts);
+            printf("rarity.run=%d,%d,%d,%d\n", counts[0], counts[1], counts[2], counts[3]);
+            GenRarityMinimumCounts(GEN_FLOORS, 1, counts);
+            printf("rarity.boss=%d,%d,%d,%d\n", counts[0], counts[1], counts[2], counts[3]);
+            GenKindMinimumCounts(GEN_FLOORS*GEN_ITEMS, counts);
+            printf("kind.run=%d,%d,%d,%d\n", counts[0], counts[1], counts[2], counts[3]);
+
+            GenItem broken;
+            memset(&broken, 0, sizeof(broken));
+            snprintf(broken.name, sizeof(broken.name), "Attivo Senza Ricarica");
+            snprintf(broken.kind, sizeof(broken.kind), "active");
+            broken.charges = 0;
+            broken.cooldown = 0.0f;
+            GenValidateItemRecharge(&broken);
+            printf("recharge.active.charges=%d\n", broken.charges);
+            printf("recharge.active.cooldown=%.2f\n", (double)broken.cooldown);
+
+            GenItem passive;
+            memset(&passive, 0, sizeof(passive));
+            snprintf(passive.name, sizeof(passive.name), "Passivo Senza Ricarica");
+            snprintf(passive.kind, sizeof(passive.kind), "passive");
+            GenValidateItemRecharge(&passive);
+            printf("recharge.passive.charges=%d\n", passive.charges);
+            printf("recharge.passive.cooldown=%.2f\n", (double)passive.cooldown);
+            exit(0);
+        }
         else
         {
             fprintf(stderr, "melting-gen: opzione sconosciuta: %s\n", argv[i]);

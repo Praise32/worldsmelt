@@ -79,6 +79,111 @@ typedef struct ShotTypeDef {
 #define SHOT_TYPE_POWER_MIN    0.75f
 #define SHOT_TYPE_POWER_MAX    1.25f
 
+/* Proxy primario del budget di leggibilita' (DEC-146,
+   docs/design/systems/combat-and-projectiles.md#budget-di-leggibilita'):
+   percentuale STIMATA di schermo coperta dai proiettili del giocatore che
+   questo tipo di colpo dichiara, in un dato istante. Non e' una simulazione
+   (il motore non sa qui quanti nemici ci sono ne' quanto dura una stanza):
+   e' una formula chiusa, deterministica, sullo stesso spirito di
+   ShotTypePower sopra -- pesa cio' che aumenta quanti segnali stanno a
+   schermo CONTEMPORANEAMENTE (pellets, quanti pallettoni per sparo) e per
+   QUANTO (lifeMul, quanto restano vivi prima di sparire) contro l'AREA che
+   ciascuno occupa (radiusMul al quadrato). SHOT_TYPE_READABILITY_BASELINE_PERCENT
+   e' la percentuale stimata del colpo BASE (radius=1, pellets=1, life=1):
+   valore draft, da playtest (stesso trattamento di SHOT_TYPE_POWER_TARGET),
+   scelto piccolo perche' il colpo base e' il riferimento "sempre leggibile".
+   SHOT_TYPE_READABILITY_MAX_PERCENT e' la soglia oltre la quale
+   ShotTypeReadabilityOk sotto torna falso: DRAFT, da playtest (DEC-146 fissa
+   che il proxy esiste ed e' una percentuale di copertura schermo, non il
+   valore soglia esatto). DEC-146 e' esplicito sulla conseguenza di uno
+   sforamento: "un contenuto che la supera NON PASSA LA VALIDAZIONE e segue la
+   normale catena di fallback" -- una riparazione sul posto (tagliare pellets
+   poi radiusMul) NON e' quella catena: uscirebbe dalla banda di potenza gia'
+   garantita da ShotTypeBalance senza rigirare quel bilanciamento, facendo
+   divergere il manifest (che dichiarerebbe il tipo riparato) da quanto il
+   gioco vedrebbe. Per questo qui c'e' solo il predicato, mai una funzione che
+   muta 'type': chi valida un tipo di colpo generato (tools/melting-gen/
+   gen_validate.c) usa ShotTypeReadabilityOk per decidere SE seguire la catena
+   di fallback (sostituire l'INTERO tipo con quello procedurale del piano),
+   non per limarlo campo per campo. */
+#define SHOT_TYPE_READABILITY_BASELINE_PERCENT 4.0f
+#define SHOT_TYPE_READABILITY_MAX_PERCENT      18.0f
+
+/* Stima la percentuale di schermo coperta (vedi sopra). 'type' non attivo o
+   NULL = il colpo base, SHOT_TYPE_READABILITY_BASELINE_PERCENT alla lettera. */
+float ShotTypeReadabilityPercent(const ShotTypeDef *type);
+
+/* Vero se ShotTypeReadabilityPercent(type) <= SHOT_TYPE_READABILITY_MAX_PERCENT. */
+bool ShotTypeReadabilityOk(const ShotTypeDef *type);
+
+/* --- Budget del RISULTATO di una sinergia dichiarata (DEC-162) --------------
+   docs/design/systems/synergies.md#budget-di-potenza-del-risultato.
+
+   DEC-162 dice due cose distinte sul risultato di una sinergia/fusione: il
+   budget di POTENZA e' dedicato e piu' alto di quello del singolo oggetto
+   (garanzia a runtime, ScriptItemsClampSynergyResultDelta in
+   src/script/script_items.c), mentre il budget di LEGGIBILITA' NON si allarga
+   mai (synergies.md, "Limiti di leggibilita'": il limite "e' definito una sola
+   volta in Combat and Projectiles", non riformulato ne' rilassato per le
+   sinergie). Quello che nessuna delle due garanzie copre e' il RISULTATO come
+   contenuto: cio' che finisce a schermo quando la coppia si accende non e' il
+   tipo di colpo dichiarato, e' il tipo di colpo PIU' i bonus di canale B della
+   regola (src/gameplay/synergies.c). E questi bonus non passano da alcun tetto
+   di leggibilita' a runtime: CombatFireShot (src/gameplay/combat.c, ~riga 293)
+   somma SynergiesExtraPellets(...) ai pallettoni del tipo di colpo e taglia
+   solo a 5 -- ben oltre SHOT_TYPE_PELLETS_MAX. Un tipo di colpo puo' quindi
+   stare sotto la soglia DEC-146 da solo e sforarla appena la sinergia che ESSO
+   STESSO dichiara si accende: e' il controllo che manca, e vive qui perche' la
+   conseguenza (scartare il contenuto e seguire la catena di fallback) e'
+   possibile solo a tempo di generazione (tools/melting-gen/gen_validate.c) --
+   a runtime la coppia si e' gia' formata.
+
+   "Dichiarata dal contenuto" ha un significato preciso: la tavola delle
+   sinergie condiziona su SEGNALI, e i soli segnali che un tipo di colpo
+   generato puo' portare sono SIG_SHOT_CHAIN e SIG_SHOT_PIERCE (synergies.c).
+   Un tipo di colpo con chain > 0 o pierceBonus > 0 dichiara quindi da solo, nel
+   proprio contenuto, meta' di una coppia canonica -- l'altra meta' e' un
+   qualunque oggetto del pool, che il pool contiene per costruzione. Oggi solo
+   SIG_SHOT_CHAIN e' usato da una regola (Arco Voltaico); SIG_SHOT_PIERCE fa
+   parte del vocabolario dei segnali ma nessuna riga della tavola lo usa ancora:
+   il predicato sotto lo copre lo stesso, perche' il controllo e' conservativo
+   (stessa soglia, non una piu' larga) e perche' un segnale coperto in anticipo
+   e' preferibile a una regola futura che passa in silenzio.
+
+   SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS e' quanto il risultato aggiunge, nel
+   caso PEGGIORE, ai termini del proxy: i soli bonus di canale B che cambiano
+   l'area o quanti proiettili distinti stanno a schermo insieme sono i
+   pallettoni (SynergiesExtraPellets, valore piatto che NON scala con la
+   rarita'); pierce/bounce/chain non moltiplicano i segnali simultanei ne'
+   l'area, entrano nella POTENZA, che ha il suo budget dedicato a runtime.
+   Il valore duplica la somma dei 'pelletBonus' della tavola delle sinergie, che
+   questo file non puo' includere (gameplay/synergies.h tira dentro
+   core/game_types.h e quindi raylib, vietato qui: vedi il commento in cima).
+   La duplicazione e' PINNATA da un test, non lasciata alla buona volonta':
+   TestSynergyResultReadabilityBudget (test AW di src/tests/script_items_tests.c,
+   'make test-script') confronta questa costante con SynergiesExtraPellets(
+   maschera piena) e fallisce se la tavola cambia senza che cambi questo
+   numero. */
+#define SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS 1
+
+/* Vero se 'type' dichiara da solo un segnale di sinergia (chain o pierce): vedi
+   sopra. NULL o non attivo = falso (il colpo base non dichiara nulla). */
+bool ShotTypeDeclaresSynergySignal(const ShotTypeDef *type);
+
+/* Percentuale stimata di schermo coperta dal RISULTATO: ShotTypeReadabilityPercent
+   sul tipo di colpo con i pallettoni che la sinergia dichiarata gli aggiungerebbe.
+   Per un tipo che non dichiara alcun segnale e' identica a
+   ShotTypeReadabilityPercent (nessuna sinergia dichiarata, nessun risultato da
+   stimare). */
+float ShotTypeSynergyResultReadabilityPercent(const ShotTypeDef *type);
+
+/* Vero se ShotTypeSynergyResultReadabilityPercent(type) <= SHOT_TYPE_READABILITY_MAX_PERCENT:
+   la STESSA soglia del singolo, perche' il budget di leggibilita' non si allarga
+   per le sinergie (synergies.md). Come ShotTypeReadabilityOk, e' solo un
+   predicato: chi valida decide se seguire la catena di fallback, mai come limare
+   il tipo di colpo. */
+bool ShotTypeSynergyResultReadabilityOk(const ShotTypeDef *type);
+
 /* Testo canonico <-> enum. Gli stessi testi che il modello scrive nel JSON
    (run.gbnf), che gen_manifest.c scrive nel manifest e che run_content.c
    rilegge: un solo elenco, qui, invece dei due elenchi paralleli che rarity/kind

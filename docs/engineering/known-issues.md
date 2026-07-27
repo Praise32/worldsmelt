@@ -10,7 +10,7 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-27
-last_verified_commit: f22770c
+last_verified_commit: 8210480
 topics: [difetti, limiti, test, rng, generazione, catalogo]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
@@ -228,32 +228,42 @@ coerenza "stesso mondo" sui piani successivi dipende dal modello e non e'
 misurata sistematicamente. Da rivalutare col 7B (non ancora misurato in modo
 strutturato su questo asse specifico).
 
-## 8 — Il pool curato minimo VERO di `melting-gen` non ha la garanzia di copertura DEC-144
+## 8 — RISOLTO (2026-07-27) — Il pool curato minimo VERO di `melting-gen` non aveva la garanzia di copertura DEC-144
 
-**Sintomo**: DEC-144 ("il pool curato minimo garantisce almeno un oggetto per
-rarita'") e' esplicitamente scoped al pool curato minimo di 20 oggetti di
+**Sintomo (storico)**: DEC-144 ("il pool curato minimo garantisce almeno un oggetto per
+rarita'") era esplicitamente scoped al pool curato minimo di 20 oggetti di
 DEC-087 (`docs/design/systems/generated-content-validation.md` riga ~226).
 Quel pool e' quello che `tools/melting-gen/gen_fallback.c` scrive su disco (5
-piani x 3 oggetti + 5 bossItem = 20): ogni oggetto tira la propria rarita'
+piani x 3 oggetti + 5 bossItem = 20): ogni oggetto tirava la propria rarita'
 individualmente con `GenRollRarity` (`tools/melting-gen/gen_util.c`, pesi
 DEC-019 `{55,30,12,3}`), senza alcuna garanzia di copertura -- una run
-generata da questo tool puo' legittimamente non contenere alcun oggetto
+generata da questo tool poteva legittimamente non contenere alcun oggetto
 leggendario (0,6 leggendari attesi su 20, per arrotondamento spesso 0).
 
-**Evidenza**: `tools/melting-gen/gen_fallback.c` (tiraggio per-oggetto senza
-chiamare l'equivalente di `ItemPoolMinimumCounts`); il lato motore
-(`src/gameplay/item_pool.c`, `ItemPoolMinimumCounts`) e il contenuto di
-ripiego del motore quando il tool non e' mai girato
-(`GenerateFallbackContent`, `src/content/run_content.c`) applicano invece
-DEC-144 correttamente sulle 15 posizioni normali dell'intera run -- la
-garanzia esiste quindi quando **manca del tutto** un manifest su disco, ma
-non quando il manifest e' stato scritto da `melting-gen` senza passare dalla
-garanzia di copertura.
+**Risolto durante il task "melting-gen emette e valida le 4 categorie"**:
+`GenFallbackRun` (`tools/melting-gen/gen_fallback.c`) ora precalcola la rarita' delle 15
+posizioni normali (bossItem escluso, tira sempre dai pesi boss come prima) con
+`GenRarityMinimumCounts` (garanzia di copertura, stessa forma di `ItemPoolMinimumCounts`
+ma duplicata ad-hoc in `gen_util.c` per non trascinare raylib dentro melting-gen via
+`core/game_types.h`) e le rimescola con un RNG dedicato (`GenShuffleInts`) fra tutte le
+posizioni della run, esattamente come gia' faceva `GenerateFallbackContent` lato motore.
+`GenNormalizeRun` eredita la stessa garanzia (la rarita' di ogni oggetto viene sempre dal
+fallback precalcolato, mai da un tiro indipendente). Golden file di regressione
+(`tests/melting-gen/golden-fallback-seed12345.txt`) rigenerato di conseguenza (nuovo
+consumo di RNG, atteso).
 
-**Stato**: non implementato in `tools/melting-gen`. Fuori scope dal lavoro
-che ha introdotto `ItemPoolMinimumCounts`/`ItemPoolDrawIndex` lato motore
-(2026-07-27), che tocca solo `src/`; la domanda aperta 10 di
-`docs/design/governance/open-questions.md` copre i numeri esatti del pool
-minimo per categoria ma non segnala questo gap di implementazione
-specifico. Backlog: portare la stessa funzione (o un suo equivalente) dentro
-`gen_fallback.c` prima di considerare DEC-144 chiusa end-to-end.
+**Verificato da** (`make test-gen`, tre asserzioni che riguardano proprio la garanzia che
+chiude il difetto -- non il generico "ogni valore e' uno dei 4 livelli" della fase 3b, che
+c'era gia' prima e sarebbe passato anche col difetto aperto):
+
+1. copertura sul seme 12345 (`for r in common uncommon rare legendary` sulle 15 posizioni
+   normali, gemello del ciclo sui kind);
+2. la stessa copertura su altri 7 semi (1, 2, 3, 7, 42, 100, 31337) -- e' una garanzia per
+   costruzione, non una probabilita', quindi deve reggere su ogni seme;
+3. `--taxonomy-check` (ramo senza modello ne' RNG di `tools/melting-gen/main.c`), che chiama
+   `GenRarityMinimumCounts` direttamente e ne confronta l'uscita con l'esempio **normativo**
+   del documento (pool da 20, pesi standard -> `{11,6,2,1}`) e col floor delle 15 posizioni
+   vere (`{9,4,1,1}`). Serve perche' nessun manifest esercita il pool da 20 di DEC-144:
+   senza questo ramo la copia dell'algoritmo dentro `melting-gen` e quella del motore
+   (`ItemPoolMinimumCounts`, verificata da `ItemPoolTestMinimumCounts` in `make test`)
+   potrebbero divergere con tutte le suite verdi.

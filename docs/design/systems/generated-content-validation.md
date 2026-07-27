@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087, con garanzia di almeno un oggetto per rarità DEC-144) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [validazione, fallback, sei stati, DEC-020, DEC-087, pool curato minimo, DEC-144, DEC-146, DEC-162]
 related: []
 supersedes: []
@@ -139,6 +139,24 @@ validato è il risultato di una sinergia implicita o di una fusione esplicita: q
 risultato ha un budget di potenza dedicato, più alto del budget di un singolo oggetto
 sorgente (DEC-162, dettaglio in [Synergies](synergies.md) e [item-fusion.md](item-fusion.md));
 il valore esatto di questo budget dedicato resta `draft`, da playtest.
+
+### Stato di implementazione — cosa gira oggi in `tools/melting-gen` (2026-07-27)
+
+Dei controlli minimi sopra, la validazione dei contenuti generati ne applica oggi tre in
+`gen_validate.c`, tutti con la **regola di fallback** di questo documento (contenuto
+respinto → equivalente curato/procedurale, run che prosegue), mai una correzione sul posto:
+
+| Controllo | Cosa verifica oggi | Se fallisce |
+|---|---|---|
+| Leggibilità visiva (DEC-146) | proxy di copertura schermo del tipo di colpo dichiarato, formula e soglia in [Combat and Projectiles](combat-and-projectiles.md#budget-di-leggibilità) (entrambe `draft`) | l'intero tipo di colpo ricade su quello procedurale del piano |
+| Budget di potenza — risultato (DEC-162) | lo stesso proxy applicato al **risultato** della sinergia che il tipo di colpo dichiara da sé (`chain`/`pierce`), perimetro e motivazione in [Synergies](synergies.md#budget-di-potenza-del-risultato) | come sopra |
+| Descrizione coerente con l'effetto | un oggetto `attivo` deve dichiarare cariche **o** cooldown ([Active Items](active-items.md)) | ripiego sul cooldown di riserva del motore, mai un attivo usabile a ogni frame |
+
+Il pool curato minimo (sotto) e la sua garanzia di copertura per rarità (DEC-144) non sono
+un controllo di validazione ma una garanzia di **composizione**: il generatore la applica
+prima, precalcolando le rarità dell'intera run, così nessun contenuto respinto può farla
+saltare. Gli altri controlli minimi (dipendenze circolari, compatibilità col piano,
+condizioni di completamento, originalità) restano `simulato` o coperti altrove.
 
 ## Risultato
 

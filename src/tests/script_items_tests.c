@@ -2863,6 +2863,95 @@ static bool TestSynergyDedicatedResultBudgetClampsTripleStack(void)
     return ok;
 }
 
+/* DEC-162, secondo pezzo: il RISULTATO di una sinergia che il CONTENUTO
+   dichiara da solo (un tipo di colpo generato con chain/pierce) deve stare nel
+   budget di LEGGIBILITA', che per le sinergie non si allarga mai
+   (docs/design/systems/synergies.md, "Limiti di leggibilita'"). Il controllo
+   vive in core/shot_type.c (ShotTypeSynergyResultReadabilityOk) perche' e' un
+   predicato puro sui parametri dichiarati, e lo consuma tools/melting-gen
+   (gen_validate.c, NormalizeShot) dove la conseguenza -- scartare il tipo
+   generato e ricadere sul procedurale -- e' ancora possibile.
+   Questo test tiene insieme le tre cose che possono rompersi in silenzio:
+   (1) la DUPLICAZIONE del numero: SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS e' una
+       copia a mano di quanto la tavola delle sinergie aggiunge ai pallettoni,
+       perche' core/shot_type.h non puo' includere gameplay/synergies.h (tira
+       dentro raylib, vietato: quel file lo compila anche melting-gen). Qui le
+       due copie si incontrano davvero, con la funzione vera del motore;
+   (2) la TERMINAZIONE della catena di ripiego: i tre tipi procedurali
+       (ShotTypeExample, gli stessi su cui ricade gen_validate.c) devono
+       superare sia il controllo del singolo sia quello del risultato --
+       altrimenti il ripiego rimbalzerebbe su un contenuto che non passa;
+   (3) la NON INERZIA del controllo: esiste un tipo di colpo, dentro le bande
+       di ShotTypeBalance, che passa il controllo DEC-146 del singolo e sfora
+       quello del risultato -- se non esistesse, il controllo non varrebbe
+       niente. */
+static bool TestSynergyResultReadabilityBudget(void)
+{
+    unsigned int fullMask = (1u << SYNERGY_COUNT) - 1u;
+    int tableExtra = SynergiesExtraPellets(fullMask);
+    bool constantMatchesTable = (tableExtra == SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS);
+
+    bool examplesOk = true;
+    for (int i = 0; i < SHOT_TYPE_EXAMPLE_COUNT; i++)
+    {
+        ShotTypeDef example;
+        ShotTypeExample(&example, i);
+        bool singleOk = ShotTypeReadabilityOk(&example);
+        bool resultOk = ShotTypeSynergyResultReadabilityOk(&example);
+        printf("  [AW] ripiego procedurale %d (\"%s\"): singolo %.2f%%, risultato %.2f%% (soglia %.0f%%)\n",
+               i, example.name, (double)ShotTypeReadabilityPercent(&example),
+               (double)ShotTypeSynergyResultReadabilityPercent(&example),
+               (double)SHOT_TYPE_READABILITY_MAX_PERCENT);
+        if (!singleOk || !resultOk) examplesOk = false;
+    }
+
+    /* Un tipo di colpo che dichiara una sinergia (chain > 0) e sta sotto la
+       soglia da solo, ma il cui risultato la sfora: pallettoni 2 -> 3 e' il
+       salto che lo porta oltre. Passa da ShotTypeBalance come qualunque tipo
+       inventato dal modello, quindi non e' un caso di laboratorio fuori banda. */
+    ShotTypeDef declaring;
+    memset(&declaring, 0, sizeof(declaring));
+    declaring.active = true;
+    snprintf(declaring.name, sizeof(declaring.name), "Scarica Larga");
+    declaring.form = SHOT_FORM_ARC;
+    declaring.speedMul = 1.0f; declaring.damageMul = 0.55f;
+    declaring.radiusMul = 1.2f; declaring.lifeMul = 1.2f;
+    declaring.pierceBonus = 0; declaring.chain = 1; declaring.pellets = 2;
+    ShotTypeBalance(&declaring);
+    bool declaresSignal = ShotTypeDeclaresSynergySignal(&declaring);
+    bool singlePasses = ShotTypeReadabilityOk(&declaring);
+    bool resultRejected = !ShotTypeSynergyResultReadabilityOk(&declaring);
+
+    /* Lo stesso tipo di colpo SENZA il segnale dichiarato: nessuna sinergia
+       dichiarata dal contenuto, nessun risultato da stimare -- il controllo
+       non deve scattare (altrimenti sarebbe una soglia piu' bassa per tutti,
+       non un controllo sul risultato di una sinergia). */
+    ShotTypeDef silent = declaring;
+    silent.chain = 0;
+    silent.pierceBonus = 0;
+    bool silentUntouched = !ShotTypeDeclaresSynergySignal(&silent) &&
+                           ShotTypeSynergyResultReadabilityOk(&silent) &&
+                           fabsf(ShotTypeSynergyResultReadabilityPercent(&silent) - ShotTypeReadabilityPercent(&silent)) < 0.0001f;
+
+    printf("  [AW] DEC-162: costante %d vs tavola sinergie %d | \"%s\" (chain=%d, pellets=%d) singolo %.2f%% -> risultato %.2f%%: dichiara=%s, singolo passa=%s, risultato scartato=%s | senza segnale intatto=%s\n",
+           SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS, tableExtra, declaring.name, declaring.chain, declaring.pellets,
+           (double)ShotTypeReadabilityPercent(&declaring), (double)ShotTypeSynergyResultReadabilityPercent(&declaring),
+           declaresSignal ? "si" : "NO", singlePasses ? "si" : "NO", resultRejected ? "si" : "NO",
+           silentUntouched ? "si" : "NO");
+
+    bool ok = constantMatchesTable && examplesOk && declaresSignal && singlePasses && resultRejected && silentUntouched;
+    if (!ok)
+    {
+        printf("      FALLITO: il budget del risultato (DEC-162) deve scartare un tipo di colpo che dichiara una sinergia il cui risultato sfora la leggibilita', lasciare intatto chi non ne dichiara, e i tre ripieghi procedurali devono superarlo entrambi\n");
+        if (!constantMatchesTable)
+        {
+            printf("      SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS (%d) non corrisponde piu' ai pelletBonus della tavola in src/gameplay/synergies.c (%d): allineare la costante in core/shot_type.h\n",
+                   SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS, tableExtra);
+        }
+    }
+    return ok;
+}
+
 bool ScriptItemsSelfTest(void)
 {
     struct { const char *label; bool (*fn)(void); } tests[] = {
@@ -2914,6 +3003,7 @@ bool ScriptItemsSelfTest(void)
         { "AT (ScriptItemsRemoveItem: compattazione items[]/itemScripts[] accoppiata, nessuna deriva, trait che si spengono)", TestRemoveItemCompactsAndLeavesNoDrift },
         { "AU (DEC-161: conflitto fra candidati multipli risolto dal seed di run, stabile nella run, puo' differire fra run)", TestSynergyConflictSeedStableAcrossRunDiffersAcrossSeeds },
         { "AV (DEC-162: budget dedicato al risultato di piu' sinergie simultanee, clampa senza mai crashare)", TestSynergyDedicatedResultBudgetClampsTripleStack },
+        { "AW (DEC-162: il RISULTATO di una sinergia dichiarata dal tipo di colpo resta nel budget di leggibilita')", TestSynergyResultReadabilityBudget },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

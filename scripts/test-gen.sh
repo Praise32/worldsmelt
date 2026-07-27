@@ -409,7 +409,7 @@ echo "-- esperimento due-modelli: --model-text non rompe --fallback --"
 # effetto -- ne' un crash, ne' il tentativo di aprire un modello che non
 # esiste: exit 0 e manifest scritto, come senza il flag.
 "$GEN" --fallback --model-text qualunque --seed 12345 --out "$TMP/model-text-fallback"
-grep -q "^floor5.item3.script=" "$TMP/model-text-fallback/current_run.txt" || {
+grep -q "^floor5.item3.name=" "$TMP/model-text-fallback/current_run.txt" || {
   echo "FALLITO: --fallback --model-text non ha scritto un manifest completo"; exit 1; }
 
 echo "-- determinismo fallback: stesso seed = stessi byte --"
@@ -425,7 +425,11 @@ if cmp -s "$TMP/a/current_run.txt" "$TMP/c/current_run.txt"; then
 fi
 
 echo "-- il manifest e' completo --"
-grep -q "^floor5.item3.script=" "$TMP/a/current_run.txt"
+# floor5.item3.name= (non .script=: da questa fase uno stat-up nel pool
+# normale non scrive quella riga, vedi piu' sotto -- .name= resta scritta
+# per OGNI categoria, quindi non dipende da quale kind e' capitato su
+# quest'oggetto per questo seed).
+grep -q "^floor5.item3.name=" "$TMP/a/current_run.txt"
 grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 
 # Fase 3 (tassonomia degli oggetti, docs/engineering/specs/2026-07-13-items-synergy-vision.md
@@ -434,19 +438,44 @@ grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 # quarto campo esplicito "bossItem". Round-trip attraverso il manifest di
 # testo, per ciascuno dei 5 piani.
 #
-# ATTENZIONE al vocabolario: "active" e' la parola che il GENERATORE scrive, ed
-# e' rimasta quella di sempre. Da quando il gioco ha le 4 categorie di
-# docs/design/systems/items-pools-and-rarity.md, quella parola viene letta come
-# categoria PASSIVA (ItemKindFromText, src/content/run_content.c): un attivo
-# vero deve dichiarare anche cariche o cooldown, cosa che questo manifest non
-# fa. Queste asserzioni verificano quindi cio' che il generatore SCRIVE, non la
-# categoria che il gioco ne deduce -- non "correggerle" allineandole ai nomi
-# nuovi senza cambiare prima il generatore.
-echo "-- fase 3: kind round-trips attraverso il manifest (oggetti del piano=active, boss=statup) --"
+# Task "melting-gen emette e valida le 4 categorie" (2026-07-27): items[1..3]
+# NON scrive piu' sempre "active" -- riceve un MIX delle 4 categorie
+# (docs/design/systems/items-pools-and-rarity.md) sulle 15 posizioni normali
+# dell'intera run, con garanzia di copertura (ciascuna delle 4 compare almeno
+# una volta, stile DEC-144, vedi GenKindMinimumCounts in gen_util.c). bossItem
+# resta invariato: sempre "statup".
+echo "-- fase 3/4-categorie: kind round-trips attraverso il manifest (mix sulle 15 posizioni normali, boss=statup) --"
+KIND_RE='^(passive|active|graft|statup)$'
+KINDS_SEEN=""
 for n in 1 2 3 4 5; do
   for i in 1 2 3; do
-    grep -q "^floor${n}.item${i}.kind=active$" "$TMP/a/current_run.txt" || {
-      echo "FALLITO: floor${n}.item${i}.kind non e' 'active'"; exit 1; }
+    line=$(grep "^floor${n}.item${i}.kind=" "$TMP/a/current_run.txt" || true)
+    [ -n "$line" ] || { echo "FALLITO: floor${n}.item${i}.kind mancante"; exit 1; }
+    kvalue="${line#*=}"
+    echo "$kvalue" | grep -Eq "$KIND_RE" || {
+      echo "FALLITO: floor${n}.item${i}.kind=$kvalue non e' una delle 4 categorie"; exit 1; }
+    KINDS_SEEN="$KINDS_SEEN $kvalue"
+
+    # Un attivo VERO dichiara cariche o cooldown (active-items.md); uno
+    # stat-up nel pool normale non ha comportamento mini-VM, stessa regola
+    # del bossItem: mai una riga ".script=".
+    if [ "$kvalue" = "active" ]; then
+      if ! grep -q "^floor${n}.item${i}.charges=" "$TMP/a/current_run.txt" \
+         && ! grep -q "^floor${n}.item${i}.cooldown=" "$TMP/a/current_run.txt"; then
+        echo "FALLITO: floor${n}.item${i} e' kind=active senza charges= ne' cooldown="; exit 1
+      fi
+    elif [ "$kvalue" = "statup" ]; then
+      if grep -q "^floor${n}.item${i}.script=" "$TMP/a/current_run.txt"; then
+        echo "FALLITO: floor${n}.item${i} e' kind=statup ma ha una riga .script="; exit 1
+      fi
+      # Bloccante round 0 (task "4 categorie"): uno stat-up non porta MAI il
+      # tipo di colpo del piano (items-pools-and-rarity.md, "senza
+      # comportamento nuovo") -- stessa regola gia' applicata al bossItem
+      # qui sotto, estesa al blocco .shot* del pool normale.
+      if grep -q "^floor${n}.item${i}.shotName=" "$TMP/a/current_run.txt"; then
+        echo "FALLITO: floor${n}.item${i} e' kind=statup ma porta un tipo di colpo (.shotName=)"; exit 1
+      fi
+    fi
   done
   grep -q "^floor${n}.bossItem.kind=statup$" "$TMP/a/current_run.txt" || {
     echo "FALLITO: floor${n}.bossItem.kind non e' 'statup'"; exit 1; }
@@ -457,6 +486,10 @@ for n in 1 2 3 4 5; do
     echo "FALLITO: floor${n}.bossItem ha una riga .script= (un oggetto stat-up non ha comportamento)"; exit 1
   fi
 done
+for k in passive active graft statup; do
+  echo "$KINDS_SEEN" | grep -qw "$k" || {
+    echo "FALLITO: nessun oggetto normale con kind=$k sulle 15 posizioni (garanzia di copertura del mix)"; exit 1; }
+done
 
 
 # Fase 3b (design doc, docs/engineering/specs/2026-07-13-pools-rarity-design.md
@@ -466,6 +499,7 @@ done
 # (stessa run --seed 12345 di sopra, $TMP/a).
 echo "-- fase 3b: rarity round-trips attraverso il manifest (uno dei 4 livelli per ogni item, boss sempre raro/leggendario) --"
 RARITY_RE='^(common|uncommon|rare|legendary)$'
+RARITIES_SEEN=""
 for n in 1 2 3 4 5; do
   for i in 1 2 3; do
     line=$(grep "^floor${n}.item${i}.rarity=" "$TMP/a/current_run.txt" || true)
@@ -473,6 +507,7 @@ for n in 1 2 3 4 5; do
     value="${line#*=}"
     echo "$value" | grep -Eq "$RARITY_RE" || {
       echo "FALLITO: floor${n}.item${i}.rarity=$value non e' uno dei 4 livelli"; exit 1; }
+    RARITIES_SEEN="$RARITIES_SEEN $value"
   done
   bline=$(grep "^floor${n}.bossItem.rarity=" "$TMP/a/current_run.txt" || true)
   [ -n "$bline" ] || { echo "FALLITO: floor${n}.bossItem.rarity mancante"; exit 1; }
@@ -480,6 +515,17 @@ for n in 1 2 3 4 5; do
   if [ "$bvalue" != "rare" ] && [ "$bvalue" != "legendary" ]; then
     echo "FALLITO: floor${n}.bossItem.rarity=$bvalue (atteso rare o legendary: il boss non delude mai)"; exit 1
   fi
+done
+# Bloccante round 1 (difetto 8 di docs/engineering/known-issues.md, chiuso da
+# questo task): la garanzia di COPERTURA DEC-144 sulle rarita' -- ciascuno dei 4
+# livelli compare almeno una volta sulle 15 posizioni normali della run, non solo
+# "ogni valore e' uno dei 4" verificato sopra. E' l'asserzione che chiude il
+# difetto: prima di GenRarityMinimumCounts/GenShuffleInts (gen_fallback.c) una run
+# poteva legittimamente non avere alcun leggendario (0,6 attesi su 20). Gemello
+# esatto del ciclo di copertura sui kind piu' sopra.
+for r in common uncommon rare legendary; do
+  echo "$RARITIES_SEEN" | grep -qw "$r" || {
+    echo "FALLITO: nessun oggetto normale con rarity=$r sulle 15 posizioni (garanzia di copertura DEC-144)"; exit 1; }
 done
 
 # Su piu' semi (non solo 12345): il boss e' SEMPRE raro/leggendario, mai
@@ -497,7 +543,34 @@ for seed in 1 2 3 7 42 100 31337; do
       echo "FALLITO: seed=$seed ha un bossItem.rarity=$b (atteso sempre rare/legendary)"; exit 1
     fi
   done
-  ACTIVE_RARITIES_SEEN="$ACTIVE_RARITIES_SEEN $(grep '^floor[0-9]\.item[0-9]\.rarity=' "$manifest" | sed 's/.*=//')"
+  seedRarities=$(grep '^floor[0-9]\.item[0-9]\.rarity=' "$manifest" | sed 's/.*=//')
+  ACTIVE_RARITIES_SEEN="$ACTIVE_RARITIES_SEEN $seedRarities"
+  # Bloccante round 1: la copertura DEC-144 vale su OGNI seme, non solo sul
+  # 12345 controllato sopra (e' una garanzia per costruzione, non una
+  # probabilita': GenRarityMinimumCounts assegna sempre {9,4,1,1} sulle 15
+  # posizioni e GenShuffleInts si limita a rimescolarle fra i piani).
+  for r in common uncommon rare legendary; do
+    echo "$seedRarities" | grep -qw "$r" || {
+      echo "FALLITO: seed=$seed non ha alcun oggetto normale con rarity=$r (garanzia di copertura DEC-144)"; exit 1; }
+  done
+  # Stessa cosa per le 4 categorie: la garanzia di mix (GenKindMinimumCounts)
+  # e' anch'essa per costruzione, quindi deve reggere su ogni seme.
+  seedKinds=$(grep '^floor[0-9]\.item[0-9]\.kind=' "$manifest" | sed 's/.*=//')
+  for k in passive active graft statup; do
+    echo "$seedKinds" | grep -qw "$k" || {
+      echo "FALLITO: seed=$seed non ha alcun oggetto normale con kind=$k (garanzia di copertura del mix)"; exit 1; }
+  done
+  # Bloccante round 0 (task "4 categorie"): su NESSUN seme il portatore del
+  # tipo di colpo del piano e' uno stat-up -- il seme 12345 da solo non
+  # esercita tutte le combinazioni possibili del mix di kind sulle 15
+  # posizioni, questo giro su 7 semi si'.
+  for n in 1 2 3 4 5; do
+    owner=$(grep "^floor${n}\.item[0-9]\.shotName=" "$manifest" | sed 's/^floor[0-9]\.\(item[0-9]\)\..*/\1/')
+    [ -n "$owner" ] || { echo "FALLITO: seed=$seed floor${n} non ha un portatore del tipo di colpo"; exit 1; }
+    ownerKind=$(grep "^floor${n}\.${owner}\.kind=" "$manifest" | sed 's/.*=//')
+    [ "$ownerKind" != "statup" ] || {
+      echo "FALLITO: seed=$seed floor${n}.${owner} porta il tipo di colpo ma e' kind=statup"; exit 1; }
+  done
 done
 distinctActive=$(echo "$ACTIVE_RARITIES_SEEN" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l)
 if [ "$distinctActive" -lt 2 ]; then
@@ -521,6 +594,13 @@ for n in 1 2 3 4 5; do
     echo "FALLITO: floor${n}.bossItem ha un tipo di colpo (uno stat-up non cambia il modo di sparare)"; exit 1
   fi
   owner=$(grep "^floor${n}\.item[0-9]\.shotName=" "$TMP/a/current_run.txt" | sed 's/^floor[0-9]\.\(item[0-9]\)\..*/\1/')
+  # Bloccante round 0 (task "4 categorie"): il portatore del tipo di colpo non
+  # e' mai uno stat-up (items-pools-and-rarity.md, "senza comportamento
+  # nuovo") -- stessa regola gia' applicata sopra al bossItem, ora sul
+  # portatore effettivo del pool normale.
+  ownerKind=$(grep "^floor${n}\.${owner}\.kind=" "$TMP/a/current_run.txt" | sed 's/.*=//')
+  [ "$ownerKind" != "statup" ] || {
+    echo "FALLITO: floor${n}.${owner} porta il tipo di colpo ma e' kind=statup"; exit 1; }
   # Tutte le manopole devono esserci sull'oggetto che porta il tipo: un tipo di
   # colpo a meta' (nome ma niente forma, o forma ma niente numeri) verrebbe
   # ricostruito dal gioco coi valori neutri, cioe' sarebbe un colpo base con un
@@ -564,7 +644,7 @@ grep -q '^atlas.path=generated/current_atlas.png$' "$TMP/b2/current_run.txt" || 
   echo "FALLITO: la ripresa ha perso l'atlas PNG degli sprite (atlas.path riscritto sul BMP di riserva)"; exit 1; }
 grep -q '^floor1.item1.lua=generated/scripts/floor1_item1.lua$' "$TMP/b2/current_run.txt" || {
   echo "FALLITO: la ripresa ha perso la riga .lua= di uno script gia' generato"; exit 1; }
-grep -q '^floor5.item3.script=' "$TMP/b2/current_run.txt" || {
+grep -q '^floor5.item3.name=' "$TMP/b2/current_run.txt" || {
   echo "FALLITO: la ripresa ha prodotto un manifest incompleto"; exit 1; }
 # La ripresa NON deve toccare i CONTENUTI della run. Il controllo confrontava solo
 # "floor1.theme=", che era un falso verde (trovato in review): il tema del piano 1
@@ -674,14 +754,87 @@ fi
 echo "-- corpus JSON rotti: normalizzati senza crash, manifest completo --"
 for f in tests/melting-gen/bad/*.json; do
   "$GEN" --from-json "$f" --seed 7 --out "$TMP/bad"
-  grep -q "^floor5.item3.script=" "$TMP/bad/current_run.txt" || { echo "FALLITO su $f"; exit 1; }
+  grep -q "^floor5.item3.name=" "$TMP/bad/current_run.txt" || { echo "FALLITO su $f"; exit 1; }
 done
 
 echo "-- normalizzazioni puntuali --"
+# NOTA (task "4 categorie"): questi due controlli presumono che floor1.item1
+# non sia kind=statup per --seed 7 (verificato: e' "passive" -- vedi
+# GenKindMinimumCounts/il precalcolo in GenFallbackRun, gen_fallback.c). Uno
+# stat-up non scrive mai ".script=": se una futura modifica ai pesi/salti del
+# mix di kind spostasse floor1.item1 su statup per questo seed, questi due
+# grep tornerebbero a vuoto (script assente) e andrebbero aggiornati insieme
+# a quel cambio, non "corretti" alla cieca.
 "$GEN" --from-json tests/melting-gen/bad/wrong-op-pair.json --seed 7 --out "$TMP/n1"
 grep -q "^floor1.item1.script=on_fire:burst,2,1.2,homing$" "$TMP/n1/current_run.txt"
 "$GEN" --from-json tests/melting-gen/bad/out-of-range.json --seed 7 --out "$TMP/n2"
 grep -q "^floor1.item1.script=on_fire:burst,6,1.2,split|on_hit:heal,60,2,vamp$" "$TMP/n2/current_run.txt"
+
+# Bloccante round 1: i tre rami di validazione introdotti dal task "4
+# categorie" non erano esercitati da NESSUNA suite (ne' qui ne' con un modello
+# vero: il corpus bad/ non conteneva alcun oggetto "shot"). Il fixture
+# shot-over-budget.json li accende tutti e tre in una sola run --from-json, sul
+# seme 7, di cui si conoscono i kind precalcolati (floor3.item3 = statup, vedi
+# il commento sopra e --taxonomy-check).
+echo "-- validazione dei tipi di colpo: DEC-146 (singolo), DEC-162 (risultato della sinergia dichiarata), shotItem su uno stat-up --"
+"$GEN" --from-json tests/melting-gen/bad/shot-over-budget.json --seed 7 --out "$TMP/shotbudget"
+SB="$TMP/shotbudget/current_run.txt"
+# (1) DEC-146: piano 1 dichiara size 3.0 / pellets 5 / life 3.0 -> clampati a
+# 2.5/3/2.0 dalle bande di ShotTypeClamp, cioe' ~112% di schermo stimato contro
+# una soglia di 18: l'INTERO tipo va scartato e sostituito con quello
+# procedurale del piano, quindi il nome inventato non deve comparire da nessuna
+# parte nel manifest.
+if grep -q "shotName=Muraglia Abbagliante" "$SB"; then
+  echo "FALLITO: il tipo di colpo del piano 1 supera la soglia DEC-146 ma e' finito nel manifest"; exit 1
+fi
+grep -q "^floor1.item1.shotName=Beam$" "$SB" || {
+  echo "FALLITO: il piano 1 non e' ricaduto sul tipo di colpo procedurale dopo lo scarto DEC-146"; exit 1; }
+# (2) DEC-162: piano 2 dichiara chain=1 (meta' di una coppia canonica) con
+# pellets=2 -- sotto la soglia da solo (~12,7%), sopra col pallettone che il
+# RISULTATO della sinergia aggiunge (~19%). Stesso scarto, stesso ripiego.
+if grep -q "shotName=Scarica Larga" "$SB"; then
+  echo "FALLITO: il tipo di colpo del piano 2 sfora il budget del risultato (DEC-162) ma e' finito nel manifest"; exit 1
+fi
+# (3) shotItem su una posizione che il precalcolo dei kind ha reso stat-up
+# (floor3.item3 al seme 7): il tipo di colpo -- valido, quindi NON scartato --
+# deve traslocare sulla prima posizione non-statup, mai restare sullo stat-up.
+grep -q "^floor3.item1.shotName=Scheggia Sottile$" "$SB" || {
+  echo "FALLITO: shotItem=3 (stat-up) non e' stato spostato sul primo oggetto non-statup del piano 3"; exit 1; }
+if grep -q "^floor3.item3.shot" "$SB"; then
+  echo "FALLITO: floor3.item3 e' kind=statup e porta comunque un blocco .shot*"; exit 1
+fi
+grep -q "^floor3.item3.kind=statup$" "$SB" || {
+  echo "FALLITO: il fixture presume floor3.item3=statup al seme 7 (vedi --taxonomy-check); i kind precalcolati sono cambiati"; exit 1; }
+
+# Bloccante round 1: le garanzie di tassonomia sono funzioni pure che nessun
+# manifest esercita al valore normativo del documento (melting-gen emette 15
+# posizioni, DEC-144 cita un pool da 20) e il ripiego cariche/cooldown non e'
+# raggiungibile da un --from-json (kind e ricarica vengono SEMPRE dal fallback).
+# Il ramo --taxonomy-check le chiama direttamente, senza modello ne' RNG.
+echo "-- --taxonomy-check: floor di rarita' DEC-144 (esempio normativo del documento) e ripiego cariche/cooldown --"
+"$GEN" --taxonomy-check > "$TMP/taxonomy.txt"
+# Esempio normativo di docs/design/systems/generated-content-validation.md
+# (pool curato minimo di 20 oggetti, pesi standard): lo STESSO {11,6,2,1} che
+# ItemPoolTestMinimumCounts verifica sulla copia lato motore dentro make test.
+grep -q "^rarity.pool20=11,6,2,1$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: GenRarityMinimumCounts(20) non produce l'esempio normativo {11,6,2,1} del documento"; cat "$TMP/taxonomy.txt"; exit 1; }
+# Il pool VERO che questo tool emette: 15 posizioni normali, ogni rarita' e
+# ogni categoria presente almeno una volta (e' cio' che i due cicli di
+# copertura piu' sopra osservano dal manifest, qui alla fonte).
+grep -q "^rarity.run=9,4,1,1$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: il floor di rarita' delle 15 posizioni normali e' cambiato"; cat "$TMP/taxonomy.txt"; exit 1; }
+grep -q "^kind.run=8,3,2,2$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: il mix delle 4 categorie sulle 15 posizioni normali e' cambiato"; cat "$TMP/taxonomy.txt"; exit 1; }
+grep -q "^rarity.boss=0,0,4,1$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: i 5 bossItem non sono piu' tutti raro/leggendario"; cat "$TMP/taxonomy.txt"; exit 1; }
+# Difetto di contenuto "kind=active senza cariche ne' cooldown" (active-items.md):
+# ripiego sul cooldown di riserva del motore (GEN_ACTIVE_DEFAULT_COOLDOWN = 12s,
+# stesso numero di ITEM_ACTIVE_DEFAULT_COOLDOWN lato gioco), mai un attivo
+# usabile a ogni frame. Una categoria diversa con gli stessi zeri resta intatta.
+grep -q "^recharge.active.cooldown=12.00$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: un kind=active senza cariche ne' cooldown non ricade sul cooldown di riserva"; cat "$TMP/taxonomy.txt"; exit 1; }
+grep -q "^recharge.passive.cooldown=0.00$" "$TMP/taxonomy.txt" || {
+  echo "FALLITO: il ripiego cariche/cooldown ha toccato un oggetto che non e' kind=active"; cat "$TMP/taxonomy.txt"; exit 1; }
 
 echo "-- JSON non parsabile -> exit 4 --"
 set +e

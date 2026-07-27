@@ -1024,8 +1024,20 @@ void GenLuaGenerateForRun(GenLlmSession *sess, GenRun *run, const char *promptsD
         for (int i = 0; i < GEN_ITEMS; i++)
         {
             itemNum++;
+            /* Task "4 categorie": items[] non e' piu' sempre "attivo" nel
+               senso del prompt Lua (on_fire/on_hit/on_tick) -- un oggetto di
+               questo slot puo' essere kind=statup (DEC-035, "gli stat-up
+               compaiono anche nei pool normali"), che nel dominio del
+               cheat-sheet Lua e' l'ALTRA categoria (solo on_evaluate, mai un
+               comportamento): instradarlo comunque sul template/gate
+               "attivo" gli farebbe scrivere on_fire/on_hit/on_tick per un
+               oggetto la cui riga ".script=" WriteManifest non scrivera' mai
+               (gen_manifest.c decide in base al kind, non a opCount -- vedi
+               il commento li'), sprecando il tentativo su un comportamento
+               che il giocatore non vedra' comunque. */
+            bool isStatUpSlot = strcmp(floor->items[i].kind, "statup") == 0;
             GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, nPrefix, run->seed, floor->theme,
-                                   &floor->items[i], false, itemNum, totalItems, stats);
+                                   &floor->items[i], isStatUpSlot, itemNum, totalItems, stats);
         }
         itemNum++;
         GenLuaGenerateOneItem(sess, promptsDir, outDir, deadline, nPrefix, run->seed, floor->theme,

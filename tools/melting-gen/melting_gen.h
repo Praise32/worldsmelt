@@ -128,13 +128,19 @@ typedef struct GenScriptOp {
  * ogni tentativo Lua fallito). */
 #define GEN_LUA_LEN 2000
 
-/* "active" | "statup" (vedi GEN_KINDS in gen_util.c): mai scritto dal
- * modello (non fa parte della grammatica JSON, run.gbnf), sempre deciso in C
- * -- "active" per ogni GenItem dentro items[] (assegnato in
- * GenNormalizeRun/GenFallbackRun), "statup" per bossItem sotto. Esiste
- * comunque come campo testuale (non un bool) per lo stesso motivo di
- * slot/traits: e' cio' che gen_manifest.c scrive alla lettera nel manifest,
- * e cio' che run_content.c rilegge con lo stesso schema chiave=valore. */
+/* "passive" | "active" | "graft" | "statup" (vedi GEN_KINDS in gen_util.c,
+ * DEC-011/DEC-035, docs/design/systems/items-pools-and-rarity.md): la
+ * tassonomia completa a 4 categorie. MAI scritto dal modello (non fa parte
+ * della grammatica JSON, run.gbnf), sempre deciso in C -- una delle 4 per
+ * ogni GenItem dentro items[] (GenFallbackRun assegna un MIX delle 4 sulle
+ * 15 posizioni normali dell'intera run con garanzia di copertura in stile
+ * DEC-144, vedi GenKindMinimumCounts in gen_util.c; GenNormalizeRun in
+ * gen_validate.c la copia pari pari, come gia' fa per 'rarity'), sempre
+ * "statup" per bossItem sotto (invariato). Esiste comunque come campo
+ * testuale (non un bool/enum) per lo stesso motivo di slot/traits: e' cio'
+ * che gen_manifest.c scrive alla lettera nel manifest, e cio' che
+ * ItemKindFromText (src/content/run_content.c) rilegge con lo stesso
+ * schema chiave=valore. */
 typedef struct GenItem {
     char name[48];      /* stesso limite di Item.name in game_types.h */
     char slot[8];       /* uno dei GEN_SLOTS */
@@ -153,7 +159,34 @@ typedef struct GenItem {
     GenScriptOp ops[GEN_MAX_OPS];
     int opCount;        /* 1..3; sempre 0 per un oggetto stat-up (nessun comportamento mini-VM, vedi bossItem) */
     char lua[GEN_LUA_LEN];
+    /* Ricarica dell'attivo (active-items.md, "Come si attivano e ricaricano"):
+     * significativi SOLO quando kind=="active", 0 per ogni altra categoria
+     * (0/0 e' anche lo zero-default di un GenItem azzerato, coerente con lo
+     * schema "0 = non dichiarato" di Item.charges/cooldown in
+     * core/game_types.h). Le cariche VINCONO se entrambe fossero > 0 (stessa
+     * regola del lato gioco, ItemActiveIsChargeBased): qui pero' e' sempre il
+     * C a decidere ESATTAMENTE uno dei due (GenFallbackRun), mai entrambi.
+     * MAI scritti dal modello (non fanno parte di run.gbnf): sono un budget
+     * di bilanciamento, stesso trattamento di kind/rarity. */
+    int charges;        /* capienza in cariche, GEN_ACTIVE_CHARGES_MIN..MAX; 0 = non a cariche */
+    float cooldown;     /* secondi di attesa, GEN_ACTIVE_COOLDOWN_MIN..MAX; 0 = non a cooldown */
 } GenItem;
+
+/* Bande di sicurezza per la ricarica di un attivo (active-items.md, "Bande di
+ * sicurezza"): STESSI valori del lato gioco (item_slots.h non le espone come
+ * define, solo come prosa nel documento di design; qui servono per generare
+ * numeri sensati, non per clampare in lettura -- quel clamp e' compito del
+ * gioco). GEN_ACTIVE_DEFAULT_COOLDOWN duplica alla lettera
+ * ITEM_ACTIVE_DEFAULT_COOLDOWN (src/gameplay/item_slots.h): stesso numero,
+ * stesso motivo di ogni altra costante duplicata a mano in questo file
+ * (melting_gen.h non include mai core/game_types.h, vedi il commento in
+ * cima). Usata da GenValidateItemRecharge (gen_validate.c) quando un oggetto
+ * kind=active risultasse, per difetto, senza cariche ne' cooldown. */
+#define GEN_ACTIVE_CHARGES_MIN 1
+#define GEN_ACTIVE_CHARGES_MAX 12
+#define GEN_ACTIVE_COOLDOWN_MIN 0.5f
+#define GEN_ACTIVE_COOLDOWN_MAX 90.0f
+#define GEN_ACTIVE_DEFAULT_COOLDOWN 12.0f
 
 typedef struct GenFloor {
     char theme[64];
@@ -317,8 +350,63 @@ unsigned long long GenFnv1a64(unsigned long long hash, const void *data, size_t 
 int GenPromptsFnv(const char *promptsDir, unsigned long long *out);
 extern const char *GEN_SLOTS[6];
 extern const char *GEN_TRAITS[9];
-extern const char *GEN_KINDS[2];   /* "active", "statup": vedi il commento su GenItem.kind sopra */
+#define GEN_KIND_COUNT 4
+extern const char *GEN_KINDS[GEN_KIND_COUNT];   /* "passive","active","graft","statup": vedi il commento su GenItem.kind sopra */
 const GenTraitRule *GenTraitRuleFor(const char *trait);   /* NULL se sconosciuto */
+
+/* Garanzia di copertura generica (stile DEC-144, vedi ItemPoolMinimumCounts
+ * in src/gameplay/item_pool.c): dato un pool di 'poolSize' posizioni e una
+ * tabella di 4 pesi, calcola quanti oggetti di CIASCUNA delle 4 categorie
+ * (rarita' O kind: l'algoritmo non sa quale delle due tassonomie sta
+ * distribuendo) quel pool deve contenere -- pesi per proporzione
+ * (arrotondamento per difetto), poi ogni categoria a peso > 0 rimasta a zero
+ * viene portata a 1 (mai una categoria a peso 0), l'eccedenza necessaria
+ * tolta prima dal residuo di arrotondamento poi dalle categorie piu' comuni
+ * (indice piu' basso), il totale resta SEMPRE 'poolSize'.
+ *
+ * DUPLICA ad hoc l'algoritmo di ItemPoolMinimumCounts invece di linkare
+ * quel modulo: src/gameplay/item_pool.h include core/game_types.h, che
+ * include raylib.h -- esattamente cio' che melting_gen.h non fa mai di
+ * proposito (vedi il commento in cima a questo file). Stesso trattamento
+ * manuale di GEN_RARITIES/RarityFromText: se l'algoritmo cambia la',
+ * va cambiato anche qui. La copia NON e' lasciata alla buona volonta': il ramo
+ * "--taxonomy-check" di main.c chiama QUESTE funzioni (nessun modello, nessun
+ * RNG) e ne stampa i numeri, e scripts/test-gen.sh li confronta con l'esempio
+ * NORMATIVO del documento -- poolSize=20, pesi standard -> {11,6,2,1}, lo
+ * stesso numero che ItemPoolTestMinimumCounts verifica sulla copia lato motore
+ * dentro make test. Senza quel ramo le due copie potrebbero divergere con tutte
+ * le suite verdi: melting-gen non emette mai un pool da 20 (usa le 15 posizioni
+ * normali della run), quindi nessun manifest lo esercita. */
+void GenPoolMinimumCounts(int poolSize, const int weights[GEN_KIND_COUNT], int outCounts[GEN_KIND_COUNT]);
+/* GenPoolMinimumCounts sopra, con la tabella di pesi di rarita' giusta
+ * (isBoss sceglie fra tesoro/negozio e boss, stessa tabella di
+ * GenRollRarity). */
+void GenRarityMinimumCounts(int poolSize, int isBoss, int outCounts[4]);
+/* GenPoolMinimumCounts sopra, con la tabella di pesi del MIX di categorie
+ * (GEN_KIND_WEIGHTS_NORMAL in gen_util.c): "default proposto
+ * dall'implementazione" (stile DEC-019), da confermare col playtest -- vedi
+ * la domanda aperta annotata durante questa fase. */
+void GenKindMinimumCounts(int poolSize, int outCounts[GEN_KIND_COUNT]);
+/* Fisher-Yates su 'arr' (n elementi): usata per rimescolare le 15 rarita'/
+ * i 15 kind gia' calcolati da GenPoolMinimumCounts fra tutte le posizioni
+ * della run, con un RNG DEDICATO (mai quello del contenuto procedurale: vedi
+ * il commento su GenFallbackRun in melting_gen.h, "il golden file non deve
+ * cambiare per un ramo che non lo tocca" -- qui invece lo tocca di
+ * proposito, e' un nuovo consumo di stream). */
+void GenShuffleInts(unsigned int *rng, int *arr, int n);
+
+/* Validazione (Task "melting-gen emette e valida le 4 categorie"): un
+ * oggetto kind=="active" DEVE dichiarare cariche o cooldown (active-
+ * items.md); se risultasse con entrambi a 0 (mai il caso oggi -- GenFallbackRun
+ * assegna sempre esattamente uno dei due a ogni oggetto kind=active -- ma
+ * questa funzione resta la garanzia esplicita, difesa in profondita' contro
+ * un futuro bug o un --from-json scritto a mano), e' un DIFETTO di
+ * contenuto: si ricade sul GEN_ACTIVE_DEFAULT_COOLDOWN documentato (stesso
+ * numero di ITEM_ACTIVE_DEFAULT_COOLDOWN lato gioco), mai su un oggetto
+ * "active" inutilizzabile a ogni frame. No-op per ogni categoria diversa da
+ * "active" o per un oggetto gia' conforme. Logga (GenLogLine) quando
+ * interviene, mai silenzioso. */
+void GenValidateItemRecharge(GenItem *item);
 
 /* Rarita' (fase 3b design doc, sezioni 1-3): MODIFICA QUI (gen_util.c) per
  * ribilanciare/espandere. GEN_RARITIES e' l'ordine canonico (indice 0..3 =

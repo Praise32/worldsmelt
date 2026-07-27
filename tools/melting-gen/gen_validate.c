@@ -181,6 +181,25 @@ static const char *PreferredOpForTraits(const GenItem *item)
     return rule ? rule->op : "projectile";
 }
 
+/* DEC-162 (docs/design/systems/synergies.md#budget-di-potenza-del-risultato) e i
+ * campi 'a'/'b' della mini-VM: NON si allarga niente qui. Il budget di POTENZA
+ * dedicato al risultato di una sinergia e' garanzia a runtime
+ * (ScriptItemsClampSynergyResultDelta, src/script/script_items.c), che agisce
+ * sulle statistiche del giocatore risultanti, non sui singoli campi scritti qui.
+ * Un allargamento gemello di OP_BOUNDS in QUESTO file (tentato in una revisione
+ * precedente per il caso di un singolo oggetto che dichiara gia' da solo una
+ * coppia di trait canonica) e' stato tolto perche' dimostrabilmente INERTE su
+ * due fronti: il motore clampa comunque 'a'/'b' alle bande base in esecuzione
+ * (src/gameplay/script_vm.c, stessi numeri di OP_BOUNDS sotto), e una sinergia
+ * non si accende MAI da un oggetto solo (SignalPresent/excludeItem in
+ * src/gameplay/synergies.c: "una sinergia e' fra DUE oggetti diversi"), quindi
+ * quel caso non produce nemmeno il risultato di cui allargava il budget.
+ * Il controllo DEC-162 che gira davvero a tempo di generazione e' un altro, ed
+ * e' in NormalizeShot sotto: il RISULTATO di una sinergia che il tipo di colpo
+ * generato dichiara da solo (chain/pierce) deve stare nel budget di
+ * LEGGIBILITA', che per le sinergie non si allarga -- l'unico pezzo del
+ * risultato che nessuna garanzia a runtime copre. */
+
 static void NormalizeScriptOp(const cJSON *rawOp, const GenItem *item, GenScriptOp *out)
 {
     const char *rawTrigger = JsonString(rawOp, "trigger");
@@ -266,7 +285,7 @@ static void NormalizeScript(const cJSON *rawScript, const GenItem *fbItem, GenIt
    riporta il tipo dentro la banda di potenza qualunque numero il modello abbia
    scritto. E' la ragione per cui si puo' lasciare che sia un 7B a inventare i
    modi di sparare: la creativita' e' sua, l'equilibrio e' del C. */
-static void NormalizeShot(const cJSON *rawFloor, const GenFloor *fbFloor, GenFloor *floor)
+static void NormalizeShot(const cJSON *rawFloor, const GenFloor *fbFloor, GenFloor *floor, int floorNum)
 {
     const cJSON *rawShot = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "shot") : NULL;
 
@@ -303,11 +322,87 @@ static void NormalizeShot(const cJSON *rawFloor, const GenFloor *fbFloor, GenFlo
         floor->shot = type;
     }
 
+    /* Proxy di leggibilita' (DEC-146, core/shot_type.h): verificato SEMPRE, sia il
+       ramo del modello sia quello procedurale sopra. DEC-146 e' esplicito sulla
+       conseguenza di uno sforamento: "un contenuto che la supera NON PASSA LA
+       VALIDAZIONE e segue la normale catena di fallback" -- non una riparazione
+       sul posto. Riparare sul posto (tagliare pellets poi radiusMul) uscirebbe
+       dalla banda di potenza gia' garantita da ShotTypeBalance qui sopra SENZA
+       rigirare quel bilanciamento, con l'effetto di far divergere il manifest
+       (che dichiarerebbe il tipo riparato) da quello che gioco vedrebbe: qui si
+       segue invece alla lettera la catena di fallback prevista, come per ogni
+       altro campo di questo file -- l'intero tipo di colpo, non solo il campo
+       fuori banda, ricade su quello procedurale del piano (fbFloor->shot, gia'
+       verificato dentro budget per costruzione, vedi il commento in
+       GenFallbackRun). Il ramo procedurale sopra (floor->shot = fbFloor->shot)
+       supera sempre questo controllo per lo stesso motivo, quindi il ramo "sia
+       il ramo del modello sia quello procedurale" resta vero senza bisogno di un
+       caso speciale qui. */
+    if (!ShotTypeReadabilityOk(&floor->shot))
+    {
+        GenLogLine("piano %d: il tipo di colpo generato (\"%s\", %.1f%% di leggibilita' stimata) supera la soglia DEC-146 -> sostituito con quello procedurale",
+                   floorNum, floor->shot.name, (double)ShotTypeReadabilityPercent(&floor->shot));
+        floor->shot = fbFloor->shot;
+    }
+
+    /* Budget del RISULTATO di una sinergia DICHIARATA dal contenuto (DEC-162,
+       docs/design/systems/synergies.md#budget-di-potenza-del-risultato). Il
+       controllo vero e la sua motivazione stanno in core/shot_type.h (blocco
+       SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS); qui c'e' la CONSEGUENZA, che e'
+       la stessa del controllo DEC-146 sopra e per lo stesso motivo: si scarta
+       l'intero tipo di colpo e si ricade su quello procedurale del piano, mai
+       una riparazione sul posto. In due parole: un tipo di colpo che dichiara
+       chain/pierce dichiara meta' di una coppia canonica, e cio' che il
+       giocatore vedra' a schermo quando la coppia si accende non e' il tipo di
+       colpo ma il RISULTATO (piu' pallettoni, sommati a runtime senza alcun
+       tetto di leggibilita': combat.c taglia solo a 5). Il risultato sta sotto
+       la STESSA soglia del singolo, non una piu' larga: DEC-162 alza il budget
+       di POTENZA (garantito a runtime da ScriptItemsClampSynergyResultDelta),
+       mai quello di leggibilita'.
+       Il ripiego non puo' rimbalzare su se' stesso: i tre tipi procedurali
+       (ShotTypeExample) stanno abbondantemente sotto la soglia anche col
+       risultato stimato -- verificato da TestSynergyResultReadabilityBudget
+       (test AW di src/tests/script_items_tests.c, 'make test-script'), che
+       stampa i tre valori e fallisce se un domani un esempio o la formula li
+       portasse oltre. */
+    if (!ShotTypeSynergyResultReadabilityOk(&floor->shot))
+    {
+        GenLogLine("piano %d: il tipo di colpo generato (\"%s\") dichiara una sinergia (chain/pierce) il cui RISULTATO stimato e' %.1f%% > soglia DEC-146 -> budget del risultato DEC-162 sforato, sostituito con quello procedurale",
+                   floorNum, floor->shot.name, (double)ShotTypeSynergyResultReadabilityPercent(&floor->shot));
+        floor->shot = fbFloor->shot;
+    }
+
     /* Quale dei tre oggetti attivi lo conferisce (1..3). Fuori range o assente ->
        il primo: sempre un oggetto vero, mai un indice che non esiste. */
     int ok = 0;
     int idx = (int)JsonNumber(rawFloor, "shotItem", (double)fbFloor->shotItem, &ok);
     if (idx < 1 || idx > GEN_ITEMS) idx = 1;
+    /* Task "4 categorie" (bloccante round 0): uno stat-up non porta MAI il tipo
+       di colpo del piano (items-pools-and-rarity.md: "senza comportamento
+       nuovo"), stessa regola gia' applicata al bossItem (scripts/test-gen.sh).
+       'kind' non e' ancora stato normalizzato per gli item di QUESTO piano a
+       questo punto della funzione (il ciclo sugli item gira dopo, in
+       GenNormalizeRun) ma e' comunque leggibile con certezza da fbFloor: kind
+       si prende SEMPRE dal precalcolo di copertura del fallback (mai dal
+       JSON), quindi fbFloor->items[i].kind e' gia' il valore finale che
+       floor->items[i].kind avra' fra poco. Se la posizione scelta (dal modello
+       o dal ripiego) risolve a statup, si ricade sulla prima posizione
+       non-statup del piano -- lo stesso identico rimedio di GenFallbackRun
+       sopra, mai una posizione inventata. */
+    if (strcmp(fbFloor->items[idx - 1].kind, "statup") == 0)
+    {
+        int fallbackIdx = idx;
+        for (int j = 0; j < GEN_ITEMS; j++)
+        {
+            if (strcmp(fbFloor->items[j].kind, "statup") != 0) { fallbackIdx = j + 1; break; }
+        }
+        if (fallbackIdx != idx)
+        {
+            GenLogLine("piano %d: shotItem=%d e' uno stat-up (mai il tipo di colpo) -> spostato su item%d",
+                       floorNum, idx, fallbackIdx);
+        }
+        idx = fallbackIdx;
+    }
     floor->shotItem = idx;
 }
 
@@ -476,7 +571,7 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, const GenCh
         CopyColor(floor->accent2, sizeof(floor->accent2), JsonString(rawFloor, "accent2"), fbFloor->accent2);
         CopyColor(floor->enemy, sizeof(floor->enemy), JsonString(rawFloor, "enemy"), fbFloor->enemy);
         CopyColor(floor->bossColor, sizeof(floor->bossColor), JsonString(rawFloor, "bossColor"), fbFloor->bossColor);
-        NormalizeShot(rawFloor, fbFloor, floor);
+        NormalizeShot(rawFloor, fbFloor, floor, f + 1);
 
         /* Tipi di nemico del piano (fase 3b): due normali + il boss. */
         const cJSON *rawFoes = rawFloor ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawFloor, "enemies") : NULL;
@@ -506,19 +601,40 @@ void GenNormalizeRun(const struct cJSON *rawRoot, unsigned int seed, const GenCh
             snprintf(item->slot, sizeof(item->slot), "%s", slotOk ? slot : fbItem->slot);
             NormalizeTraits(rawItem ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawItem, "traits") : NULL, fbItem, item);
             CopyColor(item->color, sizeof(item->color), JsonString(rawItem, "color"), fbItem->color);
-            NormalizeScript(rawItem ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawItem, "script") : NULL, fbItem, item);
-            /* "kind" non fa parte della grammatica JSON (run.gbnf): i tre
-               oggetti di items[] sono SEMPRE attivi, deciso qui in C, mai dal
-               modello (vedi il commento su GenItem.kind in melting_gen.h). */
-            snprintf(item->kind, sizeof(item->kind), "active");
-            /* Rarita' (fase 3b): stesso trattamento di "kind" sopra, e per lo
-               stesso motivo -- il pool (quindi la rarita') e' una decisione
-               di design/bilanciamento, non creativita' del modello: non fa
-               parte della grammatica JSON, si prende SEMPRE dal fallback
-               procedurale (gia' tirato dalla tabella di pesi tesoro/negozio
-               in GenFallbackRun, che GenNormalizeRun richiama sempre come
-               'fb' qui sopra), mai dal JSON grezzo. */
+
+            /* "kind"/"rarity"/cariche-cooldown non fanno parte della
+               grammatica JSON (run.gbnf): sono decisioni di
+               bilanciamento prese SEMPRE in C, mai dal modello (vedi il
+               commento su GenItem.kind in melting_gen.h). Si prendono SEMPRE
+               dal fallback procedurale (gia' calcolato dal precalcolo di
+               copertura dentro GenFallbackRun, che GenNormalizeRun richiama
+               sempre come 'fb' qui sopra), mai dal JSON grezzo -- stessa
+               garanzia del mix delle 4 categorie e del floor di rarita'
+               (DEC-144) qualunque cosa il modello abbia scritto. */
+            snprintf(item->kind, sizeof(item->kind), "%s", fbItem->kind);
             snprintf(item->rarity, sizeof(item->rarity), "%s", fbItem->rarity);
+            item->charges = fbItem->charges;
+            item->cooldown = fbItem->cooldown;
+
+            /* Normalizzato SEMPRE, ANCHE per kind=="statup": il modello ha
+               scritto un "script" per questo slot come per ogni altro (non
+               sa che finira' stat-up, kind si decide dopo, ne' fa parte
+               della grammatica). Un GenItem con opCount==0 produrrebbe
+               "script":[] nel JSON di debug (--emit-llm-json, RunToJson in
+               gen_manifest.c), che run.gbnf rifiuta (la regola 'item' vuole
+               1-3 op): tenerlo popolato qui evita quel problema senza
+               bisogno di casi speciali nel writer di debug. "Uno stat-up non
+               ha comportamento mini-VM" resta vero nel MANIFEST vero
+               (WriteManifest decide SOLO li' se scrivere la riga
+               ".script=", in base al kind, non a opCount) -- stessa
+               contenzione del bossItem, che invece non ha proprio uno
+               "script" da normalizzare (non fa parte della grammatica per
+               quel campo). */
+            NormalizeScript(rawItem ? cJSON_GetObjectItemCaseSensitive((cJSON *)rawItem, "script") : NULL, fbItem, item);
+            /* Difetto di contenuto (task "4 categorie"): un attivo senza
+               cariche ne' cooldown ricade sul cooldown di riserva del
+               motore, mai su un oggetto "active" inutilizzabile. */
+            GenValidateItemRecharge(item);
         }
 
         /* Oggetto stat-up del piano (fase 3): non fa parte della grammatica

@@ -123,6 +123,52 @@ static bool ShotTypeCutStrongestKnob(ShotTypeDef *type)
     return true;
 }
 
+float ShotTypeReadabilityPercent(const ShotTypeDef *type)
+{
+    if (!type || !type->active) return SHOT_TYPE_READABILITY_BASELINE_PERCENT;
+
+    /* Area occupata da ciascun proiettile: cresce col QUADRATO del raggio. */
+    float area = type->radiusMul*type->radiusMul;
+    /* Quanti segnali stanno a schermo insieme: piu' pallettoni per sparo, e
+       piu' a lungo restano vivi (lifeMul) prima di sparire -- 0.5+0.5*life
+       cosi' life=1 (colpo base) vale esattamente 1, mai zero anche per una
+       vita bassissima (un proiettile che sparisce subito copre comunque
+       schermo per l'istante in cui esiste). */
+    float simultaneous = (float)type->pellets*(0.5f + 0.5f*type->lifeMul);
+
+    return SHOT_TYPE_READABILITY_BASELINE_PERCENT*area*simultaneous;
+}
+
+bool ShotTypeReadabilityOk(const ShotTypeDef *type)
+{
+    return ShotTypeReadabilityPercent(type) <= SHOT_TYPE_READABILITY_MAX_PERCENT;
+}
+
+bool ShotTypeDeclaresSynergySignal(const ShotTypeDef *type)
+{
+    if (!type || !type->active) return false;
+    return type->chain > 0 || type->pierceBonus > 0;
+}
+
+float ShotTypeSynergyResultReadabilityPercent(const ShotTypeDef *type)
+{
+    if (!ShotTypeDeclaresSynergySignal(type)) return ShotTypeReadabilityPercent(type);
+
+    /* I pallettoni del RISULTATO possono superare SHOT_TYPE_PELLETS_MAX, e non
+       e' un errore da clampare qui: e' esattamente cio' che il gioco fa
+       (CombatFireShot somma il bonus di sinergia DOPO il tipo di colpo, con
+       l'unico tetto a 5). Clampare qui alla banda del tipo di colpo renderebbe
+       il controllo cieco proprio sul caso che deve vedere. */
+    ShotTypeDef result = *type;
+    result.pellets += SHOT_TYPE_SYNERGY_RESULT_EXTRA_PELLETS;
+    return ShotTypeReadabilityPercent(&result);
+}
+
+bool ShotTypeSynergyResultReadabilityOk(const ShotTypeDef *type)
+{
+    return ShotTypeSynergyResultReadabilityPercent(type) <= SHOT_TYPE_READABILITY_MAX_PERCENT;
+}
+
 void ShotTypeExample(ShotTypeDef *out, int index)
 {
     if (!out) return;

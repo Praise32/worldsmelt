@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Oggetti attivabili volontariamente dal giocatore, una delle 4 categorie della tassonomia oggetti. Ricarica a doppio canale di base — stanze completate ed energia droppata dai nemici — estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [oggetti, attivi, ricarica, slot, DEC-059, budget di potenza]
 related: []
 supersedes: []
@@ -131,7 +131,9 @@ libero la raccolta riempie lo slot senza scambio.
 
 ## Stato di implementazione (2026-07-27)
 
-Il motore implementa la categoria e il ciclo d'uso; il contenuto non la produce ancora.
+Il motore implementa la categoria e il ciclo d'uso; `tools/melting-gen` ora produce
+anche attivi (aggiornamento dello stesso 2026-07-27, dopo la prima stesura di questa
+sezione).
 
 **Implementato**
 
@@ -157,9 +159,14 @@ Il motore implementa la categoria e il ciclo d'uso; il contenuto non la produce 
 
 **Non ancora implementato**
 
-- `tools/melting-gen` non genera ancora oggetti di categoria attivo: nessun contenuto
-  della run produce oggi un attivo, che quindi si vede solo dai test. Il passo successivo
-  è lo schema oggetti lato generatore.
+- Nessun prompt di `tools/melting-gen` chiede al modello la callback Lua `on_use`
+  (l'unica che `src/script/script_items.c` mette in cache per un `ITEM_ACTIVE`): ogni
+  attivo generato ricade quindi sempre sul ripiego C generico scelto sul trait
+  dell'oggetto (`CombatActiveFallbackEffect`, `src/gameplay/combat.c`) — mai un dud,
+  ma anche mai un effetto d'uso scritto dal modello. Continua comunque a eseguire
+  `on_fire`/`on_hit`/`on_tick` se lo script li definisce (solo `on_use` manca): un
+  attivo generato oggi si comporta come un passivo con in più un effetto generico sul
+  tasto E.
 - UI di selezione fra più attivi quando gli slot sono più di uno (oggi la selezione è
   l'ordinale `Player.activeSelected`, che nessun input muove ancora).
 - Nessuna fonte di slot attivi aggiuntivi esiste in gioco.

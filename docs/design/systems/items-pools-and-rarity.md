@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft, con garanzia di almeno un oggetto per rarità nel pool minimo, DEC-144), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna con soglia N esplicita, ridotta dalla Fortuna, su tutti i pool (DEC-145)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [oggetti, pool, rarità, slot, correzione-di-fortuna, tassonomia, DEC-144, DEC-145]
 related: []
 supersedes: []
@@ -88,10 +88,34 @@ Il ripiego lato gioco (contenuto di riserva quando nessun manifest esiste) produ
 passivi e stat-up: attivi e Innesti hanno slot e contratti che un contenuto procedurale di
 riserva non può dichiarare in modo sensato, e arriveranno dal generatore.
 
-**Non ancora implementato:** `tools/melting-gen` non genera oggetti di categoria attivo o
-Innesto, quindi nessuna run ne offre ancora; il campo `pool` continua a non esistere (il
-pool di un oggetto è la sua posizione, vedi §Pool); prerequisiti, incompatibilità, peso
-nel pool e valore di sinergia restano campi del documento senza corrispondente in codice.
+**Aggiornamento 2026-07-27 (stesso giorno, dopo la prima stesura della sezione sopra):**
+`tools/melting-gen` genera ora un **mix delle 4 categorie** sulle 15 posizioni normali
+(tesoro/negozio) dell'intera run, con garanzia di copertura in stile DEC-144 (ciascuna
+delle 4 compare almeno una volta): il ripiego lato gioco resta solo passivi/stat-up (vedi
+sopra, non riformulato), ma una run generata da melting-gen offre ora anche attivi e
+Innesti. `pool` continua a non esistere come campo esplicito (il pool di un oggetto resta
+la sua posizione, vedi §Pool); prerequisiti, incompatibilità, peso nel pool e valore di
+sinergia restano campi del documento senza corrispondente in codice.
+
+Pesi del mix di categoria — **default proposto dall'implementazione** (stile DEC-019, da
+confermare col playtest, vedi la domanda aperta annotata durante questa fase):
+
+| Categoria | Peso |
+|---|---|
+| Passivo | 50 |
+| Attivo | 20 |
+| Innesto | 15 |
+| Stat-up | 15 |
+
+Passivo maggioritario (nessun limite di slot, coerente con l'essere stato finora l'unico
+contenuto reale); attivo e Innesto più rari perché hanno slot limitati (trovarne uno è un
+evento, non la norma); lo stat-up compare anche nel pool normale (DEC-035, sopra) accanto
+al bossItem garantito a parte. Un attivo generato dichiara sempre esattamente cariche
+**oppure** cooldown (mai entrambi, mai nessuno dei due): valori derivati dalla rarità
+dell'oggetto (più raro → più cariche o cooldown più corto), dentro le bande di sicurezza
+di [Active Items](active-items.md#default-proposti-dallimplementazione). Un Innesto
+generato non aggiunge campi divergenti (vedi [Grafts](grafts.md), "Regole per contenuti
+generati", non riformulato qui): stessi campi di ogni altro oggetto.
 
 ## Campi obbligatori di un oggetto
 

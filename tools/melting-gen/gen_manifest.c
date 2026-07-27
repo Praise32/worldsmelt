@@ -232,8 +232,34 @@ static int WriteManifest(const GenRun *run, const char *outDir, bool preserveAtl
             fprintf(f, "floor%d.item%d.color=%s\n", n, i + 1, item->color);
             fprintf(f, "floor%d.item%d.kind=%s\n", n, i + 1, item->kind);
             fprintf(f, "floor%d.item%d.rarity=%s\n", n, i + 1, item->rarity);
-            ScriptToText(item, text, sizeof(text));
-            fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
+            /* Ricarica dell'attivo (task "4 categorie", active-items.md):
+               riga scritta SOLO quando dichiarata (>0), stesso schema
+               "sentinella" di shotName/room.name sotto -- un oggetto non
+               kind=active ha sempre charges=cooldown=0 e non scrive niente
+               qui, restando indistinguibile da un manifest scritto prima di
+               questa fase (retrocompatibilita': riga assente = non
+               dichiarato, il lettore lato gioco -- ReadItemRecharge,
+               src/content/run_content.c -- tratta l'assenza esattamente
+               come 0). */
+            if (item->charges > 0) fprintf(f, "floor%d.item%d.charges=%d\n", n, i + 1, item->charges);
+            if (item->cooldown > 0.0f) fprintf(f, "floor%d.item%d.cooldown=%.2f\n", n, i + 1, (double)item->cooldown);
+            /* Riga ".script=" scritta SOLO se il KIND ha davvero un
+               comportamento mini-VM: ogni categoria tranne stat-up (stessa
+               scelta di bossItem qui sotto, che non ha mai scritto questa
+               riga). GenItem.opCount resta SEMPRE > 0 in memoria per QUALUNQUE
+               kind (vedi il commento su GenFallbackRun/GenNormalizeRun: serve
+               a mantenere valido, secondo run.gbnf, il JSON di debug prodotto
+               da RunToJson qui sotto, che non conosce affatto 'kind') -- il
+               filtro sul KIND, non su opCount, e' quindi l'UNICO punto in cui
+               "uno stat-up non ha comportamento" diventa vero nel manifest
+               che il gioco legge davvero. Riga assente = per-key fallback
+               lato gioco (nessuna riga da leggere), mai una riga vuota
+               fuorviante. */
+            if (strcmp(item->kind, "statup") != 0)
+            {
+                ScriptToText(item, text, sizeof(text));
+                fprintf(f, "floor%d.item%d.script=%s\n", n, i + 1, text);
+            }
             /* Tipo di colpo (step C): scritto SOLO sull'oggetto che lo porta
                (floor->shotItem, 1..3, scelto dal modello), mai su tutti e tre --
                un piano ha UN modo di sparare nuovo, non tre. La chiave "shotName"

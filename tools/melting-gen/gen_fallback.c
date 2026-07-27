@@ -161,6 +161,46 @@ static void FallbackScriptForTrait(const char *trait, unsigned int *rng, GenItem
     snprintf(op->trait, sizeof(op->trait), "none");
 }
 
+/* Ricarica di un attivo (active-items.md, "Bande di sicurezza"): NESSUN
+   nuovo consumo di RNG (deterministico da rarityIdx + parita' dello slot),
+   di proposito -- il mix di kind gia' consuma un RNG dedicato tutto suo
+   (vedi il precalcolo in GenFallbackRun sotto), aggiungerne un altro qui
+   avrebbe reso piu' difficile ragionare su quale ramo cambia cosa. Meta'
+   degli attivi a cariche, meta' a cooldown (parita' di 'slotIdx', la
+   posizione 0..14 dell'oggetto sull'intera run): le cariche salgono con la
+   rarita' (piu' raro = piu' cariche), il cooldown scende (piu' raro = piu'
+   veloce a ricaricare) -- stessa direzione "piu' raro e' meglio" dei numeri
+   dei trait iniettati nel prompt Lua (GEN_RARITY_PROMPT_HINTS). */
+static void AssignActiveRecharge(GenItem *item, int rarityIdx, int slotIdx)
+{
+    if (slotIdx % 2 == 0)
+    {
+        int charges = 3 + rarityIdx;
+        if (charges > GEN_ACTIVE_CHARGES_MAX) charges = GEN_ACTIVE_CHARGES_MAX;
+        if (charges < GEN_ACTIVE_CHARGES_MIN) charges = GEN_ACTIVE_CHARGES_MIN;
+        item->charges = charges;
+        item->cooldown = 0.0f;
+    }
+    else
+    {
+        float cooldown = 10.0f - 2.0f*(float)rarityIdx;
+        if (cooldown < GEN_ACTIVE_COOLDOWN_MIN) cooldown = GEN_ACTIVE_COOLDOWN_MIN;
+        if (cooldown > GEN_ACTIVE_COOLDOWN_MAX) cooldown = GEN_ACTIVE_COOLDOWN_MAX;
+        item->cooldown = cooldown;
+        item->charges = 0;
+    }
+}
+
+/* Posizioni NORMALI dell'intera run di ripiego (items[], non il bossItem di
+   ciascun piano): 5 piani x 3 = 15, stessa taglia di pool su cui
+   run_content.c (RUN_FALLBACK_NORMAL_ITEM_COUNT) applica la garanzia di
+   copertura DEC-144 lato gioco -- qui e' la STESSA garanzia lato
+   generatore, sul mix di kind (nuovo, questa fase) E sulla rarita' (prima
+   di questa fase, ogni oggetto tirava la rarita' indipendentemente: la
+   garanzia "almeno un oggetto per rarita'" valeva solo per caso, mai per
+   costruzione, per il ripiego di melting-gen). */
+#define GEN_FB_NORMAL_ITEM_COUNT (GEN_FLOORS*GEN_ITEMS)
+
 void GenFallbackRun(GenRun *run, unsigned int seed, const GenChosenTheme *chosen)
 {
     static const char *styles[]     = { "simple pixel", "dark toon", "stark arcade", "flat ink", "low-fi fantasy" };
@@ -180,6 +220,39 @@ void GenFallbackRun(GenRun *run, unsigned int seed, const GenChosenTheme *chosen
     int stageIdx[4] = { 0, 0, 0, 0 };
     if (chosenActive) PickDistinctStageSuffixes(seed, stageIdx);
 
+    /* Task "melting-gen emette e valida le 4 categorie": rarita' E kind dei
+       15 oggetti normali si precalcolano QUI, PRIMA del ciclo sui piani, con
+       DUE RNG dedicati (mai 'rng': stessa garanzia di stageIdx sopra, "il
+       resto dello stream non deve accorgersi che questo ramo esiste") --
+       ciascuno tira la propria garanzia di copertura DEC-144-style
+       (GenRarityMinimumCounts/GenKindMinimumCounts, gen_util.c) sul pool di
+       15, la spacchetta in un array di 15 indici (categoria ripetuta tante
+       volte quante il conteggio dice) e la rimescola (GenShuffleInts) cosi'
+       le 3 posizioni di un singolo piano non seguono un ordine prevedibile
+       (tutte le comuni sui primi piani, tutti gli attivi sull'ultimo...).
+       NUOVO consumo di RNG rispetto a prima di questa fase per la RARITA'
+       (prima: un tiro pesato indipendente per oggetto, GenRollRarity, senza
+       alcuna garanzia di copertura sul pool intero) e per il KIND
+       (prima: sempre "active", nessun tiro): il golden file di regressione
+       (tests/melting-gen/golden-fallback-seed12345.txt) e' stato
+       rigenerato di conseguenza, vedi scripts/test-gen.sh. */
+    int rarityCounts[4], kindCounts[GEN_KIND_COUNT];
+    GenRarityMinimumCounts(GEN_FB_NORMAL_ITEM_COUNT, 0, rarityCounts);
+    GenKindMinimumCounts(GEN_FB_NORMAL_ITEM_COUNT, kindCounts);
+
+    int raritySlots[GEN_FB_NORMAL_ITEM_COUNT];
+    int kindSlots[GEN_FB_NORMAL_ITEM_COUNT];
+    {
+        int idx = 0;
+        for (int r = 0; r < 4; r++) for (int n = 0; n < rarityCounts[r]; n++) raritySlots[idx++] = r;
+        idx = 0;
+        for (int k = 0; k < GEN_KIND_COUNT; k++) for (int n = 0; n < kindCounts[k]; n++) kindSlots[idx++] = k;
+    }
+    unsigned int rarityRng = seed ^ 0xC0FFEE01u;
+    unsigned int kindRng   = seed ^ 0x2A5EED77u;
+    GenShuffleInts(&rarityRng, raritySlots, GEN_FB_NORMAL_ITEM_COUNT);
+    GenShuffleInts(&kindRng, kindSlots, GEN_FB_NORMAL_ITEM_COUNT);
+
     for (int f = 0; f < GEN_FLOORS; f++)
     {
         GenFloor *floor = &run->floors[f];
@@ -195,19 +268,41 @@ void GenFallbackRun(GenRun *run, unsigned int seed, const GenChosenTheme *chosen
         for (int j = 0; j < GEN_ITEMS; j++)
         {
             GenItem *item = &floor->items[j];
+            int slotIdx = f*GEN_ITEMS + j;   /* 0..14, posizione di questo oggetto sull'intera run */
             const char *trait = GEN_TRAITS[GenRngRange(&rng, 0, 8)];
             snprintf(item->name, sizeof(item->name), "%s %s", itemNames[GenRngRange(&rng, 0, 7)], trait);
             snprintf(item->slot, sizeof(item->slot), "%s", GEN_SLOTS[GenRngRange(&rng, 0, 5)]);
             snprintf(item->traits[0], sizeof(item->traits[0]), "%s", trait);
             item->traitCount = 1;
-            /* Rarita' (fase 3b, design doc sezione 3): pool tesoro/negozio,
-               isBoss=0 -> GEN_RARITY_WEIGHTS_TREASURE_SHOP (55/30/12/3 in
-               gen_util.c), la mista. NUOVO punto di consumo RNG rispetto
-               alle fasi precedenti (golden file rigenerato di conseguenza). */
-            snprintf(item->rarity, sizeof(item->rarity), "%s", GEN_RARITIES[GenRollRarity(&rng, 0)]);
+            /* Rarita' e kind (task "4 categorie"): letti dal precalcolo di
+               copertura sopra (raritySlots/kindSlots), NON piu' tirati qui
+               per-oggetto -- vedi il commento su quel precalcolo per il
+               perche' (garanzia DEC-144-style sull'intero pool di 15, non
+               un tiro indipendente per oggetto). */
+            int rarityIdx = raritySlots[slotIdx];
+            int kindIdx = kindSlots[slotIdx];
+            snprintf(item->rarity, sizeof(item->rarity), "%s", GEN_RARITIES[rarityIdx]);
+            snprintf(item->kind, sizeof(item->kind), "%s", GEN_KINDS[kindIdx]);
             GenHsvToHex((h + 80 + j*53)%360, 0.75, 0.92, item->color);
-            snprintf(item->kind, sizeof(item->kind), "active");
+
+            item->charges = 0;
+            item->cooldown = 0.0f;
+            if (strcmp(item->kind, "active") == 0) AssignActiveRecharge(item, rarityIdx, slotIdx);
+            /* SEMPRE calcolato, ANCHE per kind=="statup": un GenItem con
+               opCount==0 produrrebbe "script":[] nel JSON di debug
+               (--emit-llm-json, RunToJson in gen_manifest.c), che run.gbnf
+               rifiuta (la regola 'item' vuole 1-3 op, e la grammatica non sa
+               nulla di 'kind' -- e' un campo puramente C, invisibile al
+               modello, vedi il commento su GenItem.kind in melting_gen.h).
+               "Uno stat-up non ha comportamento mini-VM" resta vero nel
+               MANIFEST vero (WriteManifest, gen_manifest.c, decide SOLO li'
+               se scrivere la riga ".script=" in base al kind, non in base a
+               opCount): qui in memoria l'oggetto tiene comunque un op valido,
+               esattamente come ne terrebbe uno kind=active/passive/graft,
+               cosi' il writer di debug/coerenza-grammatica non deve
+               distinguere la categoria. */
             FallbackScriptForTrait(trait, &rng, item);
+            GenValidateItemRecharge(item);
         }
 
         /* Oggetto stat-up del piano (fase 3): subito dopo i 3 attivi, stesso
@@ -231,7 +326,37 @@ void GenFallbackRun(GenRun *run, unsigned int seed, const GenChosenTheme *chosen
            di regressione (tests/melting-gen/golden-fallback-seed12345.txt) e'
            stato rigenerato di conseguenza, vedi scripts/test-gen.sh. */
         ShotTypeExample(&floor->shot, GenRngRange(&rng, 0, SHOT_TYPE_EXAMPLE_COUNT - 1));
-        floor->shotItem = GenRngRange(&rng, 1, GEN_ITEMS);
+        /* Proxy di leggibilita' (DEC-146, core/shot_type.h): i tre esempi di
+           ripiego sono gia' ben dentro SHOT_TYPE_READABILITY_MAX_PERCENT (valori
+           curati a mano, verificato con ShotTypeReadabilityPercent), quindi non
+           serve applicare qui nessuna catena di fallback -- non esiste comunque
+           un "piu' procedurale di questo" su cui ricadere. */
+
+        /* Quale dei tre oggetti del piano porta il tipo di colpo (bloccante round
+           0, task "4 categorie"): MAI un oggetto kind=statup. Uno stat-up e' per
+           definizione "una modifica diretta e minima di una statistica, senza
+           comportamento nuovo" (items-pools-and-rarity.md) -- portare il tipo di
+           colpo del piano e' esattamente un comportamento nuovo (forma, pellets,
+           perforazione, catena...), la stessa regola gia' applicata al bossItem
+           (mai .script=, vedi FallbackBossItem/scripts/test-gen.sh). kind e' gia'
+           stato assegnato a tutti e tre gli item di questo piano nel ciclo sopra:
+           si costruisce l'elenco delle posizioni non-statup e si sceglie fra
+           QUELLE, mai fra tutte e tre. Con le proporzioni correnti
+           (GEN_KIND_WEIGHTS_NORMAL, gen_util.c) il conteggio totale di statup
+           sull'intera run di 15 e' sempre 2 (costante, indipendente dal seed):
+           mai possibile che tutti e tre gli item di UN piano risultino statup,
+           quindi nonStatupCount sotto e' sempre >= 1. Se un cambio futuro ai pesi
+           rendesse possibile il caso degenere, si ricade sulla posizione 1: mai un
+           indice inventato, coerente con ogni altro ripiego di questo file. */
+        int nonStatupIdx[GEN_ITEMS];
+        int nonStatupCount = 0;
+        for (int j = 0; j < GEN_ITEMS; j++)
+        {
+            if (strcmp(floor->items[j].kind, "statup") != 0) nonStatupIdx[nonStatupCount++] = j;
+        }
+        floor->shotItem = (nonStatupCount > 0)
+            ? nonStatupIdx[GenRngRange(&rng, 0, nonStatupCount - 1)] + 1
+            : 1;
 
         /* Tipi di nemico del piano (fase 3b): stesso ruolo del ripiego dei tipi di
            colpo -- i nemici veri li inventa il modello, questi sono i tre storici

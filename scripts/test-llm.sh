@@ -32,7 +32,10 @@ fi
 
 bin/melting-gen "${MODEL_ARGS[@]}" --ngl "$NGL" --seed "$SEED" --out generated
 grep -q "^source=local:" generated/current_run.txt
-grep -q "^floor5.item3.script=" generated/current_run.txt
+# .name= (non .script=: task "4 categorie" -- floor5.item3 puo' legittimamente
+# essere kind=statup per questo seed, che non scrive mai una riga ".script=";
+# .name= resta scritta per ogni categoria).
+grep -q "^floor5.item3.name=" generated/current_run.txt
 
 # Guardia di lingua (DEC-052, generazione contenuti inglese-first): l'unico
 # test che genera per davvero col modello, quindi l'unico posto dove ha senso

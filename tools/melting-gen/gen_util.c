@@ -223,9 +223,22 @@ const char *GEN_TRAITS[9] = {
     "bounce", "homing", "explode", "split", "pierce", "rapid", "giant", "slow", "vamp"
 };
 /* Vedi il commento su GenItem.kind in melting_gen.h: mai scelto dal modello,
- * sempre assegnato in C secondo la posizione dell'oggetto (items[] contro
- * bossItem). */
-const char *GEN_KINDS[2] = { "active", "statup" };
+ * sempre assegnato in C. bossItem resta sempre "statup" (invariato); i 15
+ * oggetti normali di items[] (5 piani x 3) ricevono un MIX delle 4 categorie
+ * (GenKindMinimumCounts sotto), non piu' sempre "active". */
+const char *GEN_KINDS[GEN_KIND_COUNT] = { "passive", "active", "graft", "statup" };
+
+/* Mix di categorie per i 15 oggetti normali (items[]) di un'intera run
+ * (task "melting-gen emette e valida le 4 categorie"): DEFAULT PROPOSTO
+ * DALL'IMPLEMENTAZIONE (stile DEC-019), da confermare col playtest -- vedi
+ * la domanda aperta annotata durante questa fase. Stesso ordine di
+ * GEN_KINDS sopra: passivo maggioritario (nessun limite di slot, e' stato
+ * l'unico contenuto reale finora), attivo e Innesto piu' rari (hanno slot
+ * limitati: trovarne uno e' un evento, non la norma), stat-up presente ma
+ * minoritario nel pool normale (DEC-035, "gli stat-up compaiono anche nei
+ * pool normali, non solo come ricompensa boss" -- il boss ne ha comunque
+ * SEMPRE uno garantito a parte, bossItem, invariato). */
+static const int GEN_KIND_WEIGHTS_NORMAL[GEN_KIND_COUNT] = { 50, 20, 15, 15 };
 
 static const GenTraitRule GEN_TRAIT_RULES[9] = {
     { "bounce",  "on_fire", "burst",       2, 0.25 },
@@ -311,6 +324,104 @@ int GenRarityIndexFromText(const char *text)
         if (text && strcmp(GEN_RARITIES[i], text) == 0) return i;
     }
     return -1;
+}
+
+/* ============================================================
+   Garanzia di copertura DEC-144-style, generalizzata a 4 categorie
+   qualunque (rarita' O kind: vedi il commento in melting_gen.h). Algoritmo
+   duplicato AD HOC da ItemPoolMinimumCounts (src/gameplay/item_pool.c),
+   stessa struttura, stesso ordine di operazioni: arrotondamento per difetto
+   per proporzione, poi garanzia di almeno 1 per ogni peso > 0 (residuo
+   preso prima dall'arrotondamento poi dalle categorie piu' comuni, indice
+   piu' basso prima), totale sempre 'poolSize'. Vedi item_pool.h per il
+   perche' non si linka quel modulo da qui (raylib via game_types.h).
+   ============================================================ */
+
+void GenPoolMinimumCounts(int poolSize, const int weights[GEN_KIND_COUNT], int outCounts[GEN_KIND_COUNT])
+{
+    if (!weights || !outCounts) return;
+    if (poolSize < 0) poolSize = 0;
+
+    int total = 0;
+    for (int i = 0; i < GEN_KIND_COUNT; i++) if (weights[i] > 0) total += weights[i];
+
+    int counts[GEN_KIND_COUNT] = { 0, 0, 0, 0 };
+    if (total <= 0)
+    {
+        counts[0] = poolSize;   /* tabella senza pesi utili: tutto sulla prima categoria, ripiego sicuro */
+        for (int i = 0; i < GEN_KIND_COUNT; i++) outCounts[i] = counts[i];
+        return;
+    }
+
+    int sum = 0;
+    for (int i = 0; i < GEN_KIND_COUNT; i++)
+    {
+        if (weights[i] > 0) counts[i] = (poolSize*weights[i])/total;
+        sum += counts[i];
+    }
+    int leftover = poolSize - sum;
+
+    /* Garanzia: ogni categoria a peso > 0 compare almeno una volta, presa
+       dal residuo, a partire dall'ULTIMA (indice piu' alto, di norma la piu'
+       rara nelle tabelle di questo file) verso la prima. */
+    for (int i = GEN_KIND_COUNT - 1; i >= 0 && leftover > 0; i--)
+    {
+        if (weights[i] > 0 && counts[i] == 0) { counts[i] = 1; leftover--; }
+    }
+    /* Se il residuo non bastava, si toglie alle categorie piu' comuni
+       (indice piu' basso) ancora capienti. */
+    for (int i = 0; i < GEN_KIND_COUNT; i++)
+    {
+        if (weights[i] > 0 && counts[i] == 0)
+        {
+            int donor = 0;
+            while (donor < GEN_KIND_COUNT && (donor == i || counts[donor] <= 0)) donor++;
+            if (donor < GEN_KIND_COUNT) { counts[donor]--; counts[i] = 1; }
+        }
+    }
+    /* Residuo ancora positivo (poolSize non proporzionale ai pesi): alla
+       prima categoria a peso > 0. */
+    if (leftover > 0)
+    {
+        int i = 0;
+        while (i < GEN_KIND_COUNT - 1 && weights[i] <= 0) i++;
+        counts[i] += leftover;
+    }
+
+    for (int i = 0; i < GEN_KIND_COUNT; i++) outCounts[i] = counts[i];
+}
+
+void GenRarityMinimumCounts(int poolSize, int isBoss, int outCounts[4])
+{
+    const int *w = isBoss ? GEN_RARITY_WEIGHTS_BOSS : GEN_RARITY_WEIGHTS_TREASURE_SHOP;
+    GenPoolMinimumCounts(poolSize, w, outCounts);
+}
+
+void GenKindMinimumCounts(int poolSize, int outCounts[GEN_KIND_COUNT])
+{
+    GenPoolMinimumCounts(poolSize, GEN_KIND_WEIGHTS_NORMAL, outCounts);
+}
+
+void GenShuffleInts(unsigned int *rng, int *arr, int n)
+{
+    if (!rng || !arr) return;
+    for (int i = n - 1; i > 0; i--)
+    {
+        int j = GenRngRange(rng, 0, i);
+        int tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+}
+
+void GenValidateItemRecharge(GenItem *item)
+{
+    if (!item) return;
+    if (strcmp(item->kind, "active") != 0) return;
+    if (item->charges > 0 || item->cooldown > 0.0f) return;   /* gia' conforme */
+
+    GenLogLine("validate: \"%s\" e' kind=active senza cariche ne' cooldown (difetto di contenuto) "
+               "-> ripiego sul cooldown di riserva del motore (%.1fs, GEN_ACTIVE_DEFAULT_COOLDOWN)",
+               item->name, (double)GEN_ACTIVE_DEFAULT_COOLDOWN);
+    item->cooldown = GEN_ACTIVE_DEFAULT_COOLDOWN;
 }
 
 /* ============================================================

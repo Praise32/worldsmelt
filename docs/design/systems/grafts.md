@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, recuperabile finché si resta nella stanza (DEC-160)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107, DEC-160]
 related: []
 supersedes: []
@@ -145,8 +145,9 @@ unica definita in
 
 ## Stato di implementazione (2026-07-27)
 
-Il motore implementa la categoria, lo slot e il ciclo raccolta/sostituzione/sgancio; il
-contenuto non produce ancora Innesti e i piega-regole non esistono.
+Il motore implementa la categoria, lo slot e il ciclo raccolta/sostituzione/sgancio;
+`tools/melting-gen` ora produce anche Innesti (aggiornamento dello stesso 2026-07-27,
+dopo la prima stesura di questa sezione) — i piega-regole restano assenti (vedi sotto).
 
 **Implementato**
 
@@ -171,8 +172,6 @@ contenuto non produce ancora Innesti e i piega-regole non esistono.
 
 **Non ancora implementato**
 
-- `tools/melting-gen` non genera ancora oggetti di categoria Innesto: nessun contenuto
-  della run produce oggi un Innesto, che quindi si vede solo dai test.
 - **Piega-regole (DEC-034/DEC-107/DEC-126): assenti.** Nessun campo dichiara quale regola
   un leggendario altera, nessun gancio nei quattro bersagli ammessi, nessuna validazione
   che respinga chi ne tocca più di una.

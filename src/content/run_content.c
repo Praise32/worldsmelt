@@ -792,6 +792,26 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));
             if (value[0]) snprintf(item->script, sizeof(item->script), "%s", value);
+            /* Task "4 categorie" (2026-07-27): a differenza del bossItem (il
+               cui contenuto di ripiego, MakeFallbackBossItem, non assegna
+               MAI uno script), il contenuto di ripiego di questo slot
+               (MakeFallbackItem sopra) assegna SEMPRE uno script -- e' quello
+               che items[] era finora, sempre passivo. Un manifest che
+               promuove questo slot a stat-up (mix delle 4 categorie,
+               tools/melting-gen) non scrive MAI ".script=" (WriteManifest,
+               gen_manifest.c): senza questa riga esplicita, lo schema "riga
+               assente = per-key fallback" lascerebbe lo script procedurale
+               sottostante, in contrasto con "uno stat-up non ha mai
+               comportamento mini-VM". Si azzera qui, DOPO la lettura della
+               chiave ".script=" (correzione round 1: stando PRIMA, un
+               manifest che dichiarasse insieme "kind=statup" e una riga
+               ".script=" -- scritto a mano o da una versione precedente di
+               melting-gen -- si sarebbe riportato lo script indietro subito
+               dopo, e la garanzia sarebbe stata vera solo per i manifest che
+               melting-gen scrive oggi). Stessa collocazione, e stessa
+               ragione, della guardia gemella sul tipo di colpo qui sotto,
+               che sta dopo ReadItemShotType. */
+            if (item->kind == ITEM_STATUP) item->script[0] = '\0';
 
             /* Fase 3a-L3: sorgente Lua opzionale, in un file a parte (vedi
                tools/melting-gen/gen_lua.c e gen_manifest.c). item->luaSource
@@ -817,6 +837,22 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             /* Step C: il tipo di colpo che questo oggetto conferisce, se il
                manifest gliene assegna uno (vedi ReadItemShotType sopra). */
             ReadItemShotType(text, n, i + 1, item);
+            /* Difesa in profondita' di tassonomia (bloccante round 0, task "4
+               categorie"): stessa filosofia della riga sopra su item->script
+               (kind risolto -> mai un residuo di comportamento su uno
+               stat-up), applicata al tipo di colpo. melting-gen (gen_manifest.c
+               WriteManifest) non scrive mai le chiavi "shotN.item%d.shot*" per
+               una posizione kind=statup dopo il fix gemello in
+               gen_fallback.c/gen_validate.c: questa riga non dovrebbe mai
+               scattare su un manifest generato oggi. Resta comunque una
+               seconda rete, non una ridondanza inutile, contro un manifest
+               scritto a mano o da una versione precedente di melting-gen che
+               assegnasse "shotItem" a una posizione poi risolta stat-up: uno
+               stat-up e' "una modifica diretta e minima di una statistica,
+               senza comportamento nuovo" (items-pools-and-rarity.md), e un
+               tipo di colpo e' comportamento nuovo (forma, pellets,
+               perforazione, catena...) tanto quanto uno script mini-VM. */
+            if (item->kind == ITEM_STATUP) item->shotType.active = false;
             item->active = true;
         }
 

@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Doppio binario delle sinergie: implicite/automatiche tra oggetti compatibili e fusione esplicita nella stanza dedicata. Conflitti senza priorità esplicita si risolvono con RNG derivato dal seed di run (DEC-161, riproducibilità ancora requisito e non stato attuale finché vale DEC-141); il risultato di sinergie e fusioni ha un budget di potenza dedicato, più alto del singolo (DEC-162)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 8210480
 topics: [sinergie, fusione, build, visual-language, priorità, DEC-161, DEC-162]
 related: []
 supersedes: []
@@ -178,6 +178,63 @@ di sicurezza, indipendentemente da questo budget dedicato. Verificato da `--scri
 giocatore già gonfiato da cinque stat-up leggendari vengono clampate a un valore misurabilmente
 più basso di quello che si otterrebbe senza il budget dedicato, restando comunque dentro la
 banda globale e finito (mai NaN).
+
+### Stato di implementazione — il risultato a tempo di generazione (DEC-162)
+
+Il documento chiede che questo budget sia «verificato nella fase di validazione dei
+contenuti generati come ogni altro contenuto» (sopra). Il controllo che gira lì è in
+`tools/melting-gen` (`gen_validate.c`, `NormalizeShot`) e riguarda il **risultato**, non il
+singolo oggetto:
+
+- **Quando si applica.** Solo dove il contenuto generato dichiara da sé una sinergia. La
+  tavola delle sinergie condiziona su *segnali*, e i soli segnali che un contenuto generato
+  può dichiarare per conto proprio sono quelli del tipo di colpo del piano: `chain > 0`
+  (Arco Voltaico) e `pierce > 0` (segnale previsto dal vocabolario, nessuna regola lo usa
+  ancora — coperto lo stesso, perché il controllo è conservativo e una regola futura non
+  deve passare in silenzio). Un tipo di colpo che dichiara uno di questi segnali è, per sua
+  stessa dichiarazione, metà di una coppia canonica: l'altra metà è un qualunque oggetto del
+  pool, che il pool contiene per costruzione. **Default proposto dall'implementazione
+  (stile DEC-019)**: limitare il controllo al contenuto che *dichiara* il segnale, invece di
+  applicarlo a ogni tipo di colpo, è una scelta dell'implementazione — il documento non dice
+  quale contenuto sia "una sinergia dichiarata". Da confermare col playtest.
+- **Cosa verifica.** Che il risultato stia nel budget di **leggibilità**, con la stessa
+  soglia del singolo (DEC-146, proxy di copertura schermo in
+  [Combat and Projectiles](combat-and-projectiles.md#budget-di-leggibilità)): quel budget non
+  si allarga mai per le sinergie (vedi "Limiti di leggibilità" sopra), mentre è il budget di
+  *potenza* a essere dedicato e più alto, ed è garantito a runtime da
+  `ScriptItemsClampSynergyResultDelta`. Il risultato stimato è il tipo di colpo **più** i
+  bonus di canale B che la coppia aggiunge ai proiettili del giocatore: in pratica il
+  pallettone in più di `SynergiesExtraPellets` (l'unico bonus discreto che cambia quanti
+  segnali stanno a schermo insieme; `pierce`/`bounce`/`chain` sono potenza, non ingombro).
+- **Perché serve un controllo dedicato.** Questi bonus non passano da alcun tetto di
+  leggibilità a runtime: `CombatFireShot` (`src/gameplay/combat.c`) somma il pallettone di
+  sinergia ai pallettoni del tipo di colpo e taglia solo a 5, ben oltre il massimo del tipo
+  di colpo. Un tipo di colpo può quindi stare sotto la soglia da solo e sforarla appena si
+  accende la coppia che esso stesso ha dichiarato — e a runtime è tardi: la coppia si è già
+  formata. Conseguenza dello sforamento: la normale catena di fallback (l'intero tipo di
+  colpo generato viene scartato e sostituito con quello procedurale del piano), mai una
+  riparazione sul posto, esattamente come per il controllo DEC-146 del singolo.
+- **Verificato da** `make test-script` (test AW): la costante del generatore combacia con
+  la tavola vera di `synergies.c`, i tre tipi procedurali su cui si ricade superano sia il
+  controllo del singolo sia quello del risultato (la catena di fallback non può rimbalzare
+  su sé stessa) ed esiste un tipo di colpo, dentro le bande, che passa il primo controllo e
+  viene scartato dal secondo — cioè il controllo non è inerte. E da `make test-gen`, che lo
+  esercita end-to-end su un manifest vero (`tests/melting-gen/bad/shot-over-budget.json`).
+
+### Tentativo scartato — allargare le bande della mini-VM (2026-07-27)
+
+Una revisione di `gen_validate.c` aveva invece aggiunto, per il caso di un **singolo oggetto
+generato** che dichiara già da solo i due trait di una delle 5 coppie canoniche trait+trait,
+un allargamento dedicato del tetto dei campi `a`/`b` della sua mini-VM. Tolto nella stessa
+revisione, perché **inerte su due fronti**: il motore (`src/gameplay/script_vm.c`) clampa
+comunque quei campi alle bande base in esecuzione (un manifest con `a`/`b` allargati si
+comporta esattamente come uno senza, dichiarando però valori che il gioco taglia in
+silenzio); e soprattutto una sinergia non si accende **mai** da un oggetto solo
+(`SignalPresent`/`excludeItem` in `src/gameplay/synergies.c`: «una sinergia è fra DUE
+oggetti diversi»), quindi quel caso non produce nemmeno il risultato di cui allargava il
+budget. Se un domani questo budget dovrà avere un effetto misurabile sui campi mini-VM, la
+banda base del motore va alzata per prima: un allargamento lato generatore che la precede
+resta inerte per costruzione.
 
 ## Informazione al giocatore
 
