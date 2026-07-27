@@ -8,7 +8,7 @@ owner: ai-production
 summary: >-
   Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib. Aseprite è ora anche il percorso di produzione diretta di sprite originali (HUD, personaggio, nemici, boss, oggetti, colpi, prop) a contratto spritesheet fisso, che serve insieme come asset di gioco e dataset LoRA (DEC-175).
 last_reviewed: 2026-07-28
-topics: [sprite-bundle, animazione, raylib, pixel-art-fixer, validazione, controlnet, aseprite, contratto-spritesheet, DEC-175]
+topics: [sprite-bundle, animazione, raylib, pixel-art-fixer, validazione, controlnet, aseprite, contratto-spritesheet, DEC-175, tileset-manifest, ui-9patch, font-pixel]
 related: []
 supersedes: []
 source_files: [src/render, src/assets]
@@ -79,6 +79,34 @@ entrambi i casi.
 Per il dataset: **un file caption per immagine** (stesso nome base, estensione `.txt`),
 registrazione nel ledger (`docs/ai-production/dataset/ledger.jsonl`) come **`own`**
 (sprite proprio, non CC0), organizzati per famiglia in `dataset/worldsmelt-style/`.
+
+### Contratto concreto della demo (prodotto in `assets/art/`, consumato da W8)
+
+Il profilo demo del contratto, emesso dagli script batch `scripts/cp*_*.lua` e già
+committato per personaggio, nemici, colpi, oggetti, prop e UI:
+
+- `assets/art/<categoria>/<id>.png`: striscia orizzontale a frame di taglia fissa,
+  **una riga per animazione**; accanto `<id>.json`:
+  `{"frame_w":N,"frame_h":N,"anchor":[x,y],"anims":{"walk":{"row":0,"frames":4,"fps":8,"loop":true},...}}`.
+- Il personaggio usa le righe `walk_down/walk_up/walk_right/walk_left` (left
+  pre-specchiata); i nemici da contatto aggiungono la riga **`attack`** (opzionale:
+  la mappa `anims` è aperta, il motore ignora le anim che non conosce).
+- Le **taglie** restano del motore (`sizeMul`/`radiusMul`): gli sprite esistono in
+  **tier disegnati** (32px base, 48px «grande», 64+ boss; colpi 16px base, 24px
+  «grande») e il motore sceglie il tier più vicino, ritoccando la hitbox a parte.
+
+**Estensioni UI** (`assets/art/ui/`): `panel-9patch`/`slot-9patch` aggiungono al json
+il campo `"slice":[l,t,r,b]` (bordi 9-patch in pixel); `font-5px.json` è una mappa
+glifi `{"glyph_h":5,"space_w":3,"letter_spacing":1,"glyphs":{"A":{"x":0,"w":3},...}}`
+sul PNG a striscia; `icons.png` usa una riga-anim per icona (1 frame ciascuna).
+
+**Tileset ambiente** (`assets/art/tiles/<tema>.png` + `.json`, temi fallback della
+demo): manifest `{"tile_w":32,"tile_h":32,"grid":[cols,rows],"tiles":{"<ruolo>":[col,riga]}}`.
+Ruoli emessi per ogni tema: `floor`, `floor_var1..3`, `wall_n/e/s/w`,
+`corner_nw/ne/se/sw` (esterni), `inner_nw/ne/se/sw` (interni), `l_block` (angolo
+mancante della forma a L), `door_{n,e,s,w}_{aperta,chiusa,bloccata}`,
+`obst_{pillar,corridor,arena,scatter}` (famiglie `ROOM_LAYOUT_*`), `void`, e la
+variante di escalation DEC-024 `floor_deg`/`wall_deg`/`void_deg` (crepe di brace).
 
 ## Personaggi umanoidi
 

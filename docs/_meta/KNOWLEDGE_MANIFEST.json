@@ -353,7 +353,10 @@
         "controlnet",
         "aseprite",
         "contratto-spritesheet",
-        "DEC-175"
+        "DEC-175",
+        "tileset-manifest",
+        "ui-9patch",
+        "font-pixel"
       ],
       "related": [],
       "supersedes": [],
@@ -1803,9 +1806,13 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/render/game_renderer.c",
+        "src/render/game_renderer.h",
+        "src/core/game_types.h"
+      ],
+      "last_reviewed": "2026-07-28",
+      "last_verified_commit": "1263957"
     },
     {
       "id": "gd-system-content-validation",
@@ -2384,9 +2391,18 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
+      "source_files": [
+        "src/core/game_types.h",
+        "src/game/game.c",
+        "src/game/game_internal.h",
+        "src/world/world.c",
+        "src/gameplay/combat.c",
+        "src/render/game_renderer.c",
+        "src/render/game_renderer.h",
+        "src/tests/discovery_tests.c"
+      ],
       "last_reviewed": "2026-07-28",
-      "last_verified_commit": "0ec60d0"
+      "last_verified_commit": "1263957"
     },
     {
       "id": "gd-ui-build-screen",
@@ -2545,9 +2561,11 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/render/game_renderer.c"
+      ],
+      "last_reviewed": "2026-07-28",
+      "last_verified_commit": "1263957"
     },
     {
       "id": "gd-ui-results-leaderboards",
@@ -2572,9 +2590,15 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/core/game_types.h",
+        "src/gameplay/combat.c",
+        "src/game/game_internal.h",
+        "src/render/game_renderer.c",
+        "src/tests/discovery_tests.c"
+      ],
+      "last_reviewed": "2026-07-28",
+      "last_verified_commit": "1263957"
     },
     {
       "id": "gd-ui-run-setup",
