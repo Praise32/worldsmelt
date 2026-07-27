@@ -1,0 +1,1 @@
+{"frame_w":32,"frame_h":32,"anchor":[16,30],"anims":{"walk":{"row":0,"frames":4,"fps":8,"loop":true},"hit":{"row":1,"frames":1,"fps":10,"loop":false},"death":{"row":2,"frames":4,"fps":10,"loop":false}}}
