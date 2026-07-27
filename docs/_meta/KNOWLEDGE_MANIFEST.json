@@ -227,18 +227,21 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo.",
+      "summary": "Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo. Struttura del dataset definitivo per famiglie in dataset/worldsmelt-style/, alimentato dagli sprite originali Aseprite che sono insieme asset di gioco e dataset LoRA (DEC-175).",
       "topics": [
         "lora",
         "training",
         "caption",
         "stable-diffusion",
-        "dataset-split"
+        "dataset-split",
+        "dataset-worldsmelt-style",
+        "aseprite",
+        "DEC-175"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": null
     },
     {
@@ -340,14 +343,17 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib.",
+      "summary": "Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib. Aseprite è ora anche il percorso di produzione diretta di sprite originali (HUD, personaggio, nemici, boss, oggetti, colpi, prop) a contratto spritesheet fisso, che serve insieme come asset di gioco e dataset LoRA (DEC-175).",
       "topics": [
         "sprite-bundle",
         "animazione",
         "raylib",
         "pixel-art-fixer",
         "validazione",
-        "controlnet"
+        "controlnet",
+        "aseprite",
+        "contratto-spritesheet",
+        "DEC-175"
       ],
       "related": [],
       "supersedes": [],
@@ -355,7 +361,7 @@
         "src/render",
         "src/assets"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": null
     },
     {
@@ -571,7 +577,7 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171).",
+      "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171). Il lavoro immagini della demo è ora la produzione pixel-art con Aseprite, fuori dallo scope testi/parametri del catalogo curato (DEC-175); il campo `id` del manifest è l'image-id del layer di indirezione contenuto→immagine.",
       "topics": [
         "curation",
         "floor-zero",
@@ -581,12 +587,15 @@
         "DEC-171",
         "demo",
         "kenney",
-        "dataset-cc0"
+        "dataset-cc0",
+        "DEC-175",
+        "aseprite",
+        "indirezione-image-id"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "892911a"
     },
     {
@@ -1492,7 +1501,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b).",
+      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173).",
       "topics": [
         "linguaggio visivo",
         "pixel art",
@@ -1500,12 +1509,15 @@
         "6 slot visivi",
         "DEC-046",
         "DEC-049",
-        "DEC-073b"
+        "DEC-073b",
+        "palette",
+        "fucina",
+        "DEC-173"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1516,18 +1528,18 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 172 decisioni di design (DEC-001..DEC-172) che cambiano il comportamento del gioco: 171 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 175 decisioni di design (DEC-001..DEC-175) che cambiano il comportamento del gioco: 174 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..172"
+        "DEC-001..175"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "d30890b"
     },
     {
@@ -1626,7 +1638,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-172: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-175: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1635,12 +1647,13 @@
         "backlog design",
         "interfaccia",
         "distribuzione",
-        "produzione ai"
+        "produzione ai",
+        "DEC-174"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "d30890b"
     },
     {
@@ -1870,7 +1883,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171).",
+      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171); questa pesca è un caso del layer generale di indirezione contenuto→image-id (DEC-175).",
       "topics": [
         "fusione",
         "meccanica-firma",
@@ -1883,7 +1896,9 @@
         "DEC-162",
         "DEC-171",
         "demo",
-        "dataset-cc0"
+        "dataset-cc0",
+        "DEC-175",
+        "indirezione-image-id"
       ],
       "related": [],
       "supersedes": [],
@@ -1891,7 +1906,7 @@
         "src/gameplay/fusion.c",
         "src/content/curated_images.c"
       ],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "82a0232"
     },
     {
@@ -2345,7 +2360,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065).",
+      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11).",
       "topics": [
         "hud",
         "gameplay",
@@ -2357,12 +2372,14 @@
         "DEC-065",
         "DEC-051",
         "DEC-152",
-        "DEC-169"
+        "DEC-169",
+        "DEC-174",
+        "canvas-960x640"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "0ec60d0"
     },
     {

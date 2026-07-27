@@ -6,10 +6,10 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-172: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
-last_reviewed: 2026-07-27
+  Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-175: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+last_reviewed: 2026-07-28
 last_verified_commit: d30890b
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174]
 related: []
 supersedes: []
 source_files: []
@@ -123,7 +123,7 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 
 ## Interfaccia
 
-11. Qual è la risoluzione logica canonica dell'interfaccia e con quale regola di scaling? La proposta ricorrente è **640×360 con scaling intero**, presente negli appunti e nei template ma **mai approvata**: DEC-156 la apre esplicitamente come domanda aperta e fa marcare il valore come non approvato in `docs/ai-production/templates/UI-SKIN-SPEC.md`. (Provenienza: `Q-UI-002` del questionario ai-production archiviato, priorità BLOCKING per l'implementazione UI.)
+11. Qual è la risoluzione logica canonica dell'interfaccia e con quale regola di scaling? La proposta ricorrente è **640×360 con scaling intero**, presente negli appunti e nei template ma **mai approvata**: DEC-156 la apre esplicitamente come domanda aperta e fa marcare il valore come non approvato in `docs/ai-production/templates/UI-SKIN-SPEC.md`. (Provenienza: `Q-UI-002` del questionario ai-production archiviato, priorità BLOCKING per l'implementazione UI.) **Resta aperta (28/07, DEC-174):** il proprietario ha scelto di non deciderla ora; l'HUD in pixel art della demo si disegna nel frattempo per il **canvas logico attuale, 960×640** (lo stesso di DEC-170), non per fissare implicitamente questa domanda. Si decide dopo la demo.
 12. Qual è la scala dei pixel del gioco — pixel nativi molto grandi, pixel medi, dettaglio alto con pixel snapping — e vale la stessa scala per il mondo e per l'interfaccia? (DEC-046 fissa la pixel art come linguaggio totale, UI compresa, e lascia le risoluzioni di riferimento come default di implementazione stile DEC-019. Provenienza: `Q-UI-003`, BLOCKING per l'art bible.)
 13. Serve uno strumento di design come fonte dell'interfaccia (Penpot canonico, Penpot solo per mockup, un altro strumento, oppure file Markdown più PNG/SVG senza strumento), e in quale forma (cloud, self-host, nessuna integrazione)? (Provenienza: `Q-UI-001` e `Q-UI-005`.)
 22. Con quale comando il menu di pausa si apre dal Piano 0? DEC-169 indica il menu di pausa come luogo in cui l'HUD di combattimento resta consultabile durante il Piano 0, ma ESC è già assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso di `PauseMenu` prevedono oggi la sola provenienza da `Gameplay` (`ui/pause-menu.md`, `05-game-states-and-flow.md`). Manca il comando — o lo stato — che rende operativa la consultazione. (Provenienza: gap aperto da DEC-169 nella sessione del 2026-07-27; registrata anche in `ui/pause-menu.md` e `systems/floor-zero.md`.)

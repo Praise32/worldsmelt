@@ -6,10 +6,10 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171).
-last_reviewed: 2026-07-27
+  Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171). Il lavoro immagini della demo è ora la produzione pixel-art con Aseprite, fuori dallo scope testi/parametri del catalogo curato (DEC-175); il campo `id` del manifest è l'image-id del layer di indirezione contenuto→immagine.
+last_reviewed: 2026-07-28
 last_verified_commit: 892911a
-topics: [curation, floor-zero, manifest, licenze, asset-review, DEC-171, demo, kenney, dataset-cc0]
+topics: [curation, floor-zero, manifest, licenze, asset-review, DEC-171, demo, kenney, dataset-cc0, DEC-175, aseprite, indirezione-image-id]
 related: []
 supersedes: []
 source_files: []
@@ -89,6 +89,11 @@ e checksum secondo la policy scelta.
   "approved_for": ["floor-zero", "fallback", "theme-generation"]
 }
 ```
+
+Il campo `id` del manifest è l'**image-id** del layer di indirezione contenuto→immagine
+descritto sotto (DEC-175): il contenuto (oggetto, nemico, boss, ecc.) non referenzia mai
+`body.png` o un percorso file, ma la categoria/famiglia che questo manifest risolve in un
+file concreto.
 
 ## Piano 0 ibrido
 
@@ -190,6 +195,29 @@ Questa soluzione è **esplicitamente provvisoria**: serve solo al playtest delle
 finché SD non è stato addestrato con la Style LoRA (pipeline definitiva DEC-148, che resta
 invariata). Non cambia la regola di non-contaminazione qui sopra: le immagini Kenney CC0
 restano una fonte già verificata, non un asset da esperimenti con dataset incerto.
+
+## Il lavoro immagini della demo passa alla produzione Aseprite (DEC-175)
+
+Il **catalogo curato** di cui parlano `generated-content-validation.md` e `item-fusion.md`
+si limita a **testi e parametri** (nome, comportamento, statistiche, bande di garanzia) con
+un **auto-mapping provvisorio alle immagini CC0 per categoria/tag** — il meccanismo di
+pesca descritto sopra e in [Item Fusion](../design/systems/item-fusion.md), DEC-171. Il
+**lavoro immagini** vero e proprio — disegnare gli sprite del gioco — **esce da questo
+scope** e passa alla **produzione pixel-art con Aseprite** (toolchain locale + server MCP,
+vedi `08-PIPELINE-SPRITE-ANIMAZIONI.md`): non è più (solo) un problema di mappatura verso
+un corpus preesistente, è produzione originale diretta.
+
+Le due cose convivono senza contraddirsi: finché gli sprite Aseprite non coprono una
+categoria, il ponte provvisorio DEC-171 (auto-mapping CC0 per tag) resta il fallback
+attivo della demo. Quando uno sprite originale esiste, sostituisce il placeholder tramite
+il layer di indirezione **contenuto → image-id** (il campo `id` del manifest sopra): il
+contenuto non cambia, cambia solo quale immagine risolve il suo `id`.
+
+Gli stessi sprite Aseprite sono anche il **dataset definitivo delle LoRA** (DEC-148/168),
+organizzato per famiglia in `dataset/worldsmelt-style/` (dettaglio in
+`03-PIANO-LORA.md`). I **189 sprite curati CC0** già rimappati alla palette ufficiale
+«Fucina di Worldsmelt» (DEC-173) possono integrare l'aggregato `_general/` di quel
+dataset, con provenienza distinta (`cc0`, non `own`) nel ledger.
 
 ## Risultato atteso
 

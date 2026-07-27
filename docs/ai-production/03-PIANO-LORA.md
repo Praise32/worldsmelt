@@ -6,9 +6,9 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo.
-last_reviewed: 2026-07-27
-topics: [lora, training, caption, stable-diffusion, dataset-split]
+  Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo. Struttura del dataset definitivo per famiglie in dataset/worldsmelt-style/, alimentato dagli sprite originali Aseprite che sono insieme asset di gioco e dataset LoRA (DEC-175).
+last_reviewed: 2026-07-28
+topics: [lora, training, caption, stable-diffusion, dataset-split, dataset-worldsmelt-style, aseprite, DEC-175]
 related: []
 supersedes: []
 source_files: []
@@ -31,6 +31,52 @@ resta su `pixel-baseline`.
 Il training si fa **su Kaggle** (`05-KAGGLE-TRAINING-RUNBOOK.md`, runbook primario, fino
 a 30 ore di GPU gratuite a settimana). Il runbook RunPod (`dataset/TRAINING-RUNBOOK.md`)
 resta come fallback a pagamento per quando Kaggle non basta.
+
+## Struttura del dataset definitivo per famiglie (DEC-175)
+
+DEC-148(e) affidava al proprietario del progetto la creazione dei dataset definitivi,
+lasciando il corpus CC0 di `dataset/ledger.jsonl` come base solo per i primi esperimenti.
+DEC-175 (28/07) fissa **come**: gli **sprite originali** prodotti con Aseprite (HUD,
+personaggio, nemici, boss, oggetti, colpi, prop, con le animazioni nel formato a contratto
+fisso di `08-PIPELINE-SPRITE-ANIMAZIONI.md`) sono **allo stesso tempo asset di gioco e
+dataset definitivo delle LoRA**: non due produzioni separate, la stessa immagine serve
+entrambi gli scopi.
+
+Il dataset vive in `dataset/worldsmelt-style/`, organizzato per famiglia:
+
+```text
+dataset/worldsmelt-style/
+├── _general/       # aggregato per la Style LoRA di base (worldsmelt-style)
+├── character/      # per worldsmelt-identità/character-role LoRA dedicate
+├── enemies/
+├── bosses/
+├── items/
+├── shots/
+├── ui/
+└── props/
+```
+
+`_general/` raccoglie il sottoinsieme trasversale usato per la Style LoRA di base (sezione
+`1. worldsmelt-style` della Gerarchia sotto); le altre cartelle alimentano le LoRA per
+famiglia della stessa Gerarchia (`worldsmelt-enemies`, `worldsmelt-items`, LoRA di
+identità, ecc.), non un rifacimento di quella gerarchia.
+
+Regole:
+
+- **Un file caption per immagine** (stesso nome base, estensione `.txt`), secondo il
+  vocabolario della sezione `Caption` sotto e le caption obbligatorie per famiglia già
+  definite sopra (es. `worldsmelt-enemies`).
+- **Registrazione nel ledger** (`docs/ai-production/dataset/ledger.jsonl`,
+  fonte unica dello schema in `dataset/README.md`) con `license_id: own` — gli sprite
+  originali sono `own/original`, non CC0: provenienza propria, non di terze parti.
+- I **189 sprite curati CC0** rimappati alla palette ufficiale «Fucina di Worldsmelt»
+  (DEC-173) possono **integrare `_general/`**, ma con **provenienza distinta** nel ledger
+  (`license_id: cc0`, non `own`): non si riscrive la loro provenienza originale solo
+  perché sono stati rimappati di palette.
+
+Questa struttura **non sostituisce** il corpus CC0 esistente (resta valido per gli
+esperimenti già fatti, vedi `dataset/README.md`): lo affianca come dataset definitivo,
+in costruzione via Aseprite.
 
 ## Gerarchia
 

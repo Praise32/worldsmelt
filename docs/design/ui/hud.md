@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065)."
-last_reviewed: 2026-07-27
+summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11)."
+last_reviewed: 2026-07-28
 last_verified_commit: 0ec60d0
-topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169]
+topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640]
 related: []
 supersedes: []
 source_files: []
@@ -130,6 +130,23 @@ nell'overflow di DEC-131: la card è la notifica, non il contenuto.
 L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regola è
 [Visual Language](../content/visual-language.md), non riformulata qui.
 
+## Canvas di riferimento della demo (DEC-174)
+
+L'HUD in pixel art della demo si disegna per il **canvas logico attuale, 960×640** — lo
+stesso rettangolo su cui sono costruite le stanze multi-taglia e la telecamera a zoom
+fisso di [Rooms and Floor Generation](../systems/rooms-and-floor-generation.md) (DEC-170).
+Questo **non** fissa la risoluzione logica canonica dell'interfaccia: la domanda aperta 11
+(proposta ricorrente 640×360 con scaling intero) **resta aperta**, si decide dopo la demo.
+960×640 è il canvas su cui si lavora **oggi**, non un valore di design definitivo — stesso
+trattamento dei default proposti stile DEC-019 già usati altrove in questo documento e in
+`content/visual-language.md`.
+
+Elementi indipendenti dalla risoluzione restano una buona pratica per i componenti a
+9-patch (bordi/riempimento che si adattano a più dimensioni), ma non sono la via
+principale scelta per l'HUD della demo: costruire subito componenti solo relativi
+avrebbe rimandato la disegnazione concreta dell'HUD senza necessità, dato che il canvas
+di lavoro (960×640) è già stabile per l'implementazione M2 in corso.
+
 ## Priorità visiva
 
 1. sopravvivenza (salute base e temporanea);
@@ -164,3 +181,4 @@ L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regol
 7. **Given** più contenuti mai visti compaiono nella stessa stanza, **when** il giocatore li incontra quasi contemporaneamente, **then** le card di scoperta si accodano e vengono mostrate una alla volta, senza sovrapporsi sullo schermo (DEC-065).
 8. **Given** il giocatore ha card di scoperta ancora in coda non mostrate, **when** muore oppure cambia stanza, **then** quelle card vengono scartate silenziosamente senza inseguirlo nella stanza successiva, e la scoperta resta comunque registrata nel Catalogo (DEC-152).
 9. **Given** il giocatore è in `FloorZero`, **when** esplora l'hub senza aprire la pausa e senza entrare in una prova, **then** l'HUD di combattimento resta nascosto; **when** apre il menu di pausa, **then** può consultare salute, risorse e build; **when** entra in una prova, **then** l'HUD ricompare (DEC-169).
+10. **Given** l'HUD della demo è disegnato in pixel art, **when** viene posizionato sullo schermo, **then** usa come riferimento il canvas logico 960×640 in uso oggi, senza attendere la risposta alla domanda aperta 11 sulla risoluzione logica definitiva (DEC-174).

@@ -6,9 +6,9 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib.
-last_reviewed: 2026-07-22
-topics: [sprite-bundle, animazione, raylib, pixel-art-fixer, validazione, controlnet]
+  Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib. Aseprite è ora anche il percorso di produzione diretta di sprite originali (HUD, personaggio, nemici, boss, oggetti, colpi, prop) a contratto spritesheet fisso, che serve insieme come asset di gioco e dataset LoRA (DEC-175).
+last_reviewed: 2026-07-28
+topics: [sprite-bundle, animazione, raylib, pixel-art-fixer, validazione, controlnet, aseprite, contratto-spritesheet, DEC-175]
 related: []
 supersedes: []
 source_files: [src/render, src/assets]
@@ -52,6 +52,33 @@ SpriteBundle
         v
 animazione raylib
 ```
+
+## Aseprite: produzione diretta di sprite originali (DEC-175)
+
+Oltre alla pipeline SD1.5 + LoRA descritta sopra, il progetto produce **sprite originali
+disegnati direttamente in Aseprite**: HUD, personaggio, nemici, boss, oggetti, colpi,
+prop. Questi sprite sono **allo stesso tempo asset di gioco e dataset definitivo delle
+LoRA** (DEC-148/168, dettaglio della struttura per famiglia in `03-PIANO-LORA.md`,
+sezione "Struttura del dataset definitivo per famiglie"): non una produzione a parte, non
+un pre-training-set da rigenerare poi con SD.
+
+Toolchain (compilata e verificata il 27/07):
+
+- **binario Aseprite locale** (build personale, EULA rispettata: nessuna ridistribuzione
+  del binario);
+- **server MCP** registrato in `.mcp.json` del repository (comando Python, invoca il
+  binario locale via `ASEPRITE_PATH`).
+
+Tutte le animazioni prodotte con Aseprite seguono lo stesso **contratto spritesheet a
+formato fisso** dello `SpriteBundle` definito sotto (`## Formato SpriteBundle`): canvas,
+pivot, hitbox, socket e clip di animazione con lo stesso schema JSON, indipendentemente
+dal fatto che i frame vengano generati da SD1.5+LoRA o disegnati a mano in Aseprite. Il
+motore raylib non distingue le due provenienze: consuma lo stesso `SpriteBundle` in
+entrambi i casi.
+
+Per il dataset: **un file caption per immagine** (stesso nome base, estensione `.txt`),
+registrazione nel ledger (`docs/ai-production/dataset/ledger.jsonl`) come **`own`**
+(sprite proprio, non CC0), organizzati per famiglia in `dataset/worldsmelt-style/`.
 
 ## Personaggi umanoidi
 

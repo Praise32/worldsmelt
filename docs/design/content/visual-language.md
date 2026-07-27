@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b)."
-last_reviewed: 2026-07-18
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173)."
+last_reviewed: 2026-07-28
 last_verified_commit: 0ec60d0
-topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b]
+topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173]
 related: []
 supersedes: []
 source_files: []
@@ -92,6 +92,80 @@ Le risoluzioni di riferimento attuali (atlas generati, resa a campionamento a pu
 **default dell'implementazione**, nello stesso stato `draft` dei valori numerici di DEC-019:
 documentate come default proposto, non come valore di design definitivo. Fonti che
 rimandano a questa regola senza riformularla: `ui/hud.md`.
+
+## Palette ufficiale «Fucina di Worldsmelt» (DEC-173)
+
+Il gioco ha una **palette ufficiale unica**, chiamata **«Fucina di Worldsmelt»**: 31 colori
+custom, **esplicitamente non-neon**. La palette copre HUD, sprite originali e il remap
+batch dei 189 sprite curati CC0 (vedi [Asset Curation and Floor Zero](../../ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md)):
+qualunque pixel art del gioco pesca da questi 31 colori, non da una palette generica o da
+una libreria di terze parti.
+
+La palette è stata scelta dal proprietario il 28/07 dopo un confronto visivo su 4
+proposte con sprite rimappati. Alternative scartate: **Endesga 32**, **Resurrect 64** e
+**Apollo** (palette canoniche di terze parti); il mantenimento del look **neon** in uso
+fino a questo punto, esplicitamente non gradito.
+
+La fonte operativa per Aseprite resta il file `.gpl` (`~/tools/aseprite-workspace/worldsmelt-fucina.gpl`,
+fuori da questo repository); questa sezione ne copia i valori RGB/hex come riferimento di
+design, senza sostituirlo come strumento di lavoro.
+
+### I 31 colori
+
+| Nome | Hex | RGB | Famiglia |
+|---|---|---|---|
+| slag-nero | `#14100E` | 20, 16, 14 | Bronzo/metallo |
+| slag-scuro | `#241A16` | 36, 26, 22 | Bronzo/metallo |
+| slag-caldo | `#3A2620` | 58, 38, 32 | Bronzo/metallo |
+| terra-bruciata | `#55352A` | 85, 53, 42 | Bronzo/metallo |
+| bronzo-scuro | `#7A4A2B` | 122, 74, 43 | Bronzo/metallo |
+| bronzo | `#9C6526` | 156, 101, 38 | Bronzo/metallo |
+| bronzo-chiaro | `#C98A2E` | 201, 138, 46 | Bronzo/metallo |
+| oro-fuso | `#E8B74A` | 232, 183, 74 | Bronzo/metallo |
+| oro-pallido | `#F5DF8F` | 245, 223, 143 | Bronzo/metallo |
+| brace-scura | `#7E2216` | 126, 34, 22 | Brace/fiamma |
+| brace | `#B13A1E` | 177, 58, 30 | Brace/fiamma |
+| fiamma | `#E05B23` | 224, 91, 35 | Brace/fiamma |
+| fiamma-chiara | `#F7913E` | 247, 145, 62 | Brace/fiamma |
+| bagliore | `#FFC46B` | 255, 196, 107 | Brace/fiamma |
+| cenere-nera | `#2B2B31` | 43, 43, 49 | Cenere/neutri |
+| cenere-scura | `#4A4A55` | 74, 74, 85 | Cenere/neutri |
+| cenere | `#737382` | 115, 115, 130 | Cenere/neutri |
+| cenere-chiara | `#A7A7B5` | 167, 167, 181 | Cenere/neutri |
+| fumo | `#D8D8E0` | 216, 216, 224 | Cenere/neutri |
+| bianco-caldo | `#F4F2EC` | 244, 242, 236 | Cenere/neutri |
+| verderame-scuro | `#1E4D44` | 30, 77, 68 | Verderame (accento) |
+| verderame | `#3A7D63` | 58, 125, 99 | Verderame (accento) |
+| verderame-chiaro | `#6DB388` | 109, 179, 136 | Verderame (accento) |
+| patina | `#A8DCA8` | 168, 220, 168 | Verderame (accento) |
+| ardesia-scura | `#26303F` | 38, 48, 63 | Ardesia (accento) |
+| ardesia | `#40546B` | 64, 84, 107 | Ardesia (accento) |
+| ardesia-chiara | `#6A86A0` | 106, 134, 160 | Ardesia (accento) |
+| ardesia-pallida | `#9DB6C9` | 157, 182, 201 | Ardesia (accento) |
+| prugna-scura | `#5B2A4D` | 91, 42, 77 | Prugna (accento) |
+| prugna | `#94406E` | 148, 64, 110 | Prugna (accento) |
+| prugna-chiara | `#CF6F96` | 207, 111, 150 | Prugna (accento) |
+
+### Ruoli delle famiglie
+
+- **Bronzo/metallo** (9 colori, dal nero fumo al dorato caldo) — la rampa strutturale
+  principale: metallo, terra bruciata, superfici di fonderia. È la famiglia più estesa,
+  coerente con l'identità "fucina" del gioco.
+- **Brace/fiamma** (5 colori) — calore attivo, fuoco, energia: colore funzionale per
+  danno da fuoco/calore (vedi lo strato "Colore funzionale" sopra) e per accenti di
+  pericolo/attivazione nell'HUD.
+- **Cenere/neutri** (6 colori, dal nero al bianco caldo) — la rampa acromatica per
+  ombre, contorni, testo e superfici neutre: non satura, coerente con la regola non-neon.
+- **Verderame** (4 colori) — accento freddo/organico (ossidazione, veleno, natura),
+  distinto sia dal bronzo caldo sia dall'ardesia.
+- **Ardesia** (4 colori) — accento freddo/minerale (pietra, acqua, elementi UI secondari),
+  distinto dal verderame per tonalità più blu che verde.
+- **Prugna** (4 colori) — accento raro/magico (rarità, elementi speciali), la famiglia più
+  satura della palette, usata con parsimonia.
+
+Questa palette **vincola** la variazione per-World di palette e dettagli già prevista da
+DEC-073b per la silhouette stabile delle risorse fisse: la variazione resta dentro questi
+31 colori, non introduce tinte fuori palette.
 
 ## Slot visivi degli oggetti sul personaggio (DEC-049)
 
@@ -194,6 +268,12 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - Then l'oggetto occupa lo stesso slot visivo con la stessa logica di sovrapposizione in
   entrambi i casi, perché i 6 slot visivi (DEC-049) sono indipendenti dall'origine dello
   sprite del personaggio.
+
+**Scenario: la pixel art del gioco resta dentro la palette ufficiale**
+- Given un artista che disegna un nuovo sprite originale o rimappa uno sprite curato CC0,
+- When sceglie i colori in Aseprite,
+- Then usa solo colori della palette «Fucina di Worldsmelt» (31 colori, non-neon), la
+  stessa per HUD, sprite originali e remap batch (DEC-173).
 
 **Scenario: le icone delle risorse fisse restano riconoscibili tra World diversi**
 - Given un giocatore che ha giocato una run nel World A e un'altra nel World B,

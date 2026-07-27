@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171)."
-last_reviewed: 2026-07-27
+summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171); questa pesca è un caso del layer generale di indirezione contenuto→image-id (DEC-175)."
+last_reviewed: 2026-07-28
 last_verified_commit: 82a0232
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0]
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0, DEC-175, indirezione-image-id]
 related: []
 supersedes: []
 source_files: [src/gameplay/fusion.c, src/content/curated_images.c]
@@ -71,6 +71,15 @@ composizione dello **stadio 1**: l'oggetto nasce con la sua immagine, non la ric
 È una soluzione **esplicitamente provvisoria**, pensata solo per permettere il playtest
 delle meccaniche: quando la Style LoRA sarà addestrata, questo ponte viene sostituito dalla
 pipeline definitiva, senza che nulla in questo documento cambi.
+
+Questa pesca è un caso particolare di una regola più generale (DEC-175): **il contenuto
+non referenzia mai un file immagine direttamente**. L'oggetto fuso conosce solo la sua
+categoria/famiglia; è un layer di indirezione **contenuto → image-id** (il campo `id` del
+manifest di [Asset Curation and Floor Zero](../../ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md))
+a risolvere quella categoria in un file concreto. Questo è ciò che permette di sostituire
+in blocco le immagini provvisorie CC0 con gli sprite originali Aseprite (dataset definitivo
+delle LoRA, `../../ai-production/03-PIANO-LORA.md`) senza toccare né questo documento né i
+testi degli oggetti.
 
 ## Feedback
 

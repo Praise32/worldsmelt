@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 172 decisioni di design (DEC-001..DEC-172) che cambiano il comportamento del gioco: 171 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-27
+  Registro delle 175 decisioni di design (DEC-001..DEC-175) che cambiano il comportamento del gioco: 174 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-28
 last_verified_commit: d30890b
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..172]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..175]
 related: []
 supersedes: []
 source_files: []
@@ -1899,3 +1899,39 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** generare audio a runtime con Stable Audio anche nella demo (avrebbe richiesto integrare il modello nel binario di gioco, contro la regola di indipendenza del motore); lasciare la demo senza audio fino all'integrazione della pipeline generativa a runtime.
 - **Conseguenze:** `content/audio-and-feedback.md` registra che la demo usa il pacchetto pre-generato; `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` registra la nota demo (generazione offline, runtime statico). Nessun cambiamento alla pipeline definitiva di DEC-109.
 - **Documenti aggiornati:** `docs/design/content/audio-and-feedback.md`, `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-173 — Palette ufficiale «Fucina di Worldsmelt»: 31 colori, esplicitamente non-neon
+
+- **Data:** 2026-07-28
+- **Stato:** approved
+- **Contesto:** il gioco non aveva mai una palette ufficiale documentata: il look attuale è di fatto neon, senza che nessuna decisione lo avesse scelto. Con l'avvio della produzione pixel-art in Aseprite serviva fissare i colori prima di disegnare HUD e sprite originali e prima di rimappare i sprite curati CC0 già in uso.
+- **Decisione:** il proprietario ha scelto (28/07, dopo un confronto visivo su 4 proposte con sprite rimappati) la palette custom **«Fucina di Worldsmelt»**: **31 colori** — bronzo, brace, cenere, verderame, con accenti ardesia e prugna — **esplicitamente NON neon**. Vale per **HUD nuovo**, **sprite originali** e **remap batch dei 189 sprite curati CC0**. La fonte operativa per Aseprite resta il file `.gpl` (`~/tools/aseprite-workspace/worldsmelt-fucina.gpl`, fuori dal repository); `content/visual-language.md` ne copia i valori RGB/hex come riferimento di design.
+- **Alternative considerate:** **Endesga 32**, **Resurrect 64** e **Apollo** (palette canoniche di terze parti, scartate a favore di una palette custom con identità propria); il mantenimento del look **neon** attuale, esplicitamente non gradito dal proprietario.
+- **Conseguenze:** `content/visual-language.md` guadagna la sezione «Palette ufficiale» con i 31 colori, i loro nomi italiani, hex/RGB e il ruolo di ciascuna famiglia (bronzo/metallo, brace/fiamma, cenere/neutri, verderame, ardesia, prugna); la palette vincola anche la variazione per-World già ammessa da DEC-073b, che resta dentro questi 31 colori. Nessun documento approved viene sostituito: prima di questa decisione non esisteva una palette ufficiale canonica, solo un look neon di fatto, mai formalizzato.
+- **Documenti aggiornati:** `docs/design/content/visual-language.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-174 — L'HUD della demo si disegna per il canvas logico attuale 960×640; la domanda aperta 11 resta aperta
+
+- **Data:** 2026-07-28
+- **Stato:** approved
+- **Contesto:** l'HUD in pixel art della demo va disegnato ora, ma la risoluzione logica canonica dell'interfaccia resta la domanda aperta 11 (proposta ricorrente 640×360 con scaling intero, mai approvata). Serviva sapere se disegnare l'HUD blocca o meno quella scelta, dato che DEC-170 ha già fissato le stanze multi-taglia e la telecamera sul canvas 960×640 in uso oggi.
+- **Decisione:** il proprietario ha scelto di **non decidere ora** la risoluzione logica definitiva: la **domanda aperta 11 resta aperta**, si decide dopo la demo. Nel frattempo, l'**HUD in pixel art nasce per il canvas 960×640** in uso oggi, lo stesso su cui sono costruite le stanze multi-taglia e la telecamera (DEC-170). Questa scelta non fissa implicitamente la domanda aperta 11: è il canvas di lavoro corrente, non un valore di design definitivo, stesso trattamento dei default proposti stile DEC-019.
+- **Alternative considerate:** fissare subito 640×360 (scartata: avrebbe richiesto rifare canvas/celle/camera prima di poter disegnare l'HUD, bloccando il lavoro in corso); costruire elementi di HUD indipendenti dalla risoluzione come via principale (scartata: resta buona pratica per i componenti a 9-patch, ma non la via principale per non rimandare la disegnazione concreta dell'HUD).
+- **Conseguenze:** `ui/hud.md` registra il canvas 960×640 come riferimento della demo, con rimando esplicito a DEC-170 e alla domanda aperta 11; `governance/open-questions.md` aggiunge una nota alla domanda 11 che segnala che resta aperta e che la demo procede a 960×640. Nessun documento approved viene sostituito: DEC-170 resta invariata, questa decisione ne applica il canvas all'HUD.
+- **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-175 — Pipeline artistica: gli sprite Aseprite sono insieme asset di gioco e dataset LoRA; layer di indirezione contenuto→image-id
+
+- **Data:** 2026-07-28
+- **Stato:** approved
+- **Contesto:** DEC-148(e) aveva affidato al proprietario del progetto la creazione dei dataset definitivi delle LoRA, senza dire come; nel frattempo la toolchain Aseprite è stata compilata e verificata (27/07: binario locale + server MCP registrato in `.mcp.json`; EULA rispettata, nessuna ridistribuzione del binario), rendendo necessario fissare il ruolo di questa produzione rispetto al catalogo curato (testi/parametri) e alla demo (DEC-171).
+- **Decisione:** tre punti. **(a)** Il **lavoro immagini della demo esce dallo scope del catalogo curato** — che si limita a **testi/parametri** con un **auto-mapping provvisorio alle immagini CC0 per tag/categoria** (il meccanismo di DEC-171) — e **passa alla produzione pixel-art con Aseprite**. Il ponte provvisorio DEC-171 resta comunque il fallback attivo finché una categoria non ha ancora uno sprite originale. **(b)** Fra contenuto e immagini esiste un **layer di indirezione contenuto→image-id**: il contenuto non referenzia mai un file immagine direttamente, solo un `id` (il campo `id` del manifest di `17-ASSET-CURATION-AND-FLOOR-ZERO.md`) che si risolve in un file concreto; questo permette di sostituire in blocco le immagini provvisorie con gli sprite definitivi senza toccare i testi. **(c)** Gli **sprite originali** prodotti (HUD, personaggio, nemici, boss, oggetti, colpi, prop, animazioni come spritesheet a **contratto fisso**) sono **anche i dataset definitivi delle LoRA** (DEC-148/168), organizzati per famiglia in `dataset/worldsmelt-style/` (`_general` aggregato per la Style LoRA di base, più `character/enemies/bosses/items/shots/ui/props` per LoRA dedicate), **un file caption per immagine**, registrati nel ledger come **`own`** (non CC0). I **189 sprite curati CC0** rimappati alla palette «Fucina di Worldsmelt» (DEC-173) possono integrare `_general`, con provenienza distinta nel ledger.
+- **Alternative considerate:** mantenere il ponte CC0 di DEC-171 come unica via a tempo indeterminato, rimandando sia la produzione artistica reale sia il dataset definitivo; tenere separate la produzione degli asset di gioco e quella del dataset LoRA (doppio sforzo, provenienza divergente fra le due copie della stessa immagine); far referenziare al contenuto i file immagine direttamente (avrebbe impedito la sostituzione in blocco delle immagini provvisorie senza toccare i testi).
+- **Conseguenze:** `docs/ai-production/03-PIANO-LORA.md` guadagna la sezione sulla struttura del dataset per famiglie; `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md` registra il contratto spritesheet condiviso e il ruolo di Aseprite; `docs/design/systems/item-fusion.md` collega il suo meccanismo di pesca CC0 al layer di indirezione generale; `docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md` registra lo spostamento di scope del lavoro immagini della demo e il campo `id` del manifest come image-id. DEC-148, DEC-168 e DEC-171 restano invariate: questa decisione ne dettaglia l'attuazione, non le sostituisce.
+- **Documenti aggiornati:** `docs/ai-production/03-PIANO-LORA.md`, `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md`, `docs/design/systems/item-fusion.md`, `docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md` (aggiornati in questo stesso lavoro)
