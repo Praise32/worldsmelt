@@ -6,24 +6,29 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).
-last_reviewed: 2026-07-27
+  Pipeline Stable Audio 3 Small (checkpoint music/sfx) per SFX e musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). Dal 28/07 rFXGen è uscito dalla pipeline (DEC-178): il fallback garantito è direttamente il pacchetto curato/statico. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).
+last_reviewed: 2026-07-28
 last_verified_commit: 892911a
-topics: [audio, rfxgen, stable-audio, dec-036, licenza, fallback, DEC-172, demo]
+topics: [audio, stable-audio, dec-036, licenza, fallback, DEC-172, DEC-178, demo]
 related: []
 supersedes: []
 source_files: []
 ---
 # Pipeline audio
 
-> **ADOTTATA da DEC-109 (2026-07-22):** via primaria Stable Audio Small in locale, catena
-> di fallback rFXGen → curato; licenza Stability Community accettata (DEC-113). Ogni evento
-> critico mantiene un suono curato/fallback (garanzia ereditata da DEC-036); nessuna
-> generazione in combattimento; modello audio caricato in sequenza col modello di testo
-> attivo e con SD.
+> **ADOTTATA da DEC-109 (2026-07-22):** via primaria Stable Audio Small in locale, fallback
+> garantito il pacchetto curato/statico; licenza Stability Community accettata (DEC-113).
+> Ogni evento critico mantiene un suono curato/fallback (garanzia ereditata da DEC-036);
+> nessuna generazione in combattimento; modello audio caricato in sequenza col modello di
+> testo attivo e con SD.
 >
 > **Nota demo (DEC-172, 2026-07-27):** la build demo usa il pacchetto pre-generato offline
 > (vedi sezione dedicata sotto), non la generazione a runtime descritta in questo documento.
+>
+> **Nota pipeline (DEC-178, 2026-07-28):** rFXGen è uscito dalla pipeline audio — non è mai
+> stato installato né usato. Il generatore degli SFX (semplici e complessi) è il checkpoint
+> `sfx` di Stable Audio Small; la catena di fallback è a due livelli (checkpoint sfx →
+> curato), non più tre.
 
 ## Conflitto risolto (DEC-109)
 
@@ -41,9 +46,7 @@ ha sempre un suono curato o di fallback — vedi il callout in testa a questo do
 ```text
 AudioSpec generata dal modello di testo attivo
         |
-        +--> effetto semplice --> rFXGen
-        |
-        +--> effetto complesso --> Stable Audio 3 Small-SFX
+        +--> effetto (semplice o complesso) --> Stable Audio 3 Small-SFX
         |
         +--> musica/ambiente --> Stable Audio 3 Small-Music
         v
@@ -56,29 +59,16 @@ candidate → curated/cache/fallback
 raylib audio
 ```
 
-## rFXGen
+## rFXGen (rimosso dalla pipeline, DEC-178)
 
-Uso principale:
-
-- click UI;
-- pickup;
-- spari;
-- impatti sintetici;
-- esplosioni brevi;
-- errori;
-- power-up;
-- telegraph semplici;
-- varianti procedurali.
-
-Vantaggi:
-
-- nessun modello;
-- costo minimo;
-- parametri riproducibili;
-- licenza zlib;
-- integrazione naturale con l'ecosistema raylib.
-
-Non serve generare ogni variante con un modello neurale.
+rFXGen era stato previsto (DEC-109) come anello di fallback procedurale per SFX semplici
+(click UI, pickup, spari, impatti sintetici, esplosioni brevi, errori, power-up, telegraph
+semplici, varianti procedurali) grazie ai suoi vantaggi — nessun modello, costo minimo,
+parametri riproducibili, licenza zlib, integrazione con l'ecosistema raylib. Nella pratica
+**non è mai stato installato né usato**: il checkpoint `sfx` di Stable Audio 3 Small copre
+già tutta la produzione SFX, semplice e complessa. Il proprietario ha confermato il 28/07
+che la via reale è sempre stata quella (DEC-178): rFXGen è rimosso dalla pipeline, non è più
+un anello di fallback né uno strumento di produzione della demo (DEC-172).
 
 ## Stable Audio 3 Small
 
@@ -120,8 +110,9 @@ L'audio non viene generato quando il colpo viene sparato. Si genera:
 
 La build demo usa esclusivamente la modalità "resta completamente curato" descritta sopra:
 musica/ambience e SFX si generano **offline**, prima della build, con **Stable Audio 3
-Small** e **rFXGen** come **strumenti di produzione**, non come dipendenze del runtime. Il
-risultato entra nel gioco come **asset statici** (WAV/OGG), letti da un modulo audio raylib
+Small** (checkpoint music e sfx) come **strumento di produzione** — non come dipendenza del
+runtime, e senza rFXGen, uscito dalla pipeline (DEC-178). Il risultato entra nel gioco come
+**asset statici** (WAV/OGG), letti da un modulo audio raylib
 che **non** carica né invoca alcun modello — coerente con la regola di `AGENTS.md` («motore
 indipendente dai modelli AI»: il runtime legge solo file locali già validati). La pipeline
 generativa a runtime resta quella descritta sopra (DEC-109): la demo non la disabilita,
@@ -172,7 +163,6 @@ Formati:
 
 - WAV per SFX molto brevi;
 - OGG per musica e ambienti;
-- parametri JSON per rFXGen;
 - metadati e hash sempre presenti.
 
 ## Validazione
@@ -236,11 +226,10 @@ Possibili LoRA future:
 La modalità base deve includere una libreria curata sufficiente. Un fallimento audio non
 blocca mai una run.
 
-Fallback:
+Fallback (a due livelli dal 28/07, DEC-178 — rFXGen rimosso):
 
 1. asset curato specifico;
-2. variante rFXGen;
-3. famiglia generica;
-4. silenzio soltanto per eventi non critici.
+2. famiglia generica;
+3. silenzio soltanto per eventi non critici.
 
 Gli eventi critici di gameplay non possono perdere il feedback.

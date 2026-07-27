@@ -555,21 +555,21 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
+      "summary": "Pipeline Stable Audio 3 Small (checkpoint music/sfx) per SFX e musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). Dal 28/07 rFXGen è uscito dalla pipeline (DEC-178): il fallback garantito è direttamente il pacchetto curato/statico. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
       "topics": [
         "audio",
-        "rfxgen",
         "stable-audio",
         "dec-036",
         "licenza",
         "fallback",
         "DEC-172",
+        "DEC-178",
         "demo"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "892911a"
     },
     {
@@ -1431,7 +1431,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
+      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale, con il pacchetto curato/statico come fallback garantito (DEC-109, catena semplificata a due livelli da DEC-178 — rFXGen rimosso); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
       "topics": [
         "audio",
         "feedback",
@@ -1440,14 +1440,14 @@
         "DEC-036",
         "DEC-109",
         "stable-audio",
-        "rfxgen",
         "DEC-172",
+        "DEC-178",
         "demo"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": null
     },
     {
@@ -2780,7 +2780,8 @@
         "sandbox-lua",
         "melting-gen",
         "melting-sprites",
-        "build"
+        "build",
+        "audio"
       ],
       "related": [
         "meta-doc-code-drift"
@@ -2792,10 +2793,11 @@
         "src/core/game_types.h",
         "src/world/world.c",
         "src/world/room_camera.c",
+        "src/audio/audio.c",
         "AGENTS.md",
         "Makefile"
       ],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "17204df"
     },
     {
@@ -2907,7 +2909,8 @@
         "test",
         "rng",
         "generazione",
-        "catalogo"
+        "catalogo",
+        "audio"
       ],
       "related": [
         "eng-dependencies",
@@ -2930,9 +2933,11 @@
         "tools/melting-gen/gen_fallback.c",
         "src/gameplay/item_pool.c",
         "src/content/run_content.c",
-        "docs/archive/legacy-notes/issue-notes.md"
+        "docs/archive/legacy-notes/issue-notes.md",
+        "src/audio/audio.c",
+        "src/tests/audio_tests.c"
       ],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-28",
       "last_verified_commit": "8210480"
     },
     {

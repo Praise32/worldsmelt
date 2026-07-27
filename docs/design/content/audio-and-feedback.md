@@ -5,9 +5,9 @@ domain: design
 status: draft
 authority: canonical
 owner: design
-summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172)."
+summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale, con il pacchetto curato/statico come fallback garantito (DEC-109, catena semplificata a due livelli da DEC-178 — rFXGen rimosso); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172)."
 last_reviewed: 2026-07-28
-topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036, DEC-109, stable-audio, rfxgen, DEC-172, demo]
+topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036, DEC-109, stable-audio, DEC-172, DEC-178, demo]
 related: []
 supersedes: []
 source_files: []
@@ -55,23 +55,27 @@ generale, non riformulato qui). Anche nei piani più avanzati, l'intensificazion
 libreria/grammatica sonora deve restare **ascoltabile**: l'audio non deve mai degradare in
 rumore indistinguibile, indipendentemente da quanto il tema si sia intensificato.
 
-## Audio generativo con catena di fallback (DEC-109, sostituisce la parte «futuro» di DEC-036)
+## Audio generativo con catena di fallback (DEC-109, sostituisce la parte «futuro» di DEC-036; catena semplificata da DEC-178)
 
 Dal 22/07 la via primaria per musica e SFX è **generativa**: **Stable Audio Small in
-locale**, con catena di fallback obbligatoria **rFXGen** (SFX procedurali) → **audio
-curato/statico**. La garanzia storica di DEC-036 sopravvive come rete: ogni evento critico
-ha sempre un suono curato o di fallback, e la modalità solo-curato resta completa e
-dignitosa. Vincoli architetturali: nessuna generazione durante il combattimento; il modello
-audio si carica in sequenza con il modello di testo attivo e SD (mai insieme nei 6 GB di
-riferimento); cache e pubblicazione atomica (pipeline tecnica in
-`docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`; licenza: DEC-113).
+locale** — checkpoint `music` per musica/ambience, checkpoint `sfx` per gli effetti, sia
+semplici sia complessi — con **audio curato/statico** come fallback garantito. Dal 28/07
+(DEC-178) la catena è a **due soli livelli** (checkpoint sfx → curato): **rFXGen è uscito
+dalla pipeline**, non è mai stato installato né usato. La garanzia storica di DEC-036
+sopravvive come rete: ogni evento critico ha sempre un suono curato o di fallback, e la
+modalità solo-curato resta completa e dignitosa. Vincoli architetturali: nessuna
+generazione durante il combattimento; il modello audio si carica in sequenza con il
+modello di testo attivo e SD (mai insieme nei 6 GB di riferimento); cache e pubblicazione
+atomica (pipeline tecnica in `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`; licenza:
+DEC-113).
 
 ## Audio della demo: pacchetto pre-generato offline (DEC-172)
 
-Nella demo attuale l'audio è un **pacchetto pre-generato offline**: musica/ambience per i
-temi con **Stable Audio 3 Small** (checkpoint music e sfx già in `models/`), effetti
-procedurali con **rFXGen**, tutto integrato nel gioco come **asset statici**. Il motore
-acquisisce un **modulo audio** (raylib) che **legge solo file locali già pronti** — coerente
+Nella demo attuale l'audio è un **pacchetto pre-generato offline**: musica/ambience e SFX
+generati con **Stable Audio 3 Small** (checkpoint music e sfx già in `models/` — nessun
+effetto procedurale rFXGen, uscito dalla pipeline con DEC-178), tutto integrato nel gioco
+come **asset statici**. Il motore acquisisce un **modulo audio** (raylib) che **legge solo
+file locali già pronti** — coerente
 con la regola di `AGENTS.md` sull'indipendenza del motore dai modelli AI. **Nessuna
 generazione audio gira a runtime nella demo.** DEC-109 (pipeline generativa a runtime)
 **resta la destinazione finale**: questa è l'**istanza demo** del fallback curato sempre
@@ -163,13 +167,13 @@ coerenza d'insieme, momenti distinguibili. Si integra col set di simboli di DEC-
 **Scenario: la generazione audio fallisce e la catena di fallback tiene**
 - Given una run con audio generato da Stable Audio Small per il tema corrente,
 - When la generazione di un suono fallisce o produce un output non valido,
-- Then il gioco ripiega senza interruzioni sulla catena di fallback (rFXGen, poi il suono
-  curato equivalente): l'evento critico ha comunque il suo segnale (DEC-109; garanzia
-  ereditata da DEC-036).
+- Then il gioco ripiega senza interruzioni sul suono curato equivalente (fallback garantito,
+  DEC-178): l'evento critico ha comunque il suo segnale (DEC-109; garanzia ereditata da
+  DEC-036).
 
 **Scenario: la demo usa il pacchetto audio pre-generato**
 - Given il giocatore gioca la build demo attuale,
 - When un evento sonoro qualunque scatta durante la partita,
 - Then il suono proviene da un asset statico del pacchetto pre-generato offline (Stable
-  Audio 3 Small e rFXGen usati in produzione, non a runtime), letto dal modulo audio raylib
-  del motore senza alcun modello caricato (DEC-172).
+  Audio 3 Small usato in produzione, non a runtime; nessun rFXGen, uscito dalla pipeline con
+  DEC-178), letto dal modulo audio raylib del motore senza alcun modello caricato (DEC-172).
