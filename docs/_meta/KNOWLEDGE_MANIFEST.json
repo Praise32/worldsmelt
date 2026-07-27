@@ -2018,7 +2018,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il determinismo del gameplay (non solo del contenuto generato) resta un prerequisito bloccante non ancora soddisfatto per la Classificata a stesso seed (DEC-141); dettagli multiplayer restano experimental.",
+      "summary": "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il gameplay ora deriva dal seed di run quanto il contenuto generato (DEC-141, prerequisito TECNICO soddisfatto); la Classificata a stesso seed resta comunque non abilitata (validazione estesa da fare); dettagli multiplayer restano experimental.",
       "topics": [
         "manifest",
         "seed",
@@ -2032,10 +2032,13 @@
       ],
       "supersedes": [],
       "source_files": [
-        "src/game/game.c"
+        "src/game/game.c",
+        "src/app/app.c",
+        "src/core/game_types.h",
+        "src/tests/game_tests.c"
       ],
-      "last_reviewed": "2026-07-25",
-      "last_verified_commit": "047e62c"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "f22770c"
     },
     {
       "id": "gd-system-save-meta",
@@ -2872,7 +2875,7 @@
         "docs/archive/legacy-notes/issue-notes.md"
       ],
       "last_reviewed": "2026-07-27",
-      "last_verified_commit": "dab9140"
+      "last_verified_commit": "f22770c"
     },
     {
       "id": "eng-multiplayer-steam-direction",

@@ -96,12 +96,34 @@ int GameCharacterCardCount(const Game *game)
     return CHARACTER_COUNT + (game->generatedCharacterValid ? 1 : 0);
 }
 
-void GameResetRun(Game *game)
+/* DEC-141: deriva il seed di gameplay ('rng') dal seed di run con uno
+   splitmix64 (Steele/Lea/Flood) a costante di dominio propria ('GMPLAY'),
+   cosi' lo stream di gameplay non e' mai lo stesso di quello di
+   generazione anche quando entrambi partono dallo stesso runSeed (che
+   RunContentLoad sotto riceve grezzo, senza mix: e' gia' il seed che
+   melting-gen usa esternamente, nessun bisogno di separarlo ulteriormente
+   da se stesso). Un solo giro del finalizzatore basta: qui serve un buon
+   rimescolamento del seed iniziale, non un generatore completo (quello
+   resta GameRngNext, invariato). */
+static unsigned int GameplayRngSeedFromRunSeed(unsigned int runSeed)
+{
+    const unsigned long long domain = 0x474D504C41590001ULL;   /* 'GMPLAY' + costante di dominio */
+    unsigned long long state = ((unsigned long long)runSeed ^ domain) + 0x9E3779B97F4A7C15ULL;
+    unsigned long long z = state;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    z ^= (z >> 31);
+    unsigned int mixed = (unsigned int)(z >> 32) ^ (unsigned int)z;
+    return mixed ? mixed : 0xA341316Cu;   /* GameRngNext si autoripara da 0 comunque, ma un seed iniziale gia' non-zero e' piu' pulito */
+}
+
+void GameResetRunWithSeed(Game *game, unsigned int runSeed)
 {
     GameUnloadAssets(game);
     memset(game, 0, sizeof(*game));
-    game->rng = (unsigned int)time(NULL) ^ 0x514AACu;
-    RunContentLoad(&game->content, game->rng);
+    game->runSeed = runSeed;
+    game->rng = GameplayRngSeedFromRunSeed(runSeed);
+    RunContentLoad(&game->content, runSeed);
     AssetsLoad(game);
     game->phase = PHASE_PLAY;
     GamePlayerResetBaseStats(&game->player);
@@ -118,6 +140,19 @@ void GameResetRun(Game *game)
     game->characterChosenIndex = -1;
     ScriptItemsInit(game, NULL);   /* nessun personaggio applicato per costruzione, vedi sopra */
     WorldStartFloor(game, 1);
+}
+
+void GameResetRun(Game *game)
+{
+    /* Wrapper storica: nessun seed di run scelto e' disponibile qui (l'Game
+       provvisorio di avvio in AppRun, i binari *Test che non passano mai dal
+       Piano 0) -- un valore orologio resta l'unica sorgente, esattamente
+       come prima di DEC-141. Passa comunque da GameResetRunWithSeed (mai
+       una propria copia della logica) cosi' anche questo cammino deriva
+       'rng' con lo stesso splitmix64 a dominio invece di riusare il valore
+       grezzo com'era storicamente: nessun test dipende dai bit esatti di un
+       seed basato sull'orologio. */
+    GameResetRunWithSeed(game, (unsigned int)time(NULL) ^ 0x514AACu);
 }
 
 void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
@@ -137,11 +172,17 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
            serve una COPIA della sua CharacterDef presa PRIMA del memset,
            altrimenti generatedCharacterValid tornerebbe falso e
            GameResolveCharacterDef non troverebbe piu' nulla da applicare
-           (stesso punto delicato del case APP_FLOOR_ZERO in app.c). */
+           (stesso punto delicato del case APP_FLOOR_ZERO in app.c).
+           DEC-141: stessa idea per 'runSeed' -- catturato PRIMA e riusato
+           SUBITO dopo (GameResetRunWithSeed, non piu' GameResetRun) cosi'
+           il reset rapido resta la STESSA run: stesso seed, quindi stessa
+           sequenza di spawn/drop/combattimento, non una nuova random ad
+           ogni pressione di R come prima del fix. */
         int chosenCharacter = game->characterChosenIndex;
         bool chosenIsGenerated = (chosenCharacter == CHARACTER_COUNT && game->generatedCharacterValid);
         CharacterDef savedGenerated = chosenIsGenerated ? game->generatedCharacter : (CharacterDef){ 0 };
-        GameResetRun(game);
+        unsigned int savedRunSeed = game->runSeed;
+        GameResetRunWithSeed(game, savedRunSeed);
         game->characterChosenIndex = chosenCharacter;
         if (chosenIsGenerated)
         {

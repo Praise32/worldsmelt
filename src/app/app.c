@@ -777,11 +777,18 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                    applicare. Si cattura quindi una COPIA della def generata
                    PRIMA del memset e la si riscrive subito dopo, esattamente
                    come si fa per l'indice -- la run generata sopravvive
-                   all'attraversamento tanto quanto quella curata. */
+                   all'attraversamento tanto quanto quella curata.
+                   DEC-141: GameResetRunWithSeed, non piu' GameResetRun --
+                   'gen->pendingGenSeed' e' il seed che AppEnterFloorZero ha
+                   gia' deciso per QUESTA run (RunSetup/reroll/RunResults,
+                   vedi il commento sul campo in app_internal.h), lo stesso
+                   passato a melting-gen: il gameplay (spawn/drop/combattimento)
+                   ora deriva da quel seed quanto il contenuto generato, non
+                   piu' dall'orologio. */
                 int chosenCharacter = game->characterChosenIndex;
                 bool chosenIsGenerated = (chosenCharacter == CHARACTER_COUNT && game->generatedCharacterValid);
                 CharacterDef savedGenerated = chosenIsGenerated ? game->generatedCharacter : (CharacterDef){ 0 };
-                GameResetRun(game);
+                GameResetRunWithSeed(game, gen->pendingGenSeed);
                 game->characterChosenIndex = chosenCharacter;
                 if (chosenIsGenerated)
                 {
@@ -1002,6 +1009,7 @@ int AppRun(int argc, char **argv)
     bool floorZeroTest = false;
     bool floorZeroScreenshotTest = false;
     bool roomsTest = false;
+    bool rngSeedTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1117,6 +1125,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             roomsTest = true;
+        }
+        /* DEC-141: come --rooms-test, gira dopo InitWindow ma senza bisogno
+           vero della finestra (GameRngSeedTest non disegna nulla, vedi
+           src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--rng-seed-test") == 0)
+        {
+            smokeTest = true;
+            rngSeedTest = true;
         }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
@@ -1332,6 +1348,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 18;   /* 18: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
+    if (rngSeedTest)
+    {
+        bool ok = GameRngSeedTest(&game);
+        printf("Rng seed test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 26;   /* 26: il primo codice di uscita libero (vedi gli altri test sopra) */
     }
     if (catalogTest)
     {

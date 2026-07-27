@@ -843,6 +843,16 @@ typedef struct Game {
        torna a 0 con ogni nuova run, esattamente come deve. */
     int catalogRecordsWritten;
     GamePhase phase;
+    /* DEC-141: il seed della run corrente (quello scelto/condiviso in
+       RunSetup, o un valore orologio quando nessuna generazione l'ha
+       ancora deciso -- vedi GameResetRun/GameResetRunWithSeed in
+       src/game/game.c). 'rng' sotto NON e' questo valore: e' derivato da
+       'runSeed' con uno splitmix64 a costante di dominio, cosi' il flusso
+       di gameplay non condivide mai lo stream con la generazione (che
+       riceve 'runSeed' grezzo, vedi RunContentLoad). Sopravvive al reset
+       rapido R esattamente come characterChosenIndex (capture/restore in
+       GameUpdate), cosi' la stessa run riparte con la stessa sequenza. */
+    unsigned int runSeed;
     unsigned int rng;
     int floor;
     int roomX;

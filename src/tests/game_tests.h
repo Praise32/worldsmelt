@@ -136,4 +136,14 @@ bool GameCatalogScreenTest(Game *game);
    catalogo). Vedi src/tests/catalog_tests.c. */
 bool GameCatalogScreenshotTest(Game *game);
 
+/* DEC-141: l'RNG di gameplay ('game->rng') derivato dal seed di run invece
+   che dall'orologio (GameResetRunWithSeed, src/game/game.c). Come
+   GameRoomsTest, gira dopo InitWindow ma non serve la finestra per davvero;
+   a differenza di GameRoomsTest usa 'game' (quello gia' pronto passato da
+   AppRun) per davvero, perche' GameResetRunWithSeed chiama AssetsLoad. Due
+   reset con lo stesso seed devono produrre la stessa stanza di
+   combattimento (nemici identici dopo un passo di GameUpdate vero), seed
+   diversi devono produrne una diversa. Vedi src/tests/game_tests.c. */
+bool GameRngSeedTest(Game *game);
+
 #endif

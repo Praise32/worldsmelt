@@ -2230,3 +2230,144 @@ bool GameRoomsTest(Game *game)
     return ok;
 }
 
+/* ============================================================
+   DEC-141: l'RNG di gameplay ('game->rng') derivato dal seed di run
+   (GameResetRunWithSeed, src/game/game.c), non piu' dall'orologio. Prova
+   che DAVVERO "stessa run + stesso seed => stessa sequenza di
+   spawn/drop/combattimento": due reset con lo stesso seed producono
+   nemici identici (tipo, posizione, hp) nella stessa stanza di
+   combattimento dopo un passo di simulazione vera (GameUpdate, non solo
+   WorldSpawnRoomContents), seed diversi ne producono di diversi.
+   ============================================================ */
+
+typedef struct RngSeedTestEnemy
+{
+    EnemyKind kind;
+    Vector2 pos;
+    float hp;
+    float maxHp;
+    float phase;
+} RngSeedTestEnemy;
+
+typedef struct RngSeedTestSnapshot
+{
+    unsigned int rng;
+    Vector2 playerPos;
+    int enemyCount;
+    RngSeedTestEnemy enemies[MAX_ENEMIES];
+} RngSeedTestSnapshot;
+
+static RngSeedTestSnapshot RngSeedTestCapture(const Game *game)
+{
+    RngSeedTestSnapshot snap = { 0 };
+    snap.rng = game->rng;
+    snap.playerPos = game->player.pos;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (!game->enemies[i].active) continue;
+        RngSeedTestEnemy *out = &snap.enemies[snap.enemyCount++];
+        out->kind = game->enemies[i].kind;
+        out->pos = game->enemies[i].pos;
+        out->hp = game->enemies[i].hp;
+        out->maxHp = game->enemies[i].maxHp;
+        out->phase = game->enemies[i].phase;
+    }
+    return snap;
+}
+
+static bool RngSeedTestSnapshotsEqual(const RngSeedTestSnapshot *a, const RngSeedTestSnapshot *b)
+{
+    if (a->rng != b->rng) return false;
+    if (a->playerPos.x != b->playerPos.x || a->playerPos.y != b->playerPos.y) return false;
+    if (a->enemyCount != b->enemyCount) return false;
+    for (int i = 0; i < a->enemyCount; i++)
+    {
+        const RngSeedTestEnemy *ea = &a->enemies[i];
+        const RngSeedTestEnemy *eb = &b->enemies[i];
+        if (ea->kind != eb->kind) return false;
+        if (ea->pos.x != eb->pos.x || ea->pos.y != eb->pos.y) return false;
+        if (ea->hp != eb->hp || ea->maxHp != eb->maxHp) return false;
+        if (ea->phase != eb->phase) return false;
+    }
+    return true;
+}
+
+/* Rigioca l'inizio di una run col seed dato fino alla prima stanza di
+   combattimento del piano 1 (la stanza START, kind fisso, non fa mai
+   spawnare nulla: serve entrare in una stanza vera perche' game->rng
+   avanzi davvero, stesso schema di GamePortalRespawnTest sopra per la
+   stanza boss). Un passo di GameUpdate vero (non solo
+   WorldSpawnRoomContents) fa avanzare ANCHE l'AI/il combattimento
+   (entities.c/combat.c consumano game->rng per fasi/orbite/tiri), cosi'
+   lo snapshot copre spawn E il primo pezzetto di comportamento, non solo
+   la creazione iniziale. */
+static bool RngSeedTestSpawn(Game *game, unsigned int seed, RngSeedTestSnapshot *out)
+{
+    GameResetRunWithSeed(game, seed);
+    bool foundCombatRoom = false;
+    for (int y = 0; y < GRID_SIZE && !foundCombatRoom; y++)
+    {
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            if (game->rooms[y][x].kind == ROOM_COMBAT)
+            {
+                game->roomX = x;
+                game->roomY = y;
+                foundCombatRoom = true;
+                break;
+            }
+        }
+    }
+    if (!foundCombatRoom) return false;
+    EntitiesClear(game);
+    WorldSpawnRoomContents(game);
+    GameUpdate(game, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+    *out = RngSeedTestCapture(game);
+    return true;
+}
+
+bool GameRngSeedTest(Game *game)
+{
+    const unsigned int seedA = 20260727u;
+    const unsigned int seedB = 90210u;
+
+    RngSeedTestSnapshot firstA, secondA, firstB;
+    if (!RngSeedTestSpawn(game, seedA, &firstA))
+    {
+        fprintf(stderr, "GameRngSeedTest: nessuna stanza di combattimento nel piano 1 col seed %u (mappa senza nemici, test non significativo)\n", seedA);
+        return false;
+    }
+    if (!RngSeedTestSpawn(game, seedA, &secondA))
+    {
+        fprintf(stderr, "GameRngSeedTest: seconda generazione col seed %u fallita\n", seedA);
+        return false;
+    }
+    if (!RngSeedTestSnapshotsEqual(&firstA, &secondA))
+    {
+        fprintf(stderr, "GameRngSeedTest: due reset con lo STESSO seed (%u) hanno prodotto sequenze diverse (game->rng %u vs %u, %d vs %d nemici)\n",
+                seedA, firstA.rng, secondA.rng, firstA.enemyCount, secondA.enemyCount);
+        return false;
+    }
+    if (firstA.enemyCount == 0)
+    {
+        fprintf(stderr, "GameRngSeedTest: la stanza di combattimento del seed %u non ha spawnato nemici (confronto vuoto, non significativo)\n", seedA);
+        return false;
+    }
+
+    if (!RngSeedTestSpawn(game, seedB, &firstB))
+    {
+        fprintf(stderr, "GameRngSeedTest: nessuna stanza di combattimento nel piano 1 col seed %u (mappa senza nemici, test non significativo)\n", seedB);
+        return false;
+    }
+    if (RngSeedTestSnapshotsEqual(&firstA, &firstB))
+    {
+        fprintf(stderr, "GameRngSeedTest: seed DIVERSI (%u vs %u) hanno prodotto la stessa sequenza (game->rng %u per entrambi)\n",
+                seedA, seedB, firstA.rng);
+        return false;
+    }
+
+    printf("  [rng-seed] stesso seed (%u) -> %d nemici identici (rng finale %u); seed diverso (%u) -> sequenza diversa (rng finale %u) -> ok\n",
+           seedA, firstA.enemyCount, firstA.rng, seedB, firstB.rng);
+    return true;
+}
+

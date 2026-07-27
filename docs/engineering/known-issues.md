@@ -10,7 +10,7 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-27
-last_verified_commit: dab9140
+last_verified_commit: f22770c
 topics: [difetti, limiti, test, rng, generazione, catalogo]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
@@ -95,13 +95,13 @@ token, non come target primario di `test-llm` di default).
 
 ## 3 — RNG di gameplay ancora seedato con `time(NULL)`
 
-**Sintomo**: `GameResetRun` inizializza l'RNG di gioco con l'orologio di
+**Sintomo (storico)**: `GameResetRun` inizializzava l'RNG di gioco con l'orologio di
 sistema, non con un seed derivato dal seed del run scelto/condiviso. I
 contenuti generati (tema, layout, oggetti) sono deterministici dal seed
 (`melting-gen` prende `--seed` esplicito), ma il **gameplay** (spawn, drop,
 RNG di combattimento durante la run) no.
 
-**Evidenza**: `src/game/game.c:99-103` — `void GameResetRun(Game *game)` con
+**Evidenza (storica)**: `src/game/game.c:99-103` — `void GameResetRun(Game *game)` con
 `game->rng = (unsigned int)time(NULL) ^ 0x514AACu;`.
 
 **Impatto**: blocca le gare asincrone eque fra giocatori sullo stesso seed
@@ -109,11 +109,35 @@ RNG di combattimento durante la run) no.
 con lo stesso seed di generazione possono comunque divergere nel gameplay
 perche' l'RNG di run non e' derivato da quel seed.
 
-**Stato**: backlog aperto, nessuna correzione applicata. **DEC-141** (25/07) fissa il fix
-come prerequisito bloccante di qualunque gara Classificata a stesso seed: nessuna gara del
-genere va abilitata finché questo RNG non deriva dal seed di run (vedi anche
-`docs/design/systems/run-manifest-and-reproducibility.md` e
-`docs/engineering/multiplayer-steam.md`).
+**Stato**: RISOLTO (27/07, notte, DEC-141) il prerequisito TECNICO — la Classificata a
+stesso seed resta comunque NON abilitata (vedi sotto). Implementazione:
+- **`GameResetRunWithSeed(Game *game, unsigned int runSeed)`** (nuova, `src/game/game.c`)
+  affianca `GameResetRun` invece di cambiarne la firma (nessuna API pubblica rotta):
+  deriva `game->rng` da `runSeed` con un finalizzatore splitmix64 a costante di dominio
+  propria (`GameplayRngSeedFromRunSeed`), e passa `runSeed` **grezzo** a `RunContentLoad`
+  (il seed di fallback dei contenuti) — gameplay e generazione non condividono mai lo
+  stesso stream pur partendo dallo stesso seed. `GameResetRun` resta la wrapper storica
+  (nessun seed di run disponibile: avvio provvisorio di `AppRun`, binari `*Test`), invariata
+  per ogni chiamante esistente, ma ora passa anche lei da `GameResetRunWithSeed` con un
+  seed-orologio.
+- **Il seed vero arriva da `gen->pendingGenSeed`** (il seed che `AppEnterFloorZero` ha
+  gia' deciso per la run in `RunSetup`/reroll/`RunResults`, lo stesso passato a
+  `melting-gen`): l'attraversamento del varco del Piano 0 (`src/app/app.c`, ramo
+  `floorZeroExitCrossed`) chiama `GameResetRunWithSeed(game, gen->pendingGenSeed)` invece
+  di `GameResetRun(game)`.
+- **`Game.runSeed`** (nuovo campo, `src/core/game_types.h`) porta il seed della run
+  corrente e sopravvive al reset rapido R esattamente come `characterChosenIndex`
+  (capture/restore in `GameUpdate`, `src/game/game.c`): premere R piu' volte sulla stessa
+  run produce sempre la stessa sequenza, non piu' una nuova ad ogni pressione.
+- **Test**: `--rng-seed-test` (`GameRngSeedTest`, `src/tests/game_tests.c`, in `make test`)
+  rigioca l'inizio di una run con lo stesso seed due volte e confronta i nemici spawnati
+  nella prima stanza di combattimento (tipo/posizione/hp) dopo un passo di `GameUpdate`
+  vero: sequenze identiche a parita' di seed, diverse fra seed diversi.
+- **Resta backlog**: la validazione ESTESA (mappa/spawn/drop/combattimento confrontati
+  fra DUE giocatori/processi diversi sullo stesso manifest condiviso, non solo due reset
+  nello stesso processo) e l'abilitazione vera della Classificata a stesso seed — vedi
+  `docs/design/systems/run-manifest-and-reproducibility.md` e
+  `docs/engineering/multiplayer-steam.md`.
 
 ## 4 — `generated/gen_progress_lazy.txt` non viene mai scritto dai processi reali
 

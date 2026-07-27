@@ -5,13 +5,13 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il determinismo del gameplay (non solo del contenuto generato) resta un prerequisito bloccante non ancora soddisfatto per la Classificata a stesso seed (DEC-141); dettagli multiplayer restano experimental."
-last_reviewed: 2026-07-25
-last_verified_commit: 047e62c
+summary: "Identità della run, riproducibilità, e base del multiplayer asincrono (DEC-016); condivisione del manifest tramite codice breve (seed, versione di gioco, tema e personaggio scelti, DEC-077) o file RunBundle, sempre non classificata (DEC-066); il gameplay ora deriva dal seed di run quanto il contenuto generato (DEC-141, prerequisito TECNICO soddisfatto); la Classificata a stesso seed resta comunque non abilitata (validazione estesa da fare); dettagli multiplayer restano experimental."
+last_reviewed: 2026-07-27
+last_verified_commit: f22770c
 topics: [manifest, seed, riproducibilità, multiplayer-asincrono, run-bundle, determinismo-rng]
 related: [eng-known-issues]
 supersedes: []
-source_files: [src/game/game.c]
+source_files: [src/game/game.c, src/app/app.c, src/core/game_types.h, src/tests/game_tests.c]
 ---
 
 # Run Manifest and Reproducibility
@@ -74,15 +74,27 @@ possibili le classifiche a tempo o a punteggio su queste gare: senza un manifest
 riproducibile non ci sarebbe base per confrontare i risultati di due giocatori diversi.
 
 **Stato reale (DEC-141, corregge la formulazione precedente di questo paragrafo):** il
-determinismo sopra descritto vale oggi solo per il **contenuto generato**. Il **gameplay**
-(spawn, drop, RNG di combattimento durante la run) non è ancora derivato dal seed di run:
-`GameResetRun` lo seeda con l'orologio di sistema (`time(NULL)`), un difetto noto e verificato
-nel codice (`docs/engineering/known-issues.md`, voce 3, `src/game/game.c:99-103`). Due
-giocatori con lo stesso seed affrontano quindi gli stessi piani/nemici/oggetti ma possono
-vivere un combattimento diverso. **DEC-141 fissa il fix di questo RNG come prerequisito
-bloccante di qualunque gara Classificata a stesso seed**: nessuna gara del genere va abilitata
-finché il gameplay non deriva dal seed di run quanto il contenuto generato. Il fix stesso
-resta backlog aperto.
+gameplay (spawn, drop, RNG di combattimento durante la run) ora deriva dal seed di run
+quanto il contenuto generato — il prerequisito TECNICO di DEC-141 è soddisfatto (27/07,
+notte). `GameResetRunWithSeed` (`src/game/game.c`, affianca la storica `GameResetRun`
+senza cambiarne la firma) deriva `game->rng` dal seed di run con uno splitmix64 a costante
+di dominio propria, distinto dal seed di generazione (che `RunContentLoad` riceve grezzo):
+gameplay e generazione non condividono mai lo stesso stream pur partendo dallo stesso
+seed. Il seed vero è `gen->pendingGenSeed` — quello già deciso da `AppEnterFloorZero`
+(`RunSetup`/reroll/`RunResults`), lo stesso passato a `melting-gen` — applicato
+all'attraversamento del varco del Piano 0 (`src/app/app.c`). Un test dedicato
+(`--rng-seed-test`, `GameRngSeedTest`, `src/tests/game_tests.c`, in `make test`) verifica
+che due reset con lo stesso seed producano la stessa sequenza di spawn/combattimento nella
+prima stanza di combattimento, e che seed diversi ne producano una diversa. Dettaglio
+completo dello stato precedente e dell'implementazione in
+`docs/engineering/known-issues.md`, voce 3.
+
+**Quello che resta prima di poter abilitare la Classificata a stesso seed**: questo fix
+prova la riproducibilità **dentro lo stesso processo** (due reset in sequenza). Manca
+ancora la validazione ESTESA fra **due giocatori/processi diversi** sullo stesso
+manifest condiviso (stesso seed, stessa versione di gioco, dall'inizio alla fine di una
+run reale) — nessuna gara Classificata va abilitata finché quella validazione non è
+fatta.
 
 I punti guadagnati per la meta-progressione e i relativi sblocchi sono esclusi dalle modalità
 competitive (vedi `save-and-meta-progression.md`).
