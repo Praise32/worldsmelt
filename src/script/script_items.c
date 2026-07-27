@@ -10,6 +10,7 @@
 #include "lua.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #define SCRIPT_ITEMS_NO_REF (-1)
@@ -473,6 +474,43 @@ static void ScriptItemsClampItemDelta(ScriptItemsStatsAccum *post, const ScriptI
     post->luck       = ScriptItemsClampItemDeltaField(post->luck,       pre->luck,       SCRIPT_ITEMS_LUCK_CAP_BASE, fraction);
 }
 
+/* DEC-162 (docs/design/systems/synergies.md, "Budget di potenza del
+   risultato"): il RISULTATO di una o piu' sinergie implicite attive ha un
+   budget dedicato, PIU' ALTO di quello per-oggetto piu' largo (leggendario,
+   0.60 sopra) -- perche' il risultato di una combinazione deve valere
+   meccanicamente piu' della somma dei singoli budget dei suoi due oggetti.
+   Fin qui il canale statistico (SynergiesStatBonus) passava SOLO dal tetto
+   GLOBALE (ScriptItemsClampStats), mai verificato contro un tetto proprio: il
+   buco che DEC-162 chiude. Riusa la STESSA meccanica per-campo del tetto
+   per-oggetto (ScriptItemsClampItemDeltaField: delta rispetto a 'pre' clampato
+   a fraction*base), non un secondo sistema di bilanciamento -- solo con una
+   frazione piu' larga e senza dipendere dalla rarita' di un singolo oggetto
+   (il risultato e' di PIU' oggetti, potenzialmente di rarita' diverse: usare
+   una scala unica e generosa evita di dover scegliere quale rarita' "conta").
+   Il tetto GLOBALE resta comunque invariato e gira SEMPRE dopo (il chiamante),
+   qualunque cosa succeda qui: nemmeno un budget dedicato sbagliato puo' portare
+   il giocatore fuori banda.
+   1.20 (il doppio del tetto per-oggetto piu' largo) e' un "default proposto
+   dall'implementazione" (stile DEC-019): il documento fissa solo che il tetto
+   esiste ed e' piu' alto di quello per-oggetto, non il numero esatto -- resta
+   materia di playtest. Ritorna true se il clamp ha DAVVERO ridotto qualcosa
+   (il chiamante lo usa per il log su stderr, "log chiaro" richiesto dal task:
+   il giocatore non vede nulla -- e' una degradazione sicura, non un errore --
+   ma chi guarda i log si'). */
+#define SCRIPT_ITEMS_SYNERGY_RESULT_DELTA_FRACTION 1.20f
+
+static bool ScriptItemsClampSynergyResultDelta(ScriptItemsStatsAccum *post, const ScriptItemsStatsAccum *pre, const Player *p)
+{
+    const float fraction = SCRIPT_ITEMS_SYNERGY_RESULT_DELTA_FRACTION;
+    ScriptItemsStatsAccum beforeClamp = *post;
+    post->damage    = ScriptItemsClampItemDeltaField(post->damage,    pre->damage,    p->baseDamage,     fraction);
+    post->fireDelay = ScriptItemsClampItemDeltaField(post->fireDelay, pre->fireDelay, p->baseFireDelay,  fraction);
+    post->shotSpeed = ScriptItemsClampItemDeltaField(post->shotSpeed, pre->shotSpeed, p->baseShotSpeed,  fraction);
+    post->luck      = ScriptItemsClampItemDeltaField(post->luck,      pre->luck,      SCRIPT_ITEMS_LUCK_CAP_BASE, fraction);
+    return post->damage != beforeClamp.damage || post->fireDelay != beforeClamp.fireDelay ||
+           post->shotSpeed != beforeClamp.shotSpeed || post->luck != beforeClamp.luck;
+}
+
 /* Ripiego fisso e sicuro (fase 3, task brief: "so a boss reward is never a
    dud"): un oggetto stat-up SENZA un on_evaluate Lua funzionante (mai
    generato, o generato ma bocciato dalla validazione/ucciso a runtime, vedi
@@ -752,12 +790,21 @@ void ScriptItemsRecomputeStats(Game *game)
        La maschera si calcola DAGLI OGGETTI POSSEDUTI ORA, mai da p->traits (che e'
        un OR monotono e non si spegne piu'): e' cio' che fa spegnere pulita una
        sinergia quando togli uno dei due oggetti. */
-    unsigned int synergies = SynergiesDetect(p);
-    SynergyStatBonus bonus = SynergiesStatBonus(p, synergies);
+    unsigned int synergies = SynergiesDetect(p, game->runSeed);
+    SynergyStatBonus bonus = SynergiesStatBonus(p, synergies, game->runSeed);
+    /* DEC-162: budget dedicato al RISULTATO delle sinergie, sopra al tetto
+       per-oggetto (vedi ScriptItemsClampSynergyResultDelta sotto): pre/post
+       catturano SOLO il contributo di questo blocco, prima del clamp globale
+       che segue comunque invariato. */
+    ScriptItemsStatsAccum preSynergy = acc;
     acc.damage    *= bonus.damageMul;
     acc.fireDelay *= bonus.fireDelayMul;
     acc.shotSpeed *= bonus.shotSpeedMul;
     acc.luck      += bonus.luckAdd;
+    if (synergies != 0u && ScriptItemsClampSynergyResultDelta(&acc, &preSynergy, p))
+    {
+        fprintf(stderr, "ScriptItemsRecomputeStats: budget dedicato di sinergia (DEC-162) ha ridotto il risultato oltre banda\n");
+    }
     ScriptItemsClampStats(&acc, hpCap);
 
     /* La curva dei rendimenti decrescenti (step C) va QUI, dopo l'ultimo oggetto

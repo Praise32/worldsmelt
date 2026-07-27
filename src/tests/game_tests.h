@@ -178,4 +178,13 @@ bool GameRngSeedTest(Game *game);
    ripiego sull'intera run, determinismo). */
 bool GameItemPoolTest(Game *game);
 
+/* DEC-167 (docs/design/systems/rewards-and-economy.md): la valuta principale
+   arriva da QUALUNQUE stanza completata secondo la propria condizione --
+   combattimento ripulito, boss sconfitto, tesoro aperto, negozio visitato.
+   Come GameRngSeedTest, gira dopo InitWindow e usa 'game' per davvero
+   (GameResetRunWithSeed chiama AssetsLoad), entrando direttamente nelle
+   stanze invece di navigare per porte. Vedi src/tests/game_tests.c per i
+   quattro scenari (piu' le guardie anti-doppio-pagamento). */
+bool GameEconomyTest(Game *game);
+
 #endif

@@ -72,17 +72,45 @@ typedef struct SynergyStatBonus {
    ZERO sugli oggetti posseduti (mai da Player.traits, che e' un OR monotono e non
    si spegne mai: usarlo qui renderebbe impossibile spegnere una sinergia
    togliendo un oggetto -- il criterio 5 dei test del design doc). Bit i-esimo =
-   SynergyId i-esima attiva. */
-unsigned int SynergiesDetect(const Player *player);
+   SynergyId i-esima attiva. 'runSeed' e' Game.runSeed (DEC-141): quando piu' di
+   un oggetto posseduto porta lo stesso segnale, DEC-161 lo usa per scegliere fra
+   i candidati, vedi il commento su SynergyConflictAPrevails sotto. */
+unsigned int SynergiesDetect(const Player *player, unsigned int runSeed);
 
 /* Canale A. 'mask' e' quella appena calcolata da SynergiesDetect (il chiamante ce
-   l'ha gia': non la si ricalcola). */
-SynergyStatBonus SynergiesStatBonus(const Player *player, unsigned int mask);
+   l'ha gia': non la si ricalcola). Stesso 'runSeed' di SynergiesDetect: RuleActive
+   viene rivalutata qui dentro (vedi il commento nell'implementazione) e deve
+   scegliere fra candidati multipli allo stesso modo, o la rarita' usata per
+   scalare la potenza (SynergyRarityScale) potrebbe non corrispondere a quella
+   vista da SynergiesDetect. */
+SynergyStatBonus SynergiesStatBonus(const Player *player, unsigned int mask, unsigned int runSeed);
 
 /* Canale B, parte "per colpo": accende i trait e alza pierce/bounces/chain del
    colpo appena creato. Idempotente sui bit (un OR), e i contributi numerici sono
-   piccoli e limitati dalla tavola. */
-void SynergiesApplyToShot(const Player *player, unsigned int mask, Shot *shot);
+   piccoli e limitati dalla tavola. Stesso 'runSeed' di sopra, stesso motivo. */
+void SynergiesApplyToShot(const Player *player, unsigned int mask, unsigned int runSeed, Shot *shot);
+
+/* DEC-161 (docs/design/systems/synergies.md, "Priorita'"): quando un conflitto
+ * non e' risolto ne' da una trasformazione esplicita di fusione ne' da una
+ * regola di sinergia implicita gia' definita -- qui, in pratica, la scelta fra
+ * PIU' oggetti posseduti che portano lo STESSO segnale, per cui non esiste una
+ * regola di design che dica quale "conta" per la coppia -- non esiste un ordine
+ * fisso di priorita': l'esito si decide con un numero pseudo-casuale derivato
+ * dal seed di run PIU' una chiave stabile della coppia in conflitto.
+ *
+ * Deliberatamente NON e' un consumo di 'game->rng' (quello stream avanza a ogni
+ * lettura: usarlo qui darebbe un esito diverso ad ogni query nella STESSA run,
+ * il contrario della stabilita' richiesta -- vedi Test Y in
+ * script_items_tests.c, che pretende risultati identici su 100 ricalcoli di
+ * fila). E' invece un hash puro (splitmix64, come GameplayRngSeedFromRunSeed in
+ * src/game/game.c ma con una costante di dominio propria): a runSeed/keyA/keyB
+ * fissi risponde sempre uguale, quante volte lo si chiami.
+ *
+ * Simmetrica: SynergyConflictAPrevails(seed, A, B) == !SynergyConflictAPrevails(seed, B, A)
+ * per costruzione (la chiave di coppia ordina keyA/keyB prima di mescolare, poi
+ * confronta il vincitore mescolato con l'argomento letterale 'keyA' ricevuto).
+ * Ritorna true se 'keyA' prevale su 'keyB'. */
+bool SynergyConflictAPrevails(unsigned int runSeed, int keyA, int keyB);
 
 /* Canale B, parte "per sparo": pallettoni in piu' (non e' una proprieta' del
    singolo colpo, e' quanti colpi nascono). */

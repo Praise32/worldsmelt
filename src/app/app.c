@@ -1018,6 +1018,7 @@ int AppRun(int argc, char **argv)
     bool roomsTest = false;
     bool rngSeedTest = false;
     bool itemPoolTest = false;
+    bool economyTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1157,6 +1158,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             itemPoolTest = true;
+        }
+        /* DEC-167: come --item-pool-test, gira dopo InitWindow senza bisogno
+           vero della finestra (GameEconomyTest non disegna nulla, vedi
+           src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--economy-test") == 0)
+        {
+            smokeTest = true;
+            economyTest = true;
         }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
@@ -1388,6 +1397,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 28;   /* 28: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --room-shapes-screenshot-test=27) */
+    }
+    if (economyTest)
+    {
+        bool ok = GameEconomyTest(&game);
+        printf("Economy test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 29;   /* 29: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --item-pool-test=28) */
     }
     if (catalogTest)
     {

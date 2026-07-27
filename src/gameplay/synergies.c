@@ -105,6 +105,32 @@ static const SynergyRule SYNERGY_RULES[SYNERGY_COUNT] = {
     },
 };
 
+/* DEC-161: vedi il commento completo in synergies.h. splitmix64 (Steele/Lea/
+   Flood) con una costante di dominio propria ('SYNCONF'), diversa da quella di
+   GameplayRngSeedFromRunSeed (src/game/game.c, 'GMPLAY') e da quella (se mai
+   ce ne sara' una) di un futuro terzo consumatore del seed di run: stream
+   diversi non devono mai correlare per costruzione. Le chiavi si ordinano
+   PRIMA di entrare nel mix (min/max), cosi' la chiave di coppia e' la stessa
+   indipendentemente da quale dei due venga passato come 'keyA': cio' che
+   distingue "A prevale" da "B prevale" e' SOLO il confronto finale fra il
+   vincitore mescolato e l'argomento letterale 'keyA'. */
+bool SynergyConflictAPrevails(unsigned int runSeed, int keyA, int keyB)
+{
+    int lo = (keyA < keyB) ? keyA : keyB;
+    int hi = (keyA < keyB) ? keyB : keyA;
+    const unsigned long long domain = 0x53594E434F4E4601ULL;   /* 'SYNCONF' + costante di dominio */
+    unsigned long long state = ((unsigned long long)runSeed ^ domain)
+        + ((unsigned long long)(unsigned int)lo << 32) + (unsigned long long)(unsigned int)hi
+        + 0x9E3779B97F4A7C15ULL;
+    unsigned long long z = state;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    z ^= (z >> 31);
+    bool loWins = (z & 1u) == 0u;   /* un solo bit basta: e' una scelta binaria fra due candidati */
+    int winner = loWins ? lo : hi;
+    return winner == keyA;
+}
+
 static unsigned int SignalTraitMask(SynergySignal sig)
 {
     switch (sig)
@@ -127,8 +153,21 @@ static unsigned int SignalTraitMask(SynergySignal sig)
    non un oggetto che sinergizza con se' stesso). Scrive in *outItem l'indice
    trovato (-1 per un segnale del tipo di colpo, che non appartiene a un oggetto
    specifico dell'inventario) e in *outRarity la rarita' da usare per scalare la
-   potenza. Ritorna false se il segnale non c'e'. */
-static bool SignalPresent(const Player *player, SynergySignal sig, int excludeItem, int *outItem, Rarity *outRarity)
+   potenza. Ritorna false se il segnale non c'e'.
+   DEC-161: se PIU' di un oggetto posseduto porta lo stesso segnale, nessuna
+   regola di design dice quale dei due "conta" per la coppia -- fin qui il
+   codice prendeva semplicemente il PRIMO trovato nell'ordine dell'inventario,
+   una priorita' di fatto (l'ordine di raccolta) mai dichiarata da nessun
+   documento. Sostituita da un mini-torneo: ogni candidato successivo sfida il
+   vincitore corrente con SynergyConflictAPrevails(runSeed, ...), chiave =
+   (segnale, indice) di ciascuno. Con UN solo candidato il torneo non gira
+   nemmeno (nessun cambio di comportamento sul caso comune); con piu' di uno la
+   scelta e' deterministica per (runSeed, segnale, composizione della build) --
+   stessa run, stessa build -> stesso vincitore ogni volta (idempotenza, Test Y
+   in script_items_tests.c) -- e diversa in run con seed diverso. Non cambia
+   MAI se la sinergia si forma (basta un candidato qualunque), solo quale
+   oggetto ne detta la rarita'. */
+static bool SignalPresent(const Player *player, SynergySignal sig, int excludeItem, unsigned int runSeed, int *outItem, Rarity *outRarity)
 {
     if (sig == SIG_SHOT_CHAIN || sig == SIG_SHOT_PIERCE)
     {
@@ -155,6 +194,8 @@ static bool SignalPresent(const Player *player, SynergySignal sig, int excludeIt
 
     unsigned int mask = SignalTraitMask(sig);
     if (mask == 0u) return false;
+    int candidates[MAX_ITEMS];
+    int candidateCount = 0;
     for (int i = 0; i < player->itemCount && i < MAX_ITEMS; i++)
     {
         if (i == excludeItem) continue;
@@ -164,14 +205,25 @@ static bool SignalPresent(const Player *player, SynergySignal sig, int excludeIt
            per il ripiego C (vedi ScriptItemsApplyStatUpFallback). */
         const Item *item = &player->items[i];
         if (item->kind == ITEM_STATUP) continue;
-        if (item->traits & mask)
-        {
-            *outItem = i;
-            *outRarity = item->rarity;
-            return true;
-        }
+        if (item->traits & mask) candidates[candidateCount++] = i;
     }
-    return false;
+    if (candidateCount == 0) return false;
+
+    int chosen = candidates[0];
+    for (int k = 1; k < candidateCount; k++)
+    {
+        /* Chiave di coppia = (segnale, indice): il segnale distingue il
+           torneo di un trait da quello di un altro (due tornei diversi non
+           devono mai condividere lo stesso esito solo perche' due indici
+           coincidono), l'indice distingue i candidati fra loro DENTRO lo
+           stesso torneo. */
+        int keyChallenger = (int)sig*1000 + candidates[k];
+        int keyChampion = (int)sig*1000 + chosen;
+        if (SynergyConflictAPrevails(runSeed, keyChallenger, keyChampion)) chosen = candidates[k];
+    }
+    *outItem = chosen;
+    *outRarity = player->items[chosen].rarity;
+    return true;
 }
 
 /* Una regola e' attiva se entrambi i segnali sono presenti su DUE oggetti
@@ -180,19 +232,19 @@ static bool SignalPresent(const Player *player, SynergySignal sig, int excludeIt
    provare solo "A poi B-escluso-A" fallirebbe anche quando esiste un secondo
    oggetto valido -- che sarebbe un falso negativo dipendente dall'ordine
    dell'inventario. */
-static bool RuleActive(const Player *player, const SynergyRule *rule, Rarity *outMinRarity)
+static bool RuleActive(const Player *player, const SynergyRule *rule, unsigned int runSeed, Rarity *outMinRarity)
 {
     int itemA = -2, itemB = -2;
     Rarity rarityA = RARITY_COMMON, rarityB = RARITY_COMMON;
 
-    if (SignalPresent(player, rule->a, -2, &itemA, &rarityA) &&
-        SignalPresent(player, rule->b, itemA, &itemB, &rarityB))
+    if (SignalPresent(player, rule->a, -2, runSeed, &itemA, &rarityA) &&
+        SignalPresent(player, rule->b, itemA, runSeed, &itemB, &rarityB))
     {
         *outMinRarity = (rarityA < rarityB) ? rarityA : rarityB;
         return true;
     }
-    if (SignalPresent(player, rule->b, -2, &itemB, &rarityB) &&
-        SignalPresent(player, rule->a, itemB, &itemA, &rarityA))
+    if (SignalPresent(player, rule->b, -2, runSeed, &itemB, &rarityB) &&
+        SignalPresent(player, rule->a, itemB, runSeed, &itemA, &rarityA))
     {
         *outMinRarity = (rarityA < rarityB) ? rarityA : rarityB;
         return true;
@@ -200,14 +252,14 @@ static bool RuleActive(const Player *player, const SynergyRule *rule, Rarity *ou
     return false;
 }
 
-unsigned int SynergiesDetect(const Player *player)
+unsigned int SynergiesDetect(const Player *player, unsigned int runSeed)
 {
     unsigned int mask = 0u;
     if (!player) return 0u;
     for (int i = 0; i < (int)SYNERGY_COUNT; i++)
     {
         Rarity minRarity = RARITY_COMMON;
-        if (RuleActive(player, &SYNERGY_RULES[i], &minRarity)) mask |= (1u << i);
+        if (RuleActive(player, &SYNERGY_RULES[i], runSeed, &minRarity)) mask |= (1u << i);
     }
     return mask;
 }
@@ -226,7 +278,7 @@ static float SynergyRarityScale(Rarity rarity)
     return kFraction[rarity]/kFraction[RARITY_UNCOMMON];
 }
 
-SynergyStatBonus SynergiesStatBonus(const Player *player, unsigned int mask)
+SynergyStatBonus SynergiesStatBonus(const Player *player, unsigned int mask, unsigned int runSeed)
 {
     SynergyStatBonus bonus = { 1.0f, 1.0f, 1.0f, 0.0f };
     if (!player || mask == 0u) return bonus;
@@ -236,7 +288,7 @@ SynergyStatBonus SynergiesStatBonus(const Player *player, unsigned int mask)
         if (!(mask & (1u << i))) continue;
         const SynergyRule *rule = &SYNERGY_RULES[i];
         Rarity minRarity = RARITY_COMMON;
-        if (!RuleActive(player, rule, &minRarity)) continue;   /* la maschera e' vecchia: non fidarsi */
+        if (!RuleActive(player, rule, runSeed, &minRarity)) continue;   /* la maschera e' vecchia: non fidarsi */
         float scale = SynergyRarityScale(minRarity);
 
         /* Lo SCOSTAMENTO da 1.0 e' cio' che scala con la rarita', non il
@@ -260,7 +312,7 @@ static int ScaledKnob(int base, float scale)
     return scaled < 1 ? 1 : scaled;
 }
 
-void SynergiesApplyToShot(const Player *player, unsigned int mask, Shot *shot)
+void SynergiesApplyToShot(const Player *player, unsigned int mask, unsigned int runSeed, Shot *shot)
 {
     if (!player || !shot || mask == 0u) return;
 
@@ -269,7 +321,7 @@ void SynergiesApplyToShot(const Player *player, unsigned int mask, Shot *shot)
         if (!(mask & (1u << i))) continue;
         const SynergyRule *rule = &SYNERGY_RULES[i];
         Rarity minRarity = RARITY_COMMON;
-        if (!RuleActive(player, rule, &minRarity)) continue;
+        if (!RuleActive(player, rule, runSeed, &minRarity)) continue;
         float scale = SynergyRarityScale(minRarity);
 
         shot->traits |= rule->grantTraits;   /* OR: idempotente, mai un cumulo esplosivo */

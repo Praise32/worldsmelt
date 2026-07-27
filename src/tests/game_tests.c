@@ -3360,3 +3360,152 @@ bool GameItemPoolTest(Game *game)
     if (!GameItemPoolDeterminismTest(game)) return false;
     return true;
 }
+
+/* ============================================================
+   DEC-167 (docs/design/systems/rewards-and-economy.md, "Fonti canoniche
+   della valuta principale"): la valuta principale si guadagna da QUALUNQUE
+   stanza completata secondo la PROPRIA condizione -- combattimento
+   ripulito, boss sconfitto, tesoro aperto, negozio visitato -- non solo dal
+   combattimento. Come GameRngSeedTest, gira dopo InitWindow e usa 'game'
+   per davvero (GameResetRunWithSeed chiama AssetsLoad), ma entra
+   direttamente nelle stanze (roomX/roomY + WorldSpawnRoomContents) invece
+   di navigare per porte: qui interessa solo l'assegnazione di valuta
+   (WorldAwardRoomCompletionCurrency, src/world/world.c), non la
+   navigazione. Gli importi letterali sotto (4/12/3/2) sono gli stessi
+   "default proposti dall'implementazione" (stile DEC-019) delle costanti
+   WORLD_ROOM_CURRENCY_* in world.c: se quei numeri cambiano, questo test va
+   aggiornato in coppia (stessa convenzione di TestShopCostScalesWithRarity
+   in script_items_tests.c, che hardcoda 8/16/28/45).
+   ============================================================ */
+static bool EconomyEnterRoomOfKind(Game *game, RoomKind kind)
+{
+    for (int y = 0; y < GRID_SIZE; y++)
+    {
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            if (game->rooms[y][x].kind == kind)
+            {
+                game->roomX = x;
+                game->roomY = y;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool GameEconomyTest(Game *game)
+{
+    bool ok = true;
+    const unsigned int seed = 20260727u;
+    const int kCombatCurrency = 4, kBossCurrency = 12, kTreasureCurrency = 3, kShopCurrency = 2;
+    GameResetRunWithSeed(game, seed);
+
+    /* (a) Combattimento ripulito: entrare, disattivare tutti i nemici a mano
+       (stesso spirito di GameRoomsTest, che forza 'cleared' a mano per
+       isolare cio' che si vuole verificare -- qui interessa solo la
+       valuta, non il combattimento vero), poi WorldCheckRoomClear. */
+    if (!EconomyEnterRoomOfKind(game, ROOM_COMBAT))
+    {
+        fprintf(stderr, "GameEconomyTest: nessuna stanza di combattimento nel piano 1 col seed %u\n", seed);
+        return false;
+    }
+    EntitiesClear(game);
+    WorldSpawnRoomContents(game);
+    int coinsBeforeCombat = game->player.coins;
+    for (int i = 0; i < MAX_ENEMIES; i++) game->enemies[i].active = false;
+    WorldCheckRoomClear(game);
+    int combatGain = game->player.coins - coinsBeforeCombat;
+    bool combatGainOk = combatGain == kCombatCurrency;
+    if (!combatGainOk) fprintf(stderr, "GameEconomyTest: combattimento ripulito ha dato %d monete (attese %d)\n", combatGain, kCombatCurrency);
+
+    /* Rientrare/richiamare il controllo su una stanza gia' ripulita non deve
+       pagare una seconda volta (guardia 'cleared' in WorldCheckRoomClear). */
+    int coinsAfterCombat = game->player.coins;
+    WorldSpawnRoomContents(game);
+    WorldCheckRoomClear(game);
+    bool noDoublePayCombat = game->player.coins == coinsAfterCombat;
+    if (!noDoublePayCombat) fprintf(stderr, "GameEconomyTest: rientrare in un combattimento gia' ripulito ha pagato di nuovo (%d -> %d)\n", coinsAfterCombat, game->player.coins);
+
+    /* (b) Boss sconfitto: stessa tecnica (disattivare il boss a mano). */
+    if (!EconomyEnterRoomOfKind(game, ROOM_BOSS))
+    {
+        fprintf(stderr, "GameEconomyTest: nessuna stanza boss nel piano 1 col seed %u\n", seed);
+        return false;
+    }
+    EntitiesClear(game);
+    WorldSpawnRoomContents(game);
+    int coinsBeforeBoss = game->player.coins;
+    for (int i = 0; i < MAX_ENEMIES; i++) game->enemies[i].active = false;
+    WorldCheckRoomClear(game);
+    int bossGain = game->player.coins - coinsBeforeBoss;
+    bool bossGainOk = bossGain == kBossCurrency;
+    if (!bossGainOk) fprintf(stderr, "GameEconomyTest: boss sconfitto ha dato %d monete (attese %d)\n", bossGain, kBossCurrency);
+
+    /* (c) Tesoro aperto: si apre quando l'oggetto viene preso (rewardTaken),
+       non solo entrando. Il giocatore si piazza sul centro della stanza,
+       dove WorldSpawnRoomContents ha messo il pickup, e CombatUpdatePickups
+       fa il resto (nessuna chiave necessaria: qui si entra saltando
+       WorldTryEnterRoom, che e' l'unico punto che la richiede). */
+    if (!EconomyEnterRoomOfKind(game, ROOM_TREASURE))
+    {
+        fprintf(stderr, "GameEconomyTest: nessuna stanza tesoro nel piano 1 col seed %u\n", seed);
+        return false;
+    }
+    EntitiesClear(game);
+    WorldSpawnRoomContents(game);
+    int coinsBeforeTreasure = game->player.coins;
+    int itemsBeforeTreasure = game->player.itemCount;
+    game->player.pos = WorldRoomCenter(game);
+    CombatUpdatePickups(game);
+    int treasureGain = game->player.coins - coinsBeforeTreasure;
+    bool treasureGainOk = treasureGain == kTreasureCurrency;
+    bool treasureItemTaken = game->player.itemCount == itemsBeforeTreasure + 1;
+    if (!treasureGainOk) fprintf(stderr, "GameEconomyTest: tesoro aperto ha dato %d monete (attese %d)\n", treasureGain, kTreasureCurrency);
+    if (!treasureItemTaken) fprintf(stderr, "GameEconomyTest: il tesoro non ha consegnato l'oggetto (itemCount %d -> %d)\n", itemsBeforeTreasure, game->player.itemCount);
+
+    /* Guardia 'rewardTaken': un secondo passaggio di CombatPickup sulla
+       STESSA stanza (pickup riattivato a mano, stesso spirito delle prove
+       sopra) non deve ripagare -- e' la garanzia che protegge da loop
+       economici (rewards-and-economy.md, §Protezioni). */
+    int coinsAfterTreasure = game->player.coins;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        if (game->pickups[i].kind == PICKUP_ITEM) { game->pickups[i].active = true; game->pickups[i].locked = false; break; }
+    }
+    CombatUpdatePickups(game);
+    bool noDoublePayTreasure = game->player.coins == coinsAfterTreasure;
+    if (!noDoublePayTreasure) fprintf(stderr, "GameEconomyTest: un secondo pickup nella stanza tesoro ha pagato di nuovo (%d -> %d)\n", coinsAfterTreasure, game->player.coins);
+
+    /* (d) Negozio visitato: la valuta arriva SUBITO all'ingresso (DEC-167:
+       "ripulito" per il negozio significa "visitato", non "si e' comprato
+       qualcosa" -- quello e' un evento economico a parte). */
+    if (!EconomyEnterRoomOfKind(game, ROOM_SHOP))
+    {
+        fprintf(stderr, "GameEconomyTest: nessun negozio nel piano 1 col seed %u\n", seed);
+        return false;
+    }
+    EntitiesClear(game);
+    int coinsBeforeShop = game->player.coins;
+    WorldSpawnRoomContents(game);
+    int shopGain = game->player.coins - coinsBeforeShop;
+    bool shopGainOk = shopGain == kShopCurrency;
+    if (!shopGainOk) fprintf(stderr, "GameEconomyTest: il negozio visitato ha dato %d monete (attese %d)\n", shopGain, kShopCurrency);
+
+    /* Rientrare nello stesso negozio non deve ripagare (guardia 'visited'). */
+    int coinsAfterShop = game->player.coins;
+    WorldSpawnRoomContents(game);
+    bool noDoublePayShop = game->player.coins == coinsAfterShop;
+    if (!noDoublePayShop) fprintf(stderr, "GameEconomyTest: rientrare in un negozio gia' visitato ha pagato di nuovo (%d -> %d)\n", coinsAfterShop, game->player.coins);
+
+    printf("  economia (DEC-167): combattimento +%d (atteso %d, niente doppio pagamento=%s) | boss +%d (atteso %d) | tesoro +%d (atteso %d, oggetto preso=%s, niente doppio=%s) | negozio +%d (atteso %d, niente doppio=%s)\n",
+           combatGain, kCombatCurrency, noDoublePayCombat ? "si" : "NO",
+           bossGain, kBossCurrency,
+           treasureGain, kTreasureCurrency, treasureItemTaken ? "si" : "NO", noDoublePayTreasure ? "si" : "NO",
+           shopGain, kShopCurrency, noDoublePayShop ? "si" : "NO");
+
+    ok = combatGainOk && noDoublePayCombat && bossGainOk && treasureGainOk && treasureItemTaken &&
+         noDoublePayTreasure && shopGainOk && noDoublePayShop;
+    if (!ok) fprintf(stderr, "GameEconomyTest: FALLITO -- vedi i messaggi sopra\n");
+    return ok;
+}

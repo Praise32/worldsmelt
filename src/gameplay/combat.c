@@ -298,7 +298,7 @@ void CombatFirePlayer(Game *game, Vector2 dir)
         float offset = ((float)i - (float)(pellets - 1)*0.5f)*0.18f;
         Shot *spawned = EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(angle + offset), sinf(angle + offset) }, speed, damage, radius, traits, color);
         CombatApplyShotType(spawned, type);
-        SynergiesApplyToShot(p, p->synergies, spawned);
+        SynergiesApplyToShot(p, p->synergies, game->runSeed, spawned);
     }
     /* Lua prima, mini-VM dopo: sono a prova reciproca, non in cascata.
        ScriptVmExecutePlayer (src/gameplay/script_vm.c) salta da solo ogni
@@ -1019,6 +1019,17 @@ static void CombatPickup(Game *game, Pickup *pickup)
     {
         Item taken = pickup->item;
         int swapIndex = CombatSlotToSwapFor(&game->player, taken.kind);
+        /* DEC-167: il tesoro conta come "ripulito" quando si APRE, cioe'
+           quando il suo oggetto viene preso per la prima volta -- catturato
+           PRIMA di scrivere 'rewardTaken' sotto, cosi' uno scambio successivo
+           sullo stesso piedistallo (o rientrare nella stanza) non paga una
+           seconda volta. Il negozio passa da qui per lo STESSO ramo di
+           codice (l'acquisto di un oggetto e' anche lui un PICKUP_ITEM), ma
+           la sua valuta di completamento e' gia' assegnata alla visita
+           (WorldSpawnRoomContents): il controllo sul kind sotto evita di
+           contarla due volte. */
+        RoomState *room = WorldCurrentRoomMutable(game);
+        bool firstReward = !room->rewardTaken;
         if (swapIndex >= 0)
         {
             /* DEC-117 (attivi) e grafts.md (Innesti): a slot pieni la
@@ -1035,7 +1046,8 @@ static void CombatPickup(Game *game, Pickup *pickup)
             pickup->locked = true;    /* niente scambio a ripetizione restando fermi sul piedistallo */
         }
         else CombatApplyItem(game, taken);
-        WorldCurrentRoomMutable(game)->rewardTaken = true;
+        room->rewardTaken = true;
+        if (firstReward && room->kind == ROOM_TREASURE) WorldAwardRoomCompletionCurrency(game, ROOM_TREASURE);
     }
     else if (pickup->kind == PICKUP_EXIT)
     {

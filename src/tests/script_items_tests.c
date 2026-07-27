@@ -2710,6 +2710,159 @@ static bool TestRemoveItemCompactsAndLeavesNoDrift(void)
     return ok;
 }
 
+/* ============================================================
+   Test AU (DEC-161, docs/design/systems/synergies.md "Priorita'"): quando
+   PIU' oggetti posseduti portano lo stesso segnale e nessuna regola di
+   design dice quale dei due "conta" per la coppia, la scelta si decide con
+   l'RNG derivato dal seed di run (Game.runSeed, non game->rng: quello stream
+   avanza a ogni lettura, il seed di run no -- vedi il commento su
+   SynergyConflictAPrevails in synergies.h). Tre oggetti col trait
+   rallentamento (comune/raro/leggendario) piu' un oggetto rapida cadenza
+   leggendario formano SEMPRE "Gelo Perpetuo", ma quale dei tre rallentamenti
+   "vince" la coppia decide la rarita' minima e quindi la cadenza risultante
+   -- il conflitto DEC-161 in carne e ossa.
+   ============================================================ */
+static bool TestSynergyConflictSeedStableAcrossRunDiffersAcrossSeeds(void)
+{
+    /* Stessa run (stesso Game.runSeed): due costruzioni indipendenti della
+       STESSA build devono scegliere lo stesso rallentamento ogni volta. */
+    float fireDelaySameSeed[2];
+    for (int pass = 0; pass < 2; pass++)
+    {
+        Game game = MakeBaseGame(9401u);
+        game.runSeed = 424242u;
+        TestAddItem(&game, MakeTraitItem("Brina Comune", TRAIT_SLOW, RARITY_COMMON, SLOT_AURA));
+        TestAddItem(&game, MakeTraitItem("Brina Rara", TRAIT_SLOW, RARITY_RARE, SLOT_EYES));
+        TestAddItem(&game, MakeTraitItem("Brina Leggendaria", TRAIT_SLOW, RARITY_LEGENDARY, SLOT_BACK));
+        TestAddItem(&game, MakeTraitItem("Molla Leggendaria", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_HAND));
+        fireDelaySameSeed[pass] = game.player.fireDelay;
+        ScriptItemsShutdown(&game);
+    }
+    bool stableSameSeed = fabsf(fireDelaySameSeed[0] - fireDelaySameSeed[1]) < 1e-6f;
+
+    /* Run diverse (Game.runSeed diverso), stessa identica build: su molti
+       semi, l'esito (quale rallentamento "vince", osservabile dalla cadenza
+       risultante) deve poter differire -- altrimenti il seed di run non
+       starebbe influenzando nulla, e il conflitto sarebbe risolto da un
+       ordine fisso come prima di DEC-161. */
+    bool sawDifferentOutcome = false;
+    float firstOutcome = 0.0f;
+    bool haveFirst = false;
+    for (unsigned int s = 1; s <= 40; s++)
+    {
+        Game game = MakeBaseGame(9402u);
+        game.runSeed = s;
+        TestAddItem(&game, MakeTraitItem("Brina Comune", TRAIT_SLOW, RARITY_COMMON, SLOT_AURA));
+        TestAddItem(&game, MakeTraitItem("Brina Rara", TRAIT_SLOW, RARITY_RARE, SLOT_EYES));
+        TestAddItem(&game, MakeTraitItem("Brina Leggendaria", TRAIT_SLOW, RARITY_LEGENDARY, SLOT_BACK));
+        TestAddItem(&game, MakeTraitItem("Molla Leggendaria", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_HAND));
+        float fd = game.player.fireDelay;
+        if (!haveFirst) { firstOutcome = fd; haveFirst = true; }
+        else if (fabsf(fd - firstOutcome) > 1e-6f) sawDifferentOutcome = true;
+        ScriptItemsShutdown(&game);
+    }
+
+    /* La sinergia deve restare SEMPRE accesa (il conflitto decide SOLO quale
+       oggetto ne detta la rarita', mai SE la coppia si forma): un candidato
+       qualunque fra i tre basta. */
+    Game maskCheckGame = MakeBaseGame(9403u);
+    maskCheckGame.runSeed = 7u;
+    TestAddItem(&maskCheckGame, MakeTraitItem("Brina Comune", TRAIT_SLOW, RARITY_COMMON, SLOT_AURA));
+    TestAddItem(&maskCheckGame, MakeTraitItem("Brina Rara", TRAIT_SLOW, RARITY_RARE, SLOT_EYES));
+    TestAddItem(&maskCheckGame, MakeTraitItem("Brina Leggendaria", TRAIT_SLOW, RARITY_LEGENDARY, SLOT_BACK));
+    TestAddItem(&maskCheckGame, MakeTraitItem("Molla Leggendaria", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_HAND));
+    bool synergyAlwaysOn = (maskCheckGame.player.synergies & (1u << SYNERGY_ETERNAL_FROST)) != 0u;
+    ScriptItemsShutdown(&maskCheckGame);
+
+    printf("  [AU] DEC-161: stesso seed di run -> stesso esito=%s (cadenza %.4f in entrambi i passaggi) | 40 semi diversi -> almeno un esito diverso=%s | sinergia sempre accesa=%s\n",
+           stableSameSeed ? "si" : "NO", (double)fireDelaySameSeed[0], sawDifferentOutcome ? "si" : "NO", synergyAlwaysOn ? "si" : "NO");
+
+    bool ok = stableSameSeed && sawDifferentOutcome && synergyAlwaysOn;
+    if (!ok) printf("      FALLITO: DEC-161 richiede stabilita' nella stessa run (stesso seed) e possibilita' di esito diverso fra run diverse, senza mai spegnere la sinergia\n");
+    return ok;
+}
+
+/* ============================================================
+   Test AV (DEC-162, docs/design/systems/synergies.md "Budget di potenza del
+   risultato"): il risultato COMBINATO di piu' sinergie implicite attive ha
+   un budget dedicato, piu' alto di quello per-oggetto piu' largo (0.60,
+   leggendario) ma pur sempre un tetto vero. Costruzione: 5 stat-up
+   leggendari impilati (test N: raw = 32.0, la somma grezza dei cinque tetti
+   per-oggetto) PIU' tre coppie leggendarie simultanee (rimbalzo+esplosione,
+   rallentamento+cadenza, furto di vita+colpi giganti): gli oggetti-segnale
+   delle coppie hanno slot NEUTRI (SLOT_HAT/SLOT_BACK, nessun bonus builtin
+   in ScriptItemsApplyBuiltin) per isolare l'unico contributo builtin
+   inevitabile, quello del trait GIANT (+1.6 danno, ScriptItemsApplyBuiltin),
+   necessario per far scattare "Morso Vorace" (VAMP+GIANT): pre-sinergia =
+   32.0 + 1.6 = 33.6. Il moltiplicatore di danno combinato delle tre sinergie
+   (1.24*1.288*1.24 = 1.9804...) applicato a 33.6 darebbe, SENZA budget
+   dedicato, un danno finale (dopo la curva Isaac) misurabilmente piu' alto
+   di quello CON il budget dedicato (default dell'implementazione 1.20x base,
+   vedi SCRIPT_ITEMS_SYNERGY_RESULT_DELTA_FRACTION in script_items.c): mai un
+   crash, mai fuori dalla banda globale. */
+static bool TestSynergyDedicatedResultBudgetClampsTripleStack(void)
+{
+    Game game = MakeBaseGame(9501u);
+    float base = game.player.baseDamage;   /* 8.0 */
+
+    for (int i = 0; i < 5; i++)
+    {
+        Item item = { 0 };
+        item.active = true;
+        item.kind = ITEM_STATUP;
+        item.rarity = RARITY_LEGENDARY;
+        item.slot = SLOT_HAT;
+        snprintf(item.name, sizeof(item.name), "Nucleo Leggendario %d", i + 1);
+        snprintf(item.luaSource, sizeof(item.luaSource), "%s", GREEDY_DAMAGE_LUA);
+        TestAddItem(&game, item);
+    }
+
+    /* Le tre coppie, tutte leggendarie: rimbalzo+esplosione, rallentamento
+       +cadenza, furto di vita+colpi giganti. Nessuna condivide un oggetto con
+       un'altra coppia (sei oggetti distinti): tutte e tre attive insieme.
+       Slot neutri (HAT/BACK) ovunque tranne dove il trait stesso porta gia'
+       un builtin inevitabile (GIANT), cosi' il calcolo analitico sotto non
+       deve inseguire bonus di slot estranei al punto del test. */
+    TestAddItem(&game, MakeTraitItem("Rimbalzello", TRAIT_BOUNCE, RARITY_LEGENDARY, SLOT_HAT));
+    TestAddItem(&game, MakeTraitItem("Botto", TRAIT_EXPLODE, RARITY_LEGENDARY, SLOT_BACK));
+    TestAddItem(&game, MakeTraitItem("Brina", TRAIT_SLOW, RARITY_LEGENDARY, SLOT_HAT));
+    TestAddItem(&game, MakeTraitItem("Molla", TRAIT_RAPID, RARITY_LEGENDARY, SLOT_BACK));
+    TestAddItem(&game, MakeTraitItem("Zanna", TRAIT_VAMP, RARITY_LEGENDARY, SLOT_HAT));
+    TestAddItem(&game, MakeTraitItem("Macigno", TRAIT_GIANT, RARITY_LEGENDARY, SLOT_BACK));
+
+    unsigned int mask = game.player.synergies;
+    bool allThreeActive = (mask & (1u << SYNERGY_UNSTABLE_BOUNCE)) && (mask & (1u << SYNERGY_ETERNAL_FROST)) && (mask & (1u << SYNERGY_RAVENOUS_BITE));
+
+    float got = game.player.damage;
+
+    /* Attese analitiche (vedi il commento sopra la funzione): 32.0 dai cinque
+       stat-up piu' 1.6 dal builtin del trait GIANT (Macigno), MAI dal valore
+       (gia' curvato) letto a meta' strada -- il ricalcolo riparte sempre da
+       zero (ScriptItemsRecomputeStats), quindi solo la composizione FINALE
+       degli 11 oggetti conta. */
+    float preSynergyDamage = base + 5.0f*(base*0.60f) + 1.6f;   /* 33.6 */
+    float combinedMul = (1.0f + 0.10f*2.4f) * (1.0f + 0.12f*2.4f) * (1.0f + 0.10f*2.4f);   /* 1.24 * 1.288 * 1.24 */
+    float naiveRaw = preSynergyDamage*combinedMul;
+    float knee = 2.0f*base;
+    float naiveCurved = naiveRaw > knee ? knee*sqrtf(naiveRaw/knee) : naiveRaw;
+    float dedicatedCap = 1.20f*base;   /* SCRIPT_ITEMS_SYNERGY_RESULT_DELTA_FRACTION */
+    float clampedRaw = preSynergyDamage + dedicatedCap;   /* delta positivo, quindi clampato al tetto */
+    float expectedWithBudget = clampedRaw > knee ? knee*sqrtf(clampedRaw/knee) : clampedRaw;
+
+    bool inBand = got >= 0.5f && got <= 200.0f;
+    bool isFinite = isfinite(got);
+    bool matchesExpectedWithBudget = fabsf(got - expectedWithBudget) < 0.05f;
+    bool clearlyBelowNaive = got < naiveCurved - 1.0f;   /* separazione ampia, non un pareggio numerico */
+
+    printf("  [AV] DEC-162: tre coppie leggendarie simultanee su pre-sinergia %.4f -> danno finale=%.4f (atteso CON budget dedicato %.4f, SENZA budget sarebbe stato %.4f) | dentro banda=%s, finito=%s, tre sinergie attive=%s\n",
+           preSynergyDamage, got, expectedWithBudget, naiveCurved, inBand ? "si" : "NO", isFinite ? "si" : "NO", allThreeActive ? "si" : "NO");
+
+    ScriptItemsShutdown(&game);
+    bool ok = allThreeActive && inBand && isFinite && matchesExpectedWithBudget && clearlyBelowNaive;
+    if (!ok) printf("      FALLITO: il budget dedicato di sinergia (DEC-162) deve clampare il risultato combinato, mai lasciarlo esplodere ne' crashare\n");
+    return ok;
+}
+
 bool ScriptItemsSelfTest(void)
 {
     struct { const char *label; bool (*fn)(void); } tests[] = {
@@ -2759,6 +2912,8 @@ bool ScriptItemsSelfTest(void)
         { "AR (DEC-117/DEC-160: scambio reversibile sul piedistallo, sgancio dell'Innesto a terra, recupero, perdita uscendo)", TestActiveSwapAndGraftDropRecover },
         { "AS (tassonomia a 4 categorie: mappatura di compatibilita' del vocabolario storico, zero-default, slot iniziali)", TestItemKindTextCompat },
         { "AT (ScriptItemsRemoveItem: compattazione items[]/itemScripts[] accoppiata, nessuna deriva, trait che si spengono)", TestRemoveItemCompactsAndLeavesNoDrift },
+        { "AU (DEC-161: conflitto fra candidati multipli risolto dal seed di run, stabile nella run, puo' differire fra run)", TestSynergyConflictSeedStableAcrossRunDiffersAcrossSeeds },
+        { "AV (DEC-162: budget dedicato al risultato di piu' sinergie simultanee, clampa senza mai crashare)", TestSynergyDedicatedResultBudgetClampsTripleStack },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

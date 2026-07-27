@@ -53,6 +53,14 @@ void WorldSpawnCombatRoom(Game *game);
 void WorldTryEnterRoom(Game *game, int direction);
 void WorldHandleTransitions(Game *game, Vector2 move);
 void WorldCheckRoomClear(Game *game);
+/* DEC-167: assegna la valuta principale di completamento per l'archetipo
+   'kind' (vedi la tavola in src/world/world.c) -- "qualunque stanza
+   completata secondo la propria condizione" (rewards-and-economy.md).
+   Chiamata dal punto che rileva CIASCUNA condizione di completamento: la
+   funzione stessa non rileva nulla, applica solo l'importo. Un kind non
+   ancora coperto dal motore (segreta, a tempo: non esistono ancora come
+   RoomKind) o non pertinente (hub, start, vuota) non assegna nulla. */
+void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind);
 
 void EntitiesClear(Game *game);
 /* M2: 'room' e' il rettangolo dentro cui pescare (di norma

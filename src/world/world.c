@@ -27,6 +27,38 @@ const char *GameRoomKindName(RoomKind kind)
     }
 }
 
+/* DEC-167 (docs/design/systems/rewards-and-economy.md, "Fonti canoniche della
+   valuta principale"): "stanza ripulita" e' qualunque stanza completata
+   secondo la PROPRIA condizione -- combattimento vinto, tesoro aperto,
+   negozio visitato, segreto trovato -- non solo il combattimento. Importi
+   "default proposti dall'implementazione" (stile DEC-019): nessun documento
+   fissa i numeri, solo che la fonte esiste per ogni archetipo. Il boss vale
+   piu' di un combattimento normale (e' la stanza piu' impegnativa del
+   piano); tesoro e negozio meno di un combattimento perche' non richiedono
+   di sopravvivere a nulla -- coerente con "la ricompensa deve essere
+   proporzionata a rischio, costo e rarita'" (stesso documento, §Principio).
+   ROOM_SECRET e la stanza a tempo (DEC-051) non hanno ancora un RoomKind nel
+   motore (vedi rooms-and-floor-generation.md): questa tavola coprira' anche
+   loro quando arriveranno, il default sotto le ignora per costruzione. */
+#define WORLD_ROOM_CURRENCY_COMBAT   4
+#define WORLD_ROOM_CURRENCY_BOSS    12
+#define WORLD_ROOM_CURRENCY_TREASURE 3
+#define WORLD_ROOM_CURRENCY_SHOP     2
+
+void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
+{
+    int amount;
+    switch (kind)
+    {
+        case ROOM_COMBAT:   amount = WORLD_ROOM_CURRENCY_COMBAT;   break;
+        case ROOM_BOSS:     amount = WORLD_ROOM_CURRENCY_BOSS;     break;
+        case ROOM_TREASURE: amount = WORLD_ROOM_CURRENCY_TREASURE; break;
+        case ROOM_SHOP:     amount = WORLD_ROOM_CURRENCY_SHOP;     break;
+        default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
+    }
+    game->player.coins += amount;
+}
+
 static int DirDx(int dir)
 {
     return (dir == DIR_RIGHT) - (dir == DIR_LEFT);
@@ -838,8 +870,15 @@ void WorldSpawnRoomContents(Game *game)
 {
     EntitiesClear(game);
     RoomState *room = WorldCurrentRoomMutable(game);
+    /* DEC-167: il negozio conta come "ripulito" quando e' stato VISITATO
+       (non quando ci si compra qualcosa, che e' un evento economico a
+       parte, vedi CombatPickup) -- catturato PRIMA di scrivere 'visited',
+       cosi' rientrare in un negozio gia' visto non paga una seconda volta
+       (questa funzione gira a OGNI ingresso, non solo al primo). */
+    bool firstVisit = !room->visited;
     room->visited = true;
     game->roomNumber++;
+    if (firstVisit && room->kind == ROOM_SHOP) WorldAwardRoomCompletionCurrency(game, ROOM_SHOP);
     /* DEC-170: le posizioni di spawno sono relative al BARICENTRO delle celle
        occupate, non al centro del riquadro -- su una forma a L quel centro
        cadrebbe nell'angolo mancante, cioe' dentro il muro. */
@@ -1085,6 +1124,11 @@ void WorldCheckRoomClear(Game *game)
            possa averla gia' consumata): e' una conseguenza diretta e sempre
            dovuta del completamento. Il dosaggio resta dell'oggetto. */
         ItemActivesGainRoomCharge(&game->player);
+        /* DEC-167: la valuta di completamento, qui e non prima, perche'
+           'cleared' e' gia' diventato vero (guardia dell'if di sopra:
+           entrare/uscire da una stanza gia' ripulita non paga una seconda
+           volta). */
+        WorldAwardRoomCompletionCurrency(game, room->kind);
         WorldSpawnRoomReward(game);
         if (room->kind != ROOM_BOSS) GameSetMessage(game, "Stanza ripulita.");
     }

@@ -59,6 +59,55 @@ archetipo di stanza definisce la propria condizione di completamento (vedi
 solo che qualunque condizione di completamento soddisfatta conta come "ripulita" ai fini
 della valuta principale.
 
+### Stato di implementazione (2026-07-27)
+
+DEC-167 vive lato motore in `WorldAwardRoomCompletionCurrency`
+(`src/world/world.c`), chiamata dal punto che rileva CIASCUNA condizione di
+completamento — la funzione stessa non rileva nulla, assegna solo l'importo:
+
+- **combattimento ripulito** e **boss sconfitto**: da `WorldCheckRoomClear`,
+  subito dopo che `room->cleared` diventa vero (guardia contro il doppio
+  pagamento rientrando in una stanza già ripulita già presente su quel
+  campo);
+- **tesoro aperto**: da `CombatPickup` (`src/gameplay/combat.c`), quando
+  l'oggetto della stanza tesoro viene preso per la prima volta
+  (`room->rewardTaken` false → vero — non quando lo scambia sul piedistallo
+  una seconda volta);
+- **negozio visitato**: da `WorldSpawnRoomContents` (`src/world/world.c`),
+  alla PRIMA volta che `room->visited` diventa vero — il negozio paga
+  all'ingresso, non all'acquisto (quello resta un evento economico separato,
+  DEC-026/DEC-048);
+- **stanza segreta trovata** e **stanza a tempo**: non hanno ancora un
+  `RoomKind` nel motore (vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)),
+  quindi DEC-167 non ha ancora un punto di innesto per loro; la tavola dei
+  compensi (sotto) li ignora per costruzione fino a quel momento.
+
+Importi per tipo di stanza, **default proposti dall'implementazione (stile
+DEC-019)**: nessun documento fissa i numeri, solo che la fonte esiste per
+ogni archetipo (DEC-167) — questi restano da confermare col playtest.
+
+| Archetipo | Ingots |
+|---|---|
+| combattimento | 4 |
+| boss | 12 |
+| tesoro | 3 |
+| negozio | 2 |
+
+Il boss vale più di un combattimento normale (è la stanza più impegnativa del
+piano); tesoro e negozio meno di un combattimento perché non richiedono di
+sopravvivere a nulla — coerente col §Principio sopra. Con il budget di celle
+per piano introdotto da DEC-170 (`6 + numero_piano + estrazione(0..3)` celle,
+tipicamente ~5-9 stanze più boss/tesoro/negozio/partenza per piano, vedi
+[rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), un piano
+tipico frutta approssimativamente 20-40 Ingots solo da DEC-167 (4-6
+combattimenti + 1 tesoro + 1 negozio + 1 boss), sufficienti a coprire almeno
+un acquisto comune (8 Ingots, [items-pools-and-rarity.md](./items-pools-and-rarity.md))
+per piano anche senza contare le monete sparse dai nemici — coerente col caso
+limite "almeno un'occasione di spesa significativa per piano" (sopra). Verificato
+da `--economy-test` (`make test`): i quattro importi, la mancata doppia
+assegnazione rientrando/richiamando su una stanza già completata, e la
+consegna vera dell'oggetto tesoro.
+
 L'**uso economico** della valuta principale:
 
 - acquisti nel negozio (stanza standard, vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md));

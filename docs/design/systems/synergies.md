@@ -110,11 +110,33 @@ Quando più effetti competono sulla stessa proprietà:
    decide con un numero pseudo-casuale derivato dal **seed della run**, stabile per tutta
    quella run: la stessa coppia di effetti in conflitto produce sempre lo stesso esito
    nella stessa run (riproducibile con lo stesso seed), ma l'esito può differire da run a
-   run. La riproducibilità a stesso seed è oggi un **requisito, non lo stato attuale**:
-   l'RNG di gameplay non è ancora derivato dal seed di run (`time(NULL)`, DEC-141 e
-   `../../engineering/known-issues.md` voce 3), quindi finché il fix non c'è la garanzia
-   non è mantenuta dal codice;
+   run. Il prerequisito di DEC-141 (RNG di gameplay derivato dal seed di run, non più
+   `time(NULL)`) è **soddisfatto**: la garanzia di riproducibilità è oggi mantenuta dal
+   codice (vedi "Stato di implementazione" sotto);
 4. fallback visivo e meccanico sicuro.
+
+### Stato di implementazione — conflitto senza priorità (DEC-161)
+
+`SynergyConflictAPrevails(runSeed, keyA, keyB)` (`src/gameplay/synergies.h`/`.c`) è la
+funzione che decide un conflitto senza priorità esplicita: uno splitmix64 puro, seminato da
+`Game.runSeed` (DEC-141) più una chiave di coppia ordinata (min/max, così l'esito non dipende
+da quale dei due argomenti viene passato per primo) e una costante di dominio propria.
+Deliberatamente **non** consuma `Game.rng` (lo stream che avanza a ogni sparo/estrazione):
+farlo darebbe un esito diverso ad ogni interrogazione nella STESSA run, il contrario della
+stabilità richiesta. Applicazione concreta oggi: quando più oggetti posseduti portano lo
+stesso segnale di sinergia (es. tre oggetti col trait rallentamento), non esiste una regola
+che dica quale dei due "conta" per la coppia — prima di DEC-161 vinceva semplicemente il
+primo trovato nell'ordine dell'inventario (una priorità di fatto, mai dichiarata da nessun
+documento); ora la scelta passa da `SynergyConflictAPrevails`, stessa run → stesso
+candidato, run diverse → può differire. Non cambia mai **se** la sinergia si forma (basta un
+candidato qualunque), solo quale oggetto ne detta la rarità (`SynergyRarityScale`). Le 6
+regole canoniche della tavola sopra non competono mai fra loro sulla stessa proprietà (i
+loro contributi si sommano/moltiplicano, non si sovrascrivono): questo meccanismo è quindi
+oggi esercitato solo dal caso "più candidati per lo stesso segnale", ma resta la base pronta
+per quando una sinergia implicita generata introdurrà un vero conflitto proprietà-contro-
+proprietà. Verificato da `--script-items-test` (`make test-script`, test AU): stabilità a
+stesso `runSeed` su 100 ricalcoli/2 costruzioni indipendenti, esito diverso su almeno uno fra
+40 seed diversi, sinergia sempre accesa indipendentemente da quale candidato vince.
 
 ## Limiti di leggibilità
 
@@ -136,6 +158,26 @@ dedicato è verificato nella fase di validazione dei contenuti generati (stato `
 vedi [Generated Content Validation](generated-content-validation.md)) come ogni altro
 contenuto. Il suo valore esatto resta `draft`, da definire col playtest (stile DEC-019); i
 dettagli specifici della fusione esplicita vivono in [item-fusion.md](item-fusion.md).
+
+### Stato di implementazione — budget dedicato lato gioco (DEC-162)
+
+Il canale statistico (`SynergiesStatBonus`, canale A) passa ora anche da un tetto dedicato,
+`ScriptItemsClampSynergyResultDelta` (`src/script/script_items.c`), applicato SOLO quando
+almeno una sinergia è attiva, DOPO l'applicazione dei moltiplicatori di sinergia e PRIMA del
+tetto globale (`ScriptItemsClampStats`, invariato, gira comunque sempre dopo) e della curva
+di rendimenti decrescenti sul danno. Riusa la stessa meccanica del tetto per-oggetto (delta
+rispetto al valore pre-sinergia, clampato a una frazione della statistica di base), con
+`SCRIPT_ITEMS_SYNERGY_RESULT_DELTA_FRACTION = 1.20` — il doppio del tetto per-oggetto più
+largo (0.60, leggendario) — **default proposto dall'implementazione (stile DEC-019)**: il
+documento fissa solo che il tetto esiste ed è più alto di quello per-oggetto, non il numero
+esatto. Log su stderr quando il clamp riduce davvero qualcosa ("log chiaro" richiesto dal
+task che ha introdotto questo controllo): degradazione silenziosa per il giocatore, non per
+chi guarda i log. Mai un crash: il tetto globale e la curva restano comunque le ultime reti
+di sicurezza, indipendentemente da questo budget dedicato. Verificato da `--script-items-test`
+(`make test-script`, test AV): tre coppie leggendarie simultanee (sei oggetti) su un
+giocatore già gonfiato da cinque stat-up leggendari vengono clampate a un valore misurabilmente
+più basso di quello che si otterrebbe senza il budget dedicato, restando comunque dentro la
+banda globale e finito (mai NaN).
 
 ## Informazione al giocatore
 
@@ -232,16 +274,16 @@ dichiarato.
 
 ### Scenario 5 — conflitto senza priorità esplicita risolto dal seed di run
 
-Given due sinergie implicite in conflitto sulla stessa proprietà del proiettile, senza che
-nessuna delle due sia coperta da una trasformazione esplicita di fusione o da una regola
-di sinergia implicita già definita per quel conflitto,  
-When il sistema deve decidere quale effetto prevale,  
+Given più oggetti posseduti portano lo stesso segnale di sinergia, senza che nessuna regola
+di design dichiari quale dei candidati "conta" per la coppia,  
+When il sistema deve decidere quale oggetto prevale,  
 Then l'esito è determinato da un numero pseudo-casuale derivato dal seed della run
-(DEC-161): rigiocando la stessa run con lo stesso seed si ottiene sempre lo stesso esito,
-ma run diverse (seed diversi) possono risolvere lo stesso conflitto in modo diverso.
-Scenario **non ancora verificabile sul codice**: presuppone l'RNG di gameplay derivato dal
-seed di run, che DEC-141 fissa come prerequisito bloccante e che oggi non esiste
-(`../../engineering/known-issues.md` voce 3).
+(DEC-161, `SynergyConflictAPrevails`): rigiocando la stessa run con lo stesso seed si ottiene
+sempre lo stesso esito, ma run diverse (seed diversi) possono risolvere lo stesso conflitto
+in modo diverso, senza mai cambiare SE la sinergia si forma. Scenario **verificabile sul
+codice** (vedi "Stato di implementazione" sopra): il prerequisito di DEC-141 (RNG di
+gameplay derivato dal seed di run) è soddisfatto — verificato da `--script-items-test`
+(`make test-script`, test AU).
 
 ### Scenario 6 — budget di potenza dedicato al risultato di una sinergia
 
