@@ -521,6 +521,41 @@ M.grids.potion32 = {
   D(32), D(32), D(32), D(32), D(32), D(32), D(32), D(32), D(32),
 }
 
+-- ------------------------------------------ costruttore di griglie mutabili
+function M.blank(n)
+  local g = {}
+  for y = 1, n do
+    g[y] = {}
+    for x = 1, n do g[y][x] = "." end
+  end
+  g.n = n
+  return g
+end
+function M.gset(g, x, y, ch)
+  if x >= 1 and y >= 1 and x <= g.n and y <= g.n then g[y][x] = ch end
+end
+function M.gseg(g, x1, y1, x2, y2, ch)
+  local steps = math.max(math.abs(x2 - x1), math.abs(y2 - y1))
+  if steps == 0 then M.gset(g, x1, y1, ch) return end
+  for i = 0, steps do
+    M.gset(g, math.floor(x1 + (x2 - x1) * i / steps + 0.5),
+           math.floor(y1 + (y2 - y1) * i / steps + 0.5), ch)
+  end
+end
+function M.gellipse(g, cx, cy, rx, ry, ch)
+  for y = cy - ry, cy + ry do
+    for x = cx - rx, cx + rx do
+      local dx, dy = (x - cx) / rx, (y - cy) / ry
+      if dx * dx + dy * dy <= 1.0 then M.gset(g, x, y, ch) end
+    end
+  end
+end
+function M.grows(g)
+  local rows = {}
+  for y = 1, g.n do rows[y] = table.concat(g[y]) end
+  return rows
+end
+
 -- Rombo pieno (marcatori minimappa, pip di carica).
 function M.diamond(img, cx, cy, r, idx)
   for dy = -r, r do
