@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 169 decisioni di design (DEC-001..DEC-169) che cambiano il comportamento del gioco: 168 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+  Registro delle 172 decisioni di design (DEC-001..DEC-172) che cambiano il comportamento del gioco: 171 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-27
 last_verified_commit: d30890b
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..169]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..172]
 related: []
 supersedes: []
 source_files: []
@@ -126,6 +126,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Mantenere stanze di dimensione uniforme.
 - **Conseguenze:** `rooms-and-floor-generation.md` deve introdurre variabilità dimensionale e una grandezza minima garantita.
 - **Documenti aggiornati:** `systems/rooms-and-floor-generation.md`
+- **Nota (2026-07-27):** superata parzialmente da DEC-170 — le stanze passano a **taglie multiple in classi discrete** stile Isaac (1x1/1x2/2x1/2x2/L): la clausola «grandezze tutte diverse tra loro» non vale più, più stanze dello stesso piano possono condividere la stessa taglia. Restano validi il principio di variabilità dimensionale del piano e la grandezza minima garantita (ora la taglia 1x1).
 
 ### DEC-010 — Tassonomia delle stanze
 
@@ -1862,3 +1863,39 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** HUD sempre visibile anche nell'hub; HUD sempre nascosto, prove comprese; versione ridotta permanente dell'HUD nel Piano 0.
 - **Conseguenze:** `ui/hud.md` registra la regola di visibilità per stato; `systems/floor-zero.md` la applica al Piano 0 e `ui/pause-menu.md` colloca la consultazione su richiesta. Le «prove» del Piano 0 di questa decisione sono le arene di sfida e il tutorial integrato (DEC-047), **non** le prove specifiche della run di DEC-042: i tre documenti lo dicono esplicitamente. Questa decisione **non fissa il comando** con cui il menu di pausa si apre dal Piano 0, dove ESC è già assegnato a `ExitConfirm` (DEC-074): il punto diventa la domanda aperta 22.
 - **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/systems/floor-zero.md`, `docs/design/ui/pause-menu.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-170 — Le stanze hanno taglie multiple stile Isaac; la telecamera segue a zoom fisso nelle stanze più grandi
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** l'avvio dell'implementazione della demo ha reso necessario fissare la forma esatta della variabilità dimensionale delle stanze lasciata aperta da DEC-009 («grandezze tutte diverse tra loro», senza un modello di riferimento) e il comportamento dell'inquadratura quando una stanza supera lo schermo singolo — punto mai deciso, dato che l'implementazione M2 attuale non prevede alcuna telecamera (l'intera stanza sta sempre nel rettangolo fisso del canvas).
+- **Decisione:** le stanze hanno **taglie multiple in classi discrete stile Isaac**: 1x1 (base), 1x2, 2x1, 2x2, più **forme a L** (tre celle contigue di un blocco 2x2 con un angolo mancante). Più stanze dello stesso piano possono condividere la stessa taglia — la clausola di DEC-009 «grandezze tutte diverse tra loro» **non si applica più** in questa forma: la variabilità ora è di **classe**, non di misura continua univoca per stanza. La **grandezza minima garantita** di DEC-009 resta la taglia 1x1. Sulla **telecamera**: le stanze **1x1** restano inquadrate per intero con **camera fissa** (comportamento invariato); nelle taglie **maggiori** (1x2, 2x1, 2x2, L) il giocatore cammina dentro uno spazio più ampio dello schermo e la **telecamera lo segue a zoom fisso** — **nessuno zoom dinamico** — **clampata ai bordi della stanza** (non mostra mai area fuori dal rettangolo occupato dalla stanza). La generazione dei piani assegna le taglie alle stanze; il modo in cui i layout di ostacoli esistenti (`ROOM_LAYOUT_*`) si applicano alle stanze multi-cella — per singola cella o estesi sull'intera stanza — resta un **dettaglio di implementazione**, non fissato da questa decisione.
+- **Alternative considerate:** mantenere il modello attuale di taglie continue tutte diverse tra loro senza telecamera (avrebbe impedito le stanze davvero grandi stile Isaac); zoom dinamico che si adatta alla taglia della stanza invece di zoom fisso; camera libera non clampata ai bordi della stanza.
+- **Conseguenze:** `systems/rooms-and-floor-generation.md` sostituisce il modello di taglie continue con le classi discrete e aggiunge la sezione sul comportamento della telecamera; DEC-009 riceve una nota di supersessione parziale (resta approved: il principio di variabilità e il minimo garantito restano validi, la clausola «tutte diverse tra loro» è superata dalla forma a classi). Nessun rimando aggiunto a `ui/hud.md`, che non parla di inquadratura.
+- **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md`, `docs/design/governance/decision-log.md` (nota su DEC-009) (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-171 — La demo copre tutti i sistemi documentati; il contenuto curato usa le immagini del dataset CC0 come ponte provvisorio
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** l'avvio dell'implementazione della demo ha reso necessario fissare l'obiettivo della demo stessa — copertura dei sistemi o run rifinita — e la fonte delle immagini del contenuto curato: la pipeline immagini definitiva (Style LoRA su SD1.5 vanilla, DEC-148) non è ancora addestrata, ma la demo non può restare senza sprite.
+- **Decisione:** l'obiettivo della demo è **implementare tutti i sistemi documentati** (fusioni, sinergie, correzione di fortuna, economia, ecc.) **con priorità alla copertura del design** rispetto a una run end-to-end rifinita. Il contenuto curato della demo usa le **immagini del dataset di training** (`dataset-raw/`, pacchetti Kenney più `superpowers-asset-packs`, licenza **CC0**, **~2.567 PNG**, già registrate nel ledger CC0 di `docs/ai-production/04-DATASET-LICENZE.md`). L'immagine di un oggetto **nato da fusione** — che non ha un'immagine curata propria — si **pesca dal dataset fra le immagini non ancora usate nella run corrente**, con **scelta deterministica dal seed di run**. **Nessun modello immagine gira a runtime nella demo.** Questa soluzione è **esplicitamente provvisoria**: serve solo a permettere il playtest delle meccaniche finché SD non è stato addestrato con la Style LoRA. **DEC-148 resta invariata**: questa decisione è il ponte provvisorio, non la pipeline definitiva.
+- **Alternative considerate:** rimandare la demo fino al training della Style LoRA (avrebbe bloccato il playtest delle meccaniche per settimane); generare le immagini della demo con SD1.5 vanilla a runtime (avrebbe introdotto un modello immagine a runtime, contro l'indipendenza del motore, e prodotto sprite di qualità peggiore del dataset curato); costruire una run end-to-end rifinita di pochi sistemi invece di coprire tutti i sistemi documentati.
+- **Conseguenze:** `systems/item-fusion.md` registra la fonte provvisoria dell'immagine di un oggetto fuso nella demo; `docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md` registra il dataset Kenney CC0 come fonte curata della demo, con nota di licenza. Nessun cambiamento alla pipeline definitiva di DEC-148.
+- **Documenti aggiornati:** `docs/design/systems/item-fusion.md`, `docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-172 — L'audio della demo è un pacchetto pre-generato offline; il motore acquisisce un modulo audio che legge solo asset statici
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** l'avvio dell'implementazione della demo ha reso necessario decidere come la demo produce l'audio, dato che DEC-109 fissa Stable Audio Small come via primaria a runtime ma la regola di `AGENTS.md` («motore indipendente dai modelli AI»: il runtime legge solo file locali già validati) impone che la demo non dipenda da modelli AI a runtime.
+- **Decisione:** la demo usa un **pacchetto audio pre-generato offline**: musica/ambience per i temi con **Stable Audio 3 Small** (i checkpoint music e sfx già presenti in `models/`), effetti procedurali con **rFXGen**, tutto **integrato nel gioco come asset statici** prodotti prima della build. Il motore acquisisce un **modulo audio** (raylib) che **legge solo file locali già pronti** — coerente con la regola di `AGENTS.md` sull'indipendenza del motore dai modelli AI. **DEC-109 resta la destinazione finale** (pipeline generativa a runtime): questa decisione è l'**istanza demo** del fallback curato sempre garantito già previsto da DEC-036/DEC-109, non una nuova pipeline.
+- **Alternative considerate:** generare audio a runtime con Stable Audio anche nella demo (avrebbe richiesto integrare il modello nel binario di gioco, contro la regola di indipendenza del motore); lasciare la demo senza audio fino all'integrazione della pipeline generativa a runtime.
+- **Conseguenze:** `content/audio-and-feedback.md` registra che la demo usa il pacchetto pre-generato; `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` registra la nota demo (generazione offline, runtime statico). Nessun cambiamento alla pipeline definitiva di DEC-109.
+- **Documenti aggiornati:** `docs/design/content/audio-and-feedback.md`, `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` (aggiornati in questo stesso lavoro)

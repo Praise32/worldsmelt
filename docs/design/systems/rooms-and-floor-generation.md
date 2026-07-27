@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Il Piano 0 non è un piano generato: vedi floor-zero.md."
-last_reviewed: 2026-07-18
+summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [stanze, piani, generazione, griglia, budget-difficoltà]
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170]
 related: []
 supersedes: []
 source_files: []
@@ -30,27 +30,80 @@ Ogni piano deve sembrare costruito apposta, con una progressione leggibile verso
 
 - Il piano usa una **griglia fissa** come intelaiatura spaziale.
 - Il **numero di stanze** per piano è **variabile**.
-- Le stanze hanno **grandezze tutte diverse tra loro**, con una **grandezza minima garantita**.
-- **Stato:** regola di design **approved**. **Implementato (M2):** il codice genera un numero di stanze variabile per piano e assegna a ogni stanza una taglia distinta entro un rettangolo massimo fisso (nessuna camera), rispettando una grandezza minima garantita — vedi il blocco "Default proposti" sotto per i valori scelti dall'implementazione.
+- Le stanze hanno **taglie multiple**, con una **grandezza minima garantita**. La forma
+  esatta della variabilità dimensionale è fissata da **DEC-170** (27/07): classi discrete
+  stile Isaac (1x1/1x2/2x1/2x2/L), non più il lattice di taglie continue "tutte diverse tra
+  loro" descritto sotto — vedi [Taglie multiple e telecamera](#taglie-multiple-e-telecamera-dec-170).
+  DEC-009 riceve una nota di supersessione parziale su questo punto nel decision-log: il
+  principio di variabilità e il minimo garantito restano validi.
+- **Stato:** regola di design **approved**. **Implementato (M2, superato in parte da
+  DEC-170):** il codice della fase M2 genera un numero di stanze variabile per piano e
+  assegna a ogni stanza una taglia distinta entro un rettangolo massimo fisso (nessuna
+  camera) — il blocco "Default proposti" sotto ne conserva i valori come riferimento
+  storico. Il modello attuale (taglie a classi discrete + telecamera) è descritto nella
+  sezione dedicata sotto e resta da implementare.
 
-### Default proposti dall'implementazione (stile DEC-019, da validare col playtest)
+### Default proposti dall'implementazione M2 (stile DEC-019) — superato in parte da DEC-170
 
 I valori esatti restano una domanda aperta di design (vedi `governance/open-questions.md`):
-quelli sotto sono **default proposti dal codice**, non una decisione di design. Il rettangolo
-massimo del canvas di gioco (960×640 logici) resta fisso; ogni stanza è un rettangolo più
-piccolo o uguale, sempre centrato al suo interno.
+quelli sotto erano **default proposti dal codice** per la fase M2, non una decisione di
+design, e restano qui come riferimento storico dei valori scelti allora. Il rettangolo
+massimo del canvas di gioco (960×640 logici) restava fisso; ogni stanza era un rettangolo
+più piccolo o uguale, sempre centrato al suo interno.
 
 - **Numero di stanze per piano:** `6 + numero_piano + estrazione(0..3)` dal seme della run
   (piano 1: 7..10 stanze; piano 5: 11..14), più fino a due stanze speciali (tesoro/negozio)
-  quando trovano posto. Varia sia fra piani sia fra run con seed diverso.
-- **Lattice delle taglie:** larghezze `{876, 812, 748, 684, 620, 556}` × altezze
+  quando trovano posto. Varia sia fra piani sia fra run con seed diverso. (Non toccato da
+  DEC-170: riguarda il numero di stanze, non la loro taglia.)
+- ~~**Lattice delle taglie:** larghezze `{876, 812, 748, 684, 620, 556}` × altezze
   `{458, 418, 378, 338, 298}` px, quantizzate a passi di 8px (coerenza pixel-art). Le coppie
   si pescano senza ripetizione da un pool di 30 combinazioni mescolato col seme della run:
-  nessuna stanza dello stesso piano condivide la stessa taglia.
-- **Grandezza minima garantita:** 556×298 px (il valore più piccolo del lattice sopra).
-- **Stanza boss:** sempre alla taglia massima (876×458, l'intero rettangolo del canvas).
-- **Stanza di partenza:** riceve una taglia riservata "almeno mediana" del lattice (non la
-  più piccola disponibile). Tesoro/negozio pescano liberamente dal resto del pool.
+  nessuna stanza dello stesso piano condivide la stessa taglia.~~ — **superato da DEC-170**:
+  il modello attuale è a classi discrete (1x1/1x2/2x1/2x2/L), e più stanze dello stesso
+  piano possono condividere la stessa taglia.
+- ~~**Grandezza minima garantita:** 556×298 px (il valore più piccolo del lattice sopra).~~
+  — **superato da DEC-170**: il minimo garantito è ora la taglia **1x1**; le sue dimensioni
+  esatte in pixel restano da fissare dall'implementazione.
+- ~~**Stanza boss:** sempre alla taglia massima (876×458, l'intero rettangolo del canvas).
+  **Stanza di partenza:** riceve una taglia riservata "almeno mediana" del lattice (non la
+  più piccola disponibile). Tesoro/negozio pescano liberamente dal resto del pool.~~ —
+  **superato da DEC-170**: quale taglia esatta ricevano la stanza boss e la stanza di
+  partenza nel nuovo modello a classi discrete non è fissato da questa decisione, resta un
+  dettaglio di implementazione.
+
+## Taglie multiple e telecamera (DEC-170)
+
+Le stanze hanno **taglie multiple in classi discrete**, stile Isaac. Ogni stanza occupa una
+o più **celle contigue della griglia fissa del piano** (DEC-009):
+
+- **1x1** — una cella: la taglia base e minima garantita.
+- **1x2** e **2x1** — due celle in fila, rispettivamente orizzontale e verticale.
+- **2x2** — un blocco di quattro celle.
+- **forma a L** — tre celle contigue di un blocco 2x2, con un angolo mancante.
+
+Più stanze dello stesso piano possono condividere la stessa taglia: la clausola precedente
+di DEC-009 "grandezze tutte diverse tra loro" **non si applica più** in questa forma (la
+variabilità dimensionale del piano resta un requisito valido, ma è di **classe**, non di
+misura continua univoca per stanza). Le dimensioni esatte in pixel di una cella e quale
+taglia ricevano la stanza boss o la stanza di partenza restano **dettagli di
+implementazione**, non fissati da questa decisione.
+
+### Telecamera
+
+- **Stanza 1x1:** inquadrata **per intero**, con **camera fissa** — comportamento invariato
+  rispetto al modello M2: l'intera stanza è sempre visibile, senza movimento di camera e
+  senza zoom.
+- **Taglie maggiori (1x2, 2x1, 2x2, L):** il giocatore cammina dentro uno spazio più ampio
+  dello schermo; la **telecamera lo segue** a **zoom fisso** — **nessuno zoom dinamico** che
+  si adatti alla taglia della stanza o all'azione — **clampata ai bordi della stanza**: non
+  mostra mai area fuori dal rettangolo occupato dalla stanza, nemmeno quando il giocatore è
+  a ridosso di un bordo.
+
+Come i layout di ostacoli esistenti (`ROOM_LAYOUT_*`, vedi
+[Secrets and Obstacles](./secrets-and-obstacles.md)) si applichino alle stanze multi-cella —
+per singola cella o estesi sull'intera stanza — resta un **dettaglio di implementazione**,
+non fissato da questa decisione. Nessun rimando aggiunto a `ui/hud.md`: quel documento non
+parla di inquadratura/telecamera.
 
 ## Tipi di stanza (tassonomia completa, DEC-010)
 
@@ -176,6 +229,10 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   generati nei piani avanzati fissati da DEC-024 (vedi anche [bosses.md](./bosses.md)).
 - Frequenza esatta e piani minimi in cui compare la stanza a tempo (DEC-051 fissa solo
   "piani avanzati", non il numero esatto).
+- Dimensioni esatte in pixel di una cella/taglia, quale taglia ricevano la stanza boss e la
+  stanza di partenza, e come i layout `ROOM_LAYOUT_*` si applichino alle stanze multi-cella
+  (DEC-170 fissa le classi discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera,
+  non questi valori: dettagli di implementazione).
 
 ## Scenari
 
@@ -220,3 +277,15 @@ Then il budget restante per i nemici della stessa stanza si riduce di conseguenz
 Given un piano avanzato generato
 When il piano include l'archetipo aggiuntivo "stanza a tempo" (DEC-051)
 Then la stanza è raggiungibile entro una soglia di tempo per ottenere una ricompensa extra, con soglia e valore esatti da definire col playtest, secondo il dettaglio in [rewards-and-economy.md](./rewards-and-economy.md) e [special-rooms.md](./special-rooms.md)
+
+### Scenario 8 — Stanza 1x1 con camera fissa
+
+Given una stanza generata di taglia 1x1
+When il giocatore vi entra
+Then la stanza è inquadrata per intero con camera fissa, senza movimento di camera né zoom dinamico (DEC-170)
+
+### Scenario 9 — Telecamera a zoom fisso in una stanza più grande
+
+Given una stanza generata di taglia maggiore (1x2, 2x1, 2x2 o a L)
+When il giocatore cammina dentro la stanza
+Then la telecamera lo segue a zoom fisso, senza mai mostrare area fuori dal rettangolo occupato dalla stanza (clamp ai bordi) e senza variare lo zoom (DEC-170)

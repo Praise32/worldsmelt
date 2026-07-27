@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162)."
+summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171)."
 last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162]
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0]
 related: []
 supersedes: []
 source_files: []
@@ -56,6 +56,19 @@ Se la rifinitura IA non arriva (generazione mancante, in errore o respinta), la
 composizione deterministica del passo 1 resta valida così com'è: è il fallback naturale di
 questa meccanica (vedi [Fallback](#fallback) sotto). L'oggetto risultante entra
 nell'inventario nello slot corrispondente alla sua categoria.
+
+## Immagine del risultato nella demo (DEC-171, provvisorio)
+
+Nella demo attuale, prima che la Style LoRA sia addestrata (pipeline definitiva DEC-148,
+invariata), lo **stadio 2** non genera l'immagine con un modello: **nessun modello immagine
+gira a runtime nella demo**. Nome e comportamento dello stadio 2 restano generati come
+descritto sopra (non riguardano un modello immagine); lo **sprite** dell'oggetto composto si
+**pesca invece dal dataset di training** (`dataset-raw/`, pacchetti Kenney CC0, vedi
+[Asset Curation and Floor Zero](../../ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md))
+**fra le immagini non ancora usate nella run corrente**, con **scelta deterministica dal
+seed di run**. È una soluzione **esplicitamente provvisoria**, pensata solo per permettere
+il playtest delle meccaniche: quando la Style LoRA sarà addestrata, questo ponte viene
+sostituito dalla pipeline definitiva, senza che nulla in questo documento cambi.
 
 ## Feedback
 
@@ -249,3 +262,10 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - Then il controllo di budget di potenza verifica il risultato contro il budget dedicato
   alla fusione, più alto del budget di un singolo oggetto sorgente (DEC-162), non contro il
   budget di un singolo oggetto
+
+**Scenario: sprite provvisorio dal dataset nella demo**
+- Given il giocatore gioca la demo attuale, prima dell'addestramento della Style LoRA
+- When completa una fusione e lo stadio 2 rifinisce l'oggetto composto
+- Then lo sprite non arriva da un modello immagine a runtime ma viene pescato
+  deterministicamente (dal seed di run) fra le immagini del dataset CC0 non ancora usate
+  nella run corrente (DEC-171); nome e comportamento restano generati come di consueto

@@ -24,7 +24,7 @@ del design è `docs/design/README.md`; l'indice completo generato è `docs/desig
 
 | Task | Dove guardare | Strumenti/note |
 |---|---|---|
-| Gameplay, regole, contenuti, bilanciamento, flussi | `docs/design/` (systems/, content/, governance/decision-log.md) | Le decisioni DEC-NNN del registro fanno fede (DEC-001..DEC-169 al 2026-07-27); dubbi → `governance/open-questions.md` |
+| Gameplay, regole, contenuti, bilanciamento, flussi | `docs/design/` (systems/, content/, governance/decision-log.md) | Le decisioni DEC-NNN del registro fanno fede (DEC-001..DEC-172 al 2026-07-27); dubbi → `governance/open-questions.md` |
 | Domanda non risolta, in qualunque dominio | `docs/design/governance/open-questions.md` | Coda ufficiale e **unica** (DEC-147): niente code parallele, le vecchie sono chiuse e archiviate |
 | UI / schermate / HUD | `docs/design/ui/` + `docs/design/05-game-states-and-flow.md` | Stati canonici in `src/app` |
 | Audio | `docs/design/content/audio-and-feedback.md` (DEC-109, fallback da DEC-036) + `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` | Conflitti audio → decision-log prima di tutto |

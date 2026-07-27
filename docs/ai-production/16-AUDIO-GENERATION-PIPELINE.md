@@ -6,10 +6,10 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro).
+  Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).
 last_reviewed: 2026-07-27
 last_verified_commit: 892911a
-topics: [audio, rfxgen, stable-audio, dec-036, licenza, fallback]
+topics: [audio, rfxgen, stable-audio, dec-036, licenza, fallback, DEC-172, demo]
 related: []
 supersedes: []
 source_files: []
@@ -21,6 +21,9 @@ source_files: []
 > critico mantiene un suono curato/fallback (garanzia ereditata da DEC-036); nessuna
 > generazione in combattimento; modello audio caricato in sequenza col modello di testo
 > attivo e con SD.
+>
+> **Nota demo (DEC-172, 2026-07-27):** la build demo usa il pacchetto pre-generato offline
+> (vedi sezione dedicata sotto), non la generazione a runtime descritta in questo documento.
 
 ## Conflitto risolto (DEC-109)
 
@@ -112,6 +115,18 @@ L'audio non viene generato quando il colpo viene sparato. Si genera:
 - fra i piani;
 - in background;
 - oppure resta completamente curato nella modalità compatibile.
+
+## Nota demo (DEC-172): generazione offline, runtime statico
+
+La build demo usa esclusivamente la modalità "resta completamente curato" descritta sopra:
+musica/ambience e SFX si generano **offline**, prima della build, con **Stable Audio 3
+Small** e **rFXGen** come **strumenti di produzione**, non come dipendenze del runtime. Il
+risultato entra nel gioco come **asset statici** (WAV/OGG), letti da un modulo audio raylib
+che **non** carica né invoca alcun modello — coerente con la regola di `AGENTS.md` («motore
+indipendente dai modelli AI»: il runtime legge solo file locali già validati). La pipeline
+generativa a runtime resta quella descritta sopra (DEC-109): la demo non la disabilita,
+semplicemente non la usa ancora nella build corrente. Nota gemella in design:
+[Audio and Feedback](../design/content/audio-and-feedback.md).
 
 ## AudioSpec
 

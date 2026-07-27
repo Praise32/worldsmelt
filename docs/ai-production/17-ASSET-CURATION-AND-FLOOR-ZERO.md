@@ -6,10 +6,10 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato.
-last_reviewed: 2026-07-22
+  Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171).
+last_reviewed: 2026-07-27
 last_verified_commit: 892911a
-topics: [curation, floor-zero, manifest, licenze, asset-review]
+topics: [curation, floor-zero, manifest, licenze, asset-review, DEC-171, demo, kenney, dataset-cc0]
 related: []
 supersedes: []
 source_files: []
@@ -168,6 +168,28 @@ UI:
 Un asset proveniente da esperimenti con dataset incerto non viene promosso nel ramo
 commerciale soltanto perché è bello. Deve essere rigenerato o ricostruito con una pipeline
 commercial-clean.
+
+## Demo delle meccaniche: dataset Kenney CC0 come fonte curata provvisoria (DEC-171)
+
+L'obiettivo della demo è **coprire tutti i sistemi documentati** (fusioni, sinergie,
+correzione di fortuna, economia, ecc.), con priorità sulla copertura del design rispetto a
+una run end-to-end rifinita. Il contenuto curato della demo usa le **immagini del dataset di
+training già registrato**, in `dataset-raw/` (pacchetti **Kenney** più
+`superpowers-asset-packs`, licenza **CC0**, **~2.567 PNG**, verificato nel ledger CC0 di
+[Dataset e licenze](04-DATASET-LICENZE.md)): non un dataset separato creato apposta per la
+demo.
+
+L'immagine di un oggetto **nato da fusione** (che non ha un'immagine curata propria) si
+**pesca dal dataset fra le immagini non ancora usate nella run corrente**, con scelta
+**deterministica dal seed di run** (dettaglio della meccanica in
+[Item Fusion](../design/systems/item-fusion.md)). **Nessun modello immagine gira a runtime
+nella demo**: coerente con la regola di `AGENTS.md` sull'indipendenza del motore dai modelli
+AI (il runtime legge solo file locali già validati).
+
+Questa soluzione è **esplicitamente provvisoria**: serve solo al playtest delle meccaniche
+finché SD non è stato addestrato con la Style LoRA (pipeline definitiva DEC-148, che resta
+invariata). Non cambia la regola di non-contaminazione qui sopra: le immagini Kenney CC0
+restano una fonte già verificata, non un asset da esperimenti con dataset incerto.
 
 ## Risultato atteso
 

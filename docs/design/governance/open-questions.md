@@ -6,7 +6,7 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-169: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-172: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-27
 last_verified_commit: d30890b
 topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai]
@@ -63,6 +63,17 @@ riguarda l'impianto, non i valori, che restano da playtest. Nessuna delle 10 dom
 numerate sotto è quindi chiusa; la 10 resta aperta solo sui numeri, dopo che DEC-144 ha
 fissato il vincolo di copertura per rarità.
 
+Una sessione successiva, la sera del 2026-07-27, ha registrato il via all'implementazione
+della demo con altre tre decisioni — DEC-170 (taglie multiple stile Isaac e telecamera a
+zoom fisso nelle stanze più grandi, con nota di supersessione parziale su DEC-009), DEC-171
+(la demo copre tutti i sistemi documentati; le immagini del contenuto curato vengono dal
+dataset CC0 come ponte provvisorio fino al training della Style LoRA) e DEC-172 (l'audio
+della demo è un pacchetto pre-generato offline, non la pipeline generativa a runtime di
+DEC-109) — senza chiudere nessuna delle 22 domande numerate sotto: sono decisioni di
+implementazione della demo, non risposte a domande già in coda. La domanda 1 riceve solo un
+rimando a DEC-170 nel suo testo, perché DEC-170 non fissa le dimensioni esatte di una
+cella/taglia.
+
 Con DEC-147 questa pagina diventa la **coda ufficiale e unica** delle domande aperte del
 progetto: il questionario, ora in `docs/archive/superseded/19-DECISION-QUESTIONNAIRE.md`, e
 il piano, ora in `docs/plans/cancelled/aiprod-proposed-kb-updates.md`, sono stati chiusi e
@@ -87,7 +98,7 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 
 ## Economia e stanze
 
-1. Quali sono le grandezze minime e massime delle stanze? (DEC-009 fissa solo la variabilità e una grandezza minima garantita, senza valori.)
+1. Quali sono le grandezze minime e massime delle stanze, in pixel per ciascuna taglia? (DEC-009 fissa solo la variabilità e una grandezza minima garantita, senza valori; DEC-170 aggiunge le taglie multiple in classi discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera, senza fissare le dimensioni esatte di una cella né quale taglia ricevano la stanza boss e la stanza di partenza.)
 2. Qual è l'economia esatta dei punti di meta-progressione: tasso di guadagno, costo degli sblocchi, contenuto iniziale del pool sbloccabile? (DEC-015 fissa il principio, DEC-027 fissa la struttura a doppio canale — punti base più bonus da prove specifiche — non i numeri esatti.)
 3. Quali sono i valori esatti di soglia (tempo) e ricompensa delle stanze a tempo nei piani avanzati, e cosa succede se il giocatore le raggiunge dopo la soglia (nessuna ricompensa, ricompensa ridotta, o comportamento diverso)? (DEC-051 fissa solo il principio, da playtest come DEC-019.)
 4. Qual è il bilanciamento fine del punteggio composito multi-percorso: peso relativo di tempo, prove/sfide, esplorazione, scoperte, eliminazioni e Veterani, e come si equivalgono esattamente un percorso rapido/efficiente e un percorso lento/esaustivo? (DEC-060 fissa le fonti e il vincolo di competitività tra percorsi, non i numeri; da playtest.)

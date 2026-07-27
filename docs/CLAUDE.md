@@ -9,7 +9,7 @@ vecchia `game-design-knowledge-base/`.
 
 Quando una richiesta riguarda comportamento, interfaccia, contenuti, bilanciamento o
 flussi di gioco: consultare **prima** `docs/design/README.md` (percorso curato) e il
-decision log (`docs/design/governance/decision-log.md`, DEC-001..169), **poi** proporre
+decision log (`docs/design/governance/decision-log.md`, DEC-001..172), **poi** proporre
 modifiche. Il router task→dominio è `docs/_meta/TOPIC-ROUTER.md`.
 
 ## Regole vincolanti

@@ -546,14 +546,16 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro).",
+      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
       "topics": [
         "audio",
         "rfxgen",
         "stable-audio",
         "dec-036",
         "licenza",
-        "fallback"
+        "fallback",
+        "DEC-172",
+        "demo"
       ],
       "related": [],
       "supersedes": [],
@@ -569,18 +571,22 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato.",
+      "summary": "Pipeline di curation (candidate->curated->fallback) con stati, directory art/, manifest e proposta di Piano 0 ibrido curato+generato. La demo delle meccaniche usa il dataset Kenney CC0 come fonte curata provvisoria, in attesa della Style LoRA (DEC-171).",
       "topics": [
         "curation",
         "floor-zero",
         "manifest",
         "licenze",
-        "asset-review"
+        "asset-review",
+        "DEC-171",
+        "demo",
+        "kenney",
+        "dataset-cc0"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "892911a"
     },
     {
@@ -1413,7 +1419,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback.",
+      "summary": "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).",
       "topics": [
         "audio",
         "feedback",
@@ -1422,7 +1428,9 @@
         "DEC-036",
         "DEC-109",
         "stable-audio",
-        "rfxgen"
+        "rfxgen",
+        "DEC-172",
+        "demo"
       ],
       "related": [],
       "supersedes": [],
@@ -1508,13 +1516,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 169 decisioni di design (DEC-001..DEC-169) che cambiano il comportamento del gioco: 168 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 172 decisioni di design (DEC-001..DEC-172) che cambiano il comportamento del gioco: 171 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..169"
+        "DEC-001..172"
       ],
       "related": [],
       "supersedes": [],
@@ -1618,7 +1626,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-169: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-172: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1862,7 +1870,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162).",
+      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171).",
       "topics": [
         "fusione",
         "meccanica-firma",
@@ -1872,7 +1880,10 @@
         "doppio stadio",
         "DEC-143",
         "categoria-dominante",
-        "DEC-162"
+        "DEC-162",
+        "DEC-171",
+        "demo",
+        "dataset-cc0"
       ],
       "related": [],
       "supersedes": [],
@@ -1981,18 +1992,22 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Il Piano 0 non è un piano generato: vedi floor-zero.md.",
+      "summary": "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md.",
       "topics": [
         "stanze",
         "piani",
         "generazione",
         "griglia",
-        "budget-difficoltà"
+        "budget-difficoltà",
+        "taglie-multiple",
+        "telecamera",
+        "forma-a-L",
+        "DEC-170"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
