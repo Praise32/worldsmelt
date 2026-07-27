@@ -1,7 +1,9 @@
 #include "assets/game_assets.h"
 
+#include "content/curated_images.h"
 #include "script/script_items.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,6 +16,14 @@ void GameUnloadAssets(Game *game)
         game->atlas.id = 0;
     }
     memset(game->atlasCellPresent, 0, sizeof(game->atlasCellPresent));
+
+    /* DEC-171: le texture curate seguono l'atlas, stesso ciclo di vita e
+       stesso punto di rilascio (vedi AssetsCuratedTexture piu' sotto). */
+    for (int i = 0; i < game->curatedTextures.count && i < MAX_CURATED_TEXTURES; i++)
+    {
+        if (game->curatedTextures.textures[i].id != 0) UnloadTexture(game->curatedTextures.textures[i]);
+    }
+    memset(&game->curatedTextures, 0, sizeof(game->curatedTextures));
 
     /* Ogni ScriptSandbox viva (una per oggetto con Lua, vedi
        core/game_types.h, Game.itemScripts) va chiusa qui, non lasciata al
@@ -109,6 +119,35 @@ static Texture2D LoadAtlasTexture(const char *path, bool *cellPresent)
     Texture2D texture = LoadTextureFromImage(image);
     UnloadImage(image);
     return texture;
+}
+
+const Texture2D *AssetsCuratedTexture(Game *game, const char *relativePath)
+{
+    if (!game || !relativePath || !relativePath[0]) return NULL;
+
+    CuratedTextureCache *cache = &game->curatedTextures;
+    for (int i = 0; i < cache->count && i < MAX_CURATED_TEXTURES; i++)
+    {
+        if (strcmp(cache->paths[i], relativePath) == 0)
+            return cache->textures[i].id != 0 ? &cache->textures[i] : NULL;
+    }
+    if (cache->count >= MAX_CURATED_TEXTURES) return NULL;
+
+    char full[192];
+    snprintf(full, sizeof(full), "%s%s", CURATED_IMAGE_DIR, relativePath);
+    if (!FileExists(full)) return NULL;
+
+    /* Lo slot si occupa PRIMA di sapere se il caricamento riesce: cosi' un
+       file rotto viene tentato una volta sola e non ad ogni frame di
+       disegno (id 0 nello slot = "gia' provato, non c'e' nulla da
+       disegnare"). Stessa filosofia di atlasCellPresent per l'atlas. */
+    int slot = cache->count++;
+    snprintf(cache->paths[slot], sizeof(cache->paths[slot]), "%s", relativePath);
+    cache->textures[slot] = LoadTexture(full);
+    if (cache->textures[slot].id == 0) return NULL;
+    /* Pixel art: nessun filtro, come per l'atlas. */
+    SetTextureFilter(cache->textures[slot], TEXTURE_FILTER_POINT);
+    return &cache->textures[slot];
 }
 
 void AssetsLoad(Game *game)

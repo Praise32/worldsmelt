@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171)."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 82a0232
 topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/gameplay/fusion.c, src/content/curated_images.c]
 ---
 
 # Item Fusion
@@ -60,15 +60,17 @@ nell'inventario nello slot corrispondente alla sua categoria.
 ## Immagine del risultato nella demo (DEC-171, provvisorio)
 
 Nella demo attuale, prima che la Style LoRA sia addestrata (pipeline definitiva DEC-148,
-invariata), lo **stadio 2** non genera l'immagine con un modello: **nessun modello immagine
-gira a runtime nella demo**. Nome e comportamento dello stadio 2 restano generati come
-descritto sopra (non riguardano un modello immagine); lo **sprite** dell'oggetto composto si
-**pesca invece dal dataset di training** (`dataset-raw/`, pacchetti Kenney CC0, vedi
-[Asset Curation and Floor Zero](../../ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md))
+invariata), l'immagine dell'oggetto composto non la genera alcun modello: **nessun modello
+immagine gira a runtime nella demo**. Lo **sprite** si **pesca invece dal corpus CC0 di
+training** — nella forma già selezionata del pacchetto curato `assets/curated/`, sottoinsieme
+di `dataset-raw/` con manifest e provenienza per file (vedi
+[Asset Curation and Floor Zero](../../ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md)) —
 **fra le immagini non ancora usate nella run corrente**, con **scelta deterministica dal
-seed di run**. È una soluzione **esplicitamente provvisoria**, pensata solo per permettere
-il playtest delle meccaniche: quando la Style LoRA sarà addestrata, questo ponte viene
-sostituito dalla pipeline definitiva, senza che nulla in questo documento cambi.
+seed di run**. Siccome nella demo lo stadio 2 non esiste, la pesca avviene già alla
+composizione dello **stadio 1**: l'oggetto nasce con la sua immagine, non la riceve dopo.
+È una soluzione **esplicitamente provvisoria**, pensata solo per permettere il playtest
+delle meccaniche: quando la Style LoRA sarà addestrata, questo ponte viene sostituito dalla
+pipeline definitiva, senza che nulla in questo documento cambi.
 
 ## Feedback
 
@@ -91,6 +93,39 @@ sostituito dalla pipeline definitiva, senza che nulla in questo documento cambi.
   stessi campi obbligatori di ogni altro oggetto del gioco.
 - [Synergies](synergies.md): la fusione esplicita è il secondo binario delle sinergie,
   complementare a quelle implicite/automatiche descritte in quel documento.
+
+## Stato di implementazione (demo, 2026-07-27)
+
+La meccanica è **implementata a runtime** nello **stadio 1** (composizione immediata
+deterministica, DEC-023): modulo `src/gameplay/fusion.c` (composizione, budget, consumo,
+inventario), `src/content/curated_images.c` (pesca dello sprite dal pacchetto curato,
+DEC-171), interfaccia dentro `BuildScreen` (`src/app/app.c`, `src/render/game_renderer.c`).
+Test: `--fusion-test` (in `make test`), più lo scatto manuale `--fusion-screenshot-test`.
+
+Lo **stadio 2** (rifinitura IA in sottofondo) **non esiste nella demo**, per scelta: DEC-171
+fissa che nessun modello immagine gira a runtime e dà priorità alla copertura dei sistemi. Il
+punto di aggancio è documentato nel codice (`FUSION_STAGE_2_HOOK` in
+`src/gameplay/fusion.h`) e nessun processo viene avviato. Il fallback naturale resta la
+composizione dello stadio 1, che è già un oggetto completo (vedi [Fallback](#fallback)):
+finché lo stadio 2 manca, l'origine dichiarata del contenuto composto resta `composto` e non
+sale mai a `nuovo`.
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+Nessuno di questi numeri o comportamenti è deciso da una DEC: sono scelte
+dell'implementazione, marcate come tali nel codice e da confermare al playtest.
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Dove si innesca** | Sezione «Fusioni possibili» di `BuildScreen`, **non** una stanza dedicata: `ROOM_FUSION` non esiste ancora nel motore (vedi [Special Rooms](special-rooms.md)). Quando la stanza di fusione arriverà, l'innesco si sposta lì aggiungendo una sola condizione — il resto del flusso non cambia. | `src/app/app.c` |
+| **Comandi** | Su/giù scorrono gli oggetti, INVIO seleziona/deseleziona una sorgente, **F** conferma la fusione, ESC/TAB escono. F è un tasto dedicato perché l'operazione è irreversibile e non deve partire per inerzia scorrendo la lista. | `src/app/app_internal.h` |
+| **Oggetti idonei** | Qualunque oggetto posseduto, di qualunque categoria (DEC-101), compreso un oggetto già fuso (DEC-102). L'unica coppia rifiutata è «lo stesso oggetto due volte». | `FusionItemEligible` |
+| **Conflitti fra tratti** | I 9 tratti del motore sono raggruppati per proprietà contesa (traiettoria, impatto, corpo del colpo, effetto sul bersaglio): dentro un gruppo vince il tratto della sorgente dominante, fra gruppi diversi si eredita da entrambe. Il risultato porta al massimo **3** tratti (uno più di un oggetto generato, mai la somma). | `FusionComposeTraits` |
+| **Budget del risultato (DEC-162)** | Due canali: la **rarità** del risultato sale di un gradino sopra la dominante (la rarità *è* il tetto di potenza per-oggetto del motore), e il **tipo di colpo** si bilancia su una banda dedicata `[1.25, 1.60]` con bersaglio `1.35` — il minimo coincide col massimo di un colpo singolo, quindi un colpo fuso è sempre almeno pari al miglior colpo singolo. Il budget di **leggibilità** (DEC-146) invece **non** si allarga. | `src/core/shot_type.h` |
+| **Nome del risultato** | Composto dai due genitori (prima parola della dominante + una parola dell'altra, scelta dal seed): il motore non possiede alcun elenco di nomi, come non possiede un elenco di tipi di colpo. | `FusionComposeName` |
+| **Varianza** | Il risultato dipende dal seed di run, dai due nomi e da **quante fusioni** sono già avvenute nella run: rifondere la stessa coppia più tardi non dà lo stesso oggetto (coerente con il non-obiettivo «niente ricette fisse»), restando riproducibile a parità di seed. | `FusionKey` |
+| **Fonti del catalizzatore** | Drop del boss al **35%** e banco del negozio al **45%** per piano, a **30 monete** (più di un oggetto raro). Le arene di sfida, terza fonte di DEC-022, non esistono ancora nel motore. | `src/world/world.c` |
+| **Immagine (DEC-171)** | Pescata fra le immagini di categoria `item` del pacchetto curato non ancora usate nella run; se quella famiglia è esaurita si pesca dal resto del pacchetto; se il pacchetto manca, l'oggetto resta senza immagine e si disegna con la forma geometrica di sempre. | `src/content/curated_images.c` |
 
 ## Rarità del catalizzatore (DEC-022)
 
@@ -190,6 +225,12 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
   [Health and Resources](health-and-resources.md)).
 - Valore esatto del budget di potenza dedicato al risultato di una fusione (DEC-162 fissa
   solo che esiste ed è più alto del budget del singolo oggetto sorgente, non il numero).
+  L'implementazione propone rarità +1 e banda di colpo `[1.25, 1.60]` (vedi
+  «Default proposti dall'implementazione» sopra), da confermare al playtest.
+- Se l'innesco debba restare in `BuildScreen` anche dopo che la stanza di fusione esisterà,
+  o spostarsi lì integralmente (oggi vive in `BuildScreen` perché `ROOM_FUSION` non esiste).
+- Quali categorie siano davvero «idonee»: l'implementazione le ammette tutte (nessuna DEC le
+  restringe), quindi anche due stat-up possono fondersi.
 
 ## Scenari
 
@@ -262,6 +303,13 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - Then il controllo di budget di potenza verifica il risultato contro il budget dedicato
   alla fusione, più alto del budget di un singolo oggetto sorgente (DEC-162), non contro il
   budget di un singolo oggetto
+
+**Scenario: stesso seed, stessa coppia, stesso risultato**
+- Given due run con lo stesso seed e lo stesso inventario
+- When il giocatore fonde la stessa coppia di oggetti alla stessa fusione della run
+- Then l'oggetto composto è identico nei due casi (nome, categoria, rarità, tratti, tipo di
+  colpo e immagine), perché la composizione dello stadio 1 deriva solo dal seed di run,
+  dalla coppia e dal numero di fusioni già avvenute
 
 **Scenario: sprite provvisorio dal dataset nella demo**
 - Given il giocatore gioca la demo attuale, prima dell'addestramento della Style LoRA

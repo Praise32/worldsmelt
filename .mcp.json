@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "/home/meri/tools/aseprite-mcp-venv/bin/python",
+      "args": ["-m", "aseprite_mcp"],
+      "env": {
+        "ASEPRITE_PATH": "/home/meri/tools/aseprite/build/bin/aseprite"
+      }
+    }
+  }
+}

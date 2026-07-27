@@ -187,4 +187,21 @@ bool GameItemPoolTest(Game *game);
    quattro scenari (piu' le guardie anti-doppio-pagamento). */
 bool GameEconomyTest(Game *game);
 
+/* LA FUSIONE (docs/design/systems/item-fusion.md; DEC-022/023/101/102/143/
+   162/171). Come GameEconomyTest, gira dopo InitWindow e usa 'game' per
+   davvero (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla.
+   Sette blocchi, vedi src/tests/game_tests.c: determinismo dal seed,
+   categoria della sorgente dominante e tie-break (DEC-143), budget di
+   potenza dedicato e tetto di leggibilita' invariato (DEC-162/DEC-146),
+   consumo di oggetti e catalizzatore con rifiuti a effetto nullo, immagine
+   curata mai ripetuta nella run (DEC-171), ri-fusione di un fuso (DEC-102),
+   e il flusso completo dentro BuildScreen attraverso UpdateApp con AppInput
+   sintetici. */
+bool GameFusionTest(Game *game);
+
+/* SOLO manuale (mai in make test): BuildScreen con la fascia FUSIONE viva --
+   sorgenti selezionate, catalizzatore, esito con lo sprite curato -- in
+   logs/worldsmelt-fusion-screen.png. Vedi src/tests/game_tests.c. */
+bool GameFusionScreenshotTest(Game *game);
+
 #endif

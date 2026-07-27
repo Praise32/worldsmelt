@@ -204,7 +204,7 @@ void ShotTypeExample(ShotTypeDef *out, int index)
     ShotTypeBalance(out);
 }
 
-void ShotTypeBalance(ShotTypeDef *type)
+void ShotTypeBalanceTo(ShotTypeDef *type, float target, float minPower, float maxPower)
 {
     if (!type) return;
     ShotTypeClamp(type);
@@ -224,19 +224,28 @@ void ShotTypeBalance(ShotTypeDef *type)
            sua scelta di danno invece di riscriverla (il modello ha un'idea di
            quanto deve picchiare "un chiodo" contro "una lama"; se e' equilibrata
            non c'e' motivo di sovrascriverla). */
-        if (power >= SHOT_TYPE_POWER_MIN && power <= SHOT_TYPE_POWER_MAX) return;
+        if (power >= minPower && power <= maxPower) return;
 
         /* Fuori banda: si risolve damageMul per centrare il bersaglio. */
-        type->damageMul = ClampF(SHOT_TYPE_POWER_TARGET/rest, SHOT_TYPE_DAMAGE_MIN, SHOT_TYPE_DAMAGE_MAX);
+        type->damageMul = ClampF(target/rest, SHOT_TYPE_DAMAGE_MIN, SHOT_TYPE_DAMAGE_MAX);
         power = type->damageMul*rest;
-        if (power >= SHOT_TYPE_POWER_MIN && power <= SHOT_TYPE_POWER_MAX) return;
+        if (power >= minPower && power <= maxPower) return;
 
-        /* Ancora fuori banda: puo' succedere SOLO verso l'alto (un tipo con
-           troppe manopole discrete al massimo resta rotto anche col danno
-           minimo). Verso il basso non e' possibile: anche il tipo piu' fiacco
-           possibile (tutto al minimo) ha rest ~0.71, e damageMul puo' salire
-           fino a 2.0, quindi il bersaglio 1.0 e' sempre raggiungibile. */
-        if (power < SHOT_TYPE_POWER_MIN) return;
+        /* Ancora fuori banda: verso il basso NON si puo' fare altro (il danno
+           e' gia' al suo massimo: e' il caso di un bersaglio alto -- la banda
+           dedicata della fusione, DEC-162 -- chiesto a un tipo di colpo
+           fiacco su tutte le altre manopole), verso l'alto si sfoltisce una
+           manopola discreta alla volta. Con la banda del singolo oggetto il
+           ramo "sotto il minimo" non e' nemmeno raggiungibile: anche il tipo
+           piu' fiacco possibile (tutto al minimo) ha rest ~0.71, e damageMul
+           puo' salire fino a 2.0, quindi il bersaglio 1.0 e' sempre
+           raggiungibile. */
+        if (power < minPower) return;
         if (!ShotTypeCutStrongestKnob(type)) return;
     }
+}
+
+void ShotTypeBalance(ShotTypeDef *type)
+{
+    ShotTypeBalanceTo(type, SHOT_TYPE_POWER_TARGET, SHOT_TYPE_POWER_MIN, SHOT_TYPE_POWER_MAX);
 }

@@ -49,6 +49,17 @@ typedef struct AppInput {
        un significato. Domanda aperta registrata per il proprietario. */
     bool useActive;   /* E */
     bool dropGraft;   /* G */
+    /* Fusione (systems/item-fusion.md, riga "Conferma fusione" della tabella
+       Input/azioni): conferma l'operazione sui due oggetti gia' selezionati
+       dentro BuildScreen. Come E e G sopra, il tasto e' un default proposto
+       dall'implementazione (stile DEC-019) -- nessun documento fissa QUALE
+       tasto -- ed e' F perche' era l'ultimo libero (F11 e' un'altra chiave,
+       gestita a parte). Serve un tasto suo e non "conferma": dentro
+       BuildScreen ENTER/SPAZIO significano gia' "seleziona questo oggetto"
+       (ui/inventory-and-synergy-screen.md), e la fusione e' irreversibile --
+       merita una conferma che non si possa premere per inerzia scorrendo la
+       lista. Domanda aperta registrata per il proprietario. */
+    bool fuse;        /* F */
 } AppInput;
 
 /* Contesto della generazione in-game (invariato da prima di M1a, solo spostato

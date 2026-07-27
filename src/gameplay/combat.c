@@ -1015,6 +1015,16 @@ static void CombatPickup(Game *game, Pickup *pickup)
         int touched = ItemActivesGainEnergyCharge(&game->player);
         GameSetMessage(game, touched > 0 ? "Energia: attivo ricaricato." : "Energia raccolta.");
     }
+    else if (pickup->kind == PICKUP_FLUX)
+    {
+        /* Catalizzatore di fusione (DEC-022). A differenza dell'energia qui
+           sopra si ACCUMULA in tasca (Player.flux) e senza alcun cap
+           (DEC-129): il limite e' la rarita' delle fonti, non un tetto.
+           Il messaggio dice cosa farne, perche' la fusione non e' un'azione
+           ovvia come "hai una bomba in piu'". */
+        game->player.flux += pickup->value > 0 ? pickup->value : 1;
+        GameSetMessage(game, "Flux raccolto: apri la build (TAB) per fondere due oggetti.");
+    }
     else if (pickup->kind == PICKUP_ITEM)
     {
         Item taken = pickup->item;

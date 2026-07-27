@@ -29,6 +29,12 @@ void GamePlayerResetBaseStatsFor(Player *player, const CharacterDef *character)
     player->coins = 3;
     player->bombs = 2;
     player->keys = 1;
+    /* Catalizzatore di fusione (Flux): si parte SEMPRE senza (DEC-022, e' una
+       risorsa rara che arriva da boss/arene o da un acquisto costoso), quindi
+       la prima fusione di una run e' sempre qualcosa che il giocatore si e'
+       guadagnato. Esplicito qui come coins/bombs/keys: "da dove parte una
+       risorsa" si deve leggere in questa funzione e in nessun altro posto. */
+    player->flux = 0;
     /* Slot funzionali di partenza (items-pools-and-rarity.md, "Slot"): 1
        attivo + 1 Innesto, come coins/bombs/keys sopra parte della
        progressione della run e non dell'identita' del personaggio -- nessun

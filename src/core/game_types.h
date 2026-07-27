@@ -59,6 +59,21 @@
    GamePlayerResetBaseStatsFor, non queste costanti. */
 #define MAX_ACTIVE_SLOTS 4
 #define MAX_GRAFT_SLOTS 4
+/* DEC-171 (ponte provvisorio della demo): quante voci al massimo il motore
+   legge da assets/curated/manifest.json e, di conseguenza, quanti bit ha la
+   maschera "immagine gia' usata in questa run" (Game.curatedImageUsed). Il
+   pacchetto curato ne ha 189 oggi: 256 lascia margine senza costare nulla
+   (32 byte di maschera). Un manifest piu' lungo NON e' un errore -- le voci
+   oltre il tetto semplicemente non vengono mai pescate, vedi
+   src/content/curated_images.h. */
+#define CURATED_IMAGE_MAX 256
+#define CURATED_IMAGE_MASK_BYTES (CURATED_IMAGE_MAX/8)
+/* Quante texture curate il gioco tiene caricate insieme (le immagini degli
+   oggetti FUSI di questa run, DEC-171). La cadenza attesa e' 1-2 fusioni per
+   run (DEC-022), quindi 8 e' gia' abbondante; oltre, il motore smette di
+   caricare e il risultato ricade sulla forma geometrica di sempre -- una
+   degradazione visiva, mai un errore. */
+#define MAX_CURATED_TEXTURES 8
 #define MAX_PARTICLES 128
 #define MAX_SCRIPT_OPS 4
 #define SCRIPT_TEXT_LEN 256
@@ -131,7 +146,14 @@ typedef enum PickupKind {
        switch e tabelle indicizzate sparse per il codice. Non ha una cella
        d'atlas propria (aggiungerne una invaliderebbe ogni atlas gia'
        generato): si disegna con una forma geometrica, vedi DrawPickup. */
-    PICKUP_ENERGY
+    PICKUP_ENERGY,
+    /* Catalizzatore di fusione (in-game: Flux, DEC-072) -- la risorsa RARA
+       che paga una fusione (DEC-022, systems/health-and-resources.md
+       "Catalizzatore di fusione"). In coda all'enum come PICKUP_ENERGY sopra
+       e per lo stesso motivo; nessuna cella d'atlas propria, forma
+       geometrica in DrawPickup. Raccoglierlo non da' un oggetto: incrementa
+       Player.flux, che non ha alcun cap (DEC-129). */
+    PICKUP_FLUX
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -417,7 +439,39 @@ typedef struct Item {
        silenzio. */
     int chargeNow;           /* cariche accumulate ORA */
     float cooldownTimer;     /* secondi che mancano al prossimo uso */
+    /* --- Fusione (systems/item-fusion.md, DEC-023 passo 1 + DEC-171) -------
+       'imagePath' e' il percorso RELATIVO a assets/curated/ dell'immagine
+       curata pescata per questo oggetto (vuoto = nessuna, ed e' il caso di
+       ogni oggetto che non nasce da una fusione: lo zero-default di "{0}"
+       vale "come prima di questa fase"). Vive dentro l'Item, non in una
+       tabella indicizzata a parte, per lo stesso motivo di ShotTypeDef e
+       dello stato di ricarica sopra: un Item viaggia per VALORE
+       (FloorContent -> Pickup -> Player.items -> di nuovo Pickup), e un
+       riferimento indiretto si romperebbe in silenzio a ogni copia.
+       'fusedFrom' sono i nomi dei DUE oggetti sorgente consumati (troncati):
+       la scheda del risultato deve dichiarare da chi deriva (item-fusion.md,
+       "Feedback"), e fusedFrom[0][0] != '\0' e' anche il modo canonico di
+       chiedere "questo oggetto e' nato da una fusione?" -- serve alla
+       ri-fusione (DEC-102: ammessa, nessun limite) e all'etichetta di
+       origine 'composto'. */
+    char imagePath[64];
+    char fusedFrom[2][40];
 } Item;
+
+/* DEC-171: le texture delle immagini curate gia' caricate in questa run,
+   indicizzate per PERCORSO (lo stesso Item.imagePath), non per indice di
+   manifest: chi disegna ha in mano un Item, non un indice, e un indice
+   memorizzato qui si disallineerebbe al primo manifest ricostruito
+   (scripts/curated-pack.py). Vive dentro Game come l'atlas, ed e' liberata
+   dallo stesso punto (GameUnloadAssets), cosi' non esiste un secondo ciclo
+   di vita da ricordare. Cache STRETTAMENTE del renderer: il motore di
+   fusione non la tocca mai (nessun modulo di gameplay apre file di
+   immagine), vedi src/assets/game_assets.h. */
+typedef struct CuratedTextureCache {
+    int count;
+    char paths[MAX_CURATED_TEXTURES][64];
+    Texture2D textures[MAX_CURATED_TEXTURES];
+} CuratedTextureCache;
 
 typedef struct FloorContent {
     Theme theme;
@@ -510,6 +564,13 @@ typedef struct Player {
     int coins;
     int bombs;
     int keys;
+    /* Catalizzatore di fusione (in-game: Flux, DEC-072): la risorsa che paga
+       una fusione (DEC-022). Sta accanto alle altre tre scorte perche' e'
+       una risorsa come loro -- si raccoglie, si spende, si mostra nell'HUD --
+       e NON ha alcun cap (DEC-129: accumulo libero, il limite e' la rarita'
+       delle fonti). Zero-default: un Player azzerato non puo' fondere, che e'
+       esattamente la condizione d'ingresso di systems/item-fusion.md. */
+    int flux;
     float damage;
     float fireDelay;
     float shotSpeed;
@@ -812,6 +873,24 @@ typedef struct Game {
        ha questo flag falso, e DrawAtlasCell ripiega sulla forma geometrica
        di riserva SOLO per quella cella, non per l'intero atlas. */
     bool atlasCellPresent[SPR_COUNT];
+    /* DEC-171: cache delle texture curate gia' caricate (vedi
+       CuratedTextureCache sopra). Come 'atlas', appartiene a Game e muore in
+       GameUnloadAssets. */
+    CuratedTextureCache curatedTextures;
+    /* DEC-171: quali voci di assets/curated/manifest.json sono gia' state
+       usate in QUESTA run -- un bit per indice di manifest. E' cio' che
+       rende vera la clausola "fra le immagini NON ancora usate nella run
+       corrente": azzerata dal memset di GameResetRunWithSeed insieme a tutto
+       il resto, quindi ogni run riparte dal pacchetto intero. */
+    unsigned char curatedImageUsed[CURATED_IMAGE_MASK_BYTES];
+    /* Quante fusioni sono state completate in questa run: entra nella chiave
+       deterministica del risultato (src/gameplay/fusion.h) cosi' fondere la
+       STESSA coppia due volte nella stessa run non da' due volte lo stesso
+       oggetto -- "il risultato esatto non e' mai conoscibile in anticipo"
+       (item-fusion.md, Non-obiettivi) senza smettere di essere deterministico
+       dal seed. Nessun tetto (DEC-125: nessun limite rigido di fusioni per
+       run, il limite e' l'economia del catalizzatore). */
+    int fusionCount;
     RoomState rooms[GRID_SIZE][GRID_SIZE];
     Player player;
     Enemy enemies[MAX_ENEMIES];
@@ -1220,6 +1299,31 @@ typedef struct AppUi {
     int catalogCategory;
     int catalogItemFocus;
     RunCatalogSummary catalog;
+    /* --- Fusione dentro BuildScreen (ui/inventory-and-synergy-screen.md,
+       "Fusioni possibili"; systems/item-fusion.md) ------------------------
+       Stessa scelta dei campi del Catalogo qui sopra: la fusione non e' un
+       decimo stato applicativo, e' un RAMO dentro APP_BUILD_SCREEN, quindi
+       il suo stato di interfaccia vive qui accanto a 'focus' e non in Game
+       (che viene azzerato a meta' run in piu' punti).
+       'buildItemFocus' e' l'indice in Player.items[] con la selezione da
+       tastiera (su/giu'); 'fusionSourceA'/'fusionSourceB' sono i due slot
+       sorgente scelti, nell'ORDINE in cui il giocatore li ha scelti --
+       l'ordine conta, e' il tie-break di DEC-143 e del punto 4 di
+       "Priorita' e conflitti". I due slot sono memorizzati come "indice + 1"
+       (FUSION_UI_SLOT/FUSION_UI_FIELD, src/gameplay/fusion.h): cosi' lo ZERO
+       di un AppUi azzerato significa "nessuna sorgente scelta" e non "il
+       primo oggetto dell'inventario", la stessa disciplina zero-default di
+       ITEM_PASSIVE/RARITY_COMMON. 'fusionMessage' e' l'esito leggibile
+       dell'ultimo tentativo (errore o riuscita), 'fusionResultName'/
+       'fusionResultImage' il risultato da mostrare (nome + immagine curata,
+       DEC-171). Tutti azzerati da "{0}", che e' anche lo stato giusto
+       all'ingresso: nessuna sorgente scelta, nessun messaggio. */
+    int buildItemFocus;
+    int fusionSourceA;
+    int fusionSourceB;
+    char fusionMessage[96];
+    char fusionResultName[48];
+    char fusionResultImage[64];
 } AppUi;
 
 #endif

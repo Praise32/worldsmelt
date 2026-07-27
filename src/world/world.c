@@ -45,6 +45,23 @@ const char *GameRoomKindName(RoomKind kind)
 #define WORLD_ROOM_CURRENCY_TREASURE 3
 #define WORLD_ROOM_CURRENCY_SHOP     2
 
+/* Catalizzatore di fusione (Flux) -- DEC-022: "si ottiene da drop di boss o
+   di arene di sfida, oppure con un acquisto costoso nel negozio", con una
+   cadenza attesa di 1-2 FUSIONI per run. Le arene di sfida non esistono
+   ancora nel motore (vedi systems/special-rooms.md e la matrice di
+   copertura), quindi oggi le fonti sono due su tre.
+   I tre numeri sono "default proposti dall'implementazione" (stile DEC-019):
+   il documento fissa le FONTI e la cadenza attesa, non le probabilita'.
+   Conto della cadenza su una run intera (5 piani, 5 boss, 5 negozi):
+   5 x 0.35 = 1.75 catalizzatori dal boss, piu' quelli comprati -- e il
+   prezzo (30 monete, piu' di un oggetto raro del negozio, vedi
+   ITEM_SHOP_COST_BY_RARITY) fa si' che comprarne uno costi davvero una
+   scelta. La banda 1-2 di DEC-022 e' quindi centrata sulla sola fonte
+   gratuita, con l'acquisto come modo per forzarne una in piu'. */
+#define WORLD_BOSS_FLUX_DROP_PERCENT 35
+#define WORLD_SHOP_FLUX_STOCK_PERCENT 45
+#define WORLD_SHOP_FLUX_COST 30
+
 void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
 {
     int amount;
@@ -866,6 +883,18 @@ void WorldSpawnCombatRoom(Game *game)
     }
 }
 
+/* Vero se il negozio di questo piano tiene un catalizzatore in banco (vedi
+   WORLD_SHOP_FLUX_STOCK_PERCENT). Deterministico dal seed di run e dal piano,
+   MAI da game->rng: deve dare la stessa risposta ad ogni ingresso nella stessa
+   stanza, altrimenti uscire e rientrare diventerebbe un modo per farlo
+   comparire. Stream locale (una variabile sullo stack passata a GameRngNext)
+   proprio per non toccare la sequenza di gioco. */
+static bool WorldShopStocksFlux(const Game *game)
+{
+    unsigned int state = game->runSeed ^ ((unsigned int)game->floor*2654435761u) ^ 0x464C5558u;   /* 'FLUX' */
+    return (int)(GameRngNext(&state)%100u) < WORLD_SHOP_FLUX_STOCK_PERCENT;
+}
+
 void WorldSpawnRoomContents(Game *game)
 {
     EntitiesClear(game);
@@ -958,6 +987,14 @@ void WorldSpawnRoomContents(Game *game)
         EntitiesAddPickup(game, PICKUP_HEART, center, 1, 3);
         EntitiesAddPickup(game, PICKUP_KEY, (Vector2){ center.x + 100.0f, center.y }, 1, 4);
         EntitiesAddPickup(game, PICKUP_BOMB, (Vector2){ center.x + 180.0f, center.y }, 1, 3);
+        /* DEC-022, seconda fonte del catalizzatore: l'acquisto costoso.
+           Se il negozio di QUESTO piano lo tiene in banco non lo decide una
+           tiratura di game->rng ma un hash del seed di run e del piano: questa
+           funzione gira a OGNI ingresso in stanza finche' 'rewardTaken' e'
+           falso, quindi una tiratura vera si potrebbe rifare uscendo e
+           rientrando finche' il Flux compare. */
+        if (WorldShopStocksFlux(game))
+            EntitiesAddPickup(game, PICKUP_FLUX, (Vector2){ center.x + 260.0f, center.y }, 1, WORLD_SHOP_FLUX_COST);
         GameSetMessage(game, "Negozio: tocca un oggetto per comprarlo.");
     }
     else if (room->kind == ROOM_BOSS && room->cleared)
@@ -1103,6 +1140,12 @@ static void WorldSpawnRoomReward(Game *game)
            game->content.floors[...].items[...] li'). */
         EntitiesAddItemPickup(game, (Vector2){ center.x - 52.0f, center.y }, game->content.floors[game->floor - 1].bossItem, 0);
         EntitiesAddPickup(game, PICKUP_EXIT, (Vector2){ center.x + 70.0f, center.y }, 0, 0);
+        /* DEC-022, prima fonte del catalizzatore di fusione: il drop di boss.
+           Una tiratura vera di game->rng va bene QUI (a differenza del banco
+           del negozio, vedi WorldShopStocksFlux): questa funzione gira una
+           volta sola per stanza, protetta da 'rewardTaken' in cima. */
+        if (GameRngRange(&game->rng, 0, 99) < WORLD_BOSS_FLUX_DROP_PERCENT)
+            EntitiesAddPickup(game, PICKUP_FLUX, (Vector2){ center.x + 6.0f, center.y - 60.0f }, 1, 0);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale sconfitto. Entra nell'uscita." : "Boss sconfitto. Prendi il premio e scendi.");
     }
 }

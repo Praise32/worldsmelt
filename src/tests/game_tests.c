@@ -7,7 +7,11 @@
 #include "content/run_content.h"
 #include "core/character_type.h"
 #include "game/game_internal.h"
+#include "content/curated_images.h"
+#include "core/shot_type.h"
+#include "gameplay/fusion.h"
 #include "gameplay/item_pool.h"
+#include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
 #include "render/item_layers.h"
@@ -3537,4 +3541,375 @@ bool GameEconomyTest(Game *game)
          noDoublePayTreasure && shopGainOk && noDoublePayShop;
     if (!ok) fprintf(stderr, "GameEconomyTest: FALLITO -- vedi i messaggi sopra\n");
     return ok;
+}
+
+/* ============================================================
+   LA FUSIONE (docs/design/systems/item-fusion.md; DEC-022/023/101/102/143/
+   162/171). Come GameEconomyTest, gira dopo InitWindow e usa 'game' per
+   davvero (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla:
+   la fusione e' interamente logica, e l'unica parte che tocca la GPU (la
+   texture dell'immagine curata) vive nel renderer, fuori da qui.
+   Gli oggetti sorgente li costruisce il test a mano invece di pescarli dal
+   contenuto della run: servono coppie CONTROLLATE (rarita' e categorie
+   scelte) per verificare dominanza e tie-break, e il contenuto vero cambia
+   con il manifest presente sul disco.
+   ============================================================ */
+#define FUSION_CHECK(cond, msg) \
+    do { if (!(cond)) { fprintf(stderr, "GameFusionTest: %s\n", (msg)); return false; } } while (0)
+
+static Item FusionTestItem(const char *name, ItemKind kind, Rarity rarity, unsigned int traits, ItemSlot slot)
+{
+    Item item = { 0 };
+    item.active = true;
+    snprintf(item.name, sizeof(item.name), "%s", name);
+    item.kind = kind;
+    item.rarity = rarity;
+    item.traits = traits;
+    item.slot = slot;
+    item.color = (Color){ 120, 160, 220, 255 };
+    item.shape = 2;
+    return item;
+}
+
+static Item FusionTestShotItem(const char *name, Rarity rarity, unsigned int traits, int exampleIndex)
+{
+    Item item = FusionTestItem(name, ITEM_PASSIVE, rarity, traits, SLOT_HAND);
+    ShotTypeExample(&item.shotType, exampleIndex);
+    return item;
+}
+
+/* Un Game pronto a fondere: run vera dal seed, inventario azzerato e
+   sostituito dagli oggetti del test, catalizzatori a volonta'. */
+static void FusionTestSetup(Game *game, unsigned int seed, const Item *items, int count, int flux)
+{
+    GameResetRunWithSeed(game, seed);
+    ScriptItemsInit(game, NULL);
+    game->player.itemCount = 0;
+    for (int i = 0; i < count && i < MAX_ITEMS; i++)
+    {
+        game->player.items[i] = items[i];
+        game->player.itemCount = i + 1;
+        ScriptItemsOnAcquire(game, i);
+    }
+    ScriptItemsProcessDirty(game);
+    game->player.flux = flux;
+}
+
+static bool FusionTestItemsEqual(const Item *a, const Item *b)
+{
+    return strcmp(a->name, b->name) == 0 && a->kind == b->kind && a->rarity == b->rarity &&
+           a->traits == b->traits && a->slot == b->slot && a->shape == b->shape &&
+           a->color.r == b->color.r && a->color.g == b->color.g && a->color.b == b->color.b &&
+           a->shotType.active == b->shotType.active &&
+           a->shotType.damageMul == b->shotType.damageMul &&
+           a->shotType.pellets == b->shotType.pellets &&
+           strcmp(a->imagePath, b->imagePath) == 0;
+}
+
+/* (a) Determinismo: stesso seed + stessa coppia => stesso fuso, bit per bit
+   sui campi che il giocatore vede. E' la garanzia che rende la fusione
+   riproducibile quanto il resto della run (DEC-141). */
+static bool FusionTestDeterminism(Game *game)
+{
+    const unsigned int seed = 20260727u;
+    Item sources[2] = {
+        FusionTestShotItem("Lama Cava", RARITY_UNCOMMON, TRAIT_BOUNCE | TRAIT_PIERCE, 0),
+        FusionTestShotItem("Occhio Freddo", RARITY_RARE, TRAIT_SLOW, 2)
+    };
+
+    Item first, second;
+    FusionTestSetup(game, seed, sources, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &first) == FUSION_OK, "la prima fusione non e' riuscita");
+    FusionTestSetup(game, seed, sources, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &second) == FUSION_OK, "la seconda fusione non e' riuscita");
+    FUSION_CHECK(FusionTestItemsEqual(&first, &second), "stesso seed e stessa coppia hanno dato due oggetti diversi");
+
+    /* Seed diverso: la chiave cambia, quindi il risultato PUO' cambiare --
+       non e' un requisito bit-per-bit (con questa coppia molte regole sono
+       deterministiche per costruzione), ma la chiave deve essere diversa,
+       altrimenti il seed non entrerebbe affatto nel risultato. */
+    unsigned int keyA = FusionKey(seed, 0, &sources[0], &sources[1]);
+    unsigned int keyB = FusionKey(seed + 1u, 0, &sources[0], &sources[1]);
+    unsigned int keyLater = FusionKey(seed, 1, &sources[0], &sources[1]);
+    FUSION_CHECK(keyA != keyB, "seed diversi producono la stessa chiave di fusione");
+    FUSION_CHECK(keyA != keyLater, "la seconda fusione della run riusa la chiave della prima");
+    printf("  fusione (a) determinismo: stesso seed => \"%s\" identico; chiavi distinte per seed/ordinale: si\n", first.name);
+    return true;
+}
+
+/* (b) DEC-143: la categoria del risultato e' quella della sorgente DOMINANTE
+   per rarita'; a parita' vince quella selezionata per prima. */
+static bool FusionTestDominantCategory(Game *game)
+{
+    Item cross[2] = {
+        FusionTestItem("Guanto Vivo", ITEM_ACTIVE, RARITY_COMMON, TRAIT_EXPLODE, SLOT_HAND),
+        FusionTestItem("Radice Nera", ITEM_GRAFT, RARITY_RARE, TRAIT_VAMP, SLOT_BODY)
+    };
+    cross[0].cooldown = 8.0f;
+
+    Item fused;
+    FusionTestSetup(game, 4242u, cross, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &fused) == FUSION_OK, "la fusione cross-categoria e' stata rifiutata (DEC-101)");
+    FUSION_CHECK(fused.kind == ITEM_GRAFT, "la categoria non e' quella della sorgente piu' rara (DEC-143)");
+    FUSION_CHECK(fused.slot == SLOT_BODY, "lo slot visivo non e' quello della sorgente dominante");
+
+    /* L'ORDINE di selezione non cambia il dominante quando le rarita' sono
+       diverse: scegliendo prima il comune il risultato resta Innesto. */
+    Item swapped;
+    FusionTestSetup(game, 4242u, cross, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 1, 0, &swapped) == FUSION_OK, "la fusione con ordine invertito e' stata rifiutata");
+    FUSION_CHECK(swapped.kind == ITEM_GRAFT, "invertendo l'ordine la rarita' piu' alta non domina piu'");
+
+    /* Tie-break: stessa rarita' => vince la PRIMA selezionata. */
+    Item tie[2] = {
+        FusionTestItem("Ala Corta", ITEM_ACTIVE, RARITY_UNCOMMON, TRAIT_RAPID, SLOT_BACK),
+        FusionTestItem("Pietra Muta", ITEM_STATUP, RARITY_UNCOMMON, TRAIT_GIANT, SLOT_BODY)
+    };
+    tie[0].charges = 3;
+    Item tieFirst, tieSecond;
+    FusionTestSetup(game, 4242u, tie, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &tieFirst) == FUSION_OK, "fusione a parita' di rarita' rifiutata");
+    FUSION_CHECK(tieFirst.kind == ITEM_ACTIVE, "a parita' di rarita' non vince la categoria del primo selezionato");
+    FusionTestSetup(game, 4242u, tie, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 1, 0, &tieSecond) == FUSION_OK, "fusione a parita' di rarita' (ordine invertito) rifiutata");
+    FUSION_CHECK(tieSecond.kind == ITEM_STATUP, "il tie-break non segue l'ordine di selezione del giocatore");
+    /* Un attivo fuso nasce carico e con una dichiarazione di ricarica
+       valida: mai un attivo che ricade sul cooldown di riserva del motore
+       solo perche' e' nato da una fusione. */
+    FUSION_CHECK(ItemActiveIsChargeBased(&tieFirst) || ItemActiveIsCooldownBased(&tieFirst),
+                 "l'attivo fuso non dichiara ne' cariche ne' cooldown");
+    FUSION_CHECK(ItemActiveIsReady(&tieFirst), "l'attivo fuso non nasce pronto all'uso");
+
+    printf("  fusione (b) DEC-143: cross-categoria -> %s | tie-break sul primo selezionato: si\n",
+           fused.kind == ITEM_GRAFT ? "Innesto (piu' raro)" : "??");
+    return true;
+}
+
+/* (c) DEC-162: il risultato ha un budget di potenza DEDICATO, piu' alto di
+   quello di un singolo oggetto -- rarita' di un gradino sopra la dominante
+   (il canale statistico) e tipo di colpo bilanciato sulla banda della
+   fusione (il canale comportamentale), senza mai sfondare il tetto. */
+static bool FusionTestPowerBudget(Game *game)
+{
+    Item pair[2] = {
+        FusionTestShotItem("Chiodo Lungo", RARITY_COMMON, TRAIT_PIERCE, 0),
+        FusionTestShotItem("Scarica Bassa", RARITY_UNCOMMON, TRAIT_SLOW, 2)
+    };
+    Item fused;
+    FusionTestSetup(game, 777u, pair, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &fused) == FUSION_OK, "fusione con due tipi di colpo rifiutata");
+    FUSION_CHECK(fused.rarity == RARITY_RARE, "la rarita' del risultato non sale di un gradino sopra la dominante");
+    FUSION_CHECK(fused.shotType.active, "il risultato ha perso il tipo di colpo di entrambi i genitori");
+    float power = ShotTypePower(&fused.shotType);
+    FUSION_CHECK(power >= SHOT_TYPE_FUSION_POWER_MIN - 0.001f && power <= SHOT_TYPE_FUSION_POWER_MAX + 0.001f,
+                 "la potenza del colpo fuso e' fuori dalla banda dedicata (DEC-162)");
+    FUSION_CHECK(power > SHOT_TYPE_POWER_MAX - 0.001f, "il colpo fuso non e' piu' forte del miglior colpo singolo");
+    /* Il budget di LEGGIBILITA' invece NON si allarga (DEC-146). */
+    FUSION_CHECK(ShotTypeReadabilityOk(&fused.shotType), "il colpo fuso sfonda il budget di leggibilita' (DEC-146)");
+    /* Trait: il risultato porta segni di entrambi ma non piu' di
+       FUSION_MAX_TRAITS, e mai due tratti in conflitto sulla stessa
+       proprieta'. */
+    int traitCount = 0;
+    for (int bit = 0; bit < 9; bit++) if (fused.traits & (1u << bit)) traitCount++;
+    FUSION_CHECK(traitCount <= FUSION_MAX_TRAITS, "il fuso porta piu' trait del tetto dichiarato");
+    FUSION_CHECK((fused.traits & (TRAIT_PIERCE | TRAIT_SLOW)) != 0u, "il fuso non ha ereditato alcun trait dai genitori");
+
+    /* Il gradino di rarita' si ferma al leggendario: mai un quinto livello. */
+    Item legendary[2] = {
+        FusionTestItem("Corona", ITEM_PASSIVE, RARITY_LEGENDARY, TRAIT_HOMING, SLOT_HAT),
+        FusionTestItem("Scaglia", ITEM_PASSIVE, RARITY_LEGENDARY, TRAIT_GIANT, SLOT_BODY)
+    };
+    Item legendaryFused;
+    FusionTestSetup(game, 778u, legendary, 2, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &legendaryFused) == FUSION_OK, "fusione fra leggendari rifiutata");
+    FUSION_CHECK(legendaryFused.rarity == RARITY_LEGENDARY, "la rarita' del fuso ha sfondato il leggendario");
+
+    printf("  fusione (c) DEC-162: rarita' %d -> %d | potenza del colpo %.2f in [%.2f, %.2f] | trait %d <= %d\n",
+           (int)RARITY_UNCOMMON, (int)fused.rarity, (double)power,
+           (double)SHOT_TYPE_FUSION_POWER_MIN, (double)SHOT_TYPE_FUSION_POWER_MAX,
+           traitCount, FUSION_MAX_TRAITS);
+    return true;
+}
+
+/* (d) Consumo e inventario: i due sorgenti e un catalizzatore spariscono, il
+   fuso entra, e un tentativo non valido non consuma NULLA. */
+static bool FusionTestConsumption(Game *game)
+{
+    Item three[3] = {
+        FusionTestItem("Uno", ITEM_PASSIVE, RARITY_COMMON, TRAIT_BOUNCE, SLOT_HAT),
+        FusionTestItem("Due", ITEM_PASSIVE, RARITY_UNCOMMON, TRAIT_SPLIT, SLOT_HAND),
+        FusionTestItem("Tre", ITEM_PASSIVE, RARITY_COMMON, TRAIT_RAPID, SLOT_BACK)
+    };
+    Item fused;
+    FusionTestSetup(game, 99u, three, 3, 2);
+    FUSION_CHECK(FusionPerform(game, 0, 1, &fused) == FUSION_OK, "fusione valida rifiutata");
+    FUSION_CHECK(game->player.itemCount == 2, "l'inventario non e' passato da 3 a 2 oggetti");
+    FUSION_CHECK(game->player.flux == 1, "il catalizzatore non e' stato consumato (o ne e' sparito piu' di uno)");
+    FUSION_CHECK(strcmp(game->player.items[0].name, "Tre") == 0, "l'oggetto non coinvolto non e' rimasto in inventario");
+    FUSION_CHECK(strcmp(game->player.items[1].name, fused.name) == 0, "il fuso non e' entrato in inventario");
+    FUSION_CHECK(strcmp(game->player.items[1].fusedFrom[0], "Uno") == 0 &&
+                 strcmp(game->player.items[1].fusedFrom[1], "Due") == 0,
+                 "il fuso non dichiara i due genitori da cui deriva");
+
+    /* Senza catalizzatore non succede nulla (scenario "catalizzatore
+       mancante"): stesso inventario, stesso Flux. */
+    FusionTestSetup(game, 99u, three, 3, 0);
+    FUSION_CHECK(FusionPerform(game, 0, 1, NULL) == FUSION_ERR_NO_CATALYST, "senza Flux la fusione non e' stata rifiutata");
+    FUSION_CHECK(game->player.itemCount == 3 && game->player.flux == 0, "una fusione rifiutata ha comunque consumato qualcosa");
+    /* Stesso oggetto due volte, e un solo oggetto in inventario. */
+    FusionTestSetup(game, 99u, three, 3, 1);
+    FUSION_CHECK(FusionPerform(game, 1, 1, NULL) == FUSION_ERR_SAME_ITEM, "lo stesso oggetto due volte non e' stato rifiutato");
+    FUSION_CHECK(game->player.itemCount == 3, "il rifiuto 'stesso oggetto' ha comunque toccato l'inventario");
+    FusionTestSetup(game, 99u, three, 1, 1);
+    FUSION_CHECK(FusionPerform(game, 0, 1, NULL) == FUSION_ERR_NEED_TWO, "con un solo oggetto la fusione non e' stata rifiutata");
+
+    printf("  fusione (d) consumo: 3 oggetti + 2 Flux -> 2 oggetti + 1 Flux | rifiuti senza effetti collaterali: si\n");
+    return true;
+}
+
+/* (e) DEC-171: l'immagine del fuso si pesca dal pacchetto curato e non si
+   ripete MAI nella stessa run. (f) DEC-102: un fuso puo' tornare sorgente. */
+static bool FusionTestImagesAndRefusion(Game *game)
+{
+    int manifestCount = CuratedImagesCount(CURATED_MANIFEST_PATH);
+    Item stock[6];
+    for (int i = 0; i < 6; i++)
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "Pezzo %d", i);
+        stock[i] = FusionTestItem(name, ITEM_PASSIVE, (Rarity)(i%2), TRAIT_BOUNCE << (i%4), SLOT_HAND);
+    }
+    FusionTestSetup(game, 31337u, stock, 6, 5);
+
+    char seen[3][64];
+    int seenCount = 0;
+    for (int i = 0; i < 3; i++)
+    {
+        Item fused;
+        FUSION_CHECK(FusionPerform(game, 0, 1, &fused) == FUSION_OK, "una delle fusioni in catena e' stata rifiutata");
+        if (fused.imagePath[0])
+        {
+            for (int j = 0; j < seenCount; j++)
+                FUSION_CHECK(strcmp(seen[j], fused.imagePath) != 0, "la stessa immagine curata e' stata pescata due volte nella run (DEC-171)");
+            snprintf(seen[seenCount++], sizeof(seen[0]), "%s", fused.imagePath);
+        }
+    }
+    if (manifestCount > 0)
+    {
+        FUSION_CHECK(seenCount == 3, "il pacchetto curato c'e' ma qualche fusione e' rimasta senza immagine");
+    }
+
+    /* Ri-fusione (DEC-102): l'ultimo fuso e' in fondo all'inventario, si
+       fonde di nuovo con un oggetto qualunque. */
+    int count = game->player.itemCount;
+    FUSION_CHECK(count >= 2, "dopo tre fusioni non restano abbastanza oggetti per la ri-fusione");
+    char previousName[48];
+    snprintf(previousName, sizeof(previousName), "%s", game->player.items[count - 1].name);
+    FUSION_CHECK(game->player.items[count - 1].fusedFrom[0][0] != '\0', "l'ultimo oggetto non risulta nato da una fusione");
+    Item refused;
+    FUSION_CHECK(FusionPerform(game, count - 1, 0, &refused) == FUSION_OK, "la ri-fusione di un fuso e' stata rifiutata (DEC-102)");
+    FUSION_CHECK(strcmp(refused.fusedFrom[0], previousName) == 0, "la ri-fusione non dichiara il fuso precedente come genitore");
+
+    printf("  fusione (e/f) DEC-171/DEC-102: %d immagini nel pacchetto, %d fusioni con immagine distinta | ri-fusione: ok\n",
+           manifestCount, seenCount);
+    return true;
+}
+
+/* (g) Il cablaggio dell'interfaccia: TAB apre BuildScreen, INVIO seleziona i
+   due oggetti a fuoco, F fonde. Tutto attraverso UpdateApp con AppInput
+   sintetici, come --states-test: e' la prova che il flusso e' davvero
+   raggiungibile dal giocatore, non solo dalle API. */
+static bool FusionTestBuildScreenFlow(Game *game)
+{
+    Item pair[2] = {
+        FusionTestItem("Manico Torto", ITEM_PASSIVE, RARITY_COMMON, TRAIT_BOUNCE, SLOT_HAND),
+        FusionTestItem("Lente Rotta", ITEM_PASSIVE, RARITY_UNCOMMON, TRAIT_HOMING, SLOT_EYES)
+    };
+    FusionTestSetup(game, 5150u, pair, 2, 1);
+
+    AppMode mode = APP_GAMEPLAY;
+    AppGen gen = { 0 };
+    AppUi ui = { 0 };
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(mode == APP_BUILD_SCREEN, "TAB non ha aperto BuildScreen");
+    FUSION_CHECK(ui.fusionSourceA == FUSION_UI_NONE && ui.fusionSourceB == FUSION_UI_NONE,
+                 "entrando in BuildScreen la selezione di fusione non e' vuota");
+
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(mode == APP_BUILD_SCREEN, "la conferma in BuildScreen ha chiuso la schermata invece di selezionare");
+    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceA) == 0, "la conferma non ha selezionato l'oggetto a fuoco");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceB) == 1, "la seconda conferma non ha selezionato il secondo oggetto");
+
+    { AppInput in = { 0 }; in.fuse = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(mode == APP_BUILD_SCREEN, "F ha cambiato stato applicativo");
+    FUSION_CHECK(game->player.itemCount == 1, "F non ha eseguito la fusione (inventario invariato)");
+    FUSION_CHECK(game->player.flux == 0, "F non ha consumato il catalizzatore");
+    FUSION_CHECK(ui.fusionResultName[0] != '\0', "l'esito della fusione non e' visibile nell'interfaccia");
+    FUSION_CHECK(ui.fusionSourceA == FUSION_UI_NONE && ui.fusionSourceB == FUSION_UI_NONE,
+                 "dopo la fusione la selezione punta ancora a slot ormai spariti");
+
+    /* Deselezione: riscegliendo lo stesso oggetto lo slot si svuota. */
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceA) == 0, "la selezione dopo la fusione non funziona piu'");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(ui.fusionSourceA == FUSION_UI_NONE, "riconfermare lo stesso oggetto non lo deseleziona");
+
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    FUSION_CHECK(mode == APP_GAMEPLAY, "ESC da BuildScreen non torna a Gameplay");
+
+    printf("  fusione (g) BuildScreen: TAB -> INVIO x2 -> F -> fuso \"%s\" | uscita con ESC: ok\n", ui.fusionResultName);
+    return true;
+}
+
+bool GameFusionTest(Game *game)
+{
+    if (!FusionTestDeterminism(game)) return false;
+    if (!FusionTestDominantCategory(game)) return false;
+    if (!FusionTestPowerBudget(game)) return false;
+    if (!FusionTestConsumption(game)) return false;
+    if (!FusionTestImagesAndRefusion(game)) return false;
+    if (!FusionTestBuildScreenFlow(game)) return false;
+    return true;
+}
+
+/* SOLO manuale (--fusion-screenshot-test, mai in make test, stessa tradizione
+   di GameRarityScreenshotTest/GameRoomShapesScreenshotTest): mette in scena
+   BuildScreen con la fascia FUSIONE viva -- due sorgenti selezionate, un
+   catalizzatore in tasca e l'esito dell'ultima fusione col suo sprite curato
+   (DEC-171) -- e salva logs/worldsmelt-fusion-screen.png. Nessun assert puo'
+   dire se la fascia entra nel riquadro senza pestare le liste sopra o la
+   riga "Indietro": quello si guarda. L'assert automatico resta "non va in
+   crash e la texture e' valida". */
+bool GameFusionScreenshotTest(Game *game)
+{
+    Item bench[4] = {
+        FusionTestItem("Manico Torto", ITEM_PASSIVE, RARITY_COMMON, TRAIT_BOUNCE, SLOT_HAND),
+        FusionTestItem("Lente Rotta", ITEM_PASSIVE, RARITY_UNCOMMON, TRAIT_HOMING, SLOT_EYES),
+        FusionTestItem("Ala di Cenere", ITEM_GRAFT, RARITY_RARE, TRAIT_SLOW, SLOT_BACK),
+        FusionTestShotItem("Chiodo Lungo", RARITY_LEGENDARY, TRAIT_PIERCE, 0)
+    };
+    FusionTestSetup(game, 20260727u, bench, 4, 2);
+
+    AppUi ui = { 0 };
+    Item fused;
+    if (FusionPerform(game, 2, 3, &fused) == FUSION_OK)
+    {
+        snprintf(ui.fusionResultName, sizeof(ui.fusionResultName), "%s", fused.name);
+        snprintf(ui.fusionResultImage, sizeof(ui.fusionResultImage), "%s", fused.imagePath);
+        snprintf(ui.fusionMessage, sizeof(ui.fusionMessage), "Fuso: %.30s (da %.22s + %.22s).",
+                 fused.name, fused.fusedFrom[0], fused.fusedFrom[1]);
+    }
+    /* Selezione viva sui due oggetti rimasti, cosi' lo scatto mostra anche i
+       marcatori di riga e gli slot sorgente pieni. */
+    ui.buildItemFocus = 1;
+    ui.fusionSourceA = FUSION_UI_FIELD(0);
+    ui.fusionSourceB = FUSION_UI_FIELD(1);
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_BUILD_SCREEN, &ui, true, NULL, "logs/worldsmelt-fusion-screen.png");
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+    return textureValid;
 }

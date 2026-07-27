@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-22
-last_verified_commit: 0ec60d0
+last_reviewed: 2026-07-27
+last_verified_commit: 82a0232
 topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/render/game_renderer.c, src/app/app.c]
 ---
 
 # Inventory and Synergy Screen (BuildScreen)
@@ -44,6 +44,7 @@ L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota 
 | Statistiche principali | Sempre | — (sola lettura) | Nessuna | — | Valori aggiornati in tempo reale |
 | Sinergie implicite attive | Almeno una sinergia implicita è attiva | Sempre, se visibile | Seleziona una sinergia | Vedi "Regola di comprensione" | Componenti coinvolti evidenziati insieme |
 | Fusioni possibili | Il giocatore possiede almeno due oggetti fondibili e catalizzatore di fusione sufficiente | Sempre, se visibile | Seleziona una combinazione possibile | Mostra un'anteprima non tecnica del risultato atteso | Indicazione se manca il catalizzatore di fusione |
+| Conferma fusione (**demo**, vedi la nota sotto) | Sempre, nella fascia «Fusione» | Due sorgenti scelte e almeno un catalizzatore | Confermare l'operazione | Esegue la fusione secondo `systems/item-fusion.md` | Esito con nome e immagine del composto; se non si può fondere, il motivo in chiaro |
 | Effetti temporanei | Almeno un effetto temporaneo è attivo | — (sola lettura) | Nessuna | — | Durata residua indicata |
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Seleziona la sezione prove | Mostra le prove specifiche della run e il loro stato di completamento | Evidenzia le prove già completate |
 
@@ -52,7 +53,17 @@ L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota 
 Questa schermata mostra entrambi i binari (DEC-012):
 
 - **Sinergie implicite/automatiche**: attive quando due o più oggetti compatibili convivono nella build, senza consumo di oggetti.
-- **Possibilità di fusione esplicita**: combinazioni di due oggetti posseduti che, nella stanza di fusione e con catalizzatore sufficiente, produrrebbero un oggetto nuovo generato dall'IA. La fusione effettiva avviene solo nella stanza di fusione (vedi `systems/special-rooms.md`), non da questa schermata. Fonte di sistema: `systems/item-fusion.md`.
+- **Possibilità di fusione esplicita**: combinazioni di due oggetti posseduti che, con catalizzatore sufficiente, producono un oggetto nuovo. Fonte di sistema: `systems/item-fusion.md`.
+
+> **Nota di implementazione (demo, 2026-07-27) — default proposto dall'implementazione
+> (stile DEC-019).** Il modello canonico vuole la fusione *eseguita* nella stanza di fusione
+> (`systems/special-rooms.md`) e questa schermata come sola consultazione. Nel motore la
+> stanza di fusione **non esiste ancora** (nessun `ROOM_FUSION`), quindi nella demo la
+> conferma vive qui, nella sezione «Fusioni possibili» — l'unico posto che il design assegna
+> già alla fusione. Comandi: su/giù scorrono gli oggetti, **INVIO** seleziona/deseleziona una
+> sorgente, **F** conferma (tasto dedicato: l'operazione è irreversibile), **ESC/TAB**
+> escono. Quando la stanza di fusione arriverà, la conferma si sposta lì e questa sezione
+> torna consultiva. Domanda aperta registrata per il proprietario.
 
 ## Regola di comprensione
 
@@ -83,7 +94,9 @@ colloca solo la sezione qui.
 
 ## Non-obiettivi
 
-- Non esegue la fusione: la fusione richiede la stanza di fusione durante `Gameplay`.
+- Non esegue la fusione: la fusione richiede la stanza di fusione durante `Gameplay`
+  (**temporaneamente disatteso nella demo**, vedi la nota di implementazione sopra: finché
+  `ROOM_FUSION` non esiste, la conferma vive in questa schermata).
 - Non sostituisce l'HUD per le decisioni immediate in combattimento.
 
 ## Domande aperte residue
@@ -98,3 +111,5 @@ colloca solo la sezione qui.
 3. **Given** il giocatore non possiede alcuna sinergia implicita attiva, **when** apre `BuildScreen`, **then** la sezione "Sinergie implicite attive" non è visibile.
 4. **Given** il giocatore seleziona una possibilità di fusione, **when** consulta l'anteprima, **then** non vede alcun punteggio di validazione tecnico né prompt dell'IA.
 5. **Given** le prove sono state presentate al passaggio dal Piano 0 al piano 1 (DEC-042), **when** il giocatore apre `BuildScreen` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento, coerente con quanto mostrato in `ui/pause-menu.md`.
+6. **Given** il giocatore possiede due oggetti e un catalizzatore, **when** apre `BuildScreen`, seleziona le due sorgenti e conferma la fusione, **then** i due oggetti e un catalizzatore si consumano e la schermata mostra l'esito con nome e immagine dell'oggetto composto (nota di implementazione della demo).
+7. **Given** il giocatore ha selezionato due sorgenti ma non possiede alcun catalizzatore, **when** guarda la fascia «Fusione», **then** legge in chiaro che serve un catalizzatore e la conferma non produce alcun effetto.

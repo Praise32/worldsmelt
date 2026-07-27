@@ -6,8 +6,8 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione (DEC-013), ora affiancate dai nomi inglesi in-game fissati da DEC-072."
-last_reviewed: 2026-07-22
-last_verified_commit: 0ec60d0
+last_reviewed: 2026-07-27
+last_verified_commit: 82a0232
 topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita]
 related: []
 supersedes: []
@@ -79,8 +79,8 @@ variazione ammessa solo in palette e dettagli (DEC-073b, fonte unica
 ### Catalizzatore di fusione (in-game: Flux)
 
 - **Funzione:** risorsa nuova che abilita/paga la fusione esplicita di due oggetti nella stanza di fusione (DEC-012b, DEC-013). La meccanica di fusione in sé vive in [item-fusion.md](item-fusion.md) (rimando, non riformulare qui).
-- **Come si ottiene:** non definito nel dettaglio (draft); presumibilmente stanze di fusione o eventi dedicati.
-- **Cap/limite massimo:** non definito (domanda aperta).
+- **Come si ottiene:** fonti canoniche fissate da DEC-022 — drop di boss, drop di arene di sfida, oppure un acquisto costoso nel negozio; la cadenza attesa è 1-2 fusioni per run. *Default proposti dall'implementazione (stile DEC-019), da playtest:* drop del boss al 35%, banco del negozio al 45% per piano a 30 unità di valuta; le arene di sfida non esistono ancora nel motore (vedi [special-rooms.md](special-rooms.md)), quindi oggi le fonti attive sono due su tre.
+- **Cap/limite massimo:** **nessuno** (DEC-129), come la valuta principale: accumulo libero, il limite è la rarità delle fonti.
 - **HUD:** mostra la scorta corrente (rimando concettuale, fuori scope UI).
 - **Fine piano/fine run:** non definito (domanda aperta).
 

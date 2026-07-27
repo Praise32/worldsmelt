@@ -1,9 +1,11 @@
 #include "render/game_renderer.h"
 
+#include "assets/game_assets.h"
 #include "content/character_roster.h"
 #include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+#include "gameplay/fusion.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/synergies.h"
 #include "render/item_layers.h"
@@ -503,6 +505,34 @@ static void DrawEnemy(Game *game, const Enemy *e)
     }
 }
 
+/* L'icona di un oggetto: lo sprite CURATO se l'oggetto ne porta uno
+   (DEC-171 -- oggi solo gli oggetti nati da una fusione, vedi
+   Item.imagePath), altrimenti la cella d'atlas SPR_ITEM di sempre. Ritorna
+   false quando non ha disegnato nulla (nessuna delle due sorgenti
+   disponibile): il chiamante ricade sulla forma geometrica, esattamente come
+   faceva prima con DrawAtlasCell da sola.
+   Le proporzioni dell'immagine curata si conservano (le sorgenti CC0 non
+   sono quadrate: 52x49, 32x43...): si adatta il lato piu' lungo a 'size' e
+   si centra, invece di stirare lo sprite dentro un quadrato. */
+static bool DrawItemIcon(Game *game, const Item *item, Vector2 center, float size)
+{
+    if (item->imagePath[0])
+    {
+        const Texture2D *tex = AssetsCuratedTexture(game, item->imagePath);
+        if (tex && tex->width > 0 && tex->height > 0)
+        {
+            float scale = (tex->width >= tex->height) ? size/(float)tex->width : size/(float)tex->height;
+            float w = (float)tex->width*scale;
+            float h = (float)tex->height*scale;
+            Rectangle src = { 0.0f, 0.0f, (float)tex->width, (float)tex->height };
+            Rectangle dst = { center.x - w*0.5f, center.y - h*0.5f, w, h };
+            DrawTexturePro(*tex, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+            return true;
+        }
+    }
+    return DrawAtlasCell(game, SPR_ITEM, center, size, WHITE);
+}
+
 static void DrawItemShape(Vector2 pos, Item item, float size)
 {
     if (item.shape%3 == 0) DrawCircleV(pos, size, item.color);
@@ -560,8 +590,18 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_KEY) { cell = SPR_KEY; label = "K"; }
         else if (p->kind == PICKUP_EXIT) { cell = SPR_EXIT; label = "EXIT"; size = 78.0f; }
         else if (p->kind == PICKUP_ENERGY) cell = -1;   /* nessuna cella d'atlas: vedi PickupKind in core/game_types.h */
+        else if (p->kind == PICKUP_FLUX) cell = -1;     /* idem: il catalizzatore di fusione e' una forma geometrica */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
+    }
+    /* Un oggetto con sprite curato (DEC-171: un fuso lasciato su un
+       piedistallo da uno scambio) si disegna con la SUA immagine, anche se
+       l'atlas non e' caricato affatto -- per questo il tentativo sta fuori
+       dal blocco 'atlasLoaded' qui sopra. */
+    if (!drew && p->kind == PICKUP_ITEM && p->item.imagePath[0])
+    {
+        drew = DrawItemIcon(game, &p->item, pos, 46.0f);
+        if (drew) label = p->item.name;
     }
     if (!drew)
     {
@@ -586,6 +626,21 @@ static void DrawPickup(Game *game, const Pickup *p)
             label = "E";
             DrawCircleV(pos, 9, GameColorWithAlpha(c, 110));
             DrawCircleV(pos, 5, c);
+        }
+        else if (p->kind == PICKUP_FLUX)
+        {
+            /* Catalizzatore di fusione (DEC-022): un rombo, l'unica silhouette
+               non ancora usata da un'altra raccolta -- si distingue a colpo
+               d'occhio da moneta (cerchio), cuore, bomba e scintilla anche
+               senza leggere l'etichetta. Come l'energia e' una forma
+               geometrica e non una cella d'atlas: aggiungerne una
+               invaliderebbe ogni atlas gia' generato (vedi AtlasSprite). */
+            c = (Color){ 226, 138, 255, 255 };
+            label = "F";
+            Vector2 up = { pos.x, pos.y - 13 }, right = { pos.x + 11, pos.y }, down = { pos.x, pos.y + 13 }, left = { pos.x - 11, pos.y };
+            DrawTriangle(left, down, up, c);
+            DrawTriangle(up, down, right, c);
+            DrawCircleV(pos, 4, GameColorWithAlpha(RAYWHITE, 200));
         }
         else
         {
@@ -1136,7 +1191,7 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
     bool hover = CheckCollisionPointRec(GetMousePosition(), row);
     DrawRectangleRec(row, hover ? (Color){ 40, 45, 56, 235 } : (owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 }));
     DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
-    if (!DrawAtlasCell(game, SPR_ITEM, (Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, 36.0f*uiScale, WHITE))
+    if (!DrawItemIcon(game, item, (Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, 36.0f*uiScale))
     {
         DrawItemShape((Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, *item, 12.0f*uiScale);
     }
@@ -1313,8 +1368,14 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
        lettere per moneta/bomba/chiave. I nomi ufficiali (Ingots/Blast/Keys,
        DEC-072) restano materia del content designer, questo e' solo un
        trasloco di layout, non una riscrittura di contenuti. */
-    char resLine[48];
-    snprintf(resLine, sizeof(resLine), "%dc  %db  %dk", p->coins, p->bombs, p->keys);
+    char resLine[64];
+    /* Il catalizzatore di fusione (Flux, DEC-022/DEC-072) entra nella riga
+       SOLO quando se ne possiede almeno uno: e' una risorsa rara, e "0f"
+       fisso in HUD sarebbe rumore per la maggior parte della run (oltre a
+       cambiare l'ingombro del pannello per ogni run gia' vista). Comparire
+       quando arriva e' anche il feedback che la fusione e' ora possibile. */
+    if (p->flux > 0) snprintf(resLine, sizeof(resLine), "%dc  %db  %dk  %df", p->coins, p->bombs, p->keys, p->flux);
+    else snprintf(resLine, sizeof(resLine), "%dc  %db  %dk", p->coins, p->bombs, p->keys);
 
     /* Slot funzionali (active-items.md "Feedback": stato disponibile/in
        ricarica SEMPRE visibile; grafts.md: lo slot Innesto e' visivamente
@@ -1537,7 +1598,12 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh)
        dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
        di piu' spazio delle 1-4 voci di un menu qualunque. */
     float w = (mode == APP_BUILD_SCREEN ? 760.0f : 600.0f)*uiScale;
-    float h = (mode == APP_BUILD_SCREEN ? 520.0f : 400.0f)*uiScale;
+    /* 560 e non piu' 520: la fascia FUSIONE in fondo (DrawFusionBand) e' una
+       riga di contenuto in piu' rispetto a quando questo riquadro e' nato, e
+       comprimere le liste sopra sarebbe stato peggio. A 640 px di altezza --
+       la finestra minima, SCREEN_HEIGHT -- il riquadro resta comunque dentro
+       lo schermo (40..600). */
+    float h = (mode == APP_BUILD_SCREEN ? 560.0f : 400.0f)*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
@@ -1571,8 +1637,17 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh)
 {
     Rectangle box = MenuBoxForModeFor(mode, sw, sh);
     float uiScale = UiScaleForHeight(sh);
-    return (Rectangle){ box.x + 60.0f*uiScale, box.y + MENU_ROW_START_Y_BASE*uiScale + (float)index*MENU_ROW_H_BASE*uiScale,
-                        box.width - 120.0f*uiScale, 40.0f*uiScale };
+    /* BuildScreen non e' un menu di voci: e' una schermata piena con UNA sola
+       riga d'azione ("Indietro"). Alla quota comune (MENU_ROW_START_Y_BASE)
+       quella riga cadeva in MEZZO al contenuto, sopra "OGGETTI PRESI"; qui
+       sta in fondo al riquadro, sotto la fascia FUSIONE, dove il giocatore
+       la cerca. Resta una fonte di geometria SOLA, quindi il hit-test del
+       mouse (RendererMenuItemAt) la segue senza sapere nulla di questa
+       eccezione. */
+    float top = (mode == APP_BUILD_SCREEN)
+        ? box.y + box.height - 46.0f*uiScale
+        : box.y + MENU_ROW_START_Y_BASE*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
+    return (Rectangle){ box.x + 60.0f*uiScale, top, box.width - 120.0f*uiScale, 40.0f*uiScale };
 }
 
 static Rectangle MenuItemRect(AppMode mode, int index)
@@ -1683,6 +1758,129 @@ static void DrawOptionsOverlay(Game *game, const AppUi *ui)
     DrawMenuRow(APP_OPTIONS, 0, "Indietro", ui->focus, game->theme.accent2);
 }
 
+/* ============================================================
+   La fascia FUSIONE in fondo a BuildScreen (systems/item-fusion.md +
+   ui/inventory-and-synergy-screen.md, riga "Fusioni possibili").
+   Mostra esattamente cio' che il documento chiede e nient'altro: quali due
+   oggetti verrebbero consumati, se il catalizzatore c'e', e l'esito
+   (nome + immagine). Nessun numero interno, nessuno stato di validazione,
+   nessun prompt: sono i "Non mostrare" del documento.
+   ============================================================ */
+#define FUSION_BAND_H_BASE 176.0f
+
+/* Marcatori sulla riga di un oggetto: la barra a sinistra e' il fuoco da
+   tastiera, il quadratino a destra col numero dice che quell'oggetto e' la
+   prima o la seconda sorgente scelta. Disegnati QUI e non dentro
+   DrawItemPreview perche' quella funzione la condivide l'HUD di gioco, dove
+   una selezione per la fusione non esiste. */
+static void DrawFusionRowMark(const AppUi *ui, int index, int focus, int x, int y, int width, float uiScale, Color accent)
+{
+    int rowH = UiRound(58.0f*uiScale);
+    if (index == focus)
+        DrawRectangle(x - UiRound(9.0f*uiScale), y, UiRound(4.0f*uiScale), rowH, accent);
+
+    int a = FUSION_UI_SLOT(ui->fusionSourceA);
+    int b = FUSION_UI_SLOT(ui->fusionSourceB);
+    const char *badge = (index == a) ? "1" : ((index == b) ? "2" : NULL);
+    if (!badge) return;
+
+    int size = UiRound(20.0f*uiScale);
+    Rectangle mark = { (float)(x + width - size - UiRound(8.0f*uiScale)), (float)(y + UiRound(8.0f*uiScale)), (float)size, (float)size };
+    DrawRectangleRec(mark, GameColorWithAlpha(accent, 200));
+    DrawText(badge, (int)mark.x + UiRound(6.0f*uiScale), (int)mark.y + UiRound(3.0f*uiScale), UiRound(14.0f*uiScale), BLACK);
+}
+
+/* DrawText che non deborda: se il testo e' piu' largo di 'maxWidth' lo taglia
+   e chiude con "..". Serve alla fascia FUSIONE, dove i nomi degli oggetti sono
+   contenuto GENERATO (fino a 47 caratteri) dentro riquadri di larghezza fissa:
+   senza, un nome lungo scriverebbe sopra il riquadro accanto. */
+static void DrawTextClipped(const char *text, int x, int y, int font, Color color, int maxWidth)
+{
+    if (MeasureText(text, font) <= maxWidth) { DrawText(text, x, y, font, color); return; }
+
+    char head[160];
+    snprintf(head, sizeof(head), "%s", text);
+    for (int len = (int)strlen(head); len > 0; len--)
+    {
+        char probe[164];
+        head[len - 1] = '\0';
+        snprintf(probe, sizeof(probe), "%s..", head);
+        if (MeasureText(probe, font) <= maxWidth) { DrawText(probe, x, y, font, color); return; }
+    }
+    /* Nemmeno ".." ci starebbe: meglio non scrivere nulla che debordare. */
+}
+
+static void DrawFusionSourceSlot(const Game *game, int field, int ordinal, int x, int y, int width, float uiScale)
+{
+    const Player *p = &game->player;
+    int slot = FUSION_UI_SLOT(field);
+    int count = GameMathClampInt(p->itemCount, 0, MAX_ITEMS);
+    bool filled = slot >= 0 && slot < count;
+    Rectangle box = { (float)x, (float)y, (float)width, 34.0f*uiScale };
+
+    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 120));
+    DrawRectangleLinesEx(box, filled ? 2.0f : 1.0f,
+                         filled ? RarityColor(p->items[slot].rarity) : (Color){ 90, 96, 110, 255 });
+    char line[96];
+    if (filled) snprintf(line, sizeof(line), "%d.  %s", ordinal, p->items[slot].name);
+    else snprintf(line, sizeof(line), "%d.  -- (INVIO sceglie)", ordinal);
+    DrawTextClipped(line, x + UiRound(10.0f*uiScale), y + UiRound(9.0f*uiScale), UiRound(14.0f*uiScale),
+                    filled ? RAYWHITE : (Color){ 140, 148, 162, 255 }, width - UiRound(20.0f*uiScale));
+}
+
+static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width, float uiScale)
+{
+    const Player *p = &game->player;
+    Color accent = game->theme.accent2;
+    DrawRectangle(x, y, width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 120));
+
+    int ty = y + UiRound(10.0f*uiScale);
+    DrawText("FUSIONE", x, ty, UiRound(16.0f*uiScale), accent);
+    /* Il catalizzatore in chiaro: e' l'unica condizione che il giocatore non
+       puo' dedurre dalla lista oggetti (item-fusion.md, caso limite
+       "nessun catalizzatore": l'interfaccia lo segnala). */
+    char fluxLine[48];
+    snprintf(fluxLine, sizeof(fluxLine), "Flux: %d", p->flux);
+    int fluxFont = UiRound(15.0f*uiScale);
+    DrawText(fluxLine, x + width - MeasureText(fluxLine, fluxFont), ty, fluxFont,
+             p->flux > 0 ? (Color){ 226, 138, 255, 255 } : (Color){ 150, 158, 172, 255 });
+
+    int sy = ty + UiRound(24.0f*uiScale);
+    int gap = UiRound(14.0f*uiScale);
+    int slotW = (width - gap)/2;
+    DrawFusionSourceSlot(game, ui->fusionSourceA, 1, x, sy, slotW, uiScale);
+    DrawFusionSourceSlot(game, ui->fusionSourceB, 2, x + slotW + gap, sy, slotW, uiScale);
+
+    /* Riga di stato: se si puo' fondere lo dice, altrimenti dice PERCHE' no
+       -- e' lo stesso testo che comparirebbe premendo F, mostrato prima di
+       premerlo. */
+    FusionStatus status = FusionCheck(p, FUSION_UI_SLOT(ui->fusionSourceA), FUSION_UI_SLOT(ui->fusionSourceB));
+    int hy = sy + UiRound(40.0f*uiScale);
+    DrawTextClipped(status == FUSION_OK ? "[F] fondi -- i due oggetti e un Flux si consumano" : FusionStatusText(status),
+                    x, hy, UiRound(14.0f*uiScale),
+                    status == FUSION_OK ? (Color){ 126, 232, 152, 255 } : (Color){ 205, 160, 160, 255 }, width);
+
+    if (!ui->fusionResultName[0]) return;
+
+    /* Esito dell'ultima fusione: nome + immagine curata (DEC-171). Se
+       l'immagine manca (pacchetto assente, file rimosso) resta il riquadro
+       vuoto col nome: mai una schermata rotta. */
+    int ry = hy + UiRound(22.0f*uiScale);
+    float thumb = 44.0f*uiScale;
+    Rectangle dst = { (float)x, (float)ry, thumb, thumb };
+    const Texture2D *tex = AssetsCuratedTexture(game, ui->fusionResultImage);
+    if (tex)
+    {
+        Rectangle src = { 0.0f, 0.0f, (float)tex->width, (float)tex->height };
+        DrawTexturePro(*tex, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+    }
+    DrawRectangleLinesEx(dst, 1.0f, GameColorWithAlpha(accent, 160));
+    int textX = x + UiRound(54.0f*uiScale);
+    int textW = x + width - textX;
+    DrawTextClipped(ui->fusionResultName, textX, ry + UiRound(2.0f*uiScale), UiRound(15.0f*uiScale), RAYWHITE, textW);
+    DrawTextClipped(ui->fusionMessage, textX, ry + UiRound(22.0f*uiScale), UiRound(13.0f*uiScale), (Color){ 176, 184, 198, 255 }, textW);
+}
+
 static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
@@ -1704,6 +1902,11 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     int rightX = innerX + leftW + gap;
     int rightW = innerW - leftW - gap;
     int rowStep = UiRound(64.0f*uiScale);
+    /* La fascia della FUSIONE sta in fondo alla colonna SINISTRA, sotto la
+       lista degli oggetti su cui opera: e' li' che il giocatore sta gia'
+       guardando quando sceglie le due sorgenti. La colonna destra
+       (statistiche e oggetti del piano) le scorre accanto, intatta. */
+    int bandY = (int)(box.y + box.height) - UiRound(FUSION_BAND_H_BASE*uiScale) - UiRound(14.0f*uiScale);
 
     /* Colonna sinistra: colpo + sinergie, poi gli oggetti presi. */
     int ly = innerY;
@@ -1714,11 +1917,24 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     if (p->itemCount == 0) DrawText("Nessun oggetto ancora.", innerX, ly, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
     else
     {
-        int maxShow = (((int)box.height - (ly - (int)box.y) - UiRound(40.0f*uiScale))/rowStep);
+        /* Finestra scorrevole: la riga a fuoco resta sempre visibile anche
+           con piu' oggetti di quanti ne stiano nel riquadro (l'inventario
+           arriva a MAX_ITEMS, la finestra ne mostra 3-4). Senza, selezionare
+           il decimo oggetto sarebbe impossibile a occhio. */
+        int maxShow = (bandY - ly)/rowStep;
         if (maxShow < 1) maxShow = 1;
-        int shown = 0;
-        for (int i = 0; i < p->itemCount && shown < maxShow; i++, shown++)
-            if (DrawItemPreview(game, &p->items[i], innerX, ly + shown*rowStep, leftW, true, uiScale)) hoveredItem = &p->items[i];
+        int count = GameMathClampInt(p->itemCount, 0, MAX_ITEMS);
+        int focus = GameMathClampInt(ui->buildItemFocus, 0, count - 1);
+        int first = focus - maxShow + 1;
+        if (first < 0) first = 0;
+        if (first > count - maxShow) first = count - maxShow;
+        if (first < 0) first = 0;
+        for (int i = first; i < count && i - first < maxShow; i++)
+        {
+            int rowY = ly + (i - first)*rowStep;
+            if (DrawItemPreview(game, &p->items[i], innerX, rowY, leftW, true, uiScale)) hoveredItem = &p->items[i];
+            DrawFusionRowMark(ui, i, focus, innerX, rowY, leftW, uiScale, game->theme.accent2);
+        }
     }
 
     /* Colonna destra: statistiche estese (le stesse righe del vecchio pannello
@@ -1739,10 +1955,15 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
     DrawText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
     ry += UiRound(28.0f*uiScale);
-    for (int i = 0; i < 3; i++)
+    /* Le righe del piano si fermano sopra la riga "Indietro" (la fascia
+       FUSIONE occupa solo la colonna sinistra, quindi non le toglie spazio). */
+    int floorRows = ((int)(box.y + box.height) - UiRound(56.0f*uiScale) - ry)/rowStep;
+    if (floorRows > 3) floorRows = 3;
+    for (int i = 0; i < floorRows; i++)
         if (DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rightX, ry + i*rowStep, rightW, false, uiScale))
             hoveredItem = &game->content.floors[floorIndex].items[i];
 
+    DrawFusionBand(game, ui, innerX, bandY, leftW, uiScale);
     DrawMenuRow(APP_BUILD_SCREEN, 0, "Indietro", ui->focus, game->theme.accent2);
     /* Il tooltip per ultimo, sopra tutto (come nel vecchio pannello). */
     if (hoveredItem) DrawItemTooltip(hoveredItem, uiScale);

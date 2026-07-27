@@ -1859,8 +1859,8 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "82a0232"
     },
     {
       "id": "gd-system-item-fusion",
@@ -1887,9 +1887,12 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
+      "source_files": [
+        "src/gameplay/fusion.c",
+        "src/content/curated_images.c"
+      ],
       "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "last_verified_commit": "82a0232"
     },
     {
       "id": "gd-system-items-pools",
@@ -2382,9 +2385,12 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/render/game_renderer.c",
+        "src/app/app.c"
+      ],
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "82a0232"
     },
     {
       "id": "gd-ui-main-menu",

@@ -218,6 +218,35 @@ float ShotTypePower(const ShotTypeDef *type);
    volte da' lo stesso risultato. */
 void ShotTypeBalance(ShotTypeDef *type);
 
+/* Lo STESSO bilanciamento, verso una banda diversa da quella del singolo
+   oggetto: e' l'unico modo previsto per dare a un contenuto un budget di
+   potenza DEDICATO senza scrivere una seconda rete di bilanciamento accanto a
+   questa (che divergerebbe al primo ritocco). ShotTypeBalance sopra e' oggi
+   esattamente ShotTypeBalanceTo(type, SHOT_TYPE_POWER_TARGET,
+   SHOT_TYPE_POWER_MIN, SHOT_TYPE_POWER_MAX).
+   Unico chiamante con una banda diversa: la FUSIONE (DEC-162, vedi le
+   costanti qui sotto). Attenzione: alzare la banda alza il DANNO, mai
+   pallettoni/raggio/vita -- il budget di LEGGIBILITA' (DEC-146) non si
+   allarga mai, nemmeno per un risultato di fusione, ed e' il chiamante a
+   doverlo comunque verificare con ShotTypeReadabilityOk. */
+void ShotTypeBalanceTo(ShotTypeDef *type, float target, float minPower, float maxPower);
+
+/* Banda di potenza del tipo di colpo di un oggetto FUSO (DEC-162,
+   docs/design/systems/item-fusion.md: "il risultato di una fusione deve
+   valere meccanicamente il costo di due oggetti e un catalizzatore raro").
+   Il minimo coincide con SHOT_TYPE_POWER_MAX: un colpo fuso e' quindi SEMPRE
+   almeno forte quanto il piu' forte colpo di un singolo oggetto, che e'
+   letteralmente "un budget dedicato, piu' alto di quello del singolo
+   oggetto sorgente". I tre numeri sono "default proposti
+   dall'implementazione" (stile DEC-019): il documento fissa che il budget
+   esiste ed e' piu' alto, non il valore -- che resta materia di playtest
+   (domanda aperta gia' registrata in item-fusion.md).
+   Il bersaglio 1.35 e' raggiungibile anche dal tipo di colpo piu' fiacco
+   possibile: rest minimo ~0.71 x damageMul massimo 2.0 = 1.42 > 1.35. */
+#define SHOT_TYPE_FUSION_POWER_TARGET 1.35f
+#define SHOT_TYPE_FUSION_POWER_MIN    SHOT_TYPE_POWER_MAX
+#define SHOT_TYPE_FUSION_POWER_MAX    1.60f
+
 /* Tipi di colpo di ESEMPIO (indice 0..SHOT_TYPE_EXAMPLE_COUNT-1), gia' bilanciati.
  *
  * LEGGERE IL COMMENTO IN CIMA A QUESTO FILE PRIMA DI TOCCARLI: questi NON sono

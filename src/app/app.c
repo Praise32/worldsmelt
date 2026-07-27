@@ -7,6 +7,7 @@
 #include "content/run_content.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+#include "gameplay/fusion.h"
 #include "gen/gen_runner.h"
 #include "render/game_renderer.h"
 #include "script/script_items.h"
@@ -237,6 +238,7 @@ static AppInput AppInputCollect(void)
     input.bomb = IsKeyPressed(KEY_SPACE);
     input.useActive = IsKeyPressed(KEY_E);
     input.dropGraft = IsKeyPressed(KEY_G);
+    input.fuse = IsKeyPressed(KEY_F);
     return input;
 }
 
@@ -432,6 +434,125 @@ static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned i
     AppUseFallbackThemeCards(game, seed);
 }
 
+/* ============================================================
+   LA FUSIONE dentro BuildScreen (systems/item-fusion.md, DEC-022/023/143/162/171
+   + ui/inventory-and-synergy-screen.md, riga "Fusioni possibili").
+
+   Dove vive il flusso, e perche' qui: la meccanica sta tutta in
+   src/gameplay/fusion.h (composizione, budget, consumo, inventario); questo
+   e' solo il pezzo di INTERFACCIA, cioe' quello che src/app possiede per
+   contratto (AGENTS.md). Nessuna regola di fusione e' scritta in questo file.
+
+   DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019), da far confermare al
+   proprietario: item-fusion.md pone la fusione nella STANZA DI FUSIONE
+   (systems/special-rooms.md), che nel motore non esiste ancora -- non c'e'
+   un ROOM_FUSION, e piazzarlo e' lavoro di un altro blocco (vedi la matrice
+   di copertura, sezione "Stanze speciali"). Finche' quella stanza non c'e',
+   l'innesco vive nell'unico posto che il design gia' assegna alla fusione:
+   la sezione "Fusioni possibili" di BuildScreen. Quando ROOM_FUSION
+   arrivera' bastera' aggiungere UNA condizione qui sotto (la stanza corrente
+   e' di fusione) -- il resto del flusso non cambia. La deviazione e'
+   dichiarata in ui/inventory-and-synergy-screen.md (nota di implementazione)
+   e la domanda per il proprietario e' registrata insieme alle altre della
+   sessione.
+   ============================================================ */
+
+static void AppFusionClearSelection(AppUi *ui)
+{
+    ui->fusionSourceA = FUSION_UI_NONE;
+    ui->fusionSourceB = FUSION_UI_NONE;
+}
+
+/* Entrare in BuildScreen: la selezione riparte SEMPRE vuota, perche' i due
+   campi sono indici dentro items[] e l'inventario puo' essere cambiato
+   mentre la schermata era chiusa (un oggetto raccolto, un Innesto sganciato,
+   un attivo scambiato sul piedistallo). Messaggio ed esito dell'ultima
+   fusione restano invece visibili: sono un RISULTATO, non una selezione. */
+static void AppEnterBuildScreen(Game *game, AppUi *ui, AppMode from)
+{
+    ui->openedFrom = from;
+    ui->returnFocus = ui->focus;
+    ui->focus = 0;
+    AppFusionClearSelection(ui);
+    int count = game->player.itemCount;
+    if (count > MAX_ITEMS) count = MAX_ITEMS;
+    if (ui->buildItemFocus >= count) ui->buildItemFocus = count > 0 ? count - 1 : 0;
+    if (ui->buildItemFocus < 0) ui->buildItemFocus = 0;
+}
+
+/* Seleziona/deseleziona l'oggetto a fuoco. L'ORDINE conta (e' il tie-break di
+   DEC-143 e del punto 4 di "Priorita' e conflitti"), quindi: la prima scelta
+   resta ferma finche' non la si toglie, e una terza scelta sostituisce la
+   SECONDA -- si tiene l'ancora e si cambia il candidato, che e' il modo in
+   cui si ragiona su una fusione. */
+static void AppFusionToggle(AppUi *ui, int slot)
+{
+    int a = FUSION_UI_SLOT(ui->fusionSourceA);
+    int b = FUSION_UI_SLOT(ui->fusionSourceB);
+    if (slot == a)
+    {
+        /* Togliere la prima promuove la seconda: mai un buco davanti a una
+           scelta gia' fatta. */
+        ui->fusionSourceA = ui->fusionSourceB;
+        ui->fusionSourceB = FUSION_UI_NONE;
+        return;
+    }
+    if (slot == b) { ui->fusionSourceB = FUSION_UI_NONE; return; }
+    if (a < 0) { ui->fusionSourceA = FUSION_UI_FIELD(slot); return; }
+    ui->fusionSourceB = FUSION_UI_FIELD(slot);
+}
+
+static void AppFusionConfirm(Game *game, AppUi *ui)
+{
+    int a = FUSION_UI_SLOT(ui->fusionSourceA);
+    int b = FUSION_UI_SLOT(ui->fusionSourceB);
+    Item fused;
+    FusionStatus status = FusionPerform(game, a, b, &fused);
+    snprintf(ui->fusionMessage, sizeof(ui->fusionMessage), "%s", FusionStatusText(status));
+    if (status != FUSION_OK) return;
+
+    snprintf(ui->fusionResultName, sizeof(ui->fusionResultName), "%s", fused.name);
+    snprintf(ui->fusionResultImage, sizeof(ui->fusionResultImage), "%s", fused.imagePath);
+    /* Precisioni esplicite: la riga deve stare in fusionMessage[96] qualunque
+       nome abbiano i tre oggetti coinvolti (troncare un nome lunghissimo e'
+       corretto, perdere il messaggio no). */
+    snprintf(ui->fusionMessage, sizeof(ui->fusionMessage), "Fuso: %.30s (da %.22s + %.22s).",
+             fused.name, fused.fusedFrom[0], fused.fusedFrom[1]);
+    /* Lo stesso annuncio anche nel log di gioco: la fusione e' un evento
+       della run, non solo di questa schermata (item-fusion.md, "Feedback":
+       un momento dedicato, non un popup di drop). */
+    GameSetMessage(game, ui->fusionMessage);
+    AppFusionClearSelection(ui);
+    /* Due oggetti sono usciti e uno e' entrato: il fuoco della lista va
+       riportato dentro l'inventario nuovo, sul risultato (l'ultimo slot),
+       che e' anche cio' che il giocatore vuole guardare adesso. */
+    int count = game->player.itemCount;
+    if (count > MAX_ITEMS) count = MAX_ITEMS;
+    ui->buildItemFocus = count > 0 ? count - 1 : 0;
+}
+
+/* Il ramo "fusione" di APP_BUILD_SCREEN: su/giu' scorrono gli oggetti,
+   conferma seleziona (ui/inventory-and-synergy-screen.md, riga "Lista oggetti
+   acquisiti"), F conferma la fusione (riga "Conferma fusione" di
+   item-fusion.md). Nessun'altra transizione di stato: uscire da qui e' gia'
+   gestito dal chiamante. */
+static void AppUpdateBuildScreen(Game *game, AppUi *ui, const AppInput *input)
+{
+    int count = game->player.itemCount;
+    if (count > MAX_ITEMS) count = MAX_ITEMS;
+    if (count <= 0) { ui->buildItemFocus = 0; return; }
+    if (ui->buildItemFocus >= count) ui->buildItemFocus = count - 1;
+    if (ui->buildItemFocus < 0) ui->buildItemFocus = 0;
+
+    if (input->up || input->down)
+    {
+        ui->buildItemFocus = (ui->buildItemFocus + count + (input->down ? 1 : -1))%count;
+        return;
+    }
+    if (input->confirm) { AppFusionToggle(ui, ui->buildItemFocus); return; }
+    if (input->fuse) AppFusionConfirm(game, ui);
+}
+
 /* M7 (DEC-015/041/045/069, substrato del catalogo persistente): l'hook di
    scrittura, UNA funzione sola per i TRE chiamanti che possono chiudere una
    run (spec, punto 3) -- vittoria/sconfitta in APP_GAMEPLAY, abbandono
@@ -500,6 +621,13 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        (la stessa usata per disegnarle, src/render/game_renderer.c): una query,
        non una copia duplicata del layout. */
     AppInput effective = *input;
+    /* Vero SOLO quando il confirm sintetico sotto viene da un CLICK su una
+       voce di menu. Serve a BuildScreen, l'unico stato in cui "conferma" ha
+       due significati diversi (la riga "Indietro" chiude la schermata, ma
+       ENTER/SPAZIO sulla lista oggetti selezionano per la fusione): senza
+       questo, un click su "Indietro" selezionerebbe un oggetto invece di
+       uscire. Gli altri stati non lo leggono affatto. */
+    bool menuClick = false;
     /* M8: la vista Catalogo (DENTRO APP_MAIN_MENU, nessun nuovo AppMode) ha
        una geometria propria (categorie/righe, DrawCatalogOverlay), NON quella
        delle 4 voci di menu che RendererMenuItemAt conosce per questo mode --
@@ -517,6 +645,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
         {
             ui->focus = clicked;
             effective.confirm = true;
+            menuClick = true;
         }
     }
 
@@ -838,10 +967,8 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             if (effective.pause || effective.back) { *mode = APP_PAUSE_MENU; ui->focus = 0; break; }
             if (effective.tab)
             {
-                ui->openedFrom = APP_GAMEPLAY;
-                ui->returnFocus = ui->focus;
+                AppEnterBuildScreen(game, ui, APP_GAMEPLAY);
                 *mode = APP_BUILD_SCREEN;
-                ui->focus = 0;
                 break;
             }
             if (effective.reroll)
@@ -882,10 +1009,8 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 if (ui->focus == 0) *mode = APP_GAMEPLAY;   /* Riprendi */
                 else if (ui->focus == 1)   /* Build e sinergie */
                 {
-                    ui->openedFrom = APP_PAUSE_MENU;
-                    ui->returnFocus = ui->focus;
+                    AppEnterBuildScreen(game, ui, APP_PAUSE_MENU);
                     *mode = APP_BUILD_SCREEN;
-                    ui->focus = 0;
                 }
                 else if (ui->focus == 2)   /* Opzioni */
                 {
@@ -921,11 +1046,20 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_BUILD_SCREEN:
         {
-            if (effective.back || effective.tab || effective.confirm)
+            /* Uscita: ESC, TAB (DEC-139, arco diretto verso Gameplay) o il
+               click sulla riga "Indietro". Il confirm da TASTIERA non chiude
+               piu' la schermata: qui dentro significa "seleziona questo
+               oggetto" (ui/inventory-and-synergy-screen.md, riga "Lista
+               oggetti acquisiti"), primo passo della fusione. Le due vie di
+               uscita documentate (TAB e "Indietro") restano entrambe. */
+            if (effective.back || effective.tab || menuClick)
             {
                 *mode = ui->openedFrom;
                 ui->focus = ui->returnFocus;
+                AppFusionClearSelection(ui);
+                break;
             }
+            AppUpdateBuildScreen(game, ui, &effective);
             break;
         }
 
@@ -1019,6 +1153,8 @@ int AppRun(int argc, char **argv)
     bool rngSeedTest = false;
     bool itemPoolTest = false;
     bool economyTest = false;
+    bool fusionTest = false;
+    bool fusionScreenshotTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1166,6 +1302,22 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             economyTest = true;
+        }
+        /* DEC-022/023/143/162/171 (la fusione): come --economy-test, gira
+           dopo InitWindow senza bisogno vero della finestra (GameFusionTest
+           non disegna nulla, vedi src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--fusion-test") == 0)
+        {
+            smokeTest = true;
+            fusionTest = true;
+        }
+        /* SOLO manuale (non in make test, tradizione del progetto): finestra
+           grande, BuildScreen con la fascia FUSIONE viva, scatto in
+           logs/worldsmelt-fusion-screen.png. */
+        if (strcmp(argv[i], "--fusion-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            fusionScreenshotTest = true;
         }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
@@ -1405,6 +1557,22 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 29;   /* 29: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --item-pool-test=28) */
+    }
+    if (fusionScreenshotTest)
+    {
+        bool ok = GameFusionScreenshotTest(&game);
+        printf("Fusion screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 31;   /* 31: il primo codice di uscita libero */
+    }
+    if (fusionTest)
+    {
+        bool ok = GameFusionTest(&game);
+        printf("Fusion test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 30;   /* 30: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --economy-test=29) */
     }
     if (catalogTest)
     {
