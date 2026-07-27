@@ -54,6 +54,7 @@ void FloorZeroEnter(Game *game)
     memset(game->obstacles, 0, sizeof(game->obstacles));
     memset(game->itemScripts, 0, sizeof(game->itemScripts));
     game->obstacleCount = 0;
+    game->obstacleHoleCount = 0;   /* il crogiolo e' 1x1: nessuna cella-buco (DEC-170) */
     game->statsDirty = false;
     game->bombQueued = false;
     game->resetQueued = false;
@@ -108,6 +109,11 @@ void FloorZeroEnter(Game *game)
     game->roomY = cy;
     RoomState *hub = &game->rooms[cy][cx];
     hub->exists = true;
+    /* DEC-170: il crogiolo e' una stanza 1x1 ancorata a se stessa -- una cella
+       sola, telecamera ferma, esattamente l'inquadratura di sempre. */
+    hub->cells = ROOM_CELL_BIT(0, 0);
+    hub->originX = cx;
+    hub->originY = cy;
     hub->kind = ROOM_HUB;
     hub->cleared = true;
     hub->visited = true;
@@ -121,6 +127,7 @@ void FloorZeroEnter(Game *game)
        dedicato con un secondo rettangolo nello stesso punto. */
 
     game->player.pos = (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };
+    WorldSnapCamera(game);   /* DEC-170: inquadratura fissa della cella, senza scivolate all'ingresso */
 
     FloorZeroBuildDressing(game);
 }

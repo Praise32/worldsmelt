@@ -51,7 +51,15 @@ typedef struct Obstacle {
     float x, y, w, h;
 } Obstacle;
 
-#define MAX_OBSTACLES 10
+/* DEC-170: una stanza puo' occupare fino a 4 celle, e il layout si espande UNA
+   VOLTA PER CELLA (scelta di implementazione ammessa dalla decisione, vedi
+   rooms-and-floor-generation.md): il tetto e' quindi 4 volte quello storico di
+   una cella (10 blocchi, il massimo che RoomLayoutBuild produce con SCATTER a
+   densita' 1.0), piu' UNO per l'eventuale cella-buco di una forma a L, che il
+   gioco tratta come un ostacolo solido. Il tetto PER CELLA resta 10: una
+   stanza 1x1 ha esattamente gli stessi ostacoli di prima di DEC-170. */
+#define MAX_OBSTACLES 41
+#define ROOM_LAYOUT_MAX_PER_CELL 10
 
 /* Banda della densita': MODIFICA QUI per ribilanciare quanto una stanza puo'
    riempirsi. Il minimo non e' 0 (un layout ATTIVO ma a densita' zero non sarebbe

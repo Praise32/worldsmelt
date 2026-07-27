@@ -227,25 +227,35 @@ static void DrawFloorZeroExitGate(Game *game)
     }
 }
 
+/* Una cella del riquadro che NON appartiene alla stanza (l'angolo mancante di
+   una forma a L, DEC-170): muro pieno, con la stessa faccia illuminata in alto
+   e lo stesso spigolo del muro di fondo, cosi' si legge come parete e non come
+   un buco nel pavimento. Dal lato del giocatore e' solida davvero: e' un
+   ostacolo (Game.obstacleHoleCount), non solo un disegno. */
+static void DrawRoomHole(Rectangle hole, Color wallDark, Color wallLit)
+{
+    DrawRectangleRec(hole, wallDark);
+    DrawRectangleGradientV((int)hole.x, (int)hole.y, (int)hole.width, (int)WALL_BACK_H, wallLit, wallDark);
+    DrawRectangle((int)hole.x, (int)(hole.y + hole.height - 2.0f), (int)hole.width, 2, wallLit);
+}
+
 static void DrawRoom(Game *game)
 {
-    ClearBackground(game->theme.bg);
-
-    /* M2 (DEC-009): la stanza VERA (WorldCurrentRoomRect) puo' essere piu'
-       piccola del rettangolo massimo del canvas (ROOM_X/Y/W/H, che resta
-       fisso -- nessuna camera). Si riempie PRIMA l'intero massimo di muro
-       scuro, poi ci si disegna sopra il pavimento della stanza: lo spazio fra
-       il bordo della stanza e il bordo del canvas resta automaticamente muro,
-       qualunque sia la cornice, senza calcolare margini variabili per lato
-       (per il Piano 0/hub, che non ha una taglia impostata, la stanza
-       coincide col massimo: questa cornice e' quindi vuota, esattamente come
-       prima di questa fase). */
+    /* DEC-170: si disegna in coordinate di MONDO, dentro la telecamera (vedi
+       DrawGameplayCanvas). La stanza e' il RIQUADRO delle sue celle: una per
+       la 1x1 (inquadratura fissa di sempre), fino a quattro per una 2x2. Si
+       riempie PRIMA tutto il riquadro piu' lo spessore dei muri di muro scuro,
+       poi ci si disegna sopra il pavimento: lo spazio fra stanza e bordo
+       dell'inquadratura resta automaticamente muro, senza calcolare margini
+       variabili per lato. */
     Color wallDark = GameColorLerp(game->theme.wall, BLACK, 0.45f);
     Color wallLit = GameColorLerp(game->theme.wall, WHITE, 0.18f);
-    DrawRectangleRec((Rectangle){ ROOM_X - WALL_SIDE_W, ROOM_Y - WALL_BACK_H,
-                                   ROOM_W + WALL_SIDE_W*2.0f, ROOM_H + WALL_BACK_H + WALL_FRONT_H }, wallDark);
 
     Rectangle roomRect = WorldCurrentRoomRect(game);
+    DrawRectangleRec((Rectangle){ roomRect.x - WALL_SIDE_W, roomRect.y - WALL_BACK_H,
+                                   roomRect.width + WALL_SIDE_W*2.0f,
+                                   roomRect.height + WALL_BACK_H + WALL_FRONT_H }, wallDark);
+
     const float rx = roomRect.x, ry = roomRect.y, rw = roomRect.width, rh = roomRect.height;
     const float rRight = rx + rw, rBottom = ry + rh;
 
@@ -300,27 +310,41 @@ static void DrawRoom(Game *game)
        leggere lo spessore come uno spessore e non come una cornice piatta. */
     DrawRectangle((int)(rx - WALL_SIDE_W), (int)rBottom, (int)(rw + WALL_SIDE_W*2.0f), 2, wallLit);
 
-    const RoomState *room = GameCurrentRoom(game);
-    float cx = rx + rw*0.5f;
-    float cy = ry + rh*0.5f;
+    /* DEC-170: l'angolo mancante di una forma a L e' muro, disegnato SOPRA il
+       pavimento del riquadro (che e' stato riempito per intero sopra: un
+       rettangolo pieno costa meno di quattro rettangoli condizionati, e la
+       griglia in prospettiva resta una sola per stanza invece di spezzarsi in
+       quattro). */
+    int holes = WorldRoomHoleCount(game);
+    for (int i = 0; i < holes; i++) DrawRoomHole(WorldRoomHoleRect(game, i), wallDark, wallLit);
+
     Color doorColor = GameRoomIsLocked(game) ? (Color){ 200, 58, 58, 255 } : game->theme.accent2;
-    /* Le porte si disegnano SOPRA i muri (sono buchi nel muro), CENTRATE sulle
-       pareti REALI della stanza (M2: non piu' sempre allo stesso punto dello
-       schermo se la stanza e' piu' piccola): quella di fondo occupa tutta la
-       faccia del muro, cosi' si legge come un passaggio e non come una
-       striscia appoggiata. */
-    if (room->doors[DIR_UP]) DrawRectangle((int)(cx - DOOR_HALF), (int)(ry - WALL_BACK_H), (int)(DOOR_HALF*2), (int)WALL_BACK_H, doorColor);
-    if (room->doors[DIR_DOWN]) DrawRectangle((int)(cx - DOOR_HALF), (int)rBottom, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
-    if (room->doors[DIR_LEFT]) DrawRectangle((int)(rx - WALL_SIDE_W), (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
-    if (room->doors[DIR_RIGHT]) DrawRectangle((int)rRight, (int)(cy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+    /* Le porte si disegnano SOPRA i muri (sono buchi nel muro), al centro del
+       lato della CELLA a cui appartengono (DEC-170: una stanza multi-cella ha
+       porte su piu' celle, fino a otto lati esterni per una 2x2): quella di
+       fondo occupa tutta la faccia del muro, cosi' si legge come un passaggio
+       e non come una striscia appoggiata. */
+    int cellX[4], cellY[4];
+    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+    for (int i = 0; i < cellCount; i++)
+    {
+        const RoomState *cell = &game->rooms[cellY[i]][cellX[i]];
+        Rectangle c = WorldCellRect(game, cellX[i], cellY[i]);
+        float ccx = c.x + c.width*0.5f, ccy = c.y + c.height*0.5f;
+        float cRight = c.x + c.width, cBottom = c.y + c.height;
+        if (cell->doors[DIR_UP]) DrawRectangle((int)(ccx - DOOR_HALF), (int)(c.y - WALL_BACK_H), (int)(DOOR_HALF*2), (int)WALL_BACK_H, doorColor);
+        if (cell->doors[DIR_DOWN]) DrawRectangle((int)(ccx - DOOR_HALF), (int)cBottom, (int)(DOOR_HALF*2), (int)WALL_FRONT_H, doorColor);
+        if (cell->doors[DIR_LEFT]) DrawRectangle((int)(c.x - WALL_SIDE_W), (int)(ccy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+        if (cell->doors[DIR_RIGHT]) DrawRectangle((int)cRight, (int)(ccy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
+    }
 
     /* Piano 0 (M1b): il varco verso il piano 1, nel muro di fondo. NON e' un
        room->doors[DIR_UP] (vedi FloorZeroEnter, src/world/floor_zero.c: la
        griglia ha una sola cella, quindi quell'array resta tutto falso) --
        ha un aspetto dedicato apposta, cosi' resta leggibile come "l'uscita
        speciale della sala d'attesa" anche a chi non guarda la minimappa. Usa
-       ancora ROOM_X/ROOM_W fissi (non roomRect): il Piano 0 non e' generato,
-       la sua stanza coincide sempre col massimo (vedi il commento sopra). */
+       ROOM_X/ROOM_W fissi (non roomRect): il Piano 0 e' sempre una sola cella,
+       dove le due cose coincidono. */
     if (game->floor == 0) DrawFloorZeroExitGate(game);
 }
 
@@ -391,15 +415,16 @@ static void DrawEnemy(Game *game, const Enemy *e)
         drew = DrawAtlasCell(game, cell, e->pos, e->radius*3.3f, WHITE);
     }
     /* Il nome del boss va sempre mostrato durante lo scontro, sia che si
-       disegni lo sprite sia la forma di riserva. M2: ancorato all'angolo
-       della stanza CORRENTE (in pratica coincide sempre col massimo, la
-       stanza boss e' sempre alla taglia massima -- ma leggerlo dall'accessore
-       invece che dalla macro lo rende corretto per costruzione, non per
-       coincidenza). */
+       disegni lo sprite sia la forma di riserva. DEC-170: ancorato all'angolo
+       dell'INQUADRATURA, non a quello della stanza -- con una arena 2x2
+       l'angolo della stanza puo' restare fuori schermo per tutto lo scontro.
+       Si disegna dentro la telecamera (come tutto il resto di questa
+       funzione), quindi il punto va espresso in coordinate di mondo; per una
+       1x1 cade esattamente dove cadeva prima. */
     if (e->kind == ENEMY_BOSS)
     {
-        Rectangle bossRoom = WorldCurrentRoomRect(game);
-        DrawText(game->theme.bossName, (int)(bossRoom.x + 20.0f), (int)(bossRoom.y + 16.0f), 18, RAYWHITE);
+        Rectangle view = WorldCameraView(game);
+        DrawText(game->theme.bossName, (int)(view.x + ROOM_X + 20.0f), (int)(view.y + ROOM_Y + 16.0f), 18, RAYWHITE);
     }
     if (!drew)
     {
@@ -797,7 +822,11 @@ static void DrawObstacles(Game *game)
     Color side = GameColorLerp(game->theme.wall, BLACK, 0.55f);
     Color top = GameColorLerp(game->theme.wall, WHITE, 0.12f);
     Color edge = GameColorLerp(game->theme.wall, BLACK, 0.30f);
-    for (int i = 0; i < game->obstacleCount; i++)
+    /* DEC-170: i primi obstacleHoleCount ostacoli sono le celle-buco della
+       stanza (l'angolo mancante di una forma a L). Solide come le altre, ma
+       gia' disegnate da DrawRoom come parete vera: qui si saltano, o si
+       vedrebbe un blocco decorativo grande quanto una schermata. */
+    for (int i = game->obstacleHoleCount; i < game->obstacleCount; i++)
     {
         Obstacle *o = &game->obstacles[i];
         /* Ombra a terra alla base del blocco. */
@@ -812,6 +841,12 @@ static void DrawObstacles(Game *game)
 
 static void DrawGameplayCanvas(Game *game)
 {
+    /* Lo sfondo e' l'unica cosa in coordinate di CANVAS qui dentro: tutto il
+       resto della scena vive in coordinate di MONDO, dentro la telecamera
+       (DEC-170). Per una stanza 1x1 la telecamera e' l'identita' -- ogni pixel
+       di questa funzione cade dove cadeva prima. */
+    ClearBackground(game->theme.bg);
+    BeginMode2D(WorldGameCamera(game));
     DrawRoom(game);
     DrawObstacles(game);
 
@@ -898,6 +933,7 @@ static void DrawGameplayCanvas(Game *game)
         if (!p->active) continue;
         DrawCircleV(p->pos, p->radius, GameColorWithAlpha(p->color, (unsigned char)GameMathClampFloat(p->life*420.0f, 0.0f, 255.0f)));
     }
+    EndMode2D();   /* da qui in giu' si torna in coordinate di canvas */
 
     DrawVignette();
     DrawTransientMessage(game);
@@ -1009,24 +1045,6 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     DrawText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f), fontSize, color);
 }
 
-/* M2 (DEC-009): la minimappa comunica la taglia VERA della stanza (griglia
-   fissa, taglie diverse) senza scompaginare la griglia di celle a passo
-   fisso (size+gap) -- si scala solo il RIQUADRO COLORATO dentro lo slot,
-   lasciando bordo/icona/evidenziazione "stanza corrente" sullo slot intero,
-   cosi' la mappa resta leggibile e cliccabile come sempre. Tre classi
-   bastano (piccola/media/grande, come richiesto): non serve una scala
-   continua per un'informazione che qui è solo un indizio a colpo d'occhio.
-   w/h <= 0 (Piano 0/hub, o una RoomState di test mai passata da
-   WorldGenerateFloorMap) => 1.0, la cella piena di sempre. */
-static float RoomMapSizeScale(const RoomState *room)
-{
-    if (room->w <= 0 || room->h <= 0) return 1.0f;
-    float frac = ((float)room->w*(float)room->h)/(ROOM_W*ROOM_H);
-    if (frac >= 0.78f) return 1.0f;    /* grande */
-    if (frac < 0.55f) return 0.7f;     /* piccola */
-    return 0.85f;                      /* media */
-}
-
 /* DEC-137: la minimappa e' passata da pannello laterale a overlay in un angolo
    (DrawHudRunStatus). Disegna solo la griglia GRID_SIZE x GRID_SIZE all'angolo
    (baseX, baseY), con cella/gap scelti dal chiamante: piu' piccola di prima
@@ -1034,37 +1052,50 @@ static float RoomMapSizeScale(const RoomState *room)
    legenda testuale di prima ("T tesoro / $ negozio / B boss") e' caduta: sopra
    il gioco sarebbe una riga di testo larga e invadente, e le lettere sulle
    stanze GIA' visitate (DrawRoomIcon) dicono la stessa cosa dove serve. Larghezza
-   e altezza della griglia le ricava il chiamante: GRID_SIZE*cell + (GRID_SIZE-1)*gap. */
+   e altezza della griglia le ricava il chiamante: GRID_SIZE*cell + (GRID_SIZE-1)*gap.
+   DEC-170: la taglia non e' piu' un indizio (il vecchio riquadro rimpicciolito
+   dentro lo slot) ma una FORMA -- le celle di una stessa stanza si fondono,
+   perche' il bordo si disegna solo dove finisce davvero la stanza e il gap si
+   riempie fra due celle sorelle. Una 2x2 si legge come un blocco unico, come in
+   Isaac. */
 static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap, float uiScale)
 {
     for (int y = 0; y < GRID_SIZE; y++)
     {
         for (int x = 0; x < GRID_SIZE; x++)
         {
-            const RoomState *room = &game->rooms[y][x];
-            if (!room->exists) continue;   /* niente cornice sulle celle inesistenti: la mappa "respira" */
+            if (!game->rooms[y][x].exists) continue;   /* niente cornice sulle celle inesistenti: la mappa "respira" */
+            const RoomState *room = WorldRoomAt(game, x, y);
             Rectangle cell = { (float)(baseX + x*(size + gap)), (float)(baseY + y*(size + gap)), (float)size, (float)size };
-            bool current = (x == game->roomX && y == game->roomY);
             /* Visitata: colore pieno del suo tipo. Non visitata ma esistente
                (adiacente a una visitata): smorzata, cosi' si vede DOVE si puo'
                andare senza svelare cosa c'e'. */
             Color base = room->visited ? RoomMapColor(room->kind) : GameColorLerp(RoomMapColor(room->kind), (Color){ 30, 33, 40, 255 }, 0.7f);
-            float scale = RoomMapSizeScale(room);
-            Rectangle fillCell = cell;
-            if (scale < 1.0f)
-            {
-                float shrink = (float)size*(1.0f - scale)*0.5f;
-                fillCell = (Rectangle){ cell.x + shrink, cell.y + shrink, (float)size*scale, (float)size*scale };
-            }
-            DrawRectangleRec(fillCell, base);
+            DrawRectangleRec(cell, base);
+            /* Il gap verso una cella SORELLA si riempie: e' cio' che fonde le
+               celle in un blocco unico invece di lasciarle come stanze vicine. */
+            if (gap > 0 && WorldSameRoom(game, x, y, x + 1, y))
+                DrawRectangle((int)(cell.x + cell.width), (int)cell.y, gap, size, base);
+            if (gap > 0 && WorldSameRoom(game, x, y, x, y + 1))
+                DrawRectangle((int)cell.x, (int)(cell.y + cell.height), size, gap, base);
+
+            /* "Stanza corrente" = tutte le celle della stanza in cui si trova
+               il giocatore, non solo quella di stato (game->roomX/roomY). */
+            bool current = WorldSameRoom(game, x, y, game->roomX, game->roomY);
+            /* Bordo solo sui lati ESTERNI della stanza (verso una stanza
+               diversa, o verso il vuoto): dentro la stanza non c'e' confine da
+               disegnare. */
+            Color line = current ? RAYWHITE : GameColorWithAlpha(BLACK, 150);
+            float thick = current ? (float)UiRound(3.0f*uiScale) : 1.0f;
+            if (!WorldSameRoom(game, x, y, x, y - 1)) DrawRectangleRec((Rectangle){ cell.x, cell.y, cell.width, thick }, line);
+            if (!WorldSameRoom(game, x, y, x, y + 1)) DrawRectangleRec((Rectangle){ cell.x, cell.y + cell.height - thick, cell.width, thick }, line);
+            if (!WorldSameRoom(game, x, y, x - 1, y)) DrawRectangleRec((Rectangle){ cell.x, cell.y, thick, cell.height }, line);
+            if (!WorldSameRoom(game, x, y, x + 1, y)) DrawRectangleRec((Rectangle){ cell.x + cell.width - thick, cell.y, thick, cell.height }, line);
+
             /* Le icone delle stanze speciali si vedono solo dopo averle visitate:
-               un pizzico di scoperta, come in Isaac. Icona ed evidenziazione
-               restano ancorate allo SLOT intero (cell), non al riquadro
-               rimpicciolito: la griglia deve restare leggibile/cliccabile
-               uguale a prima, la taglia e' solo un indizio in piu'. */
-            if (room->visited) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200), uiScale);
-            if (current) DrawRectangleLinesEx(cell, UiRound(3.0f*uiScale), RAYWHITE);
-            else DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 150));
+               un pizzico di scoperta, come in Isaac. UNA per stanza, sulla sua
+               cella di stato, non una per cella. */
+            if (room->visited && room == &game->rooms[y][x]) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200), uiScale);
         }
     }
 }

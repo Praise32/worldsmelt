@@ -23,9 +23,10 @@
    solidi della stanza corrente. Un solo giro basta nella pratica (gli ostacoli non
    si toccano fra loro, la croce centrale li tiene separati), ma se un cerchio
    grosso stesse a cavallo di due blocchi adiacenti un secondo giro lo sistema:
-   due giri sono un tetto abbondante e a costo nullo (MAX_OBSTACLES=10, gli ostacoli
-   veri sono ~4). Ritorna true se ha toccato qualcosa (serve ai colpi, sotto, per
-   sapere se rimbalzare). */
+   due giri sono un tetto abbondante e a costo nullo (gli ostacoli veri sono ~4
+   per cella, DEC-170 ne ammette fino a 10 per cella piu' l'eventuale
+   cella-buco di una forma a L). Ritorna true se ha toccato qualcosa (serve ai
+   colpi, sotto, per sapere se rimbalzare). */
 static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
 {
     bool touched = false;
@@ -48,14 +49,9 @@ static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
        incollata al muro con l'hitbox che sfiora appena il blocco (invisibile) che
        bucare il muro (visibile). Fatto qui, dentro la funzione, cosi' vale per
        giocatore e nemici -- entrambi la chiamano subito dopo il proprio clamp.
-       M2: il bordo e' quello della stanza CORRENTE (variabile), non piu' il
-       massimo fisso -- gli ostacoli vivono comunque solo li'. */
-    if (touched)
-    {
-        Rectangle room = WorldCurrentRoomRect(game);
-        pos->x = GameMathClampFloat(pos->x, room.x + radius, room.x + room.width - radius);
-        pos->y = GameMathClampFloat(pos->y, room.y + radius, room.y + room.height - radius);
-    }
+       DEC-170: il bordo e' il riquadro della stanza CORRENTE (una o piu'
+       celle) -- gli ostacoli vivono comunque solo li'. */
+    if (touched) WorldClampToRoom(game, pos, radius);
     return touched;
 }
 
@@ -331,9 +327,10 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     if (IsKeyDown(KEY_D)) move.x += 1.0f;
     move = GameMathNormalize(move);
     p->pos = GameMathAdd(p->pos, GameMathScale(move, p->speed*dt));
-    Rectangle playerRoom = WorldCurrentRoomRect(game);   /* M2: bordo della stanza corrente, non piu' il massimo fisso */
-    p->pos.x = GameMathClampFloat(p->pos.x, playerRoom.x + p->radius, playerRoom.x + playerRoom.width - p->radius);
-    p->pos.y = GameMathClampFloat(p->pos.y, playerRoom.y + p->radius, playerRoom.y + playerRoom.height - p->radius);
+    /* DEC-170: il bordo e' quello della stanza corrente, che ora puo' valere
+       piu' celle -- dentro ci si cammina senza transizioni (l'angolo mancante
+       di una forma a L e' un ostacolo, lo risolve la riga sotto). */
+    WorldClampToRoom(game, &p->pos, p->radius);
     CombatResolveObstacles(game, &p->pos, p->radius);   /* fase 3c: non si passa attraverso i muri */
     WorldHandleTransitions(game, move);
 
@@ -342,7 +339,11 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     ScriptItemsOnTick(game, dt);
 
     Vector2 aim = { 0.0f, 0.0f };
-    if (mouseInsideGame && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) aim = GameMathSubtract(mouseGame, p->pos);
+    /* DEC-170: 'mouseGame' e' un punto del CANVAS (960x640); con la telecamera
+       il mondo puo' essere traslato sotto di esso, quindi la mira va convertita
+       prima di diventare una direzione. Per una stanza 1x1 la conversione e'
+       l'identita': mira invariata. */
+    if (mouseInsideGame && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) aim = GameMathSubtract(WorldCanvasToWorld(game, mouseGame), p->pos);
     if (GameMathLengthSquared(aim) <= 0.01f)
     {
         if (IsKeyDown(KEY_UP)) aim.y -= 1.0f;
@@ -509,13 +510,11 @@ void CombatUpdateEnemies(Game *game, float dt)
            per qualunque nemico che nessuno script ha mai toccato. */
         e->pos = GameMathAdd(e->pos, GameMathScale(e->vel, dt));
         e->vel = GameMathScale(e->vel, 0.90f);
-        /* M2: bordo della stanza corrente, non piu' il massimo fisso -- lo si
-           ricalcola per ogni nemico (banale: la stanza non cambia durante
-           questo ciclo, ma il compilatore non ha comunque motivo di lamentarsi
-           di una chiamata cosi' leggera dentro il ciclo). */
-        Rectangle enemyRoom = WorldCurrentRoomRect(game);
-        e->pos.x = GameMathClampFloat(e->pos.x, enemyRoom.x + e->radius, enemyRoom.x + enemyRoom.width - e->radius);
-        e->pos.y = GameMathClampFloat(e->pos.y, enemyRoom.y + e->radius, enemyRoom.y + enemyRoom.height - e->radius);
+        /* Bordo della stanza corrente (DEC-170: riquadro multi-cella), non il
+           massimo fisso -- lo si ricalcola per ogni nemico (banale: la stanza
+           non cambia durante questo ciclo, ma il compilatore non ha comunque
+           motivo di lamentarsi di una chiamata cosi' leggera dentro il ciclo). */
+        WorldClampToRoom(game, &e->pos, e->radius);
         CombatResolveObstacles(game, &e->pos, e->radius);   /* fase 3c: i nemici non passano attraverso i muri */
         e->cooldown -= dt;
 
@@ -602,8 +601,9 @@ void CombatUpdateShots(Game *game, float dt)
         s->pos = GameMathAdd(s->pos, GameMathScale(s->vel, dt));
         s->life -= dt;
         bool wall = false;
-        /* M2: i colpi vivono e rimbalzano nella stanza CORRENTE, non piu' nel
-           rettangolo massimo fisso. */
+        /* I colpi vivono e rimbalzano nel riquadro della stanza CORRENTE
+           (DEC-170: puo' valere piu' celle); l'angolo mancante di una forma a
+           L li ferma come un ostacolo, nel ciclo qui sotto. */
         Rectangle shotRoom = WorldCurrentRoomRect(game);
         float shotRoomRight = shotRoom.x + shotRoom.width;
         float shotRoomBottom = shotRoom.y + shotRoom.height;

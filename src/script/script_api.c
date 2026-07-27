@@ -252,31 +252,43 @@ static int ScriptApiNearestEnemy(lua_State *L)
    funzione fa eccezione ed e' ok chiamarla con piu' ritorni, le altre no")
    e' esattamente il tipo di regola sottile che un 7B non tiene a mente in
    modo affidabile. */
+/* DEC-170 (stanze multi-cella): questi quattro NON sono piu' le costanti del
+   rettangolo massimo. Rispondono con la stanza CORRENTE -- che con le taglie
+   maggiori e' larga o alta il doppio. E' la strategia di compatibilita' col
+   catalogo gia' su disco: la firma non cambia (quattro getter a un valore),
+   uno script vecchio che clampa ai confini continua a funzionare, e ora
+   descrive lo spazio VERO invece di una cella soltanto. In una forma a L il
+   riquadro comprende anche l'angolo mancante: chi ci scrive dentro viene
+   comunque riportato dentro dai clamp delle scritture qui sotto e fermato
+   dagli ostacoli (l'angolo mancante e' muro solido), esattamente come uno
+   script che mirasse dentro una colonna. */
 static int ScriptApiRoomLeft(lua_State *L)
 {
-    (void)L;
-    lua_pushnumber(L, (lua_Number)ROOM_X);
+    Game *game = ScriptApiGame(L);
+    lua_pushnumber(L, (lua_Number)WorldCurrentRoomRect(game).x);
     return 1;
 }
 
 static int ScriptApiRoomTop(lua_State *L)
 {
-    (void)L;
-    lua_pushnumber(L, (lua_Number)ROOM_Y);
+    Game *game = ScriptApiGame(L);
+    lua_pushnumber(L, (lua_Number)WorldCurrentRoomRect(game).y);
     return 1;
 }
 
 static int ScriptApiRoomRight(lua_State *L)
 {
-    (void)L;
-    lua_pushnumber(L, (lua_Number)ROOM_RIGHT);
+    Game *game = ScriptApiGame(L);
+    Rectangle room = WorldCurrentRoomRect(game);
+    lua_pushnumber(L, (lua_Number)(room.x + room.width));
     return 1;
 }
 
 static int ScriptApiRoomBottom(lua_State *L)
 {
-    (void)L;
-    lua_pushnumber(L, (lua_Number)ROOM_BOTTOM);
+    Game *game = ScriptApiGame(L);
+    Rectangle room = WorldCurrentRoomRect(game);
+    lua_pushnumber(L, (lua_Number)(room.y + room.height));
     return 1;
 }
 
@@ -327,11 +339,10 @@ static unsigned int ScriptApiClampToUint(double v)
 static int ScriptApiSpawnShot(lua_State *L)
 {
     Game *game = ScriptApiGame(L);
-    /* M2: room_left/top/right/bottom (sopra) restano il rettangolo MASSIMO
-       per compatibilita' col catalogo gia' generato -- ma il clamp VERO deve
-       tenere lo script dentro la stanza CORRENTE, che puo' essere piu'
-       piccola: uno script che scrive fuori stanza va comunque riportato
-       dentro, garanzia invariata (vedi il task brief M2, sezione 3). */
+    /* Il clamp tiene lo script dentro la stanza CORRENTE (DEC-170: il suo
+       riquadro, una o piu' celle): uno script che scrive fuori stanza va
+       comunque riportato dentro, garanzia invariata (vedi il task brief M2,
+       sezione 3). */
     Rectangle room = WorldCurrentRoomRect(game);
     float x = GameMathClampFloat((float)luaL_checknumber(L, 1), room.x, room.x + room.width);
     float y = GameMathClampFloat((float)luaL_checknumber(L, 2), room.y, room.y + room.height);

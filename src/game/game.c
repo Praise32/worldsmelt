@@ -212,6 +212,12 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
        in futuro sporchi la bandiera senza ricalcolare subito. */
     ScriptItemsProcessDirty(game);
     CombatUpdatePlayer(game, dt, mouseGame, mouseInsideGame);
+    /* DEC-170: la telecamera e' stato di SIMULAZIONE, non di rendering --
+       aggiornata qui, subito dopo l'unico passo che muove il giocatore, cosi'
+       a parita' di passi simulati l'inquadratura e' identica (e un frame video
+       che ne contiene due non la fa avanzare di piu' di uno che ne contiene
+       uno). Per una stanza 1x1 e' un no-op: il bersaglio e' costante. */
+    WorldUpdateCamera(game, dt);
     CombatUpdateEnemies(game, dt);
     CombatUpdateShots(game, dt);
     CombatUpdateBombs(game, dt);

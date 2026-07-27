@@ -12,6 +12,7 @@
 #include "script/script_api.h"
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
+#include "world/room_camera.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -1036,7 +1037,7 @@ bool GameOverlayScreenshotTest(Game *game)
        speciali invece di una griglia quasi vuota (e' uno screenshot di gusto). */
     for (int y = 0; y < GRID_SIZE; y++)
         for (int x = 0; x < GRID_SIZE; x++)
-            if (game->rooms[y][x].exists) game->rooms[y][x].visited = true;
+            if (game->rooms[y][x].exists) WorldRoomAtMutable(game, x, y)->visited = true;   /* DEC-170: 'visited' vive nella cella di STATO della stanza */
 
     /* Tre oggetti con un tipo di colpo firmato in mano (il primo) e due trait,
        come lo screenshot delle forme di colpo -- riempiono la lista di
@@ -2004,11 +2005,12 @@ bool GameFloorZeroTest(Game *game)
 #endif
 
 /* ============================================================
-   M2 (DEC-009, default PROPOSTO): stanze di numero e grandezza variabili.
-   Vedi il commento in game_tests.h e
-   docs/design/systems/rooms-and-floor-generation.md ("Default proposti
-   dall'implementazione"). Portabile (nessuna dipendenza da melting-gen/
-   Xvfb): gira su entrambe le piattaforme, a differenza del blocco sopra.
+   DEC-170 (taglie multiple stile Isaac + telecamera; supera il lattice in
+   pixel di M2/DEC-009). Vedi il commento in game_tests.h e
+   docs/design/systems/rooms-and-floor-generation.md ("Taglie multiple e
+   telecamera" + "Default proposti"). Portabile (nessuna dipendenza da
+   melting-gen/Xvfb): gira su entrambe le piattaforme, a differenza del
+   blocco sopra.
    ============================================================ */
 
 /* Genera il piano 'floor' con seed 'seed' su un Game LOCALE pulito sullo
@@ -2023,13 +2025,12 @@ static void RoomsTestGenerateFloor(unsigned int seed, int floor, Game *out)
     WorldStartFloor(out, floor);
 }
 
-/* Test (g): RoomLayoutBuild alla taglia MINIMA garantita da DEC-009, con
-   ogni forma non-vuota alla densita' MASSIMA (il caso piu' affollato
-   possibile): deve continuare a produrre almeno un ostacolo (niente collasso
-   silenzioso dei quadranti sotto i 20px, vedi room_layout.c) e rispettare
-   comunque croce/cerchio centrali. Stessa logica di verifica di
-   TestRoomLayoutAlwaysPlayable (src/tests/script_items_tests.c), qui alla
-   taglia minima invece che a quella storica fissa. */
+/* Test (g): RoomLayoutBuild alla taglia MINIMA garantita (DEC-170: una
+   cella), con ogni forma non-vuota alla densita' MASSIMA (il caso piu'
+   affollato possibile): deve continuare a produrre almeno un ostacolo (niente
+   collasso silenzioso dei quadranti sotto i 20px, vedi room_layout.c) e
+   rispettare comunque croce/cerchio centrali. Stessa logica di verifica di
+   TestRoomLayoutAlwaysPlayable (src/tests/script_items_tests.c). */
 static bool RoomsTestMinSizeStillPlayable(void)
 {
     const float rx = 10.0f, ry = 10.0f;   /* l'origine non conta nulla per questa verifica */
@@ -2053,7 +2054,7 @@ static bool RoomsTestMinSizeStillPlayable(void)
             def.density = ROOM_LAYOUT_DENSITY_MAX;
 
             Obstacle obs[MAX_OBSTACLES];
-            int n = RoomLayoutBuild(&def, seed, rx, ry, rw, rh, obs, MAX_OBSTACLES);
+            int n = RoomLayoutBuild(&def, seed, rx, ry, rw, rh, obs, ROOM_LAYOUT_MAX_PER_CELL);
             if (n < minBlocksSeen) minBlocksSeen = n;
             if (n <= 0) { ok = false; continue; }   /* collasso silenzioso: esattamente cio' che DEC-009 vieta */
             for (int i = 0; i < n; i++)
@@ -2065,27 +2066,252 @@ static bool RoomsTestMinSizeStillPlayable(void)
             }
         }
     }
-    printf("  [rooms-g] taglia minima (%dx%d), ogni forma/densita' massima: minimo blocchi visti %d -> giocabile=%s\n",
+    printf("  [rooms-g] taglia minima (%dx%d = una cella), ogni forma/densita' massima: minimo blocchi visti %d -> giocabile=%s\n",
            WORLD_ROOM_MIN_W, WORLD_ROOM_MIN_H, minBlocksSeen, ok ? "si" : "NO");
     if (!ok) printf("      FALLITO: alla taglia minima un layout ha collassato (0 ostacoli), murato croce/cerchio, o e' uscito dalla stanza\n");
     return ok;
+}
+
+/* Test (h): la telecamera e' fatta di due funzioni PURE (world/room_camera.h),
+   quindi il suo contratto si verifica senza finestra e senza Game:
+     - una stanza 1x1 ha UNA sola inquadratura possibile (camera ferma) e la
+       traduzione mondo->canvas e' l'identita' (nessuna regressione visiva
+       rispetto a prima di DEC-170);
+     - a qualunque posizione del giocatore, l'inquadratura non esce MAI dai
+       bordi del rettangolo di clamp -- la garanzia esplicita di DEC-170;
+     - l'inseguimento converge e si aggancia (nessuna deriva sotto il pixel). */
+static bool RoomsTestCameraClamp(void)
+{
+    bool ok = true;
+    struct { const char *name; float w; float h; } cases[] = {
+        { "1x1", ROOM_W, ROOM_H },
+        { "1x2", ROOM_W*2.0f, ROOM_H },
+        { "2x1", ROOM_W, ROOM_H*2.0f },
+        { "2x2", ROOM_W*2.0f, ROOM_H*2.0f },
+    };
+    const float viewW = (float)SCREEN_WIDTH, viewH = (float)SCREEN_HEIGHT;
+    int checked = 0;
+
+    for (int c = 0; c < (int)(sizeof(cases)/sizeof(cases[0])); c++)
+    {
+        Rectangle room = { ROOM_X, ROOM_Y, cases[c].w, cases[c].h };
+        Rectangle bounds = WorldCameraBoundsFromRoom(room);
+        /* Il rettangolo di clamp di UNA cella e' esattamente il canvas: e' cio'
+           che rende la 1x1 identica a prima di DEC-170, cornice di muro
+           compresa. */
+        if (c == 0)
+        {
+            if (fabsf(bounds.x) > 0.01f || fabsf(bounds.y) > 0.01f ||
+                fabsf(bounds.width - viewW) > 0.01f || fabsf(bounds.height - viewH) > 0.01f)
+            {
+                fprintf(stderr, "GameRoomsTest: (h) il rettangolo di clamp di una cella non e' il canvas: %.1f,%.1f %.1fx%.1f\n",
+                        bounds.x, bounds.y, bounds.width, bounds.height);
+                ok = false;
+            }
+        }
+        Vector2 first = { 0.0f, 0.0f };
+        bool firstSet = false;
+        for (int iy = 0; iy <= 10; iy++)
+        {
+            for (int ix = 0; ix <= 10; ix++)
+            {
+                Vector2 focus = { room.x + room.width*(float)ix/10.0f, room.y + room.height*(float)iy/10.0f };
+                Vector2 target = WorldCameraClampTarget(bounds, focus, viewW, viewH);
+                Rectangle view = { target.x - viewW*0.5f, target.y - viewH*0.5f, viewW, viewH };
+                checked++;
+                if (view.x < bounds.x - 0.01f || view.y < bounds.y - 0.01f ||
+                    view.x + view.width > bounds.x + bounds.width + 0.01f ||
+                    view.y + view.height > bounds.y + bounds.height + 0.01f)
+                {
+                    fprintf(stderr, "GameRoomsTest: (h) taglia %s: l'inquadratura esce dai bordi (view %.1f,%.1f focus %.1f,%.1f)\n",
+                            cases[c].name, view.x, view.y, focus.x, focus.y);
+                    ok = false;
+                }
+                if (!firstSet) { first = target; firstSet = true; }
+                /* 1x1: una sola inquadratura possibile, per QUALUNQUE posizione
+                   del giocatore. */
+                if (c == 0 && (fabsf(target.x - first.x) > 0.01f || fabsf(target.y - first.y) > 0.01f))
+                {
+                    fprintf(stderr, "GameRoomsTest: (h) la telecamera si e' mossa in una stanza 1x1 (%.1f,%.1f -> %.1f,%.1f)\n",
+                            first.x, first.y, target.x, target.y);
+                    ok = false;
+                }
+                /* Taglie maggiori: sull'asse LUNGO la telecamera deve davvero
+                   seguire, non restare inchiodata al centro. */
+                if (c > 0)
+                {
+                    Vector2 low = WorldCameraClampTarget(bounds, (Vector2){ room.x, room.y }, viewW, viewH);
+                    Vector2 high = WorldCameraClampTarget(bounds, (Vector2){ room.x + room.width, room.y + room.height }, viewW, viewH);
+                    if (cases[c].w > ROOM_W && !(high.x > low.x + 1.0f))
+                    {
+                        fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera non segue sull'asse x\n", cases[c].name);
+                        ok = false;
+                    }
+                    if (cases[c].h > ROOM_H && !(high.y > low.y + 1.0f))
+                    {
+                        fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera non segue sull'asse y\n", cases[c].name);
+                        ok = false;
+                    }
+                }
+            }
+        }
+    }
+
+    /* Inseguimento: converge verso il bersaglio e ci si aggancia esattamente
+       (un canvas campionato POINT non deve tremolare per mezzo pixel). */
+    Vector2 cur = { 0.0f, 0.0f };
+    Vector2 want = { 300.0f, -120.0f };
+    float prevDist = -1.0f;
+    for (int step = 0; step < 240; step++)
+    {
+        cur = WorldCameraApproach(cur, want, 1.0f/60.0f, WORLD_CAMERA_RATE);
+        float dist = fabsf(cur.x - want.x) + fabsf(cur.y - want.y);
+        if (prevDist >= 0.0f && dist > prevDist + 0.001f)
+        {
+            fprintf(stderr, "GameRoomsTest: (h) l'inseguimento della telecamera non e' monotono (%.3f -> %.3f)\n", prevDist, dist);
+            ok = false;
+            break;
+        }
+        prevDist = dist;
+    }
+    if (cur.x != want.x || cur.y != want.y)
+    {
+        fprintf(stderr, "GameRoomsTest: (h) l'inseguimento non si aggancia al bersaglio (%.4f,%.4f invece di %.1f,%.1f)\n",
+                cur.x, cur.y, want.x, want.y);
+        ok = false;
+    }
+
+    printf("  [rooms-h] telecamera: %d inquadrature provate su 4 taglie, mai fuori dai bordi; 1x1 ferma; inseguimento monotono e agganciato -> %s\n",
+           checked, ok ? "ok" : "FALLITO");
+    return ok;
+}
+
+/* Test (k): l'angolo mancante di una forma a L e' MURO VERO, non un buco nel
+   disegno. Si cerca fra i semi un piano con una stanza a L, ci si entra, si
+   piazza il giocatore in mezzo all'angolo mancante e si fa girare un passo di
+   simulazione vero (GameUpdate): deve venire respinto fuori, esattamente come
+   da un ostacolo qualsiasi -- e' cosi' che DEC-170 e' implementata (la cella
+   mancante entra in game->obstacles), quindi e' cosi' che va verificata. */
+static bool RoomsTestHoleIsSolid(void)
+{
+    static const unsigned int kSeeds[] = { 1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        for (int floor = 1; floor <= FLOOR_COUNT; floor++)
+        {
+            Game probe;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!probe.rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(&probe, x, y);
+                    if (state != &probe.rooms[y][x]) continue;
+                    if (WorldRoomSizeFromCells(state->cells) != ROOM_SIZE_L) continue;
+
+                    probe.roomX = x;
+                    probe.roomY = y;
+                    WorldSpawnRoomContents(&probe);
+                    if (WorldRoomHoleCount(&probe) != 1)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (k) una forma a L deve avere esattamente una cella-buco (ne ha %d)\n",
+                                WorldRoomHoleCount(&probe));
+                        return false;
+                    }
+                    if (probe.obstacleHoleCount != 1 || probe.obstacleCount < 1)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (k) la cella-buco non e' entrata fra gli ostacoli (hole=%d totale=%d)\n",
+                                probe.obstacleHoleCount, probe.obstacleCount);
+                        return false;
+                    }
+                    Rectangle hole = WorldRoomHoleRect(&probe, 0);
+                    probe.player.pos = (Vector2){ hole.x + hole.width*0.5f, hole.y + hole.height*0.5f };
+                    probe.phase = PHASE_PLAY;
+                    GameUpdate(&probe, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+                    bool stillInside = probe.player.pos.x > hole.x && probe.player.pos.x < hole.x + hole.width &&
+                                       probe.player.pos.y > hole.y && probe.player.pos.y < hole.y + hole.height;
+                    if (stillInside)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (k) il giocatore resta dentro l'angolo mancante della forma a L (%.1f,%.1f)\n",
+                                probe.player.pos.x, probe.player.pos.y);
+                        return false;
+                    }
+                    /* E la telecamera lo segue senza mai inquadrare il buco: il
+                       clamp di una L usa la cella corrente. */
+                    Rectangle focus = WorldCameraFocusRect(&probe);
+                    if (focus.width > ROOM_W + 0.5f || focus.height > ROOM_H + 0.5f)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (k) in una forma a L il clamp della telecamera non e' la cella corrente (%.0fx%.0f)\n",
+                                focus.width, focus.height);
+                        return false;
+                    }
+                    printf("  [rooms-k] forma a L (seed %u piano %d): angolo mancante solido (giocatore respinto), clamp telecamera = cella corrente -> ok\n",
+                           kSeeds[si], floor);
+                    return true;
+                }
+            }
+        }
+    }
+    fprintf(stderr, "GameRoomsTest: (k) nessuna forma a L nei semi di prova: verifica non eseguita\n");
+    return false;
+}
+
+/* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
+typedef struct RoomsTestRoom {
+    int stateX, stateY;
+    unsigned char cells;
+    RoomKind kind;
+} RoomsTestRoom;
+
+static int RoomsTestCollectRooms(const Game *game, RoomsTestRoom *out, int maxOut)
+{
+    int n = 0;
+    for (int y = 0; y < GRID_SIZE; y++)
+    {
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            if (!game->rooms[y][x].exists) continue;
+            const RoomState *state = WorldRoomAt(game, x, y);
+            if (state != &game->rooms[y][x]) continue;   /* gia' contata dalla sua cella di stato */
+            if (n >= maxOut) return n;
+            out[n].stateX = x;
+            out[n].stateY = y;
+            out[n].cells = state->cells;
+            out[n].kind = state->kind;
+            n++;
+        }
+    }
+    return n;
 }
 
 bool GameRoomsTest(Game *game)
 {
     /* Si genera sempre un Game LOCALE pulito (RoomsTestGenerateFloor): quello
        passato da AppRun serve solo a rispettare la stessa firma/convenzione
-       di GamePortalRespawnTest e simili, non viene letto. */
+       di GamePortalRespawnTest e simili. */
     (void)game;
     bool ok = true;
 
-    static const unsigned int kSeeds[] = { 1001u, 2002u, 3003u, 4004u };
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u,
+        11u, 137u, 2718u, 31415u, 65537u, 99991u, 123456u, 777777u,
+        20260727u, 90210u, 424242u, 5150u, 8675309u, 314159u, 271828u, 161803u
+    };
     const int kSeedCount = (int)(sizeof(kSeeds)/sizeof(kSeeds[0]));
 
-    /* (c) "varia tra piani/seed": si registrano i conteggi distinti visti
-       durante l'intero giro sotto, e si pretende almeno due valori diversi. */
+    /* (c) "varia tra piani/seed": si registrano i conteggi distinti di CELLE
+       visti durante l'intero giro sotto, e si pretende almeno due valori. */
     int seenCounts[64];
     int seenCountsN = 0;
+    /* (b) quante volte si e' vista ciascuna classe di taglia: la distribuzione
+       deve davvero produrre piu' di una classe, o "taglie multiple" sarebbe
+       vero solo sulla carta. */
+    int sizeSeen[ROOM_SIZE_COUNT];
+    for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++) sizeSeen[i] = 0;
+    int bossSizeSeen[ROOM_SIZE_COUNT];
+    for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++) bossSizeSeen[i] = 0;
+    int floorsChecked = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -2093,84 +2319,198 @@ bool GameRoomsTest(Game *game)
         {
             Game probe;
             RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+            floorsChecked++;
 
-            typedef struct { int w; int h; } RoomsTestWH;
-            RoomsTestWH sizes[GRID_SIZE*GRID_SIZE];
-            int sizesN = 0;
-            int count = 0;
+            RoomsTestRoom rooms[GRID_SIZE*GRID_SIZE];
+            int roomCount = RoomsTestCollectRooms(&probe, rooms, GRID_SIZE*GRID_SIZE);
+            int cellCount = 0;
+            int bossRooms = 0, startRooms = 0;
             int bossX = -1, bossY = -1;
 
-            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
+               stanza e' una delle cinque classi di DEC-170; (b) niente
+               sovrapposizioni: le celle dichiarate dalla maschera esistono
+               tutte e puntano tutte alla stessa origine. */
+            for (int r = 0; r < roomCount; r++)
             {
-                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                const RoomState *state = &probe.rooms[rooms[r].stateY][rooms[r].stateX];
+                unsigned char mask = rooms[r].cells;
+                int bits = 0;
+                for (int i = 0; i < 4; i++) if (mask & (1u << i)) bits++;
+                if (bits < 1 || bits > 4)
                 {
-                    RoomState *r = &probe.rooms[ry2][rx2];
-                    if (!r->exists) continue;
-                    count++;
-                    /* (a) grandezza minima garantita. */
-                    if (r->w < WORLD_ROOM_MIN_W || r->h < WORLD_ROOM_MIN_H)
+                    fprintf(stderr, "GameRoomsTest: (a) piano %d seed %u: maschera di celle non valida (0x%X)\n",
+                            floor, kSeeds[si], mask);
+                    ok = false;
+                    continue;
+                }
+                RoomSize size = WorldRoomSizeFromCells(mask);
+                sizeSeen[size]++;
+                if (rooms[r].kind == ROOM_BOSS) { bossRooms++; bossSizeSeen[size]++; bossX = rooms[r].stateX; bossY = rooms[r].stateY; }
+                if (rooms[r].kind == ROOM_START) startRooms++;
+                cellCount += bits;
+
+                /* La forma a L e' TRE celle di un blocco 2x2 con un angolo
+                   mancante: con tre bit accesi su quattro e' vero per
+                   costruzione, ma il test lo verifica lo stesso perche' e' la
+                   forma che potrebbe piu' facilmente degenerare in due celle
+                   non contigue se la maschera venisse scritta male. */
+                if (size == ROOM_SIZE_L && bits != 3)
+                {
+                    fprintf(stderr, "GameRoomsTest: (a) piano %d seed %u: forma a L con %d celle\n", floor, kSeeds[si], bits);
+                    ok = false;
+                }
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(mask & (1u << i))) continue;
+                    int cx = state->originX + (i & 1);
+                    int cy = state->originY + (i >> 1);
+                    if (cx < 0 || cx >= GRID_SIZE || cy < 0 || cy >= GRID_SIZE)
                     {
-                        fprintf(stderr, "GameRoomsTest: (a) stanza (%d,%d) piano %d seed %u sotto il minimo garantito: %dx%d\n",
-                                rx2, ry2, floor, kSeeds[si], r->w, r->h);
+                        fprintf(stderr, "GameRoomsTest: (b) piano %d seed %u: stanza fuori griglia in (%d,%d)\n",
+                                floor, kSeeds[si], cx, cy);
+                        ok = false;
+                        continue;
+                    }
+                    const RoomState *cell = &probe.rooms[cy][cx];
+                    if (!cell->exists || cell->cells != mask ||
+                        cell->originX != state->originX || cell->originY != state->originY)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (b) piano %d seed %u: la cella (%d,%d) non appartiene alla stanza che la dichiara\n",
+                                floor, kSeeds[si], cx, cy);
                         ok = false;
                     }
-                    sizes[sizesN].w = r->w; sizes[sizesN].h = r->h; sizesN++;
-                    if (r->kind == ROOM_BOSS) { bossX = rx2; bossY = ry2; }
+                }
+
+                /* Il riquadro non scende mai sotto la grandezza minima
+                   garantita (DEC-009, oggi la taglia 1x1). */
+                Rectangle rect = WorldRoomRect(&probe, rooms[r].stateX, rooms[r].stateY);
+                if (rect.width < (float)WORLD_ROOM_MIN_W - 0.5f || rect.height < (float)WORLD_ROOM_MIN_H - 0.5f)
+                {
+                    fprintf(stderr, "GameRoomsTest: (a) piano %d seed %u: stanza sotto il minimo garantito (%.0fx%.0f)\n",
+                            floor, kSeeds[si], rect.width, rect.height);
+                    ok = false;
                 }
             }
 
-            /* (b) nessuna coppia (w,h) ripetuta nello stesso piano. */
-            for (int i = 0; i < sizesN; i++)
-                for (int j = i + 1; j < sizesN; j++)
-                    if (sizes[i].w == sizes[j].w && sizes[i].h == sizes[j].h)
-                    {
-                        fprintf(stderr, "GameRoomsTest: (b) coppia (w,h) ripetuta nel piano %d seed %u: %dx%d\n",
-                                floor, kSeeds[si], sizes[i].w, sizes[i].h);
-                        ok = false;
-                    }
-
-            /* (f) la stanza boss e' sempre alla taglia massima. */
-            if (bossX < 0)
+            /* Ogni cella esistente deve essere coperta da esattamente una
+               stanza (il contrario della verifica sopra: si guarda dal lato
+               delle celle, cosi' una cella "orfana" non passa inosservata). */
+            int existing = 0;
+            for (int y = 0; y < GRID_SIZE; y++)
+                for (int x = 0; x < GRID_SIZE; x++)
+                    if (probe.rooms[y][x].exists) existing++;
+            if (existing != cellCount)
             {
-                fprintf(stderr, "GameRoomsTest: (f) nessuna stanza boss nel piano %d seed %u\n", floor, kSeeds[si]);
-                ok = false;
-            }
-            else if (probe.rooms[bossY][bossX].w != (int)ROOM_W || probe.rooms[bossY][bossX].h != (int)ROOM_H)
-            {
-                fprintf(stderr, "GameRoomsTest: (f) la stanza boss del piano %d seed %u non e' alla taglia massima: %dx%d\n",
-                        floor, kSeeds[si], probe.rooms[bossY][bossX].w, probe.rooms[bossY][bossX].h);
+                fprintf(stderr, "GameRoomsTest: (b) piano %d seed %u: %d celle esistenti ma %d dichiarate dalle stanze\n",
+                        floor, kSeeds[si], existing, cellCount);
                 ok = false;
             }
 
-            /* (c) banda attesa: targetRooms = 6+piano+(0..3), piu' fino a 2
-               stanze speciali (tesoro/negozio) che WorldPlaceSpecialRoom puo'
-               aggiungere oltre il random walk. */
+            /* (f) esattamente una stanza boss e una di partenza. */
+            if (bossRooms != 1 || startRooms != 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (f) piano %d seed %u: %d stanze boss, %d di partenza\n",
+                        floor, kSeeds[si], bossRooms, startRooms);
+                ok = false;
+            }
+            if (bossX >= 0 && probe.rooms[bossY][bossX].cleared)
+            {
+                fprintf(stderr, "GameRoomsTest: (f) piano %d seed %u: la stanza boss nasce gia' ripulita\n", floor, kSeeds[si]);
+                ok = false;
+            }
+
+            /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
+               fino a 4 celle di stanza boss e 2 celle speciali; una forma
+               grande puo' sforare il budget di al massimo 3 celle (l'ultima
+               piazzata). */
             int lowerBound = 6 + floor;
-            int upperBound = 11 + floor;
-            if (count < lowerBound || count > upperBound)
+            int upperBound = 6 + floor + 3 + 3 + 4 + 2;
+            if (existing < lowerBound || existing > upperBound)
             {
-                fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d stanze, fuori dalla banda attesa [%d,%d]\n",
-                        floor, kSeeds[si], count, lowerBound, upperBound);
+                fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d celle, fuori dalla banda attesa [%d,%d]\n",
+                        floor, kSeeds[si], existing, lowerBound, upperBound);
                 ok = false;
             }
             bool alreadySeen = false;
-            for (int i = 0; i < seenCountsN; i++) if (seenCounts[i] == count) { alreadySeen = true; break; }
-            if (!alreadySeen && seenCountsN < 64) seenCounts[seenCountsN++] = count;
+            for (int i = 0; i < seenCountsN; i++) if (seenCounts[i] == existing) { alreadySeen = true; break; }
+            if (!alreadySeen && seenCountsN < 64) seenCounts[seenCountsN++] = existing;
+
+            /* (i) le porte: doors[d] di una cella e' vero ESATTAMENTE quando il
+               vicino esiste ed e' di un'ALTRA stanza. Due celle sorelle non
+               hanno porta fra loro (sono lo stesso spazio continuo, DEC-170). */
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!probe.rooms[y][x].exists) continue;
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                        bool inGrid = (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE);
+                        bool expected = inGrid && probe.rooms[ny][nx].exists && !WorldSameRoom(&probe, x, y, nx, ny);
+                        if (probe.rooms[y][x].doors[d] != expected)
+                        {
+                            fprintf(stderr, "GameRoomsTest: (i) piano %d seed %u: porta incoerente in (%d,%d) dir %d\n",
+                                    floor, kSeeds[si], x, y, d);
+                            ok = false;
+                        }
+                    }
+                }
+            }
+
+            /* (j) CONNETTIVITA': dalla partenza si raggiunge ogni stanza del
+               piano attraversando porte. Una stanza isolata renderebbe il piano
+               incompletabile, ed e' il rischio vero di un generatore a forme. */
+            bool reached[GRID_SIZE][GRID_SIZE];
+            memset(reached, 0, sizeof(reached));
+            int queueX[GRID_SIZE*GRID_SIZE], queueY[GRID_SIZE*GRID_SIZE];
+            int head = 0, tail = 0;
+            queueX[tail] = probe.roomX; queueY[tail] = probe.roomY; tail++;
+            reached[probe.roomY][probe.roomX] = true;
+            while (head < tail)
+            {
+                int x = queueX[head], y = queueY[head];
+                head++;
+                for (int d = 0; d < 4; d++)
+                {
+                    int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                    int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                    if (!probe.rooms[ny][nx].exists || reached[ny][nx]) continue;
+                    /* Si passa se e' la stessa stanza (spazio continuo) o se
+                       c'e' una porta. */
+                    if (!probe.rooms[y][x].doors[d] && !WorldSameRoom(&probe, x, y, nx, ny)) continue;
+                    reached[ny][nx] = true;
+                    queueX[tail] = nx; queueY[tail] = ny; tail++;
+                }
+            }
+            for (int y = 0; y < GRID_SIZE; y++)
+                for (int x = 0; x < GRID_SIZE; x++)
+                    if (probe.rooms[y][x].exists && !reached[y][x])
+                    {
+                        fprintf(stderr, "GameRoomsTest: (j) piano %d seed %u: la cella (%d,%d) non e' raggiungibile dalla partenza\n",
+                                floor, kSeeds[si], x, y);
+                        ok = false;
+                    }
 
             /* (d) determinismo: rigenerare LO STESSO piano con lo stesso seed
-               deve produrre la STESSA griglia (esistenza, tipo, taglia, porte). */
+               deve produrre la STESSA griglia (esistenza, tipo, FORMA, origine,
+               porte). */
             Game probe2;
             RoomsTestGenerateFloor(kSeeds[si], floor, &probe2);
             bool detOk = true;
-            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            for (int y = 0; y < GRID_SIZE; y++)
             {
-                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                for (int x = 0; x < GRID_SIZE; x++)
                 {
-                    RoomState *a = &probe.rooms[ry2][rx2];
-                    RoomState *b = &probe2.rooms[ry2][rx2];
+                    RoomState *a = &probe.rooms[y][x];
+                    RoomState *b = &probe2.rooms[y][x];
                     if (a->exists != b->exists) { detOk = false; continue; }
                     if (!a->exists) continue;
-                    if (a->kind != b->kind || a->w != b->w || a->h != b->h) detOk = false;
+                    if (a->kind != b->kind || a->cells != b->cells ||
+                        a->originX != b->originX || a->originY != b->originY) detOk = false;
                     for (int d = 0; d < 4; d++) if (a->doors[d] != b->doors[d]) detOk = false;
                 }
             }
@@ -2181,33 +2521,43 @@ bool GameRoomsTest(Game *game)
                 ok = false;
             }
 
-            /* (e) ogni transizione di porta atterra DENTRO il rettangolo della
-               stanza di arrivo. Si forza 'cleared' sulla stanza di partenza per
-               isolare la geometria dal gate di combattimento (gia' coperto da
-               --portal-test) e si danno chiavi in abbondanza per non far
-               fallire l'ingresso in una stanza tesoro non ancora visitata. */
-            for (int ry2 = 0; ry2 < GRID_SIZE; ry2++)
+            /* (e) ogni transizione di porta atterra DENTRO una cella occupata
+               della stanza di arrivo (non nel riquadro e basta: l'angolo
+               mancante di una forma a L e' muro). Si forza 'cleared' sulla
+               stanza di partenza per isolare la geometria dal gate di
+               combattimento (gia' coperto da --portal-test) e si danno chiavi
+               in abbondanza per non far fallire l'ingresso in una stanza
+               tesoro non ancora visitata. */
+            for (int y = 0; y < GRID_SIZE; y++)
             {
-                for (int rx2 = 0; rx2 < GRID_SIZE; rx2++)
+                for (int x = 0; x < GRID_SIZE; x++)
                 {
-                    RoomState *from = &probe.rooms[ry2][rx2];
-                    if (!from->exists) continue;
+                    if (!probe.rooms[y][x].exists) continue;
                     for (int dir = 0; dir < 4; dir++)
                     {
-                        if (!from->doors[dir]) continue;
-                        probe.roomX = rx2;
-                        probe.roomY = ry2;
-                        from->cleared = true;
+                        if (!probe.rooms[y][x].doors[dir]) continue;
+                        /* roomX/roomY puo' essere QUALUNQUE cella della
+                           stanza (gli accessori risolvono da soli la cella di
+                           stato); a dire da quale porta si esce e' la
+                           POSIZIONE del giocatore, non piu' la cella corrente. */
+                        probe.roomX = x;
+                        probe.roomY = y;
+                        WorldRoomAtMutable(&probe, x, y)->cleared = true;
+                        Rectangle fromCell = WorldCellRect(&probe, x, y);
+                        probe.player.pos = (Vector2){ fromCell.x + fromCell.width*0.5f, fromCell.y + fromCell.height*0.5f };
                         probe.player.keys = 9;
                         WorldTryEnterRoom(&probe, dir);
-                        Rectangle arrival = WorldCurrentRoomRect(&probe);
+
+                        int landX, landY;
+                        WorldPlayerCell(&probe, &landX, &landY);
+                        Rectangle landCell = WorldCellRect(&probe, landX, landY);
                         const float tol = 0.5f;
-                        bool inside = probe.player.pos.x >= arrival.x - tol && probe.player.pos.x <= arrival.x + arrival.width + tol &&
-                                      probe.player.pos.y >= arrival.y - tol && probe.player.pos.y <= arrival.y + arrival.height + tol;
-                        if (!inside)
+                        bool inside = probe.player.pos.x >= landCell.x - tol && probe.player.pos.x <= landCell.x + landCell.width + tol &&
+                                      probe.player.pos.y >= landCell.y - tol && probe.player.pos.y <= landCell.y + landCell.height + tol;
+                        if (!inside || !probe.rooms[landY][landX].exists)
                         {
-                            fprintf(stderr, "GameRoomsTest: (e) transizione da (%d,%d) dir %d piano %d seed %u non atterra dentro la stanza di arrivo\n",
-                                    rx2, ry2, dir, floor, kSeeds[si]);
+                            fprintf(stderr, "GameRoomsTest: (e) transizione da (%d,%d) dir %d piano %d seed %u non atterra dentro una cella della stanza di arrivo\n",
+                                    x, y, dir, floor, kSeeds[si]);
                             ok = false;
                         }
                     }
@@ -2218,15 +2568,107 @@ bool GameRoomsTest(Game *game)
 
     if (seenCountsN < 2)
     {
-        fprintf(stderr, "GameRoomsTest: (c) il numero di stanze non varia mai fra i piani/seed testati (osservato un solo valore)\n");
+        fprintf(stderr, "GameRoomsTest: (c) il numero di celle non varia mai fra i piani/seed testati (osservato un solo valore)\n");
+        ok = false;
+    }
+    /* Tutte e cinque le classi devono comparire davvero nel giro di prova: e'
+       la verifica che la distribuzione di DEC-170 sia viva, non un enum
+       inutilizzato. */
+    for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++)
+    {
+        if (sizeSeen[i] > 0) continue;
+        fprintf(stderr, "GameRoomsTest: (b) la classe di taglia %d non compare mai in %d piani generati\n", i, floorsChecked);
+        ok = false;
+    }
+    /* Default proposto: la stanza boss e' un'arena, e la 2x2 e' la classe
+       preferita -- non garantita (puo' non entrare nella griglia), ma deve
+       essere di gran lunga la piu' frequente. */
+    if (bossSizeSeen[ROOM_SIZE_2X2] < floorsChecked/2)
+    {
+        fprintf(stderr, "GameRoomsTest: (f) la stanza boss e' 2x2 solo %d volte su %d piani (default proposto: quasi sempre)\n",
+                bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
         ok = false;
     }
 
-    printf("  [rooms-abcdef] %d piani x %d semi: minimo garantito, taglie distinte, banda/variazione stanze (%d valori diversi), determinismo, transizioni di porta -> %s\n",
-           FLOOR_COUNT, kSeedCount, seenCountsN, ok ? "ok" : "FALLITO");
+    printf("  [rooms-abcdefij] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti, connettivita', determinismo, transizioni -> %s\n",
+           FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
+           sizeSeen[ROOM_SIZE_2X2], sizeSeen[ROOM_SIZE_L], seenCountsN, ok ? "ok" : "FALLITO");
+    printf("  [rooms-f] stanza boss 2x2 in %d piani su %d (il resto ripiega su una classe piu' piccola quando la griglia e' satura)\n",
+           bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
 
     if (!RoomsTestMinSizeStillPlayable()) ok = false;
+    if (!RoomsTestCameraClamp()) ok = false;
+    if (!RoomsTestHoleIsSolid()) ok = false;
 
+    return ok;
+}
+
+/* DEC-170, SOLO manuale (mai in make test): gli scatti che --rooms-test non
+   puo' fare. Cerca fra i seed un piano che contenga la taglia voluta, ci
+   entra col giocatore in un punto scelto e disegna un frame vero: serve a
+   guardare la telecamera (segue? sbatte contro il clamp? l'angolo mancante di
+   una L sembra un muro?), non a verificare numeri. */
+static bool RoomShapesShoot(Game *game, RoomSize wanted, int cellIndex, float ux, float uy, const char *path)
+{
+    static const unsigned int kSeeds[] = { 1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        game->rng = kSeeds[si];
+        for (int floor = 1; floor <= FLOOR_COUNT; floor++)
+        {
+            WorldStartFloor(game, floor);
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!game->rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(game, x, y);
+                    if (state != &game->rooms[y][x]) continue;
+                    if (WorldRoomSizeFromCells(state->cells) != wanted) continue;
+                    game->roomX = x;
+                    game->roomY = y;
+                    /* Il giocatore si piazza PRIMA di WorldSpawnRoomContents:
+                       e' quella a fissare l'inquadratura d'ingresso
+                       (WorldSnapCamera), esattamente come nel gioco vero.
+                       Il punto si sceglie dentro una CELLA OCCUPATA, mai nel
+                       riquadro grezzo: su una forma a L il riquadro comprende
+                       l'angolo mancante, e senza un passo di simulazione a
+                       respingerlo il giocatore resterebbe dentro il muro. */
+                    int cellX[4], cellY[4];
+                    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+                    int pick = (cellIndex < cellCount) ? cellIndex : (cellCount - 1);
+                    Rectangle rect = WorldCellRect(game, cellX[pick], cellY[pick]);
+                    game->player.pos = (Vector2){ rect.x + rect.width*ux, rect.y + rect.height*uy };
+                    WorldSpawnRoomContents(game);
+                    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+                    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, path);
+                    bool valid = canvas.texture.id != 0;
+                    UnloadRenderTexture(canvas);
+                    printf("  [room-shot] taglia %d, seed %u piano %d cella (%d,%d) -> %s\n",
+                           (int)wanted, kSeeds[si], floor, x, y, path);
+                    return valid;
+                }
+            }
+        }
+    }
+    fprintf(stderr, "GameRoomShapesScreenshotTest: nessun piano coi semi di prova contiene la taglia %d\n", (int)wanted);
+    return false;
+}
+
+bool GameRoomShapesScreenshotTest(Game *game)
+{
+    bool ok = true;
+    /* 2x2: al centro della stanza (l'angolo comune alle quattro celle, dove la
+       telecamera non tocca nessun bordo) e poi in fondo alla quarta cella,
+       dove sbatte contro il clamp e si vedono due muri. */
+    if (!RoomShapesShoot(game, ROOM_SIZE_2X2, 0, 0.98f, 0.98f, "logs/worldsmelt-room-2x2-centro.png")) ok = false;
+    if (!RoomShapesShoot(game, ROOM_SIZE_2X2, 3, 0.92f, 0.92f, "logs/worldsmelt-room-2x2-angolo.png")) ok = false;
+    if (!RoomShapesShoot(game, ROOM_SIZE_1X2, 0, 0.10f, 0.50f, "logs/worldsmelt-room-1x2.png")) ok = false;
+    /* Forma a L: due scatti in due celle diverse -- e' il caso in cui la
+       telecamera si aggancia alla CELLA corrente, e i due fotogrammi mostrano
+       le due inquadrature fra cui interpola. */
+    if (!RoomShapesShoot(game, ROOM_SIZE_L, 0, 0.50f, 0.50f, "logs/worldsmelt-room-l-cella1.png")) ok = false;
+    if (!RoomShapesShoot(game, ROOM_SIZE_L, 1, 0.50f, 0.50f, "logs/worldsmelt-room-l-cella2.png")) ok = false;
     return ok;
 }
 

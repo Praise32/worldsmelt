@@ -5,6 +5,7 @@
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
+#include "world/room_camera.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -24,11 +25,6 @@ const char *GameRoomKindName(RoomKind kind)
     }
 }
 
-static int OppositeDir(int dir)
-{
-    return (dir + 2)%4;
-}
-
 static int DirDx(int dir)
 {
     return (dir == DIR_RIGHT) - (dir == DIR_LEFT);
@@ -39,31 +35,319 @@ static int DirDy(int dir)
     return (dir == DIR_DOWN) - (dir == DIR_UP);
 }
 
+/* ============================================================
+   DEC-170 -- celle, stanze multi-cella, geometria.
+
+   Una stanza e' una MASCHERA di celle dentro un riquadro 2x2 (RoomState.cells,
+   core/game_types.h) ancorata alla cella (originX, originY). Tutto il resto di
+   questa sezione e' derivato da quei due dati: nessun rettangolo in pixel
+   memorizzato, nessuna taglia da tenere sincronizzata a mano (era il rischio
+   dichiarato del lattice di M2, che duplicava il minimo garantito in world.h).
+   ============================================================ */
+
+static int CellBitDx(int bit) { return bit & 1; }
+static int CellBitDy(int bit) { return bit >> 1; }
+
+/* Indice del primo bit acceso in ordine di lettura ((0,0), (1,0), (0,1),
+   (1,1)): la cella di STATO di una stanza. Sempre >= 0 per una maschera non
+   vuota, quindi la cella di stato esiste SEMPRE davvero -- anche per la forma
+   a L a cui manca proprio l'angolo in alto a sinistra. */
+static int CellMaskFirstBit(unsigned char cells)
+{
+    for (int i = 0; i < 4; i++) if (cells & (unsigned char)(1u << i)) return i;
+    return 0;
+}
+
+static int CellMaskCount(unsigned char cells)
+{
+    int n = 0;
+    for (int i = 0; i < 4; i++) if (cells & (unsigned char)(1u << i)) n++;
+    return n;
+}
+
+static void WorldClampCell(int *cx, int *cy)
+{
+    if (*cx < 0) *cx = 0;
+    if (*cx >= GRID_SIZE) *cx = GRID_SIZE - 1;
+    if (*cy < 0) *cy = 0;
+    if (*cy >= GRID_SIZE) *cy = GRID_SIZE - 1;
+}
+
+RoomState *WorldRoomAtMutable(Game *game, int cx, int cy)
+{
+    WorldClampCell(&cx, &cy);
+    RoomState *cell = &game->rooms[cy][cx];
+    if (!cell->exists || cell->cells == 0) return cell;   /* cella mai generata: 1x1 ancorata a se stessa */
+    int bit = CellMaskFirstBit(cell->cells);
+    int ax = cell->originX + CellBitDx(bit);
+    int ay = cell->originY + CellBitDy(bit);
+    if (ax < 0 || ax >= GRID_SIZE || ay < 0 || ay >= GRID_SIZE) return cell;   /* difensivo: origine corrotta */
+    return &game->rooms[ay][ax];
+}
+
+const RoomState *WorldRoomAt(const Game *game, int cx, int cy)
+{
+    return WorldRoomAtMutable((Game *)game, cx, cy);
+}
+
+bool WorldSameRoom(const Game *game, int ax, int ay, int bx, int by)
+{
+    if (ax < 0 || ax >= GRID_SIZE || ay < 0 || ay >= GRID_SIZE) return false;
+    if (bx < 0 || bx >= GRID_SIZE || by < 0 || by >= GRID_SIZE) return false;
+    if (!game->rooms[ay][ax].exists || !game->rooms[by][bx].exists) return false;
+    return WorldRoomAt(game, ax, ay) == WorldRoomAt(game, bx, by);
+}
+
+RoomSize WorldRoomSizeFromCells(unsigned char cells)
+{
+    int count = CellMaskCount(cells);
+    if (count <= 1) return ROOM_SIZE_1X1;
+    if (count == 4) return ROOM_SIZE_2X2;
+    if (count == 3) return ROOM_SIZE_L;
+    /* Due celle: orizzontali se condividono la riga, verticali se la colonna.
+       Non si assume che la coppia sia ancorata a (0,0): una maschera scritta a
+       mano in un test resta classificata bene. */
+    int first = CellMaskFirstBit(cells);
+    int second = CellMaskFirstBit((unsigned char)(cells & ~(unsigned char)(1u << first)));
+    return (CellBitDy(first) == CellBitDy(second)) ? ROOM_SIZE_1X2 : ROOM_SIZE_2X1;
+}
+
+int WorldRoomCellCount(const Game *game, int cx, int cy)
+{
+    const RoomState *cell = WorldRoomAt(game, cx, cy);
+    /* Mai 0: una cella mai generata (Piano 0/hub, un Game di test costruito a
+       mano) vale una stanza 1x1, esattamente come per la geometria sopra --
+       chi legge questo conteggio lo usa per scalare qualcosa, e uno zero lo
+       azzererebbe in silenzio. */
+    if (!cell->exists || cell->cells == 0) return 1;
+    return CellMaskCount(cell->cells);
+}
+
 RoomState *WorldCurrentRoomMutable(Game *game)
 {
-    return &game->rooms[game->roomY][game->roomX];
+    return WorldRoomAtMutable(game, game->roomX, game->roomY);
 }
 
 const RoomState *GameCurrentRoom(const Game *game)
 {
-    return &game->rooms[game->roomY][game->roomX];
+    return WorldRoomAt(game, game->roomX, game->roomY);
 }
 
-Rectangle WorldRoomRect(const Game *game, int rx, int ry)
+/* Origine del riquadro della stanza che possiede (cx,cy). Per una cella mai
+   passata dal generatore (cells == 0) l'origine e' la cella stessa: il Piano
+   0/hub e un Game di test costruito a mano si comportano esattamente come
+   prima di DEC-170, senza dover inizializzare nulla in piu'. */
+static void WorldRoomOrigin(const Game *game, int cx, int cy, int *ox, int *oy, unsigned char *cells)
 {
-    const RoomState *r = &game->rooms[ry][rx];
-    /* w/h <= 0: nessuna taglia impostata (Piano 0/hub, un Game di test
-       costruito a mano) -- il rettangolo massimo di sempre, invariato. */
-    float w = (r->w > 0) ? (float)r->w : ROOM_W;
-    float h = (r->h > 0) ? (float)r->h : ROOM_H;
-    float cx = ROOM_X + ROOM_W*0.5f;
-    float cy = ROOM_Y + ROOM_H*0.5f;
-    return (Rectangle){ cx - w*0.5f, cy - h*0.5f, w, h };
+    WorldClampCell(&cx, &cy);
+    const RoomState *cell = &game->rooms[cy][cx];
+    if (cell->cells == 0)
+    {
+        *ox = cx; *oy = cy; *cells = ROOM_CELL_BIT(0, 0);
+        return;
+    }
+    *ox = cell->originX; *oy = cell->originY; *cells = cell->cells;
+}
+
+/* La cella di STATO della stanza che possiede (cx,cy), in coordinate di
+   griglia (la prima occupata in ordine di lettura: esiste sempre). */
+static void WorldRoomStateCell(const Game *game, int cx, int cy, int *sx, int *sy)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, cx, cy, &ox, &oy, &cells);
+    int bit = CellMaskFirstBit(cells);
+    *sx = ox + CellBitDx(bit);
+    *sy = oy + CellBitDy(bit);
+}
+
+static Rectangle WorldCellRectFrom(int ox, int oy, int cx, int cy)
+{
+    return (Rectangle){ ROOM_X + (float)(cx - ox)*ROOM_W, ROOM_Y + (float)(cy - oy)*ROOM_H, ROOM_W, ROOM_H };
+}
+
+Rectangle WorldCellRect(const Game *game, int cx, int cy)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, cx, cy, &ox, &oy, &cells);
+    return WorldCellRectFrom(ox, oy, cx, cy);
+}
+
+Rectangle WorldRoomRect(const Game *game, int cx, int cy)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, cx, cy, &ox, &oy, &cells);
+    (void)ox; (void)oy;
+    float w = (cells & (ROOM_CELL_BIT(1, 0) | ROOM_CELL_BIT(1, 1))) ? ROOM_W*2.0f : ROOM_W;
+    float h = (cells & (ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1))) ? ROOM_H*2.0f : ROOM_H;
+    return (Rectangle){ ROOM_X, ROOM_Y, w, h };
 }
 
 Rectangle WorldCurrentRoomRect(const Game *game)
 {
     return WorldRoomRect(game, game->roomX, game->roomY);
+}
+
+Vector2 WorldRoomCenter(const Game *game)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, game->roomX, game->roomY, &ox, &oy, &cells);
+    float sx = 0.0f, sy = 0.0f;
+    int n = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        Rectangle r = WorldCellRectFrom(ox, oy, ox + CellBitDx(i), oy + CellBitDy(i));
+        sx += r.x + r.width*0.5f;
+        sy += r.y + r.height*0.5f;
+        n++;
+    }
+    if (n == 0) return (Vector2){ ROOM_X + ROOM_W*0.5f, ROOM_Y + ROOM_H*0.5f };
+    return (Vector2){ sx/(float)n, sy/(float)n };
+}
+
+int WorldRoomCells(const Game *game, int *outX, int *outY, int maxOut)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, game->roomX, game->roomY, &ox, &oy, &cells);
+    int n = 0;
+    for (int i = 0; i < 4 && n < maxOut; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        if (outX) outX[n] = ox + CellBitDx(i);
+        if (outY) outY[n] = oy + CellBitDy(i);
+        n++;
+    }
+    return n;
+}
+
+int WorldRoomHoleCount(const Game *game)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, game->roomX, game->roomY, &ox, &oy, &cells);
+    (void)ox; (void)oy;
+    /* Solo le celle DENTRO il riquadro: una 1x2 non ha buchi, il suo riquadro
+       e' alto una cella sola. */
+    int w = (cells & (ROOM_CELL_BIT(1, 0) | ROOM_CELL_BIT(1, 1))) ? 2 : 1;
+    int h = (cells & (ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1))) ? 2 : 1;
+    return w*h - CellMaskCount(cells);
+}
+
+Rectangle WorldRoomHoleRect(const Game *game, int index)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, game->roomX, game->roomY, &ox, &oy, &cells);
+    int w = (cells & (ROOM_CELL_BIT(1, 0) | ROOM_CELL_BIT(1, 1))) ? 2 : 1;
+    int h = (cells & (ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1))) ? 2 : 1;
+    int seen = 0;
+    for (int dy = 0; dy < h; dy++)
+    {
+        for (int dx = 0; dx < w; dx++)
+        {
+            if (cells & ROOM_CELL_BIT(dx, dy)) continue;
+            if (seen == index) return WorldCellRectFrom(ox, oy, ox + dx, oy + dy);
+            seen++;
+        }
+    }
+    return (Rectangle){ 0.0f, 0.0f, 0.0f, 0.0f };
+}
+
+void WorldPlayerCell(const Game *game, int *cx, int *cy)
+{
+    int ox, oy; unsigned char cells;
+    WorldRoomOrigin(game, game->roomX, game->roomY, &ox, &oy, &cells);
+    int dx = (int)floorf((game->player.pos.x - ROOM_X)/ROOM_W);
+    int dy = (int)floorf((game->player.pos.y - ROOM_Y)/ROOM_H);
+    if (dx < 0) dx = 0;
+    if (dx > 1) dx = 1;
+    if (dy < 0) dy = 0;
+    if (dy > 1) dy = 1;
+    if (!(cells & ROOM_CELL_BIT(dx, dy)))
+    {
+        /* Fuori dalle celle occupate (il buco di una forma a L, per il frame in
+           cui la collisione non ha ancora respinto): la cella occupata piu'
+           vicina, mai una cella che non esiste. */
+        float best = -1.0f;
+        for (int i = 0; i < 4; i++)
+        {
+            if (!(cells & (unsigned char)(1u << i))) continue;
+            Rectangle r = WorldCellRectFrom(ox, oy, ox + CellBitDx(i), oy + CellBitDy(i));
+            float px = GameMathClampFloat(game->player.pos.x, r.x, r.x + r.width);
+            float py = GameMathClampFloat(game->player.pos.y, r.y, r.y + r.height);
+            float d = (px - game->player.pos.x)*(px - game->player.pos.x) + (py - game->player.pos.y)*(py - game->player.pos.y);
+            if (best < 0.0f || d < best) { best = d; dx = CellBitDx(i); dy = CellBitDy(i); }
+        }
+    }
+    if (cx) *cx = ox + dx;
+    if (cy) *cy = oy + dy;
+}
+
+void WorldClampToRoom(const Game *game, Vector2 *pos, float radius)
+{
+    Rectangle room = WorldCurrentRoomRect(game);
+    pos->x = GameMathClampFloat(pos->x, room.x + radius, room.x + room.width - radius);
+    pos->y = GameMathClampFloat(pos->y, room.y + radius, room.y + room.height - radius);
+}
+
+/* ============================================================
+   DEC-170 -- telecamera (il principio sta in world/room_camera.h).
+   ============================================================ */
+
+Rectangle WorldCameraFocusRect(const Game *game)
+{
+    const RoomState *room = GameCurrentRoom(game);
+    if (WorldRoomSizeFromCells(room->cells) == ROOM_SIZE_L)
+    {
+        /* Forma a L: il clamp usa la CELLA CORRENTE, non il riquadro. E' la
+           sola scelta che rispetta DEC-170 alla lettera ("non mostra mai area
+           fuori dal rettangolo occupato") senza inventare uno zoom dinamico o
+           una maschera: il riquadro di una L contiene l'angolo mancante, e una
+           telecamera libera dentro il riquadro lo mostrerebbe. Il prezzo e' un
+           salto del bersaglio quando si cambia cella, assorbito
+           dall'interpolazione di WorldCameraApproach. */
+        int cx, cy;
+        WorldPlayerCell(game, &cx, &cy);
+        return WorldCellRect(game, cx, cy);
+    }
+    return WorldCurrentRoomRect(game);
+}
+
+static Vector2 WorldCameraDesiredTarget(const Game *game)
+{
+    Rectangle bounds = WorldCameraBoundsFromRoom(WorldCameraFocusRect(game));
+    return WorldCameraClampTarget(bounds, game->player.pos, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
+}
+
+Camera2D WorldGameCamera(const Game *game)
+{
+    Camera2D cam;
+    cam.offset = (Vector2){ (float)SCREEN_WIDTH*0.5f, (float)SCREEN_HEIGHT*0.5f };
+    cam.target = game->cameraTarget;
+    cam.rotation = 0.0f;
+    cam.zoom = 1.0f;   /* DEC-170: MAI un valore diverso da 1 */
+    return cam;
+}
+
+Rectangle WorldCameraView(const Game *game)
+{
+    return (Rectangle){ game->cameraTarget.x - (float)SCREEN_WIDTH*0.5f,
+                        game->cameraTarget.y - (float)SCREEN_HEIGHT*0.5f,
+                        (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT };
+}
+
+Vector2 WorldCanvasToWorld(const Game *game, Vector2 canvasPos)
+{
+    Rectangle view = WorldCameraView(game);
+    return (Vector2){ canvasPos.x + view.x, canvasPos.y + view.y };
+}
+
+void WorldSnapCamera(Game *game)
+{
+    game->cameraTarget = WorldCameraDesiredTarget(game);
+}
+
+void WorldUpdateCamera(Game *game, float dt)
+{
+    game->cameraTarget = WorldCameraApproach(game->cameraTarget, WorldCameraDesiredTarget(game), dt, WORLD_CAMERA_RATE);
 }
 
 bool WorldNoEnemiesActive(const Game *game)
@@ -81,6 +365,181 @@ bool GameRoomIsLocked(const Game *game)
     return (room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) && !room->cleared && !WorldNoEnemiesActive(game);
 }
 
+/* ============================================================
+   DEC-170 -- generazione del piano a FORME.
+
+   Il generatore non scava piu' celle singole: piazza FORME (le cinque classi
+   di DEC-170) una accanto all'altra. Due garanzie strutturali, entrambe per
+   costruzione e non per tentativi:
+     - NIENTE SOVRAPPOSIZIONI: una forma si scrive solo se TUTTE le sue celle
+       sono libere e dentro la griglia (WorldShapeFits);
+     - PIANO CONNESSO: ogni forma nuova deve contenere una cella ADIACENTE a
+       una cella gia' occupata, quindi la stanza nuova confina sempre con una
+       vecchia (e WorldLinkRooms ci mette una porta).
+   Tutte le estrazioni passano da game->rng: stesso seed => stesso piano,
+   taglie comprese.
+   ============================================================ */
+
+/* Distribuzione delle taglie (DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE, stile
+   DEC-019: DEC-170 fissa le classi, non le percentuali -- vedi
+   rooms-and-floor-generation.md, "Default proposti"). Percentuali cumulate su
+   100. La 1x1 resta la maggioranza netta: le taglie grandi devono restare un
+   evento, o il piano perde il ritmo "una stanza, una schermata" e la
+   telecamera fissa (il caso che DEC-170 vuole invariato) diventerebbe
+   l'eccezione. */
+#define WORLD_SIZE_CUM_1X1 55
+#define WORLD_SIZE_CUM_1X2 70
+#define WORLD_SIZE_CUM_2X1 85
+#define WORLD_SIZE_CUM_2X2 93
+/* il resto (7%) e' la forma a L */
+
+static unsigned char WorldRollShapeCells(Game *game)
+{
+    int roll = GameRngRange(&game->rng, 0, 99);
+    if (roll < WORLD_SIZE_CUM_1X1) return ROOM_CELL_BIT(0, 0);
+    if (roll < WORLD_SIZE_CUM_1X2) return (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0));
+    if (roll < WORLD_SIZE_CUM_2X1) return (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(0, 1));
+    if (roll < WORLD_SIZE_CUM_2X2) return (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0) |
+                                                          ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1));
+    /* Forma a L: il blocco 2x2 meno UN angolo, tutti e quattro gli
+       orientamenti (la cella di stato resta occupata per costruzione, vedi
+       CellMaskFirstBit). */
+    int missing = GameRngRange(&game->rng, 0, 3);
+    return (unsigned char)(0x0Fu & ~(unsigned char)(1u << missing));
+}
+
+static bool WorldCellFree(const Game *game, int cx, int cy)
+{
+    if (cx < 0 || cx >= GRID_SIZE || cy < 0 || cy >= GRID_SIZE) return false;
+    return !game->rooms[cy][cx].exists;
+}
+
+static bool WorldShapeFits(const Game *game, int ox, int oy, unsigned char cells)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        if (!WorldCellFree(game, ox + CellBitDx(i), oy + CellBitDy(i))) return false;
+    }
+    return true;
+}
+
+static RoomState *WorldWriteRoom(Game *game, int ox, int oy, unsigned char cells, RoomKind kind)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        RoomState *cell = &game->rooms[oy + CellBitDy(i)][ox + CellBitDx(i)];
+        memset(cell, 0, sizeof(*cell));
+        cell->exists = true;
+        cell->cells = cells;
+        cell->originX = ox;
+        cell->originY = oy;
+    }
+    int bit = CellMaskFirstBit(cells);
+    RoomState *state = &game->rooms[oy + CellBitDy(bit)][ox + CellBitDx(bit)];
+    state->kind = kind;
+    return state;
+}
+
+/* Piazza 'cells' in modo che la cella LIBERA (nx,ny) ne faccia parte, provando
+   ogni ruolo che quella cella puo' avere dentro la forma (la stessa L incastra
+   in quattro modi diversi attorno allo stesso punto). 'rot' sposta il punto di
+   partenza della ricerca: e' cio' che rende varie le forme grandi in una
+   griglia stretta, invece di ancorarle sempre in alto a sinistra. */
+static RoomState *WorldPlaceShapeAt(Game *game, int nx, int ny, unsigned char cells, RoomKind kind, int rot)
+{
+    for (int k = 0; k < 4; k++)
+    {
+        int i = (rot + k)%4;
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        int ox = nx - CellBitDx(i);
+        int oy = ny - CellBitDy(i);
+        if (!WorldShapeFits(game, ox, oy, cells)) continue;
+        return WorldWriteRoom(game, ox, oy, cells, kind);
+    }
+    return NULL;
+}
+
+/* Le celle occupate del piano, compattate: il generatore ci pesca dentro per
+   scegliere da dove far crescere la stanza successiva. Pescare una CELLA (e
+   non una stanza) da' piu' peso alle stanze grandi, che infatti hanno piu'
+   perimetro su cui attaccare una vicina. */
+static int WorldCollectCells(const Game *game, int *outX, int *outY)
+{
+    int n = 0;
+    for (int y = 0; y < GRID_SIZE; y++)
+        for (int x = 0; x < GRID_SIZE; x++)
+            if (game->rooms[y][x].exists) { outX[n] = x; outY[n] = y; n++; }
+    return n;
+}
+
+/* Distanza in celle dalla partenza (BFS sulle celle esistenti): serve solo a
+   mettere il boss lontano, quindi una BFS a costo uniforme basta e avanza. */
+static void WorldCellDistances(const Game *game, int sx, int sy, int dist[GRID_SIZE][GRID_SIZE])
+{
+    for (int y = 0; y < GRID_SIZE; y++)
+        for (int x = 0; x < GRID_SIZE; x++)
+            dist[y][x] = -1;
+    int queueX[GRID_SIZE*GRID_SIZE], queueY[GRID_SIZE*GRID_SIZE];
+    int head = 0, tail = 0;
+    dist[sy][sx] = 0;
+    queueX[tail] = sx; queueY[tail] = sy; tail++;
+    while (head < tail)
+    {
+        int x = queueX[head], y = queueY[head];
+        head++;
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = x + DirDx(d), ny = y + DirDy(d);
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists || dist[ny][nx] >= 0) continue;
+            dist[ny][nx] = dist[y][x] + 1;
+            queueX[tail] = nx; queueY[tail] = ny; tail++;
+        }
+    }
+}
+
+/* La stanza boss si piazza NUOVA, attaccata al piano gia' cresciuto, e si
+   prova prima la classe piu' GRANDE: DEC-170 non fissa la taglia del boss, e
+   un'arena 2x2 e' il default proposto qui (bosses.md chiede spazio, e la 2x2 e'
+   il massimo che la griglia possa dare). L'ordine delle prove e' "prima la
+   taglia, poi la distanza": fra le celle candidate si parte sempre dalla piu'
+   lontana dalla partenza, ma una 2x2 un po' meno lontana batte una 1x1 in
+   fondo al piano -- l'arena e' cio' che rende leggibile lo scontro, e la
+   frontiera libera di un piano cresciuto dal centro e' comunque periferia.
+   Se non entra nulla di grande si scende di classe fino alla 1x1, che nella
+   prima cella libera entra sempre. */
+static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY, int orderCount)
+{
+    static const unsigned char kBossShapes[] = {
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0) | ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(1, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(0, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(1, 0)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(0, 0)),
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0)),
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(0, 1)),
+        ROOM_CELL_BIT(0, 0)
+    };
+    const int shapeCount = (int)(sizeof(kBossShapes)/sizeof(kBossShapes[0]));
+    int dirStart = GameRngRange(&game->rng, 0, 3);
+    int rot = GameRngRange(&game->rng, 0, 3);
+    for (int s = 0; s < shapeCount; s++)
+    {
+        for (int c = 0; c < orderCount; c++)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                int d = (dirStart + k)%4;
+                int nx = orderX[c] + DirDx(d), ny = orderY[c] + DirDy(d);
+                if (!WorldCellFree(game, nx, ny)) continue;
+                if (WorldPlaceShapeAt(game, nx, ny, kBossShapes[s], ROOM_BOSS, rot)) return true;
+            }
+        }
+    }
+    return false;
+}
 
 static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
 {
@@ -89,21 +548,26 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
     {
         int x = GameRngRange(&game->rng, 0, GRID_SIZE - 1);
         int y = GameRngRange(&game->rng, 0, GRID_SIZE - 1);
-        if (game->rooms[y][x].exists) continue;
+        if (!WorldCellFree(game, x, y)) continue;
         for (int d = 0; d < 4; d++)
         {
             int nx = x + DirDx(d);
             int ny = y + DirDy(d);
             if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
             if (!game->rooms[ny][nx].exists) continue;
-            game->rooms[y][x].exists = true;
-            game->rooms[y][x].kind = kind;
-            game->rooms[y][x].cleared = true;
+            /* Tesoro e negozio restano 1x1 (default proposto): sono stanze da
+               una ricompensa, tutta visibile appena si entra -- e' proprio il
+               caso in cui la telecamera fissa di DEC-170 e' un pregio. */
+            RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
+            state->cleared = true;
             return;
         }
     }
 }
 
+/* Una porta collega due celle ADIACENTI di stanze DIVERSE. Due celle della
+   stessa stanza non hanno porta fra loro: sono lo stesso spazio continuo, il
+   giocatore ci passa camminando (DEC-170). */
 static void WorldLinkRooms(Game *game)
 {
     for (int y = 0; y < GRID_SIZE; y++)
@@ -116,106 +580,9 @@ static void WorldLinkRooms(Game *game)
             {
                 int nx = x + DirDx(d);
                 int ny = y + DirDy(d);
-                r->doors[d] = (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && game->rooms[ny][nx].exists);
+                bool inGrid = (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE);
+                r->doors[d] = inGrid && game->rooms[ny][nx].exists && !WorldSameRoom(game, x, y, nx, ny);
             }
-        }
-    }
-}
-
-/* ============================================================
-   M2 (DEC-009, default PROPOSTO -- vedi rooms-and-floor-generation.md,
-   "Default proposti dall'implementazione": i valori esatti restano una
-   domanda aperta di design, non una decisione). Un lattice di taglie
-   quantizzate a passi di 8px (ogni larghezza e' congrua a 4 mod 8, ogni
-   altezza a 2 mod 8: la stessa griglia pixel-art del rettangolo massimo
-   ROOM_X/Y/W/H, campionata a taglie via via piu' piccole -- niente valore
-   "a caso" che stonasse con gli sprite). Il piu' piccolo di ciascun elenco
-   E' la grandezza minima garantita da DEC-009.
-   ============================================================ */
-/* Il piu' piccolo di ciascun elenco DEVE restare uguale a
-   WORLD_ROOM_MIN_W/H (world.h): --rooms-test (src/tests/game_tests.c) li
-   verifica separatamente perche' quella costante e' pubblica apposta, senza
-   esporre l'intero lattice. */
-static const int kRoomSizeWidths[]  = { 876, 812, 748, 684, 620, 556 };
-static const int kRoomSizeHeights[] = { 458, 418, 378, 338, 298 };
-#define ROOM_SIZE_W_COUNT 6
-#define ROOM_SIZE_H_COUNT 5
-#define ROOM_SIZE_POOL_COUNT (ROOM_SIZE_W_COUNT*ROOM_SIZE_H_COUNT)
-
-typedef struct RoomSizePair { int w; int h; } RoomSizePair;
-
-/* Ordina il pool per AREA decrescente: dopo questa chiamata pool[0] e'
-   SEMPRE (876,458), l'unica taglia massima su entrambe le dimensioni (per
-   ogni altra coppia w'<=876 e h'<=458 con almeno una disuguaglianza
-   stretta, quindi w'*h' < 876*458 -- non serve cercarla, e' sempre in
-   testa). Usata per riservare senza ambiguita' la taglia del boss e una
-   taglia "almeno mediana" per la stanza di partenza, PRIMA di mescolare il
-   resto (vedi WorldGenerateFloorMap). */
-static int RoomSizePairCompareDesc(const void *a, const void *b)
-{
-    const RoomSizePair *pa = (const RoomSizePair *)a;
-    const RoomSizePair *pb = (const RoomSizePair *)b;
-    long areaA = (long)pa->w*(long)pa->h;
-    long areaB = (long)pb->w*(long)pb->h;
-    if (areaA != areaB) return (areaA < areaB) ? 1 : -1;
-    return (pa->w < pb->w) ? 1 : ((pa->w > pb->w) ? -1 : 0);
-}
-
-/* Assegna a OGNI stanza esistente del piano una coppia (w,h) DISTINTA dal
-   lattice sopra: il pool ha 30 coppie, ben piu' delle ~7-16 stanze di un
-   piano (targetRooms fino a 9+floor, piu' fino a 2 per tesoro/negozio), quindi
-   "nessuna coppia ripetuta" e' una garanzia STRUTTURALE (si pesca senza
-   rimessa), non probabilistica. La stanza boss prende SEMPRE la taglia
-   massima (default DEC-009: "la stanza boss usa sempre la taglia
-   massima"); la stanza di partenza prende una taglia riservata "almeno
-   mediana" (l'indice a meta' pool dopo l'ordinamento per area, che per
-   costruzione ha area >= di almeno meta' delle altre coppie). Tutte le
-   altre stanze pescano dal resto del pool, mescolato con l'RNG della run
-   (determinismo: stesso seed, stesso ordine di estrazione, stessa mappa). */
-static void WorldAssignRoomSizes(Game *game)
-{
-    RoomSizePair pool[ROOM_SIZE_POOL_COUNT];
-    int n = 0;
-    for (int i = 0; i < ROOM_SIZE_W_COUNT; i++)
-        for (int j = 0; j < ROOM_SIZE_H_COUNT; j++)
-            pool[n++] = (RoomSizePair){ kRoomSizeWidths[i], kRoomSizeHeights[j] };
-    qsort(pool, ROOM_SIZE_POOL_COUNT, sizeof(RoomSizePair), RoomSizePairCompareDesc);
-
-    RoomSizePair bossSize = pool[0];
-    int startIdx = ROOM_SIZE_POOL_COUNT/2 - 1;   /* 14 su 30: comodamente sopra meta' pool per area */
-    RoomSizePair startSize = pool[startIdx];
-
-    RoomSizePair rest[ROOM_SIZE_POOL_COUNT];
-    int restCount = 0;
-    for (int i = 0; i < ROOM_SIZE_POOL_COUNT; i++)
-    {
-        if (i == 0 || i == startIdx) continue;
-        rest[restCount++] = pool[i];
-    }
-    for (int i = restCount - 1; i > 0; i--)
-    {
-        int j = GameRngRange(&game->rng, 0, i);
-        RoomSizePair t = rest[i]; rest[i] = rest[j]; rest[j] = t;
-    }
-
-    int restUsed = 0;
-    int cx = GRID_SIZE/2, cy = GRID_SIZE/2;
-    for (int ry = 0; ry < GRID_SIZE; ry++)
-    {
-        for (int rx = 0; rx < GRID_SIZE; rx++)
-        {
-            RoomState *r = &game->rooms[ry][rx];
-            if (!r->exists) continue;
-            if (rx == cx && ry == cy) { r->w = startSize.w; r->h = startSize.h; continue; }
-            if (r->kind == ROOM_BOSS) { r->w = bossSize.w; r->h = bossSize.h; continue; }
-            /* Difensivo (non dovrebbe mai scattare, vedi il commento sopra su
-               quante stanze puo' avere davvero un piano): se il pool finisse,
-               ripete l'ultima taglia invece di lasciare w/h a 0 (che
-               ripiegherebbe silenziosamente sulla taglia MASSIMA, la
-               violazione piu' vistosa possibile di "grandezze diverse"). */
-            RoomSizePair sz = rest[(restUsed < restCount) ? restUsed : (restCount - 1)];
-            if (restUsed < restCount) restUsed++;
-            r->w = sz.w; r->h = sz.h;
         }
     }
 }
@@ -223,80 +590,150 @@ static void WorldAssignRoomSizes(Game *game)
 static void WorldGenerateFloorMap(Game *game)
 {
     memset(game->rooms, 0, sizeof(game->rooms));
-    int x = GRID_SIZE/2;
-    int y = GRID_SIZE/2;
-    int lastX = x;
-    int lastY = y;
-    game->roomX = x;
-    game->roomY = y;
+    int sx = GRID_SIZE/2;
+    int sy = GRID_SIZE/2;
+    game->roomX = sx;
+    game->roomY = sy;
 
-    game->rooms[y][x].exists = true;
-    game->rooms[y][x].kind = ROOM_START;
-    game->rooms[y][x].cleared = true;
-    game->rooms[y][x].visited = true;
+    /* Stanza di partenza SEMPRE 1x1 (default proposto): il primo schermo di un
+       piano e' anche quello che insegna a leggere lo spazio, e la 1x1 e' la
+       taglia che il giocatore vede per intero senza muovere la telecamera. */
+    RoomState *start = WorldWriteRoom(game, sx, sy, ROOM_CELL_BIT(0, 0), ROOM_START);
+    start->cleared = true;
+    start->visited = true;
 
-    /* Numero di stanze VARIABILE (M2, DEC-009 default proposto): 6+piano
-       piu' un'estrazione 0..3 dall'RNG della run (piano 1: 7..10, piano 5:
-       11..14), cappato implicitamente dal guard sotto (celle davvero
-       raggiungibili dal random walk in 300 tentativi). */
-    int targetRooms = 6 + game->floor + GameRngRange(&game->rng, 0, 3);
-    int made = 1;
-    int guard = 300;
-    while (made < targetRooms && guard-- > 0)
+    /* DEC-170 cambia l'unita' di misura del piano: il budget resta quello di
+       DEC-009 (6 + piano + 0..3) ma conta CELLE, non stanze -- una stanza ne
+       occupa da 1 a 4. Cosi' la superficie giocabile di un piano resta quella
+       di sempre e non esplode con le taglie grandi; il numero di STANZE scende
+       (e' la conseguenza dichiarata di DEC-170, non un effetto collaterale). */
+    int targetCells = 6 + game->floor + GameRngRange(&game->rng, 0, 3);
+    int placedCells = 1;
+    int guard = 400;
+    while (placedCells < targetCells && guard-- > 0)
     {
+        int cellsX[GRID_SIZE*GRID_SIZE], cellsY[GRID_SIZE*GRID_SIZE];
+        int occupied = WorldCollectCells(game, cellsX, cellsY);
+        if (occupied <= 0) break;
+        int pick = GameRngRange(&game->rng, 0, occupied - 1);
         int d = GameRngRange(&game->rng, 0, 3);
-        int nx = x + DirDx(d);
-        int ny = y + DirDy(d);
-        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
-        x = nx;
-        y = ny;
-        if (!game->rooms[y][x].exists)
+        int nx = cellsX[pick] + DirDx(d);
+        int ny = cellsY[pick] + DirDy(d);
+        if (!WorldCellFree(game, nx, ny)) continue;
+
+        unsigned char shape = WorldRollShapeCells(game);
+        int rot = GameRngRange(&game->rng, 0, 3);
+        if (WorldPlaceShapeAt(game, nx, ny, shape, ROOM_COMBAT, rot) != NULL)
         {
-            game->rooms[y][x].exists = true;
-            game->rooms[y][x].kind = ROOM_COMBAT;
-            lastX = x;
-            lastY = y;
-            made++;
+            placedCells += CellMaskCount(shape);
+        }
+        else
+        {
+            /* La forma estratta non entra qui: si ripiega sulla 1x1, che nella
+               cella libera (nx,ny) entra sempre. Mai saltare il turno: e' cio'
+               che tiene il numero di celle del piano indipendente dalla
+               fortuna delle estrazioni. */
+            WorldPlaceShapeAt(game, nx, ny, ROOM_CELL_BIT(0, 0), ROOM_COMBAT, 0);
+            placedCells += 1;
         }
     }
 
-    if (lastX == GRID_SIZE/2 && lastY == GRID_SIZE/2)
+    /* Boss: le celle candidate a cui attaccarlo, ordinate per distanza
+       DECRESCENTE dalla partenza (ordinamento per inserzione: 25 elementi al
+       massimo, e serve stabile per restare deterministico). */
+    int dist[GRID_SIZE][GRID_SIZE];
+    WorldCellDistances(game, sx, sy, dist);
+    int orderX[GRID_SIZE*GRID_SIZE], orderY[GRID_SIZE*GRID_SIZE];
+    int orderCount = WorldCollectCells(game, orderX, orderY);
+    for (int i = 1; i < orderCount; i++)
     {
-        lastX = GRID_SIZE/2 + 1;
-        lastY = GRID_SIZE/2;
-        game->rooms[lastY][lastX].exists = true;
+        int cx = orderX[i], cy = orderY[i], key = dist[cy][cx];
+        int j = i - 1;
+        while (j >= 0 && dist[orderY[j]][orderX[j]] < key)
+        {
+            orderX[j + 1] = orderX[j];
+            orderY[j + 1] = orderY[j];
+            j--;
+        }
+        orderX[j + 1] = cx;
+        orderY[j + 1] = cy;
     }
-    game->rooms[lastY][lastX].kind = ROOM_BOSS;
-    game->rooms[lastY][lastX].cleared = false;
+
+    if (!WorldPlaceBossRoom(game, orderX, orderY, orderCount))
+    {
+        /* Griglia satura: come ultima rete si promuove a boss la stanza piu'
+           lontana gia' esistente. Un piano SENZA stanza boss non e'
+           completabile, quindi qui non si esce mai a mani vuote se esiste
+           almeno una stanza oltre la partenza. */
+        RoomState *far = WorldRoomAtMutable(game, orderX[0], orderY[0]);
+        if (far->kind != ROOM_START)
+        {
+            far->kind = ROOM_BOSS;
+            far->cleared = false;
+            far->visited = false;
+        }
+    }
 
     WorldPlaceSpecialRoom(game, ROOM_TREASURE);
     WorldPlaceSpecialRoom(game, ROOM_SHOP);
-    WorldAssignRoomSizes(game);
     WorldLinkRooms(game);
 }
 
-/* Fase 3c: ricostruisce gli ostacoli della stanza CORRENTE dal layout del piano.
-   Solo per le stanze di COMBATTIMENTO: il boss ha bisogno di spazio, e in
-   tesoro/negozio l'oggetto da raccogliere non deve mai finire dietro un muro. Il
-   seme mescola numero di stanza e coordinate cosi' due stanze di combattimento
-   dello stesso piano non hanno ostacoli identici, restando entrambe valide (la
-   garanzia e' in RoomLayoutBuild). */
+/* Fase 3c (DEC-170: una espansione PER CELLA): ricostruisce gli ostacoli della
+   stanza CORRENTE dal layout del piano. Le celle-buco di una forma a L entrano
+   sempre, per qualunque tipo di stanza: sono muro vero, e devono fermare
+   giocatore, nemici e colpi con lo stesso codice che ferma un ostacolo
+   qualsiasi. I blocchi del layout restano solo per le stanze di
+   COMBATTIMENTO non ripulite: il boss ha bisogno di spazio, e in
+   tesoro/negozio l'oggetto da raccogliere non deve mai finire dietro un muro.
+   Il layout si espande una volta per cella (scelta di implementazione ammessa
+   da DEC-170) col seme mescolato dalle coordinate ASSOLUTE della cella: due
+   celle della stessa stanza non hanno lo stesso arredo, e ognuna conserva le
+   garanzie di RoomLayoutBuild (croce centrale libera => la porta al centro di
+   ogni lato, e il passaggio verso la cella accanto, restano sempre
+   raggiungibili). */
 static void WorldBuildObstacles(Game *game, const RoomState *room)
 {
     game->obstacleCount = 0;
+    game->obstacleHoleCount = 0;
+
+    int holes = WorldRoomHoleCount(game);
+    for (int i = 0; i < holes && game->obstacleCount < MAX_OBSTACLES; i++)
+    {
+        Rectangle hole = WorldRoomHoleRect(game, i);
+        if (hole.width <= 0.0f || hole.height <= 0.0f) continue;
+        game->obstacles[game->obstacleCount].x = hole.x;
+        game->obstacles[game->obstacleCount].y = hole.y;
+        game->obstacles[game->obstacleCount].w = hole.width;
+        game->obstacles[game->obstacleCount].h = hole.height;
+        game->obstacleCount++;
+    }
+    game->obstacleHoleCount = game->obstacleCount;
+
     if (room->kind != ROOM_COMBAT || room->cleared) return;
     const RoomLayoutDef *layout = &game->content.floors[game->floor - 1].roomLayout;
     if (!layout->active) return;
-    unsigned int seed = (unsigned int)(game->roomX*73856093) ^ (unsigned int)(game->roomY*19349663) ^ ((unsigned int)game->floor*83492791u);
-    Rectangle rect = WorldCurrentRoomRect(game);   /* M2: la taglia VERA di questa stanza, non piu' il massimo fisso */
-    game->obstacleCount = RoomLayoutBuild(layout, seed, rect.x, rect.y, rect.width, rect.height,
-                                          game->obstacles, MAX_OBSTACLES);
+
+    int cellX[4], cellY[4];
+    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+    for (int i = 0; i < cellCount; i++)
+    {
+        int cx = cellX[i], cy = cellY[i];
+        unsigned int seed = (unsigned int)(cx*73856093) ^ (unsigned int)(cy*19349663) ^ ((unsigned int)game->floor*83492791u);
+        Rectangle rect = WorldCellRect(game, cx, cy);
+        int budget = MAX_OBSTACLES - game->obstacleCount;
+        if (budget > ROOM_LAYOUT_MAX_PER_CELL) budget = ROOM_LAYOUT_MAX_PER_CELL;
+        if (budget <= 0) break;
+        game->obstacleCount += RoomLayoutBuild(layout, seed, rect.x, rect.y, rect.width, rect.height,
+                                               game->obstacles + game->obstacleCount, budget);
+    }
 }
 
 /* Una posizione casuale nella stanza che NON cade dentro un ostacolo (fase 3c): un
    nemico non deve mai nascere incastrato in un muro. Riprova fino a 12 volte; se non
    trova un punto libero (stanza fittissima) usa comunque l'ultima -- la risoluzione
-   della collisione lo spingera' fuori al primo frame. */
+   della collisione lo spingera' fuori al primo frame. Con DEC-170 questo copre
+   gratis anche l'angolo mancante di una forma a L: e' un ostacolo come gli altri. */
 static Vector2 WorldFreeRoomPosition(Game *game, float pad)
 {
     Rectangle room = WorldCurrentRoomRect(game);
@@ -328,11 +765,18 @@ static Vector2 WorldFreeRoomPosition(Game *game, float pad)
  *
  * Il budget e' esattamente quello che spendeva la formula di prima (3 + piano
  * nemici da 1.0 di potenza), quindi una run senza tipi (manifest vecchio) genera
- * stanze della stessa difficolta' di sempre. */
+ * stanze della stessa difficolta' di sempre. DEC-170 aggiunge una scala per
+ * CELLA: una stanza 2x2 e' quattro schermate di spazio, e col budget di una
+ * sola schermata sarebbe vuota. */
 void WorldSpawnCombatRoom(Game *game)
 {
     const FloorContent *fc = &game->content.floors[game->floor - 1];
     float budget = 3.0f + (float)game->floor + (float)GameRngRange(&game->rng, 0, 2);
+    /* DEC-170 (default proposto): il budget cresce con le celle, ma SOTTO la
+       proporzione (radice quadrata invece che lineare) -- una stanza grande
+       deve sembrare piu' grande, non quattro stanze appiccicate. */
+    int cellCount = WorldRoomCellCount(game, game->roomX, game->roomY);
+    if (cellCount > 1) budget *= sqrtf((float)cellCount);
 
     /* Gli INDICI degli slot attivi, compattati (correzione da review). Contare
        quanti sono e poi indicizzare enemies[0..typeCount-1] presuppone che gli slot
@@ -347,10 +791,12 @@ void WorldSpawnCombatRoom(Game *game)
     for (int i = 0; i < 2; i++) if (fc->enemies[i].active) activeIdx[typeCount++] = i;
 
     int spawned = 0;
-    /* Il tetto duro resta MAX_ENEMIES; 16 e' il tetto di BUON SENSO per una stanza
+    /* Il tetto duro resta MAX_ENEMIES; 16 per cella e' il tetto di BUON SENSO
        (con nemici fiacchissimi il budget potrebbe altrimenti farne comparire una
        folla illeggibile). */
-    while (budget > 0.0f && spawned < 16)
+    int spawnCap = 16*cellCount;
+    if (spawnCap > MAX_ENEMIES) spawnCap = MAX_ENEMIES;
+    while (budget > 0.0f && spawned < spawnCap)
     {
         if (typeCount > 0)
         {
@@ -392,10 +838,10 @@ void WorldSpawnRoomContents(Game *game)
     RoomState *room = WorldCurrentRoomMutable(game);
     room->visited = true;
     game->roomNumber++;
-    /* M2: tutte le posizioni di spawno sotto sono relative al rettangolo
-       VERO di questa stanza (non piu' al massimo fisso). */
-    Rectangle rect = WorldCurrentRoomRect(game);
-    Vector2 center = { rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
+    /* DEC-170: le posizioni di spawno sono relative al BARICENTRO delle celle
+       occupate, non al centro del riquadro -- su una forma a L quel centro
+       cadrebbe nell'angolo mancante, cioe' dentro il muro. */
+    Vector2 center = WorldRoomCenter(game);
 
     /* Fase 3c: gli ostacoli si costruiscono PRIMA di piazzare i nemici, cosi'
        WorldFreeRoomPosition puo' evitarli. */
@@ -411,10 +857,11 @@ void WorldSpawnRoomContents(Game *game)
         /* Fase 3b: il boss del piano e' il TIPO che il modello ha inventato per
            questo piano. Se non c'e' (manifest vecchio, nessun manifest) resta il
            boss storico: EntitiesAddEnemyTyped con un tipo non attivo e' esattamente
-           EntitiesAddEnemy. */
+           EntitiesAddEnemy. Sta un quarto di cella sopra il baricentro: lontano
+           dal giocatore qualunque porta abbia usato per entrare. */
         const FloorContent *fc = &game->content.floors[game->floor - 1];
         const EnemyTypeDef *bossType = fc->bossType.active ? &fc->bossType : NULL;
-        EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ center.x, rect.y + 118.0f }, bossType);
+        EntitiesAddEnemyTyped(game, ENEMY_BOSS, (Vector2){ center.x, center.y - ROOM_H*0.25f }, bossType);
         /* M7 (substrato del catalogo): il boss e' appena comparso -- il
            giocatore e' per costruzione nella stanza (vedi il commento sopra
            su WorldSpawnCombatRoom). L'esito (incontrato/sconfitto) lo marca
@@ -451,6 +898,9 @@ void WorldSpawnRoomContents(Game *game)
     {
         GameSetMessage(game, "Scegli una porta.");
     }
+    /* DEC-170: entrare in una stanza NON e' un movimento di telecamera -- si
+       riparte dall'inquadratura giusta, senza scivolate. */
+    WorldSnapCamera(game);
 }
 
 void WorldStartFloor(Game *game, int floor)
@@ -467,26 +917,30 @@ void WorldStartFloor(Game *game, int floor)
        di testo, una volta per piano. */
     RunContentRefreshFloorScripts(&game->content, floor - 1);
     game->theme = game->content.floors[floor - 1].theme;
-    WorldGenerateFloorMap(game);   /* fissa game->roomX/roomY e la taglia di ogni stanza (M2) */
-    Rectangle rect = WorldCurrentRoomRect(game);
-    game->player.pos = (Vector2){ rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
+    WorldGenerateFloorMap(game);   /* fissa game->roomX/roomY e la FORMA di ogni stanza (DEC-170) */
+    game->player.pos = WorldRoomCenter(game);
     WorldSpawnRoomContents(game);
 }
 
 void WorldTryEnterRoom(Game *game, int dir)
 {
-    RoomState *room = WorldCurrentRoomMutable(game);
-    if (!room->doors[dir]) return;
+    /* DEC-170: si esce dalla CELLA in cui si trova il giocatore, non "dalla
+       stanza": una stanza multi-cella ha porte su piu' celle, e quale si
+       attraversi dipende da dove si e' fermi. */
+    int cx, cy;
+    WorldPlayerCell(game, &cx, &cy);
+    RoomState *cell = &game->rooms[cy][cx];
+    if (!cell->doors[dir]) return;
     if (GameRoomIsLocked(game))
     {
         GameSetMessage(game, "Porte bloccate: elimina i nemici.");
         return;
     }
 
-    int nx = game->roomX + DirDx(dir);
-    int ny = game->roomY + DirDy(dir);
+    int nx = cx + DirDx(dir);
+    int ny = cy + DirDy(dir);
     if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) return;
-    RoomState *next = &game->rooms[ny][nx];
+    RoomState *next = WorldRoomAtMutable(game, nx, ny);
     if (!next->exists) return;
 
     if (next->kind == ROOM_TREASURE && !next->visited)
@@ -500,34 +954,38 @@ void WorldTryEnterRoom(Game *game, int dir)
         GameSetMessage(game, "Chiave usata.");
     }
 
-    game->roomX = nx;
-    game->roomY = ny;
-    /* M2: gli offset di 38px restano relativi al rettangolo della stanza di
-       ARRIVO (che ora puo' essere piu' piccola del massimo) -- 38px sta
-       comodamente dentro anche la stanza piu' piccola del lattice (meta'
-       lato corto = 149px), nessun clamp aggiuntivo necessario. */
-    Rectangle arrival = WorldCurrentRoomRect(game);
-    if (dir == DIR_UP) game->player.pos = (Vector2){ arrival.x + arrival.width*0.5f, arrival.y + arrival.height - 38.0f };
-    if (dir == DIR_DOWN) game->player.pos = (Vector2){ arrival.x + arrival.width*0.5f, arrival.y + 38.0f };
-    if (dir == DIR_LEFT) game->player.pos = (Vector2){ arrival.x + arrival.width - 38.0f, arrival.y + arrival.height*0.5f };
-    if (dir == DIR_RIGHT) game->player.pos = (Vector2){ arrival.x + 38.0f, arrival.y + arrival.height*0.5f };
-    (void)OppositeDir(dir);
+    /* La cella di STATO della stanza di arrivo diventa "la stanza corrente":
+       vedi il commento su Game.roomX in core/game_types.h. */
+    WorldRoomStateCell(game, nx, ny, &game->roomX, &game->roomY);
+    /* Si atterra dentro la CELLA di arrivo (non al centro della stanza): gli
+       offset di 38px restano quelli di sempre, misurati dalla porta
+       attraversata. */
+    Rectangle arrival = WorldCellRect(game, nx, ny);
+    float acx = arrival.x + arrival.width*0.5f;
+    float acy = arrival.y + arrival.height*0.5f;
+    if (dir == DIR_UP) game->player.pos = (Vector2){ acx, arrival.y + arrival.height - 38.0f };
+    if (dir == DIR_DOWN) game->player.pos = (Vector2){ acx, arrival.y + 38.0f };
+    if (dir == DIR_LEFT) game->player.pos = (Vector2){ arrival.x + arrival.width - 38.0f, acy };
+    if (dir == DIR_RIGHT) game->player.pos = (Vector2){ arrival.x + 38.0f, acy };
     WorldSpawnRoomContents(game);
 }
 
 void WorldHandleTransitions(Game *game, Vector2 move)
 {
-    /* M2: il rettangolo della stanza CORRENTE (WorldCurrentRoomRect ripiega
-       sul massimo per il Piano 0/hub, che non ha una taglia impostata --
-       stesso comportamento di sempre per quel caso, vedi il commento su
-       floor_zero.c in game_types.h). */
-    Rectangle room = WorldCurrentRoomRect(game);
-    float cx = room.x + room.width*0.5f;
-    float cy = room.y + room.height*0.5f;
-    float roomRight = room.x + room.width;
-    float roomBottom = room.y + room.height;
+    /* DEC-170: la geometria di trigger e' quella della CELLA in cui si trova il
+       giocatore (per una 1x1 la cella E' la stanza: comportamento invariato).
+       Premere contro un lato INTERNO -- verso un'altra cella della stessa
+       stanza -- non fa nulla: quella cella non ha porta da quel lato, si passa
+       camminando. */
+    int cx, cy;
+    WorldPlayerCell(game, &cx, &cy);
+    Rectangle cell = WorldCellRect(game, cx, cy);
+    float ccx = cell.x + cell.width*0.5f;
+    float ccy = cell.y + cell.height*0.5f;
+    float cellRight = cell.x + cell.width;
+    float cellBottom = cell.y + cell.height;
     float edge = game->player.radius + 7.0f;
-    bool pressingTop = move.y < -0.1f && game->player.pos.y <= room.y + edge && fabsf(game->player.pos.x - cx) < DOOR_HALF;
+    bool pressingTop = move.y < -0.1f && game->player.pos.y <= cell.y + edge && fabsf(game->player.pos.x - ccx) < DOOR_HALF;
 
     /* Piano 0 (M1b, src/world/floor_zero.c): il varco verso il piano 1 usa la
        STESSA geometria di trigger di una porta normale (il giocatore preme
@@ -546,9 +1004,9 @@ void WorldHandleTransitions(Game *game, Vector2 move)
     }
 
     if (pressingTop) WorldTryEnterRoom(game, DIR_UP);
-    else if (move.y > 0.1f && game->player.pos.y >= roomBottom - edge && fabsf(game->player.pos.x - cx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_DOWN);
-    else if (move.x < -0.1f && game->player.pos.x <= room.x + edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_LEFT);
-    else if (move.x > 0.1f && game->player.pos.x >= roomRight - edge && fabsf(game->player.pos.y - cy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_RIGHT);
+    else if (move.y > 0.1f && game->player.pos.y >= cellBottom - edge && fabsf(game->player.pos.x - ccx) < DOOR_HALF) WorldTryEnterRoom(game, DIR_DOWN);
+    else if (move.x < -0.1f && game->player.pos.x <= cell.x + edge && fabsf(game->player.pos.y - ccy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_LEFT);
+    else if (move.x > 0.1f && game->player.pos.x >= cellRight - edge && fabsf(game->player.pos.y - ccy) < DOOR_HALF) WorldTryEnterRoom(game, DIR_RIGHT);
 }
 
 static void WorldSpawnRoomReward(Game *game)
@@ -556,8 +1014,7 @@ static void WorldSpawnRoomReward(Game *game)
     RoomState *room = WorldCurrentRoomMutable(game);
     if (room->rewardTaken) return;
     room->rewardTaken = true;
-    Rectangle rect = WorldCurrentRoomRect(game);
-    Vector2 center = { rect.x + rect.width*0.5f, rect.y + rect.height*0.5f };
+    Vector2 center = WorldRoomCenter(game);
     if (room->kind == ROOM_COMBAT)
     {
         int roll = GameRngRange(&game->rng, 0, 99);

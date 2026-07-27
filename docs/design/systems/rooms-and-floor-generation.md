@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_verified_commit: 17204df
 topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170]
 related: []
 supersedes: []
@@ -36,12 +36,12 @@ Ogni piano deve sembrare costruito apposta, con una progressione leggibile verso
   loro" descritto sotto — vedi [Taglie multiple e telecamera](#taglie-multiple-e-telecamera-dec-170).
   DEC-009 riceve una nota di supersessione parziale su questo punto nel decision-log: il
   principio di variabilità e il minimo garantito restano validi.
-- **Stato:** regola di design **approved**. **Implementato (M2, superato in parte da
-  DEC-170):** il codice della fase M2 genera un numero di stanze variabile per piano e
-  assegna a ogni stanza una taglia distinta entro un rettangolo massimo fisso (nessuna
-  camera) — il blocco "Default proposti" sotto ne conserva i valori come riferimento
-  storico. Il modello attuale (taglie a classi discrete + telecamera) è descritto nella
-  sezione dedicata sotto e resta da implementare.
+- **Stato:** regola di design **approved**. **Implementato (DEC-170, 27/07):** il codice
+  genera stanze a classi discrete (1x1/1x2/2x1/2x2/L) su celle contigue della griglia, con
+  telecamera a zoom fisso nelle taglie maggiori — vedi
+  [Taglie multiple e telecamera](#taglie-multiple-e-telecamera-dec-170) e i default sotto.
+  Il lattice di taglie in pixel della fase M2 **non esiste più nel codice**: il blocco
+  "Default proposti dall'implementazione M2" resta solo come riferimento storico.
 
 ### Default proposti dall'implementazione M2 (stile DEC-019) — superato in parte da DEC-170
 
@@ -104,6 +104,70 @@ Come i layout di ostacoli esistenti (`ROOM_LAYOUT_*`, vedi
 per singola cella o estesi sull'intera stanza — resta un **dettaglio di implementazione**,
 non fissato da questa decisione. Nessun rimando aggiunto a `ui/hud.md`: quel documento non
 parla di inquadratura/telecamera.
+
+### Default proposti dall'implementazione (DEC-170, stile DEC-019)
+
+DEC-170 fissa le classi di taglia e il comportamento della telecamera, non i numeri. Questi
+sono **default proposti dall'implementazione del 27/07**, non decisioni di design: restano
+da confermare (vedi `governance/open-questions.md`).
+
+- **Dimensione di una cella:** il canvas logico di gioco di sempre, **876×458 px**
+  (`ROOM_X/Y/W/H`). Una cella più la sua cornice di muro riempie esattamente lo schermo
+  960×640: è ciò che rende la stanza **1x1 identica a prima di DEC-170**, telecamera ferma
+  e cornice compresa, senza alcun caso speciale nel codice.
+- **Grandezza minima garantita (DEC-009):** una cella, cioè 876×458 px.
+- **Stanza di partenza: sempre 1x1.** Il primo schermo di un piano è anche quello che
+  insegna a leggere lo spazio, e la 1x1 si vede per intero senza muovere la telecamera.
+- **Stanza boss: 2x2 quando entra nella griglia** (arena dedicata, coerente con
+  [bosses.md](./bosses.md)). Non è una garanzia: si piazza per ultima e la griglia può
+  essere satura, nel qual caso scende di classe (L → 1x2/2x1 → 1x1). Misurato su 120 piani
+  generati (5 piani × 24 semi): **2x2 in 110 casi su 120**.
+- **Tesoro e negozio: sempre 1x1.** Sono stanze da una ricompensa sola, tutta visibile
+  appena si entra.
+- **Distribuzione delle taglie delle altre stanze** (estrazione dall'RNG del piano, quindi
+  deterministica dal seed): **1x1 55% · 1x2 15% · 2x1 15% · 2x2 8% · L 7%** (per la L
+  l'orientamento dell'angolo mancante è a sua volta estratto fra i quattro). La 1x1 resta
+  la maggioranza netta di proposito: se le taglie grandi diventassero la norma, il caso che
+  DEC-170 vuole esplicitamente invariato — la stanza inquadrata per intero — diventerebbe
+  l'eccezione. Se la forma estratta non entra nello spazio libero, si ripiega su una 1x1
+  nella stessa cella (mai un turno saltato).
+- **Quantità di piano:** il budget `6 + numero_piano + estrazione(0..3)` di DEC-009 ora conta
+  **celle**, non stanze (una stanza ne occupa da 1 a 4), più la stanza boss e fino a due
+  stanze speciali. La superficie giocabile di un piano resta quindi quella di sempre; il
+  **numero di stanze scende** (~5-9 più boss e speciali). È una conseguenza dichiarata di
+  DEC-170, non un effetto collaterale.
+- **Budget di difficoltà di una stanza multi-cella:** il budget nemici della stanza
+  (`3 + numero_piano + estrazione(0..2)`, vedi [enemies.md](./enemies.md)) viene moltiplicato
+  per la **radice quadrata** del numero di celle, non per il numero di celle: una 2x2 è
+  quattro schermate di spazio e col budget di una sola resterebbe vuota, ma con quattro volte
+  i nemici sarebbe quattro stanze appiccicate invece di una stanza grande. Il tetto di buon
+  senso agli spawn (16) scala per cella, sempre sotto il tetto duro di motore.
+- **Layout di ostacoli: applicati PER CELLA** (`RoomLayoutBuild` una volta per cella, seme
+  mescolato dalle coordinate assolute della cella). Due celle della stessa stanza non hanno
+  lo stesso arredo, e ogni cella conserva la garanzia esistente della croce centrale libera:
+  la porta al centro di ciascun lato *e* il passaggio verso la cella accanto restano sempre
+  raggiungibili. Tetto invariato a 10 blocchi per cella.
+- **Angolo mancante di una forma a L:** è **muro pieno** — il gioco lo tratta come un
+  ostacolo solido (ferma giocatore, nemici e colpi con lo stesso codice degli ostacoli) e il
+  renderer lo disegna come parete. Sull'altro lato può esserci una stanza diversa, e in quel
+  caso la porta è normale.
+- **Telecamera nelle forme a L:** il clamp usa il rettangolo della **cella corrente**, non
+  il riquadro della stanza. È l'unico modo di rispettare "non mostra mai area fuori dal
+  rettangolo occupato" senza introdurre uno zoom dinamico (che DEC-170 vieta) o una
+  maschera: il riquadro di una L contiene l'angolo mancante, e una telecamera libera dentro
+  il riquadro lo mostrerebbe. Il salto di inquadratura al cambio di cella è assorbito da una
+  **interpolazione breve** (avvicinamento esponenziale, ~0,25 s per il 95% dello scarto), la
+  stessa che smorza l'inseguimento nelle altre taglie.
+- **Inseguimento:** la telecamera è **stato di simulazione**, aggiornata a passo fisso
+  insieme al giocatore (non nel rendering), così a parità di passi simulati l'inquadratura è
+  identica. All'ingresso in una stanza si aggancia subito all'inquadratura giusta: entrare
+  non è mai una scivolata.
+
+**Compatibilità con gli script Lua già generati:** i quattro getter `room_left()`,
+`room_top()`, `room_right()`, `room_bottom()` esposti alla sandbox rispondono ora con il
+riquadro della **stanza corrente** invece che con un rettangolo fisso. La firma non cambia,
+gli script del catalogo già su disco continuano a funzionare e descrivono lo spazio vero;
+ogni scrittura resta comunque clampata dentro la stanza dal motore.
 
 ## Tipi di stanza (tassonomia completa, DEC-010)
 
@@ -230,9 +294,15 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Frequenza esatta e piani minimi in cui compare la stanza a tempo (DEC-051 fissa solo
   "piani avanzati", non il numero esatto).
 - Dimensioni esatte in pixel di una cella/taglia, quale taglia ricevano la stanza boss e la
-  stanza di partenza, e come i layout `ROOM_LAYOUT_*` si applichino alle stanze multi-cella
-  (DEC-170 fissa le classi discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera,
-  non questi valori: dettagli di implementazione).
+  stanza di partenza, come i layout `ROOM_LAYOUT_*` si applichino alle stanze multi-cella e
+  con quali percentuali si distribuiscano le classi di taglia (DEC-170 fissa le classi
+  discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera, non questi valori:
+  dettagli di implementazione). **Default proposti dall'implementazione il 27/07** nella
+  sezione omonima sopra, in attesa di conferma.
+- Se il clamp della telecamera nelle forme a L debba restare la **cella corrente** (scelta
+  dell'implementazione: nessuno zoom dinamico, l'angolo mancante non si vede mai, ma il
+  giocatore non vede la cella in cui sta per entrare finché non la attraversa) o se valga la
+  pena di una regola più permissiva.
 
 ## Scenari
 
@@ -289,3 +359,21 @@ Then la stanza è inquadrata per intero con camera fissa, senza movimento di cam
 Given una stanza generata di taglia maggiore (1x2, 2x1, 2x2 o a L)
 When il giocatore cammina dentro la stanza
 Then la telecamera lo segue a zoom fisso, senza mai mostrare area fuori dal rettangolo occupato dalla stanza (clamp ai bordi) e senza variare lo zoom (DEC-170)
+
+### Scenario 10 — Una stanza multi-cella è un solo spazio continuo
+
+Given una stanza di taglia 2x2 (quattro celle della griglia)
+When il giocatore passa dalla cella in cui è entrato a una cella adiacente della stessa stanza
+Then non c'è transizione, né porta, né ricarica di contenuti: cammina dentro lo stesso spazio, e cambia solo l'inquadratura (DEC-170)
+
+### Scenario 11 — Angolo mancante di una forma a L
+
+Given una stanza a L (tre celle di un blocco 2x2)
+When il giocatore cammina verso l'angolo mancante
+Then viene fermato come da un muro, e la telecamera — clampata alla cella corrente — non mostra mai l'interno dell'angolo mancante (DEC-170)
+
+### Scenario 12 — Porte fra celle di stanze diverse
+
+Given due stanze adiacenti sul piano, di cui una multi-cella
+When la generazione collega il piano
+Then la porta collega le due CELLE adiacenti (una stanza 2x2 può avere porte su più lati esterni), mentre fra due celle della stessa stanza non esiste porta

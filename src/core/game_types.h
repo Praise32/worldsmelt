@@ -21,19 +21,19 @@
 
 #define HUD_H 82
 #define FOOTER_H 38
-/* M2 (DEC-009, stanze di grandezza variabile): questi NON sono piu' "il
-   rettangolo della stanza" -- sono il rettangolo MASSIMO del canvas di gioco
-   (nessuna camera: il canvas resta 960x640 fisso). Ogni stanza vera e' un
-   rettangolo <= questo, sempre CENTRATO al suo interno (vedi RoomState.w/h
-   e WorldRoomRect/WorldCurrentRoomRect in src/world/world.h): quel
-   accessore e' l'UNICO modo corretto di leggere "la stanza corrente" da
-   qui in poi. Restano usati direttamente, col loro significato di sempre
-   di limite massimo, solo per: i confini esterni del canvas (i muri li
-   riempiono fino a qui, game_renderer.c), le costanti Lua room_left/top/
-   right/bottom esposte agli script (compatibilita' col catalogo gia'
-   generato, script_api.c) e il piano 0/hub (sala d'attesa non generata,
-   sempre alla taglia massima: floor_zero.c non li tocca nemmeno, la
-   RoomState del hub resta a w=h=0 e WorldRoomRect ripiega su questi). */
+/* DEC-170 (taglie multiple + telecamera; supera il lattice in pixel di M2):
+   questi sono la taglia e l'origine di UNA CELLA della griglia del piano --
+   la stanza 1x1, cioe' la grandezza minima garantita da DEC-009. Una stanza
+   vera occupa 1..4 celle contigue (vedi RoomState/RoomSize sotto), quindi il
+   suo rettangolo e' un MULTIPLO di questo, mai un valore intermedio.
+   Le coordinate di gioco sono LOCALI alla stanza corrente: il riquadro di
+   ogni stanza parte sempre da (ROOM_X, ROOM_Y) e cresce verso destra/basso di
+   una cella per volta (si simula una stanza per volta, le stanze non
+   coesistono mai nello stesso spazio). La telecamera (src/world/room_camera.h)
+   traduce quel mondo nel canvas 960x640: per la 1x1 la traduzione e'
+   l'identita' -- l'inquadratura fissa di sempre, cornice di muro compresa.
+   L'UNICO modo corretto di leggere il rettangolo di una stanza resta
+   WorldRoomRect/WorldCurrentRoomRect (src/world/world.h). */
 #define ROOM_X 42.0f
 #define ROOM_Y 104.0f
 #define ROOM_W 876.0f
@@ -391,6 +391,44 @@ typedef struct RunContent {
     FloorContent floors[FLOOR_COUNT];
 } RunContent;
 
+/* DEC-170: le taglie di stanza sono CLASSI DISCRETE stile Isaac, non piu' un
+   lattice di rettangoli in pixel (M2). Ogni stanza occupa 1..4 celle CONTIGUE
+   della griglia del piano; una cella e' grande esattamente ROOM_W x ROOM_H
+   (il canvas logico di sempre), cosi' la taglia 1x1 -- il minimo garantito di
+   DEC-009 -- resta l'inquadratura fissa di sempre.
+   I nomi seguono il documento di design (rooms-and-floor-generation.md,
+   "Taglie multiple e telecamera"): 1x2 e' la coppia ORIZZONTALE, 2x1 quella
+   VERTICALE. */
+typedef enum RoomSize {
+    ROOM_SIZE_1X1 = 0,   /* una cella */
+    ROOM_SIZE_1X2,       /* due celle in fila orizzontale */
+    ROOM_SIZE_2X1,       /* due celle in colonna verticale */
+    ROOM_SIZE_2X2,       /* blocco di quattro celle */
+    ROOM_SIZE_L,         /* tre celle di un blocco 2x2 (un angolo mancante) */
+    ROOM_SIZE_COUNT
+} RoomSize;
+
+/* Maschera delle celle occupate dentro il riquadro 2x2 di una stanza, relativa
+   alla cella di ORIGINE (l'angolo in alto a sinistra del riquadro). Un solo
+   byte descrive tutte e cinque le classi di DEC-170. */
+#define ROOM_CELL_BIT(dx, dy) ((unsigned char)(1u << ((dy)*2 + (dx))))
+
+/* DEC-170: una cella della griglia del piano; PIU' celle possono appartenere
+   alla STESSA stanza.
+ *
+ * INVARIANTE (l'unica cosa da ricordare leggendo questa struttura): lo stato
+ * MUTABILE di una stanza -- visited/cleared/rewardTaken -- e il suo 'kind'
+ * vivono in UNA sola cella, la cella di STATO (la prima cella occupata in
+ * ordine di lettura dentro il riquadro, vedi WorldRoomAt in src/world/world.h).
+ * Le altre celle della stessa stanza li lasciano a zero: leggerli direttamente
+ * da game->rooms[y][x] e' sbagliato per costruzione, si passa SEMPRE da
+ * WorldRoomAt/WorldRoomAtMutable/GameCurrentRoom. Sono invece validi su OGNI
+ * cella della stanza: 'exists', 'originX/originY', 'cells' e 'doors[]' (una
+ * porta e' un fatto del LATO di UNA cella, non della stanza intera).
+ *
+ * 'cells' == 0 significa "cella mai passata dal generatore": si comporta come
+ * una stanza 1x1 ancorata a se stessa (il hub del Piano 0, un Game di test
+ * costruito a mano) -- stesso spirito del vecchio w/h <= 0. */
 typedef struct RoomState {
     bool exists;
     bool visited;
@@ -398,15 +436,9 @@ typedef struct RoomState {
     bool rewardTaken;
     RoomKind kind;
     bool doors[4];
-    /* M2 (DEC-009): taglia VERA della stanza in pixel, <= ROOM_W/ROOM_H
-       (il rettangolo resta sempre centrato dentro quel massimo, mai una
-       camera). 0 = non impostata: WorldRoomRect (src/world/world.h) ripiega
-       sul rettangolo massimo, cosi' una RoomState mai toccata da
-       WorldGenerateFloorMap (il hub del Piano 0, un Game di test costruito
-       a mano) si comporta esattamente come prima di questa fase, senza
-       bisogno di inizializzarla ovunque. */
-    int w;
-    int h;
+    unsigned char cells;   /* maschera 2x2 (ROOM_CELL_BIT), relativa a originX/originY */
+    int originX;           /* cella in alto a sinistra del RIQUADRO della stanza */
+    int originY;
 } RoomState;
 
 typedef struct Player {
@@ -674,9 +706,17 @@ typedef struct Game {
     /* Ostacoli solidi della stanza CORRENTE (fase 3c): ricostruiti da
        WorldSpawnRoomContents ogni volta che si entra in una stanza, a partire dal
        RoomLayoutDef del piano. Vuoto (obstacleCount 0) per le stanze senza layout e
-       per quelle che non ne hanno (boss/tesoro/negozio: servono spazio). */
+       per quelle che non ne hanno (boss/tesoro/negozio: servono spazio).
+       DEC-170: i PRIMI 'obstacleHoleCount' ostacoli non vengono da un layout --
+       sono le celle del riquadro che NON appartengono alla stanza (l'angolo
+       mancante di una forma a L). Sono solide come qualunque altro ostacolo
+       (giocatore, nemici e colpi le trattano gia' cosi', senza una riga in
+       piu' in combat.c), ma il renderer le salta perche' DrawRoom le disegna
+       gia' come muro vero della stanza. Esistono per OGNI tipo di stanza, non
+       solo per quelle di combattimento: un buco deve essere solido sempre. */
     Obstacle obstacles[MAX_OBSTACLES];
     int obstacleCount;
+    int obstacleHoleCount;
     /* Contatori di generazione per l'API a handle di Lua (spec, sezione 5):
        incrementati in EntitiesAddEnemy/EntitiesAddShot ogni volta che uno
        slot viene (ri)assegnato. Un handle e' indice+generazione impacchettati
@@ -855,8 +895,20 @@ typedef struct Game {
     unsigned int runSeed;
     unsigned int rng;
     int floor;
+    /* DEC-170: UNA cella della stanza corrente -- per convenzione la sua cella
+       di STATO (vedi RoomState sopra), quella che porta kind/visited/cleared.
+       Con le stanze multi-cella NON e' piu' "la cella in cui cammina il
+       giocatore": quella si ricava dalla posizione (WorldPlayerCell,
+       src/world/world.h) e cambia senza cambiare stanza. */
     int roomX;
     int roomY;
+    /* DEC-170: punto del MONDO inquadrato al centro del canvas. Per una stanza
+       1x1 vale sempre il centro della cella (telecamera ferma, inquadratura di
+       sempre); nelle taglie maggiori insegue il giocatore a zoom fisso,
+       clampato dai bordi (src/world/room_camera.h). Aggiornato dalla
+       simulazione (WorldUpdateCamera), non dal renderer: e' stato di gioco,
+       cosi' resta identico a parita' di passi simulati. */
+    Vector2 cameraTarget;
     int score;
     int roomNumber;
     char message[160];

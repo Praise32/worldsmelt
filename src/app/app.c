@@ -1000,6 +1000,7 @@ int AppRun(int argc, char **argv)
     bool atlasFallbackTest = false;
     bool layerTest = false;
     bool rarityScreenshotTest = false;
+    bool roomShapesScreenshotTest = false;
     bool shotFormsScreenshotTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
@@ -1087,6 +1088,14 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             screenshotTest = true;
         }
+        /* DEC-170, SOLO manuale: le stanze multi-cella viste davvero (la
+           telecamera che segue e sbatte contro il clamp, l'angolo mancante di
+           una forma a L). Vedi GameRoomShapesScreenshotTest. */
+        if (strcmp(argv[i], "--room-shapes-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            roomShapesScreenshotTest = true;
+        }
         if (strcmp(argv[i], "--menu-screenshot-test") == 0)
         {
             smokeTest = true;
@@ -1118,7 +1127,7 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             floorZeroScreenshotTest = true;
         }
-        /* M2 (DEC-009): come --states-test, gira dopo InitWindow ma senza
+        /* DEC-170/DEC-009: come --states-test, gira dopo InitWindow ma senza
            bisogno vero della finestra (GameRoomsTest non disegna nulla, vedi
            src/tests/game_tests.c). */
         if (strcmp(argv[i], "--rooms-test") == 0)
@@ -1244,7 +1253,7 @@ int AppRun(int argc, char **argv)
        che nella finestra compatta 960x640 finisce in parte sotto il
        riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
        vedi logs/melting-run-layers-screen.png). */
-    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest && !catalogScreenshotTest;
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest && !catalogScreenshotTest && !roomShapesScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     /* Titolo della finestra WORLDSMELT (DEC-071): il repo conserva il nome
        storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
@@ -1419,6 +1428,17 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 11;
+    }
+    /* DEC-170, SOLO manuale (mai in make test): scatti delle taglie
+       multi-cella per il giudizio di gusto sulla telecamera. 27: il primo
+       codice di uscita libero (vedi gli altri test sopra). */
+    if (roomShapesScreenshotTest)
+    {
+        bool ok = GameRoomShapesScreenshotTest(&game);
+        printf("Room shapes screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 27;
     }
     if (rarityScreenshotTest)
     {

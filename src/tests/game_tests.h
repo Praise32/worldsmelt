@@ -23,17 +23,27 @@ bool GameStatesTest(Game *game);
    GameStatesTest. Vedi src/tests/game_tests.c per i quattro scenari. */
 bool GameFloorZeroTest(Game *game);
 
-/* M2 (DEC-009): stanze di numero e grandezza variabili. Per una manciata di
-   seed fissi e per ogni piano 1..5, verifica (a) grandezza minima garantita,
-   (b) nessuna coppia (w,h) ripetuta nello stesso piano, (c) il numero di
-   stanze cade nella banda attesa e varia fra piani/seed, (d) determinismo
-   (stesso seed => stessa mappa), (e) ogni transizione di porta atterra
-   DENTRO il rettangolo della stanza di arrivo, (f) la stanza boss e' sempre
-   alla taglia massima, (g) RoomLayoutBuild alla taglia minima con ogni
-   forma/densita' massima resta giocabile e non collassa silenziosamente.
+/* DEC-170 (taglie multiple stile Isaac + telecamera; DEC-009 per il minimo
+   garantito). Per 24 seed fissi e per ogni piano 1..5 verifica (a) ogni stanza
+   e' una delle cinque classi e non scende sotto il minimo garantito (una
+   cella), (b) nessuna sovrapposizione -- ogni cella esistente appartiene a
+   esattamente una stanza, e la forma a L ha davvero tre celle contigue di un
+   blocco 2x2 -- e tutte e cinque le classi compaiono davvero, (c) il numero di
+   CELLE del piano cade nella banda attesa e varia fra piani/seed, (d)
+   determinismo (stesso seed => stessa mappa, stesse forme, stesse porte), (e)
+   ogni transizione di porta atterra dentro una CELLA OCCUPATA della stanza di
+   arrivo, (f) esiste esattamente una stanza boss (2x2 quasi sempre) e una di
+   partenza, (g) RoomLayoutBuild alla taglia minima con ogni forma/densita'
+   massima resta giocabile e non collassa silenziosamente, (h) la telecamera:
+   1x1 ferma, mai un'inquadratura fuori dai bordi, inseguimento monotono e
+   agganciato (funzioni pure di world/room_camera.h), (i) le porte esistono
+   ESATTAMENTE fra celle adiacenti di stanze diverse, (j) connettivita': dalla
+   partenza si raggiunge ogni stanza, (k) l'angolo mancante di una forma a L e'
+   solido davvero (il giocatore ci viene respinto da un passo di simulazione
+   vero) e la telecamera vi si clampa sulla cella corrente.
    Come GamePortalRespawnTest, gira dopo InitWindow ma non serve la finestra
-   per davvero (nessun rendering): usa 'game' gia' pronto (GameResetRun gia'
-   chiamata da AppRun) solo come Game su cui rigenerare piani con WorldStartFloor. */
+   per davvero (nessun rendering): 'game' non viene letto, ogni piano si
+   rigenera su un Game locale pulito. */
 bool GameRoomsTest(Game *game);
 
 /* SOLO manuale (mai in make test): entra nel Piano 0 con gen disabilitata
@@ -82,6 +92,15 @@ bool GameRarityScreenshotTest(Game *game);
    logs/melting-run-shotforms-screen.png, percorso separato da tutti gli altri
    screenshot di test. */
 bool GameShotFormsScreenshotTest(Game *game);
+
+/* DEC-170, SOLO manuale (--room-shapes-screenshot-test, mai in make test):
+   cerca fra i seed un piano che contenga ciascuna taglia maggiore, ci entra
+   col giocatore in un punto scelto e scatta logs/worldsmelt-room-*.png (2x2 al
+   centro e nell'angolo dove la telecamera sbatte contro il clamp, 1x2 contro
+   il bordo, forma a L in due celle diverse: le due inquadrature fra cui
+   interpola). Serve al giudizio di gusto sulla telecamera, che nessun assert
+   puo' dare: --rooms-test verifica la geometria, non come si vede. */
+bool GameRoomShapesScreenshotTest(Game *game);
 
 bool GenRunnerSelfTest(void);
 

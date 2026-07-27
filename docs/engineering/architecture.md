@@ -9,12 +9,12 @@ summary: >-
   Mappa verificata dei moduli C, dei processi esterni (melting-gen,
   melting-sprites) e dei confini di sicurezza (sandbox Lua, mini-VM di
   ripiego) del motore di Worldsmelt.
-last_reviewed: 2026-07-22
-last_verified_commit: fe27f6d
+last_reviewed: 2026-07-27
+last_verified_commit: 17204df
 topics: [architettura, moduli, sandbox-lua, melting-gen, melting-sprites, build]
 related: [meta-doc-code-drift]
 supersedes: []
-source_files: [src/main.c, src/app/app.c, src/core/game_types.h, AGENTS.md, Makefile]
+source_files: [src/main.c, src/app/app.c, src/core/game_types.h, src/world/world.c, src/world/room_camera.c, AGENTS.md, Makefile]
 ---
 
 # Architettura del codice
@@ -66,7 +66,14 @@ Lua fallisce.
 - **`tests`**: test interni da riga di comando, non solo portale/mini-VM:
   `game_tests.c`, `catalog_tests.c`, `script_sandbox_tests.c`,
   `script_items_tests.c`, `script_character_tests.c`.
-- **`world`**: `world.c` (stanze, transizioni, ricompense), `floor_zero.c` (hub Piano 0).
+- **`world`**: `world.c` (stanze multi-cella, forme, porte, transizioni, ricompense),
+  `room_camera.{h,c}` (**DEC-170**: le due funzioni *pure* della telecamera — rettangolo di
+  clamp e avvicinamento esponenziale — separate da `world.c` proprio perché testabili senza
+  finestra, vedi `--rooms-test`), `floor_zero.c` (hub Piano 0). Dopo DEC-170 una stanza è
+  una **maschera di celle** (`RoomState.cells`, fino a 4 celle contigue di un blocco 2x2) e
+  lo stato mutabile vive nella sola cella di stato: `WorldRoomAt`/`WorldRoomAtMutable` sono
+  l'unico accesso corretto, `game->rooms[y][x]` diretto risponde solo per
+  `exists`/`doors[]`/`origin`/`cells`.
 
 ## 2. Flusso dei processi e confine di rete/AI
 
