@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» e della scala base sprite 24px, chiude la domanda aperta 12 (DEC-176)."
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» (DEC-176) e della scala base sprite, 32px dopo la rettifica pipeline SD1.5/LoRA (DEC-177), chiude la domanda aperta 12."
 last_reviewed: 2026-07-28
 last_verified_commit: 0ec60d0
-topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173, stile S1, outline nero, scala 24px, DEC-176]
+topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173, stile S1, outline nero, scala 32px, DEC-176, DEC-177]
 related: []
 supersedes: []
 source_files: []
@@ -188,7 +188,7 @@ copertura della palette (DEC-173).
 - **Niente dithering**: nessun pattern di retinatura per simulare toni intermedi.
 - **Eccezione dettagli piccoli**: dettagli piccoli e ad alto contrasto (occhi, punte
   luminose, bagliori) possono restare **senza outline interno** quando l'outline li
-  renderebbe illeggibili sotto i 24px; l'outline nero resta obbligatorio solo sul
+  renderebbe illeggibili sotto la scala base; l'outline nero resta obbligatorio solo sul
   perimetro esterno della silhouette.
 - Scelto fra cinque prove sugli stessi soggetti (goblin, pozione, cuore HUD, cornice
   slot): S1 outline nero (scelto), S2 outline colorato selettivo + cluster shading, S3
@@ -197,16 +197,23 @@ copertura della palette (DEC-173).
   canonico `assets/art-src/style-tests/S1-outline-nero.aseprite`, preview a
   ingrandimento ×8 in `assets/art-src/style-tests/preview/S1-outline-nero-x8.png`.
 
-### Scala base: 24px
+### Scala base: 32px (DEC-177, rettifica di DEC-176)
 
-- **24px** è la scala base per **personaggi, nemici e oggetti**.
+- **32px** è la scala base per **personaggi, nemici e oggetti**. Fissata inizialmente a
+  24px da DEC-176, poi corretta a 32px lo stesso giorno da DEC-177 perché **512/32 = 16
+  esatto** con la risoluzione di lavoro SD1.5 della pipeline Style LoRA (DEC-148/168/175)
+  — un rapporto intero, senza jitter di upscale/downscale nel Pixel Art Fixer, a
+  differenza di 24px (512/24 = 21,33) — e offre **~1,8×** il dettaglio per frame utile
+  alla LoRA.
 - I **boss** possono superare questa scala.
 - Le **icone HUD seguono la propria griglia**, indipendente dalla scala base: non c'è
   obbligo che mondo e interfaccia condividano la stessa taglia in pixel.
-- Scelta dopo un confronto diretto 16px/24px/32px sullo stesso soggetto (goblin): 16px
-  scartato per dettaglio insufficiente a comunicare i 7 strati di trasformazione visiva
-  definiti sopra (in particolare silhouette e materiale); 32px scartato per il costo di
-  produzione più alto sul volume richiesto dal catalogo curato e dal dataset LoRA.
+- Scelta iniziale dopo un confronto diretto 16px/24px/32px sullo stesso soggetto (goblin):
+  16px scartato per dettaglio insufficiente a comunicare i 7 strati di trasformazione
+  visiva definiti sopra (in particolare silhouette e materiale) — motivo ancora valido.
+  Costi accettati della scala 32px: più tempo di produzione per sprite, stanze più
+  affollate/dense a parità di area di cella, e un ritocco futuro dei raggi di collisione
+  (~+2px, gap di implementazione esplicito, non ancora eseguito).
 
 ## Slot visivi degli oggetti sul personaggio (DEC-049)
 
@@ -321,7 +328,8 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - When lo esporta come sprite di gioco,
 - Then l'esterno della silhouette ha un outline `slag-nero` di 1px, le superfici usano
   shading piatto a 2 toni senza dithering, e lo sprite è disegnato alla scala base di
-  24px (più grande solo se è un boss), coerente con lo stile S1 (DEC-176).
+  32px (più grande solo se è un boss), coerente con lo stile S1 (DEC-176) e la scala
+  DEC-177.
 
 **Scenario: le icone delle risorse fisse restano riconoscibili tra World diversi**
 - Given un giocatore che ha giocato una run nel World A e un'altra nel World B,
