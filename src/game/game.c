@@ -29,6 +29,18 @@ void GamePlayerResetBaseStatsFor(Player *player, const CharacterDef *character)
     player->coins = 3;
     player->bombs = 2;
     player->keys = 1;
+    /* Slot funzionali di partenza (items-pools-and-rarity.md, "Slot"): 1
+       attivo + 1 Innesto, come coins/bombs/keys sopra parte della
+       progressione della run e non dell'identita' del personaggio -- nessun
+       personaggio della rosa ne concede di piu' o di meno. Gli slot in piu'
+       arrivano solo da oggetti/eventi rari, e valgono solo per la run
+       (DEC-123). Esplicito qui anche se ItemActiveSlotCount/
+       ItemGraftSlotCount trattano gia' lo zero come 1: "da dove parte" si
+       deve leggere in questa funzione e in nessun altro posto, come per
+       baseLuck. */
+    player->activeSlotCount = 1;
+    player->graftSlotCount = 1;
+    player->activeSelected = 0;
     /* Valori di PARTENZA del sistema delle cache (spec, sezione 7): non
        vengono piu' assegnati direttamente ai campi "vivi" (damage,
        fireDelay, shotSpeed, shotRadius, speed, maxHp). ScriptItemsInit del

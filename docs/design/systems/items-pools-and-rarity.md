@@ -61,6 +61,38 @@ ricompensa boss: non sono riservati a un contesto specifico.
 - I **passivi** e gli **stat-up** non hanno limite di slot: si accumulano tutti quelli
   raccolti.
 
+### Stato di implementazione della tassonomia (2026-07-27)
+
+Le 4 categorie esistono nel motore (`ItemKind`, `src/core/game_types.h`) con semantiche
+distinte: fino a questa data ne esistevano **due**, e la prima si chiamava "attivo" pur
+significando **passivo** (effetto sempre presente). La rinomina è stata fatta senza
+rompere il contenuto già su disco.
+
+**Compatibilità del contenuto già generato o curato.** Ogni manifest e ogni record di
+catalogo scritto finora usa `kind=active` per quelli che questo documento chiama
+**passivi**. Il lettore del gioco non traduce quella parola alla lettera: si appoggia al
+contratto di [Active Items](active-items.md) — "ogni attivo dichiara uno tra cariche e
+cooldown" — e considera attivo solo un record che, oltre a dire `active`, dichiara anche
+una delle due. Nessun contenuto scritto prima di oggi lo fa, quindi:
+
+| Testo nel manifest | Dichiara cariche o cooldown | Categoria letta |
+|---|---|---|
+| `active` | no | **passivo** (tutto il contenuto storico) |
+| `active` | sì | **attivo** |
+| `passive` | — | passivo |
+| `statup` | — | stat-up |
+| `graft` | — | Innesto |
+| assente, vuoto, sconosciuto | — | passivo |
+
+Il ripiego lato gioco (contenuto di riserva quando nessun manifest esiste) produce solo
+passivi e stat-up: attivi e Innesti hanno slot e contratti che un contenuto procedurale di
+riserva non può dichiarare in modo sensato, e arriveranno dal generatore.
+
+**Non ancora implementato:** `tools/melting-gen` non genera oggetti di categoria attivo o
+Innesto, quindi nessuna run ne offre ancora; il campo `pool` continua a non esistere (il
+pool di un oggetto è la sua posizione, vedi §Pool); prerequisiti, incompatibilità, peso
+nel pool e valore di sinergia restano campi del documento senza corrispondente in codice.
+
 ## Campi obbligatori di un oggetto
 
 Ogni oggetto, curato o generato, deve compilare questi campi. L'elenco è esaustivo per

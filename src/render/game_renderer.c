@@ -4,6 +4,7 @@
 #include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+#include "gameplay/item_slots.h"
 #include "gameplay/synergies.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
@@ -558,8 +559,9 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_BOMB) { cell = SPR_BOMB; label = "B"; }
         else if (p->kind == PICKUP_KEY) { cell = SPR_KEY; label = "K"; }
         else if (p->kind == PICKUP_EXIT) { cell = SPR_EXIT; label = "EXIT"; size = 78.0f; }
+        else if (p->kind == PICKUP_ENERGY) cell = -1;   /* nessuna cella d'atlas: vedi PickupKind in core/game_types.h */
         else label = p->item.name;
-        drew = DrawAtlasCell(game, cell, pos, size, WHITE);
+        if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
     if (!drew)
     {
@@ -575,6 +577,16 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_BOMB) { c = DARKGRAY; label = "B"; DrawCircleV(pos, 12, c); DrawCircleV((Vector2){ pos.x + 6, pos.y - 8 }, 3, ORANGE); }
         else if (p->kind == PICKUP_KEY) { c = SKYBLUE; label = "K"; DrawCircleV(pos, 10, c); DrawRectangle((int)pos.x, (int)pos.y - 3, 17, 6, c); }
         else if (p->kind == PICKUP_EXIT) { c = game->theme.accent2; label = "EXIT"; DrawCircleV(pos, 26, GameColorWithAlpha(c, 90)); DrawCircleLines((int)pos.x, (int)pos.y, 24, c); }
+        else if (p->kind == PICKUP_ENERGY)
+        {
+            /* DEC-059, canale 2: una scintilla, non uno sprite. Forma
+               geometrica di proposito -- una cella d'atlas nuova
+               invaliderebbe ogni atlas gia' generato (vedi AtlasSprite). */
+            c = (Color){ 126, 232, 152, 255 };
+            label = "E";
+            DrawCircleV(pos, 9, GameColorWithAlpha(c, 110));
+            DrawCircleV(pos, 5, c);
+        }
         else
         {
             DrawItemShape(pos, p->item, 14.0f);
@@ -1156,14 +1168,26 @@ static void DrawItemTooltip(const Item *item, float uiScale)
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
 
-    char lines[4][160];
+    char lines[5][160];
     int n = 0;
-    snprintf(lines[n++], sizeof(lines[0]), "%s  -  %s", SlotName(item->slot), RarityName(item->rarity));
+    /* La CATEGORIA in testa: con quattro categorie e due di esse legate a uno
+       slot esclusivo (attivo, Innesto), sapere "che tipo di oggetto e'
+       questo" viene prima di slot visivo e rarita'. */
+    snprintf(lines[n++], sizeof(lines[0]), "%s  -  %s  -  %s", ItemKindLabel(item->kind), SlotName(item->slot), RarityName(item->rarity));
     snprintf(lines[n++], sizeof(lines[0]), "Effetti: %s", traits);
     if (item->shotType.active)
         snprintf(lines[n++], sizeof(lines[0]), "Spari: %s (%s)", item->shotType.name, ShotFormName(item->shotType.form));
     if (item->kind == ITEM_STATUP)
         snprintf(lines[n++], sizeof(lines[0]), "Ricompensa del boss: potenzia una statistica");
+    else if (item->kind == ITEM_ACTIVE)
+    {
+        if (ItemActiveIsChargeBased(item))
+            snprintf(lines[n++], sizeof(lines[0]), "Attivo [E]: %d/%d cariche", item->chargeNow, ItemActiveChargeCapacity(item));
+        else
+            snprintf(lines[n++], sizeof(lines[0]), "Attivo [E]: ricarica %.0fs", (double)ItemActiveCooldownSeconds(item));
+    }
+    else if (item->kind == ITEM_GRAFT)
+        snprintf(lines[n++], sizeof(lines[0]), "Innesto: [G] per sganciarlo a terra");
 
     int titleFont = UiRound(16.0f*uiScale);
     int lineFont = UiRound(13.0f*uiScale);
@@ -1292,15 +1316,53 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
     char resLine[48];
     snprintf(resLine, sizeof(resLine), "%dc  %db  %dk", p->coins, p->bombs, p->keys);
 
+    /* Slot funzionali (active-items.md "Feedback": stato disponibile/in
+       ricarica SEMPRE visibile; grafts.md: lo slot Innesto e' visivamente
+       distinto e l'interfaccia mostra quanti slot sono disponibili e quanti
+       occupati). Due righe compatte sotto le risorse: il tasto fra parentesi
+       quadre e' l'unico posto in cui il giocatore scopre come si usano.
+       Colore: pronto = accento, in ricarica = grigio spento -- lo stato si
+       legge senza rileggere i numeri. */
+    int activeIndex = ItemSelectedActiveIndex(p);
+    const Item *activeItem = (activeIndex >= 0) ? &p->items[activeIndex] : NULL;
+    char activeLine[80];
+    Color activeColor;
+    if (activeItem == NULL)
+    {
+        snprintf(activeLine, sizeof(activeLine), "[E] attivo %d/%d  -  vuoto", 0, ItemActiveSlotCount(p));
+        activeColor = (Color){ 120, 126, 138, 255 };
+    }
+    else if (ItemActiveIsChargeBased(activeItem))
+    {
+        snprintf(activeLine, sizeof(activeLine), "[E] %s  %d/%d", activeItem->name, activeItem->chargeNow, ItemActiveChargeCapacity(activeItem));
+        activeColor = ItemActiveIsReady(activeItem) ? game->theme.accent : (Color){ 140, 146, 158, 255 };
+    }
+    else
+    {
+        if (ItemActiveIsReady(activeItem)) snprintf(activeLine, sizeof(activeLine), "[E] %s  pronto", activeItem->name);
+        else snprintf(activeLine, sizeof(activeLine), "[E] %s  %.1fs", activeItem->name, (double)activeItem->cooldownTimer);
+        activeColor = ItemActiveIsReady(activeItem) ? game->theme.accent : (Color){ 140, 146, 158, 255 };
+    }
+
+    int graftOwned = ItemCountOfKind(p, ITEM_GRAFT);
+    int graftIndex = (graftOwned > 0) ? ItemIndexOfKind(p, ITEM_GRAFT, graftOwned - 1) : -1;
+    char graftLine[80];
+    if (graftIndex >= 0) snprintf(graftLine, sizeof(graftLine), "[G] %s  %d/%d", p->items[graftIndex].name, graftOwned, ItemGraftSlotCount(p));
+    else snprintf(graftLine, sizeof(graftLine), "[G] innesto %d/%d  -  vuoto", graftOwned, ItemGraftSlotCount(p));
+    Color graftColor = (graftIndex >= 0) ? game->theme.accent2 : (Color){ 120, 126, 138, 255 };
+
     int heartSlots = (p->maxHp + 1)/2;
     if (heartSlots < 1) heartSlots = 1;
     float heartS = 15.0f*s;
     float heartsW = (float)heartSlots*heartS*1.15f + heartS;
 
+    int slotFont = UiRound(13.0f*s);
     float contentW = fmaxf(fmaxf((float)MeasureText(nameLine, nameFont), (float)MeasureText(resLine, resFont)), heartsW);
+    contentW = fmaxf(contentW, (float)MeasureText(activeLine, slotFont));
+    contentW = fmaxf(contentW, (float)MeasureText(graftLine, slotFont));
     float boxW = contentW + ip*2.0f;
-    float rowName = 22.0f*s, rowHeart = heartS + 10.0f*s, rowRes = 22.0f*s;
-    float boxH = ip*2.0f + rowName + rowHeart + rowRes;
+    float rowName = 22.0f*s, rowHeart = heartS + 10.0f*s, rowRes = 22.0f*s, rowSlot = 18.0f*s;
+    float boxH = ip*2.0f + rowName + rowHeart + rowRes + rowSlot*2.0f;
 
     Rectangle box = { gr.x + margin, gr.y + margin, boxW, boxH };
     DrawHudBox(box, game->theme.accent2, s, 214);
@@ -1312,6 +1374,10 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
     DrawHearts(p, cx, cy, s);
     cy += UiRound(rowHeart);
     DrawText(resLine, cx, cy, resFont, GOLD);
+    cy += UiRound(rowRes);
+    DrawText(activeLine, cx, cy, slotFont, activeColor);
+    cy += UiRound(rowSlot);
+    DrawText(graftLine, cx, cy, slotFont, graftColor);
 }
 
 /* Alto-destra: progressione della run e minimappa (priorita' 4 di ui/hud.md).

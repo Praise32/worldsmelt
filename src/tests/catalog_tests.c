@@ -279,7 +279,7 @@ static void BuildSyntheticGame(Game *game, int floor)
     it->active = true;
     snprintf(it->name, sizeof(it->name), "Test Blade");
     it->slot = SLOT_HAND;
-    it->kind = ITEM_ACTIVE;
+    it->kind = ITEM_PASSIVE;
     it->rarity = RARITY_RARE;
     it->traits = TRAIT_PIERCE | TRAIT_RAPID;
     it->color = (Color){ 5, 6, 7, 255 };

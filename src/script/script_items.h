@@ -43,6 +43,36 @@ void ScriptItemsShutdown(Game *game);
    distrugge prima di sostituirla. Imposta Game.statsDirty. */
 void ScriptItemsOnAcquire(Game *game, int itemIndex);
 
+/* La direzione OPPOSTA di ScriptItemsOnAcquire: toglie dall'inventario
+   l'oggetto nello slot 'itemIndex' e compatta items[]/itemScripts[] verso il
+   basso. Vive QUI e non in src/gameplay/ perche' e' l'unico modulo che puo'
+   distruggere la sandbox Lua dell'oggetto rimosso -- combat.c non vede mai un
+   tipo Lua (AGENTS.md) e, senza questa funzione, "sganciare un Innesto" o
+   "scambiare l'attivo sul piedistallo" perderebbero uno stato Lua vivo ad
+   ogni operazione.
+   Compattare (invece di lasciare un buco) e' cio' che tiene vera l'unica
+   invariante che tutto il modulo assume: items[i] e itemScripts[i] sono lo
+   STESSO oggetto, e items[0..itemCount-1] non ha buchi. Imposta
+   Game.statsDirty: il ricalcolo da zero fa il resto, senza contabilita' da
+   disfare (e' esattamente il caso per cui il sistema delle cache esiste).
+   Indice fuori range: nessun effetto. */
+void ScriptItemsRemoveItem(Game *game, int itemIndex);
+
+/* Quinta callback, esclusiva degli oggetti ITEM_ACTIVE
+   (systems/active-items.md): l'effetto che si applica al momento
+   dell'attivazione volontaria. A differenza di on_fire/on_hit/on_tick gira
+   per UN SOLO oggetto -- quello che il giocatore ha davvero usato -- e non
+   per tutti gli oggetti posseduti: un attivo e' una decisione puntuale, non
+   un evento del mondo.
+   Ritorna vero SOLO se una funzione Lua 'on_use' e' stata davvero chiamata.
+   Falso significa "questo attivo non ha un effetto Lua utilizzabile" (niente
+   Lua, sandbox disabilitata dal patto di sicurezza, script che non definisce
+   on_use) e il chiamante applica il proprio ripiego in C: la stessa promessa
+   "mai un dud" degli stat-up, qui applicata agli attivi.
+   Il trait del personaggio NON viene chiamato: non e' un oggetto e non
+   occupa lo slot attivo (vedi script_character.h). */
+bool ScriptItemsOnUse(Game *game, int itemIndex, Vector2 pos, Vector2 dir);
+
 /* Vero se l'oggetto nello slot 'itemIndex' ha uno script Lua attualmente
    caricato con successo e non ancora disabilitato. Usata da
    src/gameplay/script_vm.c per SALTARE la mini-VM di quell'oggetto quando

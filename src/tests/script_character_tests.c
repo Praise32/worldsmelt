@@ -83,7 +83,9 @@ static void TestAddItem(Game *game, Item item)
     int idx = game->player.itemCount;
     if (idx >= MAX_ITEMS) idx = MAX_ITEMS - 1; else game->player.itemCount++;
     game->player.items[idx] = item;
-    game->player.traits |= item.traits;
+    /* Nessun OR su player.traits: la ricalcola da zero
+       ScriptItemsRecomputeStats (vedi il commento su Player.traits in
+       core/game_types.h). */
     ScriptItemsOnAcquire(game, idx);
     ScriptItemsProcessDirty(game);
 }

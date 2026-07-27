@@ -72,7 +72,22 @@ static const char *SlotName(ItemSlot slot)
     }
 }
 
-static const char *KindName(ItemKind kind) { return (kind == ITEM_STATUP) ? "statup" : "active"; }
+/* Tassonomia a 4 categorie. "passive" e' il nome NUOVO della categoria che
+   fino a questa fase il catalogo scriveva "active" (l'enum si chiamava cosi'
+   ma significava passivo): i record gia' su disco restano leggibili senza
+   conversioni, perche' ItemKindFromText (src/content/run_content.c) mappa la
+   parola storica "active" su ITEM_PASSIVE quando l'oggetto non dichiara ne'
+   cariche ne' cooldown -- e nessun record vecchio le dichiara. */
+static const char *KindName(ItemKind kind)
+{
+    switch (kind)
+    {
+        case ITEM_STATUP: return "statup";
+        case ITEM_ACTIVE: return "active";
+        case ITEM_GRAFT: return "graft";
+        case ITEM_PASSIVE: default: return "passive";
+    }
+}
 
 static const char *RarityName(Rarity rarity)
 {

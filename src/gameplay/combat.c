@@ -2,6 +2,7 @@
 
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "gameplay/synergies.h"
 #include "script/script_items.h"
@@ -120,6 +121,20 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
         {
             int chance = (int)GameMathClampFloat(18.0f + 3.0f*game->player.luck, 0.0f, 60.0f);
             if (GameRngRange(&game->rng, 0, 100) < chance) game->player.hp++;
+        }
+        /* DEC-059, secondo canale di ricarica: l'energia droppata dai nemici.
+           Cade SOLO se serve davvero a qualcuno (un attivo a cariche
+           posseduto e non pieno): senza quella condizione sarebbe rumore a
+           schermo per la maggior parte delle run, in cui nessun attivo e'
+           ancora stato raccolto. Resta l'unico drop per-NEMICO del gioco --
+           tutte le altre ricompense sono per-STANZA (WorldSpawnRoomReward) --
+           e l'eccezione e' voluta: il canale che DEC-059 descrive e' proprio
+           "energia droppata dai nemici", non "energia a fine stanza" (quello
+           e' gia' il primo canale). Probabilita' fissa, materia di playtest
+           come il resto del dosaggio. */
+        if (ItemActivesWantEnergy(&game->player) && GameRngRange(&game->rng, 0, 100) < 30)
+        {
+            EntitiesAddPickup(game, PICKUP_ENERGY, enemy->pos, 1, 0);
         }
     }
 }
@@ -317,6 +332,181 @@ static void CombatPlaceBomb(Game *game)
     }
 }
 
+/* ============================================================
+   Oggetti ATTIVI e INNESTI: uso, sgancio, scambio sul piedistallo
+   (docs/design/systems/active-items.md, systems/grafts.md).
+   ============================================================ */
+
+/* Ripiego in C dell'attivazione, per un attivo che non ha un 'on_use' Lua
+   utilizzabile. E' la stessa promessa "mai un dud" degli stat-up
+   (ScriptItemsApplyStatUpFallback, src/script/script_items.c) applicata agli
+   attivi: un oggetto che il giocatore ha scelto di tenere in un solo slot e
+   che ha aspettato di ricaricare non puo' non fare NIENTE quando lo si usa.
+   Niente RNG: stesso trait -> sempre lo stesso effetto, prevedibile e
+   testabile come il resto. UN SOLO trait guida un solo effetto (stessa forma
+   a catena di ScriptItemsApplyStatUpFallback), ma l'ordine NON e' quello di
+   ItemFirstTraitName: qui vengono prima i tre trait che descrivono un'AZIONE
+   istantanea sensata da attivare a comando (vampirismo -> cura, esplosione/
+   gigante -> deflagrazione attorno, rallentamento -> tutta la stanza
+   rallenta), mentre i trait "di colpo" (rimbalzo, guida, divisione,
+   perforazione, cadenza) non descrivono un'azione ma il modo in cui un
+   proiettile vola, e finiscono percio' tutti nel caso finale, dove sono i
+   proiettili della corona a portarseli addosso. I numeri sono un default
+   proposto dall'implementazione, materia di playtest come il resto del
+   bilanciamento. */
+static void CombatActiveFallbackEffect(Game *game, const Item *item, Vector2 dir)
+{
+    Player *p = &game->player;
+    float power = 1.0f + 0.35f*(float)item->rarity;   /* comune 1.0 ... leggendario ~2.05 */
+
+    if (item->traits & TRAIT_VAMP)
+    {
+        int before = p->hp;
+        p->hp = GameMathClampInt(p->hp + 1 + (int)item->rarity/2, 0, p->maxHp);
+        EntitiesAddParticle(game, p->pos, item->color, 24);
+        if (p->hp == before) GameSetMessage(game, "Attivo usato: gia' al massimo della salute.");
+        return;
+    }
+    if (item->traits & (unsigned int)(TRAIT_EXPLODE | TRAIT_GIANT))
+    {
+        CombatExplodeAt(game, p->pos, 120.0f, (18.0f + 6.0f*(float)game->floor)*power);
+        return;
+    }
+    if (item->traits & TRAIT_SLOW)
+    {
+        for (int i = 0; i < MAX_ENEMIES; i++)
+        {
+            if (!game->enemies[i].active) continue;
+            game->enemies[i].slowTimer = 2.5f*power;
+        }
+        EntitiesAddParticle(game, p->pos, item->color, 20);
+        return;
+    }
+    /* Nessun trait riconosciuto (o uno "di colpo": rimbalzo, guida,
+       divisione, perforazione, cadenza): una corona di colpi attorno al
+       giocatore. E' l'effetto piu' neutro possibile -- usa i mattoni gia'
+       esistenti, non ne inventa uno -- e non e' mai nullo. Il primo colpo
+       parte nella direzione di mira, cosi' anche una corona si sente
+       "puntata" invece che sparata a caso. */
+    const int pellets = 8;
+    float base = atan2f(dir.y, dir.x);
+    for (int i = 0; i < pellets; i++)
+    {
+        float a = base + (float)i*(2.0f*3.14159265f/(float)pellets);
+        EntitiesAddShot(game, true, p->pos, (Vector2){ cosf(a), sinf(a) },
+                        380.0f, p->damage*0.6f*power, p->shotRadius, item->traits, item->color);
+    }
+}
+
+void CombatUseActive(Game *game, Vector2 dir)
+{
+    Player *p = &game->player;
+    int index = ItemSelectedActiveIndex(p);
+    if (index < 0)
+    {
+        GameSetMessage(game, "Nessun oggetto attivo equipaggiato.");
+        return;
+    }
+
+    Item *item = &p->items[index];
+    char msg[160];
+    if (!ItemActiveIsReady(item))
+    {
+        /* active-items.md, caso limite: attivazione in ricarica -> nessun
+           effetto, nessuna carica persa, feedback che non lascia dubbi su
+           QUANTO manca. */
+        if (ItemActiveIsChargeBased(item))
+            snprintf(msg, sizeof(msg), "%s: in ricarica (%d/%d cariche).", item->name, item->chargeNow, ItemActiveChargeCapacity(item));
+        else
+            snprintf(msg, sizeof(msg), "%s: in ricarica (%.1fs).", item->name, (double)item->cooldownTimer);
+        GameSetMessage(game, msg);
+        return;
+    }
+
+    /* La direzione di mira puo' essere nulla (il giocatore non sta mirando):
+       un attivo deve funzionare comunque, quindi si ripiega su "verso
+       destra" invece di rifiutare l'uso. */
+    if (GameMathLengthSquared(dir) <= 0.01f) dir = (Vector2){ 1.0f, 0.0f };
+
+    /* Lo stato di ricarica si consuma PRIMA dell'effetto: l'effetto puo'
+       spawnare colpi, uccidere nemici e far ripulire la stanza nello stesso
+       frame -- cioe' far scattare il canale di ricarica "stanza completata"
+       (DEC-059) -- e consumare dopo cancellerebbe quella ricarica. */
+    if (ItemActiveIsChargeBased(item)) item->chargeNow--;
+    else item->cooldownTimer = ItemActiveCooldownSeconds(item);
+
+    Item used = *item;   /* copia: il ripiego in C legge l'oggetto mentre l'effetto puo' toccare items[] */
+    /* Il messaggio generico si scrive PRIMA dell'effetto (conferma
+       immediata dell'attivazione, active-items.md "Feedback"): cosi' un
+       effetto che ha qualcosa di piu' preciso da dire -- "gia' al massimo
+       della salute" -- lo sovrascrive, invece di essere sovrascritto. */
+    snprintf(msg, sizeof(msg), "Attivo: %s.", used.name);
+    GameSetMessage(game, msg);
+    if (!ScriptItemsOnUse(game, index, p->pos, dir)) CombatActiveFallbackEffect(game, &used, dir);
+}
+
+void CombatDropGraft(Game *game)
+{
+    Player *p = &game->player;
+    /* Con piu' slot Innesto si sgancia l'ULTIMO equipaggiato: e' l'unico che
+       il giocatore ha scelto di recente, e senza una UI di selezione degli
+       slot (fuori da questo passo) e' la scelta meno sorprendente. */
+    int owned = ItemCountOfKind(p, ITEM_GRAFT);
+    if (owned <= 0)
+    {
+        GameSetMessage(game, "Nessun Innesto equipaggiato.");
+        return;
+    }
+    int index = ItemIndexOfKind(p, ITEM_GRAFT, owned - 1);
+    if (index < 0) return;
+
+    /* DEC-115 + DEC-160: lo slot si libera e l'Innesto resta A TERRA, nella
+       stanza in cui e' stato sganciato, recuperabile finche' il giocatore non
+       esce. "Perso uscendo" non ha bisogno di codice: EntitiesClear azzera i
+       pickup ad ogni ingresso in una stanza (WorldSpawnRoomContents), quindi
+       la simmetria col piedistallo degli attivi vale per costruzione. */
+    Item dropped = p->items[index];
+    ScriptItemsRemoveItem(game, index);
+    ScriptItemsProcessDirty(game);   /* lo slot si libera SUBITO, come la raccolta si vede subito */
+    EntitiesAddItemPickup(game, p->pos, dropped, 0);
+    /* Nato sotto i piedi del giocatore: senza il blocco verrebbe riraccolto
+       il frame successivo e sganciare sarebbe impossibile. Si blocca ogni
+       pickup di oggetto che il giocatore sta gia' toccando, non solo quello
+       appena creato: se si sgancia stando addosso a un piedistallo, anche
+       quello non deve scattare per la sovrapposizione gia' in corso. */
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        Pickup *pk = &game->pickups[i];
+        if (!pk->active || pk->kind != PICKUP_ITEM) continue;
+        float r = pk->radius + p->radius;
+        if (GameMathLengthSquared(GameMathSubtract(pk->pos, p->pos)) < r*r) pk->locked = true;
+    }
+    char msg[160];
+    snprintf(msg, sizeof(msg), "Innesto sganciato: %s. Resta qui finche' non esci.", dropped.name);
+    GameSetMessage(game, msg);
+}
+
+/* Quale oggetto gia' posseduto deve lasciare il posto a un oggetto della
+   categoria 'kind' appena raccolto, oppure -1 se c'e' uno slot libero (o se
+   la categoria non ha slot: passivi e stat-up si accumulano e basta).
+   DEC-117 per gli attivi: quello che finisce sul piedistallo e' l'attivo
+   ATTUALMENTE SELEZIONATO, non un attivo qualsiasi. */
+static int CombatSlotToSwapFor(const Player *p, ItemKind kind)
+{
+    if (kind == ITEM_ACTIVE)
+    {
+        if (ItemCountOfKind(p, ITEM_ACTIVE) < ItemActiveSlotCount(p)) return -1;
+        return ItemSelectedActiveIndex(p);
+    }
+    if (kind == ITEM_GRAFT)
+    {
+        int owned = ItemCountOfKind(p, ITEM_GRAFT);
+        if (owned < ItemGraftSlotCount(p)) return -1;
+        return ItemIndexOfKind(p, ITEM_GRAFT, owned - 1);
+    }
+    return -1;
+}
+
 void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
 {
     Player *p = &game->player;
@@ -336,6 +526,7 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
 
     if (p->invuln > 0.0f) p->invuln -= dt;
     if (p->fireTimer > 0.0f) p->fireTimer -= dt;
+    ItemActivesTickCooldown(p, dt);   /* attivi a cooldown: il loro canale di ricarica e' il tempo */
     ScriptItemsOnTick(game, dt);
 
     Vector2 aim = { 0.0f, 0.0f };
@@ -358,6 +549,16 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     {
         game->bombQueued = false;   /* consumato: un evento = una bomba, anche su frame a 2 passi */
         CombatPlaceBomb(game);
+    }
+    if (game->useActiveQueued)
+    {
+        game->useActiveQueued = false;   /* stessa disciplina della bomba: un evento = un uso */
+        CombatUseActive(game, aim);
+    }
+    if (game->dropGraftQueued)
+    {
+        game->dropGraftQueued = false;
+        CombatDropGraft(game);
     }
 }
 
@@ -718,7 +919,16 @@ static void CombatApplyItem(Game *game, Item item)
     int itemIndex;
     if (p->itemCount < MAX_ITEMS) { itemIndex = p->itemCount; p->items[p->itemCount++] = item; }
     else { itemIndex = MAX_ITEMS - 1; p->items[itemIndex] = item; }
-    p->traits |= item.traits;
+    /* Lo stato di ricarica NON si tocca qui: l'oggetto arriva gia' carico se
+       il gioco lo ha appena offerto (EntitiesAddItemPickup), e arriva con le
+       cariche che aveva se torna da un piedistallo dopo uno scambio
+       (DEC-117). Azzerarlo qui sarebbe una ricarica gratis a ogni
+       scambio-e-riscambio. */
+    /* p->traits NON si aggiorna piu' qui con un OR: lo ricalcola da zero
+       ScriptItemsRecomputeStats (chiamata sotto da ScriptItemsProcessDirty),
+       come ogni altra statistica. Un OR qui tornerebbe a essere monotono, e
+       sganciare un Innesto o scambiare un attivo lascerebbe i suoi trait sui
+       colpi per il resto della run. */
 
     /* Il calcolo di damage/fireDelay/shotSpeed/shotRadius/maxHp da
        trait/slot NON vive piu' qui (una tantum, al pickup): vive dentro
@@ -795,9 +1005,36 @@ static void CombatPickup(Game *game, Pickup *pickup)
     else if (pickup->kind == PICKUP_COIN) game->player.coins += pickup->value;
     else if (pickup->kind == PICKUP_BOMB) game->player.bombs += pickup->value;
     else if (pickup->kind == PICKUP_KEY) game->player.keys += pickup->value;
+    else if (pickup->kind == PICKUP_ENERGY)
+    {
+        /* DEC-059, secondo canale: l'energia ricarica gli attivi a cariche
+           secondo il dosaggio dichiarato da ciascun oggetto. Non e' una
+           risorsa che si accumula in tasca (nessun campo in Player): si
+           raccoglie e si converte subito, altrimenti sarebbe una sesta
+           valuta senza un documento che la definisca. */
+        int touched = ItemActivesGainEnergyCharge(&game->player);
+        GameSetMessage(game, touched > 0 ? "Energia: attivo ricaricato." : "Energia raccolta.");
+    }
     else if (pickup->kind == PICKUP_ITEM)
     {
-        CombatApplyItem(game, pickup->item);
+        Item taken = pickup->item;
+        int swapIndex = CombatSlotToSwapFor(&game->player, taken.kind);
+        if (swapIndex >= 0)
+        {
+            /* DEC-117 (attivi) e grafts.md (Innesti): a slot pieni la
+               raccolta e' uno SCAMBIO col piedistallo -- l'oggetto che
+               possedevi non sparisce, resta li' dove hai preso il nuovo, e
+               lo scambio e' reversibile finche' non lasci la stanza (i
+               pickup muoiono con EntitiesClear al cambio stanza). */
+            Item previous = game->player.items[swapIndex];
+            ScriptItemsRemoveItem(game, swapIndex);
+            CombatApplyItem(game, taken);
+            pickup->active = true;    /* il piedistallo non resta vuoto: ci finisce il vecchio */
+            pickup->item = previous;
+            pickup->cost = 0;         /* gia' pagato una volta: riprendersi il proprio non si paga */
+            pickup->locked = true;    /* niente scambio a ripetizione restando fermi sul piedistallo */
+        }
+        else CombatApplyItem(game, taken);
         WorldCurrentRoomMutable(game)->rewardTaken = true;
     }
     else if (pickup->kind == PICKUP_EXIT)
@@ -818,7 +1055,14 @@ void CombatUpdatePickups(Game *game)
         Pickup *p = &game->pickups[i];
         if (!p->active) continue;
         float r = p->radius + game->player.radius;
-        if (GameMathLengthSquared(GameMathSubtract(p->pos, game->player.pos)) < r*r) CombatPickup(game, p);
+        bool overlap = GameMathLengthSquared(GameMathSubtract(p->pos, game->player.pos)) < r*r;
+        /* Il blocco di uno scambio/sgancio si scioglie quando il giocatore si
+           ALLONTANA, non dopo un tempo: un timer scadrebbe mentre il
+           giocatore e' ancora fermo li' sopra e lo scambio ripartirebbe da
+           solo (vedi Pickup.locked in core/game_types.h). */
+        if (!overlap) { p->locked = false; continue; }
+        if (p->locked) continue;
+        CombatPickup(game, p);
     }
 }
 

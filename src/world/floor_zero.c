@@ -58,6 +58,8 @@ void FloorZeroEnter(Game *game)
     game->statsDirty = false;
     game->bombQueued = false;
     game->resetQueued = false;
+    game->useActiveQueued = false;
+    game->dropGraftQueued = false;
     game->message[0] = '\0';
     game->messageTimer = 0.0f;
     game->score = 0;

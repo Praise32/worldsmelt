@@ -52,16 +52,46 @@ static ItemSlot SlotFromText(const char *text)
     return SLOT_HAT;
 }
 
-/* Fase 3 (vedi ItemKind in core/game_types.h): "statup" e' l'UNICO testo che
-   produce ITEM_STATUP, qualunque altra cosa (mancante, vuoto, "active",
-   refuso) ricade su ITEM_ACTIVE. Il chiamante decide se invocarla affatto:
-   quando la chiave del manifest e' assente (run vecchia, oggetto senza
-   riga "kind=") il campo NON va toccato qui, resta quello gia' impostato dal
-   contenuto di ripiego (vedi RunContentLoad sotto, stesso schema "per-key
-   fallback" di ogni altro campo di questo file). */
-static ItemKind ItemKindFromText(const char *text)
+/* L'UNICO punto che traduce il vocabolario del manifest nella tassonomia a 4
+   categorie di ItemKind (core/game_types.h). Qualunque testo sconosciuto
+   ricade su ITEM_PASSIVE, la categoria senza slot e senza promesse: un
+   refuso non puo' regalare uno slot attivo ne' trasformare un oggetto in un
+   Innesto. Il chiamante decide se invocarla affatto: quando la chiave del
+   manifest e' assente (run vecchia, oggetto senza riga "kind=") il campo NON
+   va toccato qui, resta quello gia' impostato dal contenuto di ripiego (vedi
+   RunContentLoad sotto, stesso schema "per-key fallback" di ogni altro campo
+   di questo file).
+
+   COMPATIBILITA' col contenuto gia' scritto su disco. Fino a questa fase il
+   codice aveva due sole categorie e la prima si chiamava ITEM_ACTIVE pur
+   significando "passivo" nel senso del design; ogni manifest e ogni record
+   di catalogo gia' esistente scrive percio' "kind=active" per quello che il
+   design chiama PASSIVO. Tradurlo alla lettera renderebbe attivo -- con
+   slot, cariche e tasto d'uso -- ogni oggetto mai generato finora.
+   La disambiguazione non e' un trucco sul testo: e' il contratto di
+   active-items.md, "Ogni attivo dichiara uno tra cariche e cooldown". Un
+   oggetto e' un attivo VERO solo se, oltre a dire "active", dichiara anche
+   uno dei due -- cosa che nessun manifest scritto prima di oggi fa, perche'
+   quelle chiavi non esistevano. 'declaresRecharge' e' quel segnale, letto
+   dal chiamante dalle chiavi "charges="/"cooldown=".
+   Il testo "passive" e' il nome nuovo e non ha ambiguita': melting-gen
+   potra' cominciare a scriverlo (passo successivo) senza che questo lettore
+   cambi.
+
+   NON piu' static, come RarityFromText qui sotto e per lo stesso motivo:
+   questi testi devono restare sincronizzati A MANO con KindName
+   (src/content/run_catalog.c, la direzione opposta) e con GEN_KINDS
+   (tools/melting-gen/gen_util.c), e un disallineamento silenzioso passerebbe
+   ogni altro test. Esposta in run_content.h SOLO per il test di mappatura in
+   src/tests/script_items_tests.c. */
+ItemKind ItemKindFromText(const char *text, bool declaresRecharge)
 {
-    return (text && strcmp(text, "statup") == 0) ? ITEM_STATUP : ITEM_ACTIVE;
+    if (!text) return ITEM_PASSIVE;
+    if (strcmp(text, "statup") == 0) return ITEM_STATUP;
+    if (strcmp(text, "graft") == 0) return ITEM_GRAFT;
+    if (strcmp(text, "passive") == 0) return ITEM_PASSIVE;
+    if (strcmp(text, "active") == 0) return declaresRecharge ? ITEM_ACTIVE : ITEM_PASSIVE;
+    return ITEM_PASSIVE;
 }
 
 /* Fase 3b (vedi Rarity in core/game_types.h): "common"/"uncommon"/"rare"/
@@ -236,7 +266,13 @@ static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
     };
     Item item = { 0 };
     item.active = true;
-    item.kind = ITEM_ACTIVE;
+    /* Tassonomia a 4 categorie: questi oggetti di ripiego restano PASSIVI --
+       la categoria che avevano gia', quando "ITEM_ACTIVE" significava
+       passivo. Il ripiego puro non inventa attivi ne' Innesti: quelle due
+       categorie hanno slot e contratti (cariche/cooldown, sgancio) che un
+       contenuto di riserva procedurale non puo' dichiarare in modo sensato.
+       Arriveranno da melting-gen, col passo successivo. */
+    item.kind = ITEM_PASSIVE;
     /* Fase 3b: questo ripiego "puro" (nessun manifest sul disco, il caso
        degenere di prima ancora che melting-gen sia mai girato) resta
        deliberatamente comune (il valore zero, gia' impostato da "{0}"
@@ -400,6 +436,48 @@ static float ReadShotNumber(const char *text, int floorNum, int itemNum, const c
     ReadManifestValue(text, key, value, sizeof(value));
     if (!value[0]) return fallback;
     return (float)atof(value);
+}
+
+/* Chiavi di ricarica di un oggetto ATTIVO (active-items.md, "Come si attivano
+   e ricaricano" + DEC-059 per i due canali di base). 'prefix' e' il pezzo di
+   chiave prima del punto finale ("floor1.item2" oppure "floor1.bossItem"),
+   perche' le stesse quattro chiavi valgono per entrambi i tipi di record.
+   NESSUN manifest scritto prima di questa fase le contiene: e' proprio quella
+   assenza che ItemKindFromText usa per non promuovere ad attivo i passivi
+   storici scritti come "kind=active" (vedi il commento li'). Ritorna vero se
+   almeno uno fra cariche e cooldown e' dichiarato con un valore utile. */
+static bool ReadItemRecharge(const char *text, const char *prefix, Item *item)
+{
+    char key[96];
+    char value[64];
+    bool declared = false;
+
+    snprintf(key, sizeof(key), "%s.charges=", prefix);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (value[0]) item->charges = atoi(value);
+    if (item->charges > 0) declared = true;
+
+    snprintf(key, sizeof(key), "%s.cooldown=", prefix);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (value[0]) item->cooldown = (float)atof(value);
+    if (item->cooldown > 0.0f) declared = true;
+
+    /* Dosaggio dei due canali di DEC-059. Restano a 0 quando il manifest non
+       li scrive: item_slots.c legge lo zero come "1", il minimo che rende
+       vera la promessa "un attivo a cariche si ricarica". */
+    snprintf(key, sizeof(key), "%s.chargeRoom=", prefix);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (value[0]) item->chargeGainRoom = atoi(value);
+
+    snprintf(key, sizeof(key), "%s.chargeEnergy=", prefix);
+    value[0] = '\0';
+    ReadManifestValue(text, key, value, sizeof(value));
+    if (value[0]) item->chargeGainEnergy = atoi(value);
+
+    return declared;
 }
 
 /* Tipo di colpo di un oggetto dal manifest (step C). La chiave "shotName=" e' la
@@ -644,13 +722,19 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             if (value[0]) item->color = ParseHexColor(value, item->color);
 
             /* Fase 3: riga assente (manifest scritto prima di questo task, o
-               un vecchio golden file) -> item->kind resta ITEM_ACTIVE, gia'
+               un vecchio golden file) -> item->kind resta ITEM_PASSIVE, gia'
                impostato da MakeFallbackItem sopra (stesso schema "per-key
-               fallback" di ogni altro campo qui). */
+               fallback" di ogni altro campo qui). Le chiavi di ricarica si
+               leggono PRIMA di decidere la categoria: sono l'unica cosa che
+               distingue un attivo vero da un passivo storico scritto
+               "kind=active" (vedi ItemKindFromText). */
+            char itemPrefix[48];
+            snprintf(itemPrefix, sizeof(itemPrefix), "floor%d.item%d", n, i + 1);
+            bool declaresRecharge = ReadItemRecharge(text, itemPrefix, item);
             snprintf(key, sizeof(key), "floor%d.item%d.kind=", n, i + 1);
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));
-            if (value[0]) item->kind = ItemKindFromText(value);
+            if (value[0]) item->kind = ItemKindFromText(value, declaresRecharge);
 
             /* Fase 3b: riga assente (manifest scritto prima di questa fase)
                -> item->rarity resta RARITY_COMMON, gia' impostato da
@@ -723,10 +807,13 @@ void RunContentLoad(RunContent *content, unsigned int seed)
         ReadManifestValue(text, key, value, sizeof(value));
         if (value[0]) boss->color = ParseHexColor(value, boss->color);
 
+        char bossPrefix[48];
+        snprintf(bossPrefix, sizeof(bossPrefix), "floor%d.bossItem", n);
+        bool bossDeclaresRecharge = ReadItemRecharge(text, bossPrefix, boss);
         snprintf(key, sizeof(key), "floor%d.bossItem.kind=", n);
         value[0] = '\0';
         ReadManifestValue(text, key, value, sizeof(value));
-        if (value[0]) boss->kind = ItemKindFromText(value);
+        if (value[0]) boss->kind = ItemKindFromText(value, bossDeclaresRecharge);
 
         /* Fase 3b review ("il boss non delude mai"): stesso schema "per-key
            fallback" di sopra -- riga assente -> resta quello che

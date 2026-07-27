@@ -49,13 +49,18 @@ Lua fallisce.
 - **`game`**: inizializzazione e orchestrazione del frame (`game.c`); `game_internal.h`
   è riservato alle collaborazioni interne fra i sotto-moduli di `game`/`gameplay`, non
   un contenitore generico.
-- **`gameplay`**: `combat.c` (giocatore, nemici, colpi, bombe, pickup), `entities.c`
-  (creazione/pulizia entità), `item_traits.c` (conversione/descrizione tratti),
-  `synergies.c` (le sinergie fra oggetti via `SynergySignal` su `Item.traits` + tipo di
-  colpo attivo, nessun campo `Item.archetype`), `script_vm.c` (la mini-VM CSV a quattro
-  operazioni: **rete di sicurezza**, non il percorso predefinito). `combat.c` non
-  include mai `lua.h` né `script_sandbox.h`/`script_api.h`: chiama solo `ScriptItems*`
-  (vedi §3).
+- **`gameplay`**: `combat.c` (giocatore, nemici, colpi, bombe, pickup, uso degli attivi e
+  sgancio degli Innesti), `entities.c` (creazione/pulizia entità), `item_traits.c`
+  (conversione/descrizione tratti), `item_slots.c` (slot funzionali della tassonomia a 4
+  categorie: quale oggetto occupa lo slot attivo/Innesto è **derivato** scorrendo
+  `Player.items[]` per categoria, non memorizzato in indici — nessuna tabella parallela da
+  tenere allineata alle rimozioni; qui vivono anche cariche, cooldown e i due canali di
+  ricarica di DEC-059), `synergies.c` (le sinergie fra oggetti via `SynergySignal` su
+  `Item.traits` + tipo di colpo attivo, nessun campo `Item.archetype`), `script_vm.c` (la
+  mini-VM CSV a quattro operazioni: **rete di sicurezza**, non il percorso predefinito).
+  `combat.c` non include mai `lua.h` né `script_sandbox.h`/`script_api.h`: chiama solo
+  `ScriptItems*` (vedi §3) — comprese `ScriptItemsRemoveItem` (l'unica via per togliere un
+  oggetto dall'inventario, perché deve distruggerne la sandbox) e `ScriptItemsOnUse`.
 - **`gen`**: `gen_runner.{h,c}`, ciclo di vita del processo esterno di generazione
   (avvio, sondaggio del progresso, timeout, annullamento). Nessuna logica di gioco;
   guardia di piattaforma Linux qui dentro (AGENTS.md).
@@ -127,9 +132,13 @@ Tre prefissi distinti convivono in `src/script`/`src/gameplay` e non vanno confu
 2. **`ScriptApi`** (`script_api.{h,c}`) — l'API di gioco a handle (indice+generazione,
    mai un puntatore grezzo) registrata in quell'`_ENV`, con ogni scrittura clampata
    agli stessi confini della mini-VM.
-3. **`ScriptItems`** (`script_items.{h,c}`) — le quattro callback degli oggetti
-   (`on_evaluate`/`on_fire`/`on_hit`/`on_tick`) e il sistema delle cache "alla Isaac":
-   ricalcola sempre da zero da `Player.base*`, mai in place. Dietro la stessa facciata,
+3. **`ScriptItems`** (`script_items.{h,c}`) — le callback degli oggetti
+   (`on_evaluate`/`on_fire`/`on_hit`/`on_tick`, più `on_use` per i soli oggetti attivi:
+   gira per il singolo oggetto che il giocatore ha usato, non per tutti quelli posseduti)
+   e il sistema delle cache "alla Isaac":
+   ricalcola sempre da zero da `Player.base*`, mai in place — da questa fase anche la
+   maschera `Player.traits`, che prima era un OR accumulato al pickup e quindi non si
+   spegneva più quando un oggetto viene rimosso. Dietro la stessa facciata,
    `script_character.{h,c}` (`ScriptCharacter*`, M6b-2/DEC-037) gestisce l'unica
    sandbox del trait del personaggio generato per la run (non un oggetto: niente slot
    d'inventario né layer visivi); `ScriptItems*` la pilota internamente

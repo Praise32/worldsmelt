@@ -86,6 +86,13 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
 void CombatExplodeAt(Game *game, Vector2 position, float radius, float damage);
 void CombatSplitShot(Game *game, const Shot *shot);
 void CombatFirePlayer(Game *game, Vector2 direction);
+/* Attivazione volontaria dell'attivo selezionato e sgancio dell'Innesto
+   equipaggiato (systems/active-items.md, systems/grafts.md). Chiamate da
+   CombatUpdatePlayer quando consuma i latch di input Game.useActiveQueued/
+   dropGraftQueued; esposte qui perche' i test le esercitano direttamente,
+   senza passare da un frame intero di simulazione. */
+void CombatUseActive(Game *game, Vector2 aimDirection);
+void CombatDropGraft(Game *game);
 void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame);
 void CombatUpdateEnemies(Game *game, float dt);
 void CombatUpdateShots(Game *game, float dt);

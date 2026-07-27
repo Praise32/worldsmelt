@@ -235,6 +235,8 @@ static AppInput AppInputCollect(void)
     input.reroll = IsKeyPressed(KEY_R);
     input.quit = IsKeyPressed(KEY_Q);
     input.bomb = IsKeyPressed(KEY_SPACE);
+    input.useActive = IsKeyPressed(KEY_E);
+    input.dropGraft = IsKeyPressed(KEY_G);
     return input;
 }
 
@@ -864,6 +866,10 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 break;
             }
             if (effective.bomb) game->bombQueued = true;
+            /* Slot funzionali: solo dentro Gameplay, come la bomba -- in un
+               menu E e G non devono fare nulla. */
+            if (effective.useActive) game->useActiveQueued = true;
+            if (effective.dropGraft) game->dropGraftQueued = true;
             break;
         }
 

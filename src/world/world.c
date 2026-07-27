@@ -4,6 +4,7 @@
 
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "world/room_camera.h"
 
@@ -1047,6 +1048,12 @@ void WorldCheckRoomClear(Game *game)
            core/game_types.h. game->floor e' sempre valido qui (la stanza
            boss esiste solo dentro un piano vero, mai nel Piano 0). */
         if (room->kind == ROOM_BOSS) game->bossDefeated[game->floor - 1] = true;
+        /* DEC-059, primo canale di ricarica degli attivi a cariche: la stanza
+           completata. Qui e non in WorldSpawnRoomReward perche' non e' una
+           ricompensa estratta (nessuna tiratura, nessun 'rewardTaken' che
+           possa averla gia' consumata): e' una conseguenza diretta e sempre
+           dovuta del completamento. Il dosaggio resta dell'oggetto. */
+        ItemActivesGainRoomCharge(&game->player);
         WorldSpawnRoomReward(game);
         if (room->kind != ROOM_BOSS) GameSetMessage(game, "Stanza ripulita.");
     }

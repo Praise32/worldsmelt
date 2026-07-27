@@ -50,6 +50,15 @@
 #define MAX_PICKUPS 28
 #define MAX_BOMBS 8
 #define MAX_ITEMS 18
+/* Tetto di MOTORE agli slot funzionali (systems/items-pools-and-rarity.md,
+   "Slot": si parte con 1 slot attivo + 1 slot Innesto, oggetti/eventi rari
+   possono aggiungerne). Il documento lascia aperto il numero MASSIMO
+   ottenibile in una run: questi non sono quel numero, sono il limite oltre
+   il quale il motore rifiuta di crescere -- una fonte di slot generata male
+   non puo' comunque sfondare gli array. Il valore iniziale (1 e 1) lo scrive
+   GamePlayerResetBaseStatsFor, non queste costanti. */
+#define MAX_ACTIVE_SLOTS 4
+#define MAX_GRAFT_SLOTS 4
 #define MAX_PARTICLES 128
 #define MAX_SCRIPT_OPS 4
 #define SCRIPT_TEXT_LEN 256
@@ -115,7 +124,14 @@ typedef enum PickupKind {
     PICKUP_BOMB,
     PICKUP_KEY,
     PICKUP_ITEM,
-    PICKUP_EXIT
+    PICKUP_EXIT,
+    /* Secondo canale di ricarica degli attivi a cariche (DEC-059): l'energia
+       che lasciano i nemici. In CODA all'enum, mai in mezzo, per lo stesso
+       motivo di SPR_ENEMY_FLOATER piu' sotto -- questi valori finiscono in
+       switch e tabelle indicizzate sparse per il codice. Non ha una cella
+       d'atlas propria (aggiungerne una invaliderebbe ogni atlas gia'
+       generato): si disegna con una forma geometrica, vedi DrawPickup. */
+    PICKUP_ENERGY
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -127,16 +143,30 @@ typedef enum ItemSlot {
     SLOT_AURA
 } ItemSlot;
 
-/* Tassonomia degli oggetti (fase 3, docs/engineering/specs/2026-07-13-items-synergy-vision.md
-   sezioni 1,2,5): ITEM_ACTIVE modifica come spari o ti muovi (i mattoni delle
-   sinergie: stanze tesoro e negozio), ITEM_STATUP e' un puro aumento di
-   statistiche (ricompensa del boss, nessun comportamento nuovo). ITEM_ACTIVE
-   vale 0 di proposito: un Item azzerato con "{0}" (il pattern usato in tutto
-   il codice, vedi CombatApplyItem/i test) o un manifest vecchio senza alcuna
-   riga "kind=" restano attivi di default, mai stat-up per sbaglio. */
+/* Tassonomia degli oggetti a QUATTRO categorie
+   (docs/design/systems/items-pools-and-rarity.md, "Categorie": attivo,
+   passivo, stat-up, Innesto). Fino a questa fase il codice ne aveva due, e
+   la prima si chiamava ITEM_ACTIVE pur significando "passivo" nel senso del
+   design (effetto sempre presente una volta ottenuto: modifica come spari o
+   ti muovi). Il nome mentiva: qui e' rinominata ITEM_PASSIVE, che e' quello
+   che ha sempre fatto, e ITEM_ACTIVE torna a significare cio' che il design
+   intende -- un oggetto che si ATTIVA volontariamente, con cariche o
+   cooldown e uno slot dedicato (systems/active-items.md).
+
+   ITEM_PASSIVE vale 0 di proposito, per lo stesso motivo per cui ci stava
+   prima il vecchio ITEM_ACTIVE: un Item azzerato con "{0}" (il pattern usato
+   in tutto il codice, vedi CombatApplyItem/i test), un manifest vecchio
+   senza riga "kind=", un record di catalogo scritto prima di oggi restano
+   PASSIVI -- cioe' esattamente la semantica che avevano -- e non diventano
+   mai per sbaglio uno stat-up, un attivo usabile o un Innesto.
+   La mappatura dei testi del manifest (compresa la riga storica
+   "kind=active", che significava passivo) vive in ItemKindFromText,
+   src/content/run_content.c: e' l'unico punto che la conosce. */
 typedef enum ItemKind {
-    ITEM_ACTIVE,
-    ITEM_STATUP
+    ITEM_PASSIVE,   /* effetto sempre presente, nessuno slot, si accumula senza limite */
+    ITEM_STATUP,    /* solo numeri, nessun comportamento (ricompensa del boss) */
+    ITEM_ACTIVE,    /* si attiva a comando: cariche o cooldown, slot dedicato */
+    ITEM_GRAFT      /* Innesto: piccolo, situazionale, sganciabile, slot dedicato */
 } ItemKind;
 
 /* Rarita' (fase 3b, docs/engineering/specs/2026-07-13-pools-rarity-design.md
@@ -148,7 +178,7 @@ typedef enum ItemKind {
    la sua POSIZIONE (items[0..2] = tesoro/negozio, bossItem = boss, vedi
    FloorContent sotto), esattamente come "kind" gia' non ha bisogno di un
    campo aggiuntivo per sapere se e' un oggetto del piano o la ricompensa
-   del boss. RARITY_COMMON vale 0 di proposito, stesso motivo di ITEM_ACTIVE
+   del boss. RARITY_COMMON vale 0 di proposito, stesso motivo di ITEM_PASSIVE
    sopra: un Item azzerato con "{0}" o un manifest senza una riga
    "rarity=" (vecchio, scritto prima di questa fase) restano comuni, mai una
    rarita' piu' alta per sbaglio (vedi RarityFromText in run_content.c). */
@@ -341,7 +371,7 @@ typedef struct Item {
     char name[48];
     ItemSlot slot;
     unsigned int traits;
-    ItemKind kind;   /* ITEM_ACTIVE di default (vedi il commento sopra): mai stat-up senza che qualcuno lo imposti esplicitamente */
+    ItemKind kind;   /* ITEM_PASSIVE di default (vedi il commento sopra): mai un'altra categoria senza che qualcuno la imposti esplicitamente */
     Rarity rarity;   /* RARITY_COMMON di default (vedi il commento sopra): letta dal renderer (fase 3b VISIVA, task parallelo) per il colore del bordo, e da script_items.c/world.c per il tetto di potenza/costo negozio */
     Color color;
     int shape;
@@ -357,6 +387,36 @@ typedef struct Item {
        viene copiato per valore ovunque -- FloorContent -> Pickup -> Player.items
        -- e un riferimento indiretto si romperebbe silenziosamente a ogni copia. */
     ShotTypeDef shotType;
+    /* Ricarica di un oggetto ATTIVO (systems/active-items.md, "Come si
+       attivano e ricaricano"): il design impone che ogni attivo dichiari UNO
+       fra cariche e cooldown, mai nessuno dei due e mai entrambi. Qui i due
+       modi convivono come campi perche' il motore deve poter leggere anche un
+       contenuto malfatto: chi decide quale vale e' ItemActiveIsChargeBased/
+       ItemActiveIsCooldownBased (src/gameplay/item_slots.h), con le cariche
+       che vincono se per errore ci fossero entrambi -- il modo piu' avaro dei
+       due, cosi' un dato sbagliato rende l'oggetto piu' debole, mai piu'
+       forte (stessa regola di ScriptItemsRarityFraction).
+       Tutti zero = nessuno dei due dichiarato: l'attivo ricade sul cooldown
+       di riserva del motore (ITEM_ACTIVE_DEFAULT_COOLDOWN), mai su "usabile a
+       ogni frame".
+       'chargeGainRoom'/'chargeGainEnergy' sono il dosaggio dei DUE canali di
+       base di DEC-059 (stanza completata / energia droppata dai nemici):
+       restano per-oggetto, come vuole il documento, e valgono 1 quando
+       l'oggetto non dichiara nulla. */
+    int charges;             /* capienza in cariche (>0 = attivo a cariche) */
+    float cooldown;          /* secondi di attesa dopo l'uso (>0 = attivo a cooldown) */
+    int chargeGainRoom;      /* DEC-059, canale 1: cariche per stanza completata */
+    int chargeGainEnergy;    /* DEC-059, canale 2: cariche per raccolta di energia */
+    /* Stato VIVO della ricarica. Vive dentro l'Item, non in una tabella
+       parallela indicizzata per slot, esattamente per il motivo scritto sopra
+       su ShotTypeDef: un Item viaggia per VALORE (FloorContent -> Pickup ->
+       Player.items -> di nuovo Pickup quando lo si scambia sul piedistallo,
+       DEC-117). Cosi' lo scambio col piedistallo conserva le cariche che
+       l'oggetto aveva, e riprenderlo indietro lo restituisce com'era: se lo
+       stato vivesse in una tabella per-slot, uno scambio lo azzererebbe in
+       silenzio. */
+    int chargeNow;           /* cariche accumulate ORA */
+    float cooldownTimer;     /* secondi che mancano al prossimo uso */
 } Item;
 
 typedef struct FloorContent {
@@ -463,6 +523,15 @@ typedef struct Player {
     float luck;
     float fireTimer;
     float invuln;
+    /* Maschera di trait che CombatFirePlayer mette sui colpi. Scritta da UN
+       SOLO punto, ScriptItemsRecomputeStats, che la ricalcola da ZERO dagli
+       oggetti posseduti come ogni altra statistica -- non piu' un OR
+       accumulato al pickup. Il cambio e' obbligato dalle categorie con slot:
+       un Innesto si sgancia (DEC-115/DEC-160) e un attivo si scambia sul
+       piedistallo (DEC-117), e un OR monotono non si spegne mai, quindi i
+       trait di un oggetto rimosso resterebbero sui colpi per il resto della
+       run. Le sinergie continuano a NON derivare da questo campo (vedono gli
+       oggetti direttamente, vedi il commento su Player.synergies sotto). */
     unsigned int traits;
     /* Tipo di colpo ATTIVO del giocatore (step C): NON e' un'unione dei tipi
        posseduti -- vince l'ULTIMO oggetto raccolto che ne porta uno (alla Isaac:
@@ -508,6 +577,33 @@ typedef struct Player {
     unsigned int synergies;
     Item items[MAX_ITEMS];
     int itemCount;
+    /* Slot funzionali (systems/items-pools-and-rarity.md, "Slot"). NON sono
+       un secondo inventario: attivi e Innesti restano dentro items[] come
+       ogni altro oggetto -- "equipaggiato" significa esattamente "posseduto",
+       e sganciare un Innesto significa toglierlo da items[]
+       (ScriptItemsRemoveItem). E' la ragione per cui questi campi contano
+       CAPIENZA e non contengono indici: un indice memorizzato qui si
+       disallineerebbe alla prima rimozione, e un Game azzerato con memset
+       (quello che fanno GameResetRun e mezza suite di test) lo lascerebbe
+       puntato all'oggetto 0 invece che a "nessuno". Quale oggetto occupa
+       quale slot lo deriva sempre src/gameplay/item_slots.h scorrendo
+       items[] per categoria, in ordine di acquisizione.
+       Valore <= 0 significa "il minimo di design", cioe' 1 (vedi
+       ItemActiveSlotCount/ItemGraftSlotCount): cosi' un Player azzerato ha
+       comunque il suo slot attivo e il suo slot Innesto, senza dipendere da
+       chi lo ha costruito. Gli slot in piu' valgono SOLO per la run in corso
+       (DEC-123): vivono qui dentro Player, che GameResetRun azzera. */
+    int activeSlotCount;
+    int graftSlotCount;
+    /* Quale degli attivi posseduti risponde al tasto d'uso -- e quindi anche
+       quale finisce sul piedistallo in uno scambio (DEC-117: "con piu' slot
+       pieni, quello attualmente selezionato per l'attivazione"). E' un
+       ORDINALE fra gli attivi posseduti (0 = il primo raccolto), non un
+       indice in items[]: sopravvive intatto a qualunque rimozione, e lo zero
+       di un memset e' gia' la scelta giusta. Chi lo legge lo clampa
+       (ItemSelectedActiveIndex): un ordinale oltre il numero di attivi
+       posseduti ricade sull'ultimo. */
+    int activeSelected;
     /* Valori di PARTENZA (prima di qualunque oggetto), da cui
        ScriptItemsRecomputeStats riparte OGNI VOLTA che ricalcola: e' il
        sistema delle cache "alla Isaac" (spec, sezione 7). damage/fireDelay/
@@ -625,6 +721,19 @@ typedef struct Pickup {
     int value;
     int cost;
     Item item;
+    /* "Il giocatore ci sta ancora sopra": vero quando questo pickup e' appena
+       nato SOTTO il giocatore -- l'attivo che uno scambio ha appena lasciato
+       sul piedistallo (DEC-117) o l'Innesto appena sganciato a terra
+       (DEC-160). Senza, la raccolta scatterebbe di nuovo il frame successivo,
+       perche' CombatUpdatePickups guarda solo la sovrapposizione dei raggi:
+       lo scambio si ripeterebbe a ogni frame finche' il giocatore non si
+       sposta, e sganciare un Innesto sarebbe impossibile.
+       Non e' un timer (un timer si esaurisce mentre il giocatore e' ancora
+       fermo li' sopra, e il problema torna): si spegne quando la
+       sovrapposizione FINISCE, cioe' quando ci si allontana. Zero-default
+       falso = raccoglibile subito, quindi ogni pickup gia' esistente e ogni
+       test che ne costruisce uno a mano restano invariati. */
+    bool locked;
 } Pickup;
 
 typedef struct Bomb {
@@ -661,6 +770,13 @@ typedef struct ScriptItemRuntime {
     int fireRef;
     int hitRef;
     int tickRef;
+    /* Quinta callback, solo per gli oggetti ITEM_ACTIVE (l'attivazione
+       volontaria di systems/active-items.md). Resta -1 per ogni altra
+       categoria anche se lo script la definisse: vedi la difesa di
+       tassonomia in ScriptItemsOnAcquire. Aggiunta QUI e non in
+       ScriptCharacterRuntime di proposito -- il trait del personaggio non
+       occupa lo slot attivo e non si "usa". */
+    int useRef;
     int statsTableRef;
 } ScriptItemRuntime;
 
@@ -757,6 +873,12 @@ typedef struct Game {
        direttamente dentro la simulazione: rileggerli a ogni passo e' corretto. */
     bool bombQueued;    /* SPACE: piazzare una bomba al prossimo passo */
     bool resetQueued;   /* R (senza melting-gen): reset rapido della run */
+    /* Stessa disciplina di bombQueued: sono eventi (IsKeyPressed), quindi il
+       livello applicativo li latcha una volta per frame di finestra e il
+       primo passo di simulazione che li legge li consuma. Un uso = una
+       carica, anche su un frame che contiene due passi. */
+    bool useActiveQueued;   /* E: usare l'oggetto attivo selezionato */
+    bool dropGraftQueued;   /* G: sganciare l'Innesto equipaggiato (DEC-115/DEC-160) */
     /* Piano 0 sala d'attesa (M1b, systems/floor-zero.md + ui/generation-status.md):
        scritto SOLO da src/app (che possiede lo stato della generazione), letto
        da world/render. 'floorZeroExitOpen' diventa vero quando la pipeline di

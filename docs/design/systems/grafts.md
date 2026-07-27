@@ -143,6 +143,54 @@ unica definita in
 - Gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della
   build (DEC-116): nessun legame col piano in cui li trovi.
 
+## Stato di implementazione (2026-07-27)
+
+Il motore implementa la categoria, lo slot e il ciclo raccolta/sostituzione/sgancio; il
+contenuto non produce ancora Innesti e i piega-regole non esistono.
+
+**Implementato**
+
+- `ITEM_GRAFT` è una delle 4 categorie di `ItemKind` (`src/core/game_types.h`), con slot
+  Innesto singolo ed espandibile derivato dall'inventario (`src/gameplay/item_slots.{h,c}`).
+- Sostituzione a slot pieno con la stessa meccanica del piedistallo degli attivi
+  (DEC-117): il vecchio Innesto resta a terra dove hai preso il nuovo, e riprenderlo
+  riscambia — il "rifiutare la raccolta" dei casi limite si ottiene semplicemente non
+  toccando l'oggetto.
+- Sgancio volontario (DEC-115) con l'Innesto lasciato **a terra nella stanza** e
+  recuperabile finché non si esce (DEC-160). "Perso uscendo" non ha codice dedicato: i
+  pickup di una stanza vengono azzerati all'ingresso in una stanza qualsiasi, quindi la
+  simmetria col piedistallo vale per costruzione.
+- Stacking dentro i clamp del motore (DEC-122): gli Innesti passano dal ricalcolo da zero
+  di `ScriptItemsRecomputeStats` come ogni altro oggetto, senza contabilità nuova. Il
+  budget per-oggetto scalato per rarità — finora riservato agli stat-up — si applica
+  anche agli Innesti: è il "budget del motore" a cui DEC-122 rimanda.
+- I trait di un Innesto si **spengono** allo sgancio: il motore ricalcola da zero anche
+  la maschera di trait del giocatore, che prima era un OR monotono mai reversibile.
+- HUD: riga permanente distinta da quella dell'attivo, con nome, slot occupati/disponibili
+  e tasto di sgancio.
+
+**Non ancora implementato**
+
+- `tools/melting-gen` non genera ancora oggetti di categoria Innesto: nessun contenuto
+  della run produce oggi un Innesto, che quindi si vede solo dai test.
+- **Piega-regole (DEC-034/DEC-107/DEC-126): assenti.** Nessun campo dichiara quale regola
+  un leggendario altera, nessun gancio nei quattro bersagli ammessi, nessuna validazione
+  che respinga chi ne tocca più di una.
+- Innesti "sensore" per le super-segrete (DEC-127): dipendono dalle stanze segrete, che
+  non esistono.
+- Nessuna fonte di slot Innesto aggiuntivi esiste in gioco.
+
+### Default proposti dall'implementazione
+
+Stile DEC-019: scelte del codice dove il documento non decide, da confermare.
+
+| Scelta | Default adottato |
+|---|---|
+| Input di sgancio | tasto **G** |
+| Quale Innesto si sgancia con più slot occupati | l'**ultimo equipaggiato** (nessuna UI di selezione degli slot) |
+| Quale Innesto viene sostituito a slot pieni | l'**ultimo equipaggiato**, stessa regola |
+| Budget dell'effetto | il tetto per-oggetto scalato per rarità già usato dagli stat-up |
+
 ## Domande aperte residue
 
 
@@ -210,3 +258,10 @@ aperta qui.
   terra
 - When lascia quella stanza
 - Then l'Innesto sganciato non è più recuperabile (DEC-160)
+
+**Scenario: l'effetto di un Innesto si spegne allo sgancio**
+- Given un Innesto equipaggiato che modifica una statistica o il comportamento dei colpi
+- When il giocatore lo sgancia
+- Then l'effetto sparisce immediatamente e completamente, e riprendendo l'Innesto da terra
+  torna identico a prima: nessun residuo, nessun accumulo (DEC-122 dentro i clamp del
+  motore)

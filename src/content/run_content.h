@@ -14,6 +14,16 @@ void RunContentLoad(RunContent *content, unsigned int seed);
  */
 Rarity RarityFromText(const char *text);
 
+/* Tassonomia a 4 categorie: il vocabolario del manifest -> ItemKind, con la
+ * mappatura di COMPATIBILITA' per il contenuto gia' su disco (il testo
+ * storico "active" significava passivo; 'declaresRecharge' -- cioe' "questo
+ * record dichiara cariche o cooldown", cosa che nessun manifest vecchio fa --
+ * e' cio' che distingue un attivo vero). Esposta (non piu' static) per lo
+ * stesso motivo di RarityFromText sopra: src/tests/script_items_tests.c
+ * verifica quella mappatura direttamente, invece di dedurla da un manifest
+ * sintetico. Vedi il commento sulla sua definizione in run_content.c. */
+ItemKind ItemKindFromText(const char *text, bool declaresRecharge);
+
 /* Step B2 (generazione pigra dei piani, roadmap punto 2): ricarica dal manifest
  * SOLO gli script Lua del piano dato (indice 0..FLOOR_COUNT-1), lasciando intatto
  * tutto il resto del contenuto gia' caricato.

@@ -1,6 +1,7 @@
 #include "gameplay/entities.h"
 
 #include "core/game_math.h"
+#include "gameplay/item_slots.h"
 
 #include <math.h>
 #include <string.h>
@@ -149,6 +150,7 @@ void EntitiesAddPickup(Game *game, PickupKind kind, Vector2 pos, int value, int 
         p->pos = pos;
         p->value = value;
         p->cost = cost;
+        p->locked = false;   /* uno slot riciclato non eredita il blocco di uno scambio precedente */
         p->radius = (kind == PICKUP_ITEM) ? 20.0f : 14.0f;
         return;
     }
@@ -175,7 +177,16 @@ void EntitiesAddItemPickup(Game *game, Vector2 pos, Item item, int cost)
         p->pos = pos;
         p->item = item;
         p->cost = cost;
+        p->locked = false;
         p->radius = 22.0f;
+        /* Un oggetto OFFERTO dal gioco arriva carico: e' qui che un attivo
+           passa da "scheda di contenuto" (FloorContent, che non ha stato di
+           ricarica) a "oggetto vero nel mondo". Farlo invece al momento della
+           raccolta sarebbe una ricarica gratis: lo scambio col piedistallo
+           (DEC-117) rimette in circolo l'attivo del giocatore scrivendo
+           direttamente Pickup.item, senza passare di qui, proprio perche' le
+           sue cariche consumate devono restare consumate. */
+        ItemActiveResetCharge(&p->item);
         return;
     }
 }

@@ -25,6 +25,7 @@ static void ScriptItemsResetSlot(ScriptItemRuntime *rt)
     rt->fireRef = SCRIPT_ITEMS_NO_REF;
     rt->hitRef = SCRIPT_ITEMS_NO_REF;
     rt->tickRef = SCRIPT_ITEMS_NO_REF;
+    rt->useRef = SCRIPT_ITEMS_NO_REF;
     rt->statsTableRef = SCRIPT_ITEMS_NO_REF;
 }
 
@@ -116,6 +117,12 @@ void ScriptItemsOnAcquire(Game *game, int itemIndex)
         rt->hitRef = ScriptItemsCacheGlobalRef(L, "on_hit");
         rt->tickRef = ScriptItemsCacheGlobalRef(L, "on_tick");
     }
+    /* Stessa difesa, dall'altro lato della tassonomia: 'on_use' e' l'effetto
+       dell'ATTIVAZIONE VOLONTARIA, quindi esiste solo per un ITEM_ACTIVE.
+       Un passivo, uno stat-up o un Innesto che la definisse non guadagna un
+       modo di essere usato -- non ha lo slot in cui essere selezionato, e
+       ScriptItemsOnUse rifiuta comunque per categoria: due reti, non una. */
+    if (item->kind == ITEM_ACTIVE) rt->useRef = ScriptItemsCacheGlobalRef(L, "on_use");
 
     /* Tabella di scratch per on_evaluate, creata una volta e riusata ad ogni
        ricalcolo invece che allocata per chiamata (spec, sezione 5). Solo se
@@ -125,6 +132,40 @@ void ScriptItemsOnAcquire(Game *game, int itemIndex)
         lua_newtable(L);
         rt->statsTableRef = luaL_ref(L, LUA_REGISTRYINDEX);
     }
+
+    game->statsDirty = true;
+}
+
+void ScriptItemsRemoveItem(Game *game, int itemIndex)
+{
+    int count = game->player.itemCount;
+    if (count > MAX_ITEMS) count = MAX_ITEMS;
+    if (itemIndex < 0 || itemIndex >= count) return;
+
+    ScriptItemRuntime *rt = &game->itemScripts[itemIndex];
+    if (rt->sandbox != NULL) ScriptSandboxDestroy((ScriptSandbox *)rt->sandbox);
+    ScriptItemsResetSlot(rt);
+
+    /* Compattazione a coppie: items[] e itemScripts[] scorrono INSIEME, un
+       indice per volta, perche' l'unica invariante del modulo e' che i due
+       array descrivano lo stesso oggetto allo stesso indice. Copiare la
+       ScriptItemRuntime per valore e' sicuro: e' un POD di puntatore +
+       riferimenti luaL_ref, e nessuno dei due dipende dall'indice dello slot
+       (il riferimento vive nel registro della SUA sandbox, che si sposta
+       insieme a lui). */
+    for (int i = itemIndex; i + 1 < count; i++)
+    {
+        game->player.items[i] = game->player.items[i + 1];
+        game->itemScripts[i] = game->itemScripts[i + 1];
+    }
+    /* La coda va azzerata davvero, non solo dimenticata: un
+       ScriptItemsShutdown successivo scorre TUTTI i MAX_ITEMS slot e
+       distruggerebbe due volte la stessa sandbox (quella dell'ultimo oggetto,
+       rimasta duplicata in fondo dopo lo scorrimento). */
+    Item empty = { 0 };
+    game->player.items[count - 1] = empty;
+    ScriptItemsResetSlot(&game->itemScripts[count - 1]);
+    game->player.itemCount = count - 1;
 
     game->statsDirty = true;
 }
@@ -193,6 +234,28 @@ void ScriptItemsOnTick(Game *game, float dt)
         double args[1] = { (double)dt };
         ScriptItemsCallCachedVoid(sb, rt->tickRef, args, 1);
     }
+}
+
+bool ScriptItemsOnUse(Game *game, int itemIndex, Vector2 pos, Vector2 dir)
+{
+    int count = game->player.itemCount;
+    if (count > MAX_ITEMS) count = MAX_ITEMS;
+    if (itemIndex < 0 || itemIndex >= count) return false;
+    if (game->player.items[itemIndex].kind != ITEM_ACTIVE) return false;
+
+    ScriptItemRuntime *rt = &game->itemScripts[itemIndex];
+    ScriptSandbox *sb = (ScriptSandbox *)rt->sandbox;
+    if (sb == NULL || ScriptSandboxIsDisabled(sb)) return false;
+    if (rt->useRef == SCRIPT_ITEMS_NO_REF) return false;
+
+    double args[4] = { (double)pos.x, (double)pos.y, (double)dir.x, (double)dir.y };
+    ScriptItemsCallCachedVoid(sb, rt->useRef, args, 4);
+    /* Vero anche quando il patto di sicurezza ha ucciso la chiamata a meta':
+       lo script ha AVUTO il suo turno, e far scattare il ripiego in C sopra
+       un effetto gia' applicato per meta' raddoppierebbe l'attivazione. La
+       carica la consuma comunque il chiamante -- e' il comportamento onesto
+       anche quando l'oggetto e' fatto male. */
+    return true;
 }
 
 /* ============================================================
@@ -581,10 +644,22 @@ void ScriptItemsRecomputeStats(Game *game)
        altrimenti un oggetto che porta un tipo di colpo che salta ED e' anche
        l'oggetto che rallenta sinergizzerebbe con se' stesso. */
     int shotTypeItem = -1;
+    /* I trait del giocatore si ricalcolano da ZERO come ogni altra
+       statistica, invece di essere accumulati con un OR al momento del
+       pickup. Non e' una rifinitura: da quando esistono le categorie con
+       slot -- un Innesto si sgancia (DEC-115/DEC-160), un attivo si scambia
+       sul piedistallo (DEC-117) -- un OR monotono non si spegne piu', e
+       togliersi un Innesto "esplosivo" lascerebbe i colpi esplosivi per il
+       resto della run. Le sinergie continuano a NON derivare da qui (vedono
+       gli oggetti posseduti direttamente, vedi il commento su SynergiesDetect
+       piu' sotto): questo campo resta cio' che era, la maschera che
+       CombatFirePlayer mette sui colpi. */
+    unsigned int traits = 0u;
 
     for (int i = 0; i < p->itemCount; i++)
     {
         const Item *item = &p->items[i];
+        traits |= item->traits;
         ScriptItemsApplyBuiltin(&acc, item);
         ScriptItemsClampStats(&acc, hpCap);
 
@@ -599,19 +674,28 @@ void ScriptItemsRecomputeStats(Game *game)
         ScriptSandbox *sb = (ScriptSandbox *)rt->sandbox;
         bool sandboxUsable = sb != NULL && !ScriptSandboxIsDisabled(sb);
         bool isStatUp = item->kind == ITEM_STATUP;
+        /* Il budget per-oggetto scalato per rarita' vale per gli stat-up e --
+           da questa fase -- anche per gli INNESTI: grafts.md li definisce
+           "piccoli, situazionali, sostituibili" e DEC-122 vuole che gli
+           effetti di piu' Innesti si combinino "dentro i clamp e i budget del
+           motore". Questo E' il budget del motore, quindi si applica invece
+           di inventarne uno nuovo. Passivi e attivi restano fuori, come
+           prima: un passivo puo' esprimere sinergie ricche con on_evaluate e
+           risponde solo al tetto globale (vedi il commento sopra la macro). */
+        bool perItemBudget = isStatUp || item->kind == ITEM_GRAFT;
 
-        /* on_evaluate, quando c'e' ed e' ancora vivo: per un oggetto
-           ITEM_STATUP anche il budget per-oggetto (vedi
+        /* on_evaluate, quando c'e' ed e' ancora vivo: per un oggetto con
+           budget per-oggetto anche quel tetto (vedi
            ScriptItemsClampItemDelta sopra), SEMPRE seguito dal tetto
-           globale. Un oggetto ATTIVO passa SOLO dal tetto globale, come
-           prima di questa fase (vedi il commento sopra la macro). */
+           globale. Un oggetto passivo o attivo passa SOLO dal tetto globale,
+           come prima di questa fase (vedi il commento sopra la macro). */
         bool ranLuaEval = false;
         if (sandboxUsable && rt->evalRef != SCRIPT_ITEMS_NO_REF)
         {
             ScriptItemsStatsAccum pre = acc;
             if (ScriptItemsCallEvaluate(rt, &acc))
             {
-                if (isStatUp) ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
+                if (perItemBudget) ScriptItemsClampItemDelta(&acc, &pre, p, item->rarity);
                 ranLuaEval = true;
             }
             ScriptItemsClampStats(&acc, hpCap);   /* di nuovo: anche dopo un fallimento, per sicurezza in profondita' */
@@ -692,6 +776,7 @@ void ScriptItemsRecomputeStats(Game *game)
     p->shotRadius = acc.shotRadius;
     p->speed = acc.speed;
     p->luck = acc.luck;
+    p->traits = traits;
     p->synergies = synergies;
     p->maxHp = (int)(acc.maxHp + 0.5f);
     if (p->hp > p->maxHp) p->hp = p->maxHp;

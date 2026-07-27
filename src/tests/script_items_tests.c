@@ -14,6 +14,7 @@
 #include "content/run_content.h"
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "gameplay/synergies.h"
 #include "script/script_items.h"
@@ -68,7 +69,11 @@ static void TestAddItem(Game *game, Item item)
     int idx = game->player.itemCount;
     if (idx >= MAX_ITEMS) idx = MAX_ITEMS - 1; else game->player.itemCount++;
     game->player.items[idx] = item;
-    game->player.traits |= item.traits;
+    /* Nessun OR su player.traits: la maschera la ricalcola da zero
+       ScriptItemsRecomputeStats dagli oggetti posseduti, esattamente come fa
+       il gioco vero da quando gli oggetti si possono anche RIMUOVERE (vedi il
+       commento su Player.traits in core/game_types.h). Scriverla qui a mano
+       nasconderebbe una regressione del ricalcolo. */
     ScriptItemsOnAcquire(game, idx);
     ScriptItemsProcessDirty(game);
 }
@@ -918,12 +923,12 @@ static bool TestDamageCurveDiminishesButNeverHurts(void)
    coppia e aggiunge UN effetto leggibile.
    ============================================================ */
 
-/* Un oggetto attivo minimale con un trait e una rarita' dati. */
+/* Un oggetto passivo minimale con un trait e una rarita' dati. */
 static Item MakeTraitItem(const char *name, unsigned int traits, Rarity rarity, ItemSlot slot)
 {
     Item item = { 0 };
     item.active = true;
-    item.kind = ITEM_ACTIVE;
+    item.kind = ITEM_PASSIVE;
     item.rarity = rarity;
     item.slot = slot;
     item.traits = traits;
@@ -2312,6 +2317,399 @@ static bool TestHpCapIsPerCharacter(void)
     return ok;
 }
 
+/* ============================================================
+   Test AQ-AT: la tassonomia a 4 categorie (docs/design/systems/
+   items-pools-and-rarity.md), gli attivi usabili (active-items.md, DEC-059,
+   DEC-117) e gli Innesti (grafts.md, DEC-115/DEC-160).
+   ============================================================ */
+
+static Item MakeChargeActive(const char *name, int charges, unsigned int traits)
+{
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_ACTIVE;
+    item.charges = charges;
+    item.traits = traits;
+    item.slot = SLOT_HAND;
+    snprintf(item.name, sizeof(item.name), "%s", name);
+    return item;
+}
+
+static Item MakeGraft(const char *name, unsigned int traits, Rarity rarity)
+{
+    Item item = { 0 };
+    item.active = true;
+    item.kind = ITEM_GRAFT;
+    item.rarity = rarity;
+    item.traits = traits;
+    item.slot = SLOT_AURA;
+    snprintf(item.name, sizeof(item.name), "%s", name);
+    return item;
+}
+
+/* Fa entrare l'oggetto dal percorso VERO del gioco (un pickup toccato), non
+   scrivendolo a mano in items[]: e' l'unico modo di esercitare davvero lo
+   scambio col piedistallo e ItemActiveResetCharge. */
+static void TestPickUpItemAt(Game *game, Item item, Vector2 pos)
+{
+    EntitiesAddItemPickup(game, pos, item, 0);
+    game->player.pos = pos;
+    CombatUpdatePickups(game);
+}
+
+static int TestCountItemPickups(const Game *game)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_PICKUPS; i++) if (game->pickups[i].active && game->pickups[i].kind == PICKUP_ITEM) n++;
+    return n;
+}
+
+/* Conta solo i pickup che portano QUELL'oggetto: nella stessa stanza puo'
+   esserci anche un piedistallo con un attivo scambiato, che non c'entra
+   nulla con l'Innesto appena sganciato. */
+static int TestCountItemPickupsNamed(const Game *game, const char *name)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        const Pickup *p = &game->pickups[i];
+        if (p->active && p->kind == PICKUP_ITEM && strcmp(p->item.name, name) == 0) n++;
+    }
+    return n;
+}
+
+/* Test AQ (active-items.md, "Come si attivano e ricaricano" + DEC-059):
+   un attivo a CARICHE si usa, consuma una carica, e a zero cariche rifiuta
+   l'uso SENZA perdere nulla; i due canali di base lo ricaricano. Un attivo a
+   COOLDOWN si usa una volta sola finche' il tempo non e' passato. */
+static bool TestActiveChargesAndCooldown(void)
+{
+    bool ok = true;
+    Game game = MakeBaseGame(9101u);
+    game.player.activeSlotCount = 1;
+    game.floor = 1;
+
+    /* Attivo a 2 cariche, senza trait "di colpo": il ripiego C fa la corona
+       di colpi, quindi l'uso e' osservabile contando i colpi in campo. */
+    TestPickUpItemAt(&game, MakeChargeActive("Nucleo Instabile", 2, 0u), game.player.pos);
+    int index = ItemSelectedActiveIndex(&game.player);
+    printf("  [AQ] attivo raccolto -> slot occupato (indice %d), cariche %d/%d\n",
+           index, index >= 0 ? game.player.items[index].chargeNow : -1,
+           index >= 0 ? ItemActiveChargeCapacity(&game.player.items[index]) : -1);
+    if (index < 0) { printf("      FALLITO: l'attivo non occupa lo slot attivo\n"); return false; }
+    if (game.player.items[index].chargeNow != 2) { printf("      FALLITO: un attivo appena trovato non e' carico\n"); ok = false; }
+
+    /* Due usi consecutivi consumano due cariche e producono due effetti. */
+    int before = CountActiveShots(&game);
+    CombatUseActive(&game, (Vector2){ 1.0f, 0.0f });
+    int afterFirst = CountActiveShots(&game);
+    CombatUseActive(&game, (Vector2){ 1.0f, 0.0f });
+    int afterSecond = CountActiveShots(&game);
+    printf("  [AQ] due usi -> colpi %d -> %d -> %d, cariche %d\n", before, afterFirst, afterSecond, game.player.items[index].chargeNow);
+    if (afterFirst <= before || afterSecond <= afterFirst) { printf("      FALLITO: l'uso non produce alcun effetto (il ripiego C non e' scattato)\n"); ok = false; }
+    if (game.player.items[index].chargeNow != 0) { printf("      FALLITO: le cariche non si consumano una per uso\n"); ok = false; }
+
+    /* A zero cariche: nessun effetto, e soprattutto nessuna carica persa
+       (active-items.md, caso limite "attivazione in ricarica"). */
+    int beforeEmpty = CountActiveShots(&game);
+    CombatUseActive(&game, (Vector2){ 1.0f, 0.0f });
+    printf("  [AQ] uso a secco -> colpi %d (attesi %d), cariche %d (attese 0, mai negative)\n",
+           CountActiveShots(&game), beforeEmpty, game.player.items[index].chargeNow);
+    if (CountActiveShots(&game) != beforeEmpty) { printf("      FALLITO: un attivo scarico ha comunque prodotto un effetto\n"); ok = false; }
+    if (game.player.items[index].chargeNow != 0) { printf("      FALLITO: un uso rifiutato ha comunque toccato le cariche\n"); ok = false; }
+
+    /* DEC-059 canale 2 (energia droppata dai nemici): il percorso VERO, un
+       PICKUP_ENERGY toccato. */
+    EntitiesAddPickup(&game, PICKUP_ENERGY, game.player.pos, 1, 0);
+    CombatUpdatePickups(&game);
+    printf("  [AQ/DEC-059 energia] cariche dopo la raccolta di energia: %d (attesa 1)\n", game.player.items[index].chargeNow);
+    if (game.player.items[index].chargeNow != 1) { printf("      FALLITO: il canale energia non ricarica\n"); ok = false; }
+
+    /* DEC-059 canale 1 (stanza completata): il percorso VERO, la stanza
+       corrente che si ripulisce senza nemici in campo. */
+    RoomState *room = WorldCurrentRoomMutable(&game);
+    room->exists = true;
+    room->kind = ROOM_COMBAT;
+    room->cleared = false;
+    room->rewardTaken = true;   /* niente ricompensa da estrarre: qui interessa solo la ricarica */
+    WorldCheckRoomClear(&game);
+    printf("  [AQ/DEC-059 stanza] cariche dopo 'stanza ripulita': %d (attesa 2, il massimo)\n", game.player.items[index].chargeNow);
+    if (game.player.items[index].chargeNow != 2) { printf("      FALLITO: il canale stanza non ricarica\n"); ok = false; }
+    ScriptItemsShutdown(&game);
+
+    /* Attivo a COOLDOWN: un uso, poi rifiuto finche' il tempo non passa. */
+    Game cd = MakeBaseGame(9102u);
+    cd.floor = 1;
+    Item timed = MakeChargeActive("Sfiato Termico", 0, 0u);
+    timed.cooldown = 3.0f;
+    TestPickUpItemAt(&cd, timed, cd.player.pos);
+    int ci = ItemSelectedActiveIndex(&cd.player);
+    if (ci < 0) { printf("      FALLITO: l'attivo a cooldown non occupa lo slot\n"); ScriptItemsShutdown(&cd); return false; }
+    if (!ItemActiveIsCooldownBased(&cd.player.items[ci])) { printf("      FALLITO: un oggetto con solo 'cooldown' non e' riconosciuto come attivo a cooldown\n"); ok = false; }
+
+    int cdBefore = CountActiveShots(&cd);
+    CombatUseActive(&cd, (Vector2){ 1.0f, 0.0f });
+    int cdAfter = CountActiveShots(&cd);
+    CombatUseActive(&cd, (Vector2){ 1.0f, 0.0f });   /* subito dopo: deve essere rifiutato */
+    int cdSecond = CountActiveShots(&cd);
+    printf("  [AQ/cooldown] colpi %d -> %d (uso) -> %d (rifiutato), timer %.2fs\n", cdBefore, cdAfter, cdSecond, (double)cd.player.items[ci].cooldownTimer);
+    if (cdAfter <= cdBefore) { printf("      FALLITO: il primo uso a cooldown non ha effetto\n"); ok = false; }
+    if (cdSecond != cdAfter) { printf("      FALLITO: il secondo uso e' passato mentre l'oggetto era in ricarica\n"); ok = false; }
+
+    /* Il tempo scorre: 3.5s di simulazione a 60 Hz e l'oggetto torna pronto. */
+    for (int i = 0; i < 210; i++) ItemActivesTickCooldown(&cd.player, 1.0f/60.0f);
+    printf("  [AQ/cooldown] dopo 3.5s simulati: pronto=%s (atteso si)\n", ItemActiveIsReady(&cd.player.items[ci]) ? "si" : "NO");
+    if (!ItemActiveIsReady(&cd.player.items[ci])) { printf("      FALLITO: il cooldown non si esaurisce col tempo\n"); ok = false; }
+    ScriptItemsShutdown(&cd);
+
+    return ok;
+}
+
+/* Test AR (DEC-117 + grafts.md/DEC-115/DEC-160): a slot pieno la raccolta e'
+   uno SCAMBIO col piedistallo, reversibile finche' si resta nella stanza;
+   uno sgancio volontario lascia l'Innesto a terra e libera lo slot; il
+   recupero lo riequipaggia; uscendo dalla stanza sparisce. */
+static bool TestActiveSwapAndGraftDropRecover(void)
+{
+    bool ok = true;
+    Game game = MakeBaseGame(9201u);
+    game.floor = 1;
+    Vector2 pedestal = game.player.pos;
+
+    /* --- DEC-117, scambio dell'attivo sul piedistallo --- */
+    TestPickUpItemAt(&game, MakeChargeActive("Primo Attivo", 3, 0u), pedestal);
+    printf("  [AR/DEC-117] primo attivo: attivi posseduti %d, pickup rimasti %d (atteso 1 e 0)\n",
+           ItemCountOfKind(&game.player, ITEM_ACTIVE), TestCountItemPickups(&game));
+    if (ItemCountOfKind(&game.player, ITEM_ACTIVE) != 1) { printf("      FALLITO: il primo attivo non e' entrato nello slot libero\n"); ok = false; }
+    if (TestCountItemPickups(&game) != 0) { printf("      FALLITO: con lo slot libero la raccolta deve svuotare il piedistallo\n"); ok = false; }
+
+    /* Secondo attivo a slot pieno: scambio. Il giocatore si allontana e
+       torna, altrimenti Pickup.locked (giustamente) blocca la raccolta. */
+    game.player.pos = (Vector2){ pedestal.x + 400.0f, pedestal.y };
+    EntitiesAddItemPickup(&game, pedestal, MakeChargeActive("Secondo Attivo", 3, 0u), 0);
+    game.player.pos = pedestal;
+    CombatUpdatePickups(&game);
+    int activeIndex = ItemSelectedActiveIndex(&game.player);
+    printf("  [AR/DEC-117] scambio: equipaggiato '%s', sul piedistallo '%s' (attesi Secondo/Primo)\n",
+           activeIndex >= 0 ? game.player.items[activeIndex].name : "-",
+           TestCountItemPickups(&game) > 0 ? "presente" : "NIENTE");
+    if (activeIndex < 0 || strcmp(game.player.items[activeIndex].name, "Secondo Attivo") != 0)
+    { printf("      FALLITO: lo scambio non ha equipaggiato il nuovo attivo\n"); ok = false; }
+    if (ItemCountOfKind(&game.player, ITEM_ACTIVE) != 1)
+    { printf("      FALLITO: lo scambio ha lasciato due attivi in uno slot solo\n"); ok = false; }
+    if (TestCountItemPickups(&game) != 1)
+    { printf("      FALLITO: il vecchio attivo non e' rimasto sul piedistallo (scambio non reversibile)\n"); ok = false; }
+
+    /* Restando fermi sul piedistallo NON si riscambia a ogni frame. */
+    for (int i = 0; i < 5; i++) CombatUpdatePickups(&game);
+    activeIndex = ItemSelectedActiveIndex(&game.player);
+    printf("  [AR/DEC-117] 5 frame fermi sul piedistallo -> equipaggiato ancora '%s'\n",
+           activeIndex >= 0 ? game.player.items[activeIndex].name : "-");
+    if (activeIndex < 0 || strcmp(game.player.items[activeIndex].name, "Secondo Attivo") != 0)
+    { printf("      FALLITO: lo scambio si ripete da fermi (Pickup.locked non tiene)\n"); ok = false; }
+
+    /* Reversibile: ci si allontana, si torna, si riprende il vecchio. */
+    game.player.pos = (Vector2){ pedestal.x + 400.0f, pedestal.y };
+    CombatUpdatePickups(&game);   /* sblocca */
+    game.player.pos = pedestal;
+    CombatUpdatePickups(&game);
+    activeIndex = ItemSelectedActiveIndex(&game.player);
+    printf("  [AR/DEC-117] tornando indietro: equipaggiato '%s' (atteso Primo, lo scambio e' reversibile)\n",
+           activeIndex >= 0 ? game.player.items[activeIndex].name : "-");
+    if (activeIndex < 0 || strcmp(game.player.items[activeIndex].name, "Primo Attivo") != 0)
+    { printf("      FALLITO: lo scambio non e' reversibile nella stanza\n"); ok = false; }
+
+    /* Lo scambio non e' una stazione di ricarica: si consuma una carica del
+       "Primo Attivo", lo si scambia via e lo si riprende -- deve tornare
+       scarico di quella carica, non pieno. */
+    int primoIndex = ItemSelectedActiveIndex(&game.player);
+    if (primoIndex >= 0) CombatUseActive(&game, (Vector2){ 1.0f, 0.0f });
+    int chargeAfterUse = (primoIndex >= 0) ? game.player.items[primoIndex].chargeNow : -1;
+    game.player.pos = (Vector2){ pedestal.x + 400.0f, pedestal.y };
+    CombatUpdatePickups(&game);
+    game.player.pos = pedestal;
+    CombatUpdatePickups(&game);   /* riprende il Secondo */
+    game.player.pos = (Vector2){ pedestal.x + 400.0f, pedestal.y };
+    CombatUpdatePickups(&game);
+    game.player.pos = pedestal;
+    CombatUpdatePickups(&game);   /* e riprende il Primo */
+    int primoBack = ItemSelectedActiveIndex(&game.player);
+    printf("  [AR/DEC-117] cariche del Primo: %d dopo un uso -> %d dopo due scambi (attese uguali, lo scambio non ricarica)\n",
+           chargeAfterUse, primoBack >= 0 ? game.player.items[primoBack].chargeNow : -1);
+    if (primoBack < 0 || strcmp(game.player.items[primoBack].name, "Primo Attivo") != 0)
+    { printf("      FALLITO: il doppio scambio non ha riportato il Primo Attivo\n"); ok = false; }
+    else if (game.player.items[primoBack].chargeNow != chargeAfterUse)
+    { printf("      FALLITO: scambiare e riprendere un attivo lo ricarica gratis\n"); ok = false; }
+
+    /* --- DEC-115/DEC-160, sgancio e recupero dell'Innesto --- */
+    Vector2 spot = (Vector2){ pedestal.x - 200.0f, pedestal.y };
+    TestPickUpItemAt(&game, MakeGraft("Innesto Uno", TRAIT_HOMING, RARITY_COMMON), spot);
+    printf("  [AR/DEC-160] Innesto equipaggiato: %d/%d slot, trait homing sul giocatore=%s\n",
+           ItemCountOfKind(&game.player, ITEM_GRAFT), ItemGraftSlotCount(&game.player),
+           (game.player.traits & TRAIT_HOMING) ? "si" : "no");
+    if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 1) { printf("      FALLITO: l'Innesto non occupa lo slot Innesto\n"); ok = false; }
+    if (!(game.player.traits & TRAIT_HOMING)) { printf("      FALLITO: l'Innesto equipaggiato non applica il suo trait\n"); ok = false; }
+
+    /* Sgancio: lo slot si libera, l'oggetto resta a terra, e i suoi trait si
+       SPENGONO (e' cio' che il ricalcolo da zero dei trait garantisce). */
+    game.player.pos = (Vector2){ spot.x, spot.y + 120.0f };
+    CombatDropGraft(&game);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AR/DEC-160] dopo lo sgancio: Innesti %d (atteso 0), 'Innesto Uno' a terra %d (atteso 1), homing=%s (atteso no)\n",
+           ItemCountOfKind(&game.player, ITEM_GRAFT), TestCountItemPickupsNamed(&game, "Innesto Uno"),
+           (game.player.traits & TRAIT_HOMING) ? "si" : "no");
+    if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 0) { printf("      FALLITO: lo sgancio non libera lo slot\n"); ok = false; }
+    if (TestCountItemPickupsNamed(&game, "Innesto Uno") != 1) { printf("      FALLITO: l'Innesto sganciato non e' rimasto a terra\n"); ok = false; }
+    if (game.player.traits & TRAIT_HOMING) { printf("      FALLITO: il trait di un Innesto sganciato resta acceso (OR monotono)\n"); ok = false; }
+
+    /* Recupero: ci si allontana (sblocca) e si torna sopra. */
+    game.player.pos = (Vector2){ spot.x + 400.0f, spot.y };
+    CombatUpdatePickups(&game);
+    game.player.pos = (Vector2){ spot.x, spot.y + 120.0f };
+    CombatUpdatePickups(&game);
+    printf("  [AR/DEC-160] recupero nella stessa stanza: Innesti %d (atteso 1), homing=%s (atteso si)\n",
+           ItemCountOfKind(&game.player, ITEM_GRAFT), (game.player.traits & TRAIT_HOMING) ? "si" : "no");
+    if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 1) { printf("      FALLITO: l'Innesto sganciato non e' recuperabile nella stanza\n"); ok = false; }
+    if (!(game.player.traits & TRAIT_HOMING)) { printf("      FALLITO: l'Innesto recuperato non riapplica il suo trait\n"); ok = false; }
+
+    /* "Perso uscendo dalla stanza" (DEC-160): non c'e' una riga di codice
+       dedicata -- e' EntitiesClear, che WorldSpawnRoomContents chiama ad ogni
+       ingresso in una stanza, a farlo sparire. Il test esercita proprio quel
+       meccanismo invece di riscriverne uno finto. */
+    game.player.pos = (Vector2){ spot.x, spot.y + 120.0f };
+    CombatDropGraft(&game);
+    ScriptItemsProcessDirty(&game);
+    int droppedBefore = TestCountItemPickupsNamed(&game, "Innesto Uno");
+    EntitiesClear(&game);
+    printf("  [AR/DEC-160] cambio stanza: 'Innesto Uno' a terra %d -> %d (atteso 0, non piu' recuperabile); pickup di oggetto totali %d\n",
+           droppedBefore, TestCountItemPickupsNamed(&game, "Innesto Uno"), TestCountItemPickups(&game));
+    if (droppedBefore != 1) { printf("      FALLITO: il secondo sgancio non ha lasciato nulla a terra\n"); ok = false; }
+    if (TestCountItemPickups(&game) != 0) { printf("      FALLITO: qualche pickup di oggetto sopravvive al cambio stanza\n"); ok = false; }
+
+    ScriptItemsShutdown(&game);
+    return ok;
+}
+
+/* Test AS: la mappatura di COMPATIBILITA' del vocabolario del manifest sulle
+   4 categorie. E' il punto piu' facile da rompere in silenzio dell'intera
+   fase: ogni manifest e ogni record di catalogo gia' su disco scrive
+   "kind=active" per quelli che il design chiama PASSIVI, e tradurlo alla
+   lettera renderebbe attivo (con slot, cariche e tasto d'uso) l'intera
+   libreria di oggetti mai generata. */
+static bool TestItemKindTextCompat(void)
+{
+    bool ok = true;
+    struct { const char *text; bool recharge; ItemKind expected; const char *why; } cases[] = {
+        { "active",   false, ITEM_PASSIVE, "contenuto STORICO: 'active' senza cariche/cooldown = il passivo di sempre" },
+        { "active",   true,  ITEM_ACTIVE,  "attivo VERO: 'active' + una dichiarazione di ricarica" },
+        { "passive",  false, ITEM_PASSIVE, "nome nuovo, nessuna ambiguita'" },
+        { "statup",   false, ITEM_STATUP,  "invariato dalla fase 3" },
+        { "graft",    false, ITEM_GRAFT,   "Innesto" },
+        { "graft",    true,  ITEM_GRAFT,   "un Innesto resta un Innesto anche se dichiarasse una ricarica" },
+        { "statup",   true,  ITEM_STATUP,  "uno stat-up resta uno stat-up" },
+        { "",         false, ITEM_PASSIVE, "testo vuoto -> la categoria senza slot e senza promesse" },
+        { "innesto",  false, ITEM_PASSIVE, "refuso/italiano -> mai una categoria con slot per sbaglio" },
+        { "Active",   true,  ITEM_PASSIVE, "maiuscole: il vocabolario e' esatto, non approssimato" },
+        { NULL,       false, ITEM_PASSIVE, "puntatore nullo -> nessun crash, categoria neutra" },
+    };
+    for (size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++)
+    {
+        ItemKind got = ItemKindFromText(cases[i].text, cases[i].recharge);
+        printf("  [AS] \"%s\" (ricarica dichiarata: %s) -> %s : %s\n",
+               cases[i].text ? cases[i].text : "(null)", cases[i].recharge ? "si" : "no",
+               ItemKindLabel(got), cases[i].why);
+        if (got != cases[i].expected)
+        {
+            printf("      FALLITO: atteso %s, ottenuto %s\n", ItemKindLabel(cases[i].expected), ItemKindLabel(got));
+            ok = false;
+        }
+    }
+
+    /* Zero-default: un Item azzerato con "{0}" (il pattern di tutto il
+       codice e di mezza suite di test) DEVE restare passivo. */
+    Item zeroed = { 0 };
+    printf("  [AS] Item azzerato con {0} -> %s (atteso PASSIVO: lo zero-default non regala slot)\n", ItemKindLabel(zeroed.kind));
+    if (zeroed.kind != ITEM_PASSIVE) { printf("      FALLITO: lo zero-default della tassonomia non e' piu' il passivo\n"); ok = false; }
+
+    /* Un Player azzerato ha comunque i suoi due slot iniziali. */
+    Player empty;
+    memset(&empty, 0, sizeof(empty));
+    printf("  [AS] Player azzerato -> %d slot attivo, %d slot Innesto (attesi 1 e 1, il minimo di design)\n",
+           ItemActiveSlotCount(&empty), ItemGraftSlotCount(&empty));
+    if (ItemActiveSlotCount(&empty) != 1 || ItemGraftSlotCount(&empty) != 1)
+    { printf("      FALLITO: un Player azzerato non ha lo slot iniziale garantito dal documento\n"); ok = false; }
+
+    return ok;
+}
+
+/* Test AT: ScriptItemsRemoveItem -- la rimozione vera, quella su cui
+   poggiano scambio e sgancio. Compatta senza lasciare buchi, tiene allineati
+   items[] e itemScripts[] (cioe' NON scambia gli script di due oggetti), e
+   non lascia deriva nelle statistiche ne' nei trait. */
+static bool TestRemoveItemCompactsAndLeavesNoDrift(void)
+{
+    bool ok = true;
+    Game game = MakeBaseGame(9301u);
+    float base = game.player.baseDamage;
+
+    Item a = { 0 }; a.active = true; a.slot = SLOT_HAT;
+    snprintf(a.name, sizeof(a.name), "Piu' Due");
+    snprintf(a.luaSource, sizeof(a.luaSource), "%s", ADD_DAMAGE_2_LUA);
+    TestAddItem(&game, a);
+
+    Item b = MakeGraft("Innesto Esplosivo", TRAIT_EXPLODE, RARITY_COMMON);
+    TestAddItem(&game, b);
+
+    Item c = { 0 }; c.active = true; c.slot = SLOT_HAT;
+    snprintf(c.name, sizeof(c.name), "Piu' Tre");
+    snprintf(c.luaSource, sizeof(c.luaSource), "%s", ADD_DAMAGE_3_LUA);
+    TestAddItem(&game, c);
+
+    ScriptItemsRecomputeStats(&game);
+    float withAll = game.player.damage;
+    printf("  [AT] tre oggetti (+2, Innesto esplosivo, +3): damage=%.4f (atteso %.4f), explode=%s\n",
+           withAll, base + 5.0f, (game.player.traits & TRAIT_EXPLODE) ? "si" : "no");
+    if (fabsf(withAll - (base + 5.0f)) > 1e-4f) { printf("      FALLITO: i tre oggetti non compongono i valori attesi\n"); ok = false; }
+    if (!(game.player.traits & TRAIT_EXPLODE)) { printf("      FALLITO: il trait dell'Innesto non e' arrivato al giocatore\n"); ok = false; }
+
+    /* Si rimuove quello IN MEZZO: e' il caso che rivela una compattazione
+       sbagliata (l'ultimo oggetto e il suo script devono scalare insieme). */
+    ScriptItemsRemoveItem(&game, 1);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AT] rimosso l'oggetto in mezzo: itemCount=%d (atteso 2), items[1]='%s' (atteso Piu' Tre)\n",
+           game.player.itemCount, game.player.items[1].name);
+    if (game.player.itemCount != 2) { printf("      FALLITO: itemCount non e' sceso di uno\n"); ok = false; }
+    if (strcmp(game.player.items[1].name, "Piu' Tre") != 0) { printf("      FALLITO: la compattazione ha lasciato un buco o l'ordine sbagliato\n"); ok = false; }
+    if (fabsf(game.player.damage - (base + 5.0f)) > 1e-4f) { printf("      FALLITO: rimuovere l'Innesto ha cambiato il danno (deriva)\n"); ok = false; }
+    if (game.player.traits & TRAIT_EXPLODE) { printf("      FALLITO: il trait dell'Innesto rimosso e' rimasto acceso\n"); ok = false; }
+
+    /* Lo script dell'oggetto scalato deve essere ancora il SUO: se
+       itemScripts[] non fosse scalato insieme, "Piu' Tre" userebbe lo script
+       di un altro e il danno cambierebbe. */
+    ScriptItemsRemoveItem(&game, 0);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AT] rimosso anche il primo: itemCount=%d (atteso 1), damage=%.4f (atteso %.4f)\n",
+           game.player.itemCount, game.player.damage, base + 3.0f);
+    if (game.player.itemCount != 1) { printf("      FALLITO: itemCount non e' sceso di uno\n"); ok = false; }
+    if (fabsf(game.player.damage - (base + 3.0f)) > 1e-4f) { printf("      FALLITO: itemScripts[] non e' stato compattato insieme a items[] (script accoppiato all'oggetto sbagliato)\n"); ok = false; }
+
+    ScriptItemsRemoveItem(&game, 0);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AT] inventario svuotato: itemCount=%d (atteso 0), damage=%.4f (atteso %.4f, di nuovo il valore di base)\n",
+           game.player.itemCount, game.player.damage, base);
+    if (game.player.itemCount != 0) { printf("      FALLITO: l'inventario non si svuota\n"); ok = false; }
+    if (fabsf(game.player.damage - base) > 1e-4f) { printf("      FALLITO: svuotare l'inventario non riporta ai valori di base\n"); ok = false; }
+
+    /* Indici fuori range: nessun effetto, nessun crash. */
+    ScriptItemsRemoveItem(&game, 0);
+    ScriptItemsRemoveItem(&game, -1);
+    ScriptItemsRemoveItem(&game, MAX_ITEMS + 5);
+    if (game.player.itemCount != 0) { printf("      FALLITO: una rimozione fuori range ha toccato l'inventario\n"); ok = false; }
+
+    ScriptItemsShutdown(&game);
+    return ok;
+}
+
 bool ScriptItemsSelfTest(void)
 {
     struct { const char *label; bool (*fn)(void); } tests[] = {
@@ -2357,6 +2755,10 @@ bool ScriptItemsSelfTest(void)
         { "AN (review 3c: un ostacolo a ridosso del muro non spinge un'entita' oltre il bordo)", TestObstacleAgainstWallDoesNotPushThroughIt },
         { "AO (M6a, DEC-033: il tetto di salute base e' per-personaggio -- roccia 16, vetro 8, nessuno 12; DEC-008 sul percorso pickup)", TestHpCapIsPerCharacter },
         { "AP (M6b-3, DEC-068: il colpo firmato del personaggio fa da base, un oggetto-colpo raccolto lo sostituisce, rimuoverlo lo ripristina)", TestSignatureShotIsBaseAndItemOverrides },
+        { "AQ (attivi: cariche consumate/rifiutate a secco, cooldown che scade, i due canali di ricarica di DEC-059)", TestActiveChargesAndCooldown },
+        { "AR (DEC-117/DEC-160: scambio reversibile sul piedistallo, sgancio dell'Innesto a terra, recupero, perdita uscendo)", TestActiveSwapAndGraftDropRecover },
+        { "AS (tassonomia a 4 categorie: mappatura di compatibilita' del vocabolario storico, zero-default, slot iniziali)", TestItemKindTextCompat },
+        { "AT (ScriptItemsRemoveItem: compattazione items[]/itemScripts[] accoppiata, nessuna deriva, trait che si spengono)", TestRemoveItemCompactsAndLeavesNoDrift },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

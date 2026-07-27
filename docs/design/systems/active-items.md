@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Oggetti attivabili volontariamente dal giocatore, una delle 4 categorie della tassonomia oggetti. Ricarica a doppio canale di base — stanze completate ed energia droppata dai nemici — estensibile da oggetti che aggiungono ulteriori modi di ricarica (DEC-059)."
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
 topics: [oggetti, attivi, ricarica, slot, DEC-059, budget di potenza]
 related: []
@@ -127,14 +127,62 @@ sezione della UI dedicata agli attivi — e, se gli slot sono pieni, **l'attivo 
 possedevi finisce sul piedistallo al suo posto** — con più slot pieni, quello
 **attualmente selezionato per l'attivazione** (DEC-117): lo scambio è sempre reversibile
 finché resti nella stanza, perché il vecchio attivo non sparisce, fluttua lì. Con uno slot
-libero la raccolta riempie lo slot senza scambio. Gap di implementazione esplicito: il
-piedistallo di scambio non è ancora implementato.
+libero la raccolta riempie lo slot senza scambio.
+
+## Stato di implementazione (2026-07-27)
+
+Il motore implementa la categoria e il ciclo d'uso; il contenuto non la produce ancora.
+
+**Implementato**
+
+- `ItemKind` ha le 4 categorie del documento fonte; `ITEM_ACTIVE` significa finalmente
+  "attivabile" (prima era il nome del passivo) — `src/core/game_types.h`.
+- Slot attivo singolo, espandibile, derivato dall'inventario senza indici da mantenere —
+  `src/gameplay/item_slots.{h,c}`.
+- Cariche **oppure** cooldown, con la regola "le cariche vincono" per un contenuto che
+  dichiarasse entrambi; un attivo che non dichiara nulla ricade su un cooldown di riserva
+  del motore, mai su "usabile a ogni frame".
+- Ricarica a doppio canale (DEC-059): stanza completata (`WorldCheckRoomClear`) ed
+  energia droppata dai nemici (`PICKUP_ENERGY`, che cade solo se un attivo a cariche
+  posseduto non è pieno).
+- Attivazione con effetto: callback Lua `on_use` in sandbox per un oggetto che la
+  definisce, altrimenti un ripiego deterministico in C scelto sul trait dell'oggetto —
+  la stessa promessa "mai un dud" degli stat-up. Attivazione in ricarica: nessun effetto,
+  nessuna carica persa, feedback che dice quanto manca.
+- Piedistallo di scambio (DEC-117): il gap dichiarato nella versione precedente di questo
+  documento **è chiuso**. Lo scambio è reversibile nella stanza e non ricarica l'oggetto
+  scambiato.
+- HUD: riga permanente con nome dell'attivo, stato (cariche `n/m` o secondi mancanti) e
+  tasto d'uso.
+
+**Non ancora implementato**
+
+- `tools/melting-gen` non genera ancora oggetti di categoria attivo: nessun contenuto
+  della run produce oggi un attivo, che quindi si vede solo dai test. Il passo successivo
+  è lo schema oggetti lato generatore.
+- UI di selezione fra più attivi quando gli slot sono più di uno (oggi la selezione è
+  l'ordinale `Player.activeSelected`, che nessun input muove ancora).
+- Nessuna fonte di slot attivi aggiuntivi esiste in gioco.
+
+### Default proposti dall'implementazione
+
+Stile DEC-019: valori scelti dal codice perché il documento non li fissa, da confermare.
+
+| Scelta | Default adottato |
+|---|---|
+| Input di attivazione | tasto **E** (l'unico libero insieme a G; sotto la mano che sta già su WASD) |
+| Stato iniziale di un attivo appena trovato | **carico** (cariche al massimo, nessuna attesa) |
+| Dosaggio dei due canali quando l'oggetto non lo dichiara | **1 carica** per stanza completata, **1 carica** per energia raccolta |
+| Probabilità che un nemico ucciso lasci energia | **30%**, e solo se un attivo a cariche non è pieno |
+| Cooldown di riserva per un attivo che non dichiara né cariche né cooldown | **12 s** |
+| Bande di sicurezza | cariche `[1, 12]`, cooldown `[0.5 s, 90 s]` |
 
 ## Domande aperte residue
 
 - Numero massimo di slot attivi ottenibili in una run.
 - Dosaggio esatto della ricarica a doppio canale (quanta carica per stanza, quanta
   energia per nemico) — DEC-059 fissa solo i due canali di base, non i numeri.
+- Conferma del tasto di attivazione (default proposto: E).
 
 ## Scenari verificabili
 
@@ -164,3 +212,19 @@ attivarli indipendentemente.
 Given un attivo a cariche con carica non piena,  
 When il giocatore completa una stanza oppure raccoglie energia droppata da un nemico,  
 Then la carica dell'attivo aumenta secondo il dosaggio dichiarato dall'oggetto, indipendentemente da quale dei due canali di base ha attivato la ricarica (DEC-059).
+
+### Scenario 5 — scambio sul piedistallo, reversibile (DEC-117)
+
+Given un giocatore con l'unico slot attivo occupato,  
+When raccoglie un altro attivo da un piedistallo e poi torna sul piedistallo senza
+lasciare la stanza,  
+Then il primo scambio ha messo il nuovo attivo nello slot e il vecchio sul piedistallo, e
+il secondo li riscambia: l'attivo tornato indietro conserva le cariche che aveva quando è
+stato scambiato via, non ne guadagna.
+
+### Scenario 6 — l'attivazione non è mai inerte
+
+Given un attivo generato che non porta alcuno script valido,  
+When il giocatore lo attiva con cariche disponibili,  
+Then un effetto deterministico si applica comunque (nessuna attivazione a vuoto) e la
+carica viene consumata.

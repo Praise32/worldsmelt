@@ -429,11 +429,20 @@ grep -q "^floor5.item3.script=" "$TMP/a/current_run.txt"
 grep -q "^atlas.path=" "$TMP/a/current_run.txt"
 
 # Fase 3 (tassonomia degli oggetti, docs/engineering/specs/2026-07-13-items-synergy-vision.md
-# sezioni 1,2,5): un campo "kind" per oggetto, gli oggetti attivi vanno in
-# items[1..3], l'oggetto stat-up del piano (ricompensa del boss) e' un
+# sezioni 1,2,5): un campo "kind" per oggetto, gli oggetti di items[1..3] vanno
+# in items[1..3], l'oggetto stat-up del piano (ricompensa del boss) e' un
 # quarto campo esplicito "bossItem". Round-trip attraverso il manifest di
 # testo, per ciascuno dei 5 piani.
-echo "-- fase 3: kind round-trips attraverso il manifest (attivi=active, boss=statup) --"
+#
+# ATTENZIONE al vocabolario: "active" e' la parola che il GENERATORE scrive, ed
+# e' rimasta quella di sempre. Da quando il gioco ha le 4 categorie di
+# docs/design/systems/items-pools-and-rarity.md, quella parola viene letta come
+# categoria PASSIVA (ItemKindFromText, src/content/run_content.c): un attivo
+# vero deve dichiarare anche cariche o cooldown, cosa che questo manifest non
+# fa. Queste asserzioni verificano quindi cio' che il generatore SCRIVE, non la
+# categoria che il gioco ne deduce -- non "correggerle" allineandole ai nomi
+# nuovi senza cambiare prima il generatore.
+echo "-- fase 3: kind round-trips attraverso il manifest (oggetti del piano=active, boss=statup) --"
 for n in 1 2 3 4 5; do
   for i in 1 2 3; do
     grep -q "^floor${n}.item${i}.kind=active$" "$TMP/a/current_run.txt" || {

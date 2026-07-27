@@ -39,6 +39,16 @@ typedef struct AppInput {
     bool reroll;    /* R */
     bool quit;      /* Q */
     bool bomb;      /* SPACE (si', lo stesso tasto di confirm: in Gameplay non c'e' ambiguita', vedi UpdateApp) */
+    /* Tassonomia a 4 categorie: i due tasti degli slot funzionali
+       (systems/active-items.md "input di attivazione dedicato",
+       systems/grafts.md + DEC-115/DEC-160 per lo sgancio). Nessun documento
+       di design fissa QUALI tasti: E e G sono un default proposto
+       dall'implementazione (stile DEC-019), scelti perche' cadono sotto la
+       mano sinistra che sta gia' su WASD e perche' erano gli unici due tasti
+       liberi -- ENTER/SPACE, ESC, P, TAB, R, Q, F11 e le frecce hanno gia'
+       un significato. Domanda aperta registrata per il proprietario. */
+    bool useActive;   /* E */
+    bool dropGraft;   /* G */
 } AppInput;
 
 /* Contesto della generazione in-game (invariato da prima di M1a, solo spostato

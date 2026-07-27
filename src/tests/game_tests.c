@@ -290,9 +290,31 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi (via ESC/P, non serve il focus) */
     STATES_CHECK(mode == APP_GAMEPLAY, "il ritorno a Gameplay da PauseMenu e' fallito");
 
+    /* Slot funzionali (systems/active-items.md, systems/grafts.md): i due
+       tasti degli slot LATCHANO in Gameplay -- la simulazione a passo fisso
+       li consuma poi una volta sola, come la bomba. Qui si verifica solo il
+       cablaggio input->latch; l'effetto vero (cariche, sgancio) e' materia
+       dei test AQ/AR di --script-items-test. */
+    game->useActiveQueued = false;
+    game->dropGraftQueued = false;
+    { AppInput in = { 0 }; in.useActive = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(game->useActiveQueued, "E in Gameplay non mette in coda l'uso dell'attivo");
+    STATES_CHECK(!game->dropGraftQueued, "E in Gameplay ha messo in coda anche lo sgancio dell'Innesto");
+    { AppInput in = { 0 }; in.dropGraft = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(game->dropGraftQueued, "G in Gameplay non mette in coda lo sgancio dell'Innesto");
+    STATES_CHECK(mode == APP_GAMEPLAY, "i tasti degli slot funzionali hanno cambiato stato applicativo");
+    game->useActiveQueued = false;
+    game->dropGraftQueued = false;
+
     /* Gameplay -> TAB -> BuildScreen -> (back) -> Gameplay */
     { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen");
+    /* Gli stessi tasti FUORI da Gameplay non devono fare nulla (sono di
+       gioco, non di navigazione: stessa regola della bomba). */
+    { AppInput in = { 0 }; in.useActive = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = { 0 }; in.dropGraft = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(!game->useActiveQueued && !game->dropGraftQueued, "E/G fuori da Gameplay mettono comunque in coda un'azione di gioco");
+    STATES_CHECK(mode == APP_BUILD_SCREEN, "E/G in BuildScreen hanno cambiato stato applicativo");
     { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_GAMEPLAY, "BuildScreen/back da Gameplay non torna a Gameplay");
 
@@ -486,7 +508,14 @@ bool GameManifestTest(Game *game)
         {
             const Item *item = &game->content.floors[f].items[i];
             if (!item->name[0] || !strchr(item->script, ':')) return false;
-            if (item->kind != ITEM_ACTIVE) return false;   /* fase 3: i 3 oggetti del piano sono sempre attivi */
+            /* Tassonomia a 4 categorie: i 3 oggetti del piano restano quello
+               che sono sempre stati, cioe' PASSIVI. Il manifest scrive
+               ancora "kind=active" (il vocabolario storico, che melting-gen
+               non tocca in questo passo) e ItemKindFromText lo mappa su
+               ITEM_PASSIVE perche' nessuno di quei record dichiara cariche o
+               cooldown: questa riga verifica proprio quella mappatura di
+               compatibilita', non un dettaglio di scrittura del manifest. */
+            if (item->kind != ITEM_PASSIVE) return false;
             if (!ManifestLuaLoads(game, item)) return false;
         }
         /* Fase 3: l'oggetto stat-up del piano (ricompensa del boss) e'
@@ -751,7 +780,7 @@ bool GameRarityScreenshotTest(Game *game)
         snprintf(it->name, sizeof(it->name), "%s", kNames[i]);
         it->slot = kSlots[i];
         it->rarity = kRarities[i];
-        it->kind = ITEM_ACTIVE;
+        it->kind = ITEM_PASSIVE;
         it->color = game->theme.accent;
         it->shape = i;
     }
@@ -765,7 +794,7 @@ bool GameRarityScreenshotTest(Game *game)
         snprintf(pickupItem.name, sizeof(pickupItem.name), "%s", kNames[i]);
         pickupItem.slot = kSlots[i];
         pickupItem.rarity = kRarities[i];
-        pickupItem.kind = ITEM_ACTIVE;
+        pickupItem.kind = ITEM_PASSIVE;
         pickupItem.color = game->theme.accent2;
         pickupItem.shape = i;
         /* Solo il leggendario ha un costo (com'e' nel negozio vero): verifica
@@ -851,7 +880,7 @@ bool GameShotFormsScreenshotTest(Game *game)
     snprintf(item->name, sizeof(item->name), "Guanto di Schegge");
     item->slot = SLOT_HAND;
     item->rarity = RARITY_RARE;
-    item->kind = ITEM_ACTIVE;
+    item->kind = ITEM_PASSIVE;
     item->color = game->theme.accent;
     ShotTypeExample(&item->shotType, 0);
 
@@ -860,7 +889,7 @@ bool GameShotFormsScreenshotTest(Game *game)
     snprintf(homing->name, sizeof(homing->name), "Occhio Rapace");
     homing->slot = SLOT_EYES;
     homing->rarity = RARITY_UNCOMMON;
-    homing->kind = ITEM_ACTIVE;
+    homing->kind = ITEM_PASSIVE;
     homing->color = game->theme.accent2;
     homing->traits = TRAIT_HOMING;
 
@@ -869,7 +898,7 @@ bool GameShotFormsScreenshotTest(Game *game)
     snprintf(pierce->name, sizeof(pierce->name), "Punteruolo Lungo");
     pierce->slot = SLOT_BACK;
     pierce->rarity = RARITY_UNCOMMON;
-    pierce->kind = ITEM_ACTIVE;
+    pierce->kind = ITEM_PASSIVE;
     pierce->color = game->theme.accent;
     pierce->traits = TRAIT_PIERCE;
 
@@ -1046,20 +1075,20 @@ bool GameOverlayScreenshotTest(Game *game)
     Item *hand = &game->player.items[0];
     hand->active = true;
     snprintf(hand->name, sizeof(hand->name), "Guanto di Schegge");
-    hand->slot = SLOT_HAND; hand->rarity = RARITY_RARE; hand->kind = ITEM_ACTIVE;
+    hand->slot = SLOT_HAND; hand->rarity = RARITY_RARE; hand->kind = ITEM_PASSIVE;
     hand->color = game->theme.accent;
     ShotTypeExample(&hand->shotType, 0);
 
     Item *eyes = &game->player.items[1];
     eyes->active = true;
     snprintf(eyes->name, sizeof(eyes->name), "Occhio Rapace");
-    eyes->slot = SLOT_EYES; eyes->rarity = RARITY_UNCOMMON; eyes->kind = ITEM_ACTIVE;
+    eyes->slot = SLOT_EYES; eyes->rarity = RARITY_UNCOMMON; eyes->kind = ITEM_PASSIVE;
     eyes->color = game->theme.accent2; eyes->traits = TRAIT_HOMING;
 
     Item *back = &game->player.items[2];
     back->active = true;
     snprintf(back->name, sizeof(back->name), "Punteruolo Lungo");
-    back->slot = SLOT_BACK; back->rarity = RARITY_UNCOMMON; back->kind = ITEM_ACTIVE;
+    back->slot = SLOT_BACK; back->rarity = RARITY_UNCOMMON; back->kind = ITEM_PASSIVE;
     back->color = game->theme.accent; back->traits = TRAIT_PIERCE;
 
     game->player.itemCount = 3;
