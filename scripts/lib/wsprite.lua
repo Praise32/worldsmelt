@@ -564,4 +564,69 @@ function M.diamond(img, cx, cy, r, idx)
   end
 end
 
+-- ------------------------------------------------ infrastruttura condivisa
+function M.mkPalette()
+  local pal = Palette(#M.PAL)
+  for i, p in ipairs(M.PAL) do
+    pal:setColor(i - 1, Color{ r = p[1], g = p[2], b = p[3] })
+  end
+  return pal
+end
+
+-- Foglio a contratto: striscia orizzontale, righe = animazioni, json accanto.
+-- sheet = { id, dir, fw, fh, anchor={x,y}, rows={ {name,fps,loop,frames={{grid,map,ox?}}} } }
+function M.buildSheet(root, sheet)
+  local cols = 0
+  for _, row in ipairs(sheet.rows) do
+    if #row.frames > cols then cols = #row.frames end
+  end
+  local sw, sh = cols * sheet.fw, #sheet.rows * sheet.fh
+  local img = Image(sw, sh, ColorMode.RGB)
+  for ri, row in ipairs(sheet.rows) do
+    for fi, fr in ipairs(row.frames) do
+      M.renderS1(img, fr.grid, fr.map, (fi - 1) * sheet.fw + (fr.ox or 0),
+                 (ri - 1) * sheet.fh, 1)
+    end
+  end
+  local spr = Sprite(sw, sh, ColorMode.RGB)
+  spr:setPalette(M.mkPalette())
+  spr.layers[1].name = sheet.id
+  local cel = spr.cels[1]
+  if cel == nil then cel = spr:newCel(spr.layers[1], 1) end
+  cel.image = img
+  cel.position = Point(0, 0)
+  spr:saveAs(root .. "/assets/art-src/" .. sheet.dir .. "/" .. sheet.id .. ".aseprite")
+  spr:saveCopyAs(root .. "/assets/art/" .. sheet.dir .. "/" .. sheet.id .. ".png")
+  local parts = {}
+  for ri, row in ipairs(sheet.rows) do
+    parts[#parts + 1] = '"' .. row.name .. '":{"row":' .. (ri - 1) ..
+      ',"frames":' .. #row.frames .. ',"fps":' .. row.fps ..
+      ',"loop":' .. tostring(row.loop) .. '}'
+  end
+  local f = io.open(root .. "/assets/art/" .. sheet.dir .. "/" .. sheet.id .. ".json", "w")
+  f:write('{"frame_w":' .. sheet.fw .. ',"frame_h":' .. sheet.fh ..
+          ',"anchor":[' .. sheet.anchor[1] .. ',' .. sheet.anchor[2] ..
+          '],"anims":{' .. table.concat(parts, ",") .. "}}\n")
+  f:close()
+  print(sheet.id .. ": sheet " .. sw .. "x" .. sh .. " ok")
+end
+
+-- Frame singolo 64x64 trasparente centrato + caption (dataset LoRA, DEC-175).
+function M.datasetFrame(root, fam, name, fr, fw, fh, caption)
+  local spr = Sprite(64, 64, ColorMode.RGB)
+  spr:setPalette(M.mkPalette())
+  local img = Image(64, 64, ColorMode.RGB)
+  M.renderS1(img, fr.grid, fr.map, math.floor((64 - fw) / 2),
+             math.floor((64 - fh) / 2), 1)
+  local cel = spr.cels[1]
+  if cel == nil then cel = spr:newCel(spr.layers[1], 1) end
+  cel.image = img
+  cel.position = Point(0, 0)
+  local base_ = root .. "/dataset/worldsmelt-style/" .. fam .. "/" .. name
+  spr:saveCopyAs(base_ .. ".png")
+  local f = io.open(base_ .. ".txt", "w")
+  f:write(caption .. "\n")
+  f:close()
+end
+
 return M
