@@ -9,7 +9,7 @@ summary: >-
   Regole vincolanti per qualunque agente (Claude Code, Codex) che tocca training, dataset,
   modelli o asset generati. Fusione delle appendici ML della blueprint-v2
   (AGENTS-ML-APPENDIX, CLAUDE-ML-APPENDIX, appendice Codex).
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 last_verified_commit: fe27f6d
 topics: [agenti, ml, training, gpu, dataset, regole]
 related: []
@@ -35,8 +35,8 @@ una decisione registrata.
    `commercial-clean` per decisione estetica; la promozione richiede verifica di licenza.
 4. Non inserire chiavi, token o cookie nel repository.
 5. Non eliminare dataset, checkpoint o artifact; non rimuovere fallback.
-6. Nessuna inferenza durante il combattimento; Qwen, SD e audio caricati in sequenza sul
-   target da 6 GB.
+6. Nessuna inferenza durante il combattimento; il modello di testo attivo (oggi
+   Gemma-3-4B-IT Q4, DEC-140), SD e audio caricati in sequenza sul target da 6 GB.
 7. Non scegliere un checkpoint solo dalla loss; non usare bypass globali dei permessi.
 
 ## Metodo sperimentale

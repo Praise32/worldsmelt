@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065)."
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, DEC-065, DEC-051]
+topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169]
 related: []
 supersedes: []
 source_files: []
@@ -28,6 +28,15 @@ sopravvivenza e di gestione delle risorse.
 ## Condizioni di ingresso
 
 Sempre visibile durante `Gameplay`; nascosto o attenuato durante `PauseMenu` e `BuildScreen`.
+
+In `FloorZero` l'HUD segue una regola diversa (DEC-169): **nascosto** durante
+l'esplorazione dell'hub, **consultabile su richiesta** aprendo il menu di pausa per chi
+vuole controllare salute, risorse e build senza uscire dal Piano 0, e **di nuovo visibile**
+quando il giocatore entra in una **prova del Piano 0** — le arene di sfida e il tutorial
+integrato (DEC-047), da non confondere con le «prove» specifiche della run di DEC-042. Il
+Piano 0 resta uno spazio di preparazione con lo schermo pulito, senza togliere informazione a
+chi la cerca. Dettagli delle prove e della consultazione in pausa: fonte unica
+`systems/floor-zero.md` e `ui/pause-menu.md` (rimando, non riformulato qui).
 
 ## Elementi interattivi
 
@@ -106,9 +115,15 @@ I dettagli completi del contenuto scoperto vivono nella scheda dedicata del Cata
 
 Regola di coda: **una sola card alla volta**. Se più scoperte arrivano insieme, si accodano
 ed escono in sequenza, senza invadere lo schermo con più card contemporaneamente. I casi
-limite di questa coda (quante ne stanno in attesa, tempo massimo prima di scartarle o
-comprimerle, comportamento se il giocatore muore o cambia stanza mentre una card è in
-attesa) sono da specificare (vedi Domande aperte residue).
+limite di questa coda sono risolti: il cap e l'overflow da DEC-131 (vedi sotto), e il
+destino delle card ancora in attesa quando il giocatore muore o cambia stanza da DEC-152
+(vedi sotto).
+
+Se il giocatore **muore** o **cambia stanza** mentre altre card attendono in coda, quelle
+non ancora mostrate vengono **scartate silenziosamente** (DEC-152): nessuna coda che
+insegue il giocatore nella stanza successiva, nessun recupero differito. La scoperta resta
+comunque registrata nel Catalogo permanente con la sua scheda, esattamente come
+nell'overflow di DEC-131: la card è la notifica, non il contenuto.
 
 ## Stile visivo (DEC-046, rimando)
 
@@ -132,9 +147,11 @@ L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regol
 
 ## Domande aperte residue
 
-- ~~Casi limite della coda delle card di scoperta~~: risolto da DEC-131 — coda limitata
-  (~5, valore esatto da playtest); quando trabocca le più vecchie escono senza essere
-  mostrate, la scoperta resta comunque registrata nel Catalogo.
+- ~~Casi limite della coda delle card di scoperta~~: risolti in due decisioni distinte.
+  DEC-131 copre **cap e overflow** — coda limitata (~5, valore esatto da playtest); quando
+  trabocca le più vecchie escono senza essere mostrate. DEC-152 copre il caso separato di
+  **morte o cambio stanza** con card ancora in attesa — si scartano silenziosamente. In
+  entrambi i casi la scoperta resta comunque registrata nel Catalogo.
 
 ## Scenari verificabili
 
@@ -145,3 +162,5 @@ L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regol
 5. **Given** un giocatore in `Gameplay` in qualunque modalità, **when** osserva l'HUD, **then** il timer di run è sempre visibile, indipendentemente dalla modalità (DEC-051).
 6. **Given** un giocatore incontra per la prima volta un nemico generato mai visto, **when** lo affronta, **then** l'HUD mostra una card di scoperta breve con sprite, nome e una riga, senza mettere in pausa né bloccare l'input (DEC-065).
 7. **Given** più contenuti mai visti compaiono nella stessa stanza, **when** il giocatore li incontra quasi contemporaneamente, **then** le card di scoperta si accodano e vengono mostrate una alla volta, senza sovrapporsi sullo schermo (DEC-065).
+8. **Given** il giocatore ha card di scoperta ancora in coda non mostrate, **when** muore oppure cambia stanza, **then** quelle card vengono scartate silenziosamente senza inseguirlo nella stanza successiva, e la scoperta resta comunque registrata nel Catalogo (DEC-152).
+9. **Given** il giocatore è in `FloorZero`, **when** esplora l'hub senza aprire la pausa e senza entrare in una prova, **then** l'HUD di combattimento resta nascosto; **when** apre il menu di pausa, **then** può consultare salute, risorse e build; **when** entra in una prova, **then** l'HUD ricompare (DEC-169).

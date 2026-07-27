@@ -32,19 +32,20 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "meta",
-      "summary": "Divergenze fra cio' che i documenti dichiarano e cio' che il codice mostra, verificate con Codebase Memory + conferma diretta (file:riga) e giudice opus. 35 divergenze reali, 43 conferme di allineamento.",
+      "summary": "Divergenze fra cio' che i documenti dichiarano e cio' che il codice mostra, verificate con Codebase Memory + conferma diretta (file:riga) e giudice opus. 35 divergenze reali, 43 conferme di allineamento. Registro vivo (DEC-150): ogni voce porta oggi un campo Stato (aperta/applicata/superata) verificato il 27/07.",
       "topics": [
         "audit",
         "drift",
-        "codice"
+        "codice",
+        "registro-vivo"
       ],
       "related": [
         "meta-doc-conflicts"
       ],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "a2d5df7"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "meta-doc-conflicts",
@@ -54,19 +55,20 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "meta",
-      "summary": "46 conflitti rilevati dall'audit del 2026-07-22 (sonnet propone, opus verifica, Fable arbitra i needs-human), con raccomandazione secondo la gerarchia delle fonti e risoluzione adottata.",
+      "summary": "46 conflitti rilevati dall'audit del 2026-07-22 (sonnet propone, opus verifica, Fable arbitra i needs-human), con raccomandazione secondo la gerarchia delle fonti e risoluzione adottata. Registro vivo (DEC-150): ogni voce porta oggi un campo Stato (aperta/applicata/superata) verificato il 27/07.",
       "topics": [
         "audit",
         "conflitti",
-        "governance"
+        "governance",
+        "registro-vivo"
       ],
       "related": [
         "meta-document-standards"
       ],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "a2d5df7"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "meta-document-audit",
@@ -107,7 +109,9 @@
         "standard",
         "front-matter",
         "governance",
-        "indice"
+        "indice",
+        "piani",
+        "decision-log"
       ],
       "related": [
         "meta-topic-router"
@@ -116,8 +120,8 @@
       "source_files": [
         "scripts/docs/build_knowledge_index.py"
       ],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "75c8ab2"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "meta-topic-router",
@@ -140,8 +144,8 @@
       "source_files": [
         "scripts/docs/build_knowledge_index.py"
       ],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "75c8ab2"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "aiprod-decisioni-canoniche",
@@ -164,7 +168,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-23",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -201,7 +205,7 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Motiva la scelta di SD1.5 come base immagini, il ruolo di LCM-LoRA e TAESD, i compiti/limiti di Qwen2.5-Coder e i criteri per valutare modelli alternativi.",
+      "summary": "Motiva la scelta di SD1.5 come base immagini, il ruolo di LCM-LoRA e TAESD, i compiti/limiti del modello di testo attivo e i criteri per valutare modelli alternativi.",
       "topics": [
         "stable-diffusion",
         "lcm-lora",
@@ -212,7 +216,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -234,7 +238,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -245,7 +249,7 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Strategia prudente su provenienza del dataset Kaggle 89k immagini, separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.",
+      "summary": "Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.",
       "topics": [
         "dataset",
         "licenze",
@@ -256,7 +260,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -264,10 +268,10 @@
       "path": "docs/ai-production/05-KAGGLE-TRAINING-RUNBOOK.md",
       "title": "Kaggle Training Runbook — SD1.5 LoRA",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Runbook operativo per il training LoRA su Kaggle Notebook: struttura ml/, preflight, smoke test, config v0, output obbligatori e comando di riferimento.",
+      "summary": "Runbook primario (DEC-168) per il training LoRA su Kaggle Notebook: struttura ml/, preflight, smoke test, config v0 su base SD1.5 vanilla, quota gratuita di 30h/settimana, output obbligatori e comando di riferimento.",
       "topics": [
         "kaggle",
         "training",
@@ -278,8 +282,8 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "aiprod-agenti-kaggle-mcp",
@@ -313,7 +317,7 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Definisce i 4 tier di generazione (solo curato -> grafica completa), scheduling Qwen/SD, chiave di cache, pubblicazione atomica e failure policy.",
+      "summary": "Base tecnica per scheduling del modello di testo attivo e di SD, chiave di cache, pubblicazione atomica e failure policy; la scala a 4 tier descritta e' superata da DEC-110/111 (scelta binaria completo/solo-curato) e resta come materiale da riscrivere.",
       "topics": [
         "tier",
         "scheduling",
@@ -325,7 +329,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -373,7 +377,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -401,7 +405,7 @@
         "AGENTS.md",
         "src/gen"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -409,22 +413,24 @@
       "path": "docs/ai-production/11-PROTOCOLLO-ESPERIMENTI.md",
       "title": "Protocollo degli esperimenti",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Metodologia per esperimenti LoRA: una domanda per run, massimo due variabili, baseline obbligatoria, metriche automatiche, review umana e regola di promozione.",
+      "summary": "Metodologia per esperimenti LoRA: una domanda per run, massimo due variabili, baseline obbligatoria, metriche automatiche, review umana e regola di promozione; include la variante comparison/bake-off per confronti multi-modello.",
       "topics": [
         "esperimenti",
         "metodologia",
         "metriche",
         "promozione",
-        "id-esperimento"
+        "id-esperimento",
+        "comparison",
+        "bake-off"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "aiprod-roadmap",
@@ -447,7 +453,7 @@
       "source_files": [
         "tools/melting-sprites"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -485,7 +491,7 @@
       "status": "draft",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Elenco di link esterni verificati il 20/07/2026 (SD1.5, Qwen, Kaggle, agenti, pixel art, audio) piu' riferimenti a documenti interni del repo.",
+      "summary": "Elenco di link esterni verificati il 20/07/2026 (SD1.5, Kaggle, agenti, pixel art, audio) piu' riferimenti al modello di testo attivo e a documenti interni del repo.",
       "topics": [
         "fonti",
         "licenze",
@@ -505,7 +511,7 @@
         "docs/archive/legacy-notes/roguelike-ai-appunti/06-training-hardware-costi.md",
         "docs/archive/legacy-notes/roguelike-ai-appunti/08-roadmap-vertical-slice.md"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -540,7 +546,7 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, in esplicito conflitto con DEC-036 che considera l'audio generativo futuro.",
+      "summary": "Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro).",
       "topics": [
         "audio",
         "rfxgen",
@@ -552,7 +558,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "892911a"
     },
     {
@@ -603,35 +609,11 @@
       "last_verified_commit": "892911a"
     },
     {
-      "id": "aiprod-decision-questionnaire",
-      "path": "docs/ai-production/19-DECISION-QUESTIONNAIRE.md",
-      "title": "Questionario decisionale",
-      "domain": "ai-production",
-      "status": "proposed",
-      "authority": "supporting",
-      "owner": "ai-production",
-      "summary": "Coda di 24 domande (audio, UI, immagini, animazioni, Piano 0, agenti, distribuzione, budget) con priorita' BLOCKING/SOON/LATER da risolvere prima di implementare.",
-      "topics": [
-        "domande",
-        "decision-log",
-        "blocking",
-        "audio",
-        "ui",
-        "distribuzione",
-        "budget"
-      ],
-      "related": [],
-      "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
-    },
-    {
       "id": "aiprod-session-protocol",
       "path": "docs/ai-production/20-SESSION-PROTOCOL.md",
       "title": "Protocollo delle sessioni",
       "domain": "ai-production",
-      "status": "proposed",
+      "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
       "summary": "Definisce 6 tipi di sessione (decision, planning, implementation, ML experiment, curation, release audit), gate di ingresso e formato di handoff.",
@@ -645,7 +627,30 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
+    },
+    {
+      "id": "aiprod-distribuzione",
+      "path": "docs/ai-production/21-DISTRIBUZIONE.md",
+      "title": "Distribuzione",
+      "domain": "ai-production",
+      "status": "draft",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Perimetro del tema distribuzione (DEC-158): piattaforme di destinazione, requisiti della pagina negozio incluso l'hardware minimo in numeri (DEC-142), AI disclosure per i contenuti generati a runtime. Le scelte concrete restano domande aperte.",
+      "topics": [
+        "distribuzione",
+        "piattaforme",
+        "pagina-negozio",
+        "ai-disclosure",
+        "licenze",
+        "steam"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -662,7 +667,8 @@
         "modelli",
         "lora",
         "dataset",
-        "training"
+        "training",
+        "distribuzione"
       ],
       "related": [],
       "supersedes": [],
@@ -670,7 +676,7 @@
         "scripts/download-models.sh",
         "scripts/dataset_ledger.py"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -681,7 +687,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "ai-production",
-      "summary": "Regole del dataset per le LoRA (solo CC0 verificate, asset propri o commissioni con cessione chiara), fonti candidate e registro di provenienza ledger.jsonl gestito da scripts/dataset_ledger.py.",
+      "summary": "Regole del dataset per le LoRA (solo CC0 verificate, asset propri o commissioni con cessione chiara), fonti candidate e registro di provenienza ledger.jsonl gestito da scripts/dataset_ledger.py; corpus attuale non definitivo, dataset definitivi a cura del proprietario (DEC-148).",
       "topics": [
         "dataset",
         "licenze",
@@ -694,7 +700,7 @@
       "source_files": [
         "scripts/dataset_ledger.py"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -702,10 +708,10 @@
       "path": "docs/ai-production/dataset/TRAINING-RUNBOOK.md",
       "title": "Runbook: prima campagna Style LoRA su RunPod",
       "domain": "ai-production",
-      "status": "approved",
+      "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Runbook passo-passo per addestrare la prima Style LoRA su RunPod: prerequisiti, scelta pod, dataset, comandi kohya_ss, sweep iperparametri, valutazione cieca.",
+      "summary": "Runbook passo-passo per addestrare la prima Style LoRA su RunPod: prerequisiti, scelta pod, dataset, comandi kohya_ss, sweep iperparametri, valutazione cieca. Fallback a pagamento (DEC-168): il runbook primario è Kaggle (../05-KAGGLE-TRAINING-RUNBOOK.md).",
       "topics": [
         "LoRA",
         "RunPod",
@@ -720,7 +726,7 @@
         "tools/melting-sprites/main.c",
         "logs/sprite-baseline/20260717-053243/"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -800,9 +806,9 @@
       ],
       "supersedes": [],
       "source_files": [
-        "docs/plans/active/model-comparison.md"
+        "docs/plans/completed/model-comparison.md"
       ],
-      "last_reviewed": "2026-07-23",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "c3f3005"
     },
     {
@@ -828,7 +834,7 @@
         "scripts/model-comparison.sh",
         "scripts/model_comparison_report.py"
       ],
-      "last_reviewed": "2026-07-23",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "6ba3f40"
     },
     {
@@ -904,7 +910,7 @@
         "scripts/dataset_ledger.py",
         "scripts/download-models.sh"
       ],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "fe27f6d"
     },
     {
@@ -1090,7 +1096,7 @@
       "status": "draft",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Schema JSON per skin UI: risoluzione logica 640x360, integer scale, token, componenti (panel/button/card/slot/tooltip/focus), input supportati, fallback_skin.",
+      "summary": "Schema JSON per skin UI: risoluzione logica 640x360 (PROPOSTA, non approvata — DEC-156, open question 11), integer scale, token, componenti (panel/button/card/slot/tooltip/focus), input supportati, fallback_skin.",
       "topics": [
         "template",
         "UI",
@@ -1101,7 +1107,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -1183,12 +1189,14 @@
         "esperienza-giocatore",
         "ritmo",
         "chiarezza",
-        "leggibilità"
+        "leggibilità",
+        "causa-sconfitta",
+        "DEC-159"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -1251,12 +1259,17 @@
         "flusso",
         "transizioni",
         "pausa",
-        "exitconfirm"
+        "exitconfirm",
+        "overlay",
+        "build-screen",
+        "DEC-137",
+        "DEC-139",
+        "DEC-156"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1389,8 +1402,8 @@
       ],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "gd-content-audio-feedback",
@@ -1414,7 +1427,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -1495,19 +1508,19 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 143 decisioni di design approvate (DEC-001..DEC-143) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 169 decisioni di design (DEC-001..DEC-169) che cambiano il comportamento del gioco: 168 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..143"
+        "DEC-001..169"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-25",
-      "last_verified_commit": "047e62c"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "design-definition-of-done",
@@ -1605,19 +1618,22 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale delle domande di design ancora aperte (10 voci, quasi tutte valori da playtest) dopo DEC-001..DEC-143; economia, valori numerici, personaggi, multiplayer, produzione.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-169: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
         "domande aperte",
         "playtest",
-        "backlog design"
+        "backlog design",
+        "interfaccia",
+        "distribuzione",
+        "produzione ai"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-25",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "gd-system-active-items",
@@ -1697,19 +1713,20 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md).",
+      "summary": "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità, col suo proxy primario (percentuale massima di schermo coperta, DEC-146, soglia provvisoria da playtest). Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md).",
       "topics": [
         "combattimento",
         "proiettili",
         "budget di leggibilità",
         "DEC-007",
         "DEC-037",
-        "tipi di colpo"
+        "tipi di colpo",
+        "DEC-146"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1744,7 +1761,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \\\"best-of\\\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047).",
+      "summary": "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \\\"best-of\\\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047). Il contenuto curato di fallback del Piano 0 è lo stato base del gioco, precaricato e sempre disponibile, senza attesa possibile (DEC-153); l'HUD di combattimento resta nascosto nel Piano 0, consultabile dal menu di pausa, visibile durante le prove (DEC-169).",
       "topics": [
         "Piano 0",
         "hub",
@@ -1753,12 +1770,14 @@
         "museo",
         "DEC-091",
         "onboarding",
-        "Reliquie"
+        "Reliquie",
+        "DEC-153",
+        "DEC-169"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1769,19 +1788,22 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md).",
+      "summary": "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087, con garanzia di almeno un oggetto per rarità DEC-144) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md).",
       "topics": [
         "validazione",
         "fallback",
         "sei stati",
         "DEC-020",
         "DEC-087",
-        "pool curato minimo"
+        "pool curato minimo",
+        "DEC-144",
+        "DEC-146",
+        "DEC-162"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1792,19 +1814,20 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco.",
+      "summary": "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, recuperabile finché si resta nella stanza (DEC-160).",
       "topics": [
         "Innesto",
         "Graft",
         "rarità",
         "piega-regole",
         "DEC-034",
-        "DEC-107"
+        "DEC-107",
+        "DEC-160"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1839,7 +1862,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143).",
+      "summary": "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162).",
       "topics": [
         "fusione",
         "meccanica-firma",
@@ -1848,12 +1871,13 @@
         "catalizzatore",
         "doppio stadio",
         "DEC-143",
-        "categoria-dominante"
+        "categoria-dominante",
+        "DEC-162"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-25",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1864,19 +1888,21 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna.",
+      "summary": "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft, con garanzia di almeno un oggetto per rarità nel pool minimo, DEC-144), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna con soglia N esplicita, ridotta dalla Fortuna, su tutti i pool (DEC-145).",
       "topics": [
         "oggetti",
         "pool",
         "rarità",
         "slot",
         "correzione-di-fortuna",
-        "tassonomia"
+        "tassonomia",
+        "DEC-144",
+        "DEC-145"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1920,7 +1946,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1931,19 +1957,20 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060).",
+      "summary": "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060).",
       "topics": [
         "economia",
         "ricompense",
         "negozio",
         "valuta",
         "punti-sblocco",
-        "punteggio"
+        "punteggio",
+        "DEC-167"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-18",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2072,20 +2099,22 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Doppio binario delle sinergie: implicite/automatiche tra oggetti compatibili e fusione esplicita nella stanza dedicata.",
+      "summary": "Doppio binario delle sinergie: implicite/automatiche tra oggetti compatibili e fusione esplicita nella stanza dedicata. Conflitti senza priorità esplicita si risolvono con RNG derivato dal seed di run (DEC-161, riproducibilità ancora requisito e non stato attuale finché vale DEC-141); il risultato di sinergie e fusioni ha un budget di potenza dedicato, più alto del singolo (DEC-162).",
       "topics": [
         "sinergie",
         "fusione",
         "build",
         "visual-language",
-        "priorità"
+        "priorità",
+        "DEC-161",
+        "DEC-162"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
         "src/gameplay/synergies.c"
       ],
-      "last_reviewed": "2026-07-17",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2107,7 +2136,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2129,7 +2158,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2173,7 +2202,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2195,7 +2224,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2217,7 +2246,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2239,7 +2268,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2261,7 +2290,7 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -2278,12 +2307,13 @@
         "generazione-contenuti",
         "fallback",
         "trasparenza",
-        "navigazione"
+        "navigazione",
+        "DEC-153"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-17",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2302,13 +2332,16 @@
         "risorse",
         "timer-run",
         "card-scoperta",
+        "floor-zero",
         "DEC-065",
-        "DEC-051"
+        "DEC-051",
+        "DEC-152",
+        "DEC-169"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2349,14 +2382,16 @@
         "catalogo",
         "focus",
         "run-sospesa",
+        "lettore-di-schermo",
         "DEC-045",
         "DEC-083",
-        "DEC-084"
+        "DEC-084",
+        "DEC-166"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2398,14 +2433,19 @@
         "stati-applicativi",
         "focus",
         "exitconfirm",
+        "overlay",
+        "build-screen",
         "DEC-084",
         "DEC-089",
-        "DEC-090"
+        "DEC-090",
+        "DEC-137",
+        "DEC-139",
+        "DEC-156"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2422,15 +2462,17 @@
         "accessibilita",
         "input-parity",
         "controller",
+        "lettore-di-schermo",
         "DEC-057",
         "DEC-058",
         "DEC-075",
-        "DEC-086"
+        "DEC-086",
+        "DEC-166"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2441,7 +2483,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042).",
+      "summary": "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169).",
       "topics": [
         "pause-menu",
         "pausa",
@@ -2451,12 +2493,13 @@
         "DEC-042",
         "DEC-082",
         "DEC-089",
-        "DEC-114"
+        "DEC-114",
+        "DEC-169"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2467,21 +2510,23 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064).",
+      "summary": "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041), con un campo esplicito che dichiara la causa della sconfitta (ultimo colpo o nemico letale, DEC-159). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064).",
       "topics": [
         "run-results",
         "classifiche",
         "vittoria-sconfitta",
         "punti-sblocco",
         "daily",
+        "causa-sconfitta",
         "DEC-041",
         "DEC-056",
-        "DEC-062"
+        "DEC-062",
+        "DEC-159"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -2688,13 +2733,15 @@
       "status": "implemented",
       "authority": "supporting",
       "owner": "engineering",
-      "summary": "Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento, contesto della misura, disambiguazione tra i due meccanismi di benchmark del repo e la storia del meccanismo di tier automatico, rimosso da DEC-110 (il gioco non legge più logs/benchmark.txt).",
+      "summary": "Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento, contesto della misura, disambiguazione tra i due meccanismi di benchmark del repo e la storia del meccanismo di tier automatico, rimosso da DEC-110 (il gioco non legge più logs/benchmark.txt). La tabella testuale è congelata come misura storica del 13/07 (DEC-149); il modello di testo attivo oggi è citato con la formula neutra di DEC-151 (Gemma-3-4B-IT Q4, DEC-140).",
       "topics": [
         "benchmark",
         "performance",
         "tier",
         "vulkan",
-        "gpu"
+        "gpu",
+        "DEC-149",
+        "DEC-151"
       ],
       "related": [],
       "supersedes": [],
@@ -2705,8 +2752,8 @@
         "tools/melting-sprites/main.c",
         "src/app/app.c"
       ],
-      "last_reviewed": "2026-07-23",
-      "last_verified_commit": "fe27f6d"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "eng-dependencies",
@@ -2716,7 +2763,7 @@
       "status": "implemented",
       "authority": "supporting",
       "owner": "engineering",
-      "summary": "Librerie native in deps/ (versioni pinnate da scripts/setup-deps.sh) con ruolo e binario che le linka, piu' i repository locali di sola consultazione e i modelli GGUF/SD scaricati da scripts/download-models.sh.",
+      "summary": "Librerie native in deps/ (versioni pinnate da scripts/setup-deps.sh) con ruolo e binario che le linka, piu' i repository locali di sola consultazione e i modelli GGUF/SD scaricati da scripts/download-models.sh. Elenco modelli di testo e opzioni --light/--with-7b allineati al modello attivo (DEC-140/151) e verificati contro lo script reale.",
       "topics": [
         "dipendenze",
         "deps",
@@ -2725,7 +2772,9 @@
         "lua",
         "stable-diffusion.cpp",
         "raygui",
-        "modelli"
+        "modelli",
+        "DEC-140",
+        "DEC-151"
       ],
       "related": [
         "eng-architecture"
@@ -2737,8 +2786,8 @@
         "Makefile",
         "src/render/raygui_impl.c"
       ],
-      "last_reviewed": "2026-07-23",
-      "last_verified_commit": "fe27f6d"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "eng-espressivita-colpi",
@@ -2818,21 +2867,23 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "engineering",
-      "summary": "Nota tecnica non decisionale: valuta Steamworks (API C, leaderboard, achievement, Workshop, cloud save) per il multiplayer asincrono già approvato (DEC-016, DEC-021).",
+      "summary": "Nota tecnica non decisionale: valuta Steamworks (API C, leaderboard, achievement, Workshop, cloud save) per il multiplayer asincrono già approvato (DEC-016, DEC-021). Il tema distribuzione appartiene ad ai-production (DEC-158): questo documento vi rimanda senza duplicarlo.",
       "topics": [
         "steamworks",
         "multiplayer",
         "leaderboard",
         "distribuzione",
         "tecnico",
-        "determinismo-rng"
+        "determinismo-rng",
+        "DEC-158"
       ],
       "related": [
-        "eng-known-issues"
+        "eng-known-issues",
+        "aiprod-distribuzione"
       ],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-25",
+      "last_reviewed": "2026-07-27",
       "last_verified_commit": null
     },
     {
@@ -3017,28 +3068,6 @@
       "last_verified_commit": null
     },
     {
-      "id": "plans-aiprod-proposed-kb-updates",
-      "path": "docs/plans/active/aiprod-proposed-kb-updates.md",
-      "title": "Aggiornamenti proposti alla knowledge base",
-      "domain": "plans",
-      "status": "proposed",
-      "authority": "supporting",
-      "owner": "ai-production",
-      "summary": "Elenco di modifiche da trasferire nella KB canonica (audio, visual language, floor zero, validazione contenuti, run manifest) solo dopo decisione umana.",
-      "topics": [
-        "kb-updates",
-        "audio",
-        "floor-zero",
-        "run-manifest",
-        "visual-language"
-      ],
-      "related": [],
-      "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
-    },
-    {
       "id": "plans-mechanics-lab",
       "path": "docs/plans/active/mechanics-lab.md",
       "title": "Mechanics-lab — scoprire le primitive minime dei colpi componibili",
@@ -3053,7 +3082,8 @@
         "primitive",
         "lua",
         "esperimento",
-        "DEC-138"
+        "DEC-138",
+        "DEC-165"
       ],
       "related": [
         "eng-espressivita-colpi"
@@ -3063,18 +3093,66 @@
         "src/script/script_sandbox.c",
         "src/script/script_api.c"
       ],
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
+    },
+    {
+      "id": "plans-aiprod-proposed-kb-updates",
+      "path": "docs/plans/cancelled/aiprod-proposed-kb-updates.md",
+      "title": "Aggiornamenti proposti alla knowledge base (ANNULLATO da DEC-147)",
+      "domain": "plans",
+      "status": "superseded",
+      "authority": "historical",
+      "owner": "ai-production",
+      "summary": "ANNULLATO il 2026-07-27 (DEC-147): piano che duplicava la coda di open questions come seconda coda decisionale. Le sue proposte residue sono trasferite in docs/design/governance/open-questions.md; quelle già risolte sono chiuse citando la DEC pertinente. Testo originale conservato sotto.",
+      "topics": [
+        "kb-updates",
+        "audio",
+        "floor-zero",
+        "run-manifest",
+        "visual-language",
+        "annullato"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [],
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": null
+    },
+    {
+      "id": "plans-benchmark-primo-avvio",
+      "path": "docs/plans/cancelled/benchmark-primo-avvio.md",
+      "title": "Benchmark al primo avvio (ANNULLATO da DEC-110)",
+      "domain": "plans",
+      "status": "superseded",
+      "authority": "supporting",
+      "owner": "engineering",
+      "summary": "Gap di design differito di proposito: oggi make benchmark è solo manuale e il gioco applica il preset lowspec leggendo logs/benchmark.txt; l'auto-run al primo avvio con UI dedicata resta da progettare e costruire.",
+      "topics": [
+        "benchmark",
+        "low-spec",
+        "primo-avvio",
+        "ui",
+        "tier"
+      ],
+      "related": [],
+      "supersedes": [],
+      "source_files": [
+        "scripts/benchmark.sh",
+        "src/app/app.c"
+      ],
       "last_reviewed": "2026-07-22",
-      "last_verified_commit": "bd2cf04"
+      "last_verified_commit": null
     },
     {
       "id": "plans-model-comparison",
-      "path": "docs/plans/active/model-comparison.md",
-      "title": "Piano — suite di comparazione dei modelli candidati (testo, immagini, audio)",
+      "path": "docs/plans/completed/model-comparison.md",
+      "title": "Piano — suite di comparazione dei modelli candidati (testo, immagini, audio) — COMPLETATO 2026-07-24",
       "domain": "plans",
-      "status": "approved",
+      "status": "implemented",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Obiettivo, metodo e candidati della suite che confronta modelli alternativi ai default di produzione nei tre domini (testo GGUF, immagine SD, audio Stable Audio Open Small) su throughput/qualità/artefatti, con soglie di accettabilità, struttura degli output e istruzioni per rieseguirla.",
+      "summary": "Obiettivo, metodo e candidati della suite che confronta modelli alternativi ai default di produzione nei tre domini (testo GGUF, immagine SD, audio Stable Audio Open Small) su throughput/qualità/artefatti, con soglie di accettabilità, struttura degli output e istruzioni per rieseguirla. Chiuso con giudizio finale il 24/07/2026 (gen-2 immagini): nessun modello moderno batte SD1.5 su 6 GB di VRAM.",
       "topics": [
         "modelli",
         "benchmark",
@@ -3101,33 +3179,8 @@
         "tools/melting-gen/main.c",
         "tools/melting-sprites/main.c"
       ],
-      "last_reviewed": "2026-07-24",
-      "last_verified_commit": "fbfb02d"
-    },
-    {
-      "id": "plans-benchmark-primo-avvio",
-      "path": "docs/plans/cancelled/benchmark-primo-avvio.md",
-      "title": "Benchmark al primo avvio (ANNULLATO da DEC-110)",
-      "domain": "plans",
-      "status": "superseded",
-      "authority": "supporting",
-      "owner": "engineering",
-      "summary": "Gap di design differito di proposito: oggi make benchmark è solo manuale e il gioco applica il preset lowspec leggendo logs/benchmark.txt; l'auto-run al primo avvio con UI dedicata resta da progettare e costruire.",
-      "topics": [
-        "benchmark",
-        "low-spec",
-        "primo-avvio",
-        "ui",
-        "tier"
-      ],
-      "related": [],
-      "supersedes": [],
-      "source_files": [
-        "scripts/benchmark.sh",
-        "src/app/app.c"
-      ],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "d30890b"
     },
     {
       "id": "ref-design-sinergie",

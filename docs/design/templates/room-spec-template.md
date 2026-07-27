@@ -7,7 +7,7 @@ authority: supporting
 owner: design
 summary: >-
   (vedi documento)
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 topics: [template, room, spec, design, content-generation]
 related: []
 supersedes: []
@@ -17,6 +17,11 @@ room_type: partenza | combattimento | tesoro | negozio | boss | fusione | segret
 ---
 
 # Nome stanza
+
+## Vincoli di contenuto
+
+Vedi `generated-content-contract.md` (DEC-163): limiti di contenuto (DEC-119), tono
+narrativo e tassonomia dei tag sono centralizzati lì e non vanno riformulati qui.
 
 ## Scopo
 

@@ -7,7 +7,7 @@ authority: supporting
 owner: ai-production
 summary: >-
   Piano in 8 fasi (A-H) per portare multi-LoRA, SpriteBundle, registry dei rig, animator ed EnemySpec esteso nel motore C, con migrazione graduale dell'atlas.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 topics: [piano-implementazione, multi-lora, sprite-bundle, rig-registry, atlas-migration]
 related: []
 supersedes: []
@@ -127,7 +127,8 @@ I rig non leggono prompt. Ricevono dati validati.
 
 ## Fase E — EnemySpec
 
-Estendere il manifest generato da Qwen con:
+Estendere il manifest generato dal modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140)
+con:
 
 - body_plan;
 - rig;

@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna."
-last_reviewed: 2026-07-18
+summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft, con garanzia di almeno un oggetto per rarità nel pool minimo, DEC-144), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna con soglia N esplicita, ridotta dalla Fortuna, su tutti i pool (DEC-145)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [oggetti, pool, rarità, slot, correzione-di-fortuna, tassonomia]
+topics: [oggetti, pool, rarità, slot, correzione-di-fortuna, tassonomia, DEC-144, DEC-145]
 related: []
 supersedes: []
 source_files: []
@@ -154,6 +154,27 @@ Pool boss:
 | rara | 70 |
 | leggendaria | 30 |
 
+### Pool curato minimo: almeno un oggetto per rarità (DEC-144)
+
+Il pool curato minimo di 20 oggetti (fonte unica della tabella per categoria in
+[Generated Content Validation](generated-content-validation.md)) garantisce **almeno un
+oggetto per ciascuna delle 4 rarità**: nessuna rarità può restare vuota nel pool minimo,
+nemmeno quando l'applicazione pura dei pesi standard sopra la escluderebbe per
+arrotondamento. L'eventuale eccedenza necessaria a rispettare la garanzia **si sottrae
+alle rarità più comuni** — a partire dalla comune, la fascia più popolosa e quindi quella
+che assorbe l'aggiustamento senza alterare la gerarchia percepita delle rarità — e **non
+si aggiunge al totale**: il pool minimo resta di 20 oggetti (DEC-087).
+
+Esempio numerico **derivato**, marcato come tale e non normativo — i valori restano da
+confermare col playtest (stile DEC-019), qui serve solo a mostrare come si applica la
+regola: applicando i pesi standard (comune 55, non-comune 30, rara 12, leggendaria 3) a un
+pool di 20 oggetti si ottiene comune 11, non-comune 6, rara 2,4, leggendaria 0,6; troncando
+per difetto restano 11 + 6 + 2 = 19 oggetti e la rarità leggendaria resta vuota. Il vincolo
+pretende almeno 1 leggendario, e l'unità che serve arriva dal residuo di arrotondamento
+senza toccare il totale, così: **11 comuni / 6 non-comuni / 2 rari / 1 leggendario = 20**.
+Se il residuo non bastasse, l'unità mancante si sottrarrebbe alle rarità più comuni, perché
+il totale resta 20.
+
 ## Controllo della run
 
 Il sistema deve evitare:
@@ -171,6 +192,28 @@ sfortunate consecutive, la qualità minima della successiva estrazione salga, **
 garantire sempre la soluzione perfetta per la build corrente. È un correttore invisibile
 al giocatore nei suoi meccanismi interni, non nei suoi effetti (il giocatore percepisce
 un'offerta migliore, non la formula).
+
+### Soglia N e statistica Fortuna (DEC-145)
+
+La soglia **N** — il numero di estrazioni consecutive di rarità comune prima che la
+correzione scatti — è un parametro esplicito del sistema, non un dettaglio implicito
+lasciato all'implementazione: il suo valore esatto resta da confermare col playtest (vedi
+Domande aperte residue), ma la sua esistenza, il suo nome e il suo ruolo sono parte del
+contratto di questo documento.
+
+La statistica **Fortuna** del personaggio (vedi [player.md](player.md)) **riduce N**: più
+Fortuna possiede il personaggio, meno estrazioni sfortunate consecutive servono perché la
+correzione scatti. La riduzione non elimina mai del tutto la soglia (non esiste Fortuna
+che garantisca sempre la rarità massima), coerente con la regola generale sopra.
+
+**Scope: tutti i pool.** La correzione di fortuna, con la sua soglia N eventualmente
+ridotta dalla Fortuna, si applica a ogni pool di oggetti (standard, tesoro, negozio,
+ecc.), senza eccezioni dichiarate. Nota sul **pool boss**: quel pool ha già una garanzia
+strutturalmente superiore (pesi 0/0/70/30, vedi tabella sopra — nessun peso su comune o
+non-comune), quindi la condizione che attiva la correzione di fortuna (estrazioni
+consecutive di rarità comune) non può verificarsi in un pool che non contiene comuni: la
+correzione di fortuna resta definita anche per il pool boss, ma vi si applica solo in
+teoria, perché la garanzia strutturale del pool la rende già superflua in pratica.
 
 ## Interazioni
 
@@ -216,8 +259,10 @@ validato in tempo), si applica la regola unica descritta in
 
 ## Domande aperte residue
 
-- Validazione col playtest dei pesi di rarità (pool standard e pool boss) e del numero
-  N di estrazioni sfortunate che attiva la correzione di fortuna.
+- Validazione col playtest dei pesi di rarità (pool standard e pool boss), del valore
+  esatto della soglia N di estrazioni sfortunate che attiva la correzione di fortuna e di
+  quanto la statistica Fortuna la riduce (DEC-145 fissa che N esiste, che è ridotta dalla
+  Fortuna e che si applica a tutti i pool, non i numeri esatti).
 - Numero massimo di slot attivo/Innesto ottenibili in una run.
 
 ## Scenari verificabili
@@ -265,3 +310,14 @@ When l'oggetto viene offerto al giocatore,
 Then la scheda dell'oggetto mostra sia il comportamento sia la modifica di statistica,
 positiva o negativa, come parte dello stesso oggetto, senza introdurre una categoria
 diversa da `passivo`.
+
+### Scenario 7 — la Fortuna riduce la soglia N su un pool qualsiasi
+
+Given due giocatori con statistica Fortuna diversa (uno più alta dell'altro), entrambi
+in una sequenza di estrazioni sfortunate consecutive dallo stesso tipo di pool (non
+boss),  
+When si conta quante estrazioni servono prima che scatti la correzione di fortuna per
+ciascuno,  
+Then il giocatore con Fortuna più alta raggiunge la correzione dopo meno estrazioni
+(soglia N più bassa), secondo la regola di DEC-145; il pool boss non è mai in questa
+condizione perché non contiene rarità comuni da cui partire.

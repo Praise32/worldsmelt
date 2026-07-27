@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm]
+topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-137, DEC-139, DEC-156]
 related: []
 supersedes: []
 source_files: []
@@ -52,6 +52,19 @@ fallback invisibile descritto in
 [Generated Content Validation](systems/generated-content-validation.md). Questo documento
 non ripete quella regola.
 
+Esiste **una sola schermata**: la game view occupa tutto lo schermo e la GUI (HUD, pannelli
+di build, log, minimappa) vive **in overlay** sopra di essa, mai come colonne laterali che
+sottraggono spazio al mondo (DEC-137). Questo è un vincolo di **layout della GUI**, non un
+cambio dei nove stati canonici né delle loro transizioni: i nodi e gli archi di questo
+documento restano gli stessi. La **risoluzione logica** con cui l'overlay viene composto
+(proposta di 640×360 con scaling intero) **non è approvata**: resta una domanda aperta
+separata in `governance/open-questions.md` (DEC-156); questo documento non la dà per
+approvata in nessuna forma.
+
+`BuildScreen` è raggiungibile sia da `PauseMenu` («Build e sinergie») sia **direttamente da
+`Gameplay` con TAB**, arco diretto e già presente nel flusso sotto (DEC-139): le due vie
+coesistono, nessun nuovo stato si aggiunge.
+
 ## Flusso base
 
 ```mermaid
@@ -66,6 +79,8 @@ flowchart TD
     Options --> PauseMenu
     Gameplay --> BuildScreen
     BuildScreen --> Gameplay
+    PauseMenu --> BuildScreen
+    BuildScreen --> PauseMenu
     Gameplay --> RunResults
     RunResults --> FloorZero
     RunResults --> MainMenu
@@ -88,7 +103,7 @@ flowchart TD
 | `Gameplay` | Uscita da `FloorZero` verso il piano 1, ripresa da `PauseMenu`/`BuildScreen`, o "Continua" da `MainMenu` su una run sospesa | Movimento, combattimento, apertura pausa, apertura build |
 | `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, abbandona (con `ExitConfirm`) |
 | `Options` | Da `MainMenu` o da `PauseMenu` | Modifica opzioni, torna indietro |
-| `BuildScreen` | Comando dedicato durante `Gameplay` | Consulta oggetti, sinergie, fusioni disponibili, torna a `Gameplay` |
+| `BuildScreen` | TAB direttamente da `Gameplay` (arco diretto, DEC-139), oppure «Build e sinergie» da `PauseMenu` | Consulta oggetti, sinergie, fusioni disponibili, torna allo stato da cui è stata aperta |
 | `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, sconfitta, o abbandono confermato di una run in corso da `PauseMenu`/`ExitConfirm`, DEC-089) | Torna al Piano 0, torna al menu principale |
 | `ExitConfirm` | Azione distruttiva richiesta (abbandono run, abbandono della preparazione nel Piano 0, uscita dal gioco) | Conferma, annulla |
 
@@ -188,3 +203,6 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
 - **Dato** che il giocatore è in `MainMenu` e richiede di chiudere il gioco, **quando** entra
   in `ExitConfirm`, **allora** vede un dialogo modale leggero sopra il menu, non una
   schermata dedicata (DEC-090).
+- **Dato** che il giocatore è in `Gameplay`, **quando** preme TAB, **allora** entra
+  direttamente in `BuildScreen` senza passare da `PauseMenu`, e uscendo torna a `Gameplay`
+  (DEC-139); la via da `PauseMenu` → «Build e sinergie» resta comunque disponibile.

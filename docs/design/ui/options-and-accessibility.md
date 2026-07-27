@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Impostazioni e accessibilità, incluso lo schema di controllo approvato. Parità rigorosa tastiera/controller (DEC-057), con il Piano 0 che conta come menu ai fini del mouse (DEC-075), e tre garanzie canoniche di accessibilità: rimappatura totale, nessuna informazione affidata al solo colore, riduzione effetti (DEC-058)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [opzioni, accessibilita, input-parity, controller, DEC-057, DEC-058, DEC-075, DEC-086]
+topics: [opzioni, accessibilita, input-parity, controller, lettore-di-schermo, DEC-057, DEC-058, DEC-075, DEC-086, DEC-166]
 related: []
 supersedes: []
 source_files: []
@@ -76,6 +76,17 @@ garanzie riguardano accessibilità e chiarezza, non un abbassamento del livello 
 assistenze o velocità che renderebbero una run non classificata restano, distintamente, una
 domanda aperta (vedi sotto), non una modalità assistita canonica.
 
+## Obiettivi non-garanzia (DEC-166)
+
+Distinto dalle tre garanzie canoniche sopra, un **obiettivo** di accessibilità non ancora
+promosso a garanzia:
+
+- **Lettore di schermo**: supporto **circoscritto a `MainMenu` e ai menu testuali
+  semplici** (vedi `ui/main-menu.md`). **Non è esteso al gameplay** e **non entra fra le
+  garanzie canoniche di DEC-058**: resta un obiettivo, con perimetro esplicito, non una
+  promessa canonica valida su tutta l'interfaccia. Fonte unica di questo perimetro:
+  questo documento (DEC-166); `ui/main-menu.md` vi rimanda senza riformulare.
+
 ## Riattivazione della generazione IA (DEC-086)
 
 Il giocatore che al primissimo avvio ha scelto "solo curato" trova in `Options` (categoria
@@ -122,3 +133,4 @@ regole della classifica (vedi `ui/results-and-leaderboards.md`, DEC-016).
 6. **Given** un giocatore daltonico che gioca senza alcuna assistenza di colore, **when** osserva una minaccia o un indicatore di stato, **then** riesce comunque a distinguerlo perché l'informazione è comunicata anche da forma e pattern, non solo dal colore (DEC-058).
 7. **Given** il giocatore è nel Piano 0, **when** clicca col mouse su una carta tema, una scheda personaggio o un pannello, **then** l'elemento viene selezionato come da una voce di menu; **but when** prova a muovere il personaggio o a giocare una qualunque meccanica del Piano 0, **then** il mouse non ha alcun effetto e l'azione richiede tastiera o controller (DEC-075).
 8. **Given** un giocatore ha scelto "solo curato" al primissimo avvio, **when** apre `Options` nella categoria gameplay, **then** trova la voce per riattivare la generazione IA, accompagnata dalla stessa informazione del benchmark sull'hardware mostrata al primo avvio (DEC-086).
+9. **Given** un giocatore usa un lettore di schermo, **when** naviga `MainMenu` o un menu testuale semplice, **then** trova supporto come obiettivo dichiarato; **but when** entra in `Gameplay`, **then** nessun supporto al lettore di schermo è promesso, perché il perimetro non si estende al gameplay e non è fra le garanzie canoniche di DEC-058 (DEC-166).

@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Indicatore di generazione dentro il Piano 0, non una schermata a sé."
-last_reviewed: 2026-07-17
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [floor-zero, generazione-contenuti, fallback, trasparenza, navigazione]
+topics: [floor-zero, generazione-contenuti, fallback, trasparenza, navigazione, DEC-153]
 related: []
 supersedes: []
 source_files: []
@@ -60,13 +60,20 @@ nell'interfaccia normale.
 - Preferire messaggi descrittivi stabili a barre di progresso ingannevoli.
 - Non interrompere l'esplorazione del Piano 0 per comunicare la generazione in background.
 - Non mostrare dettagli tecnici, prompt o errori interni: fonte unica delle regole di trasparenza `06-ai-content-generation-model.md`.
+- Il contenuto curato di fallback è sempre pronto per costruzione (DEC-153): l'attesa
+  percepita dal giocatore non ha un limite superiore ambiguo legato al fallback stesso.
 
 ## Fallback silenzioso
 
 Se un contenuto non supera la validazione, il gioco sostituisce silenziosamente con un
-fallback curato senza allarmare il giocatore e senza bloccare l'uscita verso il piano 1
-quando il fallback stesso è pronto. Fonte unica delle regole di fallback:
-`systems/generated-content-validation.md`; questo documento non le riformula.
+fallback curato senza allarmare il giocatore. Il contenuto curato di fallback è lo **stato
+base del gioco**, precaricato e disponibile per costruzione — mai in attesa, mai in
+caricamento (DEC-153): non esiste quindi un caso in cui l'uscita verso il piano 1 resti
+disabilitata senza limite perché "nemmeno il fallback è pronto". L'unica condizione che
+tiene l'uscita disabilitata è quella già descritta sopra (il piano 1 e i requisiti minimi
+non ancora pronti); il fallback, quando necessario, si applica sempre in tempo utile.
+Fonte unica delle regole di fallback: `systems/generated-content-validation.md`; questo
+documento non le riformula.
 
 ## Errori
 
@@ -89,3 +96,4 @@ partita (DEC-020).
 2. **Given** il piano 1 diventa pronto e validato, **when** l'indicatore si aggiorna, **then** l'uscita verso il piano 1 si abilita senza richiedere un'azione aggiuntiva del giocatore.
 3. **Given** un contenuto del piano 2 fallisce la validazione mentre il giocatore è ancora nel Piano 0, **when** il sistema applica il fallback curato, **then** nessun messaggio d'allarme o dettaglio tecnico viene mostrato al giocatore.
 4. **Given** il giocatore è nel Piano 0 a scegliere il personaggio, **when** la generazione dei piani successivi procede in background, **then** l'esplorazione dell'hub non viene interrotta.
+5. **Given** i contenuti del piano 1 non superano la validazione, **when** il gioco applica il fallback curato, **then** l'uscita verso il piano 1 si abilita non appena il piano 1 e i requisiti minimi sono pronti, senza mai restare disabilitata in attesa che il fallback stesso "diventi pronto" (DEC-153).

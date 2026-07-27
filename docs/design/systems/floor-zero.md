@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047)."
-last_reviewed: 2026-07-19
+summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047). Il contenuto curato di fallback del Piano 0 è lo stato base del gioco, precaricato e sempre disponibile, senza attesa possibile (DEC-153); l'HUD di combattimento resta nascosto nel Piano 0, consultabile dal menu di pausa, visibile durante le prove (DEC-169)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie]
+topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169]
 related: []
 supersedes: []
 source_files: []
@@ -235,6 +235,25 @@ Le visite successive al Piano 0, nella stessa run o in run future, non ripropong
 le arene restano visitabili e riutilizzabili per allenarsi, ma senza cartelli o prove
 pratiche di introduzione.
 
+## HUD nascosto nel Piano 0 (DEC-169)
+
+Nel Piano 0 l'HUD di combattimento (vite, munizioni/cariche, risorse, timer di run, ecc. —
+vedi [HUD](../ui/hud.md)) resta **nascosto** di norma: il Piano 0 è un rifugio, non
+un'arena permanente, e non ha bisogno di mostrare informazioni di combattimento quando il
+giocatore non sta combattendo.
+
+- L'HUD resta comunque **consultabile dal menu di pausa** in qualunque momento, come ogni
+  altra informazione di stato della run in preparazione (vedi
+  [Pause Menu](../ui/pause-menu.md)). Con quale comando il menu di pausa si apra dal Piano 0
+  — dove ESC è già assegnato a `ExitConfirm` (DEC-074) — DEC-169 non lo fissa: è la domanda
+  aperta 22 in `../governance/open-questions.md`.
+- Durante le **arene di sfida** (opzionali o del museo) — incluse quelle della primissima
+  visita guidata (DEC-047) — l'HUD torna **visibile**: lì il giocatore combatte davvero e
+  ha bisogno delle stesse informazioni che userebbe nei piani 1-5.
+
+Fuori dalle arene, nel resto del Piano 0 (scelta tema/personaggio, museo, riepilogo),
+l'HUD di combattimento resta nascosto.
+
 ## Interazioni
 
 - [Characters](characters.md): la scelta del personaggio avviene qui, nel Piano 0; il
@@ -266,6 +285,10 @@ pratiche di introduzione.
 - [Game States and Flow](../05-game-states-and-flow.md) e
   [Navigation Map](../ui/navigation-map.md): l'abbandono del Piano 0 passa da `ExitConfirm`
   (DEC-074).
+- [HUD](../ui/hud.md): fonte unica del contenuto e della presentazione dell'HUD di
+  combattimento; questo documento registra solo che nel Piano 0 resta nascosto fuori dalle
+  arene, consultabile dal menu di pausa e visibile durante le prove del Piano 0 — arene di
+  sfida e tutorial integrato (DEC-047), non le prove della run di DEC-042 (DEC-169).
 
 ## Dote iniziale dall'arena di sfida (DEC-029)
 
@@ -321,9 +344,13 @@ loro generazione o del loro punteggio, definito in
 - L'anteprima visiva di ciascun tema proposto è generata con priorità altissima rispetto
   alle altre generazioni in corso a inizio run (DEC-039); se non è pronta in tempo, la carta
   tema resta comunque valida con solo nome e descrizione.
-- Il gioco è sempre avviabile. Finché non esistono asset dedicati generati per il Piano 0,
-  una versione statica curata del Piano 0 fa da sala d'attesa/fallback della primissima
-  run: vedi [Generated Content Validation](generated-content-validation.md) per la regola
+- Il gioco è sempre avviabile: il contenuto curato del Piano 0 non è un ripiego
+  temporaneo in cerca di sostituzione, è **lo stato base del gioco** — precaricato e
+  sempre disponibile fin dal primo avvio, senza alcuna generazione necessaria e senza
+  alcuna attesa possibile per il giocatore (DEC-153). Gli eventuali asset dedicati
+  generati (anteprime dei temi, contenuti del museo, ecc.) si aggiungono sopra questo
+  stato base quando pronti, senza mai bloccarlo né richiedere che il giocatore attenda:
+  vedi [Generated Content Validation](generated-content-validation.md) per la regola
   generale di fallback.
 
 ## Casi limite
@@ -594,3 +621,28 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Then il gioco resta interamente giocabile con contenuti curati e fallback procedurale,
   senza che questa condizione sia trattata come temporanea o come un errore da correggere
   (DEC-070)
+
+**Scenario: il Piano 0 curato è pronto senza alcuna attesa (DEC-153)**
+- Given un giocatore avvia il gioco per la primissima volta, prima che qualunque
+  generazione IA abbia prodotto un solo asset per il Piano 0
+- When entra nel Piano 0
+- Then trova immediatamente il contenuto curato di base, già pronto e completo, senza
+  alcuna schermata o indicatore di attesa: il contenuto curato è lo stato base del gioco,
+  non un ripiego temporaneo (DEC-153)
+
+**Scenario: HUD nascosto fuori dalle arene del Piano 0**
+- Given un giocatore nel Piano 0 sta scegliendo il tema o consultando il museo, fuori da
+  qualunque arena
+- When osserva lo schermo
+- Then l'HUD di combattimento resta nascosto (DEC-169)
+
+**Scenario: HUD consultabile dal menu di pausa nel Piano 0**
+- Given un giocatore nel Piano 0, con l'HUD di combattimento normalmente nascosto
+- When apre il menu di pausa
+- Then può consultare le stesse informazioni dell'HUD (vite, risorse, timer di run) da lì
+  (DEC-169)
+
+**Scenario: HUD visibile durante un'arena di sfida**
+- Given un giocatore entra in un'arena di sfida del Piano 0 (opzionale o dal museo)
+- When il combattimento nell'arena è in corso
+- Then l'HUD di combattimento torna visibile, come nei piani 1-5 (DEC-169)

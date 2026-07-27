@@ -9,8 +9,8 @@ summary: >-
   Punto d'ingresso del design canonico: percorso di lettura curato di fondamenti, sistemi,
   UI, contenuto e governance, con le regole di precedenza e gli stati dei documenti.
   Erede diretto di INDEX.md e README.md della game-design-knowledge-base.
-last_reviewed: 2026-07-22
-last_verified_commit: 0ec60d0
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
 topics: [indice, design, governance, navigazione]
 related: [design-decision-log]
 supersedes: []
@@ -22,7 +22,7 @@ source_files: []
 Questa cartella è il **game design unico e canonico** del progetto: non esiste un'altra
 fonte di verità per comportamento, contenuti, flussi e interfaccia del gioco. Ogni decisione
 sul gioco va cercata, verificata e registrata qui — in particolare nel
-[Decision Log](governance/decision-log.md) (DEC-001..DEC-140).
+[Decision Log](governance/decision-log.md) (DEC-001..DEC-169).
 
 Il gioco si chiama **Worldsmelt** (titolo definitivo, DEC-071). «Melting Run» resta solo il
 nome storico del repository e il titolo di lavoro citato nel decision-log; nei documenti

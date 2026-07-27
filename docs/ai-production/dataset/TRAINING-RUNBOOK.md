@@ -2,12 +2,12 @@
 id: aiprod-training-runbook
 title: Runbook: prima campagna Style LoRA su RunPod
 domain: ai-production
-status: approved
+status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Runbook passo-passo per addestrare la prima Style LoRA su RunPod: prerequisiti, scelta pod, dataset, comandi kohya_ss, sweep iperparametri, valutazione cieca.
-last_reviewed: 2026-07-22
+  Runbook passo-passo per addestrare la prima Style LoRA su RunPod: prerequisiti, scelta pod, dataset, comandi kohya_ss, sweep iperparametri, valutazione cieca. Fallback a pagamento (DEC-168): il runbook primario è Kaggle (../05-KAGGLE-TRAINING-RUNBOOK.md).
+last_reviewed: 2026-07-27
 last_verified_commit: fe27f6d
 topics: [LoRA, RunPod, kohya_ss, training, SD1.5, sweep]
 related: []
@@ -15,6 +15,12 @@ supersedes: []
 source_files: [tools/melting-sprites/main.c, logs/sprite-baseline/20260717-053243/]
 ---
 # Runbook: prima campagna Style LoRA su RunPod
+
+> **FALLBACK A PAGAMENTO (DEC-168, 2026-07-27).** Il runbook primario per il training
+> della Style LoRA è ora `../05-KAGGLE-TRAINING-RUNBOOK.md` (Kaggle, fino a 30 ore di GPU
+> gratuite a settimana). Questo runbook RunPod resta disponibile come fallback a
+> pagamento, per quando la quota Kaggle non basta o servono sweep più ampi/run in
+> parallelo.
 
 Scritto il 17/07/2026 dal content-designer, mentre l'utente dormiva. Tutto
 quello che poteva essere preparato in locale (dataset CC0, registro di

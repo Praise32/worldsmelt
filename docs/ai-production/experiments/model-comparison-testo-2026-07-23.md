@@ -9,7 +9,7 @@ summary: >-
   Suite di comparison su 11 modelli GGUF (3 seed fissi): gemma-3-4b-it Q4 migliore
   complessivo (84.9), Coder 1.5B Q4 miglior rapporto e minimo accettabile; base di DEC-140.
   Artefatti e valori grezzi in logs/model-comparison/20260723-125614/.
-last_reviewed: 2026-07-23
+last_reviewed: 2026-07-27
 last_verified_commit: 6ba3f40
 topics: [comparison, modelli, benchmark, gemma, qwen, DEC-140]
 related: []
@@ -40,7 +40,7 @@ Cartella: `logs/model-comparison/20260723-125614` -- vedi anche `report.csv` (st
 
 ## Giudizio automatico
 
-Soglie (piano, `docs/plans/active/model-comparison.md`): Lua validi (primo colpo + dopo retry) >= 70%, JSON valido al primo tentativo su TUTTE le run campionate (nessun ripiego procedurale), zero run con piani fotocopia (< 5 temi distinti su 5 piani).
+Soglie (piano, `docs/plans/completed/model-comparison.md`): Lua validi (primo colpo + dopo retry) >= 70%, JSON valido al primo tentativo su TUTTE le run campionate (nessun ripiego procedurale), zero run con piani fotocopia (< 5 temi distinti su 5 piani).
 
 - **Migliore complessivo**: `gemma-3-4b-it-q4_k_m` (punteggio 84.9/100).
 - **Migliore rapporto qualità/dimensione**: `qwen2.5-coder-1.5b-instruct-q4_k_m` (71.3 punti/GiB).

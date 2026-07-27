@@ -7,13 +7,23 @@ authority: supporting
 owner: ai-production
 summary: >-
   Roadmap in 9 milestone (repository ML -> Style LoRA -> multi-LoRA -> SpriteBundle -> body plan -> Enemy LoRA -> Piano 0 -> umanoide -> produttizzazione) con gate e ordine da non invertire.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 topics: [roadmap, milestone, piano-0, lora, produttizzazione]
 related: []
 supersedes: []
 source_files: [tools/melting-sprites]
 ---
 # Roadmap operativa
+
+## Stato al 27/07
+
+La Milestone 0 è in gran parte già coperta al di fuori della struttura `ml/` qui
+descritta: il registro di provenienza (`scripts/dataset_ledger.py`, `dataset/ledger.jsonl`),
+la baseline congelata (`dataset/baseline-prompts.txt`, `logs/sprite-baseline/`) e il tool
+CLI (`tools/melting-sprites`) esistono già. La comparison di seconda generazione del 23/07
+ha confermato SD1.5 come base immagini (DEC-148) e ha reso Gemma-3-4B-IT Q4 il modello di
+testo di riferimento (DEC-140). La Milestone 1 (Style LoRA v0) non è ancora avviata: il
+training si farà su Kaggle, runbook primario (DEC-168).
 
 ## Milestone 0 — Repository ML
 
@@ -82,7 +92,7 @@ Gate: miglioramento sui quattro rig.
 
 ## Milestone 6 — Piano 0
 
-- Qwen produce EnemySpec;
+- il modello di testo attivo produce EnemySpec;
 - registry assegna rig;
 - SD genera asset minimi;
 - barra stato;
@@ -105,14 +115,18 @@ Gate: idle/walk/attack coerenti.
 
 ## Milestone 8 — Produttizzazione
 
-- benchmark primo avvio;
-- tier;
 - downloader modelli;
 - NOTICE;
 - modalità solo-curato;
 - pulizia cache;
 - crash recovery;
 - telemetria locale opzionale.
+
+Nota (DEC-110, DEC-142): niente tier di qualità né auto-run del benchmark al primo avvio —
+il preset `--low-spec` è stato rimosso, il piano `benchmark-primo-avvio` è annullato, e il
+requisito hardware minimo si esprime in numeri misurati (VRAM/RAM/OS), non in nomi di
+modello o in tier. Resta valida l'informazione sull'hardware mostrata al primo avvio
+prevista da DEC-086.
 
 ## Ordine da non invertire
 
@@ -122,7 +136,7 @@ Non fare prima:
 - ControlNet custom;
 - AnimateDiff finale;
 - migliaia di nemici;
-- Qwen fine-tuning;
+- fine-tuning del modello di testo;
 - UI definitiva.
 
 Prima dimostrare una singola pipeline completa e riproducibile.

@@ -15,8 +15,9 @@ Procedura obbligatoria:
    `docs/ai-production/regole-agenti-ml.md`.
 4. Classifica il task: DESIGN_PATH, TECHNICAL_PATH, ML_EXPERIMENT_PATH, UI_PATH,
    AUDIO_PATH, CURATION_PATH, IMPLEMENTATION_PATH.
-5. Controlla documenti `approved`, `docs/design/governance/open-questions.md` e
-   `docs/ai-production/19-DECISION-QUESTIONNAIRE.md`.
+5. Controlla i documenti `approved` e `docs/design/governance/open-questions.md`, che dal
+   2026-07-27 e' la coda ufficiale e unica delle domande aperte (DEC-147): le code
+   parallele sono chiuse e archiviate, non consultarle come fonte viva.
 6. Se esiste una domanda BLOCKING o un conflitto: delega a
    `worldsmelt-decision-facilitator` e NON implementare.
 7. Se il task e' Ready: piano con file, test, gate e rollback.

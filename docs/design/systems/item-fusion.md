@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143)."
-last_reviewed: 2026-07-25
+summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante]
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162]
 related: []
 supersedes: []
 source_files: []
@@ -105,6 +105,13 @@ strategica, non un'azione disponibile a piacere.
 - Il catalizzatore di fusione è una risorsa rara (DEC-022): la cadenza attesa è 1-2
   fusioni per run, quindi il pool di oggetti fusi che il giocatore incontra in una run
   resta piccolo e ogni singolo risultato pesa molto sulla build.
+- L'oggetto risultante da una fusione riceve un **budget di potenza dedicato**, più alto
+  del `budget di potenza` di un singolo oggetto sorgente (DEC-162, dettaglio condiviso con
+  le sinergie implicite in [Synergies](synergies.md)): il risultato di una fusione deve
+  valere meccanicamente il costo di due oggetti e un catalizzatore raro consumati per
+  ottenerlo. Questo budget dedicato è verificato in validazione (stato `simulato`, vedi
+  [Generated Content Validation](generated-content-validation.md)) come ogni altro
+  contenuto generato; il suo valore esatto resta `draft`, da playtest.
 
 ## Priorità e conflitti
 
@@ -168,6 +175,8 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
 - ~~Quale cap massimo ha il catalizzatore di fusione~~: risolto da DEC-129 — **nessun
   cap**, accumulo libero, il limite è la rarità delle fonti (vedi
   [Health and Resources](health-and-resources.md)).
+- Valore esatto del budget di potenza dedicato al risultato di una fusione (DEC-162 fissa
+  solo che esiste ed è più alto del budget del singolo oggetto sorgente, non il numero).
 
 ## Scenari
 
@@ -233,3 +242,10 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
   fusione
 - Then l'operazione procede senza limiti concettuali (DEC-102), e la cadenza attesa di 1-2
   fusioni per run (DEC-022) continua a limitare naturalmente le catene
+
+**Scenario: il risultato della fusione rispetta il budget di potenza dedicato**
+- Given una fusione viene confermata e il gioco compone l'oggetto risultante
+- When l'oggetto risultante passa per la validazione dei contenuti generati
+- Then il controllo di budget di potenza verifica il risultato contro il budget dedicato
+  alla fusione, più alto del budget di un singolo oggetto sorgente (DEC-162), non contro il
+  budget di un singolo oggetto

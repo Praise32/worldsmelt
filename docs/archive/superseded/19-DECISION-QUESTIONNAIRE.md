@@ -1,19 +1,56 @@
 ---
 id: aiprod-decision-questionnaire
-title: Questionario decisionale
+title: Questionario decisionale (ARCHIVIATO)
 domain: ai-production
-status: proposed
-authority: supporting
+status: archived
+authority: historical
 owner: ai-production
 summary: >-
-  Coda di 24 domande (audio, UI, immagini, animazioni, Piano 0, agenti, distribuzione, budget) con priorita' BLOCKING/SOON/LATER da risolvere prima di implementare.
-last_reviewed: 2026-07-22
-topics: [domande, decision-log, blocking, audio, ui, distribuzione, budget]
+  ARCHIVIATO il 2026-07-27 (DEC-147): coda di 24 domande (audio, UI, immagini, animazioni, Piano 0, agenti, distribuzione, budget), sostituita dalla coda unica in docs/design/governance/open-questions.md. Domande chiuse citate per DEC, residue trasferite; testo originale conservato per memoria storica.
+last_reviewed: 2026-07-27
+topics: [domande, decision-log, blocking, audio, ui, distribuzione, budget, archiviato]
 related: []
 supersedes: []
 source_files: []
 ---
 # Questionario decisionale
+
+> **Chiuso e archiviato il 2026-07-27 (DEC-147).** Questo file era una seconda coda di
+> domande in concorrenza con `docs/design/governance/open-questions.md`, in violazione
+> della regola «niente registri paralleli» di `docs/CLAUDE.md`. Verifica domanda per
+> domanda:
+>
+> **Chiuse (già risolte, non trasferite):**
+>
+> - `Q-AUD-001` — chiusa da DEC-109 (generazione audio ammessa nel Piano 0).
+> - `Q-AUD-003` — chiusa da DEC-109/DEC-113 (mai distribuito, i pesi li scarica l'utente).
+> - `Q-AUD-004` — chiusa da DEC-113 (accettata la Stability Community License).
+> - `Q-UI-004` — chiusa da DEC-057.
+> - `Q-IMG-002` — chiusa da DEC-070/DEC-086/DEC-111 (scelta binaria completo/solo-curato).
+> - `Q-IMG-005` — chiusa da DEC-142 (requisiti minimi espressi in numeri misurati, non in
+>   nomi di modello).
+> - `Q-ANIM-003` — chiusa da DEC-007.
+> - `Q-F0-001` — chiusa da DEC-004/DEC-063/DEC-085 (identità del Piano 0).
+> - `Q-AG-001`, `Q-AG-002`, `Q-AG-003` — chiuse dalla scala di implementazione di
+>   `CLAUDE.md` (root) e da `18-AGENT-ORCHESTRATION.md`, promosso da DEC-164.
+>
+> **Trasferite come domande residue** in `docs/design/governance/open-questions.md`
+> (sezioni Interfaccia, Distribuzione, Produzione AI e asset — numerazione di quel file):
+>
+> - `Q-UI-002` → open question 11 (già trasferita separatamente da DEC-156).
+> - `Q-UI-003` → open question 12.
+> - `Q-UI-001` / `Q-UI-005` → open question 13.
+> - `Q-DIST-001` → open question 14.
+> - `Q-DIST-002` → open question 16.
+> - `Q-DIST-003` + il residuo di `Q-IMG-001` (import di LoRA/asset dell'utente; la sorte
+>   delle LoRA del progetto è invece decisa da DEC-148) → open question 17.
+> - `Q-ANIM-001` / `Q-ANIM-002` → open question 18.
+> - `Q-IMG-003` / `Q-IMG-004` / `Q-F0-002` → open question 19.
+> - `Q-AUD-002` → open question 20.
+> - `Q-BUD-001` / `Q-BUD-002` → open question 21.
+>
+> Nessuna domanda di questo file resta senza destinazione. Il testo originale è conservato
+> sotto per memoria storica; non è più la coda di riferimento.
 
 ## Regole d'uso
 

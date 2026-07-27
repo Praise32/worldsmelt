@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Doppio binario delle sinergie: implicite/automatiche tra oggetti compatibili e fusione esplicita nella stanza dedicata."
-last_reviewed: 2026-07-17
+summary: "Doppio binario delle sinergie: implicite/automatiche tra oggetti compatibili e fusione esplicita nella stanza dedicata. Conflitti senza priorità esplicita si risolvono con RNG derivato dal seed di run (DEC-161, riproducibilità ancora requisito e non stato attuale finché vale DEC-141); il risultato di sinergie e fusioni ha un budget di potenza dedicato, più alto del singolo (DEC-162)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [sinergie, fusione, build, visual-language, priorità]
+topics: [sinergie, fusione, build, visual-language, priorità, DEC-161, DEC-162]
 related: []
 supersedes: []
 source_files: [src/gameplay/synergies.c]
@@ -105,7 +105,15 @@ Quando più effetti competono sulla stessa proprietà:
 
 1. trasformazioni esplicite (fusione);
 2. regole di sinergia implicita definite;
-3. priorità di categoria;
+3. **conflitto senza priorità esplicita (DEC-161):** quando nessuna delle due regole sopra
+   risolve il conflitto, non esiste un ordine fisso di "priorità di categoria" — l'esito si
+   decide con un numero pseudo-casuale derivato dal **seed della run**, stabile per tutta
+   quella run: la stessa coppia di effetti in conflitto produce sempre lo stesso esito
+   nella stessa run (riproducibile con lo stesso seed), ma l'esito può differire da run a
+   run. La riproducibilità a stesso seed è oggi un **requisito, non lo stato attuale**:
+   l'RNG di gameplay non è ancora derivato dal seed di run (`time(NULL)`, DEC-141 e
+   `../../engineering/known-issues.md` voce 3), quindi finché il fix non c'è la garanzia
+   non è mantenuta dal codice;
 4. fallback visivo e meccanico sicuro.
 
 ## Limiti di leggibilità
@@ -116,6 +124,18 @@ introdurre è definito una sola volta in
 non riformulato qui. Una sinergia può aumentare spettacolarità ed effetti, ma non può mai
 nascondere posizione del personaggio, proiettili nemici, hitbox percepita, direzione
 dell'attacco o causa del danno.
+
+## Budget di potenza del risultato (DEC-162)
+
+Oltre al budget di leggibilità (visivo, sopra), sinergia implicita e fusione esplicita
+condividono anche un **budget di potenza** dedicato al risultato: più alto del `budget di
+potenza` di un singolo oggetto (vedi campo obbligatorio in
+[Items, Pools and Rarity](items-pools-and-rarity.md)), perché il risultato deve valere
+meccanicamente la combinazione (o il costo, per la fusione) che lo produce. Questo budget
+dedicato è verificato nella fase di validazione dei contenuti generati (stato `simulato`,
+vedi [Generated Content Validation](generated-content-validation.md)) come ogni altro
+contenuto. Il suo valore esatto resta `draft`, da definire col playtest (stile DEC-019); i
+dettagli specifici della fusione esplicita vivono in [item-fusion.md](item-fusion.md).
 
 ## Informazione al giocatore
 
@@ -172,6 +192,8 @@ riformulata qui.
   contemporaneamente prima che il budget di leggibilità imponga una semplificazione.
 - Come la schermata build presenta una sinergia nata da un tipo di colpo generato (non
   un oggetto dell'inventario) accanto a quelle nate da coppie di oggetti.
+- Valore esatto del budget di potenza dedicato al risultato di sinergie/fusioni (DEC-162
+  fissa solo che esiste ed è più alto del budget del singolo oggetto, non il numero).
 
 ## Scenari verificabili
 
@@ -207,3 +229,24 @@ modificherebbero la stessa proprietà del proiettile,
 When entrambe le condizioni sono presenti nella build,  
 Then prevale la trasformazione esplicita della fusione, secondo l'ordine di priorità
 dichiarato.
+
+### Scenario 5 — conflitto senza priorità esplicita risolto dal seed di run
+
+Given due sinergie implicite in conflitto sulla stessa proprietà del proiettile, senza che
+nessuna delle due sia coperta da una trasformazione esplicita di fusione o da una regola
+di sinergia implicita già definita per quel conflitto,  
+When il sistema deve decidere quale effetto prevale,  
+Then l'esito è determinato da un numero pseudo-casuale derivato dal seed della run
+(DEC-161): rigiocando la stessa run con lo stesso seed si ottiene sempre lo stesso esito,
+ma run diverse (seed diversi) possono risolvere lo stesso conflitto in modo diverso.
+Scenario **non ancora verificabile sul codice**: presuppone l'RNG di gameplay derivato dal
+seed di run, che DEC-141 fissa come prerequisito bloccante e che oggi non esiste
+(`../../engineering/known-issues.md` voce 3).
+
+### Scenario 6 — budget di potenza dedicato al risultato di una sinergia
+
+Given una sinergia implicita generata combina due tratti in un effetto più potente della
+somma dei singoli budget di potenza degli oggetti sorgente,  
+When il contenuto passa per la validazione,  
+Then il controllo verifica il risultato contro il budget di potenza dedicato, più alto del
+budget di un singolo oggetto (DEC-162), e non contro il budget di un singolo oggetto.

@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
-last_reviewed: 2026-07-22
+summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087, con garanzia di almeno un oggetto per rarità DEC-144) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [validazione, fallback, sei stati, DEC-020, DEC-087, pool curato minimo]
+topics: [validazione, fallback, sei stati, DEC-020, DEC-087, pool curato minimo, DEC-144, DEC-146, DEC-162]
 related: []
 supersedes: []
 source_files: []
@@ -125,6 +125,21 @@ composto/variato/nuovo. Fonte unica della regola del Catalogo:
 - descrizione coerente con l'effetto;
 - originalità.
 
+Il controllo di **leggibilità visiva** usa come proxy primario la percentuale massima di
+schermo coperta dai segnali attivi (proiettili, telegraph, particellari, indicatori),
+definita come fonte unica in
+[Combat and Projectiles — Budget di leggibilità](combat-and-projectiles.md#budget-di-leggibilità)
+(DEC-146, soglia esatta ancora da playtest; rimando, non riformulato qui). Restano ammessi
+controlli complementari: i cinque elementi non negoziabili elencati in quel documento
+(posizione del personaggio, proiettili nemici, hitbox percepita, direzione dell'attacco,
+causa del danno) si verificano sempre, indipendentemente dal valore del proxy percentuale.
+
+Il controllo di **budget di potenza** riceve una regola aggiuntiva quando il contenuto
+validato è il risultato di una sinergia implicita o di una fusione esplicita: quel
+risultato ha un budget di potenza dedicato, più alto del budget di un singolo oggetto
+sorgente (DEC-162, dettaglio in [Synergies](synergies.md) e [item-fusion.md](item-fusion.md));
+il valore esatto di questo budget dedicato resta `draft`, da playtest.
+
 ## Risultato
 
 Il contenuto raggiunge lo stato approvato-per-run ed entra nel pool disponibile per la run,
@@ -186,6 +201,13 @@ generazione nuova (DEC-020). Il fallback è invisibile al giocatore per design: 
 di errore da recuperare in interfaccia, è una regola di continuità che garantisce che mai un
 contenuto rotto e mai un blocco della partita raggiungano il giocatore.
 
+Il contenuto curato di fallback è lo **stato base del gioco** (DEC-153): è precaricato e
+disponibile per costruzione, non «diventa disponibile» e non ha un proprio stato di attesa o
+di caricamento. Non esiste quindi un caso in cui il gioco resti fermo perché *nemmeno il
+fallback è pronto*: quando un contenuto generato viene respinto, il sostituto curato c'è già.
+La resa in interfaccia di questa garanzia è in [Generation Status](../ui/generation-status.md)
+e, per il Piano 0, in [Floor Zero](floor-zero.md).
+
 ## Pool curato minimo (DEC-087)
 
 Questo documento è la fonte UNICA della tabella del pool curato minimo per categoria: per ogni
@@ -201,7 +223,7 @@ I valori sono default proposti stile DEC-019, da confermare col playtest (vedi
 | Temi/World | 3 | Coincidono con le carte fallback del Piano 0 (DEC-076, dettaglio in `floor-zero.md`). |
 | Boss | 5 | Uno per piano, legati alle bande di difficoltà dei 5 piani. |
 | Nemici comuni | 12 | Distribuiti sulle bande di difficoltà dei 5 piani. |
-| Oggetti | 20 | Distribuiti sulle 4 rarità con i pesi DEC-019 (dettaglio in `items-pools-and-rarity.md`); nessuna rarità resta vuota. |
+| Oggetti | 20 | Distribuiti sulle 4 rarità con i pesi DEC-019 (dettaglio in `items-pools-and-rarity.md`); il pool minimo garantisce almeno un oggetto per rarità, con l'eccedenza sottratta alle rarità più comuni e il totale di 20 invariato (DEC-144, esempio numerico derivato in `items-pools-and-rarity.md`). |
 | Tipi di colpo | 6 | Includono i colpi standard della rosa base. |
 | Personaggi | 3 (la rosa base) | La rosa base è l'intero pool personaggi in modalità solo-curato (DEC-080, dettaglio in `characters.md`); il personaggio generato per run non esiste in questa modalità. |
 | Layout di stanza | — | Generati proceduralmente senza IA (DEC-009, dettaglio in `rooms-and-floor-generation.md`): nessun minimo curato richiesto. |

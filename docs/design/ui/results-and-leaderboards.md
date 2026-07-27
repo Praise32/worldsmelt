@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
-last_reviewed: 2026-07-22
+summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041), con un campo esplicito che dichiara la causa della sconfitta (ultimo colpo o nemico letale, DEC-159). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [run-results, classifiche, vittoria-sconfitta, punti-sblocco, daily, DEC-041, DEC-056, DEC-062]
+topics: [run-results, classifiche, vittoria-sconfitta, punti-sblocco, daily, causa-sconfitta, DEC-041, DEC-056, DEC-062, DEC-159]
 related: []
 supersedes: []
 source_files: []
@@ -44,6 +44,18 @@ dritto alla nuova run (vedi [Alla sconfitta](#alla-sconfitta-dec-041)).
 - La salute a zero, in qualunque piano, è run persa (permadeath): non esiste un "continua"
   dopo la morte.
 
+## Causa della sconfitta (DEC-159)
+
+Quando la run termina per morte, `RunResults` espone un **campo esplicito con la causa
+della sconfitta**: **l'ultimo colpo o nemico letale**. Nessuna telemetria, nessun grafico
+né riepilogo esteso degli ultimi secondi di combattimento: una dichiarazione leggibile di
+cosa ha chiuso la run, coerente col registro ironico-leggero del crogiolo (DEC-105) e
+accanto alla riga già prevista sui fallback aggregati (DEC-132). Questo campo è il
+presidio concreto della promessa di chiarezza «perché è morto» descritta in
+[Player Experience](../02-player-experience.md) (rimando, non riformulato qui). Il campo
+non compare in caso di vittoria o di abbandono volontario, dove non c'è un colpo letale da
+dichiarare.
+
 ## Alla sconfitta (DEC-041)
 
 Alla sconfitta restano i punti sblocco maturati durante la run, ma in **misura ridotta**
@@ -69,6 +81,7 @@ run giocata cominci: non conta come sconfitta e resta fuori da questa contabilit
 | Elemento | Visibile quando | Abilitato quando | Azione | Risultato | Feedback |
 |---|---|---|---|---|---|
 | Esito | Sempre | — (sola lettura) | Nessuna | — | Vittoria (boss piano 5), sconfitta, o abbandono |
+| Causa della sconfitta (DEC-159) | La run termina per sconfitta (morte) | — (sola lettura) | Nessuna | — | Dichiarazione leggibile dell'ultimo colpo o nemico letale, nel registro del crogiolo (DEC-105) |
 | Tempo e piano raggiunto | Sempre | — (sola lettura) | Nessuna | — | — |
 | Build finale e sinergie notevoli | Sempre | — (sola lettura) | Consulta dettagli | Apre una vista sola-lettura della build | — |
 | Timeline della run per piano (DEC-056) | Sempre | — (sola lettura) | Consulta la timeline | Mostra, piano per piano, oggetti presi, fusioni, boss affrontati e tempi parziali | Ordine cronologico, raggruppato per piano |
@@ -155,3 +168,4 @@ regole di fallback: `systems/generated-content-validation.md`.
 7. **Given** il giocatore conclude una run della Classificata giornaliera (Daily) con un piazzamento che merita una medaglia, **when** entra in `RunResults`, **then** vede la medaglia/cornice cosmetica guadagnata, senza alcun punto sblocco aggiuntivo (DEC-064).
 8. **Given** il giocatore abbandona volontariamente la run tramite `ExitConfirm` da `PauseMenu` e conferma l'abbandono, **when** la run si chiude, **then** entra in `RunResults` con i punti sblocco maturati mostrati in misura ridotta, come per qualunque sconfitta, senza categoria intermedia, e il catalogo risulta comunque aggiornato con le creazioni incontrate (DEC-082, DEC-089).
 9. **Given** il giocatore effettua un reroll da `Gameplay`, **when** la run in corso termina, **then** nessuna schermata `RunResults` viene mostrata: i punti sblocco maturati fino a quel momento si accreditano in silenzio, con la stessa riduzione della sconfitta, e restano consultabili poi nel Catalogo (DEC-082, DEC-089).
+10. **Given** il giocatore muore per un colpo o un nemico letale, **when** entra in `RunResults`, **then** trova un campo esplicito con la causa della sconfitta (ultimo colpo o nemico letale), distinto dalla riga aggregata sui fallback (DEC-159).

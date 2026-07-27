@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-22
+summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114]
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169]
 related: []
 supersedes: []
 source_files: []
@@ -71,6 +71,23 @@ attendere la fine della run. Il dettaglio di quando e come vengono presentate è
 `systems/rewards-and-economy.md`. Questo documento non ripete quei dettagli, colloca solo
 la voce di menu.
 
+## Consultazione dell'HUD nel Piano 0 (DEC-169)
+
+Nel Piano 0 l'HUD di combattimento è **nascosto** durante l'esplorazione dell'hub e torna
+visibile solo nelle prove del Piano 0 — arene di sfida e tutorial integrato (DEC-047), da non
+confondere con le «prove» specifiche della run di DEC-042 di cui sopra (fonte unica della
+regola: [HUD](hud.md), dettaglio del Piano 0 in `systems/floor-zero.md`). Il menu di pausa è
+il punto in cui quell'informazione resta
+**consultabile su richiesta**: chi vuole controllare salute, risorse e build mentre la run è
+ancora in preparazione lo fa da qui, senza uscire dal Piano 0 e senza che l'hub mostri l'HUD
+in permanenza. Questo documento colloca la consultazione, non ridefinisce il contenuto
+dell'HUD né la regola di visibilità.
+
+DEC-169 **non fissa il comando** con cui il menu di pausa si apre dal Piano 0: ESC è già
+assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso qui sopra prevedono la sola
+provenienza da `Gameplay`. Il punto è registrato come domanda aperta
+(`../governance/open-questions.md`, punto 22) e non viene deciso qui.
+
 ## Non-obiettivi
 
 - Non spiega le sinergie o la fusione: rimanda a `ui/inventory-and-synergy-screen.md`.
@@ -80,7 +97,10 @@ la voce di menu.
 
 ## Domande aperte residue
 
-- Nessuna specifica; il comportamento della pausa è approved sia in singleplayer sia in asincrono competitivo.
+- Il comportamento della pausa è approved sia in singleplayer sia in asincrono competitivo.
+- Con quale comando il menu di pausa si apre dal Piano 0, dove DEC-169 lo indica come luogo
+  di consultazione dell'HUD ma ESC è già assegnato a `ExitConfirm` (DEC-074):
+  `../governance/open-questions.md`, punto 22.
 
 ## Scenari verificabili
 
@@ -89,3 +109,4 @@ la voce di menu.
 3. **Given** il giocatore è in `PauseMenu` e apre `Options`, **when** torna indietro, **then** il focus è sull'elemento "Opzioni" di `PauseMenu`.
 4. **Given** il giocatore seleziona "Abbandona run", **when** conferma in `ExitConfirm`, **then** entra in `RunResults`, che mostra la run chiusa come sconfitta con i punti sblocco maturati fino a quel momento in misura ridotta (DEC-082, DEC-089); da lì il ritorno al menu segue `ui/results-and-leaderboards.md`.
 5. **Given** il giocatore ha attraversato l'uscita del Piano 0 verso il piano 1 e le prove sono state presentate (DEC-042), **when** apre `PauseMenu` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento.
+6. **Given** il giocatore è nel Piano 0, dove l'HUD di combattimento è nascosto (DEC-169), **when** apre il menu di pausa, **then** può consultare salute, risorse e build senza uscire dal Piano 0, e l'HUD torna nascosto quando la pausa si chiude.

@@ -7,7 +7,7 @@ authority: supporting
 owner: ai-production
 summary: >-
   Catalogo di 11 body plan e 10 ruoli meccanici per i nemici, formato EnemySpec, regole di validazione e vincoli di roster per run.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 topics: [body-plan, rig, enemy-spec, roster, nemici]
 related: []
 supersedes: []
@@ -56,7 +56,8 @@ Il body plan non è il ruolo. Ruoli iniziali:
 - bomber;
 - phased_boss.
 
-Qwen sceglie una combinazione valida da una matrice di compatibilità.
+Il modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140) sceglie una combinazione valida
+da una matrice di compatibilità.
 
 ## EnemySpec
 

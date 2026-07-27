@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile (sette categorie canoniche: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi — DEC-083) più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069). Il Catalogo è una vista interna dello stato `MainMenu`, non un decimo stato applicativo: la mappa canonica resta a 9 stati (DEC-084)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [main-menu, catalogo, focus, run-sospesa, DEC-045, DEC-083, DEC-084]
+topics: [main-menu, catalogo, focus, run-sospesa, lettore-di-schermo, DEC-045, DEC-083, DEC-084, DEC-166]
 related: []
 supersedes: []
 source_files: []
@@ -117,8 +117,13 @@ Nessun errore tecnico va mostrato nel menu; un messaggio descrittivo basta.
 
 ## Accessibilità
 
-Tutte le voci sono raggiungibili da tastiera, controller e lettore di schermo nello stesso
-ordine di navigazione della tabella.
+Tutte le voci sono raggiungibili da tastiera e controller nello stesso ordine di
+navigazione della tabella. Il supporto al **lettore di schermo** è un **obiettivo**,
+**non una garanzia canonica** (le tre garanzie canoniche di accessibilità sono DEC-058,
+fonte unica `ui/options-and-accessibility.md`, che non include il lettore di schermo): è
+**circoscritto a `MainMenu` e ai menu testuali semplici come questo**, e **non è esteso al
+gameplay** (DEC-166). Fonte unica del perimetro e dello stato del lettore di schermo:
+`ui/options-and-accessibility.md` (rimando, non riformulato qui).
 
 ## Non-obiettivi
 

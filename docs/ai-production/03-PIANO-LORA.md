@@ -7,7 +7,7 @@ authority: supporting
 owner: ai-production
 summary: >-
   Gerarchia delle LoRA da addestrare (style, enemies, items, environments, vfx, identità), caption, configurazione baseline e criteri per un eventuale checkpoint completo.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 topics: [lora, training, caption, stable-diffusion, dataset-split]
 related: []
 supersedes: []
@@ -19,6 +19,18 @@ source_files: []
 
 La LoRA modifica un numero ridotto di parametri e produce un adattatore piccolo. Il
 checkpoint completo viene rimandato finché non esiste una ragione misurabile.
+
+## Base e luogo del training (DEC-148, DEC-168)
+
+Le LoRA si addestrano su **SD1.5 vanilla**, non sul checkpoint `pixel-baseline` di terze
+parti: provenienza pulita e risultato portabile. A validazione avvenuta, la Style LoRA
+può essere fusa nella base per ottenere un checkpoint proprietario, candidato a
+sostituire `pixel-baseline` nel runtime previa asset review; fino ad allora il runtime
+resta su `pixel-baseline`.
+
+Il training si fa **su Kaggle** (`05-KAGGLE-TRAINING-RUNBOOK.md`, runbook primario, fino
+a 30 ore di GPU gratuite a settimana). Il runbook RunPod (`dataset/TRAINING-RUNBOOK.md`)
+resta come fallback a pagamento per quando Kaggle non basta.
 
 ## Gerarchia
 

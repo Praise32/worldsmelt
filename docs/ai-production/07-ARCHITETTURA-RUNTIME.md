@@ -6,14 +6,20 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Definisce i 4 tier di generazione (solo curato -> grafica completa), scheduling Qwen/SD, chiave di cache, pubblicazione atomica e failure policy.
-last_reviewed: 2026-07-22
+  Base tecnica per scheduling del modello di testo attivo e di SD, chiave di cache, pubblicazione atomica e failure policy; la scala a 4 tier descritta e' superata da DEC-110/111 (scelta binaria completo/solo-curato) e resta come materiale da riscrivere.
+last_reviewed: 2026-07-27
 topics: [tier, scheduling, cache, pubblicazione-atomica, failure-policy, vram]
 related: []
 supersedes: []
 source_files: []
 ---
 # Architettura runtime della generazione
+
+> **Nota (2026-07-27, DEC-110/DEC-111):** i tier intermedi (Tier 1-2) e il flusso «il
+> benchmark propone un tier» descritti sotto sono superati: al giocatore è offerta solo la
+> scelta binaria completo / solo-curato, senza tier di qualità né auto-run del benchmark al
+> primo avvio. Il documento resta `proposed` come base tecnica (scheduling, cache, failure
+> policy) in attesa di riscrittura; il drift è tracciato in `_meta/DOC-CODE-DRIFT.md`.
 
 ## Obiettivo
 
@@ -32,13 +38,13 @@ funzione scalabile e non come requisito assoluto.
 
 ### Tier 1 — Testo generativo, grafica curata
 
-- Qwen genera contenuto e comportamento;
+- il modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140) genera contenuto e comportamento;
 - sprite curati o composti;
 - adatto a GPU con poca memoria o CPU.
 
 ### Tier 2 — Grafica leggera
 
-- Qwen crea le specifiche;
+- il modello di testo attivo crea le specifiche;
 - SD genera una reference o pochi componenti per archetipo;
 - rig raylib anima;
 - LCM e 256 px opzionali;
@@ -56,9 +62,9 @@ funzione scalabile e non come requisito assoluto.
 ## Scheduling
 
 ```text
-1. Qwen carica
+1. il modello di testo carica
 2. genera e valida RunManifest/EnemySpec
-3. Qwen si scarica
+3. il modello di testo si scarica
 4. SD carica
 5. genera asset minimi
 6. SD si scarica
@@ -66,7 +72,7 @@ funzione scalabile e non come requisito assoluto.
 8. gioco entra nel piano
 ```
 
-Qwen e SD non devono coesistere in VRAM sulla macchina da 6 GB.
+Il modello di testo e SD non devono coesistere in VRAM sulla macchina da 6 GB.
 
 ## Priorità di generazione
 
@@ -142,7 +148,7 @@ Durante il combattimento sono ammessi:
 Non sono ammessi:
 
 - Stable Diffusion;
-- Qwen;
+- il modello di testo;
 - download;
 - compilazione di nuovi script;
 - validazione pesante.
@@ -151,7 +157,7 @@ Non sono ammessi:
 
 Misurare separatamente:
 
-- Qwen token/s;
+- token/s del modello di testo;
 - SD secondi per immagine;
 - VRAM;
 - tempo load/unload;

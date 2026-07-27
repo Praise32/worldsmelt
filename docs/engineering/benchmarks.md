@@ -9,15 +9,41 @@ summary: >-
   Misure di velocità di generazione (testo e sprite) sulla macchina di riferimento,
   contesto della misura, disambiguazione tra i due meccanismi di benchmark del
   repo e la storia del meccanismo di tier automatico, rimosso da DEC-110 (il gioco non legge più logs/benchmark.txt).
-last_reviewed: 2026-07-23
-last_verified_commit: fe27f6d
-topics: [benchmark, performance, tier, vulkan, gpu]
+  La tabella testuale è congelata come misura storica del 13/07 (DEC-149); il modello
+  di testo attivo oggi è citato con la formula neutra di DEC-151 (Gemma-3-4B-IT Q4, DEC-140).
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [benchmark, performance, tier, vulkan, gpu, DEC-149, DEC-151]
 related: []
 supersedes: []
 source_files: [scripts/benchmark.sh, scripts/test-llm.sh, tools/melting-gen/main.c, tools/melting-sprites/main.c, src/app/app.c]
 ---
 
 # Benchmark melting-gen e melting-sprites — macchina di riferimento
+
+> **Misura storica, congelata (DEC-149).** La tabella e l'analisi qui sotto sono state
+> misurate il **13/07/2026** (commit `b836e96`) sui modelli allora di default
+> (`qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` e `qwen2.5-coder-7b-instruct-q4_k_m.gguf`):
+> **non descrivono il default attuale di `melting-gen`**. Restano fedeli come dato storico
+> e come spiegazione del meccanismo di tier automatico (rimosso da DEC-110): non sono state
+> rimisurate né riscritte. Il paragrafo subito sotto dice qual è il modello di testo attivo
+> oggi; la rimisurazione sulla macchina di riferimento coi modelli attuali resta
+> un'attività successiva (DEC-142), fuori da questo lavoro.
+
+## Il modello di testo attivo oggi
+
+Il **modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140)** ha sostituito il 7B Coder
+Q4_K_M come default di `tools/melting-gen` il 23/07/2026: la comparison su 11 modelli × 3
+seed fissi (`docs/ai-production/experiments/model-comparison-testo-2026-07-23.md`) lo ha
+misurato sopra il vecchio default su punteggio, Lua valido al primo colpo e tok/s, a metà
+del peso su disco. Questa formula neutra (DEC-151) è quella da usare in tutta la KB, perché
+il modello può ancora cambiare a una prossima comparison; il nome puntuale e i termini di
+licenza (Gemma Terms of Use, diversi da Apache/MIT) restano in
+`docs/ai-production/licenze.md` e nel decision-log. Il fallback automatico su errore di
+caricamento resta il Coder 1.5B Q4 (invariato da DEC-140), lo stesso citato come tale nella
+tabella storica sotto. **Questa sostituzione di default non è ancora stata ribenchmarkata**
+sulla tabella `make test-llm` qui sotto: i numeri di quella tabella restano quelli del 7B
+Coder del 13/07, per il motivo spiegato nel banner sopra.
 
 ## Contesto della misura
 

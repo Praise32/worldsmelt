@@ -1,17 +1,18 @@
 ---
 id: plans-model-comparison
-title: Piano — suite di comparazione dei modelli candidati (testo, immagini, audio)
+title: Piano — suite di comparazione dei modelli candidati (testo, immagini, audio) — COMPLETATO 2026-07-24
 domain: plans
-status: approved
+status: implemented
 authority: supporting
 owner: ai-production
 summary: >-
   Obiettivo, metodo e candidati della suite che confronta modelli alternativi ai
   default di produzione nei tre domini (testo GGUF, immagine SD, audio Stable Audio
   Open Small) su throughput/qualità/artefatti, con soglie di accettabilità, struttura
-  degli output e istruzioni per rieseguirla.
-last_reviewed: 2026-07-24
-last_verified_commit: fbfb02d
+  degli output e istruzioni per rieseguirla. Chiuso con giudizio finale il 24/07/2026
+  (gen-2 immagini): nessun modello moderno batte SD1.5 su 6 GB di VRAM.
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
 topics: [modelli, benchmark, gguf, llama.cpp, stable-diffusion, stable-audio, comparazione, vram]
 related: [eng-benchmarks, aiprod-audio-generation-pipeline, aiprod-regole-agenti-ml]
 supersedes: []
@@ -19,6 +20,14 @@ source_files: [scripts/model-comparison.sh, scripts/model_comparison_report.py, 
 ---
 
 # Piano — suite di comparazione dei modelli candidati (testo, immagini, audio)
+
+> **Piano completato (DEC-157), spostato da `plans/active/` a `plans/completed/` nello
+> stesso commit del giudizio.** Giudizio finale il **24/07/2026** (sezione "Estensione
+> gen-2" più sotto): testo → Gemma-3-4B-IT Q4 promosso a default (DEC-140); immagini →
+> nessun modello moderno (SD3.5/SDXL/Flux) batte SD1.5 su 6 GB di VRAM, il default resta
+> SD1.5 (confermato poi da DEC-148); audio → Stable Audio Open Small sbloccato ed eseguito
+> (vedi "Aggiornamento 23/07 sera"). Il documento resta la registrazione tecnica completa
+> della suite: nessuna riscrittura, solo lo spostamento e questa nota di chiusura.
 
 ## Obiettivo
 

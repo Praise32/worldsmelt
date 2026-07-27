@@ -6,8 +6,8 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Motiva la scelta di SD1.5 come base immagini, il ruolo di LCM-LoRA e TAESD, i compiti/limiti di Qwen2.5-Coder e i criteri per valutare modelli alternativi.
-last_reviewed: 2026-07-22
+  Motiva la scelta di SD1.5 come base immagini, il ruolo di LCM-LoRA e TAESD, i compiti/limiti del modello di testo attivo e i criteri per valutare modelli alternativi.
+last_reviewed: 2026-07-27
 topics: [stable-diffusion, lcm-lora, taesd, qwen, model-selection]
 related: []
 supersedes: []
@@ -36,6 +36,11 @@ rapporto fra:
 - inferenza locale;
 - ecosistema;
 - costo d'integrazione.
+
+La comparison di seconda generazione del 23/07 (SD3.5 Medium, SDXL base 1.0 e
+Flux.1-schnell confrontati con SD1.5 sul vincolo dei 6 GB) ha confermato la scelta:
+nessun modello moderno ha superato SD1.5 nel rapporto qualità/hardware del progetto —
+DEC-148 registra la conferma.
 
 ## Base consigliata
 
@@ -76,6 +81,13 @@ B: checkpoint pixel di terze parti + Worldsmelt Style LoRA
 Vince il sistema che ottiene migliori asset in-engine, non l'immagine più appariscente in
 isolamento.
 
+**Base di training della Style LoRA (DEC-148):** la Style LoRA si addestra su **SD1.5
+vanilla**, non sul checkpoint `pixel-baseline` di terze parti — provenienza pulita e
+risultato portabile. Solo a **validazione avvenuta** la LoRA può essere fusa nella base
+per produrre il checkpoint proprietario del progetto, candidato a sostituire
+`pixel-baseline` nel runtime previa asset review; fino ad allora il runtime resta su
+`pixel-baseline`.
+
 ## LCM-LoRA
 
 Uso:
@@ -105,12 +117,14 @@ Serve benchmark A/B perché la somma degli adattatori può cambiare:
 ## TAESD
 
 TAESD può ridurre memoria e latenza del decoding, ma la pipeline corrente ha osservato una
-resa più nitida con la VAE reale. Mantenerlo come tier low-spec, non come default
-automatico.
+resa più nitida con la VAE reale. Il preset low-spec è stato rimosso (DEC-110): TAESD resta
+solo un'opzione tecnica interna per ridurre memoria, non un livello offerto al giocatore né
+un default automatico.
 
-## Qwen2.5-Coder
+## Modello di testo
 
-Ruolo:
+Ruolo (il modello di testo attivo, oggi Gemma-3-4B-IT Q4 — DEC-140; fallback su errore di
+caricamento Qwen2.5-Coder 1.5B, 7B selezionabile con `--model`):
 
 - generazione di RunManifest;
 - specifiche di nemici;

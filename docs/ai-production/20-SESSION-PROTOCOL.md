@@ -2,18 +2,26 @@
 id: aiprod-session-protocol
 title: Protocollo delle sessioni
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
   Definisce 6 tipi di sessione (decision, planning, implementation, ML experiment, curation, release audit), gate di ingresso e formato di handoff.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
 topics: [sessioni, gate, handoff, processo, esperimenti]
 related: []
 supersedes: []
 source_files: []
 ---
 # Protocollo delle sessioni
+
+> **Approvato il 2026-07-27 (DEC-164)** con una precisazione: per i ruoli di
+> implementazione e giudizio, e per ogni punto in cui questo protocollo divergesse dalla
+> scala di implementazione o dalle regole di chiusura task, prevale sempre `CLAUDE.md`
+> (root), nello stesso spirito della nota di precedenza di
+> [18-AGENT-ORCHESTRATION.md](18-AGENT-ORCHESTRATION.md). Questo documento resta il
+> metodo per condurre le sessioni, non lo sostituisce.
 
 ## Tipi
 

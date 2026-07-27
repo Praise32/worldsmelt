@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco."
-last_reviewed: 2026-07-22
+summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, recuperabile finché si resta nella stanza (DEC-160)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107]
+topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107, DEC-160]
 related: []
 supersedes: []
 source_files: []
@@ -136,8 +136,10 @@ unica definita in
 ## Drop e persistenza (DEC-115, DEC-116)
 
 - Un Innesto equipaggiato può essere **sganciato volontariamente**: lo slot si libera
-  (DEC-115). Il destino dell'Innesto sganciato (a terra recuperabile nella stanza o perso)
-  è un dettaglio da definire con l'implementazione.
+  (DEC-115). L'Innesto sganciato resta **a terra, nella stanza in cui è stato sganciato**,
+  e può essere **recuperato** finché il giocatore resta in quella stanza (DEC-160): non è
+  perso, ed equipaggiarlo di nuovo richiede semplicemente di raccoglierlo da terra come
+  ogni altro Innesto. Lasciando la stanza, l'Innesto sganciato non è più recuperabile.
 - Gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della
   build (DEC-116): nessun legame col piano in cui li trovi.
 
@@ -196,3 +198,15 @@ aperta qui.
 - When il giocatore lo consulta o lo usa in un contesto adatto al suo effetto
 - Then l'Innesto applica un effetto meccanico più forte di un Innesto comune, senza
   piegare alcuna regola del gioco (DEC-107)
+
+**Scenario: Innesto sganciato recuperabile nella stanza**
+- Given il giocatore ha un Innesto equipaggiato e lo sgancia volontariamente in una
+  stanza
+- When resta nella stessa stanza
+- Then può raccogliere di nuovo l'Innesto da terra ed equipaggiarlo (DEC-160)
+
+**Scenario: Innesto sganciato non più recuperabile fuori stanza**
+- Given il giocatore ha sganciato volontariamente un Innesto in una stanza, lasciandolo a
+  terra
+- When lascia quella stanza
+- Then l'Innesto sganciato non è più recuperabile (DEC-160)

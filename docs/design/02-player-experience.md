@@ -6,8 +6,8 @@ status: draft
 authority: canonical
 owner: design
 summary: "Esperienza emotiva, ritmo e chiarezza."
-last_reviewed: 2026-07-18
-topics: [esperienza-giocatore, ritmo, chiarezza, leggibilità]
+last_reviewed: 2026-07-27
+topics: [esperienza-giocatore, ritmo, chiarezza, leggibilità, causa-sconfitta, DEC-159]
 related: []
 supersedes: []
 source_files: []
@@ -43,7 +43,9 @@ Il giocatore non deve conoscere in anticipo ogni oggetto, ma deve poter dedurre:
 
 - che tipo di effetto produce;
 - quale rischio introduce;
-- perché è morto;
+- perché è morto (promessa presidiata dal campo esplicito di causa della sconfitta in
+  `RunResults` — ultimo colpo o nemico letale, DEC-159; vedi
+  [Results and Leaderboards](ui/results-and-leaderboards.md), rimando, non riformulato qui);
 - quale scelta ha modificato la build;
 - quali componenti della sinergia sono attive;
 - quali due oggetti hanno generato un oggetto di fusione, quando presente.

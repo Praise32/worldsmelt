@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 143 decisioni di design approvate (DEC-001..DEC-143) che cambiano il comportamento del gioco; fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-25
-last_verified_commit: 047e62c
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..143]
+  Registro delle 169 decisioni di design (DEC-001..DEC-169) che cambiano il comportamento del gioco: 168 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..169]
 related: []
 supersedes: []
 source_files: []
@@ -56,13 +56,14 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 ### DEC-003 — Il nome del gioco è provvisorio
 
 - **Data:** 2026-07-17
-- **Stato:** approved
+- **Stato:** superseded (sostituita da DEC-071)
 - **Contesto:** "Melting Run" è un titolo di lavoro, non il nome definitivo del progetto.
 - **Decisione:** Il nome resta provvisorio; il nome definitivo lo sceglierà il proprietario (domanda aperta); il vocabolario può comunque appoggiarsi al campo semantico fusione/scioglimento.
 - **Alternative considerate:** Fissare subito un nome definitivo.
 - **Conseguenze:** I nomi placeholder di risorse, Innesto e Veterano dipendono da questa scelta futura.
 - **Documenti aggiornati:** `governance/open-questions.md`, `governance/glossary.md`
 - **Nota (2026-07-18): risolta da DEC-071.** Il nome definitivo del gioco è "Worldsmelt"; "Melting Run" resta il nome storico del repository e il titolo di lavoro citato in questo registro. La domanda aperta sul nome è chiusa.
+- **Nota (2026-07-27):** stato portato a `superseded` dal retrofit di DEC-155 — unica decisione del registro **integralmente** sostituita: il suo contenuto operativo (nome provvisorio, scelta rimandata al proprietario) è interamente esaurito da DEC-071, che dichiara essa stessa «risolve DEC-003». Il testo storico resta invariato.
 
 ### DEC-004 — Il Piano 0 è un hub ibrido
 
@@ -94,6 +95,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** I risultati devono distinguere la run ufficiale dalla prosecuzione extra ai fini di classifica.
 - **Documenti aggiornati:** `ui/results-and-leaderboards.md`, `04-run-structure.md`
 - **Nota (2026-07-18):** la prosecuzione in piani extra descritta qui è stata spostata tra le idee future da DEC-031: non va implementata ora. La vittoria al boss del piano 5 chiude la run e basta; la parte di questa decisione sulla prosecuzione resta di riferimento storico, superata nella pratica da DEC-031.
+- **Nota (2026-07-27):** verificata dal retrofit di DEC-155 e classificata come **sostituzione parziale**: resta `approved`. DEC-031 supera solo la prosecuzione in piani extra; la chiusura della run alla vittoria sul boss del piano 5 e il **permadeath** restano canone di questa decisione, citato da `03-core-loop.md`, `systems/bosses.md` e DEC-045.
 
 ### DEC-007 — Controlli: movimento libero, sparo a 4 direzioni
 
@@ -166,6 +168,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** `health-and-resources.md`, `09-originality-guardrails.md` e l'HUD devono usare i nomi per funzione, mai i nomi presi in prestito.
 - **Documenti aggiornati:** `systems/health-and-resources.md`, `09-originality-guardrails.md`, `ui/hud.md`
 - **Nota (2026-07-18):** nomenclatura fissata da DEC-072. I nomi placeholder di valuta principale, strumento di breccia, strumento di apertura e catalizzatore di fusione hanno ora il rispettivo nome inglese in-game (Ingots, Blast Charges, Cast Keys, Flux); i termini di lavoro italiani restano quelli usati in questo documento e nella KB.
+- **Nota (2026-07-27):** verificata dal retrofit di DEC-155 e classificata come **sostituzione parziale**: resta `approved`. DEC-072 fissa solo i nomi in-game dei placeholder; la definizione delle risorse **per funzione** e il divieto dei nomi presi in prestito restano canone di questa decisione, citato da `systems/rewards-and-economy.md` e `systems/health-and-resources.md`.
 
 ### DEC-014 — Personaggio base più personaggio alternativo generato
 
@@ -225,12 +228,13 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 ### DEC-019 — Valori numerici attuali come default draft
 
 - **Data:** 2026-07-17
-- **Stato:** draft
+- **Stato:** approved
 - **Contesto:** Il codice contiene già pesi e bande numeriche non ancora validate col playtest.
 - **Decisione:** Pesi rarità {55, 30, 12, 3}, pesi boss {0, 0, 70, 30}, bande di potenza colpi [0.75-1.25] / nemici [0.7-1.35] / boss [1.4-3.2], 4 rarità (comune, non-comune, rara, leggendaria) sono i default attuali dell'implementazione. Vanno documentati come "default proposto", non come decisione presa, e restano da validare col playtest.
 - **Alternative considerate:** Fissarli subito come valori definitivi.
 - **Conseguenze:** `governance/open-questions.md` registra la validazione di questi valori come domanda aperta.
 - **Documenti aggiornati:** `systems/items-pools-and-rarity.md`, `systems/bosses.md`, `systems/combat-and-projectiles.md`, `governance/open-questions.md`
+- **Nota (2026-07-27):** promossa da DEC-154; valori esatti da playtest. La promozione riguarda l'impianto (quattro rarità, esistenza dei pesi di rarità e del pool boss, esistenza delle bande di potenza per colpi, nemici e boss), non i numeri: nei documenti di sistema restano marcati «default proposto, da validare col playtest» e le domande aperte corrispondenti restano aperte. Verificata l'assenza di conflitti con le decisioni che poggiano su di essa (DEC-087 — con il vincolo «almeno 1 per rarità» ora fissato da DEC-144 —, DEC-107, DEC-133, DEC-145).
 
 ### DEC-020 — Il modello di generazione reale è canone concettuale
 
@@ -403,6 +407,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Generazione audio a tema fin da subito.
 - **Conseguenze:** `content/audio-and-feedback.md` chiarisce che l'asse audio dell'escalation è oggi curato, non generato.
 - **Documenti aggiornati:** `content/audio-and-feedback.md`
+- **Nota (2026-07-27):** superata parzialmente da DEC-109 — la generazione audio non è più «futura»: DEC-109 adotta l'audio generativo (Stable Audio Small) con fallback curato sempre garantito. Restano validi il fallback curato e l'applicazione dell'asse audio di DEC-024. Classificazione parziale verificata dal retrofit di DEC-155.
 
 ### DEC-037 — Comportamenti Lua anche per trait e tipi di colpo
 
@@ -1545,3 +1550,315 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** categoria decisa dal modello caso per caso senza regola fissa; sempre la categoria del primo oggetto selezionato indipendentemente dalla rarità; una categoria ibrida dedicata alle fusioni cross-categoria.
 - **Conseguenze:** `systems/item-fusion.md` (sezione "Casi limite") recepisce la regola, con rimando alla priorità già definita per i tratti; nessun punto aperto corrispondente in `systems/active-items.md` o `systems/generated-content-validation.md` (non marcavano la domanda come aperta, nessuna modifica lì).
 - **Documenti aggiornati:** `docs/design/systems/item-fusion.md`
+
+---
+
+### DEC-144 — Il pool curato minimo garantisce almeno un oggetto per rarità
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** il pool curato minimo di **20 oggetti** (DEC-087) distribuiti coi pesi di rarità di DEC-019 `{55, 30, 12, 3}` produrrebbe **0,6 oggetti leggendari**: la tabella del pool minimo pretende «nessuna rarità resta vuota», ma l'aritmetica dei pesi non lo garantisce. Serviva la regola che risolve la contraddizione.
+- **Decisione:** nel pool curato minimo ogni rarità ha **almeno 1 oggetto**. L'eccedenza necessaria a rispettare il vincolo si **sottrae alle rarità più comuni**, non si aggiunge al totale: il totale minimo resta quello di DEC-087. L'esempio derivato onesto (11 comuni / 6 non-comuni / 2 rari / 1 leggendario = 20) va marcato esplicitamente come **derivato**, non come nuova tabella canonica: i valori esatti restano materia di playtest, in stile DEC-019.
+- **Alternative considerate:** alzare il totale del pool minimo oltre 20 per far quadrare i pesi; accettare la rarità leggendaria vuota nella modalità solo-curato; distribuire per soli pesi senza garanzia di copertura.
+- **Conseguenze:** `systems/generated-content-validation.md` (tabella del pool minimo) esplicita il vincolo «almeno 1 per rarità» e la regola di sottrazione, con l'esempio marcato come derivato; `systems/items-pools-and-rarity.md` vi rimanda senza duplicare. Le domande aperte sui numeri di DEC-019 e di DEC-087 restano aperte.
+- **Documenti aggiornati:** `docs/design/systems/generated-content-validation.md`, `docs/design/systems/items-pools-and-rarity.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-145 — La Fortuna riduce la soglia della correzione di fortuna, che vale su tutti i pool
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** la **correzione di fortuna** (`governance/glossary.md`, sostituisce il termine informale «pity») garantisce che dopo N estrazioni consecutive senza risultati sopra il comune la qualità minima salga, ma non era definito né come la statistica **Fortuna** del personaggio (`systems/player.md`) interagisca con N, né su quali pool la garanzia si applichi.
+- **Decisione:** la Fortuna **riduce N**: più Fortuna significa protezione che scatta prima, non una probabilità gonfiata altrove. La correzione vale su **tutti i pool**, inclusi il pool ricompense del boss e il negozio. Dove un pool ha già una **garanzia strutturale superiore** — è il caso dei pesi boss `{0, 0, 70, 30}` di DEC-019, dove nessun risultato può essere comune o non-comune — la correzione è **soddisfatta per costruzione e non aggiunge nulla**: va detto esplicitamente nel documento, per non far credere a un doppio effetto cumulativo. Il valore base di N resta un default da playtest, in stile DEC-019.
+- **Alternative considerate:** Fortuna che alza la qualità minima garantita invece di abbassare la soglia; correzione limitata ai soli drop di combattimento, con boss e negozio esclusi; correzione applicata solo al pool oggetti generale.
+- **Conseguenze:** `systems/items-pools-and-rarity.md` resta fonte unica della correzione di fortuna e registra sia l'effetto della Fortuna su N sia l'estensione a tutti i pool, con la nota sui pool già garantiti per costruzione; `systems/player.md` vi rimanda con una riga dalla statistica Fortuna. Il valore di N resta da playtest.
+- **Documenti aggiornati:** `docs/design/systems/items-pools-and-rarity.md`, `docs/design/systems/player.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-146 — Il proxy della leggibilità visiva è la percentuale massima di schermo coperta
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** fra i controlli obbligatori della validazione dei contenuti generati compare la «leggibilità visiva», senza alcun criterio operativo: così com'era, nessun validatore automatico poteva applicarla e nessun agente poteva dire se un contenuto la superasse.
+- **Decisione:** il **proxy primario** della leggibilità visiva è la **percentuale massima di schermo coperta** contemporaneamente da effetti, proiettili e telegraph. Un contenuto che la supera non passa la validazione e segue la normale catena di fallback. Accanto al proxy primario sono **ammessi controlli complementari** (per esempio contrasto minimo o numero di elementi simultanei), che non lo sostituiscono. Le soglie numeriche sono **provvisorie** in stile DEC-019: la conferma — e l'eventuale sistemazione — spetta ai playtest.
+- **Alternative considerate:** lasciare la leggibilità al giudizio umano caso per caso; rinunciare a un criterio automatico e trattarla come sola linea guida per i prompt; adottare subito soglie definitive senza passare dal playtest.
+- **Conseguenze:** `systems/generated-content-validation.md` registra il proxy come criterio operativo del controllo obbligatorio, con le soglie marcate provvisorie; `systems/combat-and-projectiles.md`, fonte unica del budget di leggibilità, vi rimanda con una riga.
+- **Documenti aggiornati:** `docs/design/systems/generated-content-validation.md`, `docs/design/systems/combat-and-projectiles.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-147 — Una sola coda di domande aperte: le code parallele si chiudono e si archiviano
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `docs/ai-production/19-DECISION-QUESTIONNAIRE.md` (24 domande con priorità BLOCKING/SOON/LATER) e il piano `docs/plans/active/aiprod-proposed-kb-updates.md` continuavano a marcare come BLOCKING domande già decise nel decision-log — audio generativo (DEC-109), licenza Stability (DEC-113), identità del Piano 0 (DEC-004/DEC-063/DEC-085), direzioni di mira (DEC-007), scelta binaria al primo avvio (DEC-070/DEC-086/DEC-111). Erano di fatto una seconda coda decisionale in concorrenza con `governance/open-questions.md`.
+- **Decisione:** le domande già risolte si **chiudono citando la DEC** che le risolve; le domande **davvero residue** si **trasferiscono** in `governance/open-questions.md` come voci numerate, con citazione della provenienza; entrambi i file vengono poi **archiviati**. L'unica coda ufficiale delle domande aperte del progetto è `governance/open-questions.md`, coerentemente con la regola «niente registri paralleli» di `docs/CLAUDE.md`.
+- **Alternative considerate:** mantenere il questionario come coda tecnica separata da quella di design; cancellare i due file invece di archiviarli; lasciare i marcatori BLOCKING e limitarsi ad annotarli.
+- **Conseguenze:** `governance/open-questions.md` cresce delle domande residue trasferite (interfaccia, distribuzione, produzione AI e asset); i due file sorgente escono dalle cartelle vive, ciascuno per la strada del proprio tipo — il questionario in `docs/archive/superseded/`, il piano in `docs/plans/cancelled/` secondo la regola dei piani di DEC-157; `docs/_meta/TOPIC-ROUTER.md` guadagna la riga che indirizza qualunque domanda non risolta alla sola coda ufficiale.
+- **Documenti aggiornati:** `docs/design/governance/open-questions.md`, `docs/_meta/TOPIC-ROUTER.md`, spostamento di `docs/ai-production/19-DECISION-QUESTIONNAIRE.md` in `docs/archive/superseded/` e di `docs/plans/active/aiprod-proposed-kb-updates.md` in `docs/plans/cancelled/` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-148 — Pipeline immagini: SD1.5 confermato, Style LoRA su base vanilla, merge dopo validazione, dataset definitivi del proprietario
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** la comparison di seconda generazione del 23/07 (SD3.5 / SDXL / Flux contro SD1.5 su 6 GB) ha confermato che nessun modello moderno batte SD1.5 nel vincolo hardware del progetto, ma **nessuna decisione lo registrava**: la base immagini restava un fatto di fatto. Restavano inoltre senza risposta la base di partenza del training della Style LoRA, il luogo del training, il destino della LoRA una volta validata e la sorte dei dataset attuali.
+- **Decisione:** cinque punti. **(a) Base immagini: SD1.5**, confermato come modello di riferimento per le immagini nel vincolo dei 6 GB. **(b)** La **Style LoRA si addestra su SD1.5 vanilla**, non sul checkpoint `pixel-baseline`: provenienza pulita e portabilità del risultato. **(c)** Il **training si fa su Kaggle** (dettaglio operativo in DEC-168). **(d)** A **validazione avvenuta**, la LoRA può essere **fusa nella base** per ottenere il **checkpoint proprietario del progetto**; quel checkpoint **candida la sostituzione di `pixel-baseline` nel runtime**, previa **asset review**. Fino ad allora il runtime **resta su `pixel-baseline`**. **(e)** I **dataset attuali non sono definitivi**, incluso il dataset Kaggle da 89k: i **dataset definitivi li creerà il proprietario**. Questa decisione **corregge affermazioni mai adottate** di `00-DECISIONI-CANONICHE.md`: la base vanilla, che lì era data per assunta, viene adottata **davvero adesso**; il piano dataset a due rami imperniato sul Kaggle 89k è **sostituito** dal piano dataset proprietario.
+- **Alternative considerate:** salire a un modello di generazione più recente accettando un requisito VRAM superiore; addestrare la LoRA direttamente su `pixel-baseline` (più vicino alla resa attuale, ma provenienza opaca e non portabile); tenere la LoRA sempre separata dalla base senza mai fondere; considerare definitivo il dataset Kaggle 89k.
+- **Conseguenze:** `docs/ai-production/00-DECISIONI-CANONICHE.md` registra la base SD1.5 e corregge le affermazioni non adottate; `docs/ai-production/03-PIANO-LORA.md` e `docs/ai-production/04-DATASET-LICENZE.md` recepiscono base vanilla, merge post-validazione e piano dataset proprietario; `docs/ai-production/dataset/README.md` segnala che i dataset attuali non sono definitivi. Il runtime non cambia in questo lavoro.
+- **Documenti aggiornati:** `docs/ai-production/00-DECISIONI-CANONICHE.md`, `docs/ai-production/03-PIANO-LORA.md`, `docs/ai-production/04-DATASET-LICENZE.md`, `docs/ai-production/dataset/README.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-149 — I benchmark testuali del 13/07 si congelano come misura storica
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `docs/engineering/benchmarks.md` presenta ancora la tabella del 13/07 con il 7B come modello testuale di default, superato da DEC-140 (Gemma-3-4B-IT Q4_K_M). Un lettore che arriva oggi legge come stato attuale una misura che non lo è più.
+- **Decisione:** la tabella del 13/07 **si congela come misura storica**, con un **banner esplicito** in testa che dichiara data, modelli misurati e il fatto che non descrive il default attuale; accanto si aggiunge un **paragrafo sul default attuale** (DEC-140). **Nessuna rimisurazione ora**: rimisurare è un'attività successiva, fuori da questo lavoro.
+- **Alternative considerate:** rimisurare subito tutti i modelli e riscrivere la tabella; cancellare la tabella superata; lasciarla com'è annotando solo la data.
+- **Conseguenze:** `docs/engineering/benchmarks.md` diventa leggibile senza indurre in errore, senza perdere il dato storico. Resta aperto — e non chiuso da questa decisione — il nuovo benchmark sulla macchina di riferimento coi modelli attuali, già indicato da DEC-142 come attività successiva.
+- **Documenti aggiornati:** `docs/engineering/benchmarks.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-150 — DOC-CONFLICTS e DOC-CODE-DRIFT sono registri vivi con stato di chiusura per voce
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `docs/_meta/DOC-CONFLICTS.md` e `docs/_meta/DOC-CODE-DRIFT.md` erano fermi al 22/07, con risoluzioni proposte e mai applicate e nessun modo di sapere, voce per voce, se un conflitto fosse ancora aperto o già risolto altrove.
+- **Decisione:** i due registri **restano documenti vivi**, non fotografie di una sessione. Ogni voce riceve un **campo di stato** — *aperta* / *applicata* / *superata* — accompagnato dalla **DEC o dal commit** che l'ha chiusa. Il `docs/_meta/TOPIC-ROUTER.md` li **nomina esplicitamente**, così chi cerca conflitti o drift sa dove guardare senza scoprirli per caso.
+- **Alternative considerate:** archiviarli come istantanee del 22/07 e riaprirne di nuovi a ogni audit; fonderli in un unico registro; tenerli senza stato, verificandoli a mano ogni volta.
+- **Conseguenze:** `docs/_meta/DOC-CONFLICTS.md` e `docs/_meta/DOC-CODE-DRIFT.md` acquistano il campo di stato su ogni voce esistente; `docs/_meta/TOPIC-ROUTER.md` li elenca fra le destinazioni del router.
+- **Documenti aggiornati:** `docs/_meta/DOC-CONFLICTS.md`, `docs/_meta/DOC-CODE-DRIFT.md`, `docs/_meta/TOPIC-ROUTER.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-151 — Nella KB il modello di testo si cita con una formula neutra
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** dopo DEC-140 la knowledge base è rimasta punteggiata di riferimenti puntuali a «Qwen», scritti quando quello era il default. Ogni cambio di modello costringerebbe a rincorrere gli stessi riferimenti in decine di documenti.
+- **Decisione:** nei documenti si usa la **formula neutra** «il modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140)», perché il modello **può ancora cambiare**. I **nomi puntuali** restano solo dove sono il contenuto stesso del documento: `docs/ai-production/licenze.md` e questo decision-log. La sezione **Licenze** di `00-DECISIONI-CANONICHE.md` va integrata con i **Gemma Terms of Use** e la **Stability Community License** (DEC-113), oggi assenti.
+- **Alternative considerate:** aggiornare i nomi puntuali a ogni cambio di default; introdurre un alias tecnico unico da sostituire in fase di build della documentazione.
+- **Conseguenze:** i documenti che citavano «Qwen» come default passano alla formula neutra; `docs/ai-production/00-DECISIONI-CANONICHE.md` completa la sezione Licenze; `docs/ai-production/licenze.md` resta la fonte dei nomi e dei termini puntuali. Oltre a `licenze.md` e a questo registro, il **nome puntuale resta legittimo** anche in tre casi: le voci di licenza e i link bibliografici (`04-DATASET-LICENZE.md`, `14-FONTI.md`), i nomi di file dei pesi e il fallback selezionabile 1.5B/7B (`02-STACK-MODELLI.md`, `docs/engineering/dependencies.md`), e i documenti **storici o congelati** che riportano una misura fatta con quel modello (`01-AUDIT-DEL-PROGETTO.md`, `superseded/historical`; `docs/engineering/benchmarks.md` congelato da DEC-149; le specifiche del 13/07 e il research pack). Riscriverli falsificherebbe una misura: la formula neutra vale per chi descrive il presente, non per chi registra il passato.
+- **Documenti aggiornati:** `docs/ai-production/00-DECISIONI-CANONICHE.md`, `docs/ai-production/02-STACK-MODELLI.md`, `docs/ai-production/07-ARCHITETTURA-RUNTIME.md`, `docs/ai-production/09-NEMICI-BODY-PLAN-RIG.md`, `docs/ai-production/10-PIANO-INTEGRAZIONE-C.md`, `docs/ai-production/README.md`, `docs/ai-production/regole-agenti-ml.md`, `docs/design/content/audio-and-feedback.md`, `docs/engineering/dependencies.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-152 — Le card di scoperta in coda si scartano alla morte o al cambio stanza
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-131 regola solo il **cap** della coda delle card di scoperta e il suo **overflow** (le più vecchie escono senza essere mostrate). Restava indefinito cosa accade alle card ancora in coda quando il giocatore muore o cambia stanza, e `ui/hud.md` era internamente contraddittorio sul punto.
+- **Decisione:** se il giocatore **muore** o **cambia stanza**, le card non ancora mostrate vengono **scartate silenziosamente**: nessuna coda che insegue il giocatore nella stanza successiva, nessun recupero differito. La **scoperta resta comunque registrata nel Catalogo permanente** con la sua scheda, esattamente come nell'overflow di DEC-131: la card è la notifica, non il contenuto.
+- **Alternative considerate:** trasportare la coda nella stanza successiva; mostrare le card residue in un riepilogo al cambio stanza o a fine run.
+- **Conseguenze:** `ui/hud.md` registra la regola e **sana la propria contraddizione interna**; nessuna perdita di informazione per il giocatore, che ritrova tutto nel Catalogo.
+- **Documenti aggiornati:** `docs/design/ui/hud.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-153 — Il contenuto curato di fallback è lo stato base del gioco, sempre pronto
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** alcuni documenti descrivevano il fallback curato come qualcosa che «diventa disponibile», arrivando a ipotizzare un caso limite in cui l'uscita dal Piano 0 resta disabilitata senza limite di tempo perché *nemmeno il fallback è pronto*.
+- **Decisione:** il **contenuto curato di fallback è lo stato base del gioco**: precaricato e disponibile **per costruzione**, mai in attesa, mai in caricamento. Il caso limite «uscita dal Piano 0 disabilitata senza limite perché nemmeno il fallback è pronto» **non esiste** e va rimosso dai documenti che lo ipotizzano. È la lettura coerente con DEC-002 (il gioco è sempre avviabile) e DEC-020 (mai un blocco della partita).
+- **Alternative considerate:** trattare il fallback come risorsa caricata su richiesta con un proprio stato di attesa; definire un timeout oltre il quale l'uscita si sblocca comunque.
+- **Conseguenze:** `systems/generated-content-validation.md`, fonte unica della regola di fallback, registra il fallback come stato base sempre pronto; `systems/floor-zero.md` e `ui/generation-status.md` rimuovono il caso limite e descrivono il Piano 0 curato come pronto senza attesa. `06-ai-content-generation-model.md` non è stato toccato: parlava già di «fallback curato sempre presente», nessuna formulazione da correggere lì.
+- **Documenti aggiornati:** `docs/design/systems/generated-content-validation.md`, `docs/design/systems/floor-zero.md`, `docs/design/ui/generation-status.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-154 — DEC-019 passa ad approved
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-019 («valori numerici attuali come default draft») era l'unica decisione del registro rimasta in stato `draft`, pur essendo la **base numerica citata da almeno cinque decisioni approved** (DEC-087, DEC-107, DEC-133 e le tabelle di `bosses.md`/`enemies.md`) e da una decina di documenti canonici. Uno stato `draft` che regge tanto canone è una contraddizione di governance.
+- **Decisione:** DEC-019 viene **promossa ad approved**, previa verifica di assenza di conflitti con le altre decisioni. La promozione riguarda l'**impianto** — quattro rarità, esistenza dei pesi di rarità e di pool boss, esistenza delle bande di potenza per colpi, nemici e boss — **non i valori esatti**, che restano materia di playtest come già registrato nelle domande aperte. I documenti che citano quei numeri continuano a marcarli «default proposto, da validare col playtest».
+- **Alternative considerate:** lasciare DEC-019 in `draft` fino al playtest, accettando che decisioni approved poggino su una decisione draft; approvare anche i valori esatti chiudendo le domande aperte relative.
+- **Conseguenze:** la promozione è applicata sul campo **Stato** di DEC-019 in questo registro, con nota datata; le domande aperte sui valori numerici **restano aperte**; nessun documento di sistema cambia i propri numeri.
+- **Documenti aggiornati:** `docs/design/governance/decision-log.md` (campo Stato di DEC-019, in questo stesso lavoro)
+
+---
+
+### DEC-155 — Le decisioni integralmente sostituite ricevono lo stato superseded
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** il registro prevede lo stato `superseded` nel proprio template, ma non l'ha mai usato: le sostituzioni sono state finora annotate solo in prosa, nelle note in calce. Chi legge una voce vecchia non distingue a colpo d'occhio lo storico dal canone attuale. La **modalità** del retrofit era delegata al coordinatore.
+- **Decisione:** retrofit del **campo strutturato** `Stato: superseded (sostituita da DEC-NNN)` sulle decisioni **integralmente sostituite**, da individuare verificando le note in calce. Le **sostituzioni parziali restano `approved` con nota**: se una parte della decisione è ancora canone, la voce non è superata. Il **testo storico non si riscrive**: cambia solo il campo Stato. Così lo storico resta leggibile ma non si confonde con il canone attuale.
+- **Alternative considerate:** marcare `superseded` anche le sostituzioni parziali; spostare le decisioni superate in un archivio separato; lasciare tutto alle note in prosa.
+- **Conseguenze:** applicato in questo stesso lavoro. Verifica delle note in calce: l'unica decisione **integralmente** sostituita è **DEC-003** (il nome provvisorio del gioco), il cui contenuto operativo è interamente esaurito da DEC-071 — che dichiara essa stessa «risolve DEC-003». Le altre annotazioni del registro sono **integrazioni o sostituzioni parziali** e restano `approved` con nota: DEC-006 (solo la prosecuzione in piani extra è superata da DEC-031; vittoria al piano 5 e permadeath restano canone citato dai documenti), DEC-013 (solo i nomi placeholder sono fissati da DEC-072; le risorse per funzione restano canone), DEC-010 (integrata da DEC-051), DEC-014 (integrata da DEC-030), DEC-016 (corretta da DEC-141), DEC-018 (integrata da DEC-031/DEC-036/DEC-045), DEC-021 (estesa da DEC-062), DEC-036 (sostituita solo nella parte «generazione = futuro» da DEC-109), DEC-110 (superata parzialmente da DEC-142).
+- **Documenti aggiornati:** `docs/design/governance/decision-log.md` (campo Stato di DEC-003 e note di classificazione, in questo stesso lavoro)
+
+---
+
+### DEC-156 — DEC-137 e DEC-139 entrano nei flussi UI; la risoluzione logica resta una domanda aperta
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-137 (una sola schermata, GUI in overlay) e DEC-139 (TAB apre `BuildScreen` dal Gameplay) erano registrate ma non ancora recepite nei documenti che descrivono navigazione e stati. In parallelo, i template e gli appunti di interfaccia propongono una risoluzione logica di **640×360 con scaling intero** che **nessuna decisione ha mai approvato**.
+- **Decisione:** **recepire subito** DEC-137 e DEC-139 in `ui/navigation-map.md` e `05-game-states-and-flow.md`. La **risoluzione logica 640×360 con scaling intero non è approvata**: si apre come **domanda aperta numerata** in `governance/open-questions.md`, e nel template `UI-SKIN-SPEC` va **marcata esplicitamente come non approvata**, così che nessuna implementazione la prenda per canone.
+- **Alternative considerate:** approvare 640×360 contestualmente al recepimento dei flussi; rimandare anche il recepimento di DEC-137/DEC-139 all'implementazione del refactor.
+- **Conseguenze:** i due documenti di flusso descrivono la schermata unica con overlay e l'ingresso rapido alla build; `governance/open-questions.md` guadagna la domanda sulla risoluzione logica; `docs/ai-production/templates/UI-SKIN-SPEC.md` marca il valore come proposta non approvata.
+- **Documenti aggiornati:** `docs/design/ui/navigation-map.md`, `docs/design/05-game-states-and-flow.md`, `docs/design/governance/open-questions.md`, `docs/ai-production/templates/UI-SKIN-SPEC.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-157 — Chi chiude un piano lo sposta fuori da plans/active nello stesso commit
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `docs/plans/active/` conteneva piani di fatto conclusi (la comparison modelli, conclusa il 23/07) perché nessuna regola diceva **chi** e **quando** sposta un piano fuori dagli attivi. La modalità era **decisione delegata al coordinatore**.
+- **Decisione:** **chi completa il lavoro che chiude un piano lo sposta** in `docs/plans/completed/` (o `docs/plans/cancelled/`) **nello stesso commit** che chiude il lavoro. La **responsabilità di ultima istanza** resta al **coordinatore di sessione**, che a fine sessione verifica che `plans/active/` contenga solo piani davvero attivi. **Applicazione immediata:** `docs/plans/active/model-comparison.md` passa in `completed/`.
+- **Alternative considerate:** revisione periodica dedicata dei piani attivi; spostamento a carico del solo coordinatore; nessuna regola, con `plans/active/` inteso come archivio cronologico.
+- **Conseguenze:** la regola entra in `docs/_meta/DOCUMENT-STANDARDS.md` (§ «Regole di aggiornamento»), accanto alle altre regole di ciclo di vita dei documenti, e non in un README di cartella: `docs/plans/` non ha un README e non ne serve uno per una regola sola. `model-comparison.md` viene spostato in `docs/plans/completed/`.
+- **Documenti aggiornati:** `docs/_meta/DOCUMENT-STANDARDS.md`, spostamento di `docs/plans/active/model-comparison.md` in `docs/plans/completed/` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-158 — Il tema della distribuzione appartiene al dominio ai-production
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** piattaforme di destinazione, requisiti della pagina negozio e **AI disclosure** non avevano un proprietario: comparivano di sfuggita in `docs/engineering/multiplayer-steam.md` e nel questionario ai-production, senza che nessun dominio se ne facesse carico. La proprietà era **decisione delegata al coordinatore**.
+- **Decisione:** il tema **distribuzione** è di proprietà del dominio **ai-production**, che già possiede licenze e provenienza dei contenuti — le due materie da cui la AI disclosure dipende — e vive in un **documento dedicato** del dominio. `docs/engineering/multiplayer-steam.md` **rimanda** a quel documento senza duplicarne il contenuto. Le **decisioni concrete** (quali piattaforme, quale formato di disclosure, quali requisiti di pagina) **restano domande aperte**: questa decisione assegna la proprietà, non le risposte.
+- **Alternative considerate:** assegnare la distribuzione a engineering, insieme all'integrazione Steam; creare un dominio «produzione/publishing» dedicato; lasciare il tema senza proprietario fino alla prima decisione concreta.
+- **Conseguenze:** nasce `docs/ai-production/21-DISTRIBUZIONE.md`; `docs/engineering/multiplayer-steam.md` vi rimanda e dichiara che le proprie voci restano solo come vincoli tecnici dell'integrazione Steamworks; `docs/_meta/TOPIC-ROUTER.md` guadagna la riga «Distribuzione» che indirizza al nuovo documento; le domande concrete entrano in `governance/open-questions.md` (vedi DEC-147).
+- **Documenti aggiornati:** `docs/ai-production/21-DISTRIBUZIONE.md` (nuovo), `docs/engineering/multiplayer-steam.md`, `docs/_meta/TOPIC-ROUTER.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-159 — RunResults dichiara la causa della sconfitta
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `02-player-experience.md` promette che alla morte il giocatore deve «capire perché è morto», ma nessun elemento di interfaccia presidiava quella promessa: `RunResults` mostrava risultato, punteggio e creazioni, non la causa. La forma del presidio era **decisione delegata al coordinatore**.
+- **Decisione:** `RunResults` espone un **campo esplicito con la causa della sconfitta** — **ultimo colpo o nemico letale** — mostrato alla morte. Nessuna telemetria, nessun grafico: una dichiarazione leggibile di cosa ha chiuso la run, coerente col registro del crogiolo (DEC-105) e accanto alle righe già previste dalla schermata (DEC-132).
+- **Alternative considerate:** un riepilogo esteso degli ultimi secondi di combattimento; nessun campo dedicato, affidando la comprensione al solo feedback in gioco; una ripetizione video del momento della morte.
+- **Conseguenze:** `ui/results-and-leaderboards.md` registra il campo fra i contenuti canonici di `RunResults`; `02-player-experience.md` collega la propria promessa al campo che la presidia.
+- **Documenti aggiornati:** `docs/design/ui/results-and-leaderboards.md`, `docs/design/02-player-experience.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-160 — L'Innesto sganciato resta a terra, recuperabile nella stanza
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-115 permette di sganciare volontariamente un Innesto equipaggiato, ma lasciava esplicitamente indefinito il destino dell'Innesto sganciato: resta a terra o si perde?
+- **Decisione:** l'Innesto sganciato **resta a terra ed è recuperabile finché si resta nella stanza**; **uscendo dalla stanza si perde**. È la stessa **reversibilità locale** già approvata per lo scambio degli attivi sui piedistalli (DEC-117): la scelta si può ripensare finché sei lì, non per tutta la run.
+- **Alternative considerate:** Innesto sganciato perso immediatamente; Innesto che rientra in un inventario di riserva trasportabile; recupero possibile per tutta la run.
+- **Conseguenze:** `systems/grafts.md` chiude il punto lasciato aperto da DEC-115 e registra la simmetria con i piedistalli degli attivi; `systems/active-items.md` non cambia.
+- **Documenti aggiornati:** `docs/design/systems/grafts.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-161 — I conflitti di categoria senza priorità esplicita si risolvono a caso, con l'RNG del seed di run
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** la gerarchia di risoluzione delle sinergie definisce le priorità caso per caso, ma non dice cosa accade quando due effetti di **categorie diverse** entrano in conflitto e **nessuna regola esplicita** stabilisce chi vince. Senza risposta, il comportamento resta a discrezione dell'implementazione.
+- **Decisione:** **non esiste un ordine fisso fra le categorie**. Quando la priorità non è esplicitata dalle regole, il conflitto si risolve in modo **casuale**, ma con **RNG derivato dal seed di run**: deterministico e stabile dentro la stessa run — stessa run, stesso esito — coerente con DEC-016 e col prerequisito di DEC-141 (l'RNG di gameplay deve derivare dal seed di run; finché il fix non c'è, la garanzia vale come requisito, non come stato attuale).
+- **Alternative considerate:** un ordine fisso di precedenza fra le categorie; vince sempre l'effetto acquisito per ultimo; nessuna risoluzione, con entrambi gli effetti applicati.
+- **Conseguenze:** `systems/synergies.md` registra la regola nella gerarchia di risoluzione, con il rimando esplicito al seed di run; `systems/item-fusion.md` mantiene le proprie priorità già definite (DEC-143), che restano esplicite e quindi prevalgono su questa clausola residuale.
+- **Documenti aggiornati:** `docs/design/systems/synergies.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-162 — Il risultato di sinergie e fusioni ha un budget di potenza dedicato
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** il budget di potenza è definito per il **singolo oggetto**, ma una sinergia implicita o una fusione esplicita producono un risultato che vale più della somma delle parti: senza un tetto proprio, il risultato o viene schiacciato sul budget del singolo (e la meccanica-firma perde senso) o non viene verificato affatto.
+- **Decisione:** oltre al budget del singolo oggetto esiste un **budget dedicato al risultato** di una sinergia implicita o di una fusione esplicita, **più alto di quello del singolo** e **verificato in validazione** come tutti gli altri budget. Il **valore esatto è draft**, da playtest, in stile DEC-019: questa decisione fissa l'esistenza del budget dedicato e il fatto che sia più alto, non il numero.
+- **Alternative considerate:** applicare al risultato lo stesso budget del singolo oggetto; non verificare affatto il risultato, fidandosi dei budget dei genitori; tetto proporzionale alla somma dei genitori senza un budget proprio.
+- **Conseguenze:** `systems/generated-content-validation.md` registra il budget dedicato fra i controlli; `systems/synergies.md` e `systems/item-fusion.md` vi rimandano; il valore resta materia di playtest.
+- **Documenti aggiornati:** `docs/design/systems/generated-content-validation.md`, `docs/design/systems/synergies.md`, `docs/design/systems/item-fusion.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-163 — I template di contenuto aprono con una riga di vincoli che rimanda al contratto
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** i template di contenuto (boss, nemico, oggetto, stanza, sinergia, schermata UI) non ricordavano i vincoli che ogni contenuto deve rispettare: chi compilava un template doveva sapere a memoria che esistono limiti di contenuto, tono e tassonomia dei tag. La forma del richiamo era **decisione delegata al coordinatore**, con criterio dichiarato: **massima leggibilità per umani e agenti**.
+- **Decisione:** ogni template di contenuto apre con una **riga standard «Vincoli di contenuto»** che **rimanda a `templates/generated-content-contract.md`**, senza riformulare i vincoli sul posto. Il **contratto centralizza esplicitamente**: i limiti di contenuto dark ~16+ (DEC-119), il tono di `content/narrative-tone.md` e le **sei famiglie di tag** di `content/content-taxonomy.md`. Inoltre la sezione **Tag** di `item-spec-template.md`, oggi vuota, va **compilata con le sei famiglie**.
+- **Alternative considerate:** ripetere i vincoli per esteso in ogni template (ridondante e destinato a divergere); non ricordarli affatto, affidandosi alla validazione a valle; un solo documento di vincoli senza riga nei template.
+- **Conseguenze:** i sei template acquistano la riga standard; `templates/generated-content-contract.md` diventa il punto unico dove i vincoli sono elencati per esteso; `item-spec-template.md` ha la sezione Tag compilata.
+- **Documenti aggiornati:** `docs/design/templates/generated-content-contract.md`, `docs/design/templates/boss-spec-template.md`, `docs/design/templates/enemy-spec-template.md`, `docs/design/templates/item-spec-template.md`, `docs/design/templates/room-spec-template.md`, `docs/design/templates/synergy-spec-template.md`, `docs/design/templates/ui-screen-template.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-164 — I protocolli 11 e 20 passano ad approved con nota di precedenza; il protocollo esperimenti copre anche i bake-off
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `11-PROTOCOLLO-ESPERIMENTI.md` e `20-SESSION-PROTOCOL.md` erano documenti `proposed` pur essendo di fatto la procedura seguita dagli agenti; in più il protocollo esperimenti descrive l'esperimento singolo, mentre i report del 23/07 sono **comparison su più modelli** e non trovavano una forma prevista. La modalità di promozione era **decisione delegata al coordinatore**.
+- **Decisione:** `11-PROTOCOLLO-ESPERIMENTI.md` viene **esteso con una variante «comparison/bake-off»** — che legittima il formato dei report del 23/07 — e **promosso ad approved** con **nota di precedenza di `CLAUDE.md`**, sullo stesso modello già adottato per `18-AGENT-ORCHESTRATION.md`. `20-SESSION-PROTOCOL.md` viene **promosso ad approved** con la **stessa nota di precedenza**. Dove i due protocolli e `CLAUDE.md` divergono, vale `CLAUDE.md`.
+- **Alternative considerate:** lasciarli `proposed` e trattarli come raccomandazioni; promuoverli senza nota di precedenza (rischio di conflitto con la scala agenti di `CLAUDE.md`); creare un protocollo separato per i bake-off.
+- **Conseguenze:** i due documenti cambiano `status` nel front matter e guadagnano la nota di precedenza; `11-PROTOCOLLO-ESPERIMENTI.md` guadagna la sezione sulla variante comparison/bake-off; i report di comparison esistenti risultano conformi.
+- **Documenti aggiornati:** `docs/ai-production/11-PROTOCOLLO-ESPERIMENTI.md`, `docs/ai-production/20-SESSION-PROTOCOL.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-165 — Il gate di DEC-138 è soddisfatto: il mechanics-lab è sbloccato
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-138 subordinava l'avvio del mechanics-lab a due condizioni: la conclusione del refactor GUI di DEC-137 e la conclusione della comparison modelli. Entrambe si sono chiuse (refactor concluso; comparison chiusa il 23/07, con i report congelati in `docs/ai-production/experiments/`).
+- **Decisione:** il **gate è soddisfatto**: il piano `docs/plans/active/mechanics-lab.md` è **sbloccato e può partire**. Restano invariati il criterio di successo e i vincoli fissati da DEC-138 — generare laser, catena e orbita **senza** primitive dedicate a laser, catena o orbita; niente inferenza in combattimento; primitive vincenti ammesse nel motore solo con clamp, budget, `ShotTypeBalance` e fallback.
+- **Alternative considerate:** attendere anche la validazione estesa del modello testuale raccomandata da DEC-140; rinviare il mechanics-lab dopo il lavoro sulla pipeline immagini.
+- **Conseguenze:** `docs/plans/active/mechanics-lab.md` registra il gate come soddisfatto e passa a piano eseguibile; nessun cambio ai criteri di DEC-138.
+- **Documenti aggiornati:** `docs/plans/active/mechanics-lab.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-166 — Il lettore di schermo resta un obiettivo dei soli menu testuali
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** `ui/main-menu.md` accennava a un supporto per lettore di schermo senza perimetro né stato, in una zona grigia rispetto alle tre garanzie canoniche di accessibilità di DEC-058 (rimappatura totale, nessuna informazione affidata al solo colore, riduzione effetti).
+- **Decisione:** il supporto al lettore di schermo resta un **obiettivo**, non una garanzia, ed è **circoscritto a `MainMenu` e ai menu testuali semplici**. **Non è esteso al gameplay** e **non entra fra le garanzie canoniche di DEC-058**. `ui/main-menu.md` va circoscritto di conseguenza; `ui/options-and-accessibility.md`, fonte unica dell'accessibilità, lo registra fra gli **obiettivi non-garanzia**, distinti dalle tre garanzie.
+- **Alternative considerate:** promuoverlo a quarta garanzia canonica estesa a tutto il gioco; rimuovere del tutto l'accenno; lasciarlo generico senza perimetro.
+- **Conseguenze:** `ui/options-and-accessibility.md` distingue le tre garanzie dagli obiettivi non-garanzia e accoglie il lettore di schermo fra i secondi; `ui/main-menu.md` circoscrive l'accenno e rimanda alla fonte unica. DEC-058 resta invariata.
+- **Documenti aggiornati:** `docs/design/ui/options-and-accessibility.md`, `docs/design/ui/main-menu.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-167 — La valuta arriva da qualunque stanza completata secondo la propria condizione
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** DEC-048 indica «nemici sconfitti e **stanze ripulite**» come uniche fonti canoniche della valuta principale, ma «ripulita» è un verbo da stanza di combattimento: restava ambiguo se una stanza del tesoro, un negozio o una segreta contino come fonte.
+- **Decisione:** «stanza ripulita» significa **qualunque stanza completata secondo la propria condizione di completamento**: combattimento vinto, tesoro aperto, negozio visitato, segreto trovato. Non solo le stanze di combattimento. La formulazione di DEC-048 resta valida, chiarita nel suo significato: le fonti canoniche restano due (nemici sconfitti e stanze completate), non si aggiungono fonti nuove.
+- **Alternative considerate:** limitare la fonte alle sole stanze di combattimento; introdurre valori di valuta differenziati per tipo di stanza come parte di questa decisione (rinviato al playtest).
+- **Conseguenze:** `systems/rewards-and-economy.md` chiarisce la formulazione delle fonti canoniche; `systems/rooms-and-floor-generation.md` e `systems/special-rooms.md` rimandano alla condizione di completamento propria di ciascun archetipo. Gli importi restano materia di playtest.
+- **Documenti aggiornati:** `docs/design/systems/rewards-and-economy.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-168 — Il training della Style LoRA si fa su Kaggle; il runbook RunPod è fallback a pagamento
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** il progetto aveva **due runbook di training** con stati incoerenti: `dataset/TRAINING-RUNBOOK.md` (RunPod, a pagamento) era `approved`, mentre `05-KAGGLE-TRAINING-RUNBOOK.md` non lo era — l'opposto dell'intenzione, visto che Kaggle offre **30 ore di GPU gratuite a settimana**.
+- **Decisione:** il training della Style LoRA si fa **su Kaggle**. `05-KAGGLE-TRAINING-RUNBOOK.md` diventa il **runbook primario**, aggiornato alla base **SD1.5 vanilla** (DEC-148). `dataset/TRAINING-RUNBOOK.md` passa da `approved` a **`proposed`**, nel ruolo di **fallback a pagamento**. I due runbook si **citano a vicenda**, così che chi apre l'uno sappia dell'altro e del suo ruolo.
+- **Alternative considerate:** restare su RunPod per prevedibilità e assenza di limiti di sessione; mantenere entrambi i runbook allo stesso rango; eliminare il runbook RunPod.
+- **Conseguenze:** i due documenti scambiano stato e ruolo e acquistano i rimandi reciproci; `03-PIANO-LORA.md` indica Kaggle come via primaria; il budget cloud resta una domanda aperta (nessuna spesa impegnata da questa decisione).
+- **Documenti aggiornati:** `docs/ai-production/05-KAGGLE-TRAINING-RUNBOOK.md`, `docs/ai-production/dataset/TRAINING-RUNBOOK.md`, `docs/ai-production/03-PIANO-LORA.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-169 — Nel Piano 0 l'HUD è nascosto, consultabile in pausa, visibile nelle prove
+
+- **Data:** 2026-07-27
+- **Stato:** approved
+- **Contesto:** il Piano 0 è un hub (DEC-004) dove non si combatte, ma l'HUD di combattimento — salute, risorse, slot — vi compariva comunque, senza che nessuna decisione dicesse se debba esserci. Il punto era rimasto nel backlog dell'implementazione.
+- **Decisione:** durante il Piano 0 l'**HUD di combattimento è nascosto**; resta **consultabile su richiesta dal menu di pausa**, per chi vuole controllare salute, risorse e build senza uscire dall'hub; **ricompare quando si entra nelle prove**, cioè nelle attività di combattimento e tutorial del Piano 0 (DEC-047). Il Piano 0 resta uno spazio di preparazione con lo schermo pulito, senza togliere informazione a chi la cerca.
+- **Alternative considerate:** HUD sempre visibile anche nell'hub; HUD sempre nascosto, prove comprese; versione ridotta permanente dell'HUD nel Piano 0.
+- **Conseguenze:** `ui/hud.md` registra la regola di visibilità per stato; `systems/floor-zero.md` la applica al Piano 0 e `ui/pause-menu.md` colloca la consultazione su richiesta. Le «prove» del Piano 0 di questa decisione sono le arene di sfida e il tutorial integrato (DEC-047), **non** le prove specifiche della run di DEC-042: i tre documenti lo dicono esplicitamente. Questa decisione **non fissa il comando** con cui il menu di pausa si apre dal Piano 0, dove ESC è già assegnato a `ExitConfirm` (DEC-074): il punto diventa la domanda aperta 22.
+- **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/systems/floor-zero.md`, `docs/design/ui/pause-menu.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)

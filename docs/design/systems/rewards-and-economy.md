@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
-last_reviewed: 2026-07-18
+summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio]
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167]
 related: []
 supersedes: []
 source_files: []
@@ -45,6 +45,19 @@ La **valuta principale** (in-game: **Ingots**, DEC-072) sostituisce per funzione
 ### Fonti canoniche della valuta principale (DEC-048)
 
 La valuta principale si guadagna da **nemici sconfitti** e da **stanze ripulite** (completate): queste sono, per ora, le uniche fonti canoniche. Nessun'altra fonte è prevista in questa fase del progetto.
+
+Per **stanza ripulita** si intende qualunque stanza completata secondo la **propria
+condizione di completamento**, qualunque sia l'archetipo (DEC-167): non esiste
+un'unica definizione di "ripulita" indipendente dal tipo di stanza. Esempi: una stanza di
+combattimento standard è ripulita quando tutti i nemici sono sconfitti; una stanza a
+tempo ([Special Rooms](./special-rooms.md), DEC-051) è ripulita quando il giocatore la
+raggiunge entro la soglia richiesta; una stanza tesoro quando il tesoro è aperto, un
+negozio quando è stato visitato, una stanza segreta quando è stata trovata (DEC-167). Ogni
+archetipo di stanza definisce la propria condizione di completamento (vedi
+[rooms-and-floor-generation.md](./rooms-and-floor-generation.md) e
+[special-rooms.md](./special-rooms.md)); questo documento non la ridefinisce, registra
+solo che qualunque condizione di completamento soddisfatta conta come "ripulita" ai fini
+della valuta principale.
 
 L'**uso economico** della valuta principale:
 
@@ -271,3 +284,9 @@ Then riceve un bonus di efficienza che si somma agli altri bonus del punteggio c
 Given un giocatore che esplora ogni stanza raggiungibile di ogni piano, impiegando più tempo di un percorso rapido
 When il punteggio finale viene calcolato
 Then accumula bonus per l'esplorazione, le scoperte, le eliminazioni e i Veterani sconfitti incontrati lungo il percorso, restando competitivo col punteggio di un percorso rapido ed efficiente (DEC-060)
+
+### Scenario 11 — Valuta da una stanza a tempo ripulita secondo la propria condizione
+
+Given un giocatore raggiunge una stanza a tempo entro la soglia richiesta dal suo archetipo
+When la stanza risulta completata secondo la propria condizione
+Then il giocatore guadagna valuta principale come da qualunque altra stanza ripulita, perché "ripulita" dipende dalla condizione di completamento specifica di quell'archetipo, non da una regola unica (DEC-167)

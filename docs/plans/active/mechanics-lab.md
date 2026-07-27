@@ -9,9 +9,9 @@ summary: >-
   Esperimento isolato (DEC-138) per scoprire le primitive fisiche minime che permettono
   al modello di COMPORRE classi di colpo nuove (laser, catena, orbita e oltre) senza
   primitive dedicate; le vincitrici entrano poi nel motore con le garanzie di sempre.
-last_reviewed: 2026-07-22
-last_verified_commit: bd2cf04
-topics: [mechanics-lab, colpi, primitive, lua, esperimento, DEC-138]
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [mechanics-lab, colpi, primitive, lua, esperimento, DEC-138, DEC-165]
 related: [eng-espressivita-colpi]
 supersedes: []
 source_files: [src/script/script_sandbox.c, src/script/script_api.c]
@@ -69,5 +69,12 @@ combattimento.
 
 ## Quando
 
-Dopo il refactor GUI in corso (DEC-137) e la comparison dei modelli (i candidati migliori
-diventano i modelli di prova del lab). Scala: gradino 3 (implementa opus, giudica Fable).
+**Gate soddisfatto (DEC-165, 2026-07-27): il piano è sbloccato e può partire.** Le due
+condizioni poste da DEC-138 si sono chiuse entrambe — il refactor GUI (DEC-137) è concluso
+e la comparison dei modelli è chiusa il 23/07/2026, con i report congelati in
+`docs/ai-production/experiments/` (i candidati migliori, a partire dal modello di testo
+attivo, diventano i modelli di prova del lab). Restano invariati il criterio di successo e
+i vincoli fissati da DEC-138: generare laser, catena e orbita **senza** primitive dedicate
+a laser, catena o orbita; niente inferenza in combattimento; primitive vincenti ammesse nel
+motore solo con clamp, budget, `ShotTypeBalance` e fallback. Scala: gradino 3 (implementa
+opus, giudica Fable).

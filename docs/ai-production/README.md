@@ -9,9 +9,9 @@ summary: >-
   Punto d'ingresso del dominio ai-production: come si selezionano, allenano e integrano
   modelli, LoRA, dataset e asset generati. Erede dei contenuti canonici della
   worldsmelt-ai-production-blueprint-v2.
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 last_verified_commit: fe27f6d
-topics: [ai-production, modelli, lora, dataset, training]
+topics: [ai-production, modelli, lora, dataset, training, distribuzione]
 related: []
 supersedes: []
 source_files: [scripts/download-models.sh, scripts/dataset_ledger.py]
@@ -37,15 +37,23 @@ qualità visiva vera arriverà con le LoRA; non investire ora in rifiniture visi
 3. [05-KAGGLE-TRAINING-RUNBOOK.md](05-KAGGLE-TRAINING-RUNBOOK.md) e
    [06-AGENTI-KAGGLE-MCP.md](06-AGENTI-KAGGLE-MCP.md) — esecuzione del training remoto;
    il runbook RunPod/kohya locale è in [dataset/TRAINING-RUNBOOK.md](dataset/TRAINING-RUNBOOK.md).
-4. [07-ARCHITETTURA-RUNTIME.md](07-ARCHITETTURA-RUNTIME.md) …
-   [11-PROTOCOLLO-ESPERIMENTI.md](11-PROTOCOLLO-ESPERIMENTI.md) — integrazione e metodo.
+4. [07-ARCHITETTURA-RUNTIME.md](07-ARCHITETTURA-RUNTIME.md) … [10-PIANO-INTEGRAZIONE-C.md](10-PIANO-INTEGRAZIONE-C.md)
+   — integrazione nel motore.
 5. Pipeline approvate il 22/07:
    [15-UI-DESIGN-PIPELINE.md](15-UI-DESIGN-PIPELINE.md),
    [16-AUDIO-GENERATION-PIPELINE.md](16-AUDIO-GENERATION-PIPELINE.md) (adottata da DEC-109,
    licenza DEC-113), [17-ASSET-CURATION-AND-FLOOR-ZERO.md](17-ASSET-CURATION-AND-FLOOR-ZERO.md),
    [18-AGENT-ORCHESTRATION.md](18-AGENT-ORCHESTRATION.md) (la scala di CLAUDE.md prevale
-   per i ruoli). Resta proposta viva: [19-DECISION-QUESTIONNAIRE.md](19-DECISION-QUESTIONNAIRE.md)
-   (coda di domande verso il decision-log).
+   per i ruoli); [11-PROTOCOLLO-ESPERIMENTI.md](11-PROTOCOLLO-ESPERIMENTI.md) e
+   [20-SESSION-PROTOCOL.md](20-SESSION-PROTOCOL.md), approvati il 27/07 con la stessa nota
+   di precedenza (DEC-164) — il primo include ora la variante comparison/bake-off.
+6. [21-DISTRIBUZIONE.md](21-DISTRIBUZIONE.md) — proprietà del tema distribuzione
+   (piattaforme, pagina negozio, AI disclosure), assegnata al dominio da DEC-158; le
+   scelte concrete restano domande aperte in `governance/open-questions.md`.
+
+La coda di domande verso il decision-log non è più `19-DECISION-QUESTIONNAIRE.md`
+(chiuso e archiviato da DEC-147 in `docs/archive/superseded/`): l'unica coda ufficiale è
+[`docs/design/governance/open-questions.md`](../design/governance/open-questions.md).
 
 ## Contenuti operativi
 
@@ -59,8 +67,8 @@ qualità visiva vera arriverà con le LoRA; non investire ora in rifiniture visi
 
 ## Invarianti (non negoziabili senza decisione)
 
-Nessuna inferenza in combattimento; generazione nel Piano 0 o fra piani; Qwen/SD/audio
-caricati in sequenza nei 6 GB; cache e pubblicazione atomica; modalità solo-curato sempre
+Nessuna inferenza in combattimento; generazione nel Piano 0 o fra piani; modello di testo
+attivo, SD e audio caricati in sequenza nei 6 GB; cache e pubblicazione atomica; modalità solo-curato sempre
 dignitosa; fallback curati o geometrici per ogni asset non valido; dataset `research` mai
 mischiato col ramo `commercial-clean`; LoRA prima dei checkpoint completi; SD1.5 baseline
 immagini fino a decisione contraria; nessuna distribuzione di pesi col gioco.

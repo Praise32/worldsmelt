@@ -8,8 +8,8 @@ owner: meta
 summary: >-
   Mappa ogni tipo di task alla parte giusta della knowledge base: quale dominio
   consultare, con quale strumento, e chi implementa/giudica secondo la scala agenti.
-last_reviewed: 2026-07-22
-last_verified_commit: 75c8ab2
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
 topics: [router, navigazione, agenti]
 related: [meta-document-standards]
 supersedes: []
@@ -24,7 +24,8 @@ del design è `docs/design/README.md`; l'indice completo generato è `docs/desig
 
 | Task | Dove guardare | Strumenti/note |
 |---|---|---|
-| Gameplay, regole, contenuti, bilanciamento, flussi | `docs/design/` (systems/, content/, governance/decision-log.md) | Le 108+ decisioni DEC-NNN fanno fede; dubbi → `governance/open-questions.md` |
+| Gameplay, regole, contenuti, bilanciamento, flussi | `docs/design/` (systems/, content/, governance/decision-log.md) | Le decisioni DEC-NNN del registro fanno fede (DEC-001..DEC-169 al 2026-07-27); dubbi → `governance/open-questions.md` |
+| Domanda non risolta, in qualunque dominio | `docs/design/governance/open-questions.md` | Coda ufficiale e **unica** (DEC-147): niente code parallele, le vecchie sono chiuse e archiviate |
 | UI / schermate / HUD | `docs/design/ui/` + `docs/design/05-game-states-and-flow.md` | Stati canonici in `src/app` |
 | Audio | `docs/design/content/audio-and-feedback.md` (DEC-109, fallback da DEC-036) + `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` | Conflitti audio → decision-log prima di tutto |
 | Modifica a un modulo C | `docs/engineering/` + Codebase Memory (`search_graph`, `trace_path`, `get_code_snippet`) | Poi `AGENTS.md` per i confini dei moduli |
@@ -32,9 +33,11 @@ del design è `docs/design/README.md`; l'indice completo generato è `docs/desig
 | Sandbox Lua / sicurezza script | `docs/engineering/specs/2026-07-13-lua-sandbox-design.md` + `src/script/` | Mai ampliare l'allowlist senza barriera + test |
 | Modelli, LoRA, SD, Kaggle, training, dataset | `docs/ai-production/` | Licenze e separazione research/commercial-clean incluse |
 | Sprite / asset generati / Piano 0 curato | `docs/ai-production/` + `docs/design/systems/floor-zero.md` | |
+| Distribuzione: piattaforme, pagina negozio, AI disclosure | `docs/ai-production/21-DISTRIBUZIONE.md` | Tema di proprietà ai-production (DEC-158); `docs/engineering/multiplayer-steam.md` copre la sola integrazione Steam e vi rimanda |
 | Piani di lavoro | `docs/plans/active/` (poi completed/cancelled) | Un piano finito si sposta, non si riscrive |
 | Ricerca esterna, benchmark di mercato | `docs/references/research/` | Mai canonico: informa, non decide |
 | Pulizia/riorganizzazione documentazione | `docs/_meta/` + `make docs-check` | Standard in `_meta/DOCUMENT-STANDARDS.md` |
+| Conflitti fra fonti documentali / drift doc↔codice | `docs/_meta/DOC-CONFLICTS.md`, `docs/_meta/DOC-CODE-DRIFT.md` | Registri vivi (DEC-150): ogni voce ha un campo Stato (aperta/applicata/superata) con la DEC o il commit di chiusura |
 | Storia del progetto, vecchi appunti | `docs/archive/` | Escluso da indici e ricerca di default |
 
 ## Scala agenti (implementa/giudica)

@@ -10,18 +10,18 @@ summary: >-
   SD1.5 (5.6s/img) — Flux.1-schnell Q2K@768 il piu' vicino a ~63s (11x), SDXL@768 74s,
   SD3.5 Medium@768 89s; TAESD-XL sblocca il decode 1024 (1.78s); licenze verificate.
   Artefatti in logs/model-comparison/images-gen2-20260723-202847/.
-last_reviewed: 2026-07-23
+last_reviewed: 2026-07-27
 last_verified_commit: c3f3005
 topics: [comparison, immagini, sdxl, flux, sd35, taesd, licenze, gen2]
 related: [aiprod-exp-image-comparison-2026-07-23]
 supersedes: []
-source_files: [docs/plans/active/model-comparison.md]
+source_files: [docs/plans/completed/model-comparison.md]
 ---
 
 # Estensione gen-2: modelli immagine "moderni" su RX 5600 XT 6 GB (Vulkan)
 
 Task 23-24/07/2026 (notte + mattina, dopo liberazione della GPU confermata dal
-coordinatore). Estende `docs/plans/active/model-comparison.md` (sezione immagini, finora
+coordinatore). Estende `docs/plans/completed/model-comparison.md` (sezione immagini, finora
 solo SD1.5) ai modelli non-SD1.5 supportati dal build pinnato di
 `deps/stable-diffusion.cpp` (`master-775-b5d8120`, commit `b5d8120`): SD3.5 Medium, SDXL,
 Flux.1-schnell. Obiettivo: capire quale modello moderno è il più piccolo/veloce/allenabile-

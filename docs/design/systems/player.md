@@ -6,7 +6,7 @@ status: approved
 authority: canonical
 owner: design
 summary: "Capacità e responsabilità del personaggio giocato: movimento, mira, gestione di risorse e oggetti. Controlli decisi da DEC-007. Per identità e statistiche dei personaggi vedi characters.md."
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
 topics: [player, controlli, movimento, mira, statistiche]
 related: []
@@ -37,7 +37,7 @@ Le statistiche non hanno valori numerici definiti qui: restano categorie concett
 - **Velocità di movimento:** rapidità di spostamento nello spazio libero definito dal controllo sopra.
 - **Cadenza di sparo:** frequenza con cui il personaggio può emettere attacchi nella direzione di mira scelta.
 - **Danno di sparo:** danno per colpo; si combina con le proprietà dell'attacco definite in [combat-and-projectiles.md](combat-and-projectiles.md).
-- **Fortuna:** influenza probabilità legate a pool, rarità e correzione di fortuna — vedi [items-pools-and-rarity.md](items-pools-and-rarity.md) e [../governance/glossary.md](../governance/glossary.md).
+- **Fortuna:** influenza probabilità legate a pool, rarità e correzione di fortuna. Il suo effetto preciso è ridurre la soglia N di estrazioni sfortunate consecutive che attiva la correzione di fortuna, e la correzione vale su **tutti** i pool, pool boss e negozio inclusi (DEC-145): nel pool boss la garanzia è già soddisfatta per costruzione dai pesi 0/0/70/30, quindi la correzione non aggiunge un secondo effetto cumulativo — non è un'eccezione allo scope — fonte unica della definizione della soglia N e del suo scope in [items-pools-and-rarity.md](items-pools-and-rarity.md) (rimando, non riformulato qui); vedi anche [../governance/glossary.md](../governance/glossary.md).
 
 ## Condizioni di ingresso
 

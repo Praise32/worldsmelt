@@ -7,7 +7,7 @@ authority: supporting
 owner: design
 summary: >-
   (vedi documento)
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 topics: [template, enemy, spec, design, content-generation]
 related: []
 supersedes: []
@@ -16,6 +16,11 @@ origin: curato | composto | variato | nuovo
 ---
 
 # Nome nemico
+
+## Vincoli di contenuto
+
+Vedi `generated-content-contract.md` (DEC-163): limiti di contenuto (DEC-119), tono
+narrativo e tassonomia dei tag sono centralizzati lì e non vanno riformulati qui.
 
 ## Ruolo tattico
 

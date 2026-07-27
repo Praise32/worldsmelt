@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Mappa degli stati canonici (05-game-states-and-flow.md) e ritorno del focus. Ogni transizione rispetta la parità rigorosa di input (DEC-057, fonte unica in ui/options-and-accessibility.md)."
-last_reviewed: 2026-07-19
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [navigazione, stati-applicativi, focus, exitconfirm, DEC-084, DEC-089, DEC-090]
+topics: [navigazione, stati-applicativi, focus, exitconfirm, overlay, build-screen, DEC-084, DEC-089, DEC-090, DEC-137, DEC-139, DEC-156]
 related: []
 supersedes: []
 source_files: []
@@ -40,6 +40,8 @@ flowchart TD
     Options -->|Indietro| MainMenu
     PauseMenu -->|Build e sinergie| BuildScreen
     BuildScreen -->|Indietro| PauseMenu
+    Gameplay -->|TAB, arco diretto| BuildScreen
+    BuildScreen -->|TAB o Indietro, se aperta da Gameplay| Gameplay
     PauseMenu -->|Abbandona run| ExitConfirm
     ExitConfirm -->|Conferma abbandono preparazione, da FloorZero| MainMenu
     ExitConfirm -->|Conferma abbandono run, da PauseMenu| RunResults
@@ -64,6 +66,19 @@ flowchart TD
   invisibile (regola, non stato); vedi `systems/generated-content-validation.md`.
 - Il Catalogo (`ui/main-menu.md`) è una vista interna dello stato `MainMenu`, non un
   decimo stato: la mappa canonica resta a 9 stati (DEC-084).
+- Esiste **una sola schermata**: la game view occupa tutto lo schermo e la GUI vive **in
+  overlay** sopra di essa — HUD sovrapposto ai bordi, pannelli (build, log, minimappa) come
+  overlay adattivi/a comparsa, mai come colonne che sottraggono spazio al mondo (DEC-137).
+  Gli stati canonici e le transizioni di questa mappa restano invariati: DEC-137 riguarda il
+  layout della GUI sopra il gioco, non i nodi o gli archi. La **risoluzione logica** con cui
+  quell'overlay viene composto (proposta di 640×360 con scaling intero) **non è approvata**:
+  resta una domanda aperta separata (vedi `governance/open-questions.md`, DEC-156); questo
+  documento non la assume in alcuna forma.
+- `BuildScreen` è raggiungibile anche **direttamente da `Gameplay` con TAB** (arco diretto,
+  coerente col TAB del Piano 0 che apre le carte), oltre che da `PauseMenu` → «Build e
+  sinergie» (DEC-139): la via da Pausa resta invariata, le due vie coesistono. Chiudere
+  `BuildScreen` riporta allo stato da cui è stata aperta: `Gameplay` se aperta con TAB,
+  `PauseMenu` se aperta da lì. Nessun nuovo stato: la mappa canonica resta a 9 stati.
 - `ExitConfirm` è un solo nodo canonico ma la conferma porta a destinazioni diverse secondo
   la provenienza: da `PauseMenu` (abbandono di una **run in corso**) porta a `RunResults`,
   come una sconfitta con i punti ridotti visibili lì (DEC-089); da `FloorZero` (abbandono
@@ -103,3 +118,4 @@ flowchart TD
 4. **Given** il giocatore sconfigge il boss del piano 5, **when** la run termina, **then** il gioco entra in `RunResults` e non torna direttamente a `Gameplay`.
 5. **Given** il giocatore è in `FloorZero` con il focus su una carta tema, **when** preme ESC e poi annulla in `ExitConfirm`, **then** torna a `FloorZero` con il focus di nuovo sulla stessa carta tema.
 6. **Given** il giocatore è in `FloorZero` con la generazione dei piani in corso, **when** preme ESC e conferma l'abbandono in `ExitConfirm`, **then** la preparazione si interrompe e il gioco torna a `MainMenu` (a differenza dell'abbandono di una run in corso da `PauseMenu`, che ora entra in `RunResults`, DEC-089).
+7. **Given** il giocatore è in `Gameplay`, **when** preme TAB, **then** entra direttamente in `BuildScreen` senza passare da `PauseMenu`, e premendo di nuovo TAB (o Indietro) torna a `Gameplay` (DEC-139).

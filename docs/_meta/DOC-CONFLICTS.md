@@ -8,9 +8,11 @@ owner: meta
 summary: >-
   46 conflitti rilevati dall'audit del 2026-07-22 (sonnet propone, opus verifica,
   Fable arbitra i needs-human), con raccomandazione secondo la gerarchia delle fonti e risoluzione adottata.
-last_reviewed: 2026-07-22
-last_verified_commit: a2d5df7
-topics: [audit, conflitti, governance]
+  Registro vivo (DEC-150): ogni voce porta oggi un campo Stato (aperta/applicata/superata)
+  verificato il 27/07.
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [audit, conflitti, governance, registro-vivo]
 related: [meta-document-standards]
 supersedes: []
 source_files: []
@@ -23,8 +25,39 @@ risoluzione adottata nella migrazione, rischio. I 6 conflitti `needs-human` port
 verdetto dell'arbitro (Fable) con default reversibile + open question: nessuna decisione
 di design approvata e' stata modificata.
 
+**Registro vivo (DEC-150).** Ogni voce porta un campo **Stato** — *aperta* / *applicata* /
+*superata* — con la DEC o il commit che l'ha chiusa, verificato il 27/07/2026 contro lo
+stato reale del repo (non dedotto dalle sole intenzioni di migrazione). **Mappa dei
+percorsi pre-migrazione citati nelle voci sotto** (il contenuto e' stato spostato, non
+riscritto, salvo dove lo Stato lo segnala esplicitamente):
+
+| Percorso citato nelle voci (pre-migrazione) | Percorso attuale |
+|---|---|
+| `game-design-knowledge-base/docs/game-design/` | `docs/design/` (stessa struttura di sottocartelle: `systems/`, `ui/`, `content/`, `governance/`) |
+| `worldsmelt-ai-production-blueprint-v2/NN-X.md` | `docs/ai-production/NN-X.md` (stessa numerazione) |
+| `worldsmelt-ai-production-blueprint-v2/agent-config/.../worldsmelt-*.md` | `.claude/agents/worldsmelt-*.md` |
+| `worldsmelt-ai-production-blueprint-v2/19-DECISION-QUESTIONNAIRE.md` | `docs/archive/superseded/19-DECISION-QUESTIONNAIRE.md` (chiuso da DEC-147) |
+| `worldsmelt-ai-production-blueprint-v2/24-PROPOSED-KB-UPDATES.md` | `docs/plans/cancelled/aiprod-proposed-kb-updates.md` (chiuso da DEC-147) |
+| `roguelike-ai-appunti/0N-X.md`, `piano-roguelike-ai.md` | `docs/archive/legacy-notes/roguelike-ai-appunti/` |
+| `worldsmelt-research-pack-2026-07-21/NN-X.md` | `docs/references/research/worldsmelt-research-pack-2026-07-21/NN-X.md` |
+| `docs/references/*.md` (livello radice) | `docs/references/research/*.md` |
+| `docs/DESIGN_NOTES.md` | `docs/archive/legacy-notes/design-notes.md` |
+| `docs/APPUNTI.md` | `docs/archive/legacy-notes/appunti.md` |
+| `docs/ISSUE_NOTES.md` | `docs/archive/legacy-notes/issue-notes.md` |
+| `docs/OPENAI_SETUP.md` | `docs/archive/superseded/openai-setup.md` |
+| `docs/BENCHMARKS.md` | `docs/engineering/benchmarks.md` (versione 13/07 congelata in `docs/archive/superseded/benchmarks-2026-07-13.md`) |
+| `docs/SPRITES-SPIKE.md` | `docs/ai-production/experiments/sprites-spike.md` |
+| `docs/dataset/README.md`, `docs/dataset/TRAINING-RUNBOOK.md` | `docs/ai-production/dataset/README.md`, `docs/ai-production/dataset/TRAINING-RUNBOOK.md` |
+| `docs/superpowers/specs/2026-07-13-*.md` | `docs/engineering/specs/2026-07-13-*.md` |
+| `docs/superpowers/plans/2026-07-13-linux-local-llm.md` | `docs/archive/historical-plans/2026-07-13-linux-local-llm.md` |
+| `worldsmelt_sintesi_strategica.md` | nessuno: mai tracciato in git (`git log --all` senza risultati) |
+
+`worldsmelt-ai-production-blueprint-v2/00-DECISIONI-CANONICHE.md` a `07-ARCHITETTURA-RUNTIME.md`
+seguono la stessa regola generale (numerazione invariata sotto `docs/ai-production/`).
+
 ## DOC-CONFLICT-001 — generazione-piani-stanze.md raccomanda una griglia uniforme 9x8 che DEC-009 esplicitamente scarta
 
+- **Stato**: applicata — migrato in `docs/references/research/generazione-piani-stanze.md` (rango 8, non autorevole); DEC-009 intatta, nessuna nuova contraddizione osservata.
 - **Fonti**: `docs/references/generazione-piani-stanze.md`, `game-design-knowledge-base/docs/game-design/systems/rooms-and-floor-generation.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md`
 - **Decisioni**: DEC-009
 - **Rischio**: alto
@@ -34,6 +67,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-002 — design-sinergie.md propone un campo Item.archetype mai realizzato: l'implementazione reale usa segnali diversi
 
+- **Stato**: applicata — migrato in `docs/references/research/design-sinergie.md`; DEC-037 e `src/gameplay/synergies.c` restano invariati, nessuna contraddizione residua.
 - **Fonti**: `docs/references/design-sinergie.md`, `src/gameplay/synergies.c`, `game-design-knowledge-base/docs/game-design/systems/synergies.md`
 - **Rischio**: basso
 - **Evidenza**: VERIFICATO. Ref §4.1/§6.1 propone 'typedef enum ItemArchetype { ARCH_NONE=0, ARCH_BOUNCE, ... }' persistito su Item. 'grep -rn ItemArchetype src/' non trova nulla. synergies.c (righe 14-26) usa SynergySignal su Item.traits esistenti + SIG_SHOT_CHAIN/SIG_SHOT_PIERCE; il commento di testata dichiara esplicitamente 'perche' non c'e' Item.archetype'. KB synergies.md rimanda a synergies.c righe 55-106 come esempi canonici delle 6 sinergie, senza prescrivere il meccanismo interno.
@@ -42,6 +76,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-003 — pattern-nemici-e-boss.md non riflette i vincoli approvati successivamente su roster, Veterano e danno da contatto
 
+- **Stato**: applicata — migrato in `docs/references/research/pattern-nemici-e-boss.md` come catalogo di pattern (non fonte di vincoli); i vincoli restano in `docs/design/systems/enemies.md`.
 - **Fonti**: `docs/references/pattern-nemici-e-boss.md`, `game-design-knowledge-base/docs/game-design/systems/enemies.md`
 - **Decisioni**: DEC-053, DEC-104, DEC-024, DEC-061, DEC-072
 - **Rischio**: medio
@@ -51,6 +86,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-004 — 16-AUDIO-GENERATION-PIPELINE propone audio generativo in pre-alpha contro DEC-036 (audio curato)
 
+- **Stato**: superata (DEC-109, 22/07) — l'audio generativo è stato adottato: `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` è sbloccata e promossa, `docs/design/content/audio-and-feedback.md` aggiornato. Nota: README.md 'Limiti intenzionali' non ancora allineato (fuori perimetro di questo pacchetto).
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/16-AUDIO-GENERATION-PIPELINE.md`, `game-design-knowledge-base/docs/game-design/content/audio-and-feedback.md`, `worldsmelt-ai-production-blueprint-v2/19-DECISION-QUESTIONNAIRE.md`
 - **Decisioni**: DEC-036, DEC-018, DEC-024
 - **Rischio**: alto  |  **needs-human**
@@ -61,6 +97,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-005 — 17-ASSET-CURATION e Q-F0-001 trattano l'identita del Piano 0 come aperta, ma e gia risolta da 8+ decisioni approvate
 
+- **Stato**: applicata — Q-F0-001 chiusa; `docs/design/systems/floor-zero.md` resta fonte, `17-ASSET-CURATION-AND-FLOOR-ZERO.md` migrato in `docs/ai-production/17-ASSET-CURATION-AND-FLOOR-ZERO.md`.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/17-ASSET-CURATION-AND-FLOOR-ZERO.md`, `worldsmelt-ai-production-blueprint-v2/19-DECISION-QUESTIONNAIRE.md`, `worldsmelt-ai-production-blueprint-v2/24-PROPOSED-KB-UPDATES.md`, `game-design-knowledge-base/docs/game-design/systems/floor-zero.md`
 - **Decisioni**: DEC-004, DEC-029, DEC-040, DEC-063, DEC-070, DEC-085, DEC-086, DEC-087, DEC-094
 - **Rischio**: medio
@@ -70,6 +107,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-006 — 00-DECISIONI-CANONICHE e 24-PROPOSED-KB-UPDATES sono uno snapshot pre-fusione non allineato alle 108 decisioni
 
+- **Stato**: applicata — `00-DECISIONI-CANONICHE.md` migrato in `docs/ai-production/00-DECISIONI-CANONICHE.md`; `24-PROPOSED-KB-UPDATES.md` chiuso da DEC-147 e archiviato in `docs/plans/cancelled/aiprod-proposed-kb-updates.md`; DEC-046 (UI pixel-art) confermata.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/00-DECISIONI-CANONICHE.md`, `worldsmelt-ai-production-blueprint-v2/24-PROPOSED-KB-UPDATES.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md`, `game-design-knowledge-base/docs/game-design/content/visual-language.md`
 - **Decisioni**: DEC-046, DEC-036, DEC-002, DEC-020, DEC-070
 - **Rischio**: medio
@@ -79,6 +117,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-007 — 15-UI-DESIGN-PIPELINE non e in conflitto con ui/*, ma rischia sovrapposizione silenziosa se migrato senza rimandi
 
+- **Stato**: applicata — `15-UI-DESIGN-PIPELINE.md` migrato in `docs/ai-production/15-UI-DESIGN-PIPELINE.md`; nessun conflitto sostanziale con `docs/design/ui/hud.md` e `ui/options-and-accessibility.md`.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/15-UI-DESIGN-PIPELINE.md`, `game-design-knowledge-base/docs/game-design/ui/hud.md`, `game-design-knowledge-base/docs/game-design/ui/options-and-accessibility.md`
 - **Decisioni**: DEC-046, DEC-057, DEC-075
 - **Rischio**: basso
@@ -88,6 +127,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-008 — Il diagramma "pipeline locale, di serie" nel README omette del tutto melting-sprites
 
+- **Stato**: applicata — README.md aggiornato: `bin/melting-sprites` compare oggi nel diagramma della pipeline locale.
 - **Fonti**: `README.md (sezione Pipeline dinamica, diagramma 'Percorso locale, di serie')`, `Makefile (run-gen, run-gen-fast, SPRITES_BIN)`, `tools/melting-sprites/`, `src/app/app.c (spritesPlannedThisRun, spritesCommand)`
 - **Rischio**: medio
 - **Evidenza**: CONFERMATO. README diagramma (righe 113-124) mostra solo bin/melting-gen. Makefile: 'run-gen: --generate' e 'run-gen-fast: --generate --no-sprites' con commento 'Stessa cosa di run-gen ma con --no-sprites' per non pagare melting-sprites ogni run. app.c: spritesPlannedThisRun = !noSprites && SpritesModelsPresent(); spritesCommand='bin/melting-sprites'. Il passo sprite gira di default a --generate.
@@ -96,6 +136,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-009 — current_atlas.png descritto come artefatto esclusivo dell'Image API OpenAI, ma e' anche l'output di default di melting-sprites (locale)
 
+- **Stato**: applicata — README.md e `docs/OPENAI_SETUP.md` (oggi `docs/archive/superseded/openai-setup.md`) corretti: `current_atlas.png` non è più presentato come esclusivo del percorso OpenAI.
 - **Fonti**: `README.md (tabella file Architettura, riga 257)`, `docs/OPENAI_SETUP.md (sezione 3)`, `src/content/run_content.c (PreferPngAtlasIfFresh, righe 445-467)`, `tools/melting-sprites/sprite_manifest.c (SpritesUpdateManifestAtlasPath)`
 - **Rischio**: medio
 - **Evidenza**: CONFERMATO. README riga 257: 'current_atlas.png: spritesheet generato dalla Image API di OpenAI (percorso storico)'. run_content.c commento: 'e' melting-sprites... a riscrivere quella riga puntando al PNG'; PreferPngAtlasIfFresh sceglie il PNG se GetFileModTime(PNG) >= GetFileModTime(manifest), cioe' per data del file, non per provenienza. OPENAI_SETUP.md sez.3 elenca il PNG come file OpenAI.
@@ -104,6 +145,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-010 — docs/DESIGN_NOTES.md presenta la sandbox Lua come ipotesi futura non scelta, ma DEC-037 l'ha gia' decisa ed e' implementata come percorso primario
 
+- **Stato**: applicata — `docs/DESIGN_NOTES.md` archiviato in `docs/archive/legacy-notes/design-notes.md`; DEC-037 e la sandbox Lua restano fonte corrente.
 - **Fonti**: `docs/DESIGN_NOTES.md (righe 50-74, 113)`, `game-design-knowledge-base/.../decision-log.md (DEC-037)`, `AGENTS.md (ScriptSandbox/ScriptVm)`, `src/script/ (script_sandbox.c, script_api.c, script_items.c, script_character.c)`, `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`
 - **Decisioni**: DEC-037
 - **Rischio**: medio
@@ -113,6 +155,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-011 — docs/APPUNTI.md elenca come "Obiettivi di Sviluppo (Integrazioni Future)" funzionalita' gia' completate (LLM locale, sandbox Lua)
 
+- **Stato**: applicata — `docs/APPUNTI.md` archiviato in `docs/archive/legacy-notes/appunti.md`.
 - **Fonti**: `docs/APPUNTI.md (sezione 2; sezione 8 righe 146-162)`, `tools/melting-gen/ (llama.cpp Vulkan)`, `src/script/ (Lua 5.5)`, `Makefile (test-script, test-gen, test-sprites)`
 - **Rischio**: basso
 - **Evidenza**: CONFERMATO. APPUNTI.md sez.2 presenta 'Transizione a Sandbox Lua' e 'Integrazione LLM Locale... gguf-tools e llama.cpp' come obiettivi futuri. Entrambe realizzate: tools/melting-gen usa llama.cpp, src/script/ implementa la sandbox Lua, con target make test-gen/test-script/test-sprites. Sez.8 descrive pipeline SDXL+ControlNet+LoRA Pixel Art, mentre il percorso reale e' SD1.5 (tools/melting-sprites/sprite_sd.c).
@@ -121,6 +164,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-012 — README apre con Quick Start .bat (Windows) e mantiene la sezione OpenAI a pari peso, mentre la spec approvata indica il percorso locale/Linux come riferimento
 
+- **Stato**: applicata — README.md riordinato: Quick Start Linux/locale in testa, sezione OpenAI/.bat retrocessa a 'Percorso storico Windows / OpenAI'.
 - **Fonti**: `README.md (sezioni 'Avvio rapido', 'OpenAI API')`, `docs/OPENAI_SETUP.md`, `docs/ISSUE_NOTES.md`, `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md`, `AGENTS.md`, `llm/ (run_content.mjs, server.mjs)`
 - **Rischio**: basso
 - **Evidenza**: CONFERMATO come problema di gerarchia visiva, non di contenuto. README riga 3-12 dichiara il locale 'di serie', ma 'Avvio rapido' (righe 18-61) apre con .bat Windows PRIMA di 'Avvio rapido su Linux'. La spec 2026-07-13 (tier 2) pone come obiettivo la generazione locale 'senza rete e senza OpenAI'. Il README stesso dice che OpenAI 'resta disponibile... e non e' stato rimosso', quindi nessuna contraddizione di sostanza.
@@ -129,6 +173,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-013 — AGGIUNTO: README 'Limiti intenzionali'/roadmap dichiara 'sprite locali' e 'sandbox Lua' come fasi future, ma entrambi sono gia' implementati
 
+- **Stato**: applicata — README.md 'Limiti intenzionali' corretto: sprite locali (SD1.5) e sandbox Lua non più citati come fasi future.
 - **Fonti**: `README.md (Limiti intenzionali, righe 272-284)`, `tools/melting-sprites/ (stable-diffusion.cpp, SD1.5)`, `scripts/download-models.sh (MODEL_SD, MODEL_LCM, MODEL_TAESD)`, `src/script/`, `game-design-knowledge-base/.../decision-log.md (DEC-037)`
 - **Decisioni**: DEC-037
 - **Rischio**: medio
@@ -138,6 +183,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-014 — Line 328 della sintesi ("RunBundle canonici invece di un unico modello obbligatorio") NON contraddice DEC-070: e' un altro asse (distribuzione contenuti, non tier di download modelli)
 
+- **Stato**: applicata — nessuna contraddizione di merito (confermato); `worldsmelt_sintesi_strategica.md` non risulta mai tracciato in git (`git log --all` senza risultati): probabile file di lavoro esterno al repo.
 - **Fonti**: `worldsmelt_sintesi_strategica.md:327-328`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-070)`, `worldsmelt-research-pack-2026-07-21/10-decisioni-e-domande-aperte.md (D2)`
 - **Decisioni**: DEC-070
 - **Rischio**: basso
@@ -147,6 +193,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-015 — 10-decisioni-e-domande-aperte.md si autodefinisce "Decisioni consolidate" (D1-D10): registro parallelo non governato, con D1 in tensione con DEC-070
 
+- **Stato**: applicata — migrato in `docs/references/research/worldsmelt-research-pack-2026-07-21/10-decisioni-e-domande-aperte.md` con front matter `status: proposed`, `authority: supporting` (non più 'decisioni consolidate' senza qualifica); il decision-log resta unica fonte.
 - **Fonti**: `worldsmelt-research-pack-2026-07-21/10-decisioni-e-domande-aperte.md:3-45`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-070)`
 - **Decisioni**: DEC-070
 - **Rischio**: medio
@@ -156,6 +203,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-016 — 06-modelli-immagine-audio-stability assume come accettata una futura licenza Enterprise Stability AI a pagamento, senza alcuna decisione di progetto
 
+- **Stato**: superata (DEC-113, 22/07) — accettati i termini della Stability AI Community License per Stable Audio Small; soglia Enterprise da rivalutare solo sopra 1M$/anno di ricavi.
 - **Fonti**: `worldsmelt-research-pack-2026-07-21/06-modelli-immagine-audio-stability.md:116-121`, `docs/LICENZE.md`
 - **Rischio**: medio  |  **needs-human**
 - **Evidenza**: Il documento afferma: "Poiche' il passaggio Enterprise e' accettabile per il progetto, la licenza non deve guidare la scelta qualitativa". docs/LICENZE.md e' costruito interamente su licenze senza soglia di ricavo (Apache 2.0, OpenRAIL-M, openrail++, MIT), sul principio di non ridistribuire mai i pesi, e non registra alcuna accettazione di un obbligo Enterprise a pagamento. Adottare SD3.5/Stable Audio (Community License Stability) introdurrebbe una soglia di ricavo Enterprise assente nello stack attuale (SD1.5).
@@ -165,6 +213,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-017 — Priorita' dell'audio generativo: la sintesi lo mette tra le cose "da rinviare", 06 lo tratta come lavoro operativo prossimo senza cautela di scope
 
+- **Stato**: superata (DEC-109, 22/07) — la priorità è stata decisa: audio generativo adottato subito (Stable Audio Small + fallback rFXGen/curato), non più rinviato.
 - **Fonti**: `worldsmelt_sintesi_strategica.md:154-160`, `worldsmelt-research-pack-2026-07-21/06-modelli-immagine-audio-stability.md:74-106`, `worldsmelt-research-pack-2026-07-21/10-decisioni-e-domande-aperte.md (domanda aperta 11)`
 - **Rischio**: basso
 - **Evidenza**: Sintesi (righe 154-160) elenca "audio generativo" tra le cose "Da rinviare" per scope eccessivo. 06 dedica una sezione operativa dettagliata (Stable Audio 3 Small SFX/Music, Medium) senza cautela di scope. Il research pack stesso pero' hedgea: la domanda aperta 11 di file 10 chiede se Stable Audio "deve essere una fase successiva". Nessuna voce di decision-log arbitra la priorita'.
@@ -173,6 +222,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-018 — Licenza LCM-LoRA SD1.5 dichiarata in modo opposto in due fonti
 
+- **Stato**: applicata — fix eseguito nella migrazione (Fable): `scripts/download-models.sh` etichetta oggi `lcm-lora-sdv1-5.safetensors` come openrail++ (verificato), coerente con `docs/ai-production/licenze.md`.
 - **Fonti**: `docs/LICENZE.md:38`, `scripts/download-models.sh:82 (genera models/README.md)`
 - **Rischio**: alto  |  **needs-human**
 - **Evidenza**: Verificato: docs/LICENZE.md tabella modelli riporta 'LCM-LoRA SD1.5 | openrail++'; l'heredoc di scripts/download-models.sh che scrive models/README.md riporta 'lcm-lora-sdv1-5.safetensors ... (Apache 2.0, salvato con questo nome...)'. Contraddizione reale nel repo; la model card upstream latent-consistency/lcm-lora-sdv1-5 dichiara openrail++.
@@ -182,6 +232,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-019 — Tre schemi diversi e incompatibili per il ledger di provenienza del dataset
 
+- **Stato**: applicata — confrontato con `docs/ai-production/04-DATASET-LICENZE.md` (ex blueprint-v2): lo schema reale di `docs/ai-production/dataset/README.md` resta l'unico applicato; DEC-148 corregge ulteriormente le affermazioni non adottate di 04.
 - **Fonti**: `docs/dataset/README.md`, `scripts/dataset_ledger.py`, `docs/dataset/ledger.jsonl`, `worldsmelt-ai-production-blueprint-v2/04-DATASET-LICENZE.md`, `worldsmelt-ai-production-blueprint-v2/templates/DATASET-LEDGER.md`
 - **Rischio**: medio
 - **Evidenza**: Verificato: dataset_ledger.py REQUIRED_FIELDS e README definiscono lo schema realmente eseguito (sha256, original_url, license_id, license_snapshot_date, role, author...) su ledger.jsonl da 3158 righe. blueprint-v2/04 propone campi inesistenti nel registro (source_url, downloaded_at, allowed_commercial, allowed_derivatives, training_allowed_explicit, split_group); templates/DATASET-LEDGER.md ne aggiunge un terzo (provenance_status, body_plan, view, original_sha256/processed_sha256).
@@ -190,6 +241,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-020 — Separazione research-unknown-provenance / commercial-clean (con dataset Kaggle da 89k immagini) mai adottata nella pipeline reale
 
+- **Stato**: superata (DEC-148, 27/07) — i dataset attuali (incluso il Kaggle ~89k) non sono definitivi; il piano dataset a due rami è sostituito dal piano dataset proprietario.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/00-DECISIONI-CANONICHE.md:41-44`, `worldsmelt-ai-production-blueprint-v2/04-DATASET-LICENZE.md`, `docs/dataset/README.md`, `scripts/dataset_ledger.py:46`
 - **Rischio**: medio
 - **Evidenza**: Verificato: 00-DECISIONI-CANONICHE propone di separare research-unknown-provenance e commercial-clean e ammette il dataset Kaggle ebrahimelgazar/pixel-art (~89.000 immagini, provenienza non identificata) per ricerca. dataset_ledger.py LICENSE_WHITELIST = {cc0, cc0-1.0, own, commissioned}: nessun livello 'research'. Nel ledger 3158/3158 voci sono CC0 e non c'e' traccia del dataset Kaggle in nessun file del repo.
@@ -198,6 +250,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-021 — Elenco pack Kenney candidati diverso fra nota di ricerca e registro implementato
 
+- **Stato**: applicata — `roguelike-ai-appunti/05` archiviato in `docs/archive/legacy-notes/roguelike-ai-appunti/05-dataset-e-licenze.md`; `docs/ai-production/dataset/README.md` resta la fonte sui pack Kenney realmente scaricati (Pixel UI Pack mai aggiunto).
 - **Fonti**: `roguelike-ai-appunti/05-dataset-e-licenze.md:36-43`, `docs/dataset/README.md:72-82`, `docs/dataset/TRAINING-RUNBOOK.md:100`
 - **Rischio**: basso
 - **Evidenza**: Verificato: roguelike-ai-appunti/05 elenca 6 pack Kenney incluso Pixel UI Pack; docs/dataset/README.md ne elenca 5 (senza Pixel UI Pack) e TRAINING-RUNBOOK.md parla di '3158 file da 6 pack' (5 Kenney + superpowers). In ledger.jsonl le fonti Kenney distinte sono 5 (tiny-dungeon, micro-roguelike, 1-bit-pack, pixel-shmup, top-down-shooter) e le voci con 'pixel-ui' sono zero.
@@ -206,6 +259,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-022 — Checkpoint SD1.5 di base: 'vanilla' dichiarato canonico in blueprint-v2 contro il fine-tune pixel-art realmente scaricato
 
+- **Stato**: superata (DEC-148, 27/07) — base immagini SD1.5 confermata; la Style LoRA si addestra su base vanilla (non su `pixel-baseline`); il runtime resta su `pixel-baseline` fino a validazione.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/00-DECISIONI-CANONICHE.md:7`, `worldsmelt-ai-production-blueprint-v2/02-STACK-MODELLI.md:41-58`, `scripts/download-models.sh:31-32`, `docs/LICENZE.md:37`
 - **Rischio**: basso
 - **Evidenza**: Verificato: 00-DECISIONI-CANONICHE riga 7 'Base immagini: Stable Diffusion 1.5 vanilla' e 02-STACK-MODELLI tratta i checkpoint pixel di terze parti solo come benchmark; scripts/download-models.sh righe 31-32 scaricano invece PublicPrompts/All-In-One-Pixel-Model.ckpt come base runtime, come conferma docs/LICENZE.md riga 37. Nessuna Style LoRA ancora addestrata.
@@ -214,6 +268,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-023 — "Melting Run" vs "Worldsmelt" nei prompt degli agenti in .claude/agents/
 
+- **Stato**: applicata — verificato: `.claude/agents/melting-implementer.md:7`, `melting-verifier.md:7`, `melting-content-designer.md:3,7` dicono oggi 'Worldsmelt', non più 'Melting Run'.
 - **Fonti**: `.claude/agents/melting-implementer.md`, `.claude/agents/melting-verifier.md`, `.claude/agents/melting-content-designer.md`, `CLAUDE.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-071)`
 - **Decisioni**: DEC-071, DEC-003
 - **Rischio**: basso
@@ -223,6 +278,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-024 — Percorsi INDEX/decisioni-canoniche inesistenti negli agent-config del pacchetto ai-production
 
+- **Stato**: applicata (2026-07-27) — gli agent-config sono migrati in `.claude/agents/worldsmelt-*.md`; i riferimenti puntano oggi a `docs/ai-production/`. Il residuo segnalato lo stesso giorno — `worldsmelt-path-orchestrator.md:19` che citava `docs/ai-production/19-DECISION-QUESTIONNAIRE.md`, archiviato da DEC-147 — è stato chiuso: lo step 5 dell'orchestratore rimanda ora alla sola coda ufficiale `docs/design/governance/open-questions.md` (DEC-147). Il file sta in `.claude/agents/`, fuori da `docs/`, ma `make docs-check` ne verifica i puntatori: lasciarlo rotto avrebbe tenuto il gate rosso.
 - **Fonti**: `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-path-orchestrator.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/codex/AGENTS-AI-PRODUCTION-APPENDIX.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/CLAUDE-ML-APPENDIX.md`, `worldsmelt-ai-production-blueprint-v2/INDEX.md (percorso reale odierno)`, `docs/ai-production/INDEX.md (destinazione di migrazione, ora stub generato)`
 - **Rischio**: medio
 - **Evidenza**: Verificato: path-orchestrator.md:13 e codex/AGENTS-AI-PRODUCTION-APPENDIX.md:5 puntano a "docs/worldsmelt-ai-production-blueprint/INDEX.md"; CLAUDE-ML-APPENDIX.md:8 a "worldsmelt-ai-blueprint/00-DECISIONI-CANONICHE.md" (e :10 a ml/run_policy.yaml). Confermato che docs/worldsmelt-ai-production-blueprint NON esiste. Il pacchetto reale (non tracciato in git) e worldsmelt-ai-production-blueprint-v2/ con INDEX.md e 00-DECISIONI-CANONICHE.md alla radice. Correzione all'analista: docs/ai-production/ NON e piu vuota, contiene INDEX.md ma e uno stub auto-generato ("make docs-index"), non il contenuto migrato del blueprint.
@@ -231,6 +287,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-025 — Incoerenza interna nel pacchetto ai-production sul giudice degli specialisti non-codice
 
+- **Stato**: aperta — verificato: `worldsmelt-path-orchestrator.md` restringe ancora il gate a 'Ogni modifica di codice passa da melting-verifier', senza citare output ML/UI/audio/curation; non corretto, fuori perimetro di questo pacchetto (file in `.claude/agents/`).
 - **Fonti**: `CLAUDE.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-path-orchestrator.md`, `worldsmelt-ai-production-blueprint-v2/18-AGENT-ORCHESTRATION.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-asset-curator.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-ml-pipeline-architect.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-ui-systems-designer.md`, `worldsmelt-ai-production-blueprint-v2/agent-config/claude/agents/worldsmelt-audio-systems-designer.md`
 - **Rischio**: basso
 - **Evidenza**: CLAUDE.md: la scala e universale, unica eccezione melting-content-designer. Correzione all'analista: la lacuna NON e completa. 18-AGENT-ORCHESTRATION.md:123-127 estende gia la scala a TUTTI gli specialisti ("Usa la scala gia definita nel root CLAUDE.md; verifier un gradino sopra; escalation dopo bocciatura o due fallimenti") e :39 mostra il flusso "specialista -> verifier -> report". Il difetto residuo e piu ristretto: path-orchestrator.md:35-36 restringe il gate al solo "Ogni modifica DI CODICE passa da melting-verifier", non citando output ML/UI/audio/curation. I 6+1 agenti (incluso decision-facilitator, non elencato dall'analista) hanno model fisso senza rung esplicito nel proprio file.
@@ -239,6 +296,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-026 — Commit diretto su main (CLAUDE.md) vs PR/branch raccomandato da Q-AG-002 nel pacchetto ai-production
 
+- **Stato**: applicata — Q-AG-002 chiusa (CLAUDE.md/18-AGENT-ORCHESTRATION/DEC-164 secondo `open-questions.md`); commit/push diretto su main resta la policy attiva.
 - **Fonti**: `CLAUDE.md`, `worldsmelt-ai-production-blueprint-v2/19-DECISION-QUESTIONNAIRE.md (Q-AG-002, r.273-287)`, `.claude/agents/melting-implementer.md`
 - **Rischio**: medio
 - **Evidenza**: Verificato: CLAUDE.md "Ogni cambiamento verificato va committato e pushato subito su main" (coerente con memoria push-direct-to-main del 16/07). Q-AG-002 (BLOCKING, non risolta) raccomanda "C per task ML/UI/audio; A per piccoli fix". melting-implementer.md:19-20 "Non committare mai ... Il commit lo fa il chiamante dopo verifica": ruoli distinti (implementer vs chiamante-che-committa), gia coerenti, non in conflitto tra loro.
@@ -247,6 +305,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-027 — DSL tipizzata a tre livelli (percorso principale) vs Lua sandboxed generato
 
+- **Stato**: applicata — `docs/engineering/adr/ADR-003-lua-sandbox-non-dsl.md` creato; `roguelike-ai-appunti/02` e la sezione architetturale di `08` archiviati in `docs/archive/legacy-notes/roguelike-ai-appunti/`.
 - **Fonti**: `roguelike-ai-appunti/02-architettura-sinergie-dsl.md`, `roguelike-ai-appunti/08-roadmap-vertical-slice.md`, `roguelike-ai-appunti/piano-roguelike-ai.md`, `game-design-knowledge-base/docs/game-design/06-ai-content-generation-model.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-037)`
 - **Decisioni**: DEC-037
 - **Rischio**: alto
@@ -256,6 +315,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-028 — AI Director con difficolta adattiva alle prestazioni vs 'Difficolta unica' (DEC-038)
 
+- **Stato**: applicata (DEC-112, 22/07) — il director-per-stile è parcheggiato fra le idee future di DEC-018; DEC-038 (difficoltà unica) resta intatta.
 - **Fonti**: `roguelike-ai-appunti/04-ai-director-adattamento.md`, `roguelike-ai-appunti/01-visione-e-confini.md`, `game-design-knowledge-base/docs/game-design/07-difficulty-and-progression.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-038)`
 - **Decisioni**: DEC-038
 - **Rischio**: alto  |  **needs-human**
@@ -266,6 +326,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-029 — Linking in-process di llama.cpp/stable-diffusion.cpp vs architettura a processi esterni (MANCANTE nell'analisi)
 
+- **Stato**: applicata — `docs/engineering/adr/ADR-002-generatori-processi-esterni.md` creato; `piano-roguelike-ai.md` archiviato in `docs/archive/legacy-notes/roguelike-ai-appunti/piano-roguelike-ai.md`.
 - **Fonti**: `roguelike-ai-appunti/piano-roguelike-ai.md`, `AGENTS.md`, `Makefile`, `src/gen (ciclo di vita processo melting-gen)`
 - **Rischio**: medio
 - **Evidenza**: Conflitto sfuggito all'analista, trovato controllando fonti non citate. piano-roguelike-ai.md §2 (riga 28): 'llama.cpp + stable-diffusion.cpp linkati in-process... in un gioco Steam un processo unico evita prompt del firewall, conflitti di porta e processi orfani'; il sidecar (processo esterno) e trattato come mero fallback per crash-isolation. L'architettura REALE e opposta: AGENTS.md riga 20 e Makefile righe 54-78 mostrano bin/melting-gen e bin/melting-sprites come binari separati; 'il binario del gioco... linka nessuno dei tre'; src/gen gestisce melting-gen come PROCESSO esterno (avvio, timeout, annullamento). Gerarchia: doc engineering verificata contro il codice (liv. 4) batte il piano (liv. 6).
@@ -274,6 +335,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-030 — Livelli hardware S/A/B/C con configurazioni di modello diverse vs scelta binaria del primo avvio (DEC-070)
 
+- **Stato**: applicata (DEC-111, 22/07) — scelta binaria confermata; la tabella dei tier S/A/B/C resta memoria storica in `docs/archive/legacy-notes/roguelike-ai-appunti/`.
 - **Fonti**: `roguelike-ai-appunti/piano-roguelike-ai.md`, `game-design-knowledge-base/docs/game-design/systems/floor-zero.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-070)`
 - **Decisioni**: DEC-070, DEC-086
 - **Rischio**: alto  |  **needs-human**
@@ -284,6 +346,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-031 — Rosa di personaggi base: 'nessun personaggio base aggiuntivo in v1' (superato da DEC-030)
 
+- **Stato**: applicata — nessuna azione di design necessaria; `01`/`08` (oggi in `docs/archive/legacy-notes/roguelike-ai-appunti/`) restano superati da DEC-030/080/108.
 - **Fonti**: `roguelike-ai-appunti/01-visione-e-confini.md`, `roguelike-ai-appunti/08-roadmap-vertical-slice.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-014, DEC-030, DEC-080, DEC-108)`
 - **Decisioni**: DEC-014, DEC-030
 - **Rischio**: basso
@@ -293,6 +356,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-032 — Modalita multiplayer 'Crossed AI Duel' e 'Model Battle' non presenti nella tassonomia approvata
 
+- **Stato**: applicata — `07-multiplayer-classifiche.md` archiviato in `docs/archive/legacy-notes/roguelike-ai-appunti/`; struttura menu reale resta DEC-021/DEC-062; Crossed AI Duel/Model Battle non promosse (verificato: assenti da `open-questions.md`).
 - **Fonti**: `roguelike-ai-appunti/07-multiplayer-classifiche.md`, `game-design-knowledge-base/docs/game-design/08-multiplayer-and-competition.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-016, DEC-018, DEC-021, DEC-062)`
 - **Decisioni**: DEC-016, DEC-018, DEC-021, DEC-062
 - **Rischio**: basso
@@ -302,6 +366,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-033 — Dataset, licenze e training GPU (05, 06, 10): contenuto di produzione IA non migrato
 
+- **Stato**: applicata — `05`/`06`/`10` di `roguelike-ai-appunti` archiviati; materiale di produzione confrontato con `docs/ai-production/04-DATASET-LICENZE.md` e `03-PIANO-LORA.md`, ulteriormente aggiornati da DEC-148.
 - **Fonti**: `roguelike-ai-appunti/05-dataset-e-licenze.md`, `roguelike-ai-appunti/06-training-hardware-costi.md`, `roguelike-ai-appunti/10-fonti-verificate.md`, `worldsmelt-ai-production-blueprint-v2/04-DATASET-LICENZE.md`, `worldsmelt-ai-production-blueprint-v2/03-PIANO-LORA.md`
 - **Rischio**: basso
 - **Evidenza**: Verificato. Nessuna DEC ne doc di game-design tratta fonti dataset, licenze CC0/OpenRAIL, costi GPU o pipeline di training: correttamente fuori perimetro (la KB e docs/game-design, non produzione). I tre file restano non coperti dalla KB. Esistono gia in repo, piu recenti (21/07): worldsmelt-ai-production-blueprint-v2/04-DATASET-LICENZE.md e 03-PIANO-LORA.md (e piano-roguelike-ai.md §5 copre le licenze in dettaglio).
@@ -310,6 +375,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-034 — Pipeline visiva del personaggio (Visual Dominance Budget, rig a socket, LoRA di ruolo): contenuto tecnico non migrato
 
+- **Stato**: applicata — `03-personaggio-grafica-60fps.md` archiviato; `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md` e `09-NEMICI-BODY-PLAN-RIG.md` coprono oggi il terreno tecnico.
 - **Fonti**: `roguelike-ai-appunti/03-personaggio-grafica-60fps.md`, `worldsmelt-ai-production-blueprint-v2/08-PIPELINE-SPRITE-ANIMAZIONI.md`, `worldsmelt-ai-production-blueprint-v2/09-NEMICI-BODY-PLAN-RIG.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-046, DEC-049)`
 - **Decisioni**: DEC-046, DEC-049
 - **Rischio**: basso
@@ -319,6 +385,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-035 — Roadmap a fasi (Fase 0-7) con nomenclatura e architettura superate
 
+- **Stato**: applicata — `08-roadmap-vertical-slice.md` e la §8 di `piano-roguelike-ai.md` archiviati; la sequenza reale resta tracciata da CLAUDE.md/git log (milestone M1-M8, poi Fase 1 completa).
 - **Fonti**: `roguelike-ai-appunti/08-roadmap-vertical-slice.md`, `roguelike-ai-appunti/piano-roguelike-ai.md`, `CLAUDE.md (repo principale)`
 - **Decisioni**: DEC-037
 - **Rischio**: basso
@@ -328,6 +395,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-036 — RunBundle/replay: dettagli tecnici (hash SHA-256, formato) allineati nel principio ma mai formalizzati come contratto/ADR
 
+- **Stato**: aperta — nessun ADR RunBundle/replay creato (verificato: `docs/engineering/adr/` ha solo ADR-001/002/003, nessuno sul formato RunBundle); azione ancora da fare.
 - **Fonti**: `roguelike-ai-appunti/07-multiplayer-classifiche.md`, `roguelike-ai-appunti/piano-roguelike-ai.md`, `game-design-knowledge-base/docs/game-design/systems/run-manifest-and-reproducibility.md`, `worldsmelt-ai-production-blueprint-v2/07-ARCHITETTURA-RUNTIME.md`, `game-design-knowledge-base/docs/game-design/governance/decision-log.md (DEC-066, DEC-077)`
 - **Decisioni**: DEC-066, DEC-077
 - **Rischio**: basso
@@ -337,6 +405,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-037 — Piano linux-local-llm: 81 step ancora "[ ]" ma fase 0-1 e roadmap 2-5 gia' implementate
 
+- **Stato**: applicata — piano spostato in `docs/archive/historical-plans/2026-07-13-linux-local-llm.md`. Residuo cosmetico: le 82 righe `- [ ]` non sono state marcate `[x]` né annotate 'ESEGUITO ED ESTESO'; la collocazione in historical-plans/ segnala comunque lo stato storico.
 - **Fonti**: `docs/superpowers/plans/2026-07-13-linux-local-llm.md`, `Makefile`, `tools/melting-gen/`, `scripts/test-gen.sh`, `scripts/benchmark.sh`, `llm/run_content.mjs`
 - **Rischio**: medio
 - **Evidenza**: Verificato: il piano ha 81 righe "- [ ]" e 0 "- [x]". Makefile espone gia' gen/sprites/test-gen/test-llm/test-sprites/benchmark. tools/melting-gen contiene gen_lua.c, gen_novelty.c, gen_inspire.c, gen_corpus.c, propose.gbnf, character.gbnf, mai citati nel piano. scripts/test-gen.sh = 986 righe (contro le ~30 dello Step originale). docs/plans/{active,completed,cancelled}/ esistono e sono vuote.
@@ -345,6 +414,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-038 — Vincoli hardware duri della spec (Vulkan, mai ROCm, mai flash-attention) non promossi a ADR
 
+- **Stato**: applicata — `docs/engineering/adr/ADR-001-backend-vulkan-only.md` creato (Vulkan, mai ROCm, mai flash-attention, motivazione gfx1010).
 - **Fonti**: `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md`, `docs/engineering/adr/ (vuota)`, `scripts/setup-deps.sh`
 - **Rischio**: alto
 - **Evidenza**: Verificato: spec §2 righe 49-55 fissa RX 5600 XT RDNA1/gfx1010, "Backend GPU: Vulkan, mai ROCm", "Niente flash-attention su RDNA1". setup-deps.sh usa -DGGML_VULKAN=ON e -DSD_VULKAN=ON, nessun flag ROCm/flash-attn: vincoli rispettati dal codice. docs/engineering/adr/ e' vuota: nessun ADR li cattura. Stato spec: "approvata a voce sezione per sezione, in attesa di revisione finale".
@@ -353,6 +423,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-039 — Regola "fonte di verita' = llm/run_content.mjs" del piano falsa per le funzionalita' post-fase-1
 
+- **Stato**: applicata — lo scoping è implicito nello stato attuale: Lua/novelty/inspire/corpus hanno oggi come fonte il decision-log + il codice C, nessuna pretesa di equivalente in `llm/run_content.mjs`.
 - **Fonti**: `docs/superpowers/plans/2026-07-13-linux-local-llm.md`, `llm/run_content.mjs`, `tools/melting-gen/gen_lua.c`, `tools/melting-gen/gen_novelty.c`, `tools/melting-gen/gen_inspire.c`, `tools/melting-gen/gen_corpus.c`
 - **Rischio**: basso
 - **Evidenza**: Verificato: piano riga 3045 "la fonte di verita' e' llm/run_content.mjs - il C deve replicare il Node". Ma grep su run_content.mjs restituisce 0 occorrenze di lua/novelty/inspire/corpus: queste funzionalita' (script Lua, punteggio novita', corpus d'ispirazione) non hanno alcun equivalente Node da replicare. La regola nel piano e' comunque gia' scoping-limitata al caso "test con valore atteso sbagliato" (Task 1-8).
@@ -361,6 +432,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-040 — Spec di design citate come fonte vincolante nel codice hanno ancora header "proposta / da approvare"
 
+- **Stato**: applicata — verificato: le quattro spec sono oggi in `docs/engineering/specs/` con front matter `status` corretto (lua-sandbox e local-sprites: implemented; items-synergy-vision e pools-rarity-design: superseded); il campo prosa 'Stato:' nel corpo non è stato riscritto ovunque (residuo minore).
 - **Fonti**: `docs/superpowers/specs/2026-07-13-lua-sandbox-design.md`, `docs/superpowers/specs/2026-07-13-local-sprites-design.md`, `docs/superpowers/specs/2026-07-13-items-synergy-vision.md`, `docs/superpowers/specs/2026-07-13-pools-rarity-design.md`, `src/script/script_sandbox.h`, `src/render/item_layers.h`, `src/gameplay/item_traits.h`, `tools/melting-sprites/main.c`
 - **Decisioni**: DEC-037
 - **Rischio**: medio
@@ -370,6 +442,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-041 — Fase 5 (benchmark al primo avvio + scelta automatica del modello) NON implementata: gap di design da preservare
 
+- **Stato**: superata (DEC-110, 22/07) — il benchmark automatico al primo avvio è stato scartato, non implementato: nessun tier di qualità automatico. Piano annullato: `docs/plans/cancelled/benchmark-primo-avvio.md` (verificato esistente).
 - **Fonti**: `docs/superpowers/specs/2026-07-13-local-llm-linux-design.md`, `src/app/app.c`
 - **Rischio**: basso
 - **Evidenza**: Verificato: spec riga 44 "Fase 5: benchmark al primo avvio e scelta automatica del modello". app.c righe 1277-1284: "NIENTE esecuzione automatica del benchmark qui (v1): si legge solo logs/benchmark.txt se gia' scritto da 'make benchmark'". Richiede comando manuale, non gira al primo avvio: gap reale e deliberato ("v1").
@@ -378,6 +451,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-042 — AGGIUNTO: riferimento a spec inesistente in src/core/room_layout.h (fonte architetturale dangling)
 
+- **Stato**: applicata — verificato: `src/core/room_layout.h` non cita più `step-3c-rooms.md`; il commento in testa rimanda oggi a `docs/design/systems/rooms-and-floor-generation.md` e dichiara esplicitamente che la spec dedicata non fu mai scritta.
 - **Fonti**: `src/core/room_layout.h`, `docs/superpowers/specs/`
 - **Rischio**: medio
 - **Evidenza**: Missato dall'analista. src/core/room_layout.h riga 6 cita come fonte architetturale in produzione "docs/superpowers/specs/2026-07-16-step-3c-rooms.md", ma quel file NON esiste da nessuna parte nel repo (find su *step-3c* = vuoto). Il riferimento e' gia' rotto oggi, prima di qualsiasi migrazione. Anche step-3b-enemies.md ha Stato "in esecuzione", lievemente stale ma il file esiste.
@@ -386,6 +460,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-043 — "Nessun tier intermedio / nessun livello di qualità" (DEC-070) vs il preset lowspec automatico (1.5B + sprite 256px)
 
+- **Stato**: applicata (DEC-110, 22/07) — il preset lowspec è stato rimosso dal codice; i requisiti minimi sono oggi i modelli di riferimento (poi espressi in numeri da DEC-142).
 - **Fonti**: `game-design-knowledge-base/docs/game-design/governance/decision-log.md:724-725`, `game-design-knowledge-base/docs/game-design/systems/floor-zero.md:189-190`, `scripts/benchmark.sh:65-91`, `src/app/app.c:66-70,151-152,228-233`
 - **Decisioni**: DEC-070, DEC-047, DEC-086
 - **Rischio**: alto  |  **needs-human**
@@ -396,6 +471,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-044 — "tok/s" indica due misure incompatibili (make test-llm vs --bench) senza nota di disambiguazione
 
+- **Stato**: applicata — `docs/engineering/benchmarks.md` (già migrato) ha oggi la sezione 'Disambiguazione: due "tok/s" diversi nel repo'.
 - **Fonti**: `docs/BENCHMARKS.md:4,11-20`, `tools/melting-gen/main.c:336-408`, `scripts/benchmark.sh:56-74`, `logs/benchmark.txt:2`
 - **Rischio**: medio
 - **Evidenza**: BENCHMARKS.md:4 usa `make test-llm`: generazione reale ~1321 token JSON+Lua con grammatica GBNF; la tabella dà 28.1 tok/s per 7B ngl=99 (default). RunBench in main.c:336-408 usa un prompt fisso di fiaba, 128 token (GEN_BENCH_TOKENS), nessuna grammatica, seed 20260717u; logs/benchmark.txt (stesso 7B default) riporta tokS=42.29, ~+50%. Le soglie del tier in benchmark.sh (12/6) vivono sulla scala --bench, non su quella della tabella: nessun documento avvisa che i due numeri non sono comparabili, rischio di ricalibrare le soglie sui numeri sbagliati.
@@ -404,6 +480,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-045 — BENCHMARKS.md senza data/commit non regge lo standard di riproducibilità (il doc gemello SPRITES-SPIKE.md invece ce l'ha)
 
+- **Stato**: applicata — `docs/engineering/benchmarks.md` ha oggi front matter completo (`last_reviewed`, `last_verified_commit`) e la data/commit della misura nel testo ('13/07/2026, commit b836e96').
 - **Fonti**: `docs/BENCHMARKS.md:1-8`, `docs/SPRITES-SPIKE.md:3`, `logs/benchmark.txt:1-5`, `.gitignore:15`, `worldsmelt-ai-production-blueprint-v2/11-PROTOCOLLO-ESPERIMENTI.md:93-110`
 - **Rischio**: basso
 - **Evidenza**: BENCHMARKS.md dichiara la macchina (Ryzen 5 3600, RX 5600 XT, Ubuntu 26.04) ma nessuna data né commit nel testo (desumibile solo dal commit b836e96, 2026-07-13 09:29). Il documento gemello docs/SPRITES-SPIKE.md:3 — stessa campagna di misure — riporta invece "Misure fatte il 2026-07-13 sulla macchina di riferimento": lo standard esiste già nel repo, BENCHMARKS.md è l'unico a non seguirlo. logs/benchmark.txt ha solo measuredAt=1784275965 (epoch, nessun ID macchina) ed è in logs/ (.gitignore:15), rigenerato ad ogni make benchmark: cache locale, non record storico. Il registro del blueprint 11 (priorità 6, dominio LoRA/sprite) richiede sempre git_commit/dataset_hash/config_hash.
@@ -412,6 +489,7 @@ di design approvata e' stata modificata.
 
 ## DOC-CONFLICT-046 — research-pack Fase C (confronto multi-modello) non eseguita: il default 7B in BENCHMARKS.md precede il protocollo proposto (nessuna tabella è però superata)
 
+- **Stato**: superata (DEC-140, 23/07) — la Fase C è stata eseguita: comparison su 11 modelli x 3 seed (`docs/ai-production/experiments/model-comparison-testo-2026-07-23.md`); il default è cambiato dal 7B Coder a Gemma-3-4B-IT Q4 di conseguenza.
 - **Fonti**: `worldsmelt-research-pack-2026-07-21/09-benchmark-e-roadmap.md:36-52`, `docs/BENCHMARKS.md:11-20`, `tools/melting-gen/main.c:79-80`
 - **Rischio**: basso
 - **Evidenza**: research-pack 09 Fase C (righe 36-52) propone di confrontare Qwen2.5-Coder-7B, Qwen3-4B-Instruct-2507 e Phi-4-mini-instruct con un CSV (retries/compile_ok/dryrun_ok/sim_ok/novelty/score) prima di eleggere un modello canonico. BENCHMARKS.md ha già scelto e cablato il 7B Coder come default (main.c:79-80) confrontando solo 1.5B vs 7B della stessa famiglia. Non è un conflitto di numeri: è un piano non ancora eseguito rispetto a uno stato reale già implementato — nessuna tabella attuale risulta superata.

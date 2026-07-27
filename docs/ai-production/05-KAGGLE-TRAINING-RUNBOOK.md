@@ -2,18 +2,25 @@
 id: aiprod-kaggle-training-runbook
 title: Kaggle Training Runbook — SD1.5 LoRA
 domain: ai-production
-status: proposed
+status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Runbook operativo per il training LoRA su Kaggle Notebook: struttura ml/, preflight, smoke test, config v0, output obbligatori e comando di riferimento.
-last_reviewed: 2026-07-22
+  Runbook primario (DEC-168) per il training LoRA su Kaggle Notebook: struttura ml/, preflight, smoke test, config v0 su base SD1.5 vanilla, quota gratuita di 30h/settimana, output obbligatori e comando di riferimento.
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
 topics: [kaggle, training, runbook, lora, smoke-test]
 related: []
 supersedes: []
 source_files: []
 ---
 # Kaggle Training Runbook — SD1.5 LoRA
+
+> **RUNBOOK PRIMARIO (DEC-168, 2026-07-27).** Il training della Style LoRA si fa su
+> Kaggle: fino a **30 ore di GPU gratuite a settimana**, base **SD1.5 vanilla**
+> (DEC-148). Il runbook alternativo su RunPod (`dataset/TRAINING-RUNBOOK.md`) resta come
+> **fallback a pagamento**, per quando la quota Kaggle non basta o servono più run in
+> parallelo.
 
 ## Architettura
 
@@ -182,6 +189,12 @@ Il run deve supportare:
 - hash della configurazione.
 
 ## Kaggle
+
+Il piano gratuito concede circa **30 ore/settimana di GPU** (verificare la quota corrente
+sulla dashboard Kaggle: può cambiare). Pianificare smoke test e sweep dentro questo
+budget settimanale, spalmando run lunghi su più settimane se necessario — per un sweep
+più ampio o run in parallelo, il fallback a pagamento è `dataset/TRAINING-RUNBOOK.md`
+(RunPod, DEC-168).
 
 La disponibilità di GPU e quote varia. Non codificare l'assunzione che una specifica GPU
 sia sempre presente.

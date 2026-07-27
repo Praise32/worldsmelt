@@ -6,8 +6,8 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Strategia prudente su provenienza del dataset Kaggle 89k immagini, separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.
-last_reviewed: 2026-07-22
+  Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.
+last_reviewed: 2026-07-27
 topics: [dataset, licenze, kaggle, provenienza, openrail-m]
 related: []
 supersedes: []
@@ -16,6 +16,22 @@ source_files: []
 # Dataset e licenze
 
 Questo documento è una strategia tecnica prudente, non un parere legale.
+
+## Stato reale del registro e piano dataset proprietario (DEC-148)
+
+Il registro `dataset/ledger.jsonl` esiste già e non è un progetto sulla carta: contiene
+oggi file da fonti **CC0 verificate** (i pack Kenney e `superpowers-asset-packs`, vedi
+`dataset/README.md`), tutte nella whitelist di licenze accettate dallo script
+(`cc0`/`own`/`commissioned`, verificata da `scripts/dataset_ledger.py check`). Questo
+corpus **non è** il dataset Kaggle 89k descritto sotto, che non è mai stato usato per il
+training.
+
+Il corpus CC0 attuale resta comunque **provvisorio**: DEC-148 stabilisce che **i dataset
+attuali non sono definitivi** e che i **dataset definitivi li creerà il proprietario del
+progetto**. Il vecchio piano a due rami imperniato sul Kaggle 89k (una parte "research"
+basata su di esso, l'altra "commercial-clean") è **sostituito** da questo piano: il corpus
+CC0 di oggi serve per i primi esperimenti di Style LoRA (`03-PIANO-LORA.md`), non per il
+dataset finale del gioco.
 
 ## Dataset Kaggle `ebrahimelgazar/pixel-art`
 

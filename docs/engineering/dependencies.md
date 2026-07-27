@@ -8,10 +8,12 @@ owner: engineering
 summary: >-
   Librerie native in deps/ (versioni pinnate da scripts/setup-deps.sh) con
   ruolo e binario che le linka, piu' i repository locali di sola consultazione
-  e i modelli GGUF/SD scaricati da scripts/download-models.sh.
-last_reviewed: 2026-07-23
-last_verified_commit: fe27f6d
-topics: [dipendenze, deps, raylib, llama.cpp, lua, stable-diffusion.cpp, raygui, modelli]
+  e i modelli GGUF/SD scaricati da scripts/download-models.sh. Elenco modelli di
+  testo e opzioni --light/--with-7b allineati al modello attivo (DEC-140/151)
+  e verificati contro lo script reale.
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [dipendenze, deps, raylib, llama.cpp, lua, stable-diffusion.cpp, raygui, modelli, DEC-140, DEC-151]
 related: [eng-architecture]
 supersedes: []
 source_files: [scripts/setup-deps.sh, scripts/download-models.sh, Makefile, src/render/raygui_impl.c]
@@ -110,13 +112,27 @@ riferimento leggibile durante lo sviluppo:
 
 Scaricati in `models/` (mai committati), ognuno verificato con SHA256 fissato
 nello script prima di considerarlo valido; `fetch()` salta il download se il
-file e' gia' presente e l'hash combacia. Opzioni: `--light` (salta il 7B),
-`--no-sprites` (salta i tre modelli Stable Diffusion, licenza diversa dai
-modelli di testo).
+file e' gia' presente e l'hash combacia. Opzioni verificate contro lo stato
+reale dello script (`scripts/download-models.sh`, 27/07/2026): `--light` (salta
+**solo** il modello di testo attivo/di riferimento, lasciando il fallback 1.5B
+come unico modello di testo scaricato), `--with-7b` (scarica **anche** il 7B
+Coder, oggi opzionale da DEC-140: di default NON viene scaricato, con o senza
+`--light`, a meno di passare questo flag), `--no-sprites` (salta i tre modelli
+Stable Diffusion, licenza diversa dai modelli di testo).
 
-Testo (usati da `melting-gen`, entrambi Apache 2.0):
-- `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` — Qwen2.5-Coder-1.5B-Instruct-GGUF, scaricato sempre.
-- `qwen2.5-coder-7b-instruct-q4_k_m.gguf` — Qwen2.5-Coder-7B-Instruct-GGUF, saltato con `--light`.
+Testo (usati da `melting-gen`):
+- `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` — Qwen2.5-Coder-1.5B-Instruct-GGUF
+  (Apache 2.0), fallback automatico su errore di caricamento del modello
+  attivo; scaricato **sempre**, anche con `--light`.
+- il **modello di testo attivo** (oggi Gemma-3-4B-IT Q4, DEC-140; formula
+  neutra di DEC-151, perché il default può ancora cambiare) — licenza Gemma
+  Terms of Use di Google, **non** Apache/MIT (nome puntuale e termini di
+  licenza in `docs/ai-production/licenze.md`); scaricato di default, saltato
+  con `--light`.
+- l'**ex modello di riferimento**, oggi opzionale — Qwen2.5-Coder-7B-Instruct-GGUF
+  (Apache 2.0); di default **non** viene scaricato (né con né senza
+  `--light`): serve passare esplicitamente `--with-7b`. Resta comunque
+  selezionabile a mano con `--model` una volta scaricato.
 
 Sprite (usati da `melting-sprites`, saltati con `--no-sprites`):
 - `Public-Prompts-Pixel-Model.ckpt` — PublicPrompts/All-In-One-Pixel-Model

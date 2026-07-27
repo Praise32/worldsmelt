@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità. Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md)."
-last_reviewed: 2026-07-22
+summary: "Regole di combattimento e proiettili. Fonte unica del budget di leggibilità, col suo proxy primario (percentuale massima di schermo coperta, DEC-146, soglia provvisoria da playtest). Incorpora i vincoli di leggibilità imposti dai controlli DEC-007; le bande di potenza dei colpi generati (DEC-019) sono documentate come default draft. I tipi di colpo possono anche essere comportamenti Lua generati e validati in sandbox, con le manopole parametriche come garanzia e fallback (DEC-037). Un tipo di colpo generato può anche appartenere specificamente al personaggio alternativo, come colpo firmato (DEC-068, fonte unica in systems/characters.md)."
+last_reviewed: 2026-07-27
 last_verified_commit: 0ec60d0
-topics: [combattimento, proiettili, budget di leggibilità, DEC-007, DEC-037, tipi di colpo]
+topics: [combattimento, proiettili, budget di leggibilità, DEC-007, DEC-037, tipi di colpo, DEC-146]
 related: []
 supersedes: []
 source_files: []
@@ -72,6 +72,24 @@ Una sinergia o un attacco possono aumentare spettacolarità e quantità di effet
 - causa del danno.
 
 Questi cinque elementi non sono negoziabili: un contenuto (curato o generato) che li rende illeggibili non è accettabile, anche se resta entro ogni altro limite numerico.
+
+### Proxy primario: percentuale di schermo coperta (DEC-146)
+
+Il budget di leggibilità riceve qui il suo **proxy primario**, misurabile: la
+**percentuale massima di schermo coperta**, in un dato istante, dall'insieme dei segnali
+attivi in scena (proiettili nemici, telegraph, particellari di sinergia, indicatori di
+stato). Superare questa percentuale è il segnale quantitativo primario che il budget di
+leggibilità è stato ecceduto. La soglia numerica esatta di questa percentuale resta
+**provvisoria, da playtest** (stile DEC-019): questo documento fissa che il proxy esiste
+ed è la percentuale di copertura schermo, non il valore soglia.
+
+Questo proxy è primario ma non sostituisce i cinque elementi non negoziabili elencati
+sopra: un contenuto può restare sotto la soglia di copertura percentuale e nondimeno
+rendere illeggibile, per esempio, la direzione dell'attacco — in quel caso il controllo
+sui cinque elementi resta un controllo complementare ammesso, verificato indipendentemente
+dal proxy percentuale (vedi anche
+[Generated Content Validation](generated-content-validation.md#controlli-minimi), che
+rimanda qui per il dettaglio).
 
 ## Risultato
 
@@ -149,7 +167,10 @@ Vedi [generated-content-validation.md](generated-content-validation.md) — font
 
 ## Domande aperte residue
 
-- Esiste una soglia numerica esplicita (es. massimo N proiettili nemici leggibili in scena) o il budget resta un principio qualitativo affidato al playtest?
+- ~~Esiste una soglia numerica esplicita o il budget resta un principio qualitativo?~~:
+  risolto in parte da DEC-146 — il proxy primario è la percentuale massima di schermo
+  coperta dai segnali attivi; resta aperto solo il valore esatto di quella soglia
+  percentuale, da fissare col playtest.
 - ~~Le bande di potenza [0.75–1.25] variano con la difficoltà?~~: risolto da DEC-133 — invariate per tutta la run; la difficoltà cresce col budget di stanza e l'escalation del tema (DEC-024/043).
 - Come si comporta il budget di leggibilità in multiplayer asincrono, dove più run indipendenti potrebbero condividere l'interfaccia dei risultati (`experimental`)?
 
@@ -184,3 +205,12 @@ Then il contenuto è respinto o sostituito da un fallback curato, secondo la reg
 Given l'IA scrive un tipo di colpo come comportamento Lua invece che come sola variazione parametrica (DEC-037),  
 When il comportamento supera la validazione in sandbox,  
 Then il colpo entra in gioco con quel comportamento scriptato; se invece non la supera, il gioco ricade su una versione parametrica curata equivalente, generata dentro le bande di garanzia, senza mostrare alcun errore al giocatore.
+
+### Scenario 6 — proxy di leggibilità superato per copertura schermo
+
+Given una sinergia genera così tanti proiettili ed effetti da coprire una percentuale di
+schermo superiore alla soglia provvisoria del proxy di leggibilità (DEC-146),  
+When la validazione verifica il contenuto,  
+Then il proxy segnala il superamento e il contenuto viene respinto o degradato secondo la
+regola di [Generated Content Validation](generated-content-validation.md), anche se preso
+singolarmente ciascun effetto sarebbe leggibile.

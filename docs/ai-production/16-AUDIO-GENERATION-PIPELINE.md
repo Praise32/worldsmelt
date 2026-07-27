@@ -6,8 +6,8 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, in esplicito conflitto con DEC-036 che considera l'audio generativo futuro.
-last_reviewed: 2026-07-22
+  Pipeline ibrida rFXGen + Stable Audio 3 Small per SFX/musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro).
+last_reviewed: 2026-07-27
 last_verified_commit: 892911a
 topics: [audio, rfxgen, stable-audio, dec-036, licenza, fallback]
 related: []
@@ -19,22 +19,24 @@ source_files: []
 > **ADOTTATA da DEC-109 (2026-07-22):** via primaria Stable Audio Small in locale, catena
 > di fallback rFXGen → curato; licenza Stability Community accettata (DEC-113). Ogni evento
 > critico mantiene un suono curato/fallback (garanzia ereditata da DEC-036); nessuna
-> generazione in combattimento; modello audio caricato in sequenza con Qwen e SD.
+> generazione in combattimento; modello audio caricato in sequenza col modello di testo
+> attivo e con SD.
 
-## Conflitto da risolvere
+## Conflitto risolto (DEC-109)
 
-La knowledge base, in `content/audio-and-feedback.md`, afferma che musica e suoni sono per
-ora curati e statici e che la generazione audio è futura, in base a DEC-036.
-
-La nuova direzione propone invece di introdurre una pipeline audio generativa già nella
-pre-alpha. Un agente non deve scegliere da solo fra le due versioni.
-
-Domanda bloccante: `Q-AUD-001` in `19-DECISION-QUESTIONNAIRE.md`.
+La knowledge base, in `content/audio-and-feedback.md`, affermava che musica e suoni erano
+per ora curati e statici e che la generazione audio era futura, in base a DEC-036. Questa
+tensione è stata **risolta da DEC-109** (22/07): l'audio diventa generativo, con questa
+pipeline come via primaria, mantenendo intatta la garanzia di DEC-036 (ogni evento critico
+ha sempre un suono curato o di fallback — vedi il callout in testa a questo documento).
+`content/audio-and-feedback.md` è stato aggiornato di conseguenza. La domanda `Q-AUD-001`
+(già nel questionario, ora archiviato in
+`docs/archive/superseded/19-DECISION-QUESTIONNAIRE.md` — DEC-147) è chiusa.
 
 ## Architettura proposta
 
 ```text
-AudioSpec generata da Qwen
+AudioSpec generata dal modello di testo attivo
         |
         +--> effetto semplice --> rFXGen
         |
@@ -93,7 +95,7 @@ Uso iniziale: tool Python esterno, non dipendenza del binario C.
 Caricamento sequenziale:
 
 ```text
-Qwen
+Modello di testo attivo
 → unload
 SD1.5
 → unload

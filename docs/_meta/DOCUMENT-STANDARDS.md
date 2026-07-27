@@ -9,9 +9,9 @@ summary: >-
   Regole vincolanti per tutta la documentazione sotto docs/: albero dei domini,
   front matter obbligatorio, stati, autorita', gerarchia delle fonti, formati
   DOC-CONFLICT/DOC-CODE-DRIFT e strumenti make docs-check/docs-index/docs-audit.
-last_reviewed: 2026-07-22
-last_verified_commit: 75c8ab2
-topics: [standard, front-matter, governance, indice]
+last_reviewed: 2026-07-27
+last_verified_commit: d30890b
+topics: [standard, front-matter, governance, indice, piani, decision-log]
 related: [meta-topic-router]
 supersedes: []
 source_files: [scripts/docs/build_knowledge_index.py]
@@ -80,6 +80,13 @@ Semantica dei campi delicati:
   default**; `generated` = prodotto da uno strumento, non modificare a mano.
 - **supersedes**: se A supersede B, B deve avere status `superseded`/`deprecated`/`archived`
   e non può restare `canonical` (violazione = conflitto di authority, `docs-check` fallisce).
+- **Convenzione superseded vs approved-con-nota (DEC-155)**: questo vale anche per il campo
+  Stato proprio delle voci del decision-log (`proposed | approved | superseded`, distinto dal
+  `status` di front matter qui sopra). Una decisione **integralmente** sostituita da una
+  successiva passa a `superseded`, con una nota che cita chi la sostituisce. Una decisione
+  **parzialmente** sostituita — il caso più comune — resta `approved`: riceve solo una nota
+  datata in calce che perimetra quale parte è ancora viva e quale è stata superata altrove,
+  così nessuna regola ancora citata dal resto della documentazione resta orfana.
 
 ## 3. Gerarchia delle fonti (precedenza in caso di conflitto)
 
@@ -131,4 +138,10 @@ file possono restare senza front matter); i file generati portano il marcatore
   `last_verified_commit`.
 - Un documento si archivia spostandolo in `docs/archive/...` (status `archived`), **solo
   dopo** che le sue decisioni ancora valide sono state promosse nella fonte canonica.
+- **Piani (DEC-157)**: chi completa il lavoro che chiude un piano attivo lo sposta da
+  `docs/plans/active/` a `docs/plans/completed/` (o `cancelled/`) **nello stesso commit**,
+  con una nota di chiusura nel testo del piano stesso (data e giudizio finale). Se il lavoro
+  è distribuito su più sotto-agenti, il coordinatore (Fable) resta responsabile in ultima
+  istanza dello spostamento: un piano chiuso non deve restare in `active/` in attesa che
+  qualcun altro se ne accorga.
 - Prima di ogni commit che tocca `docs/`: `make docs-index && make docs-check`.

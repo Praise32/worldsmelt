@@ -8,8 +8,9 @@ owner: ai-production
 summary: >-
   Regole del dataset per le LoRA (solo CC0 verificate, asset propri o commissioni con
   cessione chiara), fonti candidate e registro di provenienza ledger.jsonl gestito da
-  scripts/dataset_ledger.py.
-last_reviewed: 2026-07-22
+  scripts/dataset_ledger.py; corpus attuale non definitivo, dataset definitivi a cura
+  del proprietario (DEC-148).
+last_reviewed: 2026-07-27
 last_verified_commit: fe27f6d
 topics: [dataset, licenze, provenienza, ledger, cc0]
 related: []
@@ -45,6 +46,12 @@ Il registro vive in `docs/ai-production/dataset/ledger.jsonl` (JSON Lines: una r
 un file), scritto e verificato da `scripts/dataset_ledger.py`. Non e'
 un parere legale: e' una misura prudenziale, come la nota 05 da cui
 nasce.
+
+**Non definitivo (DEC-148).** Questo registro e il corpus CC0 che descrive (i pack Kenney
+e `superpowers-asset-packs`) sono la base per i **primi esperimenti di Style LoRA**
+(`03-PIANO-LORA.md`), non il dataset definitivo del gioco: DEC-148 affida la creazione
+dei dataset definitivi al **proprietario del progetto**. Il dataset Kaggle da 89k
+descritto in `04-DATASET-LICENZE.md` resta a parte e non e' mai stato usato qui.
 
 ## Regole d'oro (da 05-dataset-e-licenze.md)
 

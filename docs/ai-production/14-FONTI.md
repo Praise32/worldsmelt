@@ -6,8 +6,8 @@ status: draft
 authority: supporting
 owner: ai-production
 summary: >-
-  Elenco di link esterni verificati il 20/07/2026 (SD1.5, Qwen, Kaggle, agenti, pixel art, audio) piu' riferimenti a documenti interni del repo.
-last_reviewed: 2026-07-22
+  Elenco di link esterni verificati il 20/07/2026 (SD1.5, Kaggle, agenti, pixel art, audio) piu' riferimenti al modello di testo attivo e a documenti interni del repo.
+last_reviewed: 2026-07-27
 topics: [fonti, licenze, stable-diffusion, qwen, kaggle, penpot, stable-audio]
 related: []
 supersedes: []
@@ -16,7 +16,9 @@ source_files: [docs/archive/superseded/architecture-2026-07-13.md, docs/archive/
 # Fonti verificate
 
 Verifica effettuata il 20 luglio 2026. Le pagine e i comandi possono cambiare: fissare
-versioni e ricontrollare prima della release.
+versioni e ricontrollare prima della release. I link Gemma nella sezione "Modello di
+testo" sono stati aggiunti il 27/07/2026 (dopo DEC-140/DEC-151) e non fanno parte della
+verifica del 20/07.
 
 ## Stable Diffusion e training
 
@@ -28,8 +30,13 @@ versioni e ricontrollare prima della release.
 - [LCM-LoRA SD1.5](https://huggingface.co/latent-consistency/lcm-lora-sdv1-5)
 - [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
 
-## Qwen
+## Modello di testo
 
+Il modello di testo attivo (oggi Gemma-3-4B-IT Q4, DEC-140); Qwen2.5-Coder resta il
+fallback su errore di caricamento (1.5B) e resta selezionabile (7B) con `--model`.
+
+- [Gemma-3-4b-it-GGUF (ggml-org)](https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF)
+- [Gemma Terms of Use](https://ai.google.dev/gemma/terms)
 - [Qwen2.5-Coder-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct)
 - [Licenza Qwen2.5-Coder-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/main/LICENSE)
 

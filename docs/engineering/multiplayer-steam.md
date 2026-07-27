@@ -6,10 +6,10 @@ status: proposed
 authority: supporting
 owner: engineering
 summary: >-
-  Nota tecnica non decisionale: valuta Steamworks (API C, leaderboard, achievement, Workshop, cloud save) per il multiplayer asincrono già approvato (DEC-016, DEC-021).
-last_reviewed: 2026-07-25
-topics: [steamworks, multiplayer, leaderboard, distribuzione, tecnico, determinismo-rng]
-related: [eng-known-issues]
+  Nota tecnica non decisionale: valuta Steamworks (API C, leaderboard, achievement, Workshop, cloud save) per il multiplayer asincrono già approvato (DEC-016, DEC-021). Il tema distribuzione appartiene ad ai-production (DEC-158): questo documento vi rimanda senza duplicarlo.
+last_reviewed: 2026-07-27
+topics: [steamworks, multiplayer, leaderboard, distribuzione, tecnico, determinismo-rng, DEC-158]
+related: [eng-known-issues, aiprod-distribuzione]
 supersedes: []
 source_files: []
 ---
@@ -67,6 +67,13 @@ da zero:
 
 ## Vincoli noti
 
+> **Il tema distribuzione non appartiene a questo documento (DEC-158).** Piattaforme di
+> destinazione, requisiti della pagina negozio e AI disclosure sono di proprietà del dominio
+> `ai-production` e vivono in
+> [Distribuzione](../ai-production/21-DISTRIBUZIONE.md). Le voci qui sotto restano perché
+> sono **vincoli tecnici dell'integrazione Steamworks**, non scelte di distribuzione: per il
+> «dove e come si pubblica» la fonte è quel documento, che questa nota non duplica.
+
 - **Distribuzione su Steam**: pubblicare un'app su Steam richiede la fee Steam Direct di
   100$ per titolo (costo una tantum per app, non per aggiornamento).
 - **Multiplayer legato all'account Steam**: Leaderboards, identità giocatore, achievement e
@@ -76,7 +83,8 @@ da zero:
   store, build standalone), serve un fallback per multiplayer/classifiche — un backend
   proprio alternativo, oppure l'assenza di classifiche online in quella build. Questa nota
   non sceglie tra le due opzioni: è un vincolo da risolvere quando la distribuzione fuori
-  Steam diventa concreta.
+  Steam diventa concreta — la domanda vive in
+  [Distribuzione](../ai-production/21-DISTRIBUZIONE.md), non qui.
 
 ## Scelta finale
 

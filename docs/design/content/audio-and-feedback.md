@@ -6,7 +6,7 @@ status: draft
 authority: canonical
 owner: design
 summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback."
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-27
 topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036, DEC-109, stable-audio, rfxgen]
 related: []
 supersedes: []
@@ -62,8 +62,8 @@ locale**, con catena di fallback obbligatoria **rFXGen** (SFX procedurali) → *
 curato/statico**. La garanzia storica di DEC-036 sopravvive come rete: ogni evento critico
 ha sempre un suono curato o di fallback, e la modalità solo-curato resta completa e
 dignitosa. Vincoli architetturali: nessuna generazione durante il combattimento; il modello
-audio si carica in sequenza con Qwen e SD (mai insieme nei 6 GB di riferimento); cache e
-pubblicazione atomica (pipeline tecnica in
+audio si carica in sequenza con il modello di testo attivo e SD (mai insieme nei 6 GB di
+riferimento); cache e pubblicazione atomica (pipeline tecnica in
 `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`; licenza: DEC-113).
 
 ## Non-obiettivi
