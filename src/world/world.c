@@ -4,6 +4,7 @@
 
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "gameplay/item_pool.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "world/room_camera.h"
@@ -872,8 +873,30 @@ void WorldSpawnRoomContents(Game *game)
     }
     else if (room->kind == ROOM_TREASURE && !room->rewardTaken)
     {
-        int itemIndex = GameRngRange(&game->rng, 0, 2);
-        EntitiesAddItemPickup(game, center, game->content.floors[game->floor - 1].items[itemIndex], 0);
+        /* DEC-019/DEC-145: estrazione UNIFORME fra i 3 candidati del piano
+           (gia' pesati per rarita' a monte, vedi il commento sopra
+           ItemPoolDrawIndex in item_pool.h -- pesare di nuovo qui
+           applicherebbe DEC-019 due volte), con la correzione di fortuna del
+           giocatore. Vedi ItemPoolDrawIndex, src/gameplay/item_pool.h;
+           game->treasureLuckStreak e' il contatore persistente di
+           estrazioni comuni consecutive per QUESTO pool (core/game_types.h).
+
+           NOTA: questa funzione gira a OGNI ingresso in stanza (vedi il
+           commento su WorldSpawnRoomContents, game_types.h) e finche'
+           'rewardTaken' resta falso ritira un oggetto NUOVO e avanza
+           'treasureLuckStreak' ad ogni ingresso -- entrare/uscire dalla
+           stanza senza raccogliere l'oggetto e' percio' un modo per far
+           avanzare (o azzerare) il contatore di correzione di fortuna senza
+           aver davvero ricevuto una ricompensa. Scelta accettata per questa
+           fase (il ri-tiro ad ogni ingresso preesisteva a DEC-145, vedi
+           combat.c riga ~466): non e' un problema di correttezza del
+           pity/Fortuna (lo stato resta comunque deterministico dal seed),
+           solo una superficie di sfruttamento minore non chiusa qui. */
+        const FloorContent *tfc = &game->content.floors[game->floor - 1];
+        Rarity treasureRarities[3] = { tfc->items[0].rarity, tfc->items[1].rarity, tfc->items[2].rarity };
+        int itemIndex = ItemPoolDrawIndex(&game->rng, treasureRarities, 3, ItemPoolWeightsStandard,
+                                           game->player.luck, &game->treasureLuckStreak);
+        EntitiesAddItemPickup(game, center, tfc->items[itemIndex], 0);
         GameSetMessage(game, "Stanza tesoro: prendi l'oggetto.");
     }
     else if (room->kind == ROOM_SHOP && !room->rewardTaken)
@@ -882,7 +905,15 @@ void WorldSpawnRoomContents(Game *game)
         /* Fase 3b (design doc, sezione 4): il costo in monete scala con la
            rarita' dell'oggetto pescato (ItemShopCostForRarity,
            src/gameplay/item_traits.c), non piu' un letterale fisso "8". */
-        int shopItemIndex = GameRngRange(&game->rng, 0, 2);
+        /* Stessa estrazione uniforme + correzione di fortuna della stanza
+           tesoro sopra (stessa nota sul ri-ingresso), ma sul CONTATORE del
+           negozio (game->shopLuckStreak): i due pool sono la stessa fonte
+           (fc->items[0..2]) ma il documento tratta ogni pool come
+           indipendente ai fini della soglia N (items-pools-and-rarity.md,
+           "Scope: tutti i pool"). */
+        Rarity shopRarities[3] = { fc->items[0].rarity, fc->items[1].rarity, fc->items[2].rarity };
+        int shopItemIndex = ItemPoolDrawIndex(&game->rng, shopRarities, 3, ItemPoolWeightsStandard,
+                                               game->player.luck, &game->shopLuckStreak);
         Item shopItem = fc->items[shopItemIndex];
         EntitiesAddItemPickup(game, (Vector2){ center.x - 130.0f, center.y }, shopItem, ItemShopCostForRarity(shopItem.rarity));
         EntitiesAddPickup(game, PICKUP_HEART, center, 1, 3);

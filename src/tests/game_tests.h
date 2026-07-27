@@ -165,4 +165,17 @@ bool GameCatalogScreenshotTest(Game *game);
    diversi devono produrne una diversa. Vedi src/tests/game_tests.c. */
 bool GameRngSeedTest(Game *game);
 
+/* DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
+   estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del
+   pool curato minimo (DEC-144) e correzione di fortuna con soglia N ridotta
+   dalla Fortuna (DEC-145). Come GameRngSeedTest, gira dopo InitWindow (usa
+   'game' per davvero: GameResetRunWithSeed chiama AssetsLoad) ma non
+   richiede la finestra per disegnare nulla. Vedi src/tests/game_tests.c per
+   gli scenari (garanzia numerica sul pool di 20 e sul pool di 15 dell'intera
+   run di ripiego, soglia N, correzione avversariale, DISTRIBUZIONE MARGINALE
+   dell'estrazione rispetto ai pesi DEC-019, statistica su molti semi che la
+   Fortuna abbrevia le sequenze sfortunate, copertura del contenuto di
+   ripiego sull'intera run, determinismo). */
+bool GameItemPoolTest(Game *game);
+
 #endif

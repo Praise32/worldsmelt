@@ -2874,6 +2874,9 @@
         "tools/melting-gen/gen_lua.h",
         "tools/melting-gen/melting_gen.h",
         "tools/melting-gen/gen_validate.c",
+        "tools/melting-gen/gen_fallback.c",
+        "src/gameplay/item_pool.c",
+        "src/content/run_content.c",
         "docs/archive/legacy-notes/issue-notes.md"
       ],
       "last_reviewed": "2026-07-27",

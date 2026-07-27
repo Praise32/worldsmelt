@@ -14,7 +14,7 @@ last_verified_commit: f22770c
 topics: [difetti, limiti, test, rng, generazione, catalogo]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, docs/archive/legacy-notes/issue-notes.md]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md]
 ---
 
 # Registro dei difetti e limiti noti
@@ -227,3 +227,33 @@ leggibile del tema, non identita' di mondo).
 coerenza "stesso mondo" sui piani successivi dipende dal modello e non e'
 misurata sistematicamente. Da rivalutare col 7B (non ancora misurato in modo
 strutturato su questo asse specifico).
+
+## 8 — Il pool curato minimo VERO di `melting-gen` non ha la garanzia di copertura DEC-144
+
+**Sintomo**: DEC-144 ("il pool curato minimo garantisce almeno un oggetto per
+rarita'") e' esplicitamente scoped al pool curato minimo di 20 oggetti di
+DEC-087 (`docs/design/systems/generated-content-validation.md` riga ~226).
+Quel pool e' quello che `tools/melting-gen/gen_fallback.c` scrive su disco (5
+piani x 3 oggetti + 5 bossItem = 20): ogni oggetto tira la propria rarita'
+individualmente con `GenRollRarity` (`tools/melting-gen/gen_util.c`, pesi
+DEC-019 `{55,30,12,3}`), senza alcuna garanzia di copertura -- una run
+generata da questo tool puo' legittimamente non contenere alcun oggetto
+leggendario (0,6 leggendari attesi su 20, per arrotondamento spesso 0).
+
+**Evidenza**: `tools/melting-gen/gen_fallback.c` (tiraggio per-oggetto senza
+chiamare l'equivalente di `ItemPoolMinimumCounts`); il lato motore
+(`src/gameplay/item_pool.c`, `ItemPoolMinimumCounts`) e il contenuto di
+ripiego del motore quando il tool non e' mai girato
+(`GenerateFallbackContent`, `src/content/run_content.c`) applicano invece
+DEC-144 correttamente sulle 15 posizioni normali dell'intera run -- la
+garanzia esiste quindi quando **manca del tutto** un manifest su disco, ma
+non quando il manifest e' stato scritto da `melting-gen` senza passare dalla
+garanzia di copertura.
+
+**Stato**: non implementato in `tools/melting-gen`. Fuori scope dal lavoro
+che ha introdotto `ItemPoolMinimumCounts`/`ItemPoolDrawIndex` lato motore
+(2026-07-27), che tocca solo `src/`; la domanda aperta 10 di
+`docs/design/governance/open-questions.md` copre i numeri esatti del pool
+minimo per categoria ma non segnala questo gap di implementazione
+specifico. Backlog: portare la stessa funzione (o un suo equivalente) dentro
+`gen_fallback.c` prima di considerare DEC-144 chiusa end-to-end.

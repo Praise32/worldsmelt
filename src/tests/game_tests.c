@@ -4,8 +4,10 @@
 #include "app/app_internal.h"
 #include "content/character_roster.h"
 #include "content/run_catalog.h"
+#include "content/run_content.h"
 #include "core/character_type.h"
 #include "game/game_internal.h"
+#include "gameplay/item_pool.h"
 #include "gameplay/item_traits.h"
 #include "render/game_renderer.h"
 #include "render/item_layers.h"
@@ -2842,3 +2844,519 @@ bool GameRngSeedTest(Game *game)
     return true;
 }
 
+
+/* ============================================================
+   DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
+   estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del
+   pool curato minimo (DEC-144), correzione di fortuna con soglia N ridotta
+   dalla Fortuna (DEC-145). Il modulo puro vive in src/gameplay/item_pool.c;
+   questo test copre (a) l'esempio NORMATIVO del documento e il pool VERO di
+   15 posizioni usato dal contenuto di ripiego, (b) la soglia N e la sua
+   riduzione dalla Fortuna, (c) che la correzione limita DAVVERO la lunghezza
+   di una sequenza sfortunata (non solo "di solito": prova avversariale con
+   pesi apposta sbilanciati), (d) la DISTRIBUZIONE MARGINALE dell'estrazione
+   fra candidati gia' pesati -- Scenario 1 del documento, "l'oggetto estratto
+   rispetta i pesi configurati": e' la regressione misurata (rara/leggendaria
+   dimezzate o quasi azzerate da una doppia applicazione dei pesi) che
+   nessuno degli altri test qui sotto copriva, (e) la stessa cosa in forma
+   statistica su molti semi/estrazioni con i pesi standard veri per la
+   correzione di fortuna, (f) che il contenuto di ripiego (nessun manifest
+   sul disco) rispetta la garanzia sull'INTERA run su molti semi e il boss
+   non delude mai, (g) determinismo end-to-end dal seed di run.
+   ============================================================ */
+
+static bool ItemPoolTestMinimumCounts(void)
+{
+    int counts[ITEM_POOL_RARITY_COUNT];
+
+    /* Esempio NORMATIVO del documento (items-pools-and-rarity.md, "Pool
+       curato minimo"): pool di 20, pesi standard -> 11/6/2/1. */
+    ItemPoolMinimumCounts(20, ItemPoolWeightsStandard, counts);
+    if (counts[RARITY_COMMON] != 11 || counts[RARITY_UNCOMMON] != 6 ||
+        counts[RARITY_RARE] != 2 || counts[RARITY_LEGENDARY] != 1)
+    {
+        fprintf(stderr, "ItemPoolTestMinimumCounts: pool 20 atteso {11,6,2,1}, ottenuto {%d,%d,%d,%d}\n",
+                counts[0], counts[1], counts[2], counts[3]);
+        return false;
+    }
+
+    /* Un pool di sole 3 posizioni (le posizioni di UN SOLO piano) azzera la
+       comune per intero -- questo E' il motivo per cui DEC-144, nel
+       contenuto di ripiego, NON si applica piu' alle 3 posizioni di ogni
+       singolo piano ma alle 15 posizioni normali dell'INTERA run
+       (run_content.c, GenerateFallbackContent): senza comuni la correzione
+       di fortuna DEC-145 non potrebbe mai crescere il suo streak. Questo
+       blocco resta solo l'esempio generico della funzione pura su un pool
+       stretto, vedi il pool di 15 subito sotto per il caso che il gioco usa
+       davvero. */
+    ItemPoolMinimumCounts(3, ItemPoolWeightsStandard, counts);
+    if (counts[RARITY_COMMON] != 0 || counts[RARITY_UNCOMMON] != 1 ||
+        counts[RARITY_RARE] != 1 || counts[RARITY_LEGENDARY] != 1)
+    {
+        fprintf(stderr, "ItemPoolTestMinimumCounts: pool 3 atteso {0,1,1,1}, ottenuto {%d,%d,%d,%d}\n",
+                counts[0], counts[1], counts[2], counts[3]);
+        return false;
+    }
+
+    /* Il pool VERO usato dal contenuto di ripiego (run_content.c,
+       GenerateFallbackContent): le 15 posizioni normali dell'intera run (5
+       piani x 3, bossItem escluso). La comune resta la fascia maggioritaria
+       -- a differenza del pool di 3 sopra -- cosi' la correzione di fortuna
+       resta viva su questo cammino (GameItemPoolFallbackCoverageTest sotto
+       verifica lo streak su questo stesso pool). */
+    ItemPoolMinimumCounts(FLOOR_COUNT * 3, ItemPoolWeightsStandard, counts);
+    if (counts[RARITY_COMMON] < 1)
+    {
+        fprintf(stderr, "ItemPoolTestMinimumCounts: pool %d (run intera) senza comuni, {%d,%d,%d,%d}\n",
+                FLOOR_COUNT * 3, counts[0], counts[1], counts[2], counts[3]);
+        return false;
+    }
+    if (counts[RARITY_UNCOMMON] < 1 || counts[RARITY_RARE] < 1 || counts[RARITY_LEGENDARY] < 1)
+    {
+        fprintf(stderr, "ItemPoolTestMinimumCounts: pool %d (run intera) senza copertura, {%d,%d,%d,%d}\n",
+                FLOOR_COUNT * 3, counts[0], counts[1], counts[2], counts[3]);
+        return false;
+    }
+
+    /* Invarianti su una banda di taglie: il totale non si sposta MAI da
+       poolSize, e per un pool abbastanza grande (>= 4, il minimo che puo'
+       ospitare le 4 rarita') nessuna rarita' a peso > 0 resta a zero. */
+    for (int size = 0; size <= 40; size++)
+    {
+        ItemPoolMinimumCounts(size, ItemPoolWeightsStandard, counts);
+        int sum = counts[0] + counts[1] + counts[2] + counts[3];
+        if (sum != size)
+        {
+            fprintf(stderr, "ItemPoolTestMinimumCounts: pool %d, somma %d != poolSize\n", size, sum);
+            return false;
+        }
+        if (size >= 4)
+        {
+            for (int r = 0; r < ITEM_POOL_RARITY_COUNT; r++)
+            {
+                if (ItemPoolWeightsStandard[r] > 0 && counts[r] < 1)
+                {
+                    fprintf(stderr, "ItemPoolTestMinimumCounts: pool %d, rarita' %d senza copertura\n", size, r);
+                    return false;
+                }
+            }
+        }
+    }
+
+    /* Pool boss (DEC-019 {0,0,70,30}): comune/non-comune restano SEMPRE a
+       zero qualunque sia la taglia -- e' un peso 0 per costruzione, non un
+       buco di arrotondamento (DEC-145, nota sul pool boss). */
+    for (int size = 0; size <= 20; size++)
+    {
+        ItemPoolMinimumCounts(size, ItemPoolWeightsBoss, counts);
+        if (counts[RARITY_COMMON] != 0 || counts[RARITY_UNCOMMON] != 0)
+        {
+            fprintf(stderr, "ItemPoolTestMinimumCounts: pool boss %d ha generato comune/non-comune (%d,%d)\n",
+                    size, counts[0], counts[1]);
+            return false;
+        }
+        if (counts[0] + counts[1] + counts[2] + counts[3] != size)
+        {
+            fprintf(stderr, "ItemPoolTestMinimumCounts: pool boss %d, somma non torna\n", size);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool ItemPoolTestLuckThreshold(void)
+{
+    struct { float luck; int expected; } cases[] = {
+        { 0.0f, 4 }, { 4.0f, 3 }, { 8.0f, 2 }, { 12.0f, 1 }, { 15.0f, 1 },
+        { 100.0f, 1 },    /* clamp al minimo 1 (richiesto dal documento) */
+        { -5.0f, 4 },     /* Fortuna negativa non peggiora oltre la base (default proposto) */
+    };
+    for (size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++)
+    {
+        int n = ItemPoolLuckThreshold(cases[i].luck);
+        if (n != cases[i].expected)
+        {
+            fprintf(stderr, "ItemPoolTestLuckThreshold: luck=%.1f atteso N=%d, ottenuto %d\n",
+                    cases[i].luck, cases[i].expected, n);
+            return false;
+        }
+        if (n < 1)
+        {
+            fprintf(stderr, "ItemPoolTestLuckThreshold: N sotto il clamp minimo (luck=%.1f -> %d)\n", cases[i].luck, n);
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Prova AVVERSARIALE (non statistica): pesi apposta sbilanciati quasi certi
+   (comune 1000000 contro 1 di non-comune), su un pool sintetico di soli 2
+   candidati costruito apposta per isolare la correzione dalla distribuzione
+   dei candidati stessi. Con lo streak GIA' alla soglia, ogni singola
+   estrazione (su molti stati di RNG diversi) deve uscire non-comune --
+   prova che la correzione SOVRASCRIVE del tutto la scelta (si restringe ai
+   soli candidati non-comuni), non solo "di solito".
+   Sotto soglia la correzione non deve intervenire affatto: la scelta fra i
+   2 candidati e' UNIFORME (non piu' pesata da 'skewedWeights' -- vedi il
+   commento sopra ItemPoolDrawIndex, item_pool.h: i pesi arrivano GIA'
+   applicati da chi genera i candidati, ripesarli qui dentro e' esattamente
+   il difetto corretto in questa fase, misurato su 2.000.000 di estrazioni
+   reali: rara/leggendaria dimezzate o quasi azzerate da una doppia
+   applicazione dei pesi). La tabella 'skewedWeights' resta qui SOLO per
+   verificare che un peso estremo non distorca la scelta uniforme (ne' la
+   forzi verso il comune ne' la escluda: entrambi i pesi sono > 0, quindi
+   il filtro di ammissione difensivo li lascia passare invariati) -- il test
+   sulla distribuzione marginale VERA rispetto ai pesi vive in
+   ItemPoolTestDrawIndexRespectsWeights sotto. */
+static bool ItemPoolTestDrawIndexForces(void)
+{
+    static const int skewedWeights[ITEM_POOL_RARITY_COUNT] = { 1000000, 1, 0, 0 };
+    const Rarity candidates[2] = { RARITY_COMMON, RARITY_UNCOMMON };
+    const float luck = 0.0f;
+    const int threshold = ItemPoolLuckThreshold(luck);
+
+    for (unsigned int rngSeed = 1; rngSeed <= 200; rngSeed++)
+    {
+        unsigned int rng = rngSeed;
+        int streak = threshold;   /* correzione GIA' attiva */
+        int picked = ItemPoolDrawIndex(&rng, candidates, 2, skewedWeights, luck, &streak);
+        if (candidates[picked] == RARITY_COMMON)
+        {
+            fprintf(stderr, "ItemPoolTestDrawIndexForces: streak=%d (soglia %d) ma l'estrazione e' comune (seed %u)\n",
+                    threshold, threshold, rngSeed);
+            return false;
+        }
+        if (streak != 0)
+        {
+            fprintf(stderr, "ItemPoolTestDrawIndexForces: streak non azzerato dopo la correzione (seed %u)\n", rngSeed);
+            return false;
+        }
+    }
+
+    int commonCount = 0;
+    const int belowThresholdTrials = 2000;
+    for (int t = 0; t < belowThresholdTrials; t++)
+    {
+        unsigned int rng = (unsigned int)(t + 1) * 7919u;
+        int streak = threshold - 1;   /* correzione NON ancora attiva */
+        int picked = ItemPoolDrawIndex(&rng, candidates, 2, skewedWeights, luck, &streak);
+        if (candidates[picked] == RARITY_COMMON) commonCount++;
+    }
+    /* Uniforme fra 2 candidati -> atteso ~50%; banda larga (35-65%) per non
+       essere fragile ma comunque incompatibile con "quasi sempre comune"
+       (il comportamento pesato che questo test validava prima del fix) o
+       "quasi mai comune". */
+    if (commonCount < (belowThresholdTrials * 35 / 100) || commonCount > (belowThresholdTrials * 65 / 100))
+    {
+        fprintf(stderr, "ItemPoolTestDrawIndexForces: sotto soglia, %d/%d estrazioni comuni (atteso ~50%%, scelta uniforme fra 2 candidati)\n",
+                commonCount, belowThresholdTrials);
+        return false;
+    }
+
+    return true;
+}
+
+/* Scenario 1 del documento ("l'oggetto estratto rispetta i pesi configurati,
+   salvo intervento della correzione di fortuna"): DISTRIBUZIONE MARGINALE
+   dell'estrazione su candidati gia' pesati -- come i 3 candidati REALI di un
+   piano (ciascuno con una rarita' gia' tirata da ItemPoolRollRarity con gli
+   stessi pesi standard, esattamente il pattern di melting-gen/GenRollRarity
+   e di ItemPoolMinimumCounts). Streak azzerato ad ogni prova (luck=0, soglia
+   mai raggiunta): isola la distribuzione dell'estrazione dalla correzione di
+   fortuna, che ha gia' il suo test dedicato sopra e sotto.
+   Questa e' la regressione misurata nel round di revisione precedente:
+   pesare di nuovo i candidati (gia' pesati a monte) dentro ItemPoolDrawIndex
+   eleva la distribuzione al quadrato -- su 2.000.000 di estrazioni, rara
+   scendeva da 12% a 6.4% (-46%) e leggendaria da 3% a 0.67% (-78%). La
+   scelta UNIFORME fra candidati gia' pesati (vedi il commento sopra
+   ItemPoolDrawIndex, item_pool.h) riproduce i pesi esattamente: nessun altro
+   test in questo file eserciterebbe questa regressione, perche' gli altri
+   usano tabelle sintetiche costruite ad hoc per isolare streak/soglia. */
+static bool ItemPoolTestDrawIndexRespectsWeights(void)
+{
+    const int trials = 200000;
+    int counts[ITEM_POOL_RARITY_COUNT] = { 0, 0, 0, 0 };
+    unsigned int rng = 909090u;
+
+    for (int t = 0; t < trials; t++)
+    {
+        Rarity candidates[3];
+        for (int i = 0; i < 3; i++) candidates[i] = ItemPoolRollRarity(&rng, ItemPoolWeightsStandard);
+        int streak = 0;   /* isolata dalla correzione di fortuna, vedi sopra */
+        int picked = ItemPoolDrawIndex(&rng, candidates, 3, ItemPoolWeightsStandard, 0.0f, &streak);
+        counts[candidates[picked]]++;
+    }
+
+    static const double expectedPct[ITEM_POOL_RARITY_COUNT] = { 55.0, 30.0, 12.0, 3.0 };
+    static const double tolerancePct[ITEM_POOL_RARITY_COUNT] = { 2.0, 2.0, 1.5, 1.0 };
+    double gotPct[ITEM_POOL_RARITY_COUNT];
+    bool ok = true;
+    for (int r = 0; r < ITEM_POOL_RARITY_COUNT; r++)
+    {
+        gotPct[r] = 100.0 * (double)counts[r] / (double)trials;
+        if (fabs(gotPct[r] - expectedPct[r]) > tolerancePct[r]) ok = false;
+    }
+    printf("  [item-pool] distribuzione marginale su %d estrazioni: comune %.2f%% non-comune %.2f%% rara %.2f%% leggendaria %.2f%% (attese 55/30/12/3)\n",
+           trials, gotPct[0], gotPct[1], gotPct[2], gotPct[3]);
+    if (!ok)
+    {
+        fprintf(stderr, "ItemPoolTestDrawIndexRespectsWeights: distribuzione %.2f/%.2f/%.2f/%.2f fuori tolleranza da 55/30/12/3\n",
+                gotPct[0], gotPct[1], gotPct[2], gotPct[3]);
+        return false;
+    }
+    return true;
+}
+
+/* Statistica su molti semi/molte estrazioni con i pesi STANDARD veri (non
+   una tabella costruita ad hoc): la Fortuna alta abbassa la soglia N e
+   quindi limita quanto puo' crescere una sequenza sfortunata consecutiva. */
+static bool ItemPoolTestLuckShortensStreaks(void)
+{
+    const Rarity candidates[3] = { RARITY_COMMON, RARITY_COMMON, RARITY_UNCOMMON };
+    const int seeds = 200;
+    const int drawsPerSeed = 60;
+
+    int maxStreakLowLuck = 0;
+    int maxStreakHighLuck = 0;
+    const float lowLuck = 0.0f;
+    const float highLuck = 15.0f;   /* tetto del clamp di gioco, vedi player.md */
+    const int thresholdLow = ItemPoolLuckThreshold(lowLuck);
+    const int thresholdHigh = ItemPoolLuckThreshold(highLuck);
+
+    for (int s = 0; s < seeds; s++)
+    {
+        unsigned int rngLow = (unsigned int)(s * 2654435761u + 1u);
+        unsigned int rngHigh = rngLow;   /* stesso stream: confronto a parita' di sfortuna sui tiri */
+        int streakLow = 0;
+        int streakHigh = 0;
+        int runLow = 0;
+        int runHigh = 0;
+        for (int d = 0; d < drawsPerSeed; d++)
+        {
+            int pickedLow = ItemPoolDrawIndex(&rngLow, candidates, 3, ItemPoolWeightsStandard, lowLuck, &streakLow);
+            if (candidates[pickedLow] == RARITY_COMMON) { runLow++; if (runLow > maxStreakLowLuck) maxStreakLowLuck = runLow; }
+            else runLow = 0;
+
+            int pickedHigh = ItemPoolDrawIndex(&rngHigh, candidates, 3, ItemPoolWeightsStandard, highLuck, &streakHigh);
+            if (candidates[pickedHigh] == RARITY_COMMON) { runHigh++; if (runHigh > maxStreakHighLuck) maxStreakHighLuck = runHigh; }
+            else runHigh = 0;
+        }
+    }
+
+    if (maxStreakLowLuck > thresholdLow)
+    {
+        fprintf(stderr, "ItemPoolTestLuckShortensStreaks: streak comune massimo con luck=0 (%d) supera la soglia (%d)\n",
+                maxStreakLowLuck, thresholdLow);
+        return false;
+    }
+    if (maxStreakHighLuck > thresholdHigh)
+    {
+        fprintf(stderr, "ItemPoolTestLuckShortensStreaks: streak comune massimo con luck=15 (%d) supera la soglia (%d)\n",
+                maxStreakHighLuck, thresholdHigh);
+        return false;
+    }
+    if (maxStreakHighLuck > maxStreakLowLuck)
+    {
+        fprintf(stderr, "ItemPoolTestLuckShortensStreaks: la Fortuna alta ha prodotto una sequenza PIU' lunga (%d) di quella bassa (%d)\n",
+                maxStreakHighLuck, maxStreakLowLuck);
+        return false;
+    }
+    if (maxStreakLowLuck < 2)
+    {
+        /* 12000 estrazioni (200 semi x 60) con peso comune >> non-comune che
+           non producono MAI due comuni di fila e' statisticamente
+           implausibile: se succede, e' il test ad essere scritto male, non
+           il codice -- meglio farlo fallire rumorosamente che lasciarlo
+           passare senza aver messo alla prova nulla. */
+        fprintf(stderr, "ItemPoolTestLuckShortensStreaks: la correzione non e' mai stata messa alla prova (streak massimo osservato %d)\n", maxStreakLowLuck);
+        return false;
+    }
+
+    printf("  [item-pool] streak massimo comune: luck=0 -> %d (soglia %d), luck=15 -> %d (soglia %d), su %d semi x %d estrazioni\n",
+           maxStreakLowLuck, thresholdLow, maxStreakHighLuck, thresholdHigh, seeds, drawsPerSeed);
+    return true;
+}
+
+/* DEC-144 sul contenuto di ripiego VERO (RunContentLoad quando
+   generated/current_run.txt non esiste, MakeFallbackItem/MakeFallbackBossItem
+   in run_content.c): la garanzia di copertura si applica alle 15 posizioni
+   NORMALI dell'INTERA run (5 piani x 3), non alle 3 di un singolo piano --
+   vedi il commento su GenerateFallbackContent, run_content.c. Per molti semi
+   di run l'AGGREGATO delle 15 posizioni deve rispettare esattamente
+   ItemPoolMinimumCounts(FLOOR_COUNT*3, ...) e il boss di ogni piano non deve
+   mai essere comune o non-comune ("il boss non delude mai", tramite i pesi
+   del pool boss invece di un valore forzato). Sposta via il manifest PRIMA
+   di caricare (rename, non remove: un giro precedente di make/make test-gen
+   puo' averne lasciato uno vero in generated/, e questo test non e' la sede
+   giusta per distruggerlo) per essere sicuri di esercitare il ramo di
+   ripiego puro -- stesso schema di TestFallbackBossItemIsRare in
+   src/tests/script_items_tests.c -- poi lo rimette al suo posto subito
+   dopo, che il test passi o fallisca. Non serve un Game/una finestra:
+   RunContentLoad e' indipendente da AssetsLoad. */
+static bool GameItemPoolFallbackCoverageTest(void)
+{
+    static const char *kManifest = "generated/current_run.txt";
+    static const char *kBackup = "generated/current_run.txt.item-pool-test-bak";
+    bool hadManifest = (rename(kManifest, kBackup) == 0);
+
+    int expected[ITEM_POOL_RARITY_COUNT];
+    ItemPoolMinimumCounts(FLOOR_COUNT * 3, ItemPoolWeightsStandard, expected);
+
+    bool ok = true;
+    for (unsigned int seed = 1000u; ok && seed < 1000u + 60u; seed++)
+    {
+        RunContent content;
+        memset(&content, 0, sizeof(content));
+        RunContentLoad(&content, seed);
+
+        int seen[ITEM_POOL_RARITY_COUNT] = { 0, 0, 0, 0 };
+        for (int f = 0; f < FLOOR_COUNT && ok; f++)
+        {
+            const FloorContent *fc = &content.floors[f];
+            for (int i = 0; i < 3; i++) seen[fc->items[i].rarity]++;
+            if (fc->bossItem.rarity != RARITY_RARE && fc->bossItem.rarity != RARITY_LEGENDARY)
+            {
+                fprintf(stderr, "GameItemPoolFallbackCoverageTest: seed %u piano %d, il boss ha rarita' %d (attesa rara o leggendaria)\n",
+                        seed, f + 1, (int)fc->bossItem.rarity);
+                ok = false;
+            }
+        }
+        if (ok && (seen[0] != expected[0] || seen[1] != expected[1] || seen[2] != expected[2] || seen[3] != expected[3]))
+        {
+            fprintf(stderr, "GameItemPoolFallbackCoverageTest: seed %u, run intera attesa {%d,%d,%d,%d} ottenuta {%d,%d,%d,%d}\n",
+                    seed, expected[0], expected[1], expected[2], expected[3], seen[0], seen[1], seen[2], seen[3]);
+            ok = false;
+        }
+    }
+
+    if (hadManifest) rename(kBackup, kManifest);
+    return ok;
+}
+
+/* Gli streak di correzione (DEC-145) sono stato di RUN, non di contenuto:
+   devono tornare a zero a ogni reset esattamente come ogni altro campo che
+   il memset di GameResetRunWithSeed azzera. Indipendente da un manifest sul
+   disco (non tocca la rarita' di nulla), quindi nessun rename qui. */
+static bool GameItemPoolStreakResetTest(Game *game)
+{
+    GameResetRunWithSeed(game, 55u);
+    game->treasureLuckStreak = 3;
+    game->shopLuckStreak = 2;
+
+    GameResetRunWithSeed(game, 56u);
+    if (game->treasureLuckStreak != 0 || game->shopLuckStreak != 0)
+    {
+        fprintf(stderr, "GameItemPoolStreakResetTest: gli streak di correzione non sono azzerati da un reset (%d, %d)\n",
+                game->treasureLuckStreak, game->shopLuckStreak);
+        return false;
+    }
+    return true;
+}
+
+typedef struct ItemPoolFingerprintItem
+{
+    char name[48];
+    Rarity rarity;
+    ItemSlot slot;
+    int shape;
+} ItemPoolFingerprintItem;
+
+typedef struct ItemPoolFingerprint
+{
+    ItemPoolFingerprintItem items[FLOOR_COUNT][3];
+    ItemPoolFingerprintItem boss[FLOOR_COUNT];
+} ItemPoolFingerprint;
+
+static ItemPoolFingerprintItem ItemPoolFingerprintOf(const Item *item)
+{
+    ItemPoolFingerprintItem out = { 0 };
+    snprintf(out.name, sizeof(out.name), "%s", item->name);
+    out.rarity = item->rarity;
+    out.slot = item->slot;
+    out.shape = item->shape;
+    return out;
+}
+
+static ItemPoolFingerprint ItemPoolCaptureFingerprint(const Game *game)
+{
+    ItemPoolFingerprint fp;
+    memset(&fp, 0, sizeof(fp));
+    for (int f = 0; f < FLOOR_COUNT; f++)
+    {
+        const FloorContent *fc = &game->content.floors[f];
+        for (int i = 0; i < 3; i++) fp.items[f][i] = ItemPoolFingerprintOf(&fc->items[i]);
+        fp.boss[f] = ItemPoolFingerprintOf(&fc->bossItem);
+    }
+    return fp;
+}
+
+static bool ItemPoolFingerprintItemEqual(const ItemPoolFingerprintItem *a, const ItemPoolFingerprintItem *b)
+{
+    return strcmp(a->name, b->name) == 0 && a->rarity == b->rarity && a->slot == b->slot && a->shape == b->shape;
+}
+
+static bool ItemPoolFingerprintEqual(const ItemPoolFingerprint *a, const ItemPoolFingerprint *b)
+{
+    for (int f = 0; f < FLOOR_COUNT; f++)
+    {
+        for (int i = 0; i < 3; i++)
+            if (!ItemPoolFingerprintItemEqual(&a->items[f][i], &b->items[f][i])) return false;
+        if (!ItemPoolFingerprintItemEqual(&a->boss[f], &b->boss[f])) return false;
+    }
+    return true;
+}
+
+/* Determinismo end-to-end (requisito esplicito di DEC-144/DEC-145: "tutto
+   deterministico dall'RNG di gameplay derivato dal seed, mai time/rand
+   globali"): stesso seed -> stesso contenuto di ripiego e stesso RNG
+   finale; seed diverso -> il contenuto differisce da qualche parte. */
+static bool GameItemPoolDeterminismTest(Game *game)
+{
+    const unsigned int seedA = 424242u;
+    const unsigned int seedB = 777777u;
+
+    GameResetRunWithSeed(game, seedA);
+    ItemPoolFingerprint firstA = ItemPoolCaptureFingerprint(game);
+    unsigned int rngA1 = game->rng;
+
+    GameResetRunWithSeed(game, seedA);
+    ItemPoolFingerprint secondA = ItemPoolCaptureFingerprint(game);
+    unsigned int rngA2 = game->rng;
+
+    if (rngA1 != rngA2)
+    {
+        fprintf(stderr, "GameItemPoolDeterminismTest: due reset con lo STESSO seed (%u) hanno lasciato game->rng diverso (%u vs %u)\n",
+                seedA, rngA1, rngA2);
+        return false;
+    }
+    if (!ItemPoolFingerprintEqual(&firstA, &secondA))
+    {
+        fprintf(stderr, "GameItemPoolDeterminismTest: due reset con lo STESSO seed (%u) hanno prodotto contenuti diversi\n", seedA);
+        return false;
+    }
+
+    GameResetRunWithSeed(game, seedB);
+    ItemPoolFingerprint firstB = ItemPoolCaptureFingerprint(game);
+
+    if (ItemPoolFingerprintEqual(&firstA, &firstB))
+    {
+        fprintf(stderr, "GameItemPoolDeterminismTest: semi DIVERSI (%u vs %u) hanno prodotto lo STESSO contenuto\n", seedA, seedB);
+        return false;
+    }
+
+    return true;
+}
+
+bool GameItemPoolTest(Game *game)
+{
+    if (!ItemPoolTestMinimumCounts()) return false;
+    if (!ItemPoolTestLuckThreshold()) return false;
+    if (!ItemPoolTestDrawIndexForces()) return false;
+    if (!ItemPoolTestDrawIndexRespectsWeights()) return false;
+    if (!ItemPoolTestLuckShortensStreaks()) return false;
+    if (!GameItemPoolFallbackCoverageTest()) return false;
+    if (!GameItemPoolStreakResetTest(game)) return false;
+    if (!GameItemPoolDeterminismTest(game)) return false;
+    return true;
+}

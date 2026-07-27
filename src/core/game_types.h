@@ -1016,6 +1016,18 @@ typedef struct Game {
        GameUpdate), cosi' la stessa run riparte con la stessa sequenza. */
     unsigned int runSeed;
     unsigned int rng;
+    /* DEC-145 -- correzione di fortuna: estrazioni consecutive di rarita'
+       comune viste da ciascun pool, indipendenti fra loro (la stessa
+       sequenza sfortunata sul tesoro non deve consumare la soglia del
+       negozio). Azzerate dal memset di GameResetRunWithSeed come ogni altro
+       campo di stato della run; aggiornate da ItemPoolDrawIndex
+       (src/gameplay/item_pool.h) ai due punti di estrazione (tesoro/negozio,
+       src/world/world.c, WorldSpawnRoomContents). Nessun contatore per il
+       pool boss: quel pool non contiene mai rarita' comune per costruzione
+       (pesi DEC-019 {0,0,70,30}), la correzione vi resta definita ma non
+       puo' mai attivarsi -- vedi il commento su ItemPoolLuckCorrectionActive. */
+    int treasureLuckStreak;
+    int shopLuckStreak;
     int floor;
     /* DEC-170: UNA cella della stanza corrente -- per convenzione la sua cella
        di STATO (vedi RoomState sopra), quella che porta kind/visited/cleared.

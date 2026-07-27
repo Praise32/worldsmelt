@@ -247,6 +247,68 @@ consecutive di rarità comune) non può verificarsi in un pool che non contiene 
 correzione di fortuna resta definita anche per il pool boss, ma vi si applica solo in
 teoria, perché la garanzia strutturale del pool la rende già superflua in pratica.
 
+### Stato di implementazione (2026-07-27)
+
+DEC-144 e DEC-145 vivono lato motore in `src/gameplay/item_pool.h`/`.c` (modulo puro,
+prefisso `ItemPool`), usato sia dal contenuto di ripiego sia dall'estrazione a runtime:
+
+- `ItemPoolMinimumCounts(poolSize, weights, outCounts)` implementa la garanzia di
+  copertura DEC-144: applica i pesi per proporzione (arrotondamento per difetto), poi
+  porta a 1 ogni rarità a peso > 0 rimasta a zero, prelevando l'unità mancante prima dal
+  residuo di arrotondamento e poi dalle rarità più comuni capienti. Verificata
+  esattamente contro l'esempio normativo di questo documento (pool di 20, pesi standard
+  → 11/6/2/1).
+- Il pool a cui questa funzione si applica **davvero** nel contenuto di ripiego
+  (`GenerateFallbackContent`, `src/content/run_content.c`) sono le **15 posizioni normali
+  dell'intera run** (`FLOOR_COUNT * 3` — i 5 piani x le 3 posizioni tesoro/negozio
+  ciascuno, `bossItem` escluso): `ItemPoolMinimumCounts(15, pesi standard, ...)` garantisce
+  almeno una copia di ogni rarità mantenendo la comune come fascia maggioritaria. Le 15
+  rarità così calcolate vengono rimescolate **fra tutte le posizioni della run** (Fisher-
+  Yates sull'RNG di gameplay) e poi assegnate 3 alla volta a ciascun piano. **Non** si
+  applica più alle 3 posizioni di un singolo piano: un pool di sole 3 posizioni non può
+  ospitare le 4 rarità senza azzerare del tutto la comune
+  (`ItemPoolMinimumCounts(3, ...)` → `{0, 1, 1, 1}`), il che va contro la motivazione di
+  DEC-144 ("senza alterare la gerarchia percepita delle rarità") e rende la correzione di
+  fortuna DEC-145 strutturalmente inerte su quel piano (senza comuni lo streak di
+  estrazioni sfortunate non può mai crescere) — regressione misurata e corretta in questa
+  stessa fase. Il `bossItem` di ripiego, per ciascun piano, tira invece dai **pesi del pool
+  boss** (`ItemPoolRollRarity` con `{0,0,70,30}`) invece di un valore fisso: "il boss non
+  delude mai" resta vero per costruzione (mai comune/non-comune), non per un caso speciale
+  in più.
+- L'estrazione a runtime (`WorldSpawnRoomContents`, stanza tesoro/negozio) pesca in modo
+  **uniforme** fra i 3 candidati del piano (più la restrizione della correzione di
+  fortuna), non più pesata per rarità al momento della scelta: i candidati arrivano **già**
+  pesati secondo DEC-019 da chi li ha generati (melting-gen per una run vera,
+  `ItemPoolMinimumCounts` per il ripiego, entrambi sopra), quindi pesare di nuovo in
+  `ItemPoolDrawIndex` applicherebbe la tabella una seconda volta, elevando la distribuzione
+  al quadrato invece di rispettarla — regressione misurata su 2.000.000 di estrazioni
+  reali (rara dimezzata, leggendaria quasi azzerata) e corretta in questa stessa fase. Una
+  scelta uniforme fra candidati già distribuiti secondo i pesi standard riproduce quei pesi
+  **esattamente** sul candidato estratto: è così che DEC-019 resta rispettato "salvo
+  intervento della correzione di fortuna" (Scenario 1). Se la correzione è attiva e nessun
+  candidato del pool è non-comune, l'estrazione degrada a quella uniforme normale (promessa
+  dichiarata sopra: "senza garantire sempre la soluzione perfetta"). Con il contenuto di
+  ripiego questo caso PUÒ presentarsi su un singolo piano (la garanzia di copertura DEC-144
+  vale sulle 15 posizioni dell'intera run, non piano per piano: un piano può ricevere, per
+  come cade il rimescolo, 3 posizioni tutte comuni) — è esattamente lo scenario per cui
+  serve la correzione di fortuna DEC-145, che qui resta viva perché la comune è ancora
+  presente nel pool.
+- Soglia N (DEC-145): **N base = 4**, ridotta di 1 ogni 4 punti di Fortuna
+  (`ItemPoolLuckThreshold`), clampata a un minimo di 1 (richiesto dal documento) e a un
+  massimo pari alla base (scelta implementativa: una Fortuna negativa non peggiora la
+  sequenza oltre il default, solo una Fortuna positiva la accorcia). **Default proposto
+  dall'implementazione (stile DEC-019)**: N base, divisore e clamp superiore restano da
+  confermare col playtest — vedi la domanda aperta annotata durante questa fase.
+  Contatori indipendenti per pool tesoro/negozio (`Game.treasureLuckStreak`/
+  `shopLuckStreak`, azzerati a ogni reset di run); nessun contatore per il pool boss
+  (superfluo per costruzione, vedi sopra).
+- Tutto deterministico dall'RNG di gameplay (`game->rng`, derivato dal seed di run
+  DEC-141): nessuna funzione del modulo usa `time()`/`rand()` globali. Verificato da
+  `--item-pool-test` (`make test`): garanzia numerica, soglia N, correzione avversariale
+  (pesi sbilanciati apposta), statistica su 200 semi che la Fortuna alta limita la
+  sequenza sfortunata massima osservata, copertura del contenuto di ripiego su 60 semi,
+  determinismo end-to-end.
+
 ## Interazioni
 
 - Con le **sinergie**: `valore di sinergia` segnala se l'oggetto partecipa a coppie

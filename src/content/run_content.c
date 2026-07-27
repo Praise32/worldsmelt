@@ -1,6 +1,7 @@
 #include "content/run_content.h"
 
 #include "core/game_math.h"
+#include "gameplay/item_pool.h"
 #include "gameplay/item_traits.h"
 
 #include <math.h>
@@ -100,9 +101,13 @@ ItemKind ItemKindFromText(const char *text, bool declaresRecharge)
    "per-key fallback" di ItemKindFromText sopra: il chiamante non invoca
    questa funzione affatto quando la chiave "rarity=" e' assente dal
    manifest (manifest vecchio, scritto prima di questa fase), il campo
-   resta quello gia' impostato dal contenuto di ripiego (RARITY_COMMON per
-   un oggetto normale; RARITY_RARE per il bossItem dalla fase 3b review "il
-   boss non delude mai", vedi MakeFallbackBossItem sotto).
+   resta quello gia' impostato dal contenuto di ripiego -- DAL DEC-144/145
+   (2026-07-27) NON piu' sempre RARITY_COMMON per un oggetto normale: e' la
+   rarita' che ItemPoolMinimumCounts ha assegnato a quello slot sull'intera
+   run di ripiego (vedi GenerateFallbackContent/MakeFallbackItem sotto);
+   RARITY_RARE o RARITY_LEGENDARY per il bossItem, mai comune ne' non-comune
+   (fase 3b review "il boss non delude mai", ora tramite i pesi del pool
+   boss invece di un valore fisso, vedi MakeFallbackBossItem sotto).
 
    NON piu' static (fase 3b review, "lock the rarity enum/text sync"): questi
    quattro testi devono restare sincronizzati A MANO con GEN_RARITIES
@@ -258,7 +263,7 @@ static unsigned int RandomTrait(unsigned int *rng)
     return traits[GameRngRange(rng, 0, (int)(sizeof(traits)/sizeof(traits[0])) - 1)];
 }
 
-static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
+static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index, Rarity rarity)
 {
     static const char *names[] = {
         "Bouncy Hat", "Homing Goggles", "Bomb Glove",
@@ -273,14 +278,15 @@ static Item MakeFallbackItem(unsigned int *rng, const Theme *theme, int index)
        contenuto di riserva procedurale non puo' dichiarare in modo sensato.
        Arriveranno da melting-gen, col passo successivo. */
     item.kind = ITEM_PASSIVE;
-    /* Fase 3b: questo ripiego "puro" (nessun manifest sul disco, il caso
-       degenere di prima ancora che melting-gen sia mai girato) resta
-       deliberatamente comune (il valore zero, gia' impostato da "{0}"
-       sopra): non tira dalla tabella di pesi per pool (quella vive nel
-       ripiego DI melting-gen, tools/melting-gen/gen_fallback.c, che scrive
-       un manifest vero e testabile). Riga esplicita, come "item.kind"
-       sopra, solo per leggibilita' -- stesso valore che "{0}" darebbe gia'. */
-    item.rarity = RARITY_COMMON;
+    /* DEC-144/DEC-145: la rarita' non e' piu' forzata a comune. Il
+       chiamante (GenerateFallbackContent sotto) assegna alle 15 posizioni
+       normali dell'INTERA run (5 piani x 3, non solo questo piano) le
+       rarita' calcolate da ItemPoolMinimumCounts sull'intero pool di 15 (i
+       pesi DEC-019 con la garanzia di copertura del pool minimo), gia'
+       rimescolate fra tutte le posizioni della run: questa funzione si
+       limita a copiare quella rarita' sull'oggetto, esattamente come fa per
+       lo slot o i trait. */
+    item.rarity = rarity;
     snprintf(item.name, sizeof(item.name), "%s", names[(index + GameRngRange(rng, 0, 5))%6]);
     item.slot = (ItemSlot)GameRngRange(rng, 0, 5);
     item.traits = RandomTrait(rng);
@@ -308,22 +314,17 @@ static Item MakeFallbackBossItem(unsigned int *rng, const Theme *theme, int floo
     item.active = true;
     item.kind = ITEM_STATUP;
     /* Fase 3b review ("il boss non delude mai", decisione del proprietario):
-       A DIFFERENZA di MakeFallbackItem sopra (che resta comune di proposito
-       -- un oggetto tesoro/negozio di ripiego puro NON deve fingersi raro),
-       il bossItem NO. La promessa "il boss da' sempre raro o leggendario"
-       (design doc, sezione 3) vale gia' per il contenuto DAVVERO generato
-       (il manifest scritto da melting-gen, che tira sempre da
-       GEN_RARITY_WEIGHTS_BOSS = {0,0,70,30}, mai comune/non-comune, vedi
-       tools/melting-gen/gen_fallback.c): qui si estende lo STESSO principio
-       al caso degenere -- ripiego "puro" senza alcun manifest, o un
-       manifest VECCHIO (scritto prima della fase 3b) a cui manca la riga
-       "bossItem.rarity=" -- cosi' che "il boss non delude mai" valga
-       SEMPRE, non solo quando melting-gen e' gia' girato almeno una volta.
-       Resta invece invariato il back-compat per un oggetto NORMALE (righe
-       "itemN.rarity=" mancanti -> RARITY_COMMON, vedi RarityFromText sopra
-       e MakeFallbackItem): quella promessa era solo "niente rarita' alta
-       per sbaglio", non "il boss non delude mai", e non riguarda il boss. */
-    item.rarity = RARITY_RARE;
+       A DIFFERENZA di MakeFallbackItem sopra (che ora tira dai pesi
+       standard, DEC-144/145), il bossItem NO: tira sempre e solo dai pesi
+       del pool boss (DEC-019, {0,0,70,30}) via ItemPoolRollRarity -- mai
+       comune ne' non-comune per costruzione, quindi "il boss non delude
+       mai" resta vero senza bisogno di forzare un valore fisso. E' la
+       STESSA tabella che tools/melting-gen/gen_util.c usa lato generatore
+       (GEN_RARITY_WEIGHTS_BOSS): qui si applica al ripiego "puro" (nessun
+       manifest sul disco) e a un manifest VECCHIO a cui manca la riga
+       "bossItem.rarity=" (vedi RarityFromText sopra), cosi' la promessa
+       vale sempre, non solo quando melting-gen e' gia' girato. */
+    item.rarity = ItemPoolRollRarity(rng, ItemPoolWeightsBoss);
     snprintf(item.name, sizeof(item.name), "%s", names[(floorIdx + GameRngRange(rng, 0, 5))%6]);
     item.slot = (ItemSlot)GameRngRange(rng, 0, 5);
     item.traits = RandomTrait(rng);
@@ -398,17 +399,56 @@ void RunContentMakeFallbackThemeCards(unsigned int seed, ThemeCard *out, int cou
     }
 }
 
+/* Slot NORMALI dell'intera run di ripiego (tesoro/negozio, non il bossItem
+   di ciascun piano): FLOOR_COUNT piani x 3 posizioni ciascuno. */
+#define RUN_FALLBACK_NORMAL_ITEM_COUNT (FLOOR_COUNT * 3)
+
 static void GenerateFallbackContent(RunContent *content, unsigned int seed)
 {
     unsigned int rng = seed ^ 0xBAD51DEu;
     content->loaded = false;
     snprintf(content->atlasPath, sizeof(content->atlasPath), "generated/current_atlas.bmp");
+
+    /* DEC-144: la garanzia di copertura ("almeno un oggetto per rarita'")
+       vale sul pool curato minimo -- qui le posizioni NORMALI dell'INTERA
+       run di ripiego (FLOOR_COUNT*3 = 15; il bossItem di ogni piano resta
+       fuori da questo conteggio, vedi sotto), non sulle 3 posizioni di un
+       singolo piano: un pool di sole 3 posizioni non puo' ospitare le 4
+       rarita' senza azzerare la comune (ItemPoolMinimumCounts(3, ...) da'
+       {0,1,1,1}), il che va contro la motivazione stessa di DEC-144 ("senza
+       alterare la gerarchia percepita delle rarita'") e rende la correzione
+       di fortuna DEC-145 strutturalmente inerte su quel piano (senza comuni
+       lo streak di estrazioni sfortunate non puo' mai crescere). Applicata
+       sui 15 slot dell'intera run, la comune resta la fascia maggioritaria
+       (ItemPoolMinimumCounts(15, pesi standard, ...) -- verificato in
+       GameItemPoolTest, src/tests/game_tests.c) e la correzione resta viva
+       su questo cammino, che e' quello vivo quando generated/current_run.txt
+       non esiste. */
+    int runRarityCounts[ITEM_POOL_RARITY_COUNT];
+    ItemPoolMinimumCounts(RUN_FALLBACK_NORMAL_ITEM_COUNT, ItemPoolWeightsStandard, runRarityCounts);
+    Rarity runSlotRarities[RUN_FALLBACK_NORMAL_ITEM_COUNT];
+    int slot = 0;
+    for (int r = 0; r < ITEM_POOL_RARITY_COUNT && slot < RUN_FALLBACK_NORMAL_ITEM_COUNT; r++)
+        for (int c = 0; c < runRarityCounts[r] && slot < RUN_FALLBACK_NORMAL_ITEM_COUNT; c++) runSlotRarities[slot++] = (Rarity)r;
+    while (slot < RUN_FALLBACK_NORMAL_ITEM_COUNT) runSlotRarities[slot++] = RARITY_COMMON;   /* difesa: mai uno slot senza rarita' se i conti non tornassero */
+    /* Rimescola quale slot dell'INTERA run riceve quale rarita' (Fisher-Yates
+       sul seed di run): la posizione (piano, indice) non deve mai predire la
+       rarita' dell'oggetto -- ogni piano riceve 3 slot consecutivi di questo
+       array gia' rimescolato, non piu' un rimescolo separato per piano.
+       Solo GameRngRange su 'rng' (derivato dal seed), nessun rand()/time(). */
+    for (int i = RUN_FALLBACK_NORMAL_ITEM_COUNT - 1; i > 0; i--)
+    {
+        int j = GameRngRange(&rng, 0, i);
+        Rarity tmp = runSlotRarities[i]; runSlotRarities[i] = runSlotRarities[j]; runSlotRarities[j] = tmp;
+    }
+
     for (int f = 0; f < FLOOR_COUNT; f++)
     {
         content->floors[f].theme = MakeFallbackTheme(&rng, f + 1);
+
         for (int i = 0; i < 3; i++)
         {
-            content->floors[f].items[i] = MakeFallbackItem(&rng, &content->floors[f].theme, i);
+            content->floors[f].items[i] = MakeFallbackItem(&rng, &content->floors[f].theme, i, runSlotRarities[f * 3 + i]);
         }
         content->floors[f].bossItem = MakeFallbackBossItem(&rng, &content->floors[f].theme, f);
         /* Step C: UN tipo di colpo per piano, su UNO dei tre oggetti attivi (mai
@@ -737,9 +777,12 @@ void RunContentLoad(RunContent *content, unsigned int seed)
             if (value[0]) item->kind = ItemKindFromText(value, declaresRecharge);
 
             /* Fase 3b: riga assente (manifest scritto prima di questa fase)
-               -> item->rarity resta RARITY_COMMON, gia' impostato da
-               MakeFallbackItem sopra (stesso schema "per-key fallback" di
-               ogni altro campo qui, vedi il commento su RarityFromText). */
+               -> item->rarity resta quella gia' impostata da MakeFallbackItem
+               sopra (stesso schema "per-key fallback" di ogni altro campo
+               qui, vedi il commento su RarityFromText) -- dal DEC-144/145
+               (2026-07-27) NON piu' sempre RARITY_COMMON: e' la rarita' che
+               ItemPoolMinimumCounts ha assegnato a questo slot sull'intera
+               run di ripiego. */
             snprintf(key, sizeof(key), "floor%d.item%d.rarity=", n, i + 1);
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));
@@ -817,14 +860,17 @@ void RunContentLoad(RunContent *content, unsigned int seed)
 
         /* Fase 3b review ("il boss non delude mai"): stesso schema "per-key
            fallback" di sopra -- riga assente -> resta quello che
-           MakeFallbackBossItem ha gia' impostato, ora RARITY_RARE (non piu'
-           RARITY_COMMON: vedi il commento li' sopra). A differenza degli
+           MakeFallbackBossItem ha gia' impostato, ora RARITY_RARE O
+           RARITY_LEGENDARY (mai piu' RARITY_COMMON: vedi il commento li'
+           sopra) -- ItemPoolRollRarity coi pesi del pool boss {0,0,70,30}
+           tira l'UNA o l'ALTRA, mai un valore fisso. A differenza degli
            oggetti normali (dove "riga assente -> comune" resta back-compat
            voluto), qui la riga puo' mancare per due motivi ben distinti --
            nessun manifest ancora (ripiego puro) o un manifest VECCHIO
            (scritto prima di questa fase) -- ed entrambi ora ricadono su
-           "raro", mai piu' su "comune": il bossItem non deve MAI deludere,
-           nemmeno quando melting-gen non ha ancora scritto nulla. */
+           "raro o leggendario", mai piu' su "comune": il bossItem non deve
+           MAI deludere, nemmeno quando melting-gen non ha ancora scritto
+           nulla. */
         snprintf(key, sizeof(key), "floor%d.bossItem.rarity=", n);
         value[0] = '\0';
         ReadManifestValue(text, key, value, sizeof(value));
