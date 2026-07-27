@@ -1,0 +1,36 @@
+GIMP Palette
+Name: Worldsmelt Fucina
+Columns: 8
+# Palette ufficiale Worldsmelt (proposta A scelta dal proprietario il 27/07/2026)
+# Bronzo, brace, cenere, verderame — non-neon.
+ 20  16  14	slag-nero
+ 36  26  22	slag-scuro
+ 58  38  32	slag-caldo
+ 85  53  42	terra-bruciata
+122  74  43	bronzo-scuro
+156 101  38	bronzo
+201 138  46	bronzo-chiaro
+232 183  74	oro-fuso
+245 223 143	oro-pallido
+126  34  22	brace-scura
+177  58  30	brace
+224  91  35	fiamma
+247 145  62	fiamma-chiara
+255 196 107	bagliore
+ 43  43  49	cenere-nera
+ 74  74  85	cenere-scura
+115 115 130	cenere
+167 167 181	cenere-chiara
+216 216 224	fumo
+244 242 236	bianco-caldo
+ 30  77  68	verderame-scuro
+ 58 125  99	verderame
+109 179 136	verderame-chiaro
+168 220 168	patina
+ 38  48  63	ardesia-scura
+ 64  84 107	ardesia
+106 134 160	ardesia-chiara
+157 182 201	ardesia-pallida
+ 91  42  77	prugna-scura
+148  64 110	prugna
+207 111 150	prugna-chiara
