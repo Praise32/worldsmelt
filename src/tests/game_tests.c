@@ -3,6 +3,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 #include "content/character_roster.h"
+#include "content/run_catalog.h"
 #include "core/character_type.h"
 #include "game/game_internal.h"
 #include "gameplay/item_traits.h"
@@ -16,6 +17,51 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <direct.h>   /* _mkdir/_rmdir: mkdtemp() non esiste ne' in UCRT ne' nel runtime MinGW-w64 */
+#else
+#include <unistd.h>   /* mkdtemp */
+#endif
+
+/* Crea una directory temporanea VUOTA e univoca per isolare il catalogo del
+   test dal contenuto reale di catalog/ (known-issues.md #1). Scrive il
+   percorso risultante in pathBuf (deve avere spazio a sufficienza) e lo
+   ritorna, o NULL se la creazione fallisce dopo qualche tentativo. Su POSIX
+   usa mkdtemp (sostituisce le 'X' finali in modo atomico); su Windows (nessun
+   mkdtemp disponibile) prova una manciata di nomi resi univoci da rand() + un
+   contatore finche' _mkdir() non ne accetta uno. Copia privata identica in
+   src/tests/catalog_tests.c, stessa convenzione delle InputXxx di quel file. */
+static char *CreateTempCatalogTestDir(char *pathBuf, size_t pathBufSize, const char *namePrefix)
+{
+    const char *base = getenv("TMPDIR");
+#ifdef _WIN32
+    if (!base) base = getenv("TEMP");
+    if (!base) base = getenv("TMP");
+    if (!base) base = ".";
+    for (int attempt = 0; attempt < 64; attempt++)
+    {
+        snprintf(pathBuf, pathBufSize, "%s\\%s-%d-%d", base, namePrefix, rand(), attempt);
+        if (_mkdir(pathBuf) == 0) return pathBuf;
+    }
+    return NULL;
+#else
+    if (!base) base = "/tmp";
+    snprintf(pathBuf, pathBufSize, "%s/%s-XXXXXX", base, namePrefix);
+    return mkdtemp(pathBuf);
+#endif
+}
+
+/* Rimuove la directory temporanea creata da CreateTempCatalogTestDir sopra
+   (gia' svuotata dal chiamante prima di chiamarla). */
+static void RemoveTempCatalogTestDir(const char *path)
+{
+#ifdef _WIN32
+    _rmdir(path);
+#else
+    rmdir(path);
+#endif
+}
 
 bool GamePortalRespawnTest(Game *game)
 {
@@ -72,20 +118,27 @@ static AppInput InputPause(void)   { AppInput in = { 0 }; in.pause = true; retur
 #define STATES_CHECK(cond, msg) \
     do { if (!(cond)) { fprintf(stderr, "GameStatesTest: %s\n", (msg)); return false; } } while (0)
 
-/* M7 (substrato del catalogo): quanti file ci sono OGGI in catalog/ (0 se la
+/* M7 (substrato del catalogo): quanti file ci sono OGGI nella directory in
+   cui RunCatalogWriteRun scriverebbe DAVVERO in questo momento (0 se la
    cartella non esiste ancora -- prima di qualunque scrittura vera, es. su
    una checkout pulita, e' il caso normale). Usata per verificare che i
    PHASE_WIN/PHASE_GAME_OVER sintetici di questo test NON scrivano nulla
    (spec M7, punto (b): "i game test esistenti... non devono scrivere file
    catalogo" -- la guardia vera e' AppUi.catalogWritesEnabled, zero-default,
    mai acceso qui sopra; questo conteggio e' la controprova osservabile su
-   disco, non solo "confidiamo nella guardia"). Stessa API raylib di
-   RunCatalogWriteRun (src/content/run_catalog.c): nessuna dipendenza in piu'
-   da trascinarsi dietro solo per un test. */
+   disco, non solo "confidiamo nella guardia"). Deve seguire lo STESSO
+   percorso di RunCatalogWriteRun (RunCatalogGetTestPath() con fallback
+   "catalog", src/content/run_catalog.c): per tutta la durata di
+   GameStatesTest quel percorso e' la directory temporanea isolata da
+   RunCatalogSetTestPath, quindi la controprova resta valida (non
+   tautologica) anche se la guardia si rompesse davvero -- il file
+   comparirebbe li' dentro, ed e' li' che questa funzione guarda. */
 static int CatalogFileCount(void)
 {
-    if (!DirectoryExists("catalog")) return 0;
-    FilePathList files = LoadDirectoryFilesEx("catalog", ".txt", false);
+    const char *catalogPath = RunCatalogGetTestPath();
+    if (!catalogPath) catalogPath = "catalog";
+    if (!DirectoryExists(catalogPath)) return 0;
+    FilePathList files = LoadDirectoryFilesEx(catalogPath, ".txt", false);
     int count = (int)files.count;
     UnloadDirectoryFiles(files);
     return count;
@@ -107,6 +160,28 @@ bool GameStatesTest(Game *game)
     AppGen gen = { 0 };
     AppUi ui = { 0 };
     AppMode mode = APP_MAIN_MENU;
+    bool test_success = true;
+
+    /* Macro locale di STATES_CHECK che usa goto per cleanup in caso di errore */
+#undef STATES_CHECK
+#define STATES_CHECK(cond, msg) \
+    do { if (!(cond)) { fprintf(stderr, "GameStatesTest: %s\n", (msg)); test_success = false; goto cleanup_test_catalog; } } while (0)
+
+    /* Isolamento del catalogo del test: crea una directory temporanea VUOTA e usa quella
+       invece del catalogo reale, cosi' il test non dipende dai file scritti dall'utente.
+       Il test si aspetta un catalogo vuoto per costruzione (vedi commento nel test sui
+       controlli della categoria 0). Vedi issue: known-issues.md #1. */
+    char testCatalogPath[256] = { 0 };
+    char *testCatalogDir = CreateTempCatalogTestDir(testCatalogPath, sizeof(testCatalogPath), "melting-test-catalog");
+    if (!testCatalogDir)
+    {
+        fprintf(stderr, "GameStatesTest: errore nella creazione della directory temporanea\n");
+        return false;
+    }
+
+    /* Settare il percorso del catalogo di test per isolare il catalogo reale.
+       La directory temporanea è vuota, come si aspetta il test. */
+    RunCatalogSetTestPath(testCatalogDir);
 
     /* Un frame senza alcun evento: esercita il caso "niente e' successo", che
        deve lasciare tutto esattamente com'era. */
@@ -332,7 +407,24 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_GAMEPLAY, "l'attraversamento dopo RunResults non porta a Gameplay");
     STATES_CHECK(game->phase == PHASE_PLAY, "la nuova run non ha richiamato GameResetRun (fase non tornata a PLAY)");
 
-    return true;
+    /* Cleanup della directory temporanea del test e ripristino del percorso del catalogo */
+cleanup_test_catalog:
+    RunCatalogSetTestPath(NULL);  /* Ripristina il percorso del catalogo di default */
+
+    /* Rimuovi tutti i file dalla directory temporanea */
+    if (testCatalogDir && DirectoryExists(testCatalogDir))
+    {
+        FilePathList files = LoadDirectoryFilesEx(testCatalogDir, "", false);
+        for (unsigned int i = 0; i < files.count; i++)
+        {
+            remove(files.paths[i]);
+        }
+        UnloadDirectoryFiles(files);
+        /* Rimuovi la directory stessa */
+        RemoveTempCatalogTestDir(testCatalogDir);
+    }
+
+    return test_success;
 }
 
 static int CountActiveShots(const Game *game)

@@ -79,13 +79,28 @@ void RunCatalogUnescapeText(const char *escaped, char *out, int outSize);
  * incrementato), mai un crash; un file che supera quel controllo ma ha campi
  * mancanti a valle (troncamento a meta' record) si limita a non scrivere
  * quei campi (ReadManifestValue ritorna stringa vuota su una chiave assente,
- * gia' innocuo per costruzione), niente di piu' drastico. 'catalog/'
+ * gia' innocuo per costruzione), niente di piu' drastico. 'path'
  * assente (nessuna run ha ancora scritto nulla) lascia 'out' a zero, mai un
  * errore -- il chiamante mostra il messaggio sobrio del catalogo vuoto. Ogni
  * categoria e' limitata a RUN_CATALOG_ENTRY_MAX voci DISTINTE (core/
  * game_types.h): oltre quel tetto le occorrenze aggiuntive contano solo in
  * out->overflowCount[cat] ("e altre N"), mai un'allocazione o una scrittura
  * fuori banda. */
+void RunCatalogAggregateFromPath(RunCatalogSummary *out, const char *path);
+
+/* Versione di RunCatalogAggregateFromPath che usa il percorso di default "catalog",
+ * o il percorso settato via RunCatalogSetTestPath se il test lo ha customizzato. */
 void RunCatalogAggregate(RunCatalogSummary *out);
+
+/* Setter per il percorso del catalogo di test: usato da GameStatesTest e
+ * GameCatalogScreenTest per isolare il catalogo reale. Se settato a non-NULL,
+ * RunCatalogWriteRun e RunCatalogAggregate lo usano al posto del default
+ * "catalog". Passare NULL per ripristinare il comportamento di default. */
+void RunCatalogSetTestPath(const char *path);
+
+/* Getter per il percorso del catalogo di test: usato dai test per scrivere
+ * file nel percorso isolato quando il test ha settato un percorso custom.
+ * Ritorna NULL se nessun percorso custom è stato settato. */
+const char *RunCatalogGetTestPath(void);
 
 #endif

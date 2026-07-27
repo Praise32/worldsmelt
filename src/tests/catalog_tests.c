@@ -26,6 +26,51 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <direct.h>   /* _mkdir/_rmdir: mkdtemp() non esiste ne' in UCRT ne' nel runtime MinGW-w64 */
+#else
+#include <unistd.h>   /* mkdtemp */
+#endif
+
+/* Crea una directory temporanea VUOTA e univoca per isolare il catalogo del
+   test dal contenuto reale di catalog/ (known-issues.md #1). Scrive il
+   percorso risultante in pathBuf (deve avere spazio a sufficienza) e lo
+   ritorna, o NULL se la creazione fallisce dopo qualche tentativo. Su POSIX
+   usa mkdtemp (sostituisce le 'X' finali in modo atomico); su Windows (nessun
+   mkdtemp disponibile) prova una manciata di nomi resi univoci da rand() + un
+   contatore finche' _mkdir() non ne accetta uno. Copia privata identica in
+   src/tests/game_tests.c, stessa convenzione delle InputXxx sopra. */
+static char *CreateTempCatalogTestDir(char *pathBuf, size_t pathBufSize, const char *namePrefix)
+{
+    const char *base = getenv("TMPDIR");
+#ifdef _WIN32
+    if (!base) base = getenv("TEMP");
+    if (!base) base = getenv("TMP");
+    if (!base) base = ".";
+    for (int attempt = 0; attempt < 64; attempt++)
+    {
+        snprintf(pathBuf, pathBufSize, "%s\\%s-%d-%d", base, namePrefix, rand(), attempt);
+        if (_mkdir(pathBuf) == 0) return pathBuf;
+    }
+    return NULL;
+#else
+    if (!base) base = "/tmp";
+    snprintf(pathBuf, pathBufSize, "%s/%s-XXXXXX", base, namePrefix);
+    return mkdtemp(pathBuf);
+#endif
+}
+
+/* Rimuove la directory temporanea creata da CreateTempCatalogTestDir sopra
+   (gia' svuotata dal chiamante prima di chiamarla). */
+static void RemoveTempCatalogTestDir(const char *path)
+{
+#ifdef _WIN32
+    _rmdir(path);
+#else
+    rmdir(path);
+#endif
+}
+
 #define CATALOG_TEST_CHECK(cond, msg) \
     do { if (!(cond)) { fprintf(stderr, "GameCatalogTest: %s\n", (msg)); return false; } } while (0)
 
@@ -619,11 +664,14 @@ bool GameCatalogTest(Game *game)
 /* ============================================================
    M8 (DEC-045, vista Catalogo v1): test della schermata (--catalog-screen-
    test, aggregazione + navigazione dentro APP_MAIN_MENU). Stesso stile del
-   blocco sopra: sotto-scenari con la propria etichetta, pulizia snapshot-
-   based UNA volta sola a livello della funzione esposta (GameCatalogScreenTest
-   in fondo), mai per singolo scenario -- l'invariante che ha causato la prima
-   bocciatura della scala di implementazione (vedi CLAUDE.md): catalog/ deve
-   restare esattamente com'era dopo la suite.
+   blocco sopra: sotto-scenari con la propria etichetta, ma isolati dalla
+   directory temporanea creata UNA volta sola a livello della funzione esposta
+   (GameCatalogScreenTest in fondo, via CreateTempCatalogTestDir/
+   RunCatalogSetTestPath) -- nessuno scenario tocca mai catalog/ reale
+   (known-issues.md #1): l'invariante che ha causato la prima bocciatura della
+   scala di implementazione (vedi CLAUDE.md) e' che catalog/ deve restare
+   esattamente com'era dopo la suite, indipendentemente da quante run vere
+   chi lancia i test ha gia' giocato su questo stesso checkout.
    ============================================================ */
 
 #define CATALOG_SCREEN_TEST_CHECK(cond, msg) \
@@ -640,22 +688,18 @@ static const RunCatalogEntry *FindCatalogEntry(const RunCatalogSummary *sum, Run
     return NULL;
 }
 
-/* Scenario 1 (spec M8: "catalogo vuoto -> messaggio senza crash"): catalog/
-   spostata TEMPORANEAMENTE fuori dai piedi (rename, mai una cancellazione --
-   ripristinata subito dopo, qualunque record reale del checkout resta
-   intatto) cosi' l'aggregato e' DETERMINISTICAMENTE vuoto, indipendentemente
-   da quante run vere chi lancia le suite ha gia' giocato su questo stesso
-   checkout. Disegna anche un frame vero (RendererDrawApp, come GameLayerTest)
-   perche' "senza crash" deve valere per davvero, non solo per l'aggregato. */
+/* Scenario 1 (spec M8: "catalogo vuoto -> messaggio senza crash"): l'aggregato
+   e' DETERMINISTICAMENTE vuoto perche' questo scenario gira SEMPRE per primo
+   (vedi l'array in GameCatalogScreenTest sotto) dentro la directory temporanea
+   isolata via RunCatalogSetTestPath -- gia' garantita vuota da
+   CreateTempCatalogTestDir, prima che CatalogScreenPopulatedScenario ci scriva
+   dentro. Non serve piu' spostare/ripristinare catalog/ reale (come faceva
+   questo scenario prima dell'isolamento bidimensionale, vedi known-issues.md
+   #1): l'isolamento della directory di test basta da solo. Disegna anche un
+   frame vero (RendererDrawApp, come GameLayerTest) perche' "senza crash" deve
+   valere per davvero, non solo per l'aggregato. */
 static bool CatalogScreenEmptyScenario(Game *game)
 {
-    bool hadDir = DirectoryExists("catalog");
-    if (hadDir && rename("catalog", "catalog.GameCatalogScreenTest.bak") != 0)
-    {
-        fprintf(stderr, "GameCatalogScreenTest: impossibile spostare catalog/ da parte, scenario 'vuoto' saltato\n");
-        return true;   /* non un fallimento del test: solo impossibile isolare l'ambiente qui */
-    }
-
     AppGen gen = { 0 };
     AppUi ui = { 0 };
     AppMode mode = APP_MAIN_MENU;
@@ -665,13 +709,12 @@ static bool CatalogScreenEmptyScenario(Game *game)
     if (mode != APP_MAIN_MENU || !ui.catalogOpen)
     {
         fprintf(stderr, "GameCatalogScreenTest: (vuoto) confirm su Catalogo non apre la vista dentro APP_MAIN_MENU\n");
-        if (hadDir) rename("catalog.GameCatalogScreenTest.bak", "catalog");
         return false;
     }
     int total = 0;
     for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++) total += ui.catalog.entryCount[c];
     bool ok = (total == 0);
-    if (!ok) fprintf(stderr, "GameCatalogScreenTest: (vuoto) l'aggregato non e' vuoto su catalog/ assente\n");
+    if (!ok) fprintf(stderr, "GameCatalogScreenTest: (vuoto) l'aggregato non e' vuoto sulla directory di test isolata\n");
 
     /* "senza crash" per davvero: un frame vero, non solo i dati. */
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -685,7 +728,6 @@ static bool CatalogScreenEmptyScenario(Game *game)
         ok = false;
     }
 
-    if (hadDir) rename("catalog.GameCatalogScreenTest.bak", "catalog");
     return ok;
 }
 
@@ -728,14 +770,18 @@ static bool CatalogScreenPopulatedScenario(Game *game)
 
     /* Un file corrotto (nessun catalogSchema=1 valido): RunCatalogAggregate lo
        deve ignorare con una riga di log, mai un crash (vedi il commento su
-       RunCatalogAggregate in src/content/run_catalog.h). */
-    FILE *corrupted = fopen("catalog/GameCatalogScreenTest-corrupted.txt", "w");
+       RunCatalogAggregate in src/content/run_catalog.h). Scritto nel percorso
+       isolato se il test ha settato RunCatalogSetTestPath. */
+    const char *catalogPath = RunCatalogGetTestPath() ? RunCatalogGetTestPath() : "catalog";
+    char corruptedPath[300];
+    snprintf(corruptedPath, sizeof(corruptedPath), "%s/GameCatalogScreenTest-corrupted.txt", catalogPath);
+    FILE *corrupted = fopen(corruptedPath, "w");
     if (corrupted)
     {
         fputs("questo file non e' un record di catalogo valido\nseed=42\n", corrupted);
         fclose(corrupted);
     }
-    else fprintf(stderr, "GameCatalogScreenTest: impossibile scrivere il file corrotto di fixture\n");
+    else fprintf(stderr, "GameCatalogScreenTest: impossibile scrivere il file corrotto di fixture in %s\n", corruptedPath);
 
     AppGen gen = { 0 };
     AppUi ui = { 0 };
@@ -810,12 +856,19 @@ static bool CatalogScreenPopulatedScenario(Game *game)
 
 bool GameCatalogScreenTest(Game *game)
 {
-    /* Stesso schema di GameCatalogTest sopra: snapshot PRIMA di qualunque
-       scenario, pulizia UNA volta sola alla fine -- catalog/ resta esattamente
-       com'era (o inesistente) qualunque cosa gli scenari abbiano scritto. */
-    bool dirExistedBefore = DirectoryExists("catalog");
-    CatalogSnapshot before;
-    SnapshotCatalog(&before);
+    /* Isolamento del catalogo: crea una directory temporanea isolata (come
+       GameStatesTest) per non dipendere da eventuali run reali dell'utente in
+       catalog/. Gli scenari scrivono file sintetici nella dir temporanea e gli
+       legge il test. Alla fine la directory viene ripulita. */
+    char testCatalogPath[256] = { 0 };
+    char *testCatalogDir = CreateTempCatalogTestDir(testCatalogPath, sizeof(testCatalogPath), "melting-catalog-screen-test");
+    if (!testCatalogDir)
+    {
+        fprintf(stderr, "GameCatalogScreenTest: errore nella creazione della directory temporanea\n");
+        return false;
+    }
+
+    RunCatalogSetTestPath(testCatalogDir);
 
     struct { const char *label; bool (*fn)(Game *); } tests[] = {
         { "1 (catalogo vuoto -> messaggio senza crash)", CatalogScreenEmptyScenario },
@@ -830,7 +883,20 @@ bool GameCatalogScreenTest(Game *game)
     }
 
     RemoveManifest();
-    CleanupCatalog(&before, dirExistedBefore);
+
+    /* Cleanup della directory temporanea del test */
+    RunCatalogSetTestPath(NULL);  /* Ripristina il percorso di default */
+    if (testCatalogDir && DirectoryExists(testCatalogDir))
+    {
+        FilePathList files = LoadDirectoryFilesEx(testCatalogDir, "", false);
+        for (unsigned int i = 0; i < files.count; i++)
+        {
+            remove(files.paths[i]);
+        }
+        UnloadDirectoryFiles(files);
+        RemoveTempCatalogTestDir(testCatalogDir);
+    }
+
     return allOk;
 }
 

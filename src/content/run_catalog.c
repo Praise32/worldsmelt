@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Percorso del catalogo per i test: se settato, overridea il percorso di default "catalog".
+   Usato da RunCatalogAggregateFromPath per isolare il catalogo del test da quello reale. */
+static const char *g_testCatalogPath = NULL;
+
 /* Stesso schema "strstr fino a fine riga" di ReadManifestValue in
    src/content/run_content.c e src/content/character_proposal.c: una copia
    PRIVATA per modulo e' la convenzione gia' in uso nel progetto (vedi il
@@ -178,11 +182,12 @@ static bool ReadCharacterTraitLua(char *out, int outSize)
    "run-<seed>-<esito>-p<piano>-<progressivo>.txt"): robusto perche' nessuno
    dei tre esiti (RUN_CATALOG_OUTCOME_*) contiene un trattino. Un file
    estraneo in catalog/ (senza trattino, o con un suffisso non numerico)
-   contribuisce 0 al massimo, mai un crash. */
+   contribuisce 0 al massimo, mai un crash. Usa il percorso di test se settato. */
 static int NextProgressive(void)
 {
-    if (!DirectoryExists("catalog")) return 1;
-    FilePathList files = LoadDirectoryFilesEx("catalog", ".txt", false);
+    const char *catalogPath = g_testCatalogPath ? g_testCatalogPath : "catalog";
+    if (!DirectoryExists(catalogPath)) return 1;
+    FilePathList files = LoadDirectoryFilesEx(catalogPath, ".txt", false);
     int maxN = 0;
     for (unsigned int i = 0; i < files.count; i++)
     {
@@ -218,16 +223,21 @@ int RunCatalogWriteRun(const Game *game, unsigned int seed, const char *outcome)
     UnloadFileText(manifest);
     if (!source[0] || strcmp(source, "fallback") == 0) return 0;
 
-    if (!DirectoryExists("catalog") && MakeDirectory("catalog") != 0)
+    /* Usa il percorso del catalogo di test se settato (isola il test dal
+       catalogo reale), altrimenti usa il catalogo di produzione standard.
+       Stesso pattern usato da RunCatalogAggregate per le letture. */
+    const char *catalogPath = g_testCatalogPath ? g_testCatalogPath : "catalog";
+
+    if (!DirectoryExists(catalogPath) && MakeDirectory(catalogPath) != 0)
     {
-        fprintf(stderr, "RunCatalog: impossibile creare catalog/, catalogo non aggiornato per questa run\n");
+        fprintf(stderr, "RunCatalog: impossibile creare %s, catalogo non aggiornato per questa run\n", catalogPath);
         return 0;
     }
 
     int progressive = NextProgressive();
     char finalPath[192];
     char tmpPath[208];
-    snprintf(finalPath, sizeof(finalPath), "catalog/run-%u-%s-p%d-%d.txt", seed, outcome, game->floor, progressive);
+    snprintf(finalPath, sizeof(finalPath), "%s/run-%u-%s-p%d-%d.txt", catalogPath, seed, outcome, game->floor, progressive);
     snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", finalPath);
 
     FILE *f = fopen(tmpPath, "w");
@@ -706,14 +716,32 @@ static void RunCatalogAggregateOneFile(RunCatalogSummary *out, const char *path)
     out->filesRead++;
 }
 
-void RunCatalogAggregate(RunCatalogSummary *out)
+void RunCatalogAggregateFromPath(RunCatalogSummary *out, const char *path)
 {
     if (!out) return;
     memset(out, 0, sizeof(*out));
-    if (!DirectoryExists("catalog")) return;   /* nessuna run ha ancora scritto nulla: aggregato vuoto, mai un errore */
+    if (!path || !DirectoryExists(path)) return;   /* nessuna run ha ancora scritto nulla: aggregato vuoto, mai un errore */
 
-    FilePathList files = LoadDirectoryFilesEx("catalog", ".txt", false);
+    FilePathList files = LoadDirectoryFilesEx(path, ".txt", false);
     for (unsigned int i = 0; i < files.count; i++)
         RunCatalogAggregateOneFile(out, files.paths[i]);
     UnloadDirectoryFiles(files);
+}
+
+void RunCatalogAggregate(RunCatalogSummary *out)
+{
+    const char *path = g_testCatalogPath ? g_testCatalogPath : "catalog";
+    RunCatalogAggregateFromPath(out, path);
+}
+
+/* Setter per il percorso del catalogo di test: usato dai test per isolare il catalogo reale. */
+void RunCatalogSetTestPath(const char *path)
+{
+    g_testCatalogPath = path;
+}
+
+/* Getter per il percorso del catalogo di test. */
+const char *RunCatalogGetTestPath(void)
+{
+    return g_testCatalogPath;
 }

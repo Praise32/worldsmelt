@@ -2871,8 +2871,8 @@
         "tools/melting-gen/gen_validate.c",
         "docs/archive/legacy-notes/issue-notes.md"
       ],
-      "last_reviewed": "2026-07-25",
-      "last_verified_commit": "fe27f6d"
+      "last_reviewed": "2026-07-27",
+      "last_verified_commit": "dab9140"
     },
     {
       "id": "eng-multiplayer-steam-direction",

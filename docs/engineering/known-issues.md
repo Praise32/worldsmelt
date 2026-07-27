@@ -9,8 +9,8 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-25
-last_verified_commit: fe27f6d
+last_reviewed: 2026-07-27
+last_verified_commit: dab9140
 topics: [difetti, limiti, test, rng, generazione, catalogo]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
@@ -34,18 +34,45 @@ voci. Se il processo di test gira nella working directory del repository e
 precedenza), la categoria 0 puo' avere voci: il "giu'" sposta il focus e
 l'assert fallisce.
 
-**Evidenza**: `src/tests/game_tests.c:274` (`STATES_CHECK(ui.catalogItemFocus
-== 0, "su/giu' su una categoria vuota ha spostato il focus voce")`);
-`src/content/run_catalog.c:184-185` legge `catalog/` con percorso relativo
-fisso (`LoadDirectoryFilesEx("catalog", ...)`), quindi dipende dalla cwd del
-processo di test, non da un fixture isolato. Riprodotto sul repository
-locale: `catalog/` contiene 1 file reale (`run-4100422243-sconfitta-p2-1.txt`)
-al momento di questa verifica.
+**Evidenza**: `src/tests/game_tests.c:349` — `STATES_CHECK(ui.catalogItemFocus == 0, "su/giu' su una
+categoria vuota ha spostato il focus voce")` fallisce quando la categoria 0 ("mondi") del catalogo
+aggregato ha davvero delle voci; `src/content/run_catalog.c` leggeva/scriveva `catalog/` con percorso
+relativo fisso, quindi dipendeva dalla cwd del processo di test e dal contenuto reale di `catalog/`
+anziché da un fixture isolato.
 
-**Stato**: preesistente, introdotto con la schermata Catalogo v1 (M8, DEC-045,
-commit `f8055bd`). Verde a `catalog/` vuota, rosso (non deterministico rispetto
-allo stato locale) quando contiene run reali. Nessuna guardia test-safe che
-isoli il fixture da `catalog/` reale per questa specifica sezione del test.
+**Stato**: RISOLTO (27/07, notte). Implementazione:
+- **Isolamento bidimensionale** (letture E scritture) tramite `g_testCatalogPath`: sia le letture
+(`RunCatalogAggregate`/`RunCatalogAggregateFromPath`) sia le scritture (`RunCatalogWriteRun`,
+`NextProgressive`) usano `g_testCatalogPath` quando settato via `RunCatalogSetTestPath`, altrimenti
+il default `"catalog/"`. `RunCatalogGetTestPath` (nuovo getter pubblico) espone lo stesso percorso ai
+test che devono scrivere fixture direttamente nella directory isolata.
+- **Test `--states-test`** (GameStatesTest): crea una directory temporanea vuota (portabile Linux/
+Windows, vedi `CreateTempCatalogTestDir` nello stesso file), settata con `RunCatalogSetTestPath`. Le
+LETTURE e le SCRITTURE di catalogo usano il percorso isolato. Il test ripulisce la directory
+temporanea alla fine.
+- **Test `--catalog-screen-test`** (GameCatalogScreenTest): come GameStatesTest, crea UNA directory
+temporanea isolata (stessa `CreateTempCatalogTestDir`, copia privata in `catalog_tests.c`) condivisa
+da tutti gli scenari. `CatalogScreenEmptyScenario` (che gira per primo) sfrutta la garanzia "vuota per
+costruzione" della directory appena creata, senza piu' dover spostare/ripristinare `catalog/` reale.
+`CatalogScreenPopulatedScenario` scrive due run sintetiche e un file corrotto via
+`RunCatalogGetTestPath` nello stesso percorso isolato. `GameCatalogScreenTest` ripulisce la directory
+temporanea alla fine (nessuno scenario tocca mai `catalog/` reale).
+- **Controprova su disco della guardia `catalogWritesEnabled`** (`CatalogFileCount` in
+`game_tests.c`): le tre `STATES_CHECK` che confrontano il conteggio file prima/dopo (abbandono da
+ExitConfirm, `PHASE_WIN` sintetico, `PHASE_GAME_OVER` sintetico) devono ispezionare la STESSA
+directory in cui `RunCatalogWriteRun` scriverebbe davvero in quel momento — che durante
+`GameStatesTest` e' la directory temporanea isolata, non la vera `catalog/`. Un primo giro di questo
+fix aveva lasciato `CatalogFileCount` hardcoded su `"catalog"`: le tre verifiche risultavano vere per
+costruzione (la vera `catalog/` non viene mai toccata dal test isolato) indipendentemente dal fatto
+che la guardia funzionasse o si fosse rotta — una regressione silenziosa, individuata in revisione e
+corretta qui. `CatalogFileCount` ora legge `RunCatalogGetTestPath()` (fallback `"catalog"`), quindi
+segue lo stesso percorso di `RunCatalogWriteRun` e la controprova resta significativa.
+
+File modificati:
+- `src/content/run_catalog.c`: RunCatalogWriteRun, NextProgressive, RunCatalogGetTestPath (getter per il percorso isolato usato nei test)
+- `src/content/run_catalog.h`: commento aggiornato su RunCatalogSetTestPath (copre ora letture E scritture); ristabilito RunCatalogGetTestPath come getter pubblico
+- `src/tests/game_tests.c`: CreateTempCatalogTestDir/RemoveTempCatalogTestDir (helper portabili Linux/Windows) + GameStatesTest li usa con RunCatalogSetTestPath per isolare il test
+- `src/tests/catalog_tests.c`: stessa coppia di helper (copia privata) + GameCatalogScreenTest li usa con RunCatalogSetTestPath; CatalogScreenPopulatedScenario usa RunCatalogGetTestPath per scrivere il file corrotto nel percorso isolato; CatalogScreenEmptyScenario non tocca piu' catalog/ reale (no residui in catalog/ reale)
 
 ## 2 — `make test-llm` flaky (~25%) col modello 1.5B
 
