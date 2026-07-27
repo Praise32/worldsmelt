@@ -1,0 +1,2644 @@
+{
+  "images": [
+    {
+      "id": "helm-teal-winged",
+      "file": "items/helm-teal-winged.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "helmet"
+      ],
+      "size": [
+        52,
+        49
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/1.png"
+    },
+    {
+      "id": "helm-horned-yellow",
+      "file": "items/helm-horned-yellow.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "helmet"
+      ],
+      "size": [
+        52,
+        49
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/4.png"
+    },
+    {
+      "id": "gauntlet-yellow",
+      "file": "items/gauntlet-yellow.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "gloves"
+      ],
+      "size": [
+        47,
+        44
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/6.png"
+    },
+    {
+      "id": "potion-red",
+      "file": "items/potion-red.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "health"
+      ],
+      "size": [
+        32,
+        43
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/10.png"
+    },
+    {
+      "id": "potion-green",
+      "file": "items/potion-green.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "nature"
+      ],
+      "size": [
+        32,
+        43
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/11.png"
+    },
+    {
+      "id": "potion-blue",
+      "file": "items/potion-blue.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "mana"
+      ],
+      "size": [
+        32,
+        43
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/12.png"
+    },
+    {
+      "id": "potion-yellow",
+      "file": "items/potion-yellow.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "speed"
+      ],
+      "size": [
+        32,
+        43
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/13.png"
+    },
+    {
+      "id": "bread-loaf",
+      "file": "items/bread-loaf.png",
+      "category": "item",
+      "tags": [
+        "food",
+        "consumable"
+      ],
+      "size": [
+        43,
+        32
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/14.png"
+    },
+    {
+      "id": "lantern-blue",
+      "file": "items/lantern-blue.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "light"
+      ],
+      "size": [
+        32,
+        49
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/17.png"
+    },
+    {
+      "id": "coin-disc-one",
+      "file": "items/coin-disc-one.png",
+      "category": "item",
+      "tags": [
+        "currency"
+      ],
+      "size": [
+        17,
+        14
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/19.png"
+    },
+    {
+      "id": "pouch-brown",
+      "file": "items/pouch-brown.png",
+      "category": "item",
+      "tags": [
+        "container",
+        "treasure"
+      ],
+      "size": [
+        25,
+        26
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/21.png"
+    },
+    {
+      "id": "goblet-gold",
+      "file": "items/goblet-gold.png",
+      "category": "item",
+      "tags": [
+        "treasure"
+      ],
+      "size": [
+        22,
+        23
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/26.png"
+    },
+    {
+      "id": "shield-round-brown",
+      "file": "items/shield-round-brown.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "shield"
+      ],
+      "size": [
+        29,
+        27
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/28.png"
+    },
+    {
+      "id": "dagger-brown",
+      "file": "items/dagger-brown.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "dagger"
+      ],
+      "size": [
+        26,
+        45
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/31.png"
+    },
+    {
+      "id": "dagger-yellow",
+      "file": "items/dagger-yellow.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "dagger"
+      ],
+      "size": [
+        26,
+        45
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/33.png"
+    },
+    {
+      "id": "bow-wood",
+      "file": "items/bow-wood.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "ranged"
+      ],
+      "size": [
+        24,
+        77
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/34.png"
+    },
+    {
+      "id": "ring-purple-gem",
+      "file": "items/ring-purple-gem.png",
+      "category": "item",
+      "tags": [
+        "accessory",
+        "ring"
+      ],
+      "size": [
+        20,
+        22
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/37.png"
+    },
+    {
+      "id": "ring-gold-plain",
+      "file": "items/ring-gold-plain.png",
+      "category": "item",
+      "tags": [
+        "accessory",
+        "ring"
+      ],
+      "size": [
+        22,
+        21
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/38.png"
+    },
+    {
+      "id": "helm-knight-teal",
+      "file": "items/helm-knight-teal.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "helmet"
+      ],
+      "size": [
+        46,
+        61
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/45.png"
+    },
+    {
+      "id": "sword-ornate-red",
+      "file": "items/sword-ornate-red.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "size": [
+        59,
+        59
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/46.png"
+    },
+    {
+      "id": "emblem-flame-gold",
+      "file": "items/emblem-flame-gold.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "magic",
+        "fire"
+      ],
+      "size": [
+        47,
+        38
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/49.png"
+    },
+    {
+      "id": "gem-diamond-white",
+      "file": "items/gem-diamond-white.png",
+      "category": "item",
+      "tags": [
+        "gem",
+        "treasure"
+      ],
+      "size": [
+        32,
+        26
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/57.png"
+    },
+    {
+      "id": "hammer-gray",
+      "file": "items/hammer-gray.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "blunt"
+      ],
+      "size": [
+        64,
+        43
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/70.png"
+    },
+    {
+      "id": "staff-gold-cross",
+      "file": "items/staff-gold-cross.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "magic"
+      ],
+      "size": [
+        39,
+        42
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/item/77.png"
+    },
+    {
+      "id": "helm-red-orange",
+      "file": "items/helm-red-orange.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "helmet"
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/2.png"
+    },
+    {
+      "id": "shield-cream-cross",
+      "file": "items/shield-cream-cross.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "shield"
+      ],
+      "size": [
+        7,
+        7
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/5.png"
+    },
+    {
+      "id": "emblem-gold-red-gem",
+      "file": "items/emblem-gold-red-gem.png",
+      "category": "item",
+      "tags": [
+        "accessory",
+        "emblem"
+      ],
+      "size": [
+        11,
+        7
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/7.png"
+    },
+    {
+      "id": "gem-blue-orb",
+      "file": "items/gem-blue-orb.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        10,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/12.png"
+    },
+    {
+      "id": "orb-fire-yellow",
+      "file": "items/orb-fire-yellow.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "magic",
+        "fire"
+      ],
+      "size": [
+        11,
+        12
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/13.png"
+    },
+    {
+      "id": "glove-red-claw",
+      "file": "items/glove-red-claw.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "gloves"
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/19.png"
+    },
+    {
+      "id": "coin-gold-round",
+      "file": "items/coin-gold-round.png",
+      "category": "item",
+      "tags": [
+        "currency"
+      ],
+      "size": [
+        7,
+        7
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/coin.png"
+    },
+    {
+      "id": "gem-blue-cut",
+      "file": "items/gem-blue-cut.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        6,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/gem-1.png"
+    },
+    {
+      "id": "gem-green-square",
+      "file": "items/gem-green-square.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        6,
+        6
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/gem-2.png"
+    },
+    {
+      "id": "gem-red-chunk",
+      "file": "items/gem-red-chunk.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        4,
+        6
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/gem-3.png"
+    },
+    {
+      "id": "gem-orange-cube",
+      "file": "items/gem-orange-cube.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        4,
+        4
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/gem-4.png"
+    },
+    {
+      "id": "gold-pile",
+      "file": "items/gold-pile.png",
+      "category": "item",
+      "tags": [
+        "currency",
+        "treasure"
+      ],
+      "size": [
+        15,
+        12
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-&-gem/gold.png"
+    },
+    {
+      "id": "element-fire",
+      "file": "items/element-fire.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "fire",
+        "fusion-reserve"
+      ],
+      "size": [
+        9,
+        12
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/1.png"
+    },
+    {
+      "id": "element-water",
+      "file": "items/element-water.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "water",
+        "fusion-reserve"
+      ],
+      "size": [
+        9,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/2.png"
+    },
+    {
+      "id": "element-lightning",
+      "file": "items/element-lightning.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "lightning",
+        "fusion-reserve"
+      ],
+      "size": [
+        8,
+        13
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/3.png"
+    },
+    {
+      "id": "element-earth",
+      "file": "items/element-earth.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "earth",
+        "fusion-reserve"
+      ],
+      "size": [
+        9,
+        9
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/4.png"
+    },
+    {
+      "id": "element-leaf",
+      "file": "items/element-leaf.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "nature",
+        "fusion-reserve"
+      ],
+      "size": [
+        12,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/5.png"
+    },
+    {
+      "id": "element-wind",
+      "file": "items/element-wind.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "wind",
+        "fusion-reserve"
+      ],
+      "size": [
+        12,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/6.png"
+    },
+    {
+      "id": "element-light",
+      "file": "items/element-light.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "light",
+        "fusion-reserve"
+      ],
+      "size": [
+        10,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/7.png"
+    },
+    {
+      "id": "element-dark",
+      "file": "items/element-dark.png",
+      "category": "item",
+      "tags": [
+        "element",
+        "dark",
+        "fusion-reserve"
+      ],
+      "size": [
+        10,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/element/8.png"
+    },
+    {
+      "id": "sword-brown-hilt",
+      "file": "items/sword-brown-hilt.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "size": [
+        7,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/weapon/1.png"
+    },
+    {
+      "id": "sword-silver",
+      "file": "items/sword-silver.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "size": [
+        7,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/weapon/2.png"
+    },
+    {
+      "id": "dagger-red-blade",
+      "file": "items/dagger-red-blade.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "dagger"
+      ],
+      "size": [
+        7,
+        17
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/weapon/4.png"
+    },
+    {
+      "id": "axe-double-tan",
+      "file": "items/axe-double-tan.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "axe"
+      ],
+      "size": [
+        8,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/weapon/5.png"
+    },
+    {
+      "id": "spear-brown",
+      "file": "items/spear-brown.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "spear"
+      ],
+      "size": [
+        3,
+        15
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/weapon/9.png"
+    },
+    {
+      "id": "projectile-fireball-orange",
+      "file": "items/projectile-fireball-orange.png",
+      "category": "item",
+      "tags": [
+        "projectile",
+        "fire"
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/projectile/1.png"
+    },
+    {
+      "id": "projectile-ice-shard",
+      "file": "items/projectile-ice-shard.png",
+      "category": "item",
+      "tags": [
+        "projectile",
+        "ice"
+      ],
+      "size": [
+        10,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/projectile/2.png"
+    },
+    {
+      "id": "potion-life-ninja",
+      "file": "items/potion-life-ninja.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "health"
+      ],
+      "size": [
+        9,
+        11
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/life-pot.png"
+    },
+    {
+      "id": "medipack",
+      "file": "items/medipack.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "health"
+      ],
+      "size": [
+        10,
+        10
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/medipack.png"
+    },
+    {
+      "id": "coin-gold-ninja",
+      "file": "items/coin-gold-ninja.png",
+      "category": "item",
+      "tags": [
+        "currency"
+      ],
+      "size": [
+        7,
+        7
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/gold-coin.png"
+    },
+    {
+      "id": "key-gold-ninja",
+      "file": "items/key-gold-ninja.png",
+      "category": "item",
+      "tags": [
+        "key"
+      ],
+      "size": [
+        12,
+        8
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/gold-key.png"
+    },
+    {
+      "id": "scroll-fire",
+      "file": "items/scroll-fire.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "magic",
+        "fire"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/scroll-fire.png"
+    },
+    {
+      "id": "heart-pickup",
+      "file": "items/heart-pickup.png",
+      "category": "item",
+      "tags": [
+        "consumable",
+        "health"
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/heart.png"
+    },
+    {
+      "id": "shuriken",
+      "file": "items/shuriken.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "throwing"
+      ],
+      "size": [
+        13,
+        13
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/shuriken.png"
+    },
+    {
+      "id": "kunai",
+      "file": "items/kunai.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "throwing"
+      ],
+      "size": [
+        14,
+        5
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/kunai.png"
+    },
+    {
+      "id": "fireball-ninja",
+      "file": "items/fireball-ninja.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "magic",
+        "fire"
+      ],
+      "size": [
+        13,
+        9
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/fireball.png"
+    },
+    {
+      "id": "axe-ninja",
+      "file": "items/axe-ninja.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "axe"
+      ],
+      "size": [
+        11,
+        8
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/weapons/axe.png"
+    },
+    {
+      "id": "katana",
+      "file": "items/katana.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "size": [
+        6,
+        10
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/weapons/katana.png"
+    },
+    {
+      "id": "sai",
+      "file": "items/sai.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "dagger"
+      ],
+      "size": [
+        7,
+        8
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/weapons/sai.png"
+    },
+    {
+      "id": "dice-pair",
+      "file": "items/dice-pair.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "curio"
+      ],
+      "size": [
+        24,
+        24
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/dice.png"
+    },
+    {
+      "id": "pocket-watch",
+      "file": "items/pocket-watch.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "curio"
+      ],
+      "size": [
+        38,
+        31
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/pocket-watch.png"
+    },
+    {
+      "id": "poison-vial",
+      "file": "items/poison-vial.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "poison"
+      ],
+      "size": [
+        27,
+        37
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/poison.png"
+    },
+    {
+      "id": "horseshoe",
+      "file": "items/horseshoe.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "curio"
+      ],
+      "size": [
+        28,
+        25
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/horseshoe.png"
+    },
+    {
+      "id": "ruby-gem",
+      "file": "items/ruby-gem.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        17,
+        22
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/rubis.png"
+    },
+    {
+      "id": "gold-bar",
+      "file": "items/gold-bar.png",
+      "category": "item",
+      "tags": [
+        "currency",
+        "treasure"
+      ],
+      "size": [
+        34,
+        19
+      ],
+      "source": "superpowers-asset-packs/western-fps-2d/item/gold-lingo.png"
+    },
+    {
+      "id": "gem-pink-star",
+      "file": "items/gem-pink-star.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        64,
+        20
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/gem-1.png"
+    },
+    {
+      "id": "gem-white-star",
+      "file": "items/gem-white-star.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        84,
+        21
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/gem-2.png"
+    },
+    {
+      "id": "rocket-gadget",
+      "file": "items/rocket-gadget.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "sci-fi"
+      ],
+      "size": [
+        17,
+        26
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/rocket-1.png"
+    },
+    {
+      "id": "bubble-shield",
+      "file": "items/bubble-shield.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "sci-fi",
+        "fusion-reserve"
+      ],
+      "size": [
+        13,
+        13
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/bubble.png"
+    },
+    {
+      "id": "orb-red-ball",
+      "file": "items/orb-red-ball.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "fusion-reserve"
+      ],
+      "size": [
+        13,
+        13
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/ball.png"
+    },
+    {
+      "id": "sword-silver-kenney",
+      "file": "items/sword-silver-kenney.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0104.png"
+    },
+    {
+      "id": "potion-green-kenney",
+      "file": "items/potion-green-kenney.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "nature"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0114.png"
+    },
+    {
+      "id": "potion-red-kenney",
+      "file": "items/potion-red-kenney.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "health"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0115.png"
+    },
+    {
+      "id": "potion-blue-kenney",
+      "file": "items/potion-blue-kenney.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "mana"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0116.png"
+    },
+    {
+      "id": "axe-double-kenney",
+      "file": "items/axe-double-kenney.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "axe"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0118.png"
+    },
+    {
+      "id": "gem-purple-scepter-kenney",
+      "file": "items/gem-purple-scepter-kenney.png",
+      "category": "item",
+      "tags": [
+        "gem",
+        "accessory"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0129.png"
+    },
+    {
+      "id": "wand-blue-crystal-kenney",
+      "file": "items/wand-blue-crystal-kenney.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "magic"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0130.png"
+    },
+    {
+      "id": "key-padlock-micro",
+      "file": "items/key-padlock-micro.png",
+      "category": "item",
+      "tags": [
+        "key",
+        "micro"
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "source": "kenney-micro-roguelike/extracted/Tiles/Colored/tile_0039.png"
+    },
+    {
+      "id": "coin-gold-micro",
+      "file": "items/coin-gold-micro.png",
+      "category": "item",
+      "tags": [
+        "currency",
+        "micro"
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "source": "kenney-micro-roguelike/extracted/Tiles/Colored/tile_0088.png"
+    },
+    {
+      "id": "heart-micro",
+      "file": "items/heart-micro.png",
+      "category": "item",
+      "tags": [
+        "consumable",
+        "health",
+        "micro"
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "source": "kenney-micro-roguelike/extracted/Tiles/Colored/tile_0100.png"
+    },
+    {
+      "id": "potion-gray-micro",
+      "file": "items/potion-gray-micro.png",
+      "category": "item",
+      "tags": [
+        "potion",
+        "micro"
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "source": "kenney-micro-roguelike/extracted/Tiles/Colored/tile_0135.png"
+    },
+    {
+      "id": "boar-tusked",
+      "file": "enemies/boar-tusked.png",
+      "category": "enemie",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        148,
+        113
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/boar.png"
+    },
+    {
+      "id": "bat-winged",
+      "file": "enemies/bat-winged.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "beast"
+      ],
+      "size": [
+        121,
+        89
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/bat/sprite-sheet-121x89.png",
+      "transform": "crop-first-frame:121x89"
+    },
+    {
+      "id": "dino-orange",
+      "file": "enemies/dino-orange.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "prehistoric"
+      ],
+      "size": [
+        154,
+        118
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/dino/sprite-sheet-154x118.png",
+      "transform": "crop-first-frame:154x118"
+    },
+    {
+      "id": "ghost-pale",
+      "file": "enemies/ghost-pale.png",
+      "category": "enemie",
+      "tags": [
+        "undead",
+        "flying"
+      ],
+      "size": [
+        112,
+        93
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/ghost/sprite-sheet-112x93.png",
+      "transform": "crop-first-frame:112x93"
+    },
+    {
+      "id": "slime-teal",
+      "file": "enemies/slime-teal.png",
+      "category": "enemie",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        141,
+        107
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/slime/sprite-sheet-141x107.png",
+      "transform": "crop-first-frame:141x107"
+    },
+    {
+      "id": "bat-dark-red",
+      "file": "enemies/bat-dark-red.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "beast"
+      ],
+      "size": [
+        14,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/bat.png"
+    },
+    {
+      "id": "goblin-green",
+      "file": "enemies/goblin-green.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        13,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/goblin.png"
+    },
+    {
+      "id": "skeleton-axe",
+      "file": "enemies/skeleton-axe.png",
+      "category": "enemie",
+      "tags": [
+        "undead"
+      ],
+      "size": [
+        13,
+        11
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/skeleton.png"
+    },
+    {
+      "id": "slime-blue",
+      "file": "enemies/slime-blue.png",
+      "category": "enemie",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        13,
+        6
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/slim.png"
+    },
+    {
+      "id": "snake-teal-orange",
+      "file": "enemies/snake-teal-orange.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "reptile"
+      ],
+      "size": [
+        24,
+        16
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/snake.png"
+    },
+    {
+      "id": "turtle-green",
+      "file": "enemies/turtle-green.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        11,
+        6
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/1.png"
+    },
+    {
+      "id": "sheep-white",
+      "file": "enemies/sheep-white.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        11,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/2.png"
+    },
+    {
+      "id": "armadillo-orange",
+      "file": "enemies/armadillo-orange.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        10,
+        7
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/3.png"
+    },
+    {
+      "id": "dog-gray",
+      "file": "enemies/dog-gray.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        18,
+        10
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/4.png"
+    },
+    {
+      "id": "horse-brown",
+      "file": "enemies/horse-brown.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        16,
+        13
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/5.png"
+    },
+    {
+      "id": "boar-wolf-brown",
+      "file": "enemies/boar-wolf-brown.png",
+      "category": "enemie",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        14,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/animals/6.png"
+    },
+    {
+      "id": "slime-green-kenney",
+      "file": "enemies/slime-green-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0108.png"
+    },
+    {
+      "id": "dwarf-brown-kenney",
+      "file": "enemies/dwarf-brown-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0109.png"
+    },
+    {
+      "id": "crab-red-kenney",
+      "file": "enemies/crab-red-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0110.png"
+    },
+    {
+      "id": "skeleton-white-kenney",
+      "file": "enemies/skeleton-white-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "undead"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0111.png"
+    },
+    {
+      "id": "goblin-scarf-kenney",
+      "file": "enemies/goblin-scarf-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0112.png"
+    },
+    {
+      "id": "ghost-pale-kenney",
+      "file": "enemies/ghost-pale-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "undead",
+        "flying"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0121.png"
+    },
+    {
+      "id": "mummy-brown-kenney",
+      "file": "enemies/mummy-brown-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "undead"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0122.png"
+    },
+    {
+      "id": "shellback-brown-kenney",
+      "file": "enemies/shellback-brown-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0123.png"
+    },
+    {
+      "id": "shellback-gray-variant-kenney",
+      "file": "enemies/shellback-gray-variant-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0124.png"
+    },
+    {
+      "id": "gargoyle-wall-plain-kenney",
+      "file": "enemies/gargoyle-wall-plain-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "stationary",
+        "guardian"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0019.png"
+    },
+    {
+      "id": "gargoyle-wall-glowing-kenney",
+      "file": "enemies/gargoyle-wall-glowing-kenney.png",
+      "category": "enemie",
+      "tags": [
+        "stationary",
+        "guardian"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0020.png"
+    },
+    {
+      "id": "hitman-stand",
+      "file": "enemies/hitman-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid",
+        "rogue"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Hitman 1/hitman1_stand.png"
+    },
+    {
+      "id": "man-blue-stand",
+      "file": "enemies/man-blue-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Man Blue/manBlue_stand.png"
+    },
+    {
+      "id": "man-brown-stand",
+      "file": "enemies/man-brown-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Man Brown/manBrown_stand.png"
+    },
+    {
+      "id": "man-old-stand",
+      "file": "enemies/man-old-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Man Old/manOld_stand.png"
+    },
+    {
+      "id": "robot-stand",
+      "file": "enemies/robot-stand.png",
+      "category": "enemie",
+      "tags": [
+        "mechanical"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Robot 1/robot1_stand.png"
+    },
+    {
+      "id": "soldier-stand",
+      "file": "enemies/soldier-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid",
+        "guard"
+      ],
+      "size": [
+        36,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Soldier 1/soldier1_stand.png"
+    },
+    {
+      "id": "survivor-stand",
+      "file": "enemies/survivor-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        35,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Survivor 1/survivor1_stand.png"
+    },
+    {
+      "id": "woman-green-stand",
+      "file": "enemies/woman-green-stand.png",
+      "category": "enemie",
+      "tags": [
+        "humanoid"
+      ],
+      "size": [
+        36,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Woman Green/womanGreen_stand.png"
+    },
+    {
+      "id": "zombie-stand",
+      "file": "enemies/zombie-stand.png",
+      "category": "enemie",
+      "tags": [
+        "undead"
+      ],
+      "size": [
+        33,
+        43
+      ],
+      "source": "kenney-top-down-shooter/extracted/PNG/Zombie 1/zoimbie1_stand.png"
+    },
+    {
+      "id": "turret-base",
+      "file": "enemies/turret-base.png",
+      "category": "enemie",
+      "tags": [
+        "mechanical",
+        "stationary"
+      ],
+      "size": [
+        29,
+        29
+      ],
+      "source": "superpowers-asset-packs/top-down-shooter/characters/turret/base.png"
+    },
+    {
+      "id": "ship-crab-purple",
+      "file": "enemies/ship-crab-purple.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        63,
+        51
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/1.png"
+    },
+    {
+      "id": "ship-green-fighter",
+      "file": "enemies/ship-green-fighter.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        38,
+        34
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/2.png"
+    },
+    {
+      "id": "ship-bird-orange",
+      "file": "enemies/ship-bird-orange.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        46,
+        45
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/3.png"
+    },
+    {
+      "id": "ship-green-scout",
+      "file": "enemies/ship-green-scout.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        64,
+        47
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/4.png"
+    },
+    {
+      "id": "ship-turtle-teal",
+      "file": "enemies/ship-turtle-teal.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        44,
+        36
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/6.png"
+    },
+    {
+      "id": "ship-octopus-green",
+      "file": "enemies/ship-octopus-green.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        56,
+        51
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/9.png"
+    },
+    {
+      "id": "shmup-fighter-blue",
+      "file": "enemies/shmup-fighter-blue.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0000.png"
+    },
+    {
+      "id": "shmup-fighter-green",
+      "file": "enemies/shmup-fighter-green.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0002.png"
+    },
+    {
+      "id": "shmup-fighter-red",
+      "file": "enemies/shmup-fighter-red.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0005.png"
+    },
+    {
+      "id": "shmup-fighter-orange",
+      "file": "enemies/shmup-fighter-orange.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0007.png"
+    },
+    {
+      "id": "shmup-cruiser-gray-a",
+      "file": "enemies/shmup-cruiser-gray-a.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0012.png"
+    },
+    {
+      "id": "shmup-cruiser-gray-b",
+      "file": "enemies/shmup-cruiser-gray-b.png",
+      "category": "enemie",
+      "tags": [
+        "flying",
+        "sci-fi"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "kenney-pixel-shmup/extracted/Ships/ship_0019.png"
+    },
+    {
+      "id": "boss-giant",
+      "file": "bosses/boss-giant.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "large"
+      ],
+      "size": [
+        260,
+        143
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/giant.png"
+    },
+    {
+      "id": "boss-mimic-chest",
+      "file": "bosses/boss-mimic-chest.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "mimic"
+      ],
+      "size": [
+        104,
+        100
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/chest.png"
+    },
+    {
+      "id": "boss-yeti",
+      "file": "bosses/boss-yeti.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "beast"
+      ],
+      "size": [
+        135,
+        102
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/yeti.png"
+    },
+    {
+      "id": "boss-octopus-abyss",
+      "file": "bosses/boss-octopus-abyss.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "aquatic"
+      ],
+      "size": [
+        126,
+        122
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/octopus.png"
+    },
+    {
+      "id": "boss-dragon-ember",
+      "file": "bosses/boss-dragon-ember.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "dragon",
+        "fire"
+      ],
+      "size": [
+        258,
+        209
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/dragon/sprite-sheet-2-258x209.png",
+      "transform": "crop-first-frame:258x209"
+    },
+    {
+      "id": "boss-mushroom-titan",
+      "file": "bosses/boss-mushroom-titan.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "nature"
+      ],
+      "size": [
+        192,
+        163
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/mushroom/sprite-sheet-192x163.png",
+      "transform": "crop-first-frame:192x163"
+    },
+    {
+      "id": "boss-reptile-warlord",
+      "file": "bosses/boss-reptile-warlord.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "reptile"
+      ],
+      "size": [
+        248,
+        151
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/reptile/sprite-sheet- 248x151.png",
+      "transform": "crop-first-frame:248x151"
+    },
+    {
+      "id": "boss-naga",
+      "file": "bosses/boss-naga.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "reptile"
+      ],
+      "size": [
+        147,
+        94
+      ],
+      "source": "superpowers-asset-packs/rpg-battle-system/monster/snake/sprite-sheet-147x94.png",
+      "transform": "crop-first-frame:147x94"
+    },
+    {
+      "id": "boss-king-skeleton",
+      "file": "bosses/boss-king-skeleton.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "undead"
+      ],
+      "size": [
+        32,
+        25
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/king skeleton.png"
+    },
+    {
+      "id": "boss-dragon-teal",
+      "file": "bosses/boss-dragon-teal.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "dragon"
+      ],
+      "size": [
+        38,
+        29
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/dragon.png"
+    },
+    {
+      "id": "boss-cyclop-brute",
+      "file": "bosses/boss-cyclop-brute.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "humanoid"
+      ],
+      "size": [
+        32,
+        16
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/cyclop.png"
+    },
+    {
+      "id": "boss-leonard-bloom",
+      "file": "bosses/boss-leonard-bloom.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "nature"
+      ],
+      "size": [
+        51,
+        27
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/monsters/leonard.png"
+    },
+    {
+      "id": "boss-blob-elder",
+      "file": "bosses/boss-blob-elder.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "ooze"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0120.png"
+    },
+    {
+      "id": "boss-mecha-guard",
+      "file": "bosses/boss-mecha-guard.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "mechanical"
+      ],
+      "size": [
+        50,
+        41
+      ],
+      "source": "superpowers-asset-packs/top-down-shooter/characters/robot/example.png"
+    },
+    {
+      "id": "boss-void-dreadnought",
+      "file": "bosses/boss-void-dreadnought.png",
+      "category": "bosse",
+      "tags": [
+        "boss",
+        "sci-fi",
+        "flying"
+      ],
+      "size": [
+        98,
+        87
+      ],
+      "source": "superpowers-asset-packs/space-shooter/ships/8.png"
+    },
+    {
+      "id": "barrel-kenney",
+      "file": "props/barrel-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0066.png"
+    },
+    {
+      "id": "crate-kenney",
+      "file": "props/crate-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0063.png"
+    },
+    {
+      "id": "crate-small-kenney",
+      "file": "props/crate-small-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0073.png"
+    },
+    {
+      "id": "anvil-kenney",
+      "file": "props/anvil-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0064.png"
+    },
+    {
+      "id": "statue-bust-kenney",
+      "file": "props/statue-bust-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0074.png"
+    },
+    {
+      "id": "sarcophagus-kenney",
+      "file": "props/sarcophagus-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0054.png"
+    },
+    {
+      "id": "sarcophagus-tall-kenney",
+      "file": "props/sarcophagus-tall-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0055.png"
+    },
+    {
+      "id": "tomb-standing-kenney",
+      "file": "props/tomb-standing-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0065.png"
+    },
+    {
+      "id": "fence-a-kenney",
+      "file": "props/fence-a-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "barrier"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0067.png"
+    },
+    {
+      "id": "fence-b-kenney",
+      "file": "props/fence-b-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "barrier"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0068.png"
+    },
+    {
+      "id": "fence-c-kenney",
+      "file": "props/fence-c-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "barrier"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0075.png"
+    },
+    {
+      "id": "chest-wood-kenney",
+      "file": "props/chest-wood-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0089.png"
+    },
+    {
+      "id": "chest-metal-kenney",
+      "file": "props/chest-metal-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0090.png"
+    },
+    {
+      "id": "chest-ornate-kenney",
+      "file": "props/chest-ornate-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0091.png"
+    },
+    {
+      "id": "chest-red-kenney",
+      "file": "props/chest-red-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0092.png"
+    },
+    {
+      "id": "vault-door-kenney",
+      "file": "props/vault-door-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "gate"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0069.png"
+    },
+    {
+      "id": "door-brown-a-kenney",
+      "file": "props/door-brown-a-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "door"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0033.png"
+    },
+    {
+      "id": "door-brown-b-kenney",
+      "file": "props/door-brown-b-kenney.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "door"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "kenney-tiny-dungeon/extracted/Tiles/tile_0045.png"
+    },
+    {
+      "id": "well-stone",
+      "file": "props/well-stone.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        14,
+        12
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/11.png"
+    },
+    {
+      "id": "fountain-stone",
+      "file": "props/fountain-stone.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/12.png"
+    },
+    {
+      "id": "statue-gray",
+      "file": "props/statue-gray.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        26
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/14.png"
+    },
+    {
+      "id": "gravestone-shrine",
+      "file": "props/gravestone-shrine.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        23
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/16.png"
+    },
+    {
+      "id": "cauldron-black",
+      "file": "props/cauldron-black.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor"
+      ],
+      "size": [
+        16,
+        16
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/8.png"
+    },
+    {
+      "id": "tree-round-green",
+      "file": "props/tree-round-green.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "nature"
+      ],
+      "size": [
+        14,
+        14
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/6.png"
+    },
+    {
+      "id": "tree-bush-green",
+      "file": "props/tree-bush-green.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "nature"
+      ],
+      "size": [
+        30,
+        31
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/18.png"
+    },
+    {
+      "id": "tree-dead-brown",
+      "file": "props/tree-dead-brown.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "nature"
+      ],
+      "size": [
+        14,
+        15
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/19.png"
+    },
+    {
+      "id": "tree-pine-green",
+      "file": "props/tree-pine-green.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "nature"
+      ],
+      "size": [
+        14,
+        15
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/background-elements/20.png"
+    },
+    {
+      "id": "barrel-medieval",
+      "file": "props/barrel-medieval.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        9,
+        9
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/barrel.png"
+    },
+    {
+      "id": "crate-medieval",
+      "file": "props/crate-medieval.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        8,
+        9
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/crate.png"
+    },
+    {
+      "id": "chest-big-ninja",
+      "file": "props/chest-big-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        32,
+        14
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/big-treasure-chest.png"
+    },
+    {
+      "id": "chest-small-ninja",
+      "file": "props/chest-small-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        32,
+        16
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/little-treasure-chest.png"
+    },
+    {
+      "id": "jar-ninja",
+      "file": "props/jar-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        32,
+        16
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/jar.png"
+    },
+    {
+      "id": "pot-empty-ninja",
+      "file": "props/pot-empty-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        9,
+        11
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/empty-pot.png"
+    },
+    {
+      "id": "pot-water-ninja",
+      "file": "props/pot-water-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        9,
+        11
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/water-pot.png"
+    },
+    {
+      "id": "pot-milk-ninja",
+      "file": "props/pot-milk-ninja.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container"
+      ],
+      "size": [
+        9,
+        11
+      ],
+      "source": "superpowers-asset-packs/ninja-adventure/items/milk-pot.png"
+    },
+    {
+      "id": "crate-scifi-a",
+      "file": "props/crate-scifi-a.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container",
+        "sci-fi"
+      ],
+      "size": [
+        20,
+        20
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/crate-1.png"
+    },
+    {
+      "id": "crate-scifi-b",
+      "file": "props/crate-scifi-b.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "container",
+        "sci-fi"
+      ],
+      "size": [
+        20,
+        20
+      ],
+      "source": "superpowers-asset-packs/space-shooter/items/crate-2.png"
+    },
+    {
+      "id": "tombstone-micro",
+      "file": "props/tombstone-micro.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "decor",
+        "micro"
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "source": "kenney-micro-roguelike/extracted/Tiles/Colored/tile_0120.png"
+    },
+    {
+      "id": "chest-wood-medieval",
+      "file": "props/chest-wood-medieval.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        10,
+        8
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/wood-chest-close.png"
+    },
+    {
+      "id": "chest-gold-medieval",
+      "file": "props/chest-gold-medieval.png",
+      "category": "prop",
+      "tags": [
+        "obstacle",
+        "chest"
+      ],
+      "size": [
+        12,
+        9
+      ],
+      "source": "superpowers-asset-packs/medieval-fantasy/items/gold-chest-close.png"
+    }
+  ]
+}
