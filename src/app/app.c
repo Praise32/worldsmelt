@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 
+#include "audio/audio.h"
 #include "content/character_proposal.h"
 #include "content/character_roster.h"
 #include "content/run_catalog.h"
@@ -511,6 +512,9 @@ static void AppFusionConfirm(Game *game, AppUi *ui)
     snprintf(ui->fusionMessage, sizeof(ui->fusionMessage), "%s", FusionStatusText(status));
     if (status != FUSION_OK) return;
 
+    /* DEC-118: la fusione ha il segnale sonoro piu' riconoscibile del gioco,
+       priorita' massima -- vedi docs/design/content/audio-and-feedback.md. */
+    AudioPlaySfx(AUDIO_SFX_FUSION_COMPLETE);
     snprintf(ui->fusionResultName, sizeof(ui->fusionResultName), "%s", fused.name);
     snprintf(ui->fusionResultImage, sizeof(ui->fusionResultImage), "%s", fused.imagePath);
     /* Precisioni esplicite: la riga deve stare in fusionMessage[96] qualunque
@@ -647,6 +651,24 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             effective.confirm = true;
             menuClick = true;
         }
+    }
+
+    /* Feedback sonoro generico di navigazione/conferma/annulla nei menu
+       (docs/design/content/audio-and-feedback.md): le frecce/ENTER/ESC di
+       'effective' pilotano SOLO la navigazione a menu in ogni stato tranne
+       APP_GAMEPLAY, dove il movimento vero passa da IsKeyDown in combat.c,
+       mai da qui (vedi il commento su AppInput in app_internal.h) -- una
+       sola classificazione qui evita di instrumentare ogni ramo dello
+       switch sotto. In APP_FLOOR_ZERO le stesse frecce muovono il pannello
+       COMBINATO MONDI/PERSONAGGI solo quando e' aperto (altrimenti sono
+       lettere morte per lo switch sotto): la guardia sul pannello evita un
+       blip udibile senza alcun effetto visibile mentre si gira nell'hub. */
+    bool menuNavContext = (*mode != APP_GAMEPLAY) && (*mode != APP_FLOOR_ZERO || game->themeCardsPanelOpen);
+    if (menuNavContext)
+    {
+        if (effective.up || effective.down || effective.left || effective.right) AudioPlaySfx(AUDIO_SFX_UI_MOVE);
+        else if (effective.confirm) AudioPlaySfx(AUDIO_SFX_UI_CONFIRM);
+        else if (effective.back) AudioPlaySfx(AUDIO_SFX_UI_CANCEL);
     }
 
     switch (*mode)
@@ -1159,6 +1181,11 @@ int AppRun(int argc, char **argv)
        senza bisogno vero della finestra (GameDiscoveryTest non disegna
        nulla, vedi src/tests/discovery_tests.c). */
     bool discoveryTest = false;
+    /* DEC-172: come --economy-test, gira dopo InitWindow (il device audio
+       reale e' gia' stato tentato da AudioInit poco sopra, qui sotto CI
+       headless: nessun bisogno di una finestra visibile per il test, vedi
+       src/tests/audio_tests.c). */
+    bool audioTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1331,6 +1358,12 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             discoveryTest = true;
         }
+        /* DEC-172: come --discovery-test sopra. */
+        if (strcmp(argv[i], "--audio-test") == 0)
+        {
+            smokeTest = true;
+            audioTest = true;
+        }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
            PROPRIA AppUi locale per ogni scenario (mai la 'appUi' costruita
@@ -1447,6 +1480,14 @@ int AppRun(int argc, char **argv)
        storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
     InitWindow(compactTestWindow ? SCREEN_WIDTH : APP_WINDOW_WIDTH, compactTestWindow ? SCREEN_HEIGHT : APP_WINDOW_HEIGHT, "WORLDSMELT");
     SetExitKey(KEY_NULL);
+    /* Modulo audio (DEC-172): DOPO la finestra, come ogni altro sotto-sistema
+       raylib qui sopra. Chiamata anche nei rami *Test che seguono (nessuno la
+       chiude prima di uscire, stessa convenzione di questi rami per
+       GenRunner/AppGen: il processo termina subito dopo comunque) -- e'
+       esattamente cio' che esercita il fallback "senza device" sotto Xvfb
+       (make test gira headless, senza backend audio reale): vedi
+       AudioSelfTest, src/tests/audio_tests.c, --audio-test. */
+    AudioInit();
     if (!smokeTest)
     {
         int monitor = GetCurrentMonitor();
@@ -1594,6 +1635,15 @@ int AppRun(int argc, char **argv)
         CloseWindow();
         return ok ? 0 : 32;   /* 32: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --fusion-screenshot-test=31) */
     }
+    if (audioTest)
+    {
+        bool ok = GameAudioTest(&game);
+        printf("Audio test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        AudioShutdown();
+        CloseWindow();
+        return ok ? 0 : 33;   /* 33: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --discovery-test=32) */
+    }
     if (catalogTest)
     {
         bool ok = GameCatalogTest(&game);
@@ -1732,6 +1782,11 @@ int AppRun(int argc, char **argv)
             AppSimStep(&game, appMode, layout);
             simAccum -= APP_SIM_DT;
         }
+        /* Musica in streaming (DEC-172): UNA volta per frame di finestra, come
+           il resto del ciclo qui sopra -- 'frameDt' e' lo stesso passo gia'
+           clampato poco sopra, non un nuovo GetFrameTime. No-op sicuro se il
+           device audio non e' pronto (vedi audio.c). */
+        AudioSyncMusic(&game, appMode, frameDt);
         GenProgress floorZeroStatus = { 0 };
         if (appMode == APP_FLOOR_ZERO)
             snprintf(floorZeroStatus.message, sizeof(floorZeroStatus.message), "%s", AppFloorZeroStatusText(&game, &gen));
@@ -1761,6 +1816,7 @@ int AppRun(int argc, char **argv)
 
     UnloadRenderTexture(gameCanvas);
     GameUnloadAssets(&game);
+    AudioShutdown();
     CloseWindow();
     return 0;
 }

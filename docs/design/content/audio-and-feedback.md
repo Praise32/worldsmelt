@@ -6,7 +6,7 @@ status: draft
 authority: canonical
 owner: design
 summary: "Feedback per azioni, rischi e sinergie; elenco eventi prioritari con fusione, scelta del tema e generazione completata nel Piano 0. L'audio è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Dal 22/07 la via primaria è generativa: Stable Audio Small in locale con catena di fallback rFXGen → curato (DEC-109); ogni evento critico mantiene comunque un suono curato o di fallback. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172)."
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-28
 topics: [audio, feedback, eventi prioritari, DEC-024, DEC-036, DEC-109, stable-audio, rfxgen, DEC-172, demo]
 related: []
 supersedes: []
@@ -77,6 +77,42 @@ generazione audio gira a runtime nella demo.** DEC-109 (pipeline generativa a ru
 **resta la destinazione finale**: questa è l'**istanza demo** del fallback curato sempre
 garantito già previsto da DEC-036/DEC-109, non una nuova pipeline. Dettaglio tecnico e nota
 gemella: [Pipeline audio](../../ai-production/16-AUDIO-GENERATION-PIPELINE.md).
+
+## Stato di implementazione — modulo audio del motore (2026-07-28)
+
+Il **modulo audio** promesso da DEC-172 è implementato in `src/audio/audio.{h,c}` (prefisso
+`Audio*`, coppia .h/.c come da `AGENTS.md`): legge **solo** il pacchetto statico di
+`assets/audio/` tramite una tabella di percorsi fissa in C (mai `manifest.json`, che resta
+per gli umani — regola `AGENTS.md`, niente parsing JSON nel motore). `InitAudioDevice` gira
+subito dopo `InitWindow` (`src/app/app.c`, `AppRun`); se il device manca, o un singolo file
+non carica, il modulo resta **silenziosamente spento** — nessuna funzione va mai in crash,
+verificato con `--audio-test`/`make test` sotto Xvfb (nessun backend audio reale in
+quell'ambiente: è lo scenario headless vero, non solo simulato).
+
+Musica in streaming per stato (crossfade breve, **default proposto** stile DEC-019, nessun
+documento fissa la durata): `MainMenu`/`RunSetup` condividono un tema, `FloorZero` il suo,
+`Gameplay` due (piano 1-2 / 3-5, asse "audio" dell'escalation DEC-024 — **soglia di piano
+proposta dall'implementazione**, da confermare col playtest), la stanza boss uno dedicato
+(vince sempre, a qualunque piano), `RunResults` il suo. `PauseMenu` abbassa la musica
+sottostante (duck, **default proposto**) invece di cambiarla; `Options`/`BuildScreen`/
+`ExitConfirm` non hanno una traccia propria e non la toccano.
+
+I dieci SFX a evento sono agganciati nei punti reali: sparo del giocatore (UNA volta per
+sparo, non per pallettone — `CombatFirePlayer`), colpo a nemico (`CombatDamageEnemy`), danno
+al giocatore (`CombatDamagePlayer`), oggetto/valuta/Flux raccolti (`CombatPickup`), porta che
+si apre (`WorldTryEnterRoom`), **fusione completata con priorità massima dedicata** (DEC-118,
+`AppFusionConfirm`), card di scoperta mostrata (`GameQueueDiscoveryCard`), navigazione/
+conferma/annulla nei menu (`UpdateApp`, un solo punto di aggancio generico — vedi il commento
+in `app.c` per il perimetro esatto). Volumi master/musica/SFX esposti
+(`AudioSetMasterVolume`/`MusicVolume`/`SfxVolume`, default 1.0, clampati) ma **senza ancora
+una voce in `Options`**: questo documento non ne fissava lo slider, `Options` resta la
+schermata minima di M1a (vedi `ui/options-and-accessibility.md`) — costanti raggiungibili
+solo da codice per ora, domanda registrata per il proprietario.
+
+**Lacuna dichiarata**: la famiglia sonora del Piano 0 a due voci (DEC-121, "scelta del
+tema"/"generazione completata") **non ha ancora asset dedicati** nel pacchetto pre-generato —
+nessun hook è stato aggiunto per non riciclare un SFX semanticamente scorrelato su quei due
+eventi. Vedi `docs/engineering/known-issues.md` voce 9.
 
 ## Non-obiettivi
 

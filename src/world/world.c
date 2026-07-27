@@ -1,5 +1,6 @@
 #include "world/world.h"
 
+#include "audio/audio.h"
 #include "content/run_content.h"
 
 #include "core/game_math.h"
@@ -1092,6 +1093,12 @@ void WorldTryEnterRoom(Game *game, int dir)
     if (dir == DIR_DOWN) game->player.pos = (Vector2){ acx, arrival.y + 38.0f };
     if (dir == DIR_LEFT) game->player.pos = (Vector2){ arrival.x + arrival.width - 38.0f, acy };
     if (dir == DIR_RIGHT) game->player.pos = (Vector2){ arrival.x + 38.0f, acy };
+    /* La porta che si apre (audio-and-feedback.md): da questo punto in poi
+       la transizione e' gia' impegnata per costruzione (tutte le guardie
+       sopra -- doors[dir], porte bloccate, fuori griglia, stanza non
+       esistente, chiave mancante -- sono gia' passate). */
+    AudioPlaySfx(AUDIO_SFX_DOOR_OPEN);
+
     /* DEC-152: un vero cambio stanza -- si scartano silenziosamente le card di
        scoperta ancora IN CODA (non ancora mostrate) prima che
        WorldSpawnRoomContents ne accodi eventualmente di nuove per la stanza

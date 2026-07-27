@@ -1,5 +1,6 @@
 #include "gameplay/combat.h"
 
+#include "audio/audio.h"
 #include "core/game_math.h"
 #include "game/game_internal.h"
 #include "gameplay/item_slots.h"
@@ -77,6 +78,7 @@ static Enemy *CombatNearestEnemy(Game *game, Vector2 pos)
 void CombatDamagePlayer(Game *game, int amount, const char *cause)
 {
     if (game->player.invuln > 0.0f || game->phase != PHASE_PLAY) return;
+    AudioPlaySfx(AUDIO_SFX_HIT_PLAYER);
     game->player.hp -= amount;
     game->player.invuln = 0.85f;
     EntitiesAddParticle(game, game->player.pos, RED, 22);
@@ -110,6 +112,7 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
        gli effetti: nessun danno ulteriore ha senso applicargli. */
     if (!enemy->active) return;
 
+    AudioPlaySfx(AUDIO_SFX_HIT_ENEMY);
     enemy->hp -= damage;
     if (traits & TRAIT_SLOW) enemy->slowTimer = 1.6f;
     EntitiesAddParticle(game, enemy->pos, game->theme.accent2, 4);
@@ -275,6 +278,13 @@ void CombatFirePlayer(Game *game, Vector2 dir)
 {
     Player *p = &game->player;
     unsigned int traits = p->traits;
+    /* UNA volta per sparo, non per pallettone: la cadenza vera e' gia' quella
+       di p->fireDelay (fireTimer sotto), il pool di alias di AudioPlaySfx
+       (audio.c) copre le sovrapposizioni fra spari ravvicinati -- ma un
+       ventaglio di piu' pallettoni nello STESSO sparo (TRAIT_SPLIT, un tipo
+       di colpo generato, Sciame) deve restare UN SOLO evento sonoro, non
+       N sovrapposti sullo stesso frame. */
+    AudioPlaySfx(AUDIO_SFX_SHOT);
     /* Step C: il tipo di colpo del giocatore (ricalcolato da zero insieme alle
        statistiche, vedi ScriptItemsRecomputeStats) MODULA il colpo base, non lo
        sostituisce: i suoi moltiplicatori si applicano DOPO le statistiche vere e
@@ -1026,6 +1036,11 @@ static void CombatPickup(Game *game, Pickup *pickup)
     }
 
     pickup->active = false;
+    /* "Oggetto/valuta/Flux raccolti" (audio-and-feedback.md): un solo evento
+       sonoro condiviso da ogni pickup con un effetto reale, tranne
+       PICKUP_EXIT -- quello apre il piano successivo (o vince la run), non
+       e' "una raccolta" nel senso dell'evento sonoro. */
+    if (pickup->kind != PICKUP_EXIT) AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
         game->player.hp = GameMathClampInt(game->player.hp + pickup->value, 0, game->player.maxHp);

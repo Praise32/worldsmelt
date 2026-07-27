@@ -1,5 +1,6 @@
 #include "game/game.h"
 
+#include "audio/audio.h"
 #include "content/character_roster.h"
 #include "content/run_content.h"
 #include "game/game_internal.h"
@@ -30,6 +31,11 @@ void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
     DiscoveryCard *card = &game->discoveryQueue[game->discoveryQueueCount++];
     snprintf(card->name, sizeof(card->name), "%s", name ? name : "");
     snprintf(card->line, sizeof(card->line), "%s", line ? line : "");
+    /* "Card di scoperta mostrata" (audio-and-feedback.md): l'HUD disegna
+       SEMPRE la coda cosi' com'e' (DrawHudDiscovery, src/render/
+       game_renderer.c), quindi accodare qui E' il momento in cui la card
+       diventa visibile -- nessun evento "mostrata" separato da inseguire. */
+    AudioPlaySfx(AUDIO_SFX_DISCOVERY_CARD);
 }
 
 /* DEC-152: vedi il commento sulla dichiarazione in game_internal.h. */

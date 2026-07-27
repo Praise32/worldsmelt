@@ -214,4 +214,14 @@ bool GameFusionScreenshotTest(Game *game);
    src/tests/discovery_tests.c. */
 bool GameDiscoveryTest(Game *game);
 
+/* DEC-172 (docs/design/content/audio-and-feedback.md): mappatura pura
+   AppMode/piano/stanza-boss -> traccia (AudioTrackForState, nessun bisogno
+   di device), ciclo di vita init/shutdown ripetuto senza crash (headless
+   compreso: nessun dispositivo audio reale sotto Xvfb), e chiamata di ogni
+   AudioPlaySfx/AudioSyncMusic sia PRIMA che DOPO AudioInit senza mai
+   andare in crash (il fallback e' lo stesso ramo di codice in entrambi i
+   casi, vedi audio.c). Come GameEconomyTest, gira dopo InitWindow ma non
+   disegna nulla. Vedi src/tests/audio_tests.c. */
+bool GameAudioTest(Game *game);
+
 #endif

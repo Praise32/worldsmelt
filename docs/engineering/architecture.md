@@ -9,12 +9,12 @@ summary: >-
   Mappa verificata dei moduli C, dei processi esterni (melting-gen,
   melting-sprites) e dei confini di sicurezza (sandbox Lua, mini-VM di
   ripiego) del motore di Worldsmelt.
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-28
 last_verified_commit: 17204df
-topics: [architettura, moduli, sandbox-lua, melting-gen, melting-sprites, build]
+topics: [architettura, moduli, sandbox-lua, melting-gen, melting-sprites, build, audio]
 related: [meta-doc-code-drift]
 supersedes: []
-source_files: [src/main.c, src/app/app.c, src/core/game_types.h, src/world/world.c, src/world/room_camera.c, AGENTS.md, Makefile]
+source_files: [src/main.c, src/app/app.c, src/core/game_types.h, src/world/world.c, src/world/room_camera.c, src/audio/audio.c, AGENTS.md, Makefile]
 ---
 
 # Architettura del codice
@@ -38,6 +38,19 @@ Lua fallisce.
   e l'orchestrazione dei due processi esterni (`gen.command`/`gen.spritesCommand`,
   `src/app/app.c:1124-1125`).
 - **`assets`**: caricamento e rilascio delle risorse Raylib (atlas, font).
+- **`audio`** (nuovo, DEC-172): `audio.{h,c}`, prefisso `Audio*`. Legge **solo** il pacchetto
+  statico pre-generato di `assets/audio/` (musica/ambience Stable Audio 3 Small, SFX
+  rFXGen/ripiego) tramite una tabella di percorsi fissa in C — `manifest.json` resta per gli
+  umani, mai letto dal motore (regola `AGENTS.md`, niente parsing JSON). `AudioInit` gira
+  dopo `InitWindow` (`src/app/app.c`, `AppRun`); fallback silenzioso TOTALE se il device
+  manca o un file non carica — mai un crash, verificato da `--audio-test`
+  (`src/tests/audio_tests.c`) sotto Xvfb (nessun backend audio reale in CI: `AudioIsDeviceReady()`
+  false è lo scenario headless REALE, non solo simulato). `AudioSyncMusic` (musica in
+  streaming per `AppMode`/piano/stanza-boss, con crossfade e duck di `PauseMenu`) e
+  `AudioPlaySfx` (dieci eventi, con un piccolo pool di alias per evento) sono chiamati da
+  `src/app`, `src/gameplay/combat.c`, `src/world/world.c` e `src/game/game.c` — l'unico
+  modulo del motore i cui simboli qualunque altro punto del codice può chiamare senza
+  violare un confine, essendo puro feedback senza stato di gioco proprio.
 - **`content`**: manifest della run (`run_content.c`), catalogo (`run_catalog.c`),
   roster/proposta di personaggio (`character_roster.c`, `character_proposal.c`). Legge
   solo `generated/current_run.txt` e `generated/current_atlas.{bmp,png}`.

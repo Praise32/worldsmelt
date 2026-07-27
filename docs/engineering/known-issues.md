@@ -9,12 +9,12 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-28
 last_verified_commit: 8210480
-topics: [difetti, limiti, test, rng, generazione, catalogo]
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -267,3 +267,35 @@ c'era gia' prima e sarebbe passato anche col difetto aperto):
    senza questo ramo la copia dell'algoritmo dentro `melting-gen` e quella del motore
    (`ItemPoolMinimumCounts`, verificata da `ItemPoolTestMinimumCounts` in `make test`)
    potrebbero divergere con tutte le suite verdi.
+
+## 9 — Modulo audio (DEC-172): due lacune dichiarate, non mascherate
+
+**Contesto**: `src/audio/audio.{h,c}` (nuovo, W4) copre la mappatura musica/stato,
+il crossfade, il duck di `PauseMenu` e i dieci SFX a evento elencati nel task
+(sparo, colpo a nemico, danno subito, pickup, porta, fusione, card di scoperta,
+navigazione/conferma/annulla UI). Restano due lacune note, deliberate per lo scope
+del task, non un difetto di implementazione dentro quello scope:
+
+1. **Famiglia sonora del Piano 0 (DEC-121) assente**: `docs/design/content/
+   audio-and-feedback.md` chiede due segnali dedicati per "scelta del tema" e
+   "generazione completata" del Piano 0 (`AppConfirmThemeChoice`/
+   `AppOpenFloorZeroExit`, `src/app/app.c`). Il pacchetto pre-generato in
+   `assets/audio/sfx/` non contiene tracce per questi due eventi (solo i dieci
+   della lista sopra): nessun hook e' stato aggiunto per non riciclare un suono
+   semanticamente scorrelato (es. `ui_confirm`) su un evento che il documento
+   vuole riconoscibile come famiglia propria. Richiede due nuovi asset prima di
+   poter chiudersi.
+2. **Nessuna voce di volume in `Options`**: `AudioSetMasterVolume/MusicVolume/
+   SfxVolume` esistono e funzionano (default 1.0, clampati in [0,1]), ma
+   `APP_OPTIONS` resta la schermata minima di M1a (una sola voce, "Indietro",
+   `src/app/app.c`, case `APP_OPTIONS`) -- `docs/design/ui/
+   options-and-accessibility.md` elenca "audio" fra le categorie minime senza
+   fissare slider/valori, quindi i tre volumi restano oggi solo costanti
+   raggiungibili da codice, non dal giocatore.
+
+**Verificato da**: `--audio-test` (`src/tests/audio_tests.c`, `GameAudioTest`) --
+mappatura pura stato/piano/stanza-boss -> traccia, clamp dei volumi, ciclo di vita
+init/shutdown ripetuto con e senza device audio reale e con/senza `Game`, mai un
+crash. Gira sotto Xvfb senza alcun backend audio (ambiente di CI/sviluppo di
+questo repo): `AudioIsDeviceReady()` false dopo `AudioInit()` e' lo scenario
+REALE esercitato da `make test`, non solo un caso sintetico.
