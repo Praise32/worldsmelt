@@ -204,4 +204,14 @@ bool GameFusionTest(Game *game);
    logs/worldsmelt-fusion-screen.png. Vedi src/tests/game_tests.c. */
 bool GameFusionScreenshotTest(Game *game);
 
+/* DEC-065/131/152/159/169 (ui/hud.md, ui/pause-menu.md,
+   ui/results-and-leaderboards.md, systems/floor-zero.md): coda delle card di
+   scoperta scartata a morte/cambio stanza con il Catalogo intatto (DEC-152),
+   HudCombatShouldDraw per stato/prova del Piano 0 (DEC-169), causa della
+   sconfitta popolata da un PHASE_GAME_OVER sintetico (DEC-159). Come
+   GameEconomyTest, gira dopo InitWindow e usa 'game' per davvero
+   (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla. Vedi
+   src/tests/discovery_tests.c. */
+bool GameDiscoveryTest(Game *game);
+
 #endif

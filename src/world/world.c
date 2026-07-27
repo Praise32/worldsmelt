@@ -869,7 +869,16 @@ void WorldSpawnCombatRoom(Game *game)
                stanza dove il giocatore e' presente per costruzione (questa
                funzione gira solo da WorldSpawnRoomContents, chiamata solo
                all'ingresso in una stanza) -- vedi il commento su
-               Game.enemyEncountered in core/game_types.h. */
+               Game.enemyEncountered in core/game_types.h.
+               DEC-065/152: la card di scoperta si accoda SOLO la prima volta
+               (il flag e' ancora falso QUI, prima di scriverlo sotto) --
+               registrazione ed annuncio restano due cose distinte: il flag si
+               scrive SEMPRE, la card e' solo un di piu' non garantito (puo'
+               finire scartata dalla coda, DEC-131/152, senza che il Catalogo
+               se ne accorga). */
+            if (!game->enemyEncountered[game->floor - 1][slot])
+                GameQueueDiscoveryCard(game, type->name[0] ? type->name : "Nemico sconosciuto",
+                                       "Una nuova minaccia di questo mondo.");
             game->enemyEncountered[game->floor - 1][slot] = true;
             budget -= cost;
         }
@@ -935,7 +944,15 @@ void WorldSpawnRoomContents(Game *game)
         /* M7 (substrato del catalogo): il boss e' appena comparso -- il
            giocatore e' per costruzione nella stanza (vedi il commento sopra
            su WorldSpawnCombatRoom). L'esito (incontrato/sconfitto) lo marca
-           WorldCheckRoomClear quando la stanza si ripulisce. */
+           WorldCheckRoomClear quando la stanza si ripulisce.
+           DEC-065/152: stessa disciplina di WorldSpawnCombatRoom -- la card
+           si accoda SOLO la prima volta (flag ancora falso QUI), il flag si
+           scrive comunque SEMPRE subito dopo. */
+        if (!game->bossEncountered[game->floor - 1])
+        {
+            const char *bossName = (bossType && bossType->name[0]) ? bossType->name : "Il boss del piano";
+            GameQueueDiscoveryCard(game, bossName, "Il guardiano di questo piano.");
+        }
         game->bossEncountered[game->floor - 1] = true;
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale: ultimo piano." : "Boss del piano.");
     }
@@ -1075,6 +1092,12 @@ void WorldTryEnterRoom(Game *game, int dir)
     if (dir == DIR_DOWN) game->player.pos = (Vector2){ acx, arrival.y + 38.0f };
     if (dir == DIR_LEFT) game->player.pos = (Vector2){ arrival.x + arrival.width - 38.0f, acy };
     if (dir == DIR_RIGHT) game->player.pos = (Vector2){ arrival.x + 38.0f, acy };
+    /* DEC-152: un vero cambio stanza -- si scartano silenziosamente le card di
+       scoperta ancora IN CODA (non ancora mostrate) prima che
+       WorldSpawnRoomContents ne accodi eventualmente di nuove per la stanza
+       di arrivo: nessuna coda che insegue il giocatore da una stanza
+       all'altra. */
+    GameDiscardPendingDiscoveries(game);
     WorldSpawnRoomContents(game);
 }
 

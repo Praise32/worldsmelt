@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
-last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_reviewed: 2026-07-28
+last_verified_commit: 1263957
 topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/render/game_renderer.c]
 ---
 
 # Pause Menu
@@ -87,6 +87,14 @@ DEC-169 **non fissa il comando** con cui il menu di pausa si apre dal Piano 0: E
 assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso qui sopra prevedono la sola
 provenienza da `Gameplay`. Il punto è registrato come domanda aperta
 (`../governance/open-questions.md`, punto 22) e non viene deciso qui.
+
+> **Nota di implementazione (demo W3, 2026-07-28):** il riquadro di consultazione è già
+> disegnato oggi in `DrawPauseMenuOverlay` (`src/render/game_renderer.c`), condizionato solo
+> a `game->floor == 0` — indipendente da quale comando abbia aperto `PauseMenu`, così
+> funzionerà senza altro lavoro sul renderer non appena la domanda aperta 22 verrà risolta.
+> Mostra salute (cuori) e risorse (`Ingots`/`Blast Charges`/`Cast Keys`/`Flux`), le stesse
+> informazioni della riga vitali dell'HUD di `Gameplay` — non il timer di run, che non esiste
+> ancora nel motore (gap noto, indipendente da questo lavoro, vedi `ui/hud.md`).
 
 ## Non-obiettivi
 

@@ -1155,6 +1155,10 @@ int AppRun(int argc, char **argv)
     bool economyTest = false;
     bool fusionTest = false;
     bool fusionScreenshotTest = false;
+    /* DEC-065/131/152/159/169: come --economy-test, gira dopo InitWindow
+       senza bisogno vero della finestra (GameDiscoveryTest non disegna
+       nulla, vedi src/tests/discovery_tests.c). */
+    bool discoveryTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1318,6 +1322,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             fusionScreenshotTest = true;
+        }
+        /* DEC-065/131/152/159/169 (card di scoperta, HUD del Piano 0, causa
+           della sconfitta): come --economy-test, gira dopo InitWindow senza
+           bisogno vero della finestra. */
+        if (strcmp(argv[i], "--discovery-test") == 0)
+        {
+            smokeTest = true;
+            discoveryTest = true;
         }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
@@ -1573,6 +1585,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 30;   /* 30: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --economy-test=29) */
+    }
+    if (discoveryTest)
+    {
+        bool ok = GameDiscoveryTest(&game);
+        printf("Discovery test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 32;   /* 32: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --fusion-screenshot-test=31) */
     }
     if (catalogTest)
     {

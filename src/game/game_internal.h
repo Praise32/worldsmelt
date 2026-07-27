@@ -5,6 +5,19 @@
 
 void GameSetMessage(Game *game, const char *message);
 
+/* DEC-065/131/152: accoda una card di scoperta breve (nome + una riga),
+   applicando il cap DISCOVERY_QUEUE_MAX (DEC-131, scarta la piu' vecchia
+   SENZA mostrarla se la coda e' gia' piena). Chiamare SOLO nel punto di
+   scoperta vera (dove il chiamante gia' scrive enemyEncountered/
+   bossEncountered o equivalente), MAI per conto proprio altrove: la
+   registrazione nel Catalogo e quella coda restano volutamente disaccoppiate
+   (vedi il commento su Game.discoveryQueue in core/game_types.h). */
+void GameQueueDiscoveryCard(Game *game, const char *name, const char *line);
+/* DEC-152: scarta silenziosamente le card ANCORA IN CODA (non la card
+   eventualmente gia' mostrata). Chiamata da CombatDamagePlayer alla morte del
+   giocatore e da WorldTryEnterRoom al cambio stanza. */
+void GameDiscardPendingDiscoveries(Game *game);
+
 /* Valori di PARTENZA del Player (radius/hp/coins/bombs/keys + i base* del
    sistema delle cache), estratti da GameResetRun perche' FloorZeroEnter
    (src/world/floor_zero.c) ne ha bisogno anche lei per preparare un Player
@@ -89,7 +102,15 @@ void EntitiesAddItemPickup(Game *game, Vector2 position, Item item, int cost);
 
 void AssetsLoad(Game *game);
 
-void CombatDamagePlayer(Game *game, int amount);
+/* DEC-159: 'cause' e' la dichiarazione leggibile del colpo/nemico letale
+   (es. "contatto con Larva Ustionante", "un colpo nemico") -- copiata in
+   Game.deathCause SOLO quando questa chiamata porta la salute a zero (mai
+   altrimenti: un colpo assorbito non tocca deathCause). Il chiamante la
+   passa sempre, anche quando resta genericissima (un nemico senza tipo
+   generato, o un proiettile che non porta con se' l'identita' di chi lo ha
+   sparato, vedi il commento nei due call site in combat.c): NULL e' ammesso
+   solo come rete di sicurezza, mai la via normale. */
+void CombatDamagePlayer(Game *game, int amount, const char *cause);
 void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int traits);
 void CombatExplodeAt(Game *game, Vector2 position, float radius, float damage);
 void CombatSplitShot(Game *game, const Shot *shot);

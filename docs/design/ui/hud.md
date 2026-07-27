@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11)."
 last_reviewed: 2026-07-28
-last_verified_commit: 0ec60d0
+last_verified_commit: 1263957
 topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/tests/discovery_tests.c]
 ---
 
 # HUD
@@ -37,6 +37,17 @@ integrato (DEC-047), da non confondere con le «prove» specifiche della run di 
 Piano 0 resta uno spazio di preparazione con lo schermo pulito, senza togliere informazione a
 chi la cerca. Dettagli delle prove e della consultazione in pausa: fonte unica
 `systems/floor-zero.md` e `ui/pause-menu.md` (rimando, non riformulato qui).
+
+> **Nota di implementazione (demo W3, 2026-07-28):** la regola di visibilità è ora una
+> funzione pura testabile, `HudCombatShouldDraw(mode, floorZeroTrialActive)`
+> (`src/render/game_renderer.h`/`.c`): vero in `Gameplay` sempre, vero in `FloorZero` solo se
+> `Game.floorZeroTrialActive`, falso altrimenti — `RendererDrawApp` la chiama al posto del
+> vecchio confronto diretto su `APP_GAMEPLAY`. `floorZeroTrialActive` è l'**hook pronto** per
+> le prove del Piano 0 (arene di sfida, DEC-004/047): nessun codice lo imposta ancora a vero,
+> perché le arene non esistono nel motore (gap esplicito stile DEC-009/052, matrice di
+> copertura §17) — non sono state inventate qui. Quando arriveranno, l'entrata/uscita
+> dall'arena scriverà quel flag e l'HUD ricomparirà senza altro lavoro sul renderer. Verificato
+> da `--discovery-test` (`src/tests/discovery_tests.c`).
 
 ## Elementi interattivi
 
@@ -124,6 +135,34 @@ non ancora mostrate vengono **scartate silenziosamente** (DEC-152): nessuna coda
 insegue il giocatore nella stanza successiva, nessun recupero differito. La scoperta resta
 comunque registrata nel Catalogo permanente con la sua scheda, esattamente come
 nell'overflow di DEC-131: la card è la notifica, non il contenuto.
+
+> **Nota di implementazione (demo W3, 2026-07-28):** la coda esiste nel motore —
+> `Game.discoveryQueue`/`discoveryQueueCount` (cap `DISCOVERY_QUEUE_MAX`=5, FIFO che scarta
+> la più vecchia senza mostrarla oltre il cap, DEC-131) e `Game.discoveryActive` per la card
+> correntemente in mostra (`src/core/game_types.h`). `GameQueueDiscoveryCard`/
+> `GameDiscardPendingDiscoveries` (`src/game/game.c`) sono i soli punti di scrittura, e
+> `GameUpdate` (`src/game/game.c`) è il solo punto che promuove la coda in `discoveryActive`.
+> **La card si disegna davvero**: `DrawHudDiscovery` (`src/render/game_renderer.c`) è il
+> quinto cluster di `DrawOuterUi`, un riquadro in alto al centro (fuori dai quattro angoli di
+> Vitals/RunStatus/Build/Log) che legge `discoveryActive`/`discoveryActiveValid` — prima di
+> questo cluster quei campi non avevano alcun lettore nel binario di gioco (solo nei test) e
+> la card, pur accodata correttamente, non compariva mai a schermo: una versione precedente di
+> questa nota affermava per errore che fosse "solo testo, senza sprite", quando in realtà non
+> era disegnata affatto. Ora **è** solo testo (nome + riga), senza sprite — l'HUD pixel art
+> completo arriva con la milestone W7; questa nota si aggiorna/si rimuove quando lo sprite
+> entra nella card.
+> Lo scarto DEC-152 è agganciato a `CombatDamagePlayer` (morte, `src/gameplay/combat.c`) e a
+> `WorldTryEnterRoom` (cambio stanza, `src/world/world.c`), **prima** che la stanza di arrivo
+> possa accodare le proprie scoperte — verificato che l'invariante "registrazione alla
+> scoperta, non alla mostra" regge: `Game.enemyEncountered`/`bossEncountered` si scrivono in
+> `WorldSpawnCombatRoom`/`WorldSpawnRoomContents` indipendentemente dalla coda, e lo scarto
+> non li tocca mai. `--discovery-test` (`src/tests/discovery_tests.c`) esercita anche il push
+> REALE da `WorldSpawnCombatRoom` (una sola card per tipo incontrato, nessun secondo push su
+> una stanza già incontrata) e il cap/drop-oldest di DEC-131 (sei push in fila lasciano le
+> cinque più recenti), non solo `GameQueueDiscoveryCard` chiamata a mano. Push accodati oggi:
+> solo nemico/boss **incontrato per la prima volta in questa run** (proxy di "mai visto",
+> non ancora la cross-run vera del Catalogo persistente — gap dichiarato, dipende dal
+> profilo persistente di `systems/save-and-meta-progression.md`, non ancora implementato).
 
 ## Stile visivo (DEC-046, rimando)
 

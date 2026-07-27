@@ -15,6 +15,29 @@ void GameSetMessage(Game *game, const char *message)
     game->messageTimer = 3.2f;
 }
 
+/* DEC-065/131: vedi il commento sulla dichiarazione in game_internal.h e su
+   Game.discoveryQueue in core/game_types.h. */
+void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
+{
+    if (game->discoveryQueueCount >= DISCOVERY_QUEUE_MAX)
+    {
+        /* DEC-131: la piu' vecchia (indice 0) esce SENZA essere mostrata --
+           si scala l'array di una posizione invece di rifiutare la nuova, cosi'
+           la coda resta sempre le ~5 scoperte PIU' RECENTI, mai le prime. */
+        for (int i = 1; i < DISCOVERY_QUEUE_MAX; i++) game->discoveryQueue[i - 1] = game->discoveryQueue[i];
+        game->discoveryQueueCount = DISCOVERY_QUEUE_MAX - 1;
+    }
+    DiscoveryCard *card = &game->discoveryQueue[game->discoveryQueueCount++];
+    snprintf(card->name, sizeof(card->name), "%s", name ? name : "");
+    snprintf(card->line, sizeof(card->line), "%s", line ? line : "");
+}
+
+/* DEC-152: vedi il commento sulla dichiarazione in game_internal.h. */
+void GameDiscardPendingDiscoveries(Game *game)
+{
+    game->discoveryQueueCount = 0;
+}
+
 /* M6a (DEC-030/033): come GamePlayerResetBaseStats sotto, ma parametrizzata
    sul personaggio APPLICATO -- 'character' NULL riproduce esattamente il
    comportamento storico pre-M6a (compreso hpCap 12, il tetto assoluto di
@@ -215,6 +238,27 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
         }
     }
     if (game->messageTimer > 0.0f) game->messageTimer -= dt;
+
+    /* DEC-065: una sola card di scoperta alla volta, non bloccante -- stesso
+       ritmo di GameSetMessage sopra. Quando quella corrente scade, la
+       successiva (se ce n'e' una in coda) prende il suo posto SUBITO, senza
+       un buco silenzioso fra le due. Gira anche a fine run (PHASE_GAME_OVER/
+       PHASE_WIN, PRIMA del return sotto): innocuo, la coda e' comunque vuota
+       li' (DEC-152 l'ha gia' scartata alla morte), e una card gia' in mostra
+       puo' finire di esaurirsi in RunResults senza inseguire il giocatore. */
+    if (game->discoveryActiveValid)
+    {
+        game->discoveryActiveTimer -= dt;
+        if (game->discoveryActiveTimer <= 0.0f) game->discoveryActiveValid = false;
+    }
+    if (!game->discoveryActiveValid && game->discoveryQueueCount > 0)
+    {
+        game->discoveryActive = game->discoveryQueue[0];
+        for (int i = 1; i < game->discoveryQueueCount; i++) game->discoveryQueue[i - 1] = game->discoveryQueue[i];
+        game->discoveryQueueCount--;
+        game->discoveryActiveValid = true;
+        game->discoveryActiveTimer = 3.2f;
+    }
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)
     {

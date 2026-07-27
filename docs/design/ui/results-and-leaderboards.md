@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041), con un campo esplicito che dichiara la causa della sconfitta (ultimo colpo o nemico letale, DEC-159). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
-last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
+last_reviewed: 2026-07-28
+last_verified_commit: 1263957
 topics: [run-results, classifiche, vittoria-sconfitta, punti-sblocco, daily, causa-sconfitta, DEC-041, DEC-056, DEC-062, DEC-159]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/core/game_types.h, src/gameplay/combat.c, src/game/game_internal.h, src/render/game_renderer.c, src/tests/discovery_tests.c]
 ---
 
 # Results and Leaderboards (RunResults)
@@ -55,6 +55,17 @@ presidio concreto della promessa di chiarezza «perché è morto» descritta in
 [Player Experience](../02-player-experience.md) (rimando, non riformulato qui). Il campo
 non compare in caso di vittoria o di abbandono volontario, dove non c'è un colpo letale da
 dichiarare.
+
+> **Nota di implementazione (demo W3, 2026-07-28):** `CombatDamagePlayer` (ora
+> `CombatDamagePlayer(Game*, int amount, const char *cause)`, `src/gameplay/combat.c`) scrive
+> `Game.deathCause` solo quando la salute scende a zero, e `DrawRunResultsOverlay` la mostra
+> solo a `PHASE_GAME_OVER`. I due punti chiamanti dichiarano la causa in modo diseguale: il
+> contatto usa il nome del tipo di nemico generato (o il nome storico del suo `kind` in
+> assenza di un tipo); il proiettile nemico resta genericamente "un colpo nemico", perché
+> `Shot` non porta con sé l'identità di chi lo ha sparato — **gap noto**, non una nuova
+> decisione di design: colmarlo richiederebbe un campo owner su `Shot` (tocca
+> `entities.c`/`script_api.c`/`script_vm.c`), fuori perimetro di questo lavoro. Verificato da
+> `--discovery-test` (`src/tests/discovery_tests.c`) con un `PHASE_GAME_OVER` sintetico.
 
 ## Alla sconfitta (DEC-041)
 

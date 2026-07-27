@@ -30,6 +30,17 @@ bool UiLayoutSelfTest(void);
    (FloorZero, Gameplay). */
 int RendererMenuItemAt(AppMode mode, Vector2 mouse);
 
+/* DEC-169 (ui/hud.md, systems/floor-zero.md): l'HUD di combattimento si
+   disegna in Gameplay SEMPRE, e nel Piano 0 SOLO durante una prova (arena di
+   sfida/tutorial integrato, DEC-004/047) -- 'floorZeroTrialActive' e' il gap
+   esplicito di core/game_types.h Game.floorZeroTrialActive: nessun codice lo
+   imposta ancora a vero (le prove non esistono nel motore), quindi oggi
+   questa funzione ritorna sempre false per APP_FLOOR_ZERO, esattamente il
+   comportamento attuale (nascosto fuori da Gameplay). Nucleo PURO (nessuna
+   chiamata raylib): testabile direttamente, stesso stile di
+   UiComputeLayoutFor sopra. */
+bool HudCombatShouldDraw(AppMode mode, bool floorZeroTrialActive);
+
 /* 'ui' e' letto per disegnare la voce col focus in evidenza e i contenuti
    propri di RunSetup (seed)/ExitConfirm (contesto): puo' essere NULL SOLO
    per gli stati senza overlay di menu (Gameplay, e FloorZero che disegna

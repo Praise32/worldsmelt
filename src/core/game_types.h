@@ -862,6 +862,25 @@ typedef struct ScriptCharacterRuntime {
     int statsTableRef;
 } ScriptCharacterRuntime;
 
+/* DEC-065/131/152 (ui/hud.md): una card di scoperta breve -- sprite (non
+ * ancora, v1 e' solo testo: nessun campo sprite finche' l'HUD pixel art di
+ * W7 non ne ha bisogno), nome e una riga di descrizione. La card e' solo
+ * l'ANNUNCIO: la scheda completa vive nel Catalogo (RunCatalogEntry sopra),
+ * e la REGISTRAZIONE li' (i flag Game.enemyEncountered/bossEncountered)
+ * avviene al momento della scoperta vera (WorldSpawnCombatRoom/
+ * WorldSpawnRoomContents), mai qui -- questa struct e mai letta da
+ * RunCatalogWriteRun. */
+typedef struct DiscoveryCard {
+    char name[48];
+    char line[160];
+} DiscoveryCard;
+
+/* DEC-131: cap della coda, valore provvisorio da playtest (~5, come da
+ * hud.md, "Domande aperte residue"). Oltre il cap, GameQueueDiscoveryCard
+ * scarta la piu' vecchia SENZA mostrarla, mai un errore o un troncamento
+ * silenzioso di altro tipo. */
+#define DISCOVERY_QUEUE_MAX 5
+
 typedef struct Game {
     RunContent content;
     Theme theme;
@@ -1074,6 +1093,42 @@ typedef struct Game {
     bool enemyEncountered[FLOOR_COUNT][2];
     bool bossEncountered[FLOOR_COUNT];
     bool bossDefeated[FLOOR_COUNT];
+    /* DEC-065/131/152 (ui/hud.md): coda delle card di scoperta non ancora
+       mostrate -- 'discoveryQueueCount' voci valide in
+       'discoveryQueue[0..discoveryQueueCount-1]', FIFO (GameUpdate promuove
+       sempre l'indice 0 in 'discoveryActive' quando questa e' libera). Push
+       SOLO da GameQueueDiscoveryCard (mai un accesso diretto all'array): e'
+       lei che applica il cap DISCOVERY_QUEUE_MAX (DEC-131). 'discoveryActive'/
+       'discoveryActiveValid'/'discoveryActiveTimer' sono la card CORRENTEMENTE
+       mostrata (non bloccante, stesso ritmo di 'message'/'messageTimer' sotto):
+       a differenza della coda, NON si scarta a morte/cambio stanza (DEC-152
+       tocca solo le voci ancora in attesa, mai quella gia' annunciata).
+       GameDiscardPendingDiscoveries (chiamata da CombatDamagePlayer alla morte
+       e da WorldTryEnterRoom al cambio stanza) azzera SOLO 'discoveryQueueCount':
+       mai enemyEncountered/bossEncountered sopra, che restano scritti al
+       momento della scoperta -- la scoperta resta registrata nel Catalogo
+       anche quando la card che l'annunciava viene scartata qui. */
+    DiscoveryCard discoveryQueue[DISCOVERY_QUEUE_MAX];
+    int discoveryQueueCount;
+    DiscoveryCard discoveryActive;
+    bool discoveryActiveValid;
+    float discoveryActiveTimer;
+    /* DEC-169 (systems/floor-zero.md): hook pronto per le PROVE del Piano 0
+       (arene di sfida opzionali e tutorial integrato, DEC-004/047) -- non
+       ancora implementate nel motore (matrice di copertura, sezione 17):
+       nessun codice imposta mai questo flag a vero oggi, resta sempre falso
+       per costruzione (zero-default del memset di GameResetRun*). Quando le
+       arene arriveranno, l'entrata/uscita dalla prova scrivera' qui vero/falso
+       e l'HUD di combattimento ricomparira' nel Piano 0 automaticamente (vedi
+       HudCombatShouldDraw in src/render/game_renderer.c), senza dover
+       ritoccare la logica di disegno. Gap esplicito stile DEC-009/052. */
+    bool floorZeroTrialActive;
+    /* DEC-159 (ui/results-and-leaderboards.md): l'ultimo colpo o nemico
+       letale, scritto SOLO da CombatDamagePlayer quando la salute scende a
+       zero (mai a vittoria, mai ad abbandono: in quei casi resta la stringa
+       vuota dello zero-default). Letto da DrawRunResultsOverlay per la riga
+       "Causa: ...", SOLO quando game->phase == PHASE_GAME_OVER. */
+    char deathCause[96];
     /* M7: quanti record il catalogo ha scritto per l'ULTIMA chiamata di
        AppWriteRunCatalog (src/app/app.c) -- 0 se non si e' scritto nulla
        (run fallback, nessun piano giocato, guardia test attiva). Letto SOLO

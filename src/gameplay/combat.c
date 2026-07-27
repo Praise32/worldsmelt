@@ -74,7 +74,7 @@ static Enemy *CombatNearestEnemy(Game *game, Vector2 pos)
     return best;
 }
 
-void CombatDamagePlayer(Game *game, int amount)
+void CombatDamagePlayer(Game *game, int amount, const char *cause)
 {
     if (game->player.invuln > 0.0f || game->phase != PHASE_PLAY) return;
     game->player.hp -= amount;
@@ -84,6 +84,14 @@ void CombatDamagePlayer(Game *game, int amount)
     {
         game->phase = PHASE_GAME_OVER;
         GameSetMessage(game, "Run finita. Premi R.");
+        /* DEC-159: la causa della sconfitta, mostrata da DrawRunResultsOverlay
+           SOLO quando game->phase == PHASE_GAME_OVER (mai a vittoria/abbandono,
+           dove deathCause resta la stringa vuota dello zero-default). */
+        snprintf(game->deathCause, sizeof(game->deathCause), "%s", cause ? cause : "un colpo");
+        /* DEC-152: le card di scoperta ancora IN CODA a morte si scartano
+           silenziosamente -- mai enemyEncountered/bossEncountered, gia' scritti
+           al momento della scoperta (vedi il commento su GameDiscardPendingDiscoveries). */
+        GameDiscardPendingDiscoveries(game);
     }
 }
 
@@ -774,7 +782,20 @@ void CombatUpdateEnemies(Game *game, float dt)
         }
 
         float touch = e->radius + game->player.radius;
-        if (GameMathLengthSquared(GameMathSubtract(e->pos, game->player.pos)) < touch*touch) CombatDamagePlayer(game, 1);
+        if (GameMathLengthSquared(GameMathSubtract(e->pos, game->player.pos)) < touch*touch)
+        {
+            /* DEC-159: nome dichiarato dal modello se questo nemico ha un tipo
+               generato (fase 3b), altrimenti il nome storico del suo 'kind' --
+               mai un identificatore tecnico a schermo (registro del crogiolo,
+               DEC-105). */
+            const char *enemyName = (e->type.active && e->type.name[0]) ? e->type.name
+                : (e->kind == ENEMY_BOSS ? "il boss"
+                   : (e->kind == ENEMY_SHOOTER ? "un tiratore"
+                      : (e->kind == ENEMY_TANK ? "un corazzato" : "un inseguitore")));
+            char cause[64];
+            snprintf(cause, sizeof(cause), "contatto con %s", enemyName);
+            CombatDamagePlayer(game, 1, cause);
+        }
     }
 }
 
@@ -907,7 +928,15 @@ void CombatUpdateShots(Game *game, float dt)
             if (GameMathLengthSquared(GameMathSubtract(s->pos, game->player.pos)) < r*r)
             {
                 s->active = false;
-                CombatDamagePlayer(game, 1);
+                /* DEC-159: 'Shot' non porta con se' l'identita' di chi lo ha
+                   sparato (nessun campo owner/nome, vedi core/game_types.h) --
+                   un colpo puo' ancora essere in volo quando il nemico che lo
+                   ha sparato e' gia' morto o fuori stanza. Causa generica per
+                   ora: gap noto, non una nuova decisione di design (colmarlo
+                   vorrebbe dire aggiungere un identificatore a Shot, che tocca
+                   entities.c/script_api.c/script_vm.c -- fuori perimetro di
+                   questo lavoro). */
+                CombatDamagePlayer(game, 1, "un colpo nemico");
             }
         }
     }

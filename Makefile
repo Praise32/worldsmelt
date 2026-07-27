@@ -175,6 +175,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --item-pool-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --economy-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --fusion-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --discovery-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --catalog-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --catalog-screen-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test

@@ -1554,10 +1554,59 @@ static void DrawHudLog(Game *game, Rectangle gr, float s)
     if (hasArch) DrawText(archLine, cx, cy + UiRound(lineH), font, (Color){ 170, 178, 190, 255 });
 }
 
-/* Orchestratore dell'HUD in overlay (DEC-137). Chiamato SOLO in APP_GAMEPLAY
-   (RendererDrawApp): fuori dal gioco (menu, pausa, risultati) l'HUD e'
-   nascosto, come vuole ui/hud.md ("nascosto o attenuato durante PauseMenu e
-   BuildScreen"), e il Piano 0 ha i suoi overlay dedicati (riepilogo + carte)
+/* Alto-centro: la card di scoperta breve (DEC-065), quinto cluster dell'HUD.
+   'Game.discoveryActive'/'discoveryActiveValid' sono la card CORRENTEMENTE in
+   mostra (GameUpdate promuove la coda, src/game/game.c); questa funzione e' il
+   SOLO lettore di quei campi nel binario -- prima di questo cluster nessun
+   punto del renderer li leggeva, quindi la card non compariva mai a schermo
+   (regressione corretta qui). Non bloccante e non centrata sul personaggio: un
+   riquadro in alto, fuori dai quattro angoli gia' occupati da Vitals/RunStatus/
+   Build/Log, cosi' non si sovrappone a nessuno degli altri cluster. v1 e' solo
+   testo (nome + riga): nessuno sprite finche' l'HUD pixel art di W7 non ne ha
+   bisogno (stesso gap dichiarato in DiscoveryCard, core/game_types.h). */
+static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
+{
+    if (!game->discoveryActiveValid) return;
+
+    const DiscoveryCard *card = &game->discoveryActive;
+    float margin = 12.0f*s, ip = 11.0f*s;
+    int nameFont = UiRound(16.0f*s);
+    int lineFont = UiRound(13.0f*s);
+
+    char nameLine[64];
+    snprintf(nameLine, sizeof(nameLine), "Scoperta: %s", card->name);
+
+    float contentW = fmaxf((float)MeasureText(nameLine, nameFont), (float)MeasureText(card->line, lineFont));
+    contentW = fminf(contentW, gr.width*0.6f - ip*2.0f);
+    float boxW = contentW + ip*2.0f;
+    float rowName = 20.0f*s, rowLine = 18.0f*s;
+    float boxH = ip*2.0f + rowName + rowLine;
+
+    Rectangle box = { gr.x + (gr.width - boxW)*0.5f, gr.y + margin, boxW, boxH };
+    DrawHudBox(box, game->theme.accent, s, 224);
+
+    int cx = (int)(box.x + ip);
+    int cy = (int)(box.y + ip);
+    DrawText(nameLine, cx, cy, nameFont, RAYWHITE);
+    cy += UiRound(rowName);
+    DrawText(card->line, cx, cy, lineFont, (Color){ 205, 210, 220, 255 });
+}
+
+/* DEC-169: vedi il commento sulla dichiarazione in game_renderer.h. Nucleo
+   PURO, nessuna chiamata raylib -- lo stesso stile di UiComputeLayoutFor,
+   testabile senza finestra aperta. */
+bool HudCombatShouldDraw(AppMode mode, bool floorZeroTrialActive)
+{
+    if (mode == APP_GAMEPLAY) return true;
+    if (mode == APP_FLOOR_ZERO) return floorZeroTrialActive;
+    return false;
+}
+
+/* Orchestratore dell'HUD in overlay (DEC-137). Chiamato in APP_GAMEPLAY e, da
+   DEC-169, nel Piano 0 durante una prova (HudCombatShouldDraw sopra decide
+   quando): fuori da queste due situazioni l'HUD e' nascosto, come vuole
+   ui/hud.md ("nascosto o attenuato durante PauseMenu e BuildScreen"), e il
+   Piano 0 fuori da una prova ha i suoi overlay dedicati (riepilogo + carte)
    che occuperebbero lo stesso angolo. Nessun raygui qui: i cluster usano solo
    DrawText/DrawRectangle, quindi non serve UiApplyTheme (gli overlay dei menu
    applicano il proprio tema per conto loro). */
@@ -1569,6 +1618,7 @@ static void DrawOuterUi(Game *game, UiLayout layout)
     DrawHudRunStatus(game, gr, s);
     DrawHudBuild(game, gr, s);
     DrawHudLog(game, gr, s);
+    DrawHudDiscovery(game, gr, s);
 }
 
 /* ============================================================
@@ -1630,6 +1680,13 @@ static int MenuItemCountForMode(AppMode mode)
 /* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. */
 #define MENU_ROW_START_Y_BASE 110.0f
 #define MENU_ROW_H_BASE 52.0f
+/* DEC-159: RunResults ha, sopra le sue due voci, un numero VARIABILE di righe
+   informative facoltative (esito, piano raggiunto, causa della sconfitta se
+   game over, conteggio catalogo se >0) -- una quota fissa piu' bassa di
+   MENU_ROW_START_Y_BASE lascia sempre spazio a tutte, comparissero o no,
+   senza dover far dipendere la geometria delle voci (quindi anche il
+   hit-test del mouse, RendererMenuItemAt) dal contenuto della run. */
+#define MENU_ROW_START_Y_RUN_RESULTS 150.0f
 
 /* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
    stessa garanzia (uiScale==1.0 => letterali identici a prima). */
@@ -1644,9 +1701,10 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh)
        la cerca. Resta una fonte di geometria SOLA, quindi il hit-test del
        mouse (RendererMenuItemAt) la segue senza sapere nulla di questa
        eccezione. */
+    float rowStartY = (mode == APP_RUN_RESULTS) ? MENU_ROW_START_Y_RUN_RESULTS : MENU_ROW_START_Y_BASE;
     float top = (mode == APP_BUILD_SCREEN)
         ? box.y + box.height - 46.0f*uiScale
-        : box.y + MENU_ROW_START_Y_BASE*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
+        : box.y + rowStartY*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
     return (Rectangle){ box.x + 60.0f*uiScale, top, box.width - 120.0f*uiScale, 40.0f*uiScale };
 }
 
@@ -1738,13 +1796,38 @@ static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
     DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
 }
 
+/* DEC-169 (ui/pause-menu.md, "Consultazione dell'HUD nel Piano 0"): nel Piano
+   0 l'HUD di combattimento resta nascosto fuori dalle prove (vedi
+   HudCombatShouldDraw sopra); questo riquadro e' il punto in cui quella
+   stessa informazione (salute, risorse) resta consultabile su richiesta,
+   senza uscire dal Piano 0. Si disegna ogni volta che APP_PAUSE_MENU viene
+   raggiunto con game->floor == 0, indipendentemente da QUALE comando abbia
+   aperto la pausa: quel comando resta la domanda aperta 22
+   (governance/open-questions.md, DEC-169 non lo fissa, ESC e' gia'
+   ExitConfirm nel Piano 0) -- gap esplicito stile DEC-009/052, non deciso
+   qui. */
+static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiScale)
+{
+    const Player *p = &game->player;
+    int labelFont = UiRound(15.0f*uiScale);
+    int x = (int)box.x + UiRound(40.0f*uiScale);
+    int y = (int)box.y + UiRound(320.0f*uiScale);
+    DrawText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
+    y += UiRound(22.0f*uiScale);
+    DrawHearts(p, x, y, uiScale);
+    DrawText(TextFormat("%dc  %db  %dk  %df", p->coins, p->bombs, p->keys, p->flux),
+              x + UiRound(140.0f*uiScale), y, labelFont, GOLD);
+}
+
 static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
 {
-    BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
+    Rectangle box = BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 0, "Riprendi", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 1, "Build e sinergie", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 3, "Abbandona run", ui->focus, game->theme.accent2);
+    if (game->floor == 0)
+        DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
 
 static void DrawOptionsOverlay(Game *game, const AppUi *ui)
@@ -1979,6 +2062,18 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
         : "La run e' finita qui.";
     DrawText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
     DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    /* DEC-159: la causa della sconfitta, SOLO a game over (mai a vittoria: li'
+       game->deathCause resta la stringa vuota dello zero-default, scritta
+       unicamente da CombatDamagePlayer). Riga indipendente da quella del
+       catalogo sotto: 'lineY' avanza SOLO per le righe davvero disegnate, cosi'
+       le due righe facoltative non si sovrappongono ne' lasciano un buco
+       quando una delle due manca. */
+    float lineY = 102.0f;
+    if (game->phase == PHASE_GAME_OVER && game->deathCause[0])
+    {
+        DrawText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
+        lineY += 22.0f;
+    }
     /* M7 (DEC-015/041/045/069, substrato del catalogo): il feedback canonico
        "se sono stati registrati nuovi contenuti nel catalogo"
        (05-game-states-and-flow.md, righe 83-85). game->catalogRecordsWritten
@@ -1988,7 +2083,7 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER). */
     if (game->catalogRecordsWritten > 0)
         DrawText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
-                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(102.0f*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
+                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
 }
@@ -2605,10 +2700,11 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
        era chrome da colonne separate, ora la vista di gioco E' lo schermo. */
     Rectangle src = { 0.0f, 0.0f, (float)canvas.texture.width, -(float)canvas.texture.height };
     DrawTexturePro(canvas.texture, src, layout.gameRect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
-    /* HUD di gioco SOLO in Gameplay: fuori dal gioco (menu/pausa/risultati) e' nascosto
-       (ui/hud.md), e il Piano 0 ha i suoi overlay dedicati (riepilogo + carte) sullo
-       stesso angolo -- vedi il case APP_FLOOR_ZERO sotto. */
-    if (mode == APP_GAMEPLAY) DrawOuterUi(game, layout);
+    /* HUD di gioco SOLO in Gameplay, o nel Piano 0 durante una prova (DEC-169):
+       fuori da queste due situazioni e' nascosto (ui/hud.md), e il Piano 0 ha
+       i suoi overlay dedicati (riepilogo + carte) sullo stesso angolo -- vedi
+       il case APP_FLOOR_ZERO sotto. */
+    if (HudCombatShouldDraw(mode, game->floorZeroTrialActive)) DrawOuterUi(game, layout);
 
     /* UN overlay per stato (switch esplicito, M1a): 'ui' e' NULL solo per
        Gameplay (che non ne ha bisogno) e per FloorZero (che legge
