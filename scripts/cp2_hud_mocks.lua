@@ -268,102 +268,119 @@ local function hudV3(img)
   elResources(img, 10, 34, true)
   elSlots(img, 10, CH - 76)
   elTimer(img, CW/2, 8, false)
-  local flw = W.textW("PIANO 2/5 - TESORO", 1)
-  W.textOutlined(img, "PIANO 2/5 - TESORO", CW - flw - 10, 8, C.bianco, 1)
-  local wlw = W.textW("CROGIOLO DELLE SPORE", 1)
-  W.textOutlined(img, "CROGIOLO DELLE SPORE", CW - wlw - 10, 17, C.oro_p, 1)
-  elMinimap(img, CW - (5*14+4*3) - 10, 30, 14, 3)
+  local flw = W.textW("PIANO 2/5 - TESORO", 2)
+  W.textOutlined(img, "PIANO 2/5 - TESORO", CW - flw - 10, 8, C.bianco, 2)
+  local wlw = W.textW("CROGIOLO DELLE SPORE", 2)
+  W.textOutlined(img, "CROGIOLO DELLE SPORE", CW - wlw - 10, 22, C.oro_p, 2)
+  elMinimap(img, CW - (5*14+4*3) - 10, 40, 14, 3)
   elDiscoveryCard(img, CW/2, CH - 56)
   elGen(img, CW - 70, CH - 20)
-  W.textOutlined(img, "[TAB] BUILD", 90, CH - 44, C.cen_chiara, 1)
+  W.textOutlined(img, "[TAB] BUILD", 90, CH - 50, C.cen_chiara, 2)
 end
 
 -- -------------------------------------------------------------- BuildScreen
+-- Correzioni del proprietario (CP2): font x2 per tutto il contenuto e ogni
+-- area dentro una cornice esplicita con la sua etichetta.
+local function sectionFrame(img, x, y, w, h, title)
+  W.frame9(img, x, y, w, h, {})
+  local tw = W.textW(title, 2)
+  W.fillRect(img, x + 10, y - 5, tw + 12, 14, C.slag_scuro)
+  W.fillRect(img, x + 10, y - 5, tw + 12, 1, C.bronzo_s)
+  W.fillRect(img, x + 10, y + 8, tw + 12, 1, C.bronzo_s)
+  W.fillRect(img, x + 10, y - 5, 1, 14, C.bronzo_s)
+  W.fillRect(img, x + 10 + tw + 11, y - 5, 1, 14, C.bronzo_s)
+  W.text(img, title, x + 16, y - 3, C.oro_p, 2)
+end
+
 local function buildScreen(img)
   paintGameView(img)
   W.blendRect(img, 0, 0, CW, CH, C.slag_nero, 0.55)
-  local px_, py_, pw, ph = 70, 26, 820, 588
+  local px_, py_, pw, ph = 40, 14, 880, 612
   W.frame9(img, px_, py_, pw, ph, { rivets = true })
-  W.text(img, "BUILD E SINERGIE", px_+16, py_+12, C.oro_p, 2)
-  W.text(img, "[BUILD]", px_+300, py_+14, C.bagliore, 1)
-  W.text(img, "PROVE", px_+345, py_+14, C.cen_chiara, 1)
+  W.text(img, "BUILD E SINERGIE", px_+16, py_+10, C.oro_p, 3)
+  W.text(img, "[BUILD]", px_+330, py_+14, C.bagliore, 2)
+  W.text(img, "PROVE", px_+400, py_+14, C.cen_chiara, 2)
   local hint = "[TAB] CHIUDI"
-  W.text(img, hint, px_+pw-W.textW(hint,1)-14, py_+14, C.cen_chiara, 1)
-  W.fillRect(img, px_+12, py_+30, pw-24, 1, C.bronzo_s)
+  W.text(img, hint, px_+pw-W.textW(hint,2)-16, py_+14, C.cen_chiara, 2)
+  W.fillRect(img, px_+12, py_+34, pw-24, 1, C.bronzo_s)
 
-  -- colonna sinistra: oggetti
-  W.text(img, "OGGETTI", px_+16, py_+40, C.cen_chiara, 1)
+  -- area sinistra: oggetti
+  local ox_, oy_ = px_ + 16, py_ + 56
+  sectionFrame(img, ox_, oy_, 360, 320, "OGGETTI")
   local items = {
     { "MARTELLO DI SLAG", C.brace, false, true },
     { "LENTE DEL CROGIOLO", C.ard_c, false, false },
     { "CUORE DI BRACE", C.brace, false, true },
     { "STIVALI DI PATINA", C.ver_c, false, false },
     { "SANGUE DI FLUX", C.pru_c, true, false },
-    { "CAMPANA DEL RICHIAMO [E]", C.bronzo_c, false, false },
+    { "CAMPANA RICHIAMO [E]", C.bronzo_c, false, false },
     { "INNESTO: SPINE [G]", C.ver, false, false },
   }
-  local ly = py_ + 52
+  local ly = oy_ + 18
   for _, it in ipairs(items) do
     if it[3] then
-      W.fillRect(img, px_+12, ly-3, 322, 26, C.slag_scuro)
-      W.fillRect(img, px_+12, ly-3, 322, 1, C.bagliore)
-      W.fillRect(img, px_+12, ly+22, 322, 1, C.bagliore)
-      W.fillRect(img, px_+12, ly-3, 1, 26, C.bagliore)
-      W.fillRect(img, px_+333, ly-3, 1, 26, C.bagliore)
-      W.text(img, ">", px_+17, ly+5, C.bagliore, 2)
+      W.fillRect(img, ox_+6, ly-4, 348, 30, C.slag_scuro)
+      W.fillRect(img, ox_+6, ly-4, 348, 1, C.bagliore)
+      W.fillRect(img, ox_+6, ly+25, 348, 1, C.bagliore)
+      W.fillRect(img, ox_+6, ly-4, 1, 30, C.bagliore)
+      W.fillRect(img, ox_+353, ly-4, 1, 30, C.bagliore)
+      W.text(img, ">", ox_+11, ly+5, C.bagliore, 2)
     end
-    W.frame9(img, px_+30, ly-1, 22, 22, {})
-    W.diamond(img, px_+40, ly+9, 5, it[2])
-    W.text(img, it[1], px_+58, ly+6, it[3] and C.bianco or C.fumo, 1)
-    if it[4] then W.diamond(img, px_+320, ly+9, 3, C.fiamma) end
-    ly = ly + 28
+    W.frame9(img, ox_+24, ly-1, 24, 24, {})
+    W.diamond(img, ox_+35, ly+10, 5, it[2])
+    W.text(img, it[1], ox_+56, ly+6, it[3] and C.bianco or C.fumo, 2)
+    if it[4] then W.diamond(img, ox_+340, ly+10, 4, C.fiamma) end
+    ly = ly + 34
   end
+  W.text(img, "ROMBO ROSSO = IN SINERGIA", ox_+8, oy_+320-14, C.cen_chiara, 1)
 
-  -- colonna destra: dettaglio + statistiche
-  local dx = px_ + 360
-  W.text(img, "DETTAGLIO", dx, py_+40, C.cen_chiara, 1)
-  W.frame9(img, dx, py_+52, 78, 78, { rivets = true })
-  W.renderS1(img, W.grids.potion32, W.maps.potion, dx+7, py_+59, 2)
-  W.text(img, "SANGUE DI FLUX", dx+90, py_+56, C.bianco, 2)
-  W.text(img, "MOD - RARO", dx+90, py_+72, C.pru_c, 1)
-  W.text(img, "OGNI FUSIONE RESTITUISCE 1 CUORE", dx+90, py_+86, C.fumo, 1)
-  W.text(img, "TEMPORANEO", dx+90, py_+95, C.fumo, 1)
-  W.text(img, "STATISTICHE", dx, py_+144, C.cen_chiara, 1)
-  W.text(img, "SALUTE 4+2   DANNO 7   RITMO 2.4", dx, py_+156, C.bianco, 1)
-  W.text(img, "VELOCITA 86  FORTUNA +1", dx, py_+166, C.bianco, 1)
+  -- area destra: dettaglio
+  local dx = px_ + 400
+  sectionFrame(img, dx, py_+56, 460, 130, "DETTAGLIO")
+  W.frame9(img, dx+10, py_+70, 78, 78, { rivets = true })
+  W.renderS1(img, W.grids.potion32, W.maps.potion, dx+17, py_+77, 2)
+  W.text(img, "SANGUE DI FLUX", dx+100, py_+72, C.bianco, 2)
+  W.text(img, "MOD - RARO", dx+100, py_+88, C.pru_c, 2)
+  W.text(img, "OGNI FUSIONE RESTITUISCE", dx+100, py_+108, C.fumo, 2)
+  W.text(img, "1 CUORE TEMPORANEO", dx+100, py_+122, C.fumo, 2)
+  W.text(img, "PREZZO PAGATO: 18 LINGOTTI", dx+10, py_+160, C.cen_chiara, 2)
+
+  -- statistiche
+  sectionFrame(img, dx, py_+208, 460, 58, "STATISTICHE")
+  W.text(img, "SALUTE 4+2  DANNO 7  RITMO 2.4", dx+12, py_+224, C.bianco, 2)
+  W.text(img, "VELOCITA 86  FORTUNA +1", dx+12, py_+242, C.bianco, 2)
 
   -- sinergie implicite
-  W.text(img, "SINERGIE ATTIVE", dx, py_+188, C.cen_chiara, 1)
-  W.frame9(img, dx, py_+198, 430, 44, {})
-  W.diamond(img, dx+14, py_+218, 5, C.fiamma)
-  W.text(img, "BRACIA RISONANTE", dx+28, py_+206, C.fiamma_c, 1)
-  W.text(img, "MARTELLO + CUORE: I COLPI BRUCIANO", dx+28, py_+216, C.fumo, 1)
-  W.text(img, "I COMPONENTI SONO SEGNATI IN LISTA", dx+28, py_+226, C.cen_chiara, 1)
+  sectionFrame(img, dx, py_+288, 460, 62, "SINERGIE ATTIVE")
+  W.diamond(img, dx+20, py_+316, 6, C.fiamma)
+  W.text(img, "BRACIA RISONANTE", dx+36, py_+302, C.fiamma_c, 2)
+  W.text(img, "MARTELLO + CUORE: I COLPI BRUCIANO", dx+36, py_+320, C.fumo, 2)
+  W.text(img, "COMPONENTI SEGNATI IN LISTA COL ROMBO", dx+36, py_+336, C.cen_chiara, 1)
 
   -- effetti temporanei
-  W.text(img, "EFFETTI TEMPORANEI", dx, py_+254, C.cen_chiara, 1)
-  W.text(img, "SCUDO DI PATINA - 24S", dx, py_+266, C.patina, 1)
+  sectionFrame(img, dx, py_+372, 460, 40, "EFFETTI TEMPORANEI")
+  W.text(img, "SCUDO DI PATINA - 24S", dx+12, py_+388, C.patina, 2)
 
-  -- fascia fusione in basso
-  local fy = py_ + ph - 102
-  W.fillRect(img, px_+12, fy-8, pw-24, 1, C.bronzo_s)
-  W.text(img, "FUSIONE", px_+16, fy, C.oro_p, 2)
-  W.frame9(img, px_+16, fy+16, 46, 46, {})
-  W.diamond(img, px_+39, fy+39, 9, C.brace)
-  W.text(img, "MARTELLO", px_+16, fy+66, C.fumo, 1)
-  W.text(img, "+", px_+72, fy+32, C.bianco, 2)
-  W.frame9(img, px_+88, fy+16, 46, 46, {})
-  W.diamond(img, px_+111, fy+39, 9, C.brace)
-  W.text(img, "CUORE", px_+92, fy+66, C.fumo, 1)
-  W.renderS1(img, W.grids.flux11, W.maps.flux, px_+146, fy+30, 2)
-  W.text(img, "1", px_+152, fy+56, C.bagliore, 1)
-  W.text(img, "=", px_+180, fy+32, C.bianco, 2)
-  W.frame9(img, px_+198, fy+16, 46, 46, { interior = C.slag_scuro })
-  W.text(img, "?", px_+216, fy+28, C.bagliore, 4)
-  W.text(img, "MARTELLO ARDENTE?", px_+198, fy+66, C.cen_chiara, 1)
-  W.text(img, "[F] FONDI - PRONTA", px_+320, fy+34, C.bagliore, 2)
-  W.text(img, "LA FUSIONE CONSUMA LE DUE SORGENTI E 1 FLUX", px_+320, fy+52, C.fumo, 1)
-  W.text(img, "ESITO SUBITO, RIFINITURA IA IN SOTTOFONDO", px_+320, fy+62, C.cen_chiara, 1)
+  -- fascia fusione in basso, cornice dedicata
+  local fx, fy = px_ + 16, py_ + ph - 172
+  sectionFrame(img, fx, fy, pw - 32, 150, "FUSIONE")
+  W.frame9(img, fx+14, fy+22, 54, 54, {})
+  W.diamond(img, fx+41, fy+49, 11, C.brace)
+  W.text(img, "MARTELLO", fx+8, fy+82, C.fumo, 2)
+  W.text(img, "+", fx+78, fy+42, C.bianco, 3)
+  W.frame9(img, fx+100, fy+22, 54, 54, {})
+  W.diamond(img, fx+127, fy+49, 11, C.brace)
+  W.text(img, "CUORE", fx+106, fy+82, C.fumo, 2)
+  W.renderS1(img, W.grids.flux11, W.maps.flux, fx+168, fy+32, 3)
+  W.text(img, "1 FLUX", fx+160, fy+82, C.bagliore, 2)
+  W.text(img, "=", fx+216, fy+42, C.bianco, 3)
+  W.frame9(img, fx+240, fy+22, 54, 54, { interior = C.slag_scuro })
+  W.text(img, "?", fx+260, fy+35, C.bagliore, 5)
+  W.text(img, "MARTELLO ARDENTE?", fx+228, fy+82, C.cen_chiara, 2)
+  W.text(img, "[F] FONDI - PRONTA", fx+400, fy+30, C.bagliore, 3)
+  W.text(img, "CONSUMA LE DUE SORGENTI E 1 FLUX", fx+400, fy+56, C.fumo, 2)
+  W.text(img, "ESITO SUBITO, RIFINITURA IA IN SOTTOFONDO", fx+400, fy+72, C.cen_chiara, 2)
+  W.text(img, "SE MANCA IL FLUX LA CONFERMA NON HA EFFETTO", fx+400, fy+94, C.cen_chiara, 1)
 end
 
 -- ------------------------------------------------------------------ output
