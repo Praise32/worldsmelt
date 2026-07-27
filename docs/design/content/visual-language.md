@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173)."
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» e della scala base sprite 24px, chiude la domanda aperta 12 (DEC-176)."
 last_reviewed: 2026-07-28
 last_verified_commit: 0ec60d0
-topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173]
+topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173, stile S1, outline nero, scala 24px, DEC-176]
 related: []
 supersedes: []
 source_files: []
@@ -91,7 +91,9 @@ comunicano stato di gioco (es. l'indicatore sul personaggio, strato 7).
 Le risoluzioni di riferimento attuali (atlas generati, resa a campionamento a punto) sono
 **default dell'implementazione**, nello stesso stato `draft` dei valori numerici di DEC-019:
 documentate come default proposto, non come valore di design definitivo. Fonti che
-rimandano a questa regola senza riformularla: `ui/hud.md`.
+rimandano a questa regola senza riformularla: `ui/hud.md`. **Eccezione (DEC-176):** la
+**scala base degli sprite pixel-art** non è più un default di implementazione ma un
+valore di design approvato — vedi «Stile pixel-art ufficiale e scala base sprite» sotto.
 
 ## Palette ufficiale «Fucina di Worldsmelt» (DEC-173)
 
@@ -106,9 +108,11 @@ proposte con sprite rimappati. Alternative scartate: **Endesga 32**, **Resurrect
 **Apollo** (palette canoniche di terze parti); il mantenimento del look **neon** in uso
 fino a questo punto, esplicitamente non gradito.
 
-La fonte operativa per Aseprite resta il file `.gpl` (`~/tools/aseprite-workspace/worldsmelt-fucina.gpl`,
-fuori da questo repository); questa sezione ne copia i valori RGB/hex come riferimento di
-design, senza sostituirlo come strumento di lavoro.
+La fonte operativa per Aseprite è il file `.gpl` canonico nel repository,
+`assets/art-src/palette/worldsmelt-fucina.gpl` (commit `e358d5f`; prima di quel commit
+viveva solo fuori dal repository, in `~/tools/aseprite-workspace/`) — questa sezione ne
+copia i valori RGB/hex come riferimento di design, senza sostituirlo come strumento di
+lavoro.
 
 ### I 31 colori
 
@@ -166,6 +170,43 @@ design, senza sostituirlo come strumento di lavoro.
 Questa palette **vincola** la variazione per-World di palette e dettagli già prevista da
 DEC-073b per la silhouette stabile delle risorse fisse: la variazione resta dentro questi
 31 colori, non introduce tinte fuori palette.
+
+## Stile pixel-art ufficiale e scala base sprite (DEC-176)
+
+Oltre alla palette, il gioco ha uno **stile pixel-art ufficiale** e una **scala base**
+per gli sprite, entrambi scelti dal proprietario al checkpoint CP1 della produzione
+pixel-art dopo un confronto visivo su cinque prove di stile e su tre scale. Vale per
+**sprite originali nuovi** e per il **remap batch dei 189 sprite curati CC0**, la stessa
+copertura della palette (DEC-173).
+
+### Stile: S1 «outline nero»
+
+- **Outline nero 1px**: ogni sprite ha un contorno di 1 pixel nel colore `slag-nero`
+  della palette attorno al perimetro esterno della silhouette.
+- **Shading piatto a 2 toni per materiale**: ogni superficie usa un tono base più un solo
+  tono d'ombra (nessuna banda intermedia, nessun gradiente).
+- **Niente dithering**: nessun pattern di retinatura per simulare toni intermedi.
+- **Eccezione dettagli piccoli**: dettagli piccoli e ad alto contrasto (occhi, punte
+  luminose, bagliori) possono restare **senza outline interno** quando l'outline li
+  renderebbe illeggibili sotto i 24px; l'outline nero resta obbligatorio solo sul
+  perimetro esterno della silhouette.
+- Scelto fra cinque prove sugli stessi soggetti (goblin, pozione, cuore HUD, cornice
+  slot): S1 outline nero (scelto), S2 outline colorato selettivo + cluster shading, S3
+  no-outline silhouette + rim-light, S4 2-bit alto contrasto, S5 dithering leggero
+  retro. Sorgenti in `assets/art-src/style-tests/` (commit `3752eef`); riferimento
+  canonico `assets/art-src/style-tests/S1-outline-nero.aseprite`, preview a
+  ingrandimento ×8 in `assets/art-src/style-tests/preview/S1-outline-nero-x8.png`.
+
+### Scala base: 24px
+
+- **24px** è la scala base per **personaggi, nemici e oggetti**.
+- I **boss** possono superare questa scala.
+- Le **icone HUD seguono la propria griglia**, indipendente dalla scala base: non c'è
+  obbligo che mondo e interfaccia condividano la stessa taglia in pixel.
+- Scelta dopo un confronto diretto 16px/24px/32px sullo stesso soggetto (goblin): 16px
+  scartato per dettaglio insufficiente a comunicare i 7 strati di trasformazione visiva
+  definiti sopra (in particolare silhouette e materiale); 32px scartato per il costo di
+  produzione più alto sul volume richiesto dal catalogo curato e dal dataset LoRA.
 
 ## Slot visivi degli oggetti sul personaggio (DEC-049)
 
@@ -274,6 +315,13 @@ Nessuna informazione critica deve dipendere solo dal colore.
 - When sceglie i colori in Aseprite,
 - Then usa solo colori della palette «Fucina di Worldsmelt» (31 colori, non-neon), la
   stessa per HUD, sprite originali e remap batch (DEC-173).
+
+**Scenario: uno sprite nuovo rispetta lo stile e la scala ufficiali**
+- Given un artista che disegna un nuovo nemico o un nuovo oggetto,
+- When lo esporta come sprite di gioco,
+- Then l'esterno della silhouette ha un outline `slag-nero` di 1px, le superfici usano
+  shading piatto a 2 toni senza dithering, e lo sprite è disegnato alla scala base di
+  24px (più grande solo se è un boss), coerente con lo stile S1 (DEC-176).
 
 **Scenario: le icone delle risorse fisse restano riconoscibili tra World diversi**
 - Given un giocatore che ha giocato una run nel World A e un'altra nel World B,

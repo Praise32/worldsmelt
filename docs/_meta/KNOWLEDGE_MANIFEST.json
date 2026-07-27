@@ -1501,7 +1501,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173).",
+      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» e della scala base sprite 24px, chiude la domanda aperta 12 (DEC-176).",
       "topics": [
         "linguaggio visivo",
         "pixel art",
@@ -1512,7 +1512,11 @@
         "DEC-073b",
         "palette",
         "fucina",
-        "DEC-173"
+        "DEC-173",
+        "stile S1",
+        "outline nero",
+        "scala 24px",
+        "DEC-176"
       ],
       "related": [],
       "supersedes": [],
@@ -1638,7 +1642,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (22 voci) dopo DEC-001..DEC-175: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (21 voci attive su 22 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1648,7 +1652,8 @@
         "interfaccia",
         "distribuzione",
         "produzione ai",
-        "DEC-174"
+        "DEC-174",
+        "DEC-176"
       ],
       "related": [],
       "supersedes": [],
