@@ -97,7 +97,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark model-comparison image-comparison docs-check docs-index docs-audit clean
+.PHONY: all game gen sprites run run-demo run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark model-comparison image-comparison docs-check docs-index docs-audit clean
 
 all: game gen sprites
 
@@ -121,6 +121,35 @@ $(SPRITES_BIN): $(SPRITES_SRC) $(SPRITES_HDR)
 
 run: game
 	./$(GAME_BIN)
+
+# Demo curata, senza nessuna generazione AI. Il binario del gioco non contiene i
+# modelli per costruzione: melting-gen (testo) e melting-sprites (immagini) sono
+# processi separati e il gioco non linka mai llama.cpp/stable-diffusion.cpp/cJSON
+# (AGENTS.md). Senza --generate il gioco non li avvia nemmeno (gen.enabled resta
+# falso, vedi AppStartGeneration/AppStartLazyGeneration in src/app/app.c), quindi
+# qui si gioca solo con i contenuti curati e il fallback interno deterministico:
+# nessun download di modelli, nessuna GPU, avvio immediato.
+#
+# Perche' una cartella di lavoro separata invece di lanciare il binario qui: il
+# gioco legge generated/ RELATIVA alla cartella corrente, e generated/ e' persistente
+# (make clean non la tocca). Se una vecchia run generata ha lasciato li' i suoi
+# artefatti, la "demo curata" mostrerebbe contenuti AI: in particolare un
+# generated/current_atlas.png residuo viene ripreso anche quando il manifest non
+# c'e' piu' -- PreferPngAtlasIfFresh (src/content/run_content.c) confronta le date
+# e GetFileModTime di un file assente vale 0, quindi il PNG vince sempre -- e l'HUD
+# etichetterebbe la demo "Sprite locali (SD)" invece di "Atlas fallback".
+# Cancellare quegli artefatti non e' la risposta giusta (butterebbe via il lavoro di
+# un run-gen, sprite compresi): il target lancia invece il gioco in una cartella
+# usa-e-getta con generated/ VUOTA, e ci collega assets/ (contenuti curati, sola
+# lettura) e catalog/ (cosi' le run della demo finiscono comunque nel catalogo vero).
+DEMO_DIR := build/demo
+
+run-demo: game
+	@rm -rf $(DEMO_DIR)
+	@mkdir -p $(DEMO_DIR)/generated $(DEMO_DIR)/logs catalog
+	@ln -s $(CURDIR)/assets $(DEMO_DIR)/assets
+	@ln -s $(CURDIR)/catalog $(DEMO_DIR)/catalog
+	cd $(DEMO_DIR) && $(CURDIR)/$(GAME_BIN)
 
 run-gen: all
 	./$(GAME_BIN) --generate
@@ -227,4 +256,4 @@ docs-audit:
 	python3 scripts/docs/build_knowledge_index.py --audit
 
 clean:
-	rm -rf bin
+	rm -rf bin $(DEMO_DIR)

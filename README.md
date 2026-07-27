@@ -18,10 +18,21 @@ geometrici prendono il suo posto: la run parte comunque, sempre.
 scripts/setup-deps.sh          # una tantum: apt + raylib + llama.cpp + Lua + sd.cpp
 make                           # compila gioco + melting-gen + melting-sprites
 scripts/download-models.sh     # scarica i modelli GGUF/safetensors (riprendibile)
+make run-demo                  # demo curata: nessun modello, contenuti curati + fallback interno
+make run                       # continua con quello che c'e' in generated/ (ultimo manifest o fallback)
 make run-gen                   # nuova run generata in locale (testo + sprite)
 make run-gen-fast              # solo testo: salta gli ~85s di sprite
-make run                       # gioca con l'ultimo manifest (o il fallback interno)
 ```
+
+`make run-demo` è il modo per far girare il gioco **senza scaricare nessun modello**: il
+binario non ne contiene per costruzione (i due generatori sono processi separati, vedi
+[`AGENTS.md`](AGENTS.md)) e senza `--generate` non ne parte nessuno, così si vedono solo i
+contenuti curati e il fallback interno deterministico. Per non farsi sporcare la demo dagli
+artefatti di una generazione precedente — che restano in `generated/` e verrebbero
+ricaricati — il target lancia il gioco in una cartella di lavoro usa-e-getta (`build/demo`)
+con `generated/` vuota; `assets/` e `catalog/` sono collegati a quelli veri, quindi non
+cancella e non duplica niente. `make run-gen` è invece la pipeline completa: richiede
+`scripts/download-models.sh`.
 
 Il flusso: menu **WORLDSMELT** → *Nuova run* → scegli il seed → entri nel **Piano 0**
 (l'hub giocabile) e ti muovi mentre la generazione lavora in sottofondo → scegli il tema

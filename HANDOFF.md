@@ -45,6 +45,7 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 
 ## Orientarsi
 
+- **Avvio**: `make run-demo` (demo curata senza modelli: gira in `build/demo` con `generated/` vuota, così nessun artefatto di una vecchia generazione entra nella demo); `make run` (usa `generated/` della repo: ultimo manifest o fallback); `make run-gen` / `make run-gen-fast` (pipeline completa con generazione); vedi README.md per i dettagli.
 - Implementazione: `CLAUDE.md` (scala agenti) + `AGENTS.md` (regole moduli).
 - Documentazione/design: `docs/CLAUDE.md` + `docs/design/README.md`.
 - Indice generale: `docs/INDEX.md` (rigenera con `make docs-index`).
