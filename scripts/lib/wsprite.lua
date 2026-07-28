@@ -556,6 +556,30 @@ function M.grows(g)
   return rows
 end
 
+-- Auto-shading a 3 toni con luce alto-sinistra (regola S1+): per ogni pixel
+-- del materiale `base`, il bordo verso l'alto/sinistra diventa `light`, quello
+-- verso il basso/destra diventa `dark`. Un altro materiale conta come esterno,
+-- quindi ai confini fra materiali nasce un bevel naturale.
+function M.shade3(g, base, light, dark)
+  local marks = {}
+  local function out(xx, yy)
+    if xx < 1 or yy < 1 or xx > g.n or yy > g.n then return true end
+    local c = g[yy][xx]
+    return c ~= base and c ~= light and c ~= dark
+  end
+  for y = 1, g.n do
+    for x = 1, g.n do
+      if g[y][x] == base then
+        local ls = (out(x, y-1) and 1 or 0) + (out(x-1, y) and 1 or 0)
+        local ds = (out(x, y+1) and 1 or 0) + (out(x+1, y) and 1 or 0)
+        if ls > ds then marks[#marks+1] = { x, y, light }
+        elseif ds > ls then marks[#marks+1] = { x, y, dark } end
+      end
+    end
+  end
+  for _, m2 in ipairs(marks) do g[m2[2]][m2[1]] = m2[3] end
+end
+
 -- Rombo pieno (marcatori minimappa, pip di carica).
 function M.diamond(img, cx, cy, r, idx)
   for dy = -r, r do
