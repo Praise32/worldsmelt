@@ -1,0 +1,76 @@
+# Curated boss pool (W5b, DEC-153, DEC-087 minimum-curated table: 5 required, one per
+# floor's difficulty band). Same format as enemies.txt but prefix "boss<N>." -- read by
+# src/content/curated_catalog.c (ReadOneEnemy, isBoss=true) into the same EnemyTypeDef
+# vocabulary, then EnemyTypeBalance() re-clamps into the (higher) boss power band
+# regardless of what is written here.
+#
+# NOTE on selection (picked/curated across bin/melting-gen seeds 100001/200002): the
+# engine draws one boss uniformly at random per floor from this whole pool
+# (ApplyCuratedCatalog, src/content/run_content.c) -- there is no per-floor/per-theme
+# binding field in this format, so "one boss per floor" here means "5 distinct, varied
+# bosses available to any floor", not a fixed floor->boss assignment. Two boss records
+# from the SAME seed (200002, floor1 and floor4) came out with byte-identical stats under
+# different names (the model reused one template twice in that run) -- only one of that
+# pair was kept, to avoid two "different" bosses that actually play identically.
+#
+# tags= is read only by scripts/curated-map.py (image auto-matching), ignored by the game.
+
+boss1.id=frozen-maw
+boss1.name=The Frozen Maw
+boss1.form=armored
+boss1.move=kite
+boss1.fire=none
+boss1.hp=1.86
+boss1.speed=1.00
+boss1.size=2.20
+boss1.rate=0.00
+boss1.pellets=1
+boss1.tags=boss,reptile
+
+boss2.id=mire-weaver
+boss2.name=The Mire Weaver
+boss2.form=spiky
+boss2.move=chase
+boss2.fire=ring
+boss2.hp=0.86
+boss2.speed=1.40
+boss2.size=2.20
+boss2.rate=1.80
+boss2.pellets=7
+boss2.tags=boss,nature
+
+boss3.id=statue-warden
+boss3.name=The Statue Warden
+boss3.form=blob
+boss3.move=chase
+boss3.fire=single
+boss3.hp=1.31
+boss3.speed=2.00
+boss3.size=2.00
+boss3.rate=0.50
+boss3.pellets=1
+boss3.tags=boss,humanoid
+
+boss4.id=clockwork-mole
+boss4.name=The Clockwork Mole
+boss4.form=armored
+boss4.move=chase
+boss4.fire=ring
+boss4.hp=1.10
+boss4.speed=2.00
+boss4.size=1.80
+boss4.rate=0.80
+boss4.pellets=4
+boss4.tags=boss,mechanical
+
+boss5.id=spectral-heron
+boss5.name=The Spectral Heron
+boss5.form=floater
+boss5.move=orbit
+boss5.fire=ring
+boss5.hp=0.87
+boss5.speed=2.00
+boss5.size=1.50
+boss5.rate=0.70
+boss5.pellets=8
+boss5.tags=boss,undead,flying

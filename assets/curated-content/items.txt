@@ -1,0 +1,306 @@
+# Curated item pool (W5b, DEC-153, DEC-087 minimum-curated table: 20 required, DEC-144
+# floor: at least one item of every rarity). Format: src/content/curated_catalog.h
+# (ReadOneItem) -- item<N>.<key>=<value>, one record per item, 1-based, sentinel is a
+# missing "item<N>.name=". Same vocabulary as a real melting-gen run/fallback
+# (ItemKindFromText/RarityFromText/ItemTraitsFromText, src/content/run_content.h,
+# src/gameplay/item_traits.h): slot in {hat,eyes,hand,back,body,aura}; kind in
+# {passive,active,graft,statup} (a record that says "active" but declares neither
+# charges nor cooldown reads back as passive -- see the compatibility table in
+# items-pools-and-rarity.md, so every genuinely active entry below declares one of the
+# two); rarity in {common,uncommon,rare,legendary}; traits: 1-2 of
+# {bounce,homing,explode,split,pierce,rapid,giant,slow,vamp}; script is the mini-VM CSV
+# "trigger:op,a,b,trait" (on_fire only pairs with burst; on_hit pairs with
+# projectile/area/heal), bounds-checked at generation time against the same OP_BOUNDS
+# table melting-gen itself uses (tools/melting-gen/gen_validate.c). A statup entry never
+# carries a script (taxonomy invariant, enforced again defensively by the loader).
+#
+# Origin: real bin/melting-gen runs, model models/gemma-3-4b-it-q4_k_m.gguf, offline,
+# seeds 100001/200002/300003 (registered here, not hand-invented -- the model always
+# invents the actual content, per the house rule in shot_type.h/enemy_type.h). 25 of the
+# ~45 items generated across the three seeds were kept (24-30 target range); the rest were
+# rejected as weak/redundant, see below. No lua= wiring: every generated .lua for this
+# batch was inspected, and several were functionally weak or outright broken (e.g. a script
+# calling player_damage(x) as if it were a setter -- it is read-only -- with the model's
+# own comment admitting the bug; another that computes values and discards them, spawning
+# only a cosmetic particle, violating the generator's own "every object must create a
+# small, playable synergy" rule). The mini-VM script= field is the safety net's fallback;
+# using it for all 25 entries keeps every curated behavior deterministic and already
+# bounds-checked, at the cost of the extra per-item flourish real Lua would add -- flagged
+# as a follow-up, not a silent omission.
+#
+# Content-designer review pass (tone DEC-105 n/a to World content per narrative-tone.md
+# "l'ironia sta nella voce del crogiolo, non nel mondo generato"; DEC-119 dark-~16+ limits
+# checked, none triggered; 09-originality-guardrails.md vocabulary checked, none present):
+# 7 entries renamed for weak name-effect coherence (kept mechanically identical, name
+# only) -- "Lantern Bulb"->"Ember Husk", "Ice Pick"->"Shattering Icepick", "Steam Vent"->
+# "Leeching Vent" (seed 100001); "Root"->"Root Tendril", "Glass"->"Glass Splinter", "Clay"->
+# "Cracked Clay Ward", "Spindle"->"Spindle Coil" (seed 200002).
+#
+# Entries REJECTED, with reason:
+# - seed 200002: "Charm"/"Fragment"/"Bell" each generated TWICE across that run's 5
+#   floors (the model repeated itself, violating its own prompt's "no name repeats" rule)
+#   -- the second occurrence of each was dropped rather than renamed/kept.
+# - seed 300003, floors 4-5: the model degenerated into literal self-repetition -- every
+#   name from floors 1-2 reappears on floors 4-5 with a bare " 2" suffix ("Glass Grub 2",
+#   "The Lensmith 2", "Prism Shard 2", ...), including the FLOOR THEME ITSELF
+#   ("Aqueduct of Wind-Up 2") -- a generation failure, not a stylistic choice. Both floors
+#   discarded wholesale (items, enemies and bosses).
+# - seed 300003, floor 3: "Prisms"/"Dice Twirls"/"Bubble Veil" are near-duplicates of
+#   floor 1's "Prism Shard"/"Dice Coil"/"Bubble Stone" (same trait/slot/script family,
+#   same name root) -- redundant rather than varied, dropped in favor of the floor-1
+#   originals already kept.
+#
+# tags= (comma list) is read only by scripts/curated-map.py for image auto-matching; the
+# game engine ignores it entirely.
+
+item1.id=hammerhead-bounce
+item1.name=Hammerhead
+item1.slot=hand
+item1.traits=bounce
+item1.color=#ff9900
+item1.kind=passive
+item1.rarity=common
+item1.script=on_hit:projectile,6,600,bounce
+item1.tags=weapon,blunt
+
+item2.id=lens-goggles
+item2.name=Lens Goggles
+item2.slot=eyes
+item2.traits=bounce
+item2.color=#cc0000
+item2.kind=passive
+item2.rarity=common
+item2.script=on_fire:burst,6,1,bounce
+item2.tags=accessory
+
+item3.id=reflector-shield
+item3.name=Reflector Shield
+item3.slot=back
+item3.traits=giant
+item3.color=#f0a800
+item3.kind=graft
+item3.rarity=common
+item3.script=on_hit:area,60,0.7,giant
+item3.tags=armor,shield
+
+item4.id=ember-husk
+item4.name=Ember Husk
+item4.slot=body
+item4.traits=vamp
+item4.color=#ffff00
+item4.kind=statup
+item4.rarity=uncommon
+item4.tags=gadget
+
+item5.id=glowstone-fragment
+item5.name=Glowstone Fragment
+item5.slot=hat
+item5.traits=bounce
+item5.color=#ffeb3b
+item5.kind=active
+item5.rarity=common
+item5.charges=3
+item5.script=on_fire:burst,6,0.5,bounce
+item5.tags=gem
+
+item6.id=pebble-pylon
+item6.name=Pebble Pylon
+item6.slot=hand
+item6.traits=giant
+item6.color=#f0fff0
+item6.kind=statup
+item6.rarity=common
+item6.tags=gem
+
+item7.id=shattering-icepick
+item7.name=Shattering Icepick
+item7.slot=hand
+item7.traits=explode
+item7.color=#80ff00
+item7.kind=passive
+item7.rarity=rare
+item7.script=on_hit:area,18,1.15,explode
+item7.tags=weapon,dagger
+
+item8.id=crystal-shard
+item8.name=Crystal Shard
+item8.slot=eyes
+item8.traits=giant
+item8.color=#00ffff
+item8.kind=passive
+item8.rarity=uncommon
+item8.script=on_hit:area,40,0.9,giant
+item8.tags=gem
+
+item9.id=leeching-vent
+item9.name=Leeching Vent
+item9.slot=back
+item9.traits=vamp
+item9.color=#200040
+item9.kind=passive
+item9.rarity=common
+item9.script=on_hit:heal,30,1,vamp
+item9.tags=gadget
+
+item10.id=mud-boots
+item10.name=Mud Boots
+item10.slot=body
+item10.traits=bounce
+item10.color=#00ff00
+item10.kind=graft
+item10.rarity=common
+item10.script=on_hit:projectile,5,600,bounce
+item10.tags=armor
+
+item11.id=pool-stone
+item11.name=Pool Stone
+item11.slot=hand
+item11.traits=giant
+item11.color=#800080
+item11.kind=passive
+item11.rarity=common
+item11.script=on_hit:area,50,0.6,giant
+item11.tags=gem
+
+item12.id=lily-pad-shield
+item12.name=Lily Pad Shield
+item12.slot=back
+item12.traits=vamp
+item12.color=#008000
+item12.kind=passive
+item12.rarity=legendary
+item12.script=on_hit:heal,40,1,vamp
+item12.tags=armor,shield
+
+item13.id=lantern-wing
+item13.name=Lantern Wing
+item13.slot=hat
+item13.traits=bounce
+item13.color=#ffcc00
+item13.kind=active
+item13.rarity=uncommon
+item13.charges=4
+item13.script=on_hit:projectile,6,720,bounce
+item13.tags=gadget,light
+
+item14.id=seed-sprout
+item14.name=Seed Sprout
+item14.slot=eyes
+item14.traits=giant
+item14.color=#ff9999
+item14.kind=passive
+item14.rarity=uncommon
+item14.script=on_hit:area,35,0.8,giant
+item14.tags=accessory
+
+item15.id=wind-bell
+item15.name=Wind Bell
+item15.slot=hand
+item15.traits=rapid
+item15.color=#c0c0c0
+item15.kind=active
+item15.rarity=common
+item15.charges=3
+item15.script=on_fire:burst,6,0.9,rapid
+item15.tags=gadget
+
+item16.id=spindle-coil
+item16.name=Spindle Coil
+item16.slot=body
+item16.traits=bounce
+item16.color=#FFD700
+item16.kind=passive
+item16.rarity=common
+item16.script=on_hit:projectile,6,720,bounce
+item16.tags=gadget
+
+item17.id=root-tendril
+item17.name=Root Tendril
+item17.slot=eyes
+item17.traits=homing
+item17.color=#800080
+item17.kind=active
+item17.rarity=uncommon
+item17.cooldown=8.00
+item17.script=on_hit:projectile,4,120,homing
+item17.tags=accessory
+
+item18.id=glass-splinter
+item18.name=Glass Splinter
+item18.slot=eyes
+item18.traits=homing
+item18.color=#8B0000
+item18.kind=passive
+item18.rarity=rare
+item18.script=on_hit:projectile,6,120,homing
+item18.tags=gem
+
+item19.id=cracked-clay-ward
+item19.name=Cracked Clay Ward
+item19.slot=back
+item19.traits=explode
+item19.color=#DA70D6
+item19.kind=graft
+item19.rarity=uncommon
+item19.script=on_hit:area,18,1.15,explode
+item19.tags=armor,shield
+
+item20.id=prism-shard
+item20.name=Prism Shard
+item20.slot=eyes
+item20.traits=bounce
+item20.color=#ff8c00
+item20.kind=active
+item20.rarity=common
+item20.charges=3
+item20.script=on_hit:projectile,6,120,bounce
+item20.tags=gem,accessory
+
+item21.id=dice-coil
+item21.name=Dice Coil
+item21.slot=hand
+item21.traits=homing
+item21.color=#f06292
+item21.kind=graft
+item21.rarity=uncommon
+item21.script=on_hit:projectile,4,120,homing
+item21.tags=gadget
+
+item22.id=bubble-stone
+item22.name=Bubble Stone
+item22.slot=back
+item22.traits=explode
+item22.color=#231632
+item22.kind=statup
+item22.rarity=common
+item22.tags=gem
+
+item23.id=dice-core
+item23.name=Dice Core
+item23.slot=body
+item23.traits=giant
+item23.color=#90ee90
+item23.kind=passive
+item23.rarity=uncommon
+item23.script=on_hit:area,18,1.15,giant
+item23.tags=gem
+
+item24.id=root-conduit
+item24.name=Root Conduit
+item24.slot=hat
+item24.traits=rapid
+item24.color=#6a5acd
+item24.kind=passive
+item24.rarity=legendary
+item24.script=on_fire:burst,6,1.2,rapid
+item24.tags=gadget
+
+item25.id=bubble-rain
+item25.name=Bubble Rain
+item25.slot=aura
+item25.traits=split
+item25.color=#195c6d
+item25.kind=passive
+item25.rarity=common
+item25.script=on_fire:burst,5,0.9,split
+item25.tags=accessory

@@ -389,19 +389,47 @@ risolta come stato base viene marcata subito in `Game.curatedImageUsed`
 (`GameResetRunWithSeed`, `src/game/game.c`), cosa che DEC-171 richiede per non farla
 ripescare da `FusionPerform` come se fosse ancora libera.
 
-**Non ancora fatto** (passo successivo dichiarato di questo lavoro): il contenuto curato
-vero e proprio (le voci reali di `assets/curated-content/`) non esiste ancora — solo
-fixture minime di test in `src/tests/curated_content_tests.c`. Verificato da
-`--curated-content-test` (`make test`): floor rispettato/violato, indirezione risolta, id
-immagine mancante, catalogo assente, l'integrazione end-to-end dentro `RunContentLoad`
-con una fixture isolata (`CuratedCatalogSetTestDir`, mai `assets/curated-content/` reale),
-e l'invariante statup/tipo-di-colpo su piu' semi. I test che caricano `RunContentLoad`
+**Contenuto curato reale (2026-07-28, stesso giorno di W5b).** `assets/curated-content/`
+ora esiste ed è popolato: 25 oggetti (`items.txt`, dentro il range 24-30, floor DEC-144
+rispettato — comune/non-comune/rara/leggendaria tutte presenti), 14 nemici (`enemies.txt`)
+e 5 boss (`bosses.txt`), tutti prodotti da run vere di `bin/melting-gen` (modello
+`gemma-3-4b-it-q4_k_m`, tre semi registrati nell'intestazione di ciascun file — 100001,
+200002, 300003) e poi rivisti voce per voce dal content designer (tono, DEC-119,
+originalità, coerenza nome-effetto): alcune voci sono state rinominate a parità di
+meccanica, altre scartate per doppioni o degenerazioni di generazione (dettaglio e motivo
+di ogni scarto nell'intestazione dei tre file). Nessuna riga `.lua=`: gli script Lua
+generati in quel batch sono stati ispezionati e alcuni risultavano funzionalmente deboli o
+rotti (una callback che chiamava una funzione di sola lettura come se fosse un setter, con
+tanto di commento del modello che ammetteva l'errore; un'altra puramente cosmetica) — si è
+preferito lo script mini-VM (`script=`), già validato dagli stessi bound di
+`tools/melting-gen/gen_validate.c` e privo di file esterni da mantenere sincronizzati;
+recuperare gli script Lua migliori del batch resta un possibile passo successivo, non
+un'omissione silenziosa. `scripts/curated-map.py` è stato rilanciato sul batch finale:
+44/44 content-id abbinati a un'immagine di `assets/curated/manifest.json`.
+
+Verificato da `--curated-content-test` (`make test`, fixture isolate, invariato) e da un
+giro reale di `make test` con il catalogo VERO caricato (nessun log di floor DEC-144
+violato su stderr, tutte le 22 suite `ok`). Restano fixture minime dedicate in
+`src/tests/curated_content_tests.c` per i casi limite (floor violato, id immagine
+mancante, catalogo assente): floor rispettato/violato, indirezione risolta, id immagine
+mancante, catalogo assente, l'integrazione end-to-end dentro `RunContentLoad` con una
+fixture isolata (`CuratedCatalogSetTestDir`, mai `assets/curated-content/` reale), e
+l'invariante statup/tipo-di-colpo su piu' semi. I test che caricano `RunContentLoad`
 mettono da parte `generated/current_run.txt` (se presente) prima di caricare e lo
 ripristinano subito dopo — stesso schema di `TestFallbackBossItemIsRare`
 (`src/tests/script_items_tests.c`) e `GameItemPoolFallbackCoverageTest`
 (`src/tests/game_tests.c`): senza questa guardia un manifest reale presente in
 `generated/` (stato normale dopo `make gen` o dopo una run giocata) sovrascriverebbe il
 contenuto curato prima delle verifiche.
+
+Nota architetturale scoperta in questa fase (non un difetto da correggere qui): nemici e
+boss curati NON hanno un legame per-piano nel formato — `ApplyCuratedCatalog`
+(`src/content/run_content.c`) pesca sia i nemici sia il boss di ogni piano UNIFORMEMENTE A
+CASO dall'intero pool, con lo stesso RNG derivato dal seed, per ogni piano indipendentemente
+dal suo numero. "Distribuiti sui 5 temi con escalation di piano" in questo pool va quindi
+inteso come varietà di nome/statistica nell'insieme dei 14+5, non come un'assegnazione
+piano→nemico/boss che il motore imponga: qualunque nemico o boss curato può capitare su
+qualunque piano.
 
 ## Interazioni
 

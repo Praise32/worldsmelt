@@ -1,0 +1,183 @@
+# Curated common-enemy pool (W5b, DEC-153, DEC-087 minimum-curated table: 12 required).
+# Format: src/content/curated_catalog.h (ReadOneEnemy) -- enemy<N>.<key>=<value>, one
+# record per enemy, 1-based, sentinel is a missing "enemy<N>.name=". Same vocabulary as a
+# real melting-gen run (EnemyFormFromText/EnemyMoveFromText/EnemyFireFromText,
+# core/enemy_type.h): form in {blob,spiky,armored,floater}, move in
+# {chase,kite,orbit,zigzag,charge}, fire in {none,single,spread,ring}. hp/speed/size are
+# multipliers on the base enemy (1.0 = same as the base enemy); rate is shots/second;
+# pellets is shots per burst (spread/ring only). EnemyTypeBalance() re-clamps every entry
+# into the normal-enemy power band at load time regardless of what is written here.
+#
+# Origin: real bin/melting-gen runs (model models/gemma-3-4b-it-q4_k_m.gguf), NOT hand
+# invented -- content designer selected/reviewed 14 of the ~20 generated across 2 seeds
+# (100001, 200002) for name variety, form/move/fire coverage and tone (DEC-105/DEC-119).
+# "tags=" (comma list) is read ONLY by scripts/curated-map.py for image auto-matching; the
+# game engine ignores it entirely.
+
+enemy1.id=salt-sniper
+enemy1.name=Salt Sniper
+enemy1.form=spiky
+enemy1.move=kite
+enemy1.fire=spread
+enemy1.hp=0.50
+enemy1.speed=0.90
+enemy1.size=0.90
+enemy1.rate=1.10
+enemy1.pellets=3
+enemy1.tags=beast
+
+enemy2.id=root-lurker
+enemy2.name=Root Lurker
+enemy2.form=blob
+enemy2.move=chase
+enemy2.fire=none
+enemy2.hp=1.00
+enemy2.speed=0.80
+enemy2.size=1.60
+enemy2.rate=0.00
+enemy2.pellets=1
+enemy2.tags=ooze
+
+enemy3.id=mimic-cluster
+enemy3.name=Mimic Cluster
+enemy3.form=blob
+enemy3.move=zigzag
+enemy3.fire=none
+enemy3.hp=0.80
+enemy3.speed=1.00
+enemy3.size=1.80
+enemy3.rate=0.00
+enemy3.pellets=1
+enemy3.tags=ooze
+
+enemy4.id=mold-creeper
+enemy4.name=Mold Creeper
+enemy4.form=floater
+enemy4.move=orbit
+enemy4.fire=none
+enemy4.hp=0.78
+enemy4.speed=1.10
+enemy4.size=1.20
+enemy4.rate=0.00
+enemy4.pellets=1
+enemy4.tags=ooze
+
+enemy5.id=ice-sprite
+enemy5.name=Ice Sprite
+enemy5.form=floater
+enemy5.move=chase
+enemy5.fire=none
+enemy5.hp=0.77
+enemy5.speed=1.40
+enemy5.size=1.00
+enemy5.rate=0.00
+enemy5.pellets=1
+enemy5.tags=undead,flying
+
+enemy6.id=frost-fang
+enemy6.name=Frost Fang
+enemy6.form=spiky
+enemy6.move=charge
+enemy6.fire=spread
+enemy6.hp=0.50
+enemy6.speed=1.60
+enemy6.size=1.70
+enemy6.rate=1.00
+enemy6.pellets=2
+enemy6.tags=beast
+
+enemy7.id=root-crawler
+enemy7.name=Root Crawler
+enemy7.form=blob
+enemy7.move=charge
+enemy7.fire=none
+enemy7.hp=0.78
+enemy7.speed=1.20
+enemy7.size=1.40
+enemy7.rate=0.00
+enemy7.pellets=1
+enemy7.tags=ooze
+
+enemy8.id=murk-phantom
+enemy8.name=Murk Phantom
+enemy8.form=floater
+enemy8.move=orbit
+enemy8.fire=none
+enemy8.hp=0.72
+enemy8.speed=1.30
+enemy8.size=1.10
+enemy8.rate=0.00
+enemy8.pellets=1
+enemy8.tags=undead,flying
+
+enemy9.id=vine-snapper
+enemy9.name=Vine Snapper
+enemy9.form=spiky
+enemy9.move=chase
+enemy9.fire=single
+enemy9.hp=0.55
+enemy9.speed=1.60
+enemy9.size=1.50
+enemy9.rate=1.30
+enemy9.pellets=1
+enemy9.tags=beast
+
+enemy10.id=sapling-stalker
+enemy10.name=Sapling Stalker
+enemy10.form=blob
+enemy10.move=zigzag
+enemy10.fire=none
+enemy10.hp=0.76
+enemy10.speed=1.10
+enemy10.size=1.30
+enemy10.rate=0.00
+enemy10.pellets=1
+enemy10.tags=beast,neutral
+
+enemy11.id=stone-golems
+enemy11.name=Stone Golems
+enemy11.form=armored
+enemy11.move=kite
+enemy11.fire=none
+enemy11.hp=0.68
+enemy11.speed=1.50
+enemy11.size=1.20
+enemy11.rate=0.00
+enemy11.pellets=1
+enemy11.tags=humanoid,guard
+
+enemy12.id=silent-echoes
+enemy12.name=Silent Echoes
+enemy12.form=floater
+enemy12.move=orbit
+enemy12.fire=ring
+enemy12.hp=0.50
+enemy12.speed=1.00
+enemy12.size=0.60
+enemy12.rate=0.80
+enemy12.pellets=4
+enemy12.tags=undead,flying
+
+enemy13.id=coglings
+enemy13.name=Coglings
+enemy13.form=spiky
+enemy13.move=zigzag
+enemy13.fire=spread
+enemy13.hp=0.50
+enemy13.speed=2.00
+enemy13.size=0.60
+enemy13.rate=1.50
+enemy13.pellets=1
+enemy13.tags=mechanical
+
+enemy14.id=shell-striders
+enemy14.name=Shell Striders
+enemy14.form=spiky
+enemy14.move=zigzag
+enemy14.fire=spread
+enemy14.hp=0.50
+enemy14.speed=2.00
+enemy14.size=0.70
+enemy14.rate=1.40
+enemy14.pellets=1
+enemy14.tags=beast,reptile

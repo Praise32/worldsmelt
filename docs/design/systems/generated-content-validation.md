@@ -238,9 +238,12 @@ riassegna la categoria di un oggetto. Dettaglio dell'implementazione (compresa l
 validazione del floor DEC-144 al caricamento, il perché `bossItem` resta sempre
 procedurale, e la marcatura delle immagini curate come "usate") in
 [Items, Pools and Rarity](items-pools-and-rarity.md#stato-di-implementazione-del-pool-curato-w5b-dec-153-2026-07-28).
-Il contenuto curato vero e proprio (le voci reali della tabella sotto) è il passo
-successivo, non ancora fatto: oggi `assets/curated-content/` non esiste, e il motore
-ricade quindi sempre sul fallback procedurale.
+**Stato (2026-07-28):** il contenuto curato vero e proprio ora esiste in
+`assets/curated-content/` (25 oggetti, 14 nemici, 5 boss, prodotti da run vere di
+`bin/melting-gen` e rivisti dal content designer — dettaglio, semi e voci scartate in
+[Items, Pools and Rarity](items-pools-and-rarity.md#stato-di-implementazione-del-pool-curato-w5b-dec-153-2026-07-28)),
+quindi il motore lo usa come stato base sopra il fallback procedurale (DEC-153), non più
+solo quest'ultimo.
 
 ## Pool curato minimo (DEC-087)
 
