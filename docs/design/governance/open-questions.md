@@ -8,6 +8,7 @@ owner: design
 summary: >-
   Coda ufficiale e unica delle domande ancora aperte (21 voci attive su 22 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-28
+last_updated_from_session: 2026-07-28-night-implementation-review
 last_verified_commit: d30890b
 topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176]
 related: []
@@ -136,6 +137,19 @@ La **proprietà** di questo tema è assegnata al dominio ai-production da DEC-15
 15. Qual è il formato della **AI disclosure** e dove vive (pagina negozio, primo avvio, crediti in gioco), e quali requisiti deve soddisfare la pagina negozio? (DEC-158 assegna il tema ad ai-production proprio perché quel dominio possiede licenze e provenienza dei contenuti — DEC-113, DEC-140, DEC-148, `docs/ai-production/licenze.md` — su cui la disclosure poggia.)
 16. Come arrivano i modelli all'utente: installer separato, download al primo avvio, strumento o DLC di piattaforma, oppure nessun modello distribuito? (DEC-070/DEC-086 fissano la scelta binaria al primo avvio e DEC-113/DEC-140 stabiliscono che i pesi non sono mai ridistribuiti col gioco — li scarica l'utente —, ma il meccanismo concreto di consegna non è deciso. Provenienza: `Q-DIST-002`.)
 17. Il giocatore può importare contenuti propri — modelli, LoRA, prompt pack, rig, AudioSpec, skin dell'interfaccia — e con quali garanzie di validazione e originalità? (Provenienza: `Q-DIST-003`, priorità LATER, più la parte residua di `Q-IMG-001` sull'import di LoRA dell'utente; la sorte delle LoRA del progetto è invece decisa da DEC-148.)
+
+## Revisione finali della maratona di implementazione (2026-07-28)
+
+La sessione di revisione finale ha registrato le 10 domande accumulate durante l'implementazione della demo notturna (2026-07-27…28), provenienti da `scratchpad/questions-night.md`. Tutte le 10 risultano già risolte dalle DEC citate nel loro stesso testo:
+- DEC-141 (reset rapido R: stessa run vs. run nuova) — approved, default proposto registrato in known-issues.md voce 3
+- DEC-170 (5 domande: dimensione cella, distribuzione taglie, taglia boss, quantità piano, telecamera L) — approved, default proposti registrati in systems/rooms-and-floor-generation.md
+- DEC-167 (2 domande: importi valuta, negozio alla visita) — approved, default proposti registrati in systems/rewards-and-economy.md e systems/shops-and-merchants.md
+- DEC-161 (conflitto sinergie) — approved, default proposto registrato in systems/synergies.md
+- DEC-162 (budget dedicato risultato) — approved, default proposto registrato in systems/synergies.md
+
+**Risultato:** 0 nuove domande aperte dalla sessione; tutte le 10 sono duplicate già chiuse. Le domande veramente aperte restano 21 (voci 1-11, 13-22), come sotto.
+
+---
 
 ## Produzione AI e asset
 
