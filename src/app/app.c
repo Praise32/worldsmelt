@@ -1186,6 +1186,10 @@ int AppRun(int argc, char **argv)
        headless: nessun bisogno di una finestra visibile per il test, vedi
        src/tests/audio_tests.c). */
     bool audioTest = false;
+    /* W5b (DEC-153): come --audio-test, gira dopo InitWindow senza bisogno
+       vero della finestra (GameCuratedContentTest non disegna nulla, vedi
+       src/tests/curated_content_tests.c). */
+    bool curatedContentTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1363,6 +1367,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             audioTest = true;
+        }
+        /* W5b (DEC-153): come --audio-test, gira dopo InitWindow senza
+           bisogno vero della finestra. Vedi GameCuratedContentTest in
+           src/tests/curated_content_tests.c. */
+        if (strcmp(argv[i], "--curated-content-test") == 0)
+        {
+            smokeTest = true;
+            curatedContentTest = true;
         }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
@@ -1643,6 +1655,14 @@ int AppRun(int argc, char **argv)
         AudioShutdown();
         CloseWindow();
         return ok ? 0 : 33;   /* 33: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --discovery-test=32) */
+    }
+    if (curatedContentTest)
+    {
+        bool ok = GameCuratedContentTest(&game);
+        printf("Curated content test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 34;   /* 34: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --audio-test=33) */
     }
     if (catalogTest)
     {

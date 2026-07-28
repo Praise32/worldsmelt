@@ -57,6 +57,43 @@ bool CuratedImagesPickUnused(const char *manifestPath, unsigned int roll, const 
                              const unsigned char *usedMask, int maskBytes,
                              CuratedImage *out, int *outIndex);
 
+/* Cerca la voce con id ESATTAMENTE 'id' (confronto stringa, nessun caso
+   particolare): usata dal layer di indirezione (content/curated_image_map.h,
+   DEC-175(b)/W5b) per risolvere l'image-id che una voce del pool curato
+   referenzia. Ritorna false -- '*out' intatta -- se il manifest manca, 'id'
+   e' vuoto/NULL, o non compare in nessuna voce: caso NORMALE (id storpiato,
+   o immagine non ancora aggiunta al pacchetto), chi chiama ricade sulla resa
+   geometrica di sempre, mai un crash.
+   'outIndex' (se non NULL) riceve l'indice di manifest della voce trovata,
+   stessa convenzione di CuratedImagesPickUnused sopra: chi risolve
+   un'immagine curata FUORI da PickUnused (il pool curato di contenuto,
+   content/run_content.c, ApplyCuratedCatalog) lo usa per marcarla subito in
+   Game.curatedImageUsed, cosi' FusionPerform non la ripesca (DEC-171: "fra
+   le immagini non ancora usate nella run corrente"). -1 se 'out' non e'
+   stato trovato. */
+bool CuratedImagesFindById(const char *manifestPath, const char *id, CuratedImage *out, int *outIndex);
+
+/* Stessa ricerca, ma sul testo del manifest GIA' in memoria: chi deve
+   risolvere molti image-id di fila (i 15 slot di una run nel pool curato,
+   ApplyCuratedCatalog in content/run_content.c) apre il file una volta sola
+   invece di riaprirlo e riparsarlo -- 189 voci -- a ogni oggetto. Stesso
+   principio del doppio passaggio su un solo LoadFileText in PickFrom qui
+   sotto. 'manifestText' NULL = nessun pacchetto: false, come un file
+   assente. */
+bool CuratedImagesFindByIdInText(const char *manifestText, const char *id, CuratedImage *out, int *outIndex);
+
+/* Manifest immagini per i TEST: se settato (non-NULL), il pool curato di
+   contenuto (ApplyCuratedCatalog, content/run_content.c) lo usa al posto di
+   CURATED_MANIFEST_PATH. Stesso identico schema di CuratedCatalogSetTestDir
+   (content/curated_catalog.h), e serve alla stessa cosa: un test di
+   integrazione del layer di indirezione deve poter verificare un'immagine
+   risolta DAVVERO end-to-end senza dipendere dal contenuto del pacchetto di
+   produzione (che cambia a ogni ricurazione).
+   Lo onora SOLO ApplyCuratedCatalog: FusionPerform (gameplay/fusion.c) passa
+   sempre il pacchetto vero, e i suoi test si limitano a leggerlo. */
+void CuratedImagesSetTestManifestPath(const char *path);
+const char *CuratedImagesGetTestManifestPath(void);
+
 /* La maschera "gia' usata": un bit per indice di manifest (Game.curatedImageUsed).
    Fuori range = "usata" in lettura e no-op in scrittura, cosi' un indice
    sballato non puo' ne' corrompere memoria ne' far ripescare la stessa

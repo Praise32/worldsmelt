@@ -79,6 +79,57 @@ int CuratedImagesCount(const char *manifestPath)
     return count;
 }
 
+bool CuratedImagesFindByIdInText(const char *manifestText, const char *id, CuratedImage *out, int *outIndex)
+{
+    if (outIndex) *outIndex = -1;
+    if (!out || !id || !id[0] || !manifestText) return false;
+
+    int count = 0;
+    const char *cursor = manifestText;
+    CuratedImage entry;
+    while (count < CURATED_IMAGE_MAX && ReadEntry(&cursor, &entry))
+    {
+        if (strcmp(entry.id, id) == 0)
+        {
+            *out = entry;
+            if (outIndex) *outIndex = count;
+            return true;
+        }
+        count++;
+    }
+    return false;
+}
+
+bool CuratedImagesFindById(const char *manifestPath, const char *id, CuratedImage *out, int *outIndex)
+{
+    if (outIndex) *outIndex = -1;
+    if (!out) return false;
+    const char *path = manifestPath ? manifestPath : CURATED_MANIFEST_PATH;
+    if (!FileExists(path)) return false;
+    char *text = LoadFileText(path);
+    if (!text) return false;
+
+    bool found = CuratedImagesFindByIdInText(text, id, out, outIndex);
+    UnloadFileText(text);
+    return found;
+}
+
+/* Percorso del manifest per i test (vedi il commento in curated_images.h):
+   stessa convenzione di g_testCatalogDir in curated_catalog.c e di
+   g_testCatalogPath in run_catalog.c -- il puntatore resta di chi chiama,
+   che lo rimette a NULL appena finito. */
+static const char *g_testManifestPath = NULL;
+
+void CuratedImagesSetTestManifestPath(const char *path)
+{
+    g_testManifestPath = path;
+}
+
+const char *CuratedImagesGetTestManifestPath(void)
+{
+    return g_testManifestPath;
+}
+
 /* Un solo passaggio non basta: per pescare la k-esima voce LIBERA bisogna
    prima sapere quante ce ne sono. Si legge il file una volta sola e lo si
    scorre due volte (il testo e' gia' in memoria), invece di aprirlo due

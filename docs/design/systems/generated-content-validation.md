@@ -6,8 +6,8 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica: modello di generazione, sei stati di validazione, regola di fallback e tabella del pool curato minimo per categoria (DEC-087, con garanzia di almeno un oggetto per rarità DEC-144) per ogni contenuto generato dall'IA nella KB. Gli stessi sei stati regolano anche la riconvalida del catalogo a ogni aggiornamento del gioco (DEC-069, dettaglio in systems/save-and-meta-progression.md) e l'ingresso nel Catalogo dei contenuti fallback-usati con origine curato (DEC-103, dettaglio in systems/save-and-meta-progression.md)."
-last_reviewed: 2026-07-27
-last_verified_commit: 8210480
+last_reviewed: 2026-07-28
+last_verified_commit: cfeaa47
 topics: [validazione, fallback, sei stati, DEC-020, DEC-087, pool curato minimo, DEC-144, DEC-146, DEC-162]
 related: []
 supersedes: []
@@ -225,6 +225,22 @@ di caricamento. Non esiste quindi un caso in cui il gioco resti fermo perché *n
 fallback è pronto*: quando un contenuto generato viene respinto, il sostituto curato c'è già.
 La resa in interfaccia di questa garanzia è in [Generation Status](../ui/generation-status.md)
 e, per il Piano 0, in [Floor Zero](floor-zero.md).
+
+**Stato di implementazione (W5b, 2026-07-28):** il formato del pool curato (un file per
+categoria, `assets/curated-content/{items,enemies,bosses}.txt`), il loader
+(`src/content/curated_catalog.h`/`.c`) e il layer di indirezione immagini
+(`content-id -> image-id -> file`, DEC-175(b) esteso da W5b, `src/content/
+curated_image_map.h`) esistono lato motore; `RunContentLoad` (`src/content/run_content.c`)
+li usa come stato base sopra il fallback puramente procedurale, con precedenza
+`curated-content -> fallback deterministico -> generazione reale`, mantenendo l'invariante
+"un solo tipo di colpo per piano, mai su uno stat-up" anche quando l'overlay curato
+riassegna la categoria di un oggetto. Dettaglio dell'implementazione (compresa la
+validazione del floor DEC-144 al caricamento, il perché `bossItem` resta sempre
+procedurale, e la marcatura delle immagini curate come "usate") in
+[Items, Pools and Rarity](items-pools-and-rarity.md#stato-di-implementazione-del-pool-curato-w5b-dec-153-2026-07-28).
+Il contenuto curato vero e proprio (le voci reali della tabella sotto) è il passo
+successivo, non ancora fatto: oggi `assets/curated-content/` non esiste, e il motore
+ricade quindi sempre sul fallback procedurale.
 
 ## Pool curato minimo (DEC-087)
 

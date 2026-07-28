@@ -224,4 +224,16 @@ bool GameDiscoveryTest(Game *game);
    disegna nulla. Vedi src/tests/audio_tests.c. */
 bool GameAudioTest(Game *game);
 
+/* W5b (DEC-153): il formato + loader del pool curato (content/
+   curated_catalog.h), il layer di indirezione immagini (content/
+   curated_image_map.h + CuratedImagesFindById in content/curated_images.h)
+   e la precedenza "curated-content -> fallback deterministico" dentro
+   RunContentLoad (content/run_content.c). Non tocca mai assets/
+   curated-content/ reale: ogni fixture vive in una cartella temporanea
+   propria, isolata via CuratedCatalogSetTestDir (stesso schema di
+   RunCatalogSetTestPath in content/run_catalog.h). Non disegna nulla e non
+   ha bisogno di GameResetRun/AssetsLoad: 'game' resta per uniformita' con
+   ogni altro --xxx-test. Vedi src/tests/curated_content_tests.c. */
+bool GameCuratedContentTest(Game *game);
+
 #endif

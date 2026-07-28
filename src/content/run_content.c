@@ -1,5 +1,8 @@
 #include "content/run_content.h"
 
+#include "content/curated_catalog.h"
+#include "content/curated_image_map.h"
+#include "content/curated_images.h"
 #include "core/game_math.h"
 #include "gameplay/item_pool.h"
 #include "gameplay/item_traits.h"
@@ -449,6 +452,7 @@ static void GenerateFallbackContent(RunContent *content, unsigned int seed)
         for (int i = 0; i < 3; i++)
         {
             content->floors[f].items[i] = MakeFallbackItem(&rng, &content->floors[f].theme, i, runSlotRarities[f * 3 + i]);
+            content->floors[f].curatedImageIdx[i] = -1;   /* nessuna immagine curata di suo: 0 e' un indice di manifest valido, mai "assente" */
         }
         content->floors[f].bossItem = MakeFallbackBossItem(&rng, &content->floors[f].theme, f);
         /* Step C: UN tipo di colpo per piano, su UNO dei tre oggetti attivi (mai
@@ -621,9 +625,197 @@ void RunContentRefreshFloorScripts(RunContent *content, int floorIndex)
     UnloadFileText(text);
 }
 
+/* W5b (DEC-153): "il contenuto curato di fallback e' lo STATO BASE del
+   gioco", precaricato e sempre pronto -- SOPRA il fallback puramente
+   procedurale (GenerateFallbackContent sopra), SOTTO una generazione vera
+   (il blocco "generated/current_run.txt" in RunContentLoad sotto, che resta
+   l'AUTORITA' quando esiste, invariato da questo lavoro: precedenza
+   curated-content -> fallback deterministico -> generazione reale).
+
+   Un pool curato assente o vuoto (checkout senza CURATED_CATALOG_DIR/, o una
+   fixture di test isolata) lascia il contenuto ESATTAMENTE come
+   GenerateFallbackContent l'ha appena scritto sopra: CuratedCatalogLoad
+   ritorna false e questa funzione e' un no-op totale, mai un crash ne' un
+   buco (stesso principio "mai un dud" del resto del file).
+
+   Riusa la STESSA distribuzione di rarita' sui 15 slot normali dell'intera
+   run di GenerateFallbackContent (ItemPoolMinimumCounts su
+   RUN_FALLBACK_NORMAL_ITEM_COUNT coi pesi standard, poi un rimescolo
+   Fisher-Yates -- vedi il commento li' sopra per il perche' e' proprio 15),
+   ma con un RNG indipendente (salt diverso, 0xC0DEC170u, stessa
+   convenzione di 0xBAD51DEu/0xF10A7EEDu in questo file): questa fase non
+   deve ne' consumare ne' essere consumata dallo stream che
+   GenerateFallbackContent ha gia' avanzato sopra. Uno slot la cui rarita'
+   target non ha corrispondenza nel pool curato (floor DEC-144 violato,
+   CuratedCatalogValidateFloor l'ha gia' segnalato su stderr) resta
+   ESATTAMENTE quello procedurale: CuratedCatalogPickItem torna NULL e il
+   ciclo passa oltre, mai uno slot vuoto. */
+static void ApplyCuratedCatalog(RunContent *content, unsigned int seed)
+{
+    CuratedCatalogPool pool;
+    const char *dir = CuratedCatalogGetTestDir();
+    if (!dir) dir = CURATED_CATALOG_DIR;
+    if (!CuratedCatalogLoad(dir, &pool)) return;
+    CuratedCatalogValidateFloor(&pool);   /* solo un log su stderr se il floor non regge: mai bloccante */
+
+    /* Le due tappe dell'indirezione (mappa e manifest immagini) si leggono
+       UNA volta sola per RunContentLoad, non una volta per slot: sono gli
+       stessi due file per tutti e 15 gli oggetti della run, e riaprirli 15+15
+       volte (il manifest ha ~189 voci) e' lavoro inutile a ogni avvio di run.
+       Stesso principio del doppio passaggio su un solo LoadFileText in
+       PickFrom (content/curated_images.c).
+       La mappa si compone dalla STESSA cartella da cui si e' caricato il pool
+       (CURATED_IMAGE_MAP_FILE, content/curated_image_map.h), non da un
+       percorso di produzione hardcoded: cosi' CuratedCatalogSetTestDir isola
+       la fixture di un test anche per l'indirezione, e non c'e' modo che un
+       test legga assets/curated-content/ reale (cartella condivisa). */
+    char mapPath[512];
+    snprintf(mapPath, sizeof(mapPath), "%s/%s", dir, CURATED_IMAGE_MAP_FILE);
+    const char *manifestPath = CuratedImagesGetTestManifestPath();
+    if (!manifestPath) manifestPath = CURATED_MANIFEST_PATH;
+    char *mapText = FileExists(mapPath) ? LoadFileText(mapPath) : NULL;
+    char *manifestText = FileExists(manifestPath) ? LoadFileText(manifestPath) : NULL;
+
+    unsigned int rng = seed ^ 0xC0DEC170u;
+    int runRarityCounts[ITEM_POOL_RARITY_COUNT];
+    ItemPoolMinimumCounts(RUN_FALLBACK_NORMAL_ITEM_COUNT, ItemPoolWeightsStandard, runRarityCounts);
+    Rarity runSlotRarities[RUN_FALLBACK_NORMAL_ITEM_COUNT];
+    int slot = 0;
+    for (int r = 0; r < ITEM_POOL_RARITY_COUNT && slot < RUN_FALLBACK_NORMAL_ITEM_COUNT; r++)
+        for (int c = 0; c < runRarityCounts[r] && slot < RUN_FALLBACK_NORMAL_ITEM_COUNT; c++) runSlotRarities[slot++] = (Rarity)r;
+    while (slot < RUN_FALLBACK_NORMAL_ITEM_COUNT) runSlotRarities[slot++] = RARITY_COMMON;
+    for (int i = RUN_FALLBACK_NORMAL_ITEM_COUNT - 1; i > 0; i--)
+    {
+        int j = GameRngRange(&rng, 0, i);
+        Rarity tmp = runSlotRarities[i]; runSlotRarities[i] = runSlotRarities[j]; runSlotRarities[j] = tmp;
+    }
+
+    for (int f = 0; f < FLOOR_COUNT; f++)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            Rarity want = runSlotRarities[f * 3 + i];
+            const CuratedCatalogItem *pick = CuratedCatalogPickItem(&pool, want, GameRngNext(&rng));
+            if (!pick) continue;
+
+            Item *dst = &content->floors[f].items[i];
+            const Item *src = &pick->item;
+            /* Si copiano SOLO i campi che una voce curata dichiara --
+               .active/.shotType/.shape restano quelli che
+               GenerateFallbackContent ha gia' assegnato sopra (in
+               particolare il tipo di colpo di piano, assegnato per SLOT non
+               per contenuto: sovrascriverlo qui lo perderebbe). */
+            snprintf(dst->name, sizeof(dst->name), "%s", src->name);
+            dst->kind = src->kind;
+            dst->rarity = src->rarity;
+            dst->slot = src->slot;
+            dst->traits = src->traits;
+            dst->color = src->color;
+            snprintf(dst->script, sizeof(dst->script), "%s", src->script);
+            snprintf(dst->luaSource, sizeof(dst->luaSource), "%s", src->luaSource);
+            dst->charges = src->charges;
+            dst->cooldown = src->cooldown;
+            dst->chargeGainRoom = src->chargeGainRoom;
+            dst->chargeGainEnergy = src->chargeGainEnergy;
+            if (dst->kind == ITEM_STATUP) dst->script[0] = '\0';   /* stessa difesa di RunContentLoad sotto */
+
+            /* Layer di indirezione (DEC-175(b), esteso da W5b al pool
+               curato di testi/parametri): content-id -> image-id
+               (curated_image_map.h) -> file, per ora nel ponte CC0
+               provvisorio di DEC-171 (curated_images.h). Un id assente in
+               una qualunque delle due tappe lascia imagePath vuoto -- resa
+               geometrica di sempre, mai un crash. */
+            dst->imagePath[0] = '\0';
+            content->floors[f].curatedImageIdx[i] = -1;
+            if (pick->id[0])
+            {
+                char imageId[CURATED_CATALOG_ID_LEN];
+                if (CuratedImageMapResolveInText(mapText, pick->id, imageId, sizeof(imageId)))
+                {
+                    CuratedImage image;
+                    int imageIdx = -1;
+                    if (CuratedImagesFindByIdInText(manifestText, imageId, &image, &imageIdx))
+                    {
+                        snprintf(dst->imagePath, sizeof(dst->imagePath), "%s", image.file);
+                        content->floors[f].curatedImageIdx[i] = imageIdx;
+                    }
+                }
+            }
+        }
+
+        /* Correzione round 0 (bloccante): un oggetto curato puo' dichiarare
+           kind=statup proprio sullo slot che GenerateFallbackContent ha gia'
+           scelto come "shotOwner" del piano (il ciclo sopra copia
+           dst->kind ma lascia di proposito lo shotType, vedi il commento su
+           ".active/.shotType/.shape restano quelli..." qui sopra) -- il
+           risultato sarebbe uno stat-up che conferisce un tipo di colpo,
+           esattamente il comportamento nuovo che la tassonomia vieta a
+           quella categoria (stessa guardia su dst->script poche righe sopra,
+           e la guardia gemella "item->shotType.active = false" piu' sotto
+           sul ramo manifest). Qui pero' NON si azzera e basta: questo e' lo
+           STATO BASE della demo (DEC-153, il cammino vivo quando
+           generated/current_run.txt non esiste), non una seconda rete su un
+           caso raro -- va mantenuta l'invariante "un tipo di colpo per
+           piano, sempre uno", spostandolo su una posizione non-statup, ESATTAMENTE
+           come fa il generatore vero (tools/melting-gen/gen_fallback.c:
+           "si costruisce l'elenco delle posizioni non-statup e si sceglie
+           fra QUELLE"). Si azzera SOLO nel caso degenere in cui il pool
+           curato abbia reso statup tutti e tre gli slot del piano (nessuna
+           posizione dove spostarlo). */
+        {
+            FloorContent *floor = &content->floors[f];
+            int shotOwner = -1;
+            for (int i = 0; i < 3; i++) if (floor->items[i].shotType.active) { shotOwner = i; break; }
+            if (shotOwner >= 0 && floor->items[shotOwner].kind == ITEM_STATUP)
+            {
+                ShotTypeDef moved = floor->items[shotOwner].shotType;
+                memset(&floor->items[shotOwner].shotType, 0, sizeof(ShotTypeDef));
+                int nonStatupIdx[3];
+                int nonStatupCount = 0;
+                for (int i = 0; i < 3; i++)
+                    if (floor->items[i].kind != ITEM_STATUP) nonStatupIdx[nonStatupCount++] = i;
+                /* A CASO fra le posizioni lecite, non sempre quella di indice
+                   piu' basso (correzione round 1): e' quello che fa il
+                   generatore vero (gen_fallback.c, "nonStatupIdx[GenRngRange(
+                   &rng, 0, nonStatupCount-1)]"), ed e' anche l'unica scelta
+                   coerente con l'invariante che questo file dichiara poco
+                   sopra -- la posizione non deve mai predire l'esito. 'rng' e'
+                   lo stesso stream gia' in uso qui. */
+                if (nonStatupCount > 0)
+                    floor->items[nonStatupIdx[GameRngRange(&rng, 0, nonStatupCount - 1)]].shotType = moved;
+                /* else: i tre slot del piano sono TUTTI statup dopo l'overlay
+                   curato -- nessuna posizione lecita porta comportamento, il
+                   tipo di colpo del piano si perde (degenere, non raggiungibile
+                   con un pool curato che rispetti il floor DEC-144 su piu' di
+                   una rarita' per slot, ma qui per sicurezza, mai un crash). */
+            }
+        }
+
+        /* Correzione round 0 (minore): pescare per indice fisso
+           "(f*2+slotIdx) % enemyCount" avrebbe dato SEMPRE gli stessi nemici
+           sugli stessi piani, run dopo run -- incoerente col resto di questo
+           file (il ripiego procedurale sopra pesca i tipi con GameRngRange) e
+           con la varieta' di DEC-141 (il seed deve poter cambiare l'intera
+           run). 'rng' e' lo stesso stream gia' derivato dal seed (salt
+           0xC0DEC170u) e gia' avanzato dal rimescolo Fisher-Yates e dalle
+           estrazioni di CuratedCatalogPickItem sopra: continuare a consumarlo
+           qui e' coerente, non un secondo RNG da tenere sincronizzato. */
+        if (pool.enemyCount > 0)
+            for (int slotIdx = 0; slotIdx < 2; slotIdx++)
+                content->floors[f].enemies[slotIdx] = pool.enemies[GameRngRange(&rng, 0, pool.enemyCount - 1)].def;
+
+        if (pool.bossCount > 0)
+            content->floors[f].bossType = pool.bosses[GameRngRange(&rng, 0, pool.bossCount - 1)].def;
+    }
+
+    if (mapText) UnloadFileText(mapText);
+    if (manifestText) UnloadFileText(manifestText);
+}
+
 void RunContentLoad(RunContent *content, unsigned int seed)
 {
     GenerateFallbackContent(content, seed);
+    ApplyCuratedCatalog(content, seed);   /* DEC-153: stato base sopra il fallback puro, sotto una generazione vera (letta sotto) */
 
     char *text = LoadFileText("generated/current_run.txt");
     if (!text)
@@ -741,6 +933,32 @@ void RunContentLoad(RunContent *content, unsigned int seed)
         for (int i = 0; i < 3; i++)
         {
             Item *item = &floor->items[i];
+
+            /* Correzione round 1 (bloccante), stessa regola dei memset qui
+               sopra su shotType/enemies/bossType/roomLayout: il manifest e'
+               l'AUTORITA' sugli oggetti del piano che descrive, quindi
+               l'immagine curata che ApplyCuratedCatalog ha appena risolto per
+               una voce del pool CURATO va via insieme al resto di quella voce.
+               Senza queste due righe, un oggetto GENERATO (nome, categoria,
+               rarita' e comportamento presi da qui sotto) si porterebbe
+               appiccicata l'immagine risolta per un content-id curato che non
+               c'entra nulla -- proprio l'associazione contenuto->immagine
+               sbagliata che il layer di indirezione di DEC-175(b) esiste per
+               rendere impossibile. Non e' un caso di laboratorio: succede
+               appena esistono insieme assets/curated-content/ e
+               generated/current_run.txt, cioe' dopo un normale 'make gen'.
+               melting-gen non scrive MAI un'immagine per gli oggetti dei piani
+               (nessuna chiave ".image="; l'unica immagine curata di una run e'
+               quella che FusionPerform pesca per un FUSO, DEC-171), quindi qui
+               non c'e' nessun valore da rileggere dal manifest: l'oggetto
+               generato torna alla resa geometrica di sempre.
+               curatedImageIdx va azzerato in coppia con imagePath: e' l'indice
+               che GameResetRunWithSeed marca in Game.curatedImageUsed, e
+               lasciarlo qui sottrarrebbe a FusionPerform immagini che nessuno
+               sta usando. */
+            item->imagePath[0] = '\0';
+            floor->curatedImageIdx[i] = -1;
+
             snprintf(key, sizeof(key), "floor%d.item%d.name=", n, i + 1);
             value[0] = '\0';
             ReadManifestValue(text, key, value, sizeof(value));

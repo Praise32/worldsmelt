@@ -1837,8 +1837,8 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "8210480"
+      "last_reviewed": "2026-07-28",
+      "last_verified_commit": "cfeaa47"
     },
     {
       "id": "gd-system-grafts",
@@ -1944,8 +1944,8 @@
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "8210480"
+      "last_reviewed": "2026-07-28",
+      "last_verified_commit": "cfeaa47"
     },
     {
       "id": "gd-system-passive-items",

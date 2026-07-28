@@ -2,6 +2,7 @@
 
 #include "audio/audio.h"
 #include "content/character_roster.h"
+#include "content/curated_images.h"
 #include "content/run_content.h"
 #include "game/game_internal.h"
 #include "script/script_items.h"
@@ -171,6 +172,22 @@ void GameResetRunWithSeed(Game *game, unsigned int runSeed)
     game->runSeed = runSeed;
     game->rng = GameplayRngSeedFromRunSeed(runSeed);
     RunContentLoad(&game->content, runSeed);
+    /* Correzione round 0 (minore, DEC-171): un'immagine curata gia'
+       assegnata come STATO BASE del piano (content/run_content.c,
+       ApplyCuratedCatalog) va marcata "usata" SUBITO, prima che
+       FusionPerform (gameplay/fusion.c) possa ripescarla per un oggetto
+       composto -- "fra le immagini non ancora usate nella run corrente" non
+       fa eccezione per quelle assegnate dal pool curato invece che da una
+       fusione. game->curatedImageUsed e' gia' azzerata dal memset(game, 0,
+       ...) sopra: qui si marca solo quello che RunContentLoad ha appena
+       risolto (curatedImageIdx[i] == -1 per ogni oggetto senza immagine
+       curata, mai marcato). */
+    for (int cif = 0; cif < FLOOR_COUNT; cif++)
+        for (int cii = 0; cii < 3; cii++)
+        {
+            int idx = game->content.floors[cif].curatedImageIdx[cii];
+            if (idx >= 0) CuratedImageMaskSet(game->curatedImageUsed, CURATED_IMAGE_MASK_BYTES, idx);
+        }
     AssetsLoad(game);
     game->phase = PHASE_PLAY;
     GamePlayerResetBaseStats(&game->player);

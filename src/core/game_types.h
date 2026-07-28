@@ -441,9 +441,17 @@ typedef struct Item {
     float cooldownTimer;     /* secondi che mancano al prossimo uso */
     /* --- Fusione (systems/item-fusion.md, DEC-023 passo 1 + DEC-171) -------
        'imagePath' e' il percorso RELATIVO a assets/curated/ dell'immagine
-       curata pescata per questo oggetto (vuoto = nessuna, ed e' il caso di
-       ogni oggetto che non nasce da una fusione: lo zero-default di "{0}"
-       vale "come prima di questa fase"). Vive dentro l'Item, non in una
+       curata di questo oggetto; vuoto = nessuna, e il gioco ricade sulla resa
+       geometrica di sempre (lo zero-default di "{0}" vale "come prima di
+       questa fase"). Due sorgenti, entrambe legittime: la pesca di
+       FusionPerform per un oggetto COMPOSTO (DEC-171), e -- da W5b -- il
+       layer di indirezione content-id -> image-id del pool CURATO, per gli
+       oggetti dei piani (ApplyCuratedCatalog, content/run_content.c). Resta
+       vuoto per ogni oggetto puramente procedurale o GENERATO: melting-gen
+       non scrive mai un'immagine per gli oggetti dei piani, e il ramo
+       manifest di RunContentLoad azzera questo campo proprio per non far
+       ereditare a un oggetto generato l'immagine risolta per un contenuto
+       curato diverso. Vive dentro l'Item, non in una
        tabella indicizzata a parte, per lo stesso motivo di ShotTypeDef e
        dello stato di ricarica sopra: un Item viaggia per VALORE
        (FloorContent -> Pickup -> Player.items -> di nuovo Pickup), e un
@@ -485,6 +493,18 @@ typedef struct FloorContent {
        prima: back-compat totale. */
     RoomLayoutDef roomLayout;
     Item items[3];   /* oggetti ATTIVI del piano: stanza tesoro e negozio pescano da qui (world.c) */
+    /* Indice di manifest (content/curated_images.h) dell'immagine curata
+       risolta per items[i] dal pool curato (content/run_content.c,
+       ApplyCuratedCatalog), o -1 se items[i] non ha nessuna immagine curata
+       (contenuto procedurale, o id/mappa mancanti). RunContentLoad lo lascia
+       SEMPRE a -1 di suo conto (0 e' un indice di manifest valido, mai
+       usabile come "assente"): chi carica una nuova run (GameResetRunWithSeed,
+       game/game.c) lo legge SUBITO dopo per marcare Game.curatedImageUsed,
+       cosi' FusionPerform (gameplay/fusion.c) non ripesca in questa run
+       un'immagine gia' assegnata come stato base (DEC-171: "fra le immagini
+       non ancora usate nella run corrente"). Non serve per bossItem/enemies/
+       bossType: solo items[] risolve un'immagine curata oggi. */
+    int curatedImageIdx[3];
     /* Oggetto STAT-UP del piano, campo esplicito e non un quarto slot di
        items[] (scelta deliberata, vedi il report di fase locale
        .superpowers/sdd/phase3-items-report.md): src/render/game_renderer.c gia' itera

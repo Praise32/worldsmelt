@@ -177,6 +177,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --fusion-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --discovery-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --audio-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --curated-content-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --catalog-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --catalog-screen-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --smoke-test

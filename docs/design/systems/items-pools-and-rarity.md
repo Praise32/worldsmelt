@@ -6,8 +6,8 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica dei campi obbligatori di un oggetto, tassonomia a 4 categorie con oggetti ibridi comportamento+statistiche (DEC-035), pool, rarità (pesi in stato draft, con garanzia di almeno un oggetto per rarità nel pool minimo, DEC-144), densità di 3-5 oggetti per piano (DEC-032) e correzione di fortuna con soglia N esplicita, ridotta dalla Fortuna, su tutti i pool (DEC-145)."
-last_reviewed: 2026-07-27
-last_verified_commit: 8210480
+last_reviewed: 2026-07-28
+last_verified_commit: cfeaa47
 topics: [oggetti, pool, rarità, slot, correzione-di-fortuna, tassonomia, DEC-144, DEC-145]
 related: []
 supersedes: []
@@ -332,6 +332,76 @@ prefisso `ItemPool`), usato sia dal contenuto di ripiego sia dall'estrazione a r
   (pesi sbilanciati apposta), statistica su 200 semi che la Fortuna alta limita la
   sequenza sfortunata massima osservata, copertura del contenuto di ripiego su 60 semi,
   determinismo end-to-end.
+
+### Stato di implementazione del pool curato (W5b, DEC-153, 2026-07-28)
+
+Il **formato e il loader** del pool curato minimo (tabella sopra e in
+[Generated Content Validation](generated-content-validation.md#pool-curato-minimo-dec-087))
+esistono lato motore in `src/content/curated_catalog.h`/`.c`: un file per categoria
+(`items.txt`/`enemies.txt`/`bosses.txt` dentro `assets/curated-content/`), stesso stile
+riga-chiave=valore già usato dal manifest di una run generata — riusa `ItemKindFromText`/
+`RarityFromText` (`src/content/run_content.h`) e `EnemyFormFromText`/`EnemyMoveFromText`/
+`EnemyFireFromText`/`EnemyTypeBalance` (`src/core/enemy_type.h`), nessun secondo
+vocabolario testo↔enum. `CuratedCatalogValidateFloor` verifica al caricamento che il floor
+DEC-144 sia rispettato (un log chiaro su stderr se una rarità a peso positivo risulta
+scoperta, mai bloccante).
+
+`RunContentLoad` (`src/content/run_content.c`) applica il pool curato come **stato base**
+(DEC-153) sopra il contenuto di ripiego puramente procedurale descritto sopra e sotto una
+generazione vera: precedenza `curated-content -> fallback deterministico -> generazione
+reale`. La stessa distribuzione di rarità sui 15 slot normali della run (sopra) sceglie la
+rarità **target** per slot; `CuratedCatalogPickItem` pesca dal pool curato una voce di
+quella rarità esatta (RNG indipendente dal fallback procedurale, salt proprio) — uno slot
+la cui rarità non ha corrispondenza nel pool resta quello procedurale, mai vuoto. I due
+nemici e il boss del piano (se il pool curato ne dichiara) sono pescati con lo stesso RNG
+derivato dal seed (non un indice fisso per piano): run diverse vedono nemici/boss curati
+diversi, coerente con DEC-141. Un `assets/curated-content/` assente o incompleto
+(checkout senza contenuto ancora scritto) lascia il contenuto esattamente come il ripiego
+procedurale l'ha già prodotto: nessuna differenza di comportamento rispetto a prima di
+questo lavoro.
+
+`bossItem` (la ricompensa del boss del piano) **resta sempre procedurale**
+(`MakeFallbackBossItem`): il pool curato di questo lavoro copre solo i 15 slot normali
+della run, non la ricompensa del boss. Scelta deliberata (coerente con la sezione sopra,
+che tratta `bossItem` a parte dai "15 slot normali" anche nel conteggio del floor
+DEC-144), non un buco: con un catalogo curato completo il giocatore non vedrà mai
+contenuto curato come ricompensa di un boss.
+
+Invariante di tassonomia mantenuta anche sotto l'overlay curato: un oggetto curato con
+`kind=statup` non porta mai il tipo di colpo del piano. Se il pool curato assegna uno
+stat-up esattamente allo slot che il ripiego procedurale aveva scelto come portatore del
+tipo di colpo, `ApplyCuratedCatalog` lo **sposta** su un'altra posizione non-statup dello
+stesso piano (stesso algoritmo di `tools/melting-gen/gen_fallback.c`: "si sceglie fra le
+posizioni non-statup"), azzerandolo solo nel caso degenere in cui tutti e tre gli slot del
+piano risultino statup. Verificato su 25 semi con un pool minimo (comune/non-comune
+statup, raro/leggendario passivi) da `--curated-content-test`.
+
+Il **layer di indirezione immagini** (`content-id -> image-id -> file`, DEC-175(b) esteso
+da W5b al pool di testi/parametri, `src/content/curated_image_map.h` +
+`CuratedImagesFindById` in `src/content/curated_images.h`, file
+`assets/curated-content/image-map.txt`) e lo script di auto-mapping riproducibile per tag
+(`scripts/curated-map.py`, nessuna curation estetica, con de-duplicazione: a parità di
+punteggio un content-id senza tag in comune non finisce più sempre sulla stessa prima
+immagine della categoria, salvo che le immagini disponibili siano meno dei content-id)
+sono anch'essi implementati; un id assente in una qualunque delle due tappe lascia
+l'oggetto senza immagine (resa geometrica di sempre), mai un crash. Un'immagine curata
+risolta come stato base viene marcata subito in `Game.curatedImageUsed`
+(`GameResetRunWithSeed`, `src/game/game.c`), cosa che DEC-171 richiede per non farla
+ripescare da `FusionPerform` come se fosse ancora libera.
+
+**Non ancora fatto** (passo successivo dichiarato di questo lavoro): il contenuto curato
+vero e proprio (le voci reali di `assets/curated-content/`) non esiste ancora — solo
+fixture minime di test in `src/tests/curated_content_tests.c`. Verificato da
+`--curated-content-test` (`make test`): floor rispettato/violato, indirezione risolta, id
+immagine mancante, catalogo assente, l'integrazione end-to-end dentro `RunContentLoad`
+con una fixture isolata (`CuratedCatalogSetTestDir`, mai `assets/curated-content/` reale),
+e l'invariante statup/tipo-di-colpo su piu' semi. I test che caricano `RunContentLoad`
+mettono da parte `generated/current_run.txt` (se presente) prima di caricare e lo
+ripristinano subito dopo — stesso schema di `TestFallbackBossItemIsRare`
+(`src/tests/script_items_tests.c`) e `GameItemPoolFallbackCoverageTest`
+(`src/tests/game_tests.c`): senza questa guardia un manifest reale presente in
+`generated/` (stato normale dopo `make gen` o dopo una run giocata) sovrascriverebbe il
+contenuto curato prima delle verifiche.
 
 ## Interazioni
 
