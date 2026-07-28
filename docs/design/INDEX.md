@@ -24,7 +24,7 @@
 
 ## governance/
 
-- [Decision Log](governance/decision-log.md) — Registro delle 175 decisioni di design (DEC-001..DEC-175) che cambiano il comportamento del gioco: 174 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
+- [Decision Log](governance/decision-log.md) — Registro delle 179 decisioni di design (DEC-001..DEC-179) che cambiano il comportamento del gioco: 178 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia. `[approved/canonical]`
 - [Definition of Done — Comportamento di Gioco](governance/definition-of-done.md) — Checklist dei criteri che rendono completa una modifica al comportamento di gioco: coerenza col design, test, vocabolario canonico, fallback e documentazione aggiornata. `[approved/canonical]`
 - [Definition of Ready — Feature di Game Design](governance/definition-of-ready.md) — Checklist dei criteri che rendono una feature di design pronta per la pianificazione tecnica: obiettivo, scenari, fallback, vocabolario canonico. `[approved/canonical]`
 - [Design Probes](governance/design-probes.md) — Otto domande-risposta usate per verificare che un agente recuperi correttamente il design (Piano 0, fusione, personaggi, meta-punti, sinergia visiva, casualità, classifica, ambiguità). `[approved/supporting]`

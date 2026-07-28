@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 175 decisioni di design (DEC-001..DEC-175) che cambiano il comportamento del gioco: 174 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+  Registro delle 179 decisioni di design (DEC-001..DEC-179) che cambiano il comportamento del gioco: 178 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
 last_reviewed: 2026-07-28
 last_verified_commit: d30890b
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..175]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..179]
 related: []
 supersedes: []
 source_files: []
@@ -1612,6 +1612,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** salire a un modello di generazione più recente accettando un requisito VRAM superiore; addestrare la LoRA direttamente su `pixel-baseline` (più vicino alla resa attuale, ma provenienza opaca e non portabile); tenere la LoRA sempre separata dalla base senza mai fondere; considerare definitivo il dataset Kaggle 89k.
 - **Conseguenze:** `docs/ai-production/00-DECISIONI-CANONICHE.md` registra la base SD1.5 e corregge le affermazioni non adottate; `docs/ai-production/03-PIANO-LORA.md` e `docs/ai-production/04-DATASET-LICENZE.md` recepiscono base vanilla, merge post-validazione e piano dataset proprietario; `docs/ai-production/dataset/README.md` segnala che i dataset attuali non sono definitivi. Il runtime non cambia in questo lavoro.
 - **Documenti aggiornati:** `docs/ai-production/00-DECISIONI-CANONICHE.md`, `docs/ai-production/03-PIANO-LORA.md`, `docs/ai-production/04-DATASET-LICENZE.md`, `docs/ai-production/dataset/README.md` (aggiornati in questo stesso lavoro)
+- **Nota (2026-07-28):** **DEC-179** approfondisce il punto **(a)** confrontando esplicitamente la risoluzione — SD1.5 @ 512 confermata, SDXL @ 1024 valutata e scartata — con le porte aperte per un eventuale checkpoint fuso di qualità insufficiente e per famiglie illustrative offline. Nessun punto di DEC-148 è sostituito nel merito.
 
 ---
 
@@ -1974,3 +1975,15 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** installare davvero rFXGen e mantenerlo come secondo anello procedurale reale (scartata: nessuna necessità dimostrata — il checkpoint sfx copre già l'intera produzione — e tenere un anello mai esercitato nella catena rischia di far credere che esista un fallback procedurale disponibile quando il fallback reale è sempre stato il pacchetto curato); lasciare la documentazione invariata trattando le menzioni di rFXGen come imprecisione innocua (scartata: chi legge la pipeline resterebbe convinto dell'esistenza di un secondo generatore mai adottato).
 - **Conseguenze:** `content/audio-and-feedback.md` e `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` aggiornano ogni menzione di rFXGen nella catena SFX, nel diagramma di architettura e nei fallback elencati. DEC-109 e DEC-172 restano `approved` ma ricevono ciascuna una nota datata di sostituzione parziale (stesso trattamento già usato per DEC-036/DEC-176): la scelta di Stable Audio Small come via primaria e la garanzia del fallback curato sempre disponibile restano invariate, cambia solo l'anello intermedio rFXGen, ora rimosso. Il lotto SFX attuale in `assets/audio/sfx/` resta segnalato come da rigenerare con la ricetta di qualità: non è oggetto di questa decisione.
 - **Documenti aggiornati:** `docs/design/content/audio-and-feedback.md`, `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`, `docs/design/governance/decision-log.md` (note su DEC-109 e DEC-172) (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-179 — SD1.5 vanilla @ 512 si conferma per la pipeline immagini runtime; SDXL @ 1024 valutata e scartata
+
+- **Data:** 2026-07-28
+- **Stato:** approved
+- **Contesto:** durante la sessione arte del 28/07 il proprietario ha sollevato la domanda «SD1.5 a 512 o SDXL a 1024?» dopo benchmark propri che davano SD1.5 già migliore sul suo hardware, e ha **delegato la scelta finale al coordinatore** chiedendo il miglior compromesso qualità/efficienza. DEC-148 aveva già confermato SD1.5 come base immagini nel vincolo dei 6 GB, ma senza confrontare esplicitamente la risoluzione 512 con l'alternativa SDXL 1024 nel contesto della pipeline attuale (budget runtime DEC-142, scala sprite DEC-177, economia Kaggle di `05-KAGGLE-TRAINING-RUNBOOK.md`).
+- **Decisione:** si **conferma SD1.5 vanilla @ 512** per la pipeline immagini runtime; **SDXL @ 1024 è stata valutata e scartata**, per tre motivi concorrenti. **(1) Budget runtime 6 GB (DEC-142):** SD1.5 fp16 (~2 GB) gira in sottofondo accanto al rendering del gioco; SDXL (~5-6 GB di solo UNet) sta nel budget solo con offload lento, escludendo di fatto la fascia hardware protetta. **(2) Scala sprite (DEC-177):** alla scala di gioco (32/48/64px) il tetto di dettaglio utile è la griglia dello sprite — 512 campiona già 32px a ×16 esatto (lo stesso rapporto intero che ha motivato DEC-177); generare a 1024 produce informazione che il downscale butta via, senza guadagno percepibile in-engine. **(3) Economia Kaggle (30h GPU/settimana, `05-KAGGLE-TRAINING-RUNBOOK.md`):** una LoRA SD1.5 costa circa **1/3** di una SDXL equivalente; su un dominio stretto come lo stile di Worldsmelt contano più le iterazioni (dataset, caption, run di prova) della capacità della base. Restano esplicitamente **due porte aperte**, non chiuse da questa decisione: **(a)** se il report della Style LoRA v1 mostrasse qualità insufficiente, la scala di intervento resta **dataset → rank/step → checkpoint proprietario fuso** (criteri già in `03-PIANO-LORA.md`), **non** il passaggio a SDXL; **(b)** eventuali future famiglie **illustrative** a risoluzione alta (es. artwork delle card di scoperta, DEC-065) potranno usare **SDXL offline**, fuori dal runtime, coerente con la sezione «Modelli moderni più grandi» già presente in `02-STACK-MODELLI.md`.
+- **Alternative considerate:** **SDXL @ 1024** come base runtime (scartata per i tre motivi sopra: budget VRAM, informazione persa dal downscale alla scala sprite, costo Kaggle triplo); un **ibrido** (es. draft rapido su SD1.5 seguito da refine su SDXL, o training della LoRA su base SDXL con inferenza forzata a risoluzione ridotta) (scartato: raddoppia la complessità della pipeline e il footprint VRAM per un guadagno di dettaglio che la griglia dello sprite non può comunque mostrare).
+- **Conseguenze:** `docs/ai-production/03-PIANO-LORA.md`, sezione «Base e luogo del training (DEC-148, DEC-168)», guadagna una nota breve che registra la conferma di SD1.5@512 e il rimando a questa decisione. DEC-148 resta `approved` e **non è sostituita**: questa decisione ne dettaglia il confronto di risoluzione (512 vs 1024) che DEC-148 non aveva esplicitato, senza cambiarne la scelta di base (SD1.5). Nessun documento `approved` viene sostituito nel merito.
+- **Documenti aggiornati:** `docs/design/governance/decision-log.md`, `docs/ai-production/03-PIANO-LORA.md` (aggiornati in questo stesso lavoro)

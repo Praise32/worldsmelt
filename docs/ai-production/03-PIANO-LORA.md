@@ -32,6 +32,11 @@ Il training si fa **su Kaggle** (`05-KAGGLE-TRAINING-RUNBOOK.md`, runbook primar
 a 30 ore di GPU gratuite a settimana). Il runbook RunPod (`dataset/TRAINING-RUNBOOK.md`)
 resta come fallback a pagamento per quando Kaggle non basta.
 
+**Nota (DEC-179, 28/07):** la risoluzione di lavoro **SD1.5 @ 512 è confermata** anche dopo
+un confronto esplicito con SDXL @ 1024 (scartata: budget runtime 6 GB, informazione persa
+dal downscale alla scala sprite di DEC-177, costo Kaggle circa triplo). Dettaglio e porte
+aperte (checkpoint fuso di qualità, famiglie illustrative offline) nel decision-log.
+
 ## Struttura del dataset definitivo per famiglie (DEC-175)
 
 DEC-148(e) affidava al proprietario del progetto la creazione dei dataset definitivi,

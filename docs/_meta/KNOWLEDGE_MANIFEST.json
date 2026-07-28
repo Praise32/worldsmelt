@@ -1536,13 +1536,13 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 175 decisioni di design (DEC-001..DEC-175) che cambiano il comportamento del gioco: 174 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 179 decisioni di design (DEC-001..DEC-179) che cambiano il comportamento del gioco: 178 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..175"
+        "DEC-001..179"
       ],
       "related": [],
       "supersedes": [],
