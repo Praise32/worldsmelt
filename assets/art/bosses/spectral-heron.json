@@ -1,0 +1,1 @@
+{"frame_w":64,"frame_h":64,"anchor":[32,56],"anims":{"idle":{"row":0,"frames":4,"fps":6,"loop":true},"attack":{"row":1,"frames":4,"fps":8,"loop":false},"hit":{"row":2,"frames":1,"fps":10,"loop":false},"death":{"row":3,"frames":6,"fps":7,"loop":false}}}

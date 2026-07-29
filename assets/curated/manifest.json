@@ -2639,6 +2639,597 @@
         9
       ],
       "source": "superpowers-asset-packs/medieval-fantasy/items/gold-chest-close.png"
+    },
+    {
+      "id": "hammerhead-bounce",
+      "file": "worldsmelt/hammerhead-bounce.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "blunt"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "lens-goggles",
+      "file": "worldsmelt/lens-goggles.png",
+      "category": "item",
+      "tags": [
+        "accessory"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "reflector-shield",
+      "file": "worldsmelt/reflector-shield.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "shield"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "ember-husk",
+      "file": "worldsmelt/ember-husk.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "glowstone-fragment",
+      "file": "worldsmelt/glowstone-fragment.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "pebble-pylon",
+      "file": "worldsmelt/pebble-pylon.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "shattering-icepick",
+      "file": "worldsmelt/shattering-icepick.png",
+      "category": "item",
+      "tags": [
+        "weapon",
+        "dagger"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "crystal-shard",
+      "file": "worldsmelt/crystal-shard.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "leeching-vent",
+      "file": "worldsmelt/leeching-vent.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "mud-boots",
+      "file": "worldsmelt/mud-boots.png",
+      "category": "item",
+      "tags": [
+        "armor"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "pool-stone",
+      "file": "worldsmelt/pool-stone.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "lily-pad-shield",
+      "file": "worldsmelt/lily-pad-shield.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "shield"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "lantern-wing",
+      "file": "worldsmelt/lantern-wing.png",
+      "category": "item",
+      "tags": [
+        "gadget",
+        "light"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "seed-sprout",
+      "file": "worldsmelt/seed-sprout.png",
+      "category": "item",
+      "tags": [
+        "accessory"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "wind-bell",
+      "file": "worldsmelt/wind-bell.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "spindle-coil",
+      "file": "worldsmelt/spindle-coil.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "root-tendril",
+      "file": "worldsmelt/root-tendril.png",
+      "category": "item",
+      "tags": [
+        "accessory"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "glass-splinter",
+      "file": "worldsmelt/glass-splinter.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "cracked-clay-ward",
+      "file": "worldsmelt/cracked-clay-ward.png",
+      "category": "item",
+      "tags": [
+        "armor",
+        "shield"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "prism-shard",
+      "file": "worldsmelt/prism-shard.png",
+      "category": "item",
+      "tags": [
+        "gem",
+        "accessory"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "dice-coil",
+      "file": "worldsmelt/dice-coil.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "bubble-stone",
+      "file": "worldsmelt/bubble-stone.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "dice-core",
+      "file": "worldsmelt/dice-core.png",
+      "category": "item",
+      "tags": [
+        "gem"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "root-conduit",
+      "file": "worldsmelt/root-conduit.png",
+      "category": "item",
+      "tags": [
+        "gadget"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "bubble-rain",
+      "file": "worldsmelt/bubble-rain.png",
+      "category": "item",
+      "tags": [
+        "accessory"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "salt-sniper",
+      "file": "worldsmelt/salt-sniper.png",
+      "category": "enemy",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "root-lurker",
+      "file": "worldsmelt/root-lurker.png",
+      "category": "enemy",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "mimic-cluster",
+      "file": "worldsmelt/mimic-cluster.png",
+      "category": "enemy",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "mold-creeper",
+      "file": "worldsmelt/mold-creeper.png",
+      "category": "enemy",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "ice-sprite",
+      "file": "worldsmelt/ice-sprite.png",
+      "category": "enemy",
+      "tags": [
+        "undead",
+        "flying"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "frost-fang",
+      "file": "worldsmelt/frost-fang.png",
+      "category": "enemy",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "root-crawler",
+      "file": "worldsmelt/root-crawler.png",
+      "category": "enemy",
+      "tags": [
+        "ooze"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "murk-phantom",
+      "file": "worldsmelt/murk-phantom.png",
+      "category": "enemy",
+      "tags": [
+        "undead",
+        "flying"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "vine-snapper",
+      "file": "worldsmelt/vine-snapper.png",
+      "category": "enemy",
+      "tags": [
+        "beast"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "sapling-stalker",
+      "file": "worldsmelt/sapling-stalker.png",
+      "category": "enemy",
+      "tags": [
+        "beast",
+        "neutral"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "stone-golems",
+      "file": "worldsmelt/stone-golems.png",
+      "category": "enemy",
+      "tags": [
+        "humanoid",
+        "guard"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "silent-echoes",
+      "file": "worldsmelt/silent-echoes.png",
+      "category": "enemy",
+      "tags": [
+        "undead",
+        "flying"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "coglings",
+      "file": "worldsmelt/coglings.png",
+      "category": "enemy",
+      "tags": [
+        "mechanical"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "shell-striders",
+      "file": "worldsmelt/shell-striders.png",
+      "category": "enemy",
+      "tags": [
+        "beast",
+        "reptile"
+      ],
+      "size": [
+        32,
+        32
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "frozen-maw",
+      "file": "worldsmelt/frozen-maw.png",
+      "category": "boss",
+      "tags": [
+        "boss",
+        "reptile"
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "mire-weaver",
+      "file": "worldsmelt/mire-weaver.png",
+      "category": "boss",
+      "tags": [
+        "boss",
+        "nature"
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "statue-warden",
+      "file": "worldsmelt/statue-warden.png",
+      "category": "boss",
+      "tags": [
+        "boss",
+        "humanoid"
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "clockwork-mole",
+      "file": "worldsmelt/clockwork-mole.png",
+      "category": "boss",
+      "tags": [
+        "boss",
+        "mechanical"
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
+    },
+    {
+      "id": "spectral-heron",
+      "file": "worldsmelt/spectral-heron.png",
+      "category": "boss",
+      "tags": [
+        "boss",
+        "undead",
+        "flying"
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "source": "worldsmelt-original (aseprite, own — sessione art 28/07)"
     }
   ]
 }
