@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, recuperabile finché si resta nella stanza (DEC-160)."
-last_reviewed: 2026-07-27
+summary: "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, nella stanza in cui è stato sganciato, recuperabile per TUTTA LA RUN (DEC-183, supera parzialmente DEC-160: cade la clausola \"perso uscendo dalla stanza\")."
+last_reviewed: 2026-07-30
 last_verified_commit: 8210480
-topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107, DEC-160]
+topics: [Innesto, Graft, rarità, piega-regole, DEC-034, DEC-107, DEC-160, DEC-183]
 related: []
 supersedes: []
 source_files: []
@@ -133,13 +133,16 @@ unica definita in
   (DEC-123): la meta-progressione resta sblocco di contenuti, mai di potenza
   (DEC-015/DEC-027).
 
-## Drop e persistenza (DEC-115, DEC-116)
+## Drop e persistenza (DEC-115, DEC-116, DEC-183)
 
 - Un Innesto equipaggiato può essere **sganciato volontariamente**: lo slot si libera
   (DEC-115). L'Innesto sganciato resta **a terra, nella stanza in cui è stato sganciato**,
-  e può essere **recuperato** finché il giocatore resta in quella stanza (DEC-160): non è
-  perso, ed equipaggiarlo di nuovo richiede semplicemente di raccoglierlo da terra come
-  ogni altro Innesto. Lasciando la stanza, l'Innesto sganciato non è più recuperabile.
+  e può essere **recuperato tornandoci in qualsiasi momento della run** (DEC-183): non è
+  mai perso, ed equipaggiarlo di nuovo richiede semplicemente di raccoglierlo da terra come
+  ogni altro Innesto. **Nota di supersessione parziale (30/07):** DEC-183 supera la
+  clausola di DEC-160 «uscendo dalla stanza si perde» — l'Innesto sganciato non scompare
+  più all'uscita, resta a terra nella sua stanza per **tutta la run**. Restano invariate le
+  altre clausole di DEC-160: a terra, recuperabile, mai distrutto dallo sgancio.
 - Gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della
   build (DEC-116): nessun legame col piano in cui li trovi.
 
@@ -157,10 +160,14 @@ dopo la prima stesura di questa sezione) — i piega-regole restano assenti (ved
   (DEC-117): il vecchio Innesto resta a terra dove hai preso il nuovo, e riprenderlo
   riscambia — il "rifiutare la raccolta" dei casi limite si ottiene semplicemente non
   toccando l'oggetto.
-- Sgancio volontario (DEC-115) con l'Innesto lasciato **a terra nella stanza** e
-  recuperabile finché non si esce (DEC-160). "Perso uscendo" non ha codice dedicato: i
-  pickup di una stanza vengono azzerati all'ingresso in una stanza qualsiasi, quindi la
-  simmetria col piedistallo vale per costruzione.
+- Sgancio volontario (DEC-115) con l'Innesto lasciato **a terra nella stanza**. ~~Recuperabile
+  finché non si esce (DEC-160). "Perso uscendo" non ha codice dedicato: i pickup di una
+  stanza vengono azzerati all'ingresso in una stanza qualsiasi, quindi la simmetria col
+  piedistallo vale per costruzione.~~ — **superato da DEC-183** (30/07): il design ora vuole
+  l'Innesto recuperabile per **tutta la run**, non solo restando nella stanza; il
+  meccanismo attuale (azzeramento dei pickup di stanza all'ingresso in una stanza
+  qualsiasi) è **più aggressivo** della nuova regola e non la implementa ancora — vedi il
+  gap registrato sotto in "Non ancora implementato".
 - Stacking dentro i clamp del motore (DEC-122): gli Innesti passano dal ricalcolo da zero
   di `ScriptItemsRecomputeStats` come ogni altro oggetto, senza contabilità nuova. Il
   budget per-oggetto scalato per rarità — finora riservato agli stat-up — si applica
@@ -178,6 +185,12 @@ dopo la prima stesura di questa sezione) — i piega-regole restano assenti (ved
 - Innesti "sensore" per le super-segrete (DEC-127): dipendono dalle stanze segrete, che
   non esistono.
 - Nessuna fonte di slot Innesto aggiuntivi esiste in gioco.
+- **Persistenza dell'Innesto sganciato per tutta la run (DEC-183): gap esplicito.** Il
+  motore azzera i pickup di una stanza all'ingresso in una stanza qualsiasi (il
+  meccanismo che finora simulava "perso uscendo" di DEC-160): con DEC-183 questo va
+  corretto perché un Innesto sganciato sopravviva a terra nella sua stanza, recuperabile
+  in qualunque visita successiva, per l'intera run. Non risolto in questo lavoro di
+  design (nessuna modifica al codice).
 
 ### Default proposti dall'implementazione
 
@@ -250,13 +263,14 @@ aperta qui.
 - Given il giocatore ha un Innesto equipaggiato e lo sgancia volontariamente in una
   stanza
 - When resta nella stessa stanza
-- Then può raccogliere di nuovo l'Innesto da terra ed equipaggiarlo (DEC-160)
+- Then può raccogliere di nuovo l'Innesto da terra ed equipaggiarlo (DEC-160, DEC-183)
 
-**Scenario: Innesto sganciato non più recuperabile fuori stanza**
+**Scenario: Innesto sganciato recuperabile anche tornando nella stanza più tardi nella run**
 - Given il giocatore ha sganciato volontariamente un Innesto in una stanza, lasciandolo a
-  terra
-- When lascia quella stanza
-- Then l'Innesto sganciato non è più recuperabile (DEC-160)
+  terra, ed è uscito da quella stanza
+- When torna in quella stessa stanza in un momento qualsiasi successivo della run
+- Then trova ancora l'Innesto a terra e può raccoglierlo di nuovo ed equipaggiarlo: non è
+  mai stato perso (DEC-183, supera la clausola "perso uscendo" di DEC-160)
 
 **Scenario: l'effetto di un Innesto si spegne allo sgancio**
 - Given un Innesto equipaggiato che modifica una statistica o il comportamento dei colpi

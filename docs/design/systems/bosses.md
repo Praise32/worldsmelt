@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028, DEC-106): piani 1 e 2 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054)."
-last_reviewed: 2026-07-19
+summary: "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028, DEC-106): piani 1 e 2 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato per un'altra stanza (DEC-182, fonte unica in rooms-and-floor-generation.md)."
+last_reviewed: 2026-07-30
 last_verified_commit: 0ec60d0
-topics: [boss, vittoria, escalation, fasi, DEC-054, bande di potenza]
+topics: [boss, vittoria, escalation, fasi, DEC-054, bande di potenza, DEC-182, boss-isolato]
 related: []
 supersedes: []
 source_files: []
@@ -23,6 +23,7 @@ Il boss verifica abilità e decisioni sviluppate nel piano, senza dipendere da u
 ## Condizioni di ingresso
 
 - Il giocatore raggiunge la stanza boss dopo aver completato le condizioni previste dal piano (vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)).
+- La stanza boss è sempre una **foglia** del grafo di adiacenza delle stanze del piano — una sola porta, mai un nodo di passaggio obbligato per raggiungere un'altra stanza (DEC-182). Regola e verifica di dettaglio: fonte unica [rooms-and-floor-generation.md](./rooms-and-floor-generation.md#porte-e-connettività-del-piano-dec-181-dec-182), non ripetuta qui.
 - Il boss del piano 5 è l'ultimo boss della run: la sua sconfitta chiude la run con vittoria (DEC-006, aggiornata da DEC-031).
 
 ## Input/azioni

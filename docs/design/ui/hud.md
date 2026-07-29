@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11)."
+summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
 last_reviewed: 2026-07-30
 last_verified_commit: 1263957
-topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640]
+topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche]
 related: []
 supersedes: []
 source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
@@ -65,6 +65,7 @@ chi la cerca. Dettagli delle prove e della consultazione in pausa: fonte unica
 | Timer di run | Sempre, durante `Gameplay` | — (sola lettura) | Nessuna | — | Contatore del tempo trascorso, sempre visibile in ogni modalità (DEC-051) |
 | Stato competitivo essenziale | Modalità competitiva attiva | — (sola lettura) | Nessuna | — | Indicatore minimo aggiuntivo, distinto dal timer di run sempre visibile (DEC-051) |
 | Card di scoperta breve (DEC-065) | Alla prima occorrenza di un contenuto generato mai visto (oggetto, nemico, boss, sinergia/fusione) | — (non bloccante, non mette in pausa) | Nessuna azione richiesta; si accoda automaticamente se altre card sono in corso (coda limitata ~5, le più vecchie si perdono senza essere mostrate: DEC-131) | Mostra sprite, nome e una riga di descrizione del contenuto scoperto | Appare e scompare da sola senza bloccare l'input; una sola card visibile alla volta, le altre attendono in coda |
+| Blocco statistiche (DEC-184) | Sempre, durante `Gameplay` (visibile di default) | — (sola lettura) | Tasto di toggle nasconde/mostra il blocco | Nessun effetto sulla simulazione, solo sulla visibilità | Danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna — stessi valori del pannello "Statistiche principali" di `BuildScreen`, aggiornati in tempo reale |
 
 ## Principio
 
@@ -100,6 +101,23 @@ Gli oggetti equipaggiati si sovrappongono visivamente al personaggio secondo gli
 strati/slot visivi definiti in [Visual Language](../content/visual-language.md),
 indipendentemente dal fatto che lo sprite del personaggio sia curato o generato (DEC-049);
 questo documento non ripete quel dettaglio.
+
+## Blocco statistiche (DEC-184)
+
+Emersa dal primo playtest reale della demo (30/07): il giocatore vuole consultare le
+statistiche correnti di build senza dover aprire `BuildScreen`. L'HUD di `Gameplay` mostra
+quindi un **blocco compatto delle statistiche correnti**: **danno, cadenza, velocità del
+colpo, velocità di movimento, raggio, Fortuna** — le stesse statistiche, con lo stesso
+principio di sola lettura e aggiornamento in tempo reale, del pannello "Statistiche
+principali" di `BuildScreen` (vedi
+[Inventory and Synergy Screen](./inventory-and-synergy-screen.md)): non è una fonte di
+dati diversa, solo una seconda collocazione consultabile senza uscire dal gameplay.
+
+**Default proposti dall'implementazione** (stile DEC-019, da confermare):
+
+- **Collocazione:** sotto il blocco salute/risorse.
+- **Visibilità:** visibile **di default**, con un **tasto di toggle** (tasto esatto da
+  assegnare in implementazione) per nasconderlo a chi preferisce uno schermo più pulito.
 
 ## Timer di run sempre visibile (DEC-051)
 
@@ -242,8 +260,9 @@ di lavoro (960×640) è già stabile per l'implementazione M2 in corso.
 1. sopravvivenza (salute base e temporanea);
 2. minacce e cooldown;
 3. risorse spendibili (valuta, breccia, apertura, catalizzatore di fusione);
-4. progressione della run (piano e stanza);
-5. informazioni competitive.
+4. blocco statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) — consultabile, non decisionale immediata come le prime tre (DEC-184);
+5. progressione della run (piano e stanza);
+6. informazioni competitive.
 
 ## Non-obiettivi
 
@@ -272,3 +291,4 @@ di lavoro (960×640) è già stabile per l'implementazione M2 in corso.
 8. **Given** il giocatore ha card di scoperta ancora in coda non mostrate, **when** muore oppure cambia stanza, **then** quelle card vengono scartate silenziosamente senza inseguirlo nella stanza successiva, e la scoperta resta comunque registrata nel Catalogo (DEC-152).
 9. **Given** il giocatore è in `FloorZero`, **when** esplora l'hub senza aprire la pausa e senza entrare in una prova, **then** l'HUD di combattimento resta nascosto; **when** apre il menu di pausa, **then** può consultare salute, risorse e build; **when** entra in una prova, **then** l'HUD ricompare (DEC-169).
 10. **Given** l'HUD della demo è disegnato in pixel art, **when** viene posizionato sullo schermo, **then** usa come riferimento il canvas logico 960×640 in uso oggi, senza attendere la risposta alla domanda aperta 11 sulla risoluzione logica definitiva (DEC-174).
+11. **Given** il giocatore è in `Gameplay` con il blocco statistiche visibile (default), **when** la build cambia (es. raccoglie un oggetto che aumenta il danno), **then** i valori del blocco si aggiornano in tempo reale, coerenti con quelli del pannello "Statistiche principali" di `BuildScreen`; **when** preme il tasto di toggle, **then** il blocco si nasconde senza alcun effetto sulla simulazione (DEC-184).

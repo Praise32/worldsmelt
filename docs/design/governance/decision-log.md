@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 179 decisioni di design (DEC-001..DEC-179) che cambiano il comportamento del gioco: 178 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-28
+  Registro delle 184 decisioni di design (DEC-001..DEC-184) che cambiano il comportamento del gioco: 183 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-30
 last_verified_commit: d30890b
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..179]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..184]
 related: []
 supersedes: []
 source_files: []
@@ -1757,6 +1757,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** Innesto sganciato perso immediatamente; Innesto che rientra in un inventario di riserva trasportabile; recupero possibile per tutta la run.
 - **Conseguenze:** `systems/grafts.md` chiude il punto lasciato aperto da DEC-115 e registra la simmetria con i piedistalli degli attivi; `systems/active-items.md` non cambia.
 - **Documenti aggiornati:** `docs/design/systems/grafts.md` (aggiornato in questo stesso lavoro)
+- **Nota (2026-07-30):** la clausola «uscendo dalla stanza si perde» è superata da **DEC-183** — l'Innesto sganciato resta a terra e recuperabile per TUTTA LA RUN, non solo restando nella stanza. Restano invariate le altre clausole: a terra, recuperabile, mai distrutto dallo sgancio.
 
 ---
 
@@ -1877,6 +1878,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** mantenere il modello attuale di taglie continue tutte diverse tra loro senza telecamera (avrebbe impedito le stanze davvero grandi stile Isaac); zoom dinamico che si adatta alla taglia della stanza invece di zoom fisso; camera libera non clampata ai bordi della stanza.
 - **Conseguenze:** `systems/rooms-and-floor-generation.md` sostituisce il modello di taglie continue con le classi discrete e aggiunge la sezione sul comportamento della telecamera; DEC-009 riceve una nota di supersessione parziale (resta approved: il principio di variabilità e il minimo garantito restano validi, la clausola «tutte diverse tra loro» è superata dalla forma a classi). Nessun rimando aggiunto a `ui/hud.md`, che non parla di inquadratura.
 - **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md`, `docs/design/governance/decision-log.md` (nota su DEC-009) (aggiornati in questo stesso lavoro)
+- **Nota (2026-07-30):** il default sulla telecamera nelle forme a L (clamp sul rettangolo della **cella corrente**, con interpolazione al cambio di cella) è superato da **DEC-180** — ora clamp **continuo** sul rettangolo dell'**intera stanza** (blocco 2x2), come le altre taglie maggiori; l'angolo mancante può entrare in inquadratura, reso come muro/sfondo dal tileset (W8). Il resto di questa decisione — classi discrete di taglia, minimo garantito, clamp ai bordi della stanza nelle taglie maggiori in generale — resta invariato.
 
 ---
 
@@ -1987,3 +1989,63 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** **SDXL @ 1024** come base runtime (scartata per i tre motivi sopra: budget VRAM, informazione persa dal downscale alla scala sprite, costo Kaggle triplo); un **ibrido** (es. draft rapido su SD1.5 seguito da refine su SDXL, o training della LoRA su base SDXL con inferenza forzata a risoluzione ridotta) (scartato: raddoppia la complessità della pipeline e il footprint VRAM per un guadagno di dettaglio che la griglia dello sprite non può comunque mostrare).
 - **Conseguenze:** `docs/ai-production/03-PIANO-LORA.md`, sezione «Base e luogo del training (DEC-148, DEC-168)», guadagna una nota breve che registra la conferma di SD1.5@512 e il rimando a questa decisione. DEC-148 resta `approved` e **non è sostituita**: questa decisione ne dettaglia il confronto di risoluzione (512 vs 1024) che DEC-148 non aveva esplicitato, senza cambiarne la scelta di base (SD1.5). Nessun documento `approved` viene sostituito nel merito.
 - **Documenti aggiornati:** `docs/design/governance/decision-log.md`, `docs/ai-production/03-PIANO-LORA.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-180 — La telecamera nelle stanze a L segue in continuo, clampata all'intero blocco 2x2; il default per-cella di DEC-170 è superato
+
+- **Data:** 2026-07-30
+- **Stato:** approved
+- **Contesto:** primo playtest reale della demo (30/07). DEC-170 (27/07) aveva fissato il comportamento generale della telecamera nelle taglie maggiori — "clampata ai bordi della stanza", nessuno zoom dinamico — ma per la forma a L l'implementazione aveva adottato come **default proposto** (mai deciso dal design, registrato come domanda aperta residua in `systems/rooms-and-floor-generation.md`) un clamp sul rettangolo della **cella corrente**, con una breve interpolazione al cambio di cella: l'unico modo, al momento dell'implementazione, di rispettare "mai area fuori dalla stanza" senza una maschera grafica, quando il rendering delle stanze era ancora a colori piatti. Il proprietario ha giocato le stanze a L e le vuole con la stessa gestione delle altre stanze grandi tipo quelle del boss.
+- **Decisione:** nelle stanze a **forma L** la telecamera si comporta **esattamente come nelle altre taglie maggiori** (1x2, 2x1, 2x2): segue il giocatore in modo **continuo**, **clampata al rettangolo di bounding dell'intera stanza** (il blocco 2x2 che la contiene), non più alla cella corrente. L'**angolo mancante** può quindi entrare in inquadratura: da W8 (30/07) il tileset lo rende già come **muro/sfondo** (`rooms-and-floor-generation.md`, sezione "la stanza vestita dal tileset"), quindi il vincolo originale di DEC-170 — "non mostra mai area fuori dalla stanza" — resta soddisfatto, ma ora dal **rendering del vuoto**, non dal clamp per cella. Il default per-cella con interpolazione al cambio di cella, descritto nella sezione "Default proposti dall'implementazione (DEC-170)" di `rooms-and-floor-generation.md`, è **superato**.
+- **Alternative considerate:** mantenere il clamp per cella (scartato: il proprietario lo vuole identico alle altre stanze grandi, e il motivo tecnico che l'aveva introdotto — nessun modo di vestire l'angolo mancante — non esiste più dopo W8); una maschera grafica che nasconde l'angolo mancante mantenendo una camera libera nel riquadro intero (scartata: complessità di rendering aggiuntiva non necessaria ora che il tileset veste l'angolo come muro).
+- **Conseguenze:** `systems/rooms-and-floor-generation.md` aggiorna la sezione "Default proposti dall'implementazione (DEC-170)" (bullet "Telecamera nelle forme a L") e chiude la domanda aperta residua omonima del documento. DEC-170 resta `approved` e riceve una nota di rettifica: il principio generale della telecamera nelle taglie maggiori ("clampata ai bordi della stanza") era già quello giusto; era il default specifico per la L, mai approvato, a discostarsene.
+- **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md`, `docs/design/governance/decision-log.md` (nota su DEC-170) (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-181 — Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso
+
+- **Data:** 2026-07-30
+- **Stato:** approved
+- **Contesto:** primo playtest reale della demo (30/07). Con le stanze multi-cella di DEC-170, due stanze possono condividere più di una coppia di celle adiacenti sul proprio confine (es. due 2x2 affiancate lungo un lato intero, o una 2x2 e una 1x2 a contatto su due celle): la regola di generazione non fissava cosa fare in quel caso, e il playtest ha mostrato più porte affiancate sullo stesso confine fra due stanze — "la porta dev'essere unica, non tre porte insieme".
+- **Decisione:** quando due stanze adiacenti condividono **più coppie di celle adiacenti** (più segmenti di confine contigui), la generazione apre **esattamente una porta** per quella coppia di stanze — mai una porta per ogni coppia di celle. La porta si colloca nel **segmento più centrale** del confine condiviso, scelto **deterministicamente dal seed** del piano (stessa run, stesso seed → stessa posizione). Questo si aggiunge alla regola già fissata da DEC-170 (Scenario 12): la porta collega sempre celle di **stanze diverse**, mai celle della stessa stanza; DEC-181 aggiunge il vincolo di unicità quando il confine fra due stanze è più ampio di una singola coppia di celle.
+- **Alternative considerate:** una porta per ogni coppia di celle adiacenti sul confine (scartata: è il comportamento visto nel playtest, esplicitamente respinto dal proprietario); porta scelta casualmente fra i segmenti possibili invece che nel più centrale (scartata: meno leggibile e meno prevedibile a colpo d'occhio; il segmento centrale è anche il punto più naturale in cui il giocatore si aspetta un varco fra due stanze grandi).
+- **Conseguenze:** `systems/rooms-and-floor-generation.md` guadagna una sezione dedicata alla connettività del piano con questo vincolo e uno scenario verificabile; nessun documento `approved` viene sostituito nel merito, il vincolo si aggiunge a DEC-170 senza modificarne le clausole esistenti.
+- **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-182 — La stanza boss è sempre foglia del grafo del piano: mai un passaggio obbligato
+
+- **Data:** 2026-07-30
+- **Stato:** approved
+- **Contesto:** primo playtest reale della demo (30/07). Nessun documento vincolava finora la posizione topologica della stanza boss nel grafo di adiacenza del piano: la generazione poteva in teoria produrre un piano dove una o più stanze fossero raggiungibili solo attraversando la stanza boss. Il proprietario ha chiesto esplicitamente che le stanze boss siano isolate e che esista sempre un percorso alternativo per ogni altra stanza.
+- **Decisione:** la stanza boss ha **sempre e solo una porta**: è una **foglia del grafo di adiacenza** delle stanze del piano, mai un nodo di passaggio. La generazione deve garantire che, **rimuovendo la stanza boss (e la sua unica porta) dal grafo**, tutte le altre stanze del piano restino **reciprocamente raggiungibili** tramite un percorso alternativo. Questa è una proprietà strutturale della generazione, da **verificare con un test dedicato** sulla generazione dei piani (connettività del grafo meno il nodo boss), non solo una regola dichiarata a parole.
+- **Alternative considerate:** permettere alla stanza boss più di una porta purché il grafo resti comunque connesso senza di lei (scartata: il proprietario ha chiesto esplicitamente l'isolamento, non solo la connettività residua — ed è comunque conseguenza naturale del fatto che la stanza boss riceve tipicamente l'ultima cella disponibile come nodo terminale, DEC-170); lasciare la proprietà solo come raccomandazione senza un test dedicato (scartata: senza un test la proprietà si romperebbe silenziosamente alla prima modifica della generazione).
+- **Conseguenze:** `systems/rooms-and-floor-generation.md` guadagna la regola nella stessa nuova sezione di DEC-181, con rimando da `systems/bosses.md`; nessun documento `approved` viene sostituito, la regola è nuova e non era mai stata fissata prima. Registrato come lavoro di implementazione da fare: il test di connettività del grafo meno il nodo boss non esiste ancora nel motore.
+- **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md`, `docs/design/systems/bosses.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-183 — L'Innesto sganciato resta a terra per tutta la run, non solo finché si resta nella stanza
+
+- **Data:** 2026-07-30
+- **Stato:** approved
+- **Contesto:** primo playtest reale della demo (30/07). DEC-160 (27/07) aveva fissato la reversibilità locale dello sgancio volontario di un Innesto — recuperabile finché si resta nella stanza, perso uscendo — sulla stessa logica dei piedistalli degli attivi (DEC-117). Il proprietario ha giocato questo comportamento e non lo vuole: "non voglio che ci sia 'esci dalla stanza → perso' ma che rimangono".
+- **Decisione:** l'Innesto sganciato volontariamente resta **a terra, nella stanza in cui è stato sganciato, per TUTTA LA RUN**: è recuperabile tornandoci in qualsiasi momento della run, non solo restando nella stessa visita. Non scompare più all'uscita dalla stanza. Questo **supera parzialmente** DEC-160: cade la clausola "uscendo dalla stanza si perde"; resta invariato il resto — l'Innesto sganciato è **a terra**, **recuperabile**, e **mai distrutto** dallo sgancio (nessuna perdita definitiva in nessun caso).
+- **Alternative considerate:** mantenere la perdita all'uscita come DEC-160 (scartata: esplicitamente non voluta dal proprietario dopo il playtest); far rientrare l'Innesto sganciato in un inventario di riserva trasportabile invece che a terra (scartata già da DEC-160 per lo stesso motivo — mantiene la semplicità "a terra dove l'hai lasciato", ora estesa a tutta la run invece che alla sola visita).
+- **Conseguenze:** `systems/grafts.md` aggiorna la sezione "Drop e persistenza" e gli scenari verificabili pertinenti; registra un **gap di implementazione esplicito**: il codice oggi azzera i pickup di una stanza all'ingresso in una stanza qualsiasi (la garanzia usata finora per simulare "perso uscendo"), un comportamento ora troppo aggressivo rispetto alla nuova regola e da correggere perché l'Innesto sganciato sopravviva sul pavimento della sua stanza per l'intera run. Non risolto in questo lavoro (nessuna modifica al codice).
+- **Documenti aggiornati:** `docs/design/systems/grafts.md`, `docs/design/governance/decision-log.md` (nota su DEC-160) (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-184 — L'HUD di gameplay mostra un blocco compatto delle statistiche correnti del personaggio
+
+- **Data:** 2026-07-30
+- **Stato:** approved
+- **Contesto:** primo playtest reale della demo (30/07). L'HUD mostrava salute, risorse, slot attivo/Innesto e progressione, ma nessuna delle statistiche di build (danno, cadenza, ecc.) restava consultabile durante il gameplay: erano visibili solo nel pannello "Statistiche principali" di `BuildScreen` (sola lettura, valori aggiornati in tempo reale), che richiede di aprire una schermata dedicata. Il proprietario ha chiesto di "visualizzare a schermo anche le statistiche tipo velocità, rapidità di sparo ecc.".
+- **Decisione:** l'HUD di `Gameplay` mostra un **blocco compatto delle statistiche correnti**: **danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna** — le stesse statistiche del pannello "Statistiche principali" di `BuildScreen` (`ui/inventory-and-synergy-screen.md`), stesso principio di sola lettura con valori aggiornati in tempo reale, non una fonte diversa di dati. **Default proposti dall'implementazione** (stile DEC-019): collocazione **sotto il blocco salute/risorse**, un **tasto di toggle** per nascondere il blocco a chi non lo vuole a schermo, **visibile di default**.
+- **Alternative considerate:** nessun blocco statistiche in HUD, solo in `BuildScreen` (scartato: è esattamente lo status quo respinto dal playtest); statistiche sempre visibili senza possibilità di nasconderle (scartata: chi preferisce uno schermo più pulito non avrebbe modo di liberare spazio, mentre il toggle costa poco e non toglie nulla a chi le vuole sempre visibili); statistiche mostrate solo a richiesta (tenendo premuto un tasto) invece che come blocco persistente attivabile/disattivabile (scartata: meno immediata per un dato che il giocatore consulta spesso durante il combattimento).
+- **Conseguenze:** `ui/hud.md` guadagna una nuova riga nella tabella "Elementi interattivi", una sezione dedicata e uno scenario verificabile; la priorità visiva del blocco resta sotto sopravvivenza e risorse spendibili, coerente con l'Intento del documento (decisioni immediate di sopravvivenza prima di tutto). Nessun documento `approved` viene sostituito: è un elemento nuovo, mai fissato prima.
+- **Documenti aggiornati:** `docs/design/ui/hud.md` (aggiornato in questo stesso lavoro)

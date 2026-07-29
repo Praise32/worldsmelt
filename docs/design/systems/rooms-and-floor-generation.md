@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md."
+summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
 last_verified_commit: 17204df
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170]
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h]
@@ -97,7 +97,9 @@ implementazione**, non fissati da questa decisione.
   dello schermo; la **telecamera lo segue** a **zoom fisso** — **nessuno zoom dinamico** che
   si adatti alla taglia della stanza o all'azione — **clampata ai bordi della stanza**: non
   mostra mai area fuori dal rettangolo occupato dalla stanza, nemmeno quando il giocatore è
-  a ridosso di un bordo.
+  a ridosso di un bordo. Questo vale **allo stesso modo per la forma a L** (DEC-180, 30/07):
+  il clamp è sul rettangolo dell'**intera stanza** (il blocco 2x2), non su una singola
+  cella — vedi il dettaglio nella sezione "Default proposti dall'implementazione" sotto.
 
 Come i layout di ostacoli esistenti (`ROOM_LAYOUT_*`, vedi
 [Secrets and Obstacles](./secrets-and-obstacles.md)) si applichino alle stanze multi-cella —
@@ -151,13 +153,21 @@ da confermare (vedi `governance/open-questions.md`).
   ostacolo solido (ferma giocatore, nemici e colpi con lo stesso codice degli ostacoli) e il
   renderer lo disegna come parete. Sull'altro lato può esserci una stanza diversa, e in quel
   caso la porta è normale.
-- **Telecamera nelle forme a L:** il clamp usa il rettangolo della **cella corrente**, non
+- ~~**Telecamera nelle forme a L:** il clamp usa il rettangolo della **cella corrente**, non
   il riquadro della stanza. È l'unico modo di rispettare "non mostra mai area fuori dal
   rettangolo occupato" senza introdurre uno zoom dinamico (che DEC-170 vieta) o una
   maschera: il riquadro di una L contiene l'angolo mancante, e una telecamera libera dentro
   il riquadro lo mostrerebbe. Il salto di inquadratura al cambio di cella è assorbito da una
   **interpolazione breve** (avvicinamento esponenziale, ~0,25 s per il 95% dello scarto), la
-  stessa che smorza l'inseguimento nelle altre taglie.
+  stessa che smorza l'inseguimento nelle altre taglie.~~ — **superato da DEC-180** (30/07,
+  primo playtest): la telecamera nelle forme a L segue il giocatore **in continuo**,
+  **clampata al rettangolo dell'intera stanza** (il blocco 2x2), esattamente come nelle
+  altre taglie maggiori — nessun clamp per cella, nessuna interpolazione al cambio di
+  cella. L'angolo mancante può entrare in inquadratura: da W8 il tileset lo rende come
+  **muro/sfondo** (vedi [Stato di implementazione: la stanza vestita dal
+  tileset](#stato-di-implementazione-la-stanza-vestita-dal-tileset-w8-2026-07-30) sotto),
+  quindi il vincolo "non mostra mai area fuori dalla stanza" resta soddisfatto dal
+  **rendering del vuoto**, non più dal clamp per cella.
 - **Inseguimento:** la telecamera è **stato di simulazione**, aggiornata a passo fisso
   insieme al giocatore (non nel rendering), così a parità di passi simulati l'inquadratura è
   identica. All'ingresso in una stanza si aggancia subito all'inquadratura giusta: entrare
@@ -168,6 +178,37 @@ da confermare (vedi `governance/open-questions.md`).
 riquadro della **stanza corrente** invece che con un rettangolo fisso. La firma non cambia,
 gli script del catalogo già su disco continuano a funzionare e descrivono lo spazio vero;
 ogni scrittura resta comunque clampata dentro la stanza dal motore.
+
+## Porte e connettività del piano (DEC-181, DEC-182)
+
+Due regole emerse dal primo playtest reale della demo (30/07), che si aggiungono alla
+regola di generazione delle porte già fissata da DEC-170 (Scenario 12: la porta collega
+sempre celle di **stanze diverse**, mai celle della stessa stanza) senza modificarla.
+
+### Una porta per coppia di stanze (DEC-181)
+
+Con le stanze multi-cella di DEC-170, due stanze adiacenti possono condividere **più di
+una coppia di celle** sul proprio confine (es. due 2x2 affiancate lungo un lato intero, o
+una 2x2 e una 1x2 a contatto su due celle). In questo caso la generazione apre
+**esattamente una porta** per quella coppia di stanze — **mai** una porta per ogni coppia
+di celle adiacenti, mai porte multiple affiancate sullo stesso confine. La porta si
+colloca nel **segmento più centrale** del confine condiviso, scelto **deterministicamente
+dal seed** del piano: stessa run, stesso seed, stessa posizione.
+
+### La stanza boss è sempre foglia del grafo (DEC-182)
+
+La stanza boss ha **sempre e solo una porta**: è una **foglia del grafo di adiacenza**
+delle stanze del piano, mai un nodo di passaggio. La generazione deve garantire che,
+**rimuovendo la stanza boss e la sua unica porta dal grafo**, tutte le altre stanze del
+piano restino **reciprocamente raggiungibili** tramite un percorso alternativo — nessuna
+stanza il cui unico accesso passi per forza dalla stanza boss. Questa è una proprietà
+**strutturale** della generazione del piano, da **verificare con un test dedicato** sulla
+generazione (connettività del grafo meno il nodo boss), non solo una regola dichiarata a
+parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
+
+**Stato:** entrambe regole di design **approved** (DEC-181, DEC-182). **Non ancora
+implementato/verificato**: il test dedicato di connettività del grafo meno il nodo boss
+non esiste ancora nel motore — gap esplicito, stile DEC-009/DEC-052.
 
 ## Tipi di stanza (tassonomia completa, DEC-010)
 
@@ -211,6 +252,10 @@ Il giocatore si muove liberamente ed entra/esce dalle stanze attraverso i varchi
 - ricompensa;
 - compatibilità con gli archetipi nemici (vedi [enemies.md](./enemies.md));
 - assenza di blocchi impossibili;
+- una sola porta per coppia di stanze adiacenti, anche quando il confine condiviso copre
+  più coppie di celle (DEC-181);
+- se la stanza è la stanza boss: una sola porta, foglia del grafo di adiacenza del piano,
+  mai un passaggio obbligato per raggiungere un'altra stanza (DEC-182);
 - rispetto della grandezza minima garantita (DEC-009).
 
 ## Risultato
@@ -349,10 +394,15 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera, non questi valori:
   dettagli di implementazione). **Default proposti dall'implementazione il 27/07** nella
   sezione omonima sopra, in attesa di conferma.
-- Se il clamp della telecamera nelle forme a L debba restare la **cella corrente** (scelta
-  dell'implementazione: nessuno zoom dinamico, l'angolo mancante non si vede mai, ma il
-  giocatore non vede la cella in cui sta per entrare finché non la attraversa) o se valga la
-  pena di una regola più permissiva.
+- ~~Se il clamp della telecamera nelle forme a L debba restare la **cella corrente**
+  (scelta dell'implementazione: nessuno zoom dinamico, l'angolo mancante non si vede mai,
+  ma il giocatore non vede la cella in cui sta per entrare finché non la attraversa) o se
+  valga la pena di una regola più permissiva.~~ — **Chiusa (30/07, DEC-180):** il clamp è
+  ora sul rettangolo dell'**intera stanza**, non sulla cella corrente; l'angolo mancante
+  può entrare in inquadratura e il tileset lo rende come muro/sfondo (W8).
+- Il test dedicato che verifica la connettività del grafo delle stanze **meno il nodo
+  boss** (DEC-182) non esiste ancora nel motore: resta un gap di implementazione da
+  chiudere, non solo una regola di design.
 
 ## Scenari
 
@@ -420,10 +470,22 @@ Then non c'è transizione, né porta, né ricarica di contenuti: cammina dentro 
 
 Given una stanza a L (tre celle di un blocco 2x2)
 When il giocatore cammina verso l'angolo mancante
-Then viene fermato come da un muro, e la telecamera — clampata alla cella corrente — non mostra mai l'interno dell'angolo mancante (DEC-170)
+Then viene fermato come da un muro; la telecamera — clampata al rettangolo dell'intera stanza (DEC-180) — può mostrarlo in inquadratura, ma il tileset lo rende come muro/sfondo, mai come area vuota fuori dalla stanza
 
 ### Scenario 12 — Porte fra celle di stanze diverse
 
 Given due stanze adiacenti sul piano, di cui una multi-cella
 When la generazione collega il piano
 Then la porta collega le due CELLE adiacenti (una stanza 2x2 può avere porte su più lati esterni), mentre fra due celle della stessa stanza non esiste porta
+
+### Scenario 13 — Una sola porta fra due stanze con confine ampio
+
+Given due stanze adiacenti che condividono più di una coppia di celle sul proprio confine
+When la generazione collega il piano
+Then si apre esattamente una porta, nel segmento più centrale del confine condiviso, scelto deterministicamente dal seed del piano — mai porte multiple affiancate sullo stesso confine (DEC-181)
+
+### Scenario 14 — La stanza boss non è mai un passaggio obbligato
+
+Given un piano generato con la sua stanza boss, che ha una sola porta
+When si rimuove la stanza boss e la sua porta dal grafo di adiacenza delle stanze
+Then tutte le altre stanze del piano restano reciprocamente raggiungibili tramite un percorso alternativo, perché la stanza boss è sempre una foglia del grafo (DEC-182)

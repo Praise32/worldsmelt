@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-30
 last_verified_commit: 82a0232
-topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042]
+topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042, DEC-184]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c]
@@ -47,6 +47,12 @@ L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota 
 | Conferma fusione (**demo**, vedi la nota sotto) | Sempre, nella fascia «Fusione» | Due sorgenti scelte e almeno un catalizzatore | Confermare l'operazione | Esegue la fusione secondo `systems/item-fusion.md` | Esito con nome e immagine del composto; se non si può fondere, il motivo in chiaro |
 | Effetti temporanei | Almeno un effetto temporaneo è attivo | — (sola lettura) | Nessuna | — | Durata residua indicata |
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Seleziona la sezione prove | Mostra le prove specifiche della run e il loro stato di completamento | Evidenzia le prove già completate |
+
+> **Nota (30/07, DEC-184):** le stesse statistiche della riga "Statistiche principali" —
+> danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna — sono ora
+> consultabili anche in un blocco compatto dell'HUD durante `Gameplay`, visibile di
+> default con un tasto di toggle: vedi [HUD](./hud.md). Questa schermata resta comunque la
+> vista completa e non è sostituita da quel blocco.
 
 ## Sinergie implicite e fusione: due binari distinti
 

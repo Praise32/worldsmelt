@@ -1536,18 +1536,18 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 179 decisioni di design (DEC-001..DEC-179) che cambiano il comportamento del gioco: 178 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 184 decisioni di design (DEC-001..DEC-184) che cambiano il comportamento del gioco: 183 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..179"
+        "DEC-001..184"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-28",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "d30890b"
     },
     {
@@ -1696,19 +1696,21 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028, DEC-106): piani 1 e 2 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054).",
+      "summary": "Boss come culmine del piano; sconfiggere il boss del piano 5 chiude la run con vittoria (DEC-006, aggiornata da DEC-031). La prosecuzione in piani extra non è implementata ora: resta un'idea futura (DEC-018). Escalation di fasi per piano (DEC-028, DEC-106): piani 1 e 2 fase singola, dal piano 3 due fasi, piano 5 il più complesso. Bande di potenza e pesi di rarità del pool boss restano default draft (DEC-019). Tutti e 5 i boss della run sono generati dal tema, validati nelle bande boss: nessun boss fisso del gioco (DEC-054). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato per un'altra stanza (DEC-182, fonte unica in rooms-and-floor-generation.md).",
       "topics": [
         "boss",
         "vittoria",
         "escalation",
         "fasi",
         "DEC-054",
-        "bande di potenza"
+        "bande di potenza",
+        "DEC-182",
+        "boss-isolato"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "0ec60d0"
     },
     {
@@ -1848,7 +1850,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, recuperabile finché si resta nella stanza (DEC-160).",
+      "summary": "Innesto: categoria di oggetto piccolo, situazionale e sostituibile, con slot iniziale singolo ed espandibile. Doppia natura per rarità (DEC-034, DEC-107): comuni/non-comuni/rari potenti ma dentro le regole, solo la rarità leggendaria come piega-regole di una singola regola del gioco. Lo sgancio volontario lascia l'Innesto a terra, nella stanza in cui è stato sganciato, recuperabile per TUTTA LA RUN (DEC-183, supera parzialmente DEC-160: cade la clausola \\\"perso uscendo dalla stanza\\\").",
       "topics": [
         "Innesto",
         "Graft",
@@ -1856,12 +1858,13 @@
         "piega-regole",
         "DEC-034",
         "DEC-107",
-        "DEC-160"
+        "DEC-160",
+        "DEC-183"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "8210480"
     },
     {
@@ -2023,7 +2026,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md.",
+      "summary": "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md.",
       "topics": [
         "stanze",
         "piani",
@@ -2033,7 +2036,12 @@
         "taglie-multiple",
         "telecamera",
         "forma-a-L",
-        "DEC-170"
+        "DEC-170",
+        "DEC-180",
+        "DEC-181",
+        "DEC-182",
+        "porta-unica",
+        "boss-isolato"
       ],
       "related": [],
       "supersedes": [],
@@ -2378,7 +2386,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11).",
+      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184).",
       "topics": [
         "hud",
         "gameplay",
@@ -2392,7 +2400,9 @@
         "DEC-152",
         "DEC-169",
         "DEC-174",
-        "canvas-960x640"
+        "canvas-960x640",
+        "DEC-184",
+        "statistiche"
       ],
       "related": [],
       "supersedes": [],
@@ -2428,7 +2438,8 @@
         "prove",
         "pause-menu",
         "DEC-012",
-        "DEC-042"
+        "DEC-042",
+        "DEC-184"
       ],
       "related": [],
       "supersedes": [],
@@ -2436,7 +2447,7 @@
         "src/render/game_renderer.c",
         "src/app/app.c"
       ],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "82a0232"
     },
     {
