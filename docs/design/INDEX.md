@@ -29,7 +29,7 @@
 - [Definition of Ready — Feature di Game Design](governance/definition-of-ready.md) — Checklist dei criteri che rendono una feature di design pronta per la pianificazione tecnica: obiettivo, scenari, fallback, vocabolario canonico. `[approved/canonical]`
 - [Design Probes](governance/design-probes.md) — Otto domande-risposta usate per verificare che un agente recuperi correttamente il design (Piano 0, fusione, personaggi, meta-punti, sinergia visiva, casualità, classifica, ambiguità). `[approved/supporting]`
 - [Glossary](governance/glossary.md) — Vocabolario canonico bilingue (italiano/in-game inglese) di stati, oggetti, risorse, nemici, personaggi e presentazione; fonte unica della nomenclatura DEC-072. `[approved/canonical]`
-- [Open Questions](governance/open-questions.md) — Coda ufficiale e unica delle domande ancora aperte (21 voci attive su 22 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset. `[draft/canonical]`
+- [Open Questions](governance/open-questions.md) — Coda ufficiale e unica delle domande ancora aperte (25 voci attive su 26 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset. `[draft/canonical]`
 
 ## systems/
 

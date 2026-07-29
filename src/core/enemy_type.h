@@ -52,6 +52,19 @@ typedef enum EnemyFire {
 typedef struct EnemyTypeDef {
     bool active;
     char name[32];         /* inventato dal modello: mostrato per i boss, usato nei log */
+    /* W8: l'IMAGE-ID di questo nemico (DEC-175(b)), cioe' la chiave con cui il
+       renderer cerca il suo spritesheet in assets/art/{enemies,bosses}. NON e'
+       un percorso di file e non deve diventarlo: il contenuto referenzia un
+       image-id, la risoluzione a file resta di src/assets. Vuoto = nessun
+       originale artistico, e il gioco ricade sulle sagome geometriche di
+       DrawEnemy come prima di W8 -- e' il caso di OGNI nemico inventato dal
+       modello (melting-gen non scrive mai questo campo: gli image-id li
+       assegna il layer di indirezione del contenuto CURATO, che e' l'unico a
+       conoscerli) e quindi lo zero-default corretto.
+       Viaggia dentro EnemyTypeDef per lo stesso motivo di tutto il resto qui:
+       il tipo viene copiato per valore dentro l'Enemy allo spawn, e il
+       contenuto del piano puo' cambiare sotto i piedi (generazione pigra). */
+    char imageId[40];
     EnemyForm form;
     EnemyMove move;
     EnemyFire fire;

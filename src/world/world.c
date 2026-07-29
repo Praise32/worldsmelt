@@ -878,8 +878,8 @@ void WorldSpawnCombatRoom(Game *game)
                finire scartata dalla coda, DEC-131/152, senza che il Catalogo
                se ne accorga). */
             if (!game->enemyEncountered[game->floor - 1][slot])
-                GameQueueDiscoveryCard(game, type->name[0] ? type->name : "Nemico sconosciuto",
-                                       "Una nuova minaccia di questo mondo.");
+                GameQueueDiscoveryCardWithImage(game, type->name[0] ? type->name : "Nemico sconosciuto",
+                                                "Una nuova minaccia di questo mondo.", type->imageId);
             game->enemyEncountered[game->floor - 1][slot] = true;
             budget -= cost;
         }
@@ -952,7 +952,8 @@ void WorldSpawnRoomContents(Game *game)
         if (!game->bossEncountered[game->floor - 1])
         {
             const char *bossName = (bossType && bossType->name[0]) ? bossType->name : "Il boss del piano";
-            GameQueueDiscoveryCard(game, bossName, "Il guardiano di questo piano.");
+            GameQueueDiscoveryCardWithImage(game, bossName, "Il guardiano di questo piano.",
+                                            bossType ? bossType->imageId : NULL);
         }
         game->bossEncountered[game->floor - 1] = true;
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale: ultimo piano." : "Boss del piano.");

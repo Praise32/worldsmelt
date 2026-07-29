@@ -463,6 +463,19 @@ typedef struct Item {
        ri-fusione (DEC-102: ammessa, nessun limite) e all'etichetta di
        origine 'composto'. */
     char imagePath[64];
+    /* W8: l'IMAGE-ID risolto per questo oggetto (DEC-175(b)), accanto al file
+       curato e non al posto suo. I due campi sono i due gradini della stessa
+       priorita', non due alternative: 'imageId' e' la chiave con cui si cerca
+       PRIMA l'originale animato in assets/art/ (ArtAtlasFindByImageId,
+       src/assets/art_atlas.h), 'imagePath' e' il ripiego CC0 di DEC-171 quando
+       quell'originale non esiste ancora. Tenere solo l'id avrebbe voluto dire
+       ricostruire il percorso curato riaprendo il manifest a ogni frame di
+       disegno; tenere solo il percorso avrebbe voluto dire indovinare l'id dal
+       nome del file, cioe' scavalcare in silenzio proprio il layer di
+       indirezione che DEC-175(b) impone. Scritto dagli STESSI due punti che
+       scrivono imagePath (ApplyCuratedCatalog in content/run_content.c e
+       FusionPerform in gameplay/fusion.c) e azzerato con lui. */
+    char imageId[40];
     char fusedFrom[2][40];
 } Item;
 
@@ -604,6 +617,22 @@ typedef struct Player {
     float luck;
     float fireTimer;
     float invuln;
+    /* W8: la direzione verso cui il personaggio GUARDA (una Direction, DIR_*),
+       e da quanto tempo si sta muovendo senza interruzioni.
+     *
+       Servono perche' lo spritesheet del personaggio ha quattro camminate
+       separate (walk_down/walk_up/walk_right/walk_left) piu' un idle, e
+       nessuna delle due informazioni e' derivabile dalla sola posizione: la
+       velocita' del giocatore non e' memorizzata (il movimento e' un delta
+       applicato e dimenticato, vedi GameUpdatePlayer), e "fermo" va distinto
+       da "si muove" per scegliere fra idle e camminata. Li scrive UN SOLO
+       punto (GameUpdatePlayer, src/game/game.c) e il renderer li legge
+       soltanto.
+       Zero-default: DIR_UP con 'walkTime' 0 -- un Player azzerato guarda in su
+       e sta fermo, cioe' mostra l'idle, che e' il fotogramma piu' innocuo da
+       mostrare per un personaggio appena creato. */
+    int animFacing;
+    float walkTime;
     /* Maschera di trait che CombatFirePlayer mette sui colpi. Scritta da UN
        SOLO punto, ScriptItemsRecomputeStats, che la ricalcola da ZERO dagli
        oggetti posseduti come ogni altra statistica -- non piu' un OR
@@ -748,6 +777,14 @@ typedef struct Enemy {
     float phase;
     float firePhase;
     float chargeTimer;
+    /* W8: secondi che restano all'animazione 'hit' (la riga del colpo subito
+       negli spritesheet di assets/art/enemies|bosses). Vive sull'Enemy e non
+       nel renderer perche' "sono stato colpito ADESSO" e' un evento del
+       gameplay, non uno stato derivabile da una posizione: CombatDamageEnemy e'
+       l'unico a scriverlo, il ciclo dei nemici lo consuma, e il renderer lo
+       legge soltanto. Zero-default (nessun colpo in corso): un nemico azzerato
+       con memset mostra la camminata di sempre. */
+    float hitFlash;
 } Enemy;
 
 typedef struct Shot {
@@ -833,6 +870,46 @@ typedef struct Particle {
     Color color;
 } Particle;
 
+/* W8: un'animazione di MORTE che continua a scorrere dopo che l'entita' non
+ * c'e' piu'.
+ *
+ * Perche' non basta l'entita' stessa: un nemico morto esce di scena nello
+ * STESSO istante in cui perde l'ultimo punto vita (enemy->active = false in
+ * CombatDamageEnemy) -- e' l'invariante su cui poggiano punteggio, drop,
+ * conteggio "stanza pulita" e la maschera hitMask dei colpi. Tenerlo "attivo
+ * ma morente" per far scorrere i 4-6 fotogrammi della riga 'death' del suo
+ * spritesheet avrebbe voluto dire rivedere ogni "if (e->active)" del motore:
+ * un cambio di semantica grosso, per un effetto puramente visivo. Questi
+ * effetti sono invece un secondo insieme, SOLO grafico -- niente collisione,
+ * niente danno, niente punteggio, nessuna lettura da parte del gameplay --
+ * con lo stesso ciclo di vita delle particelle (nascono da un evento, scorrono
+ * a tempo, si spengono da soli, EntitiesClear li azzera).
+ *
+ * 'imageId' e' l'IMAGE-ID di chi e' morto (DEC-175(b)), non una chiave di file
+ * ne' un puntatore: chi genera l'effetto sta in src/gameplay, che non conosce
+ * la spartizione in categorie di assets/art/ e non deve cominciare a
+ * conoscerla -- la risoluzione a spritesheet resta di src/assets
+ * (ArtAtlasFindByImageId), letta dal renderer. Un puntatore, oltretutto, si
+ * romperebbe al primo ArtAtlasShutdown, e Game deve restare POD azzerabile con
+ * memset. Vuoto = nessuno sprite: l'effetto non disegna nulla (un nemico senza
+ * originale artistico non lascia animazione di morte, come prima di W8). */
+#define MAX_ART_FX 12
+typedef struct ArtFx {
+    bool active;
+    char imageId[40];
+    char anim[20];
+    Vector2 pos;      /* il punto in cui l'ancora dello sprite va appoggiata (i "piedi") */
+    /* La larghezza VOLUTA a schermo, in pixel, non un fattore di scala: chi
+       genera l'effetto sta in src/gameplay e non sa quanti pixel abbia il
+       fotogramma di quello spritesheet. La conversione in scala la fa il
+       renderer (ArtScaleForWidth), che il manifest lo ha letto. */
+    float wantedWidth;
+    float elapsed;    /* secondi dall'inizio: e' l'argomento di ArtAnimFrameAt */
+    float duration;   /* durata totale dell'animazione, oltre la quale si spegne */
+    bool flipX;
+    Color tint;
+} ArtFx;
+
 /* Stato di runtime Lua per l'oggetto nello slot i-esimo di Player.items[]
    (fase 3a-L2). Vive qui, in "core", non in src/script/, perche' Game deve
    restare un dato POD semplice (array fissi, zero allocazioni fuori da Lua
@@ -893,6 +970,12 @@ typedef struct ScriptCharacterRuntime {
 typedef struct DiscoveryCard {
     char name[48];
     char line[160];
+    /* W8: l'IMAGE-ID dello sprite da mostrare nella card (DEC-175(b)), che il
+       documento chiede da sempre ("sprite, nome, una riga di descrizione") e
+       che la v1 a solo testo non aveva. Vuoto = nessuno sprite, e la casella
+       della card resta vuota: e' il caso di ogni scoperta il cui contenuto non
+       passi dal layer di indirezione (un nemico inventato dal modello). */
+    char imageId[40];
 } DiscoveryCard;
 
 /* DEC-131: cap della coda, valore provvisorio da playtest (~5, come da
@@ -937,6 +1020,10 @@ typedef struct Game {
     Pickup pickups[MAX_PICKUPS];
     Bomb bombs[MAX_BOMBS];
     Particle particles[MAX_PARTICLES];
+    /* W8: le animazioni di morte ancora in scorrimento (vedi ArtFx sopra).
+       Accanto alle particelle perche' hanno lo stesso ciclo di vita e lo
+       stesso aggiornamento (GameUpdateParticles), non perche' siano entita'. */
+    ArtFx artFx[MAX_ART_FX];
     /* Ostacoli solidi della stanza CORRENTE (fase 3c): ricostruiti da
        WorldSpawnRoomContents ogni volta che si entra in una stanza, a partire dal
        RoomLayoutDef del piano. Vuoto (obstacleCount 0) per le stanze senza layout e
@@ -1399,6 +1486,11 @@ typedef struct AppUi {
     char fusionMessage[96];
     char fusionResultName[48];
     char fusionResultImage[64];
+    /* W8: l'IMAGE-ID del risultato, accanto al percorso curato e per lo stesso
+       motivo di Item.imageId (vedi il commento li'): la fascia FUSIONE deve
+       mostrare l'originale animato quando esiste, il ponte CC0 altrimenti.
+       Copiato dal fuso da AppFusionConfirm, insieme a nome e percorso. */
+    char fusionResultImageId[40];
 } AppUi;
 
 #endif

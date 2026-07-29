@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Impostazioni e accessibilità, incluso lo schema di controllo approvato. Parità rigorosa tastiera/controller (DEC-057), con il Piano 0 che conta come menu ai fini del mouse (DEC-075), e tre garanzie canoniche di accessibilità: rimappatura totale, nessuna informazione affidata al solo colore, riduzione effetti (DEC-058)."
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-30
 last_verified_commit: 0ec60d0
 topics: [opzioni, accessibilita, input-parity, controller, lettore-di-schermo, DEC-057, DEC-058, DEC-075, DEC-086, DEC-166]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/app/app.c, src/audio/audio.h, src/render/game_renderer.c]
 ---
 
 # Options and Accessibility
@@ -36,6 +36,35 @@ Da `MainMenu` o da `PauseMenu`; al ritorno, il focus torna alla voce che ha aper
 - gameplay (per chi ha scelto "solo curato" al primo avvio: voce di riattivazione della
   generazione IA, DEC-086, vedi sotto);
 - privacy e online, se applicabile.
+
+### Stato di implementazione: la categoria audio (W8, 2026-07-30)
+
+Delle sei categorie minime esiste oggi **solo l'audio**, con tre righe-slider. Le altre
+cinque restano da scrivere e W8 non le ha inventate: `APP_OPTIONS` mostra ancora, in coda,
+la sola informazione consultabile che aveva prima ("Schermo intero -- F11").
+
+I tre volumi (`Volume generale`, `Musica`, `Effetti`) sono agganciati ad
+`AudioSetMasterVolume`/`AudioSetMusicVolume`/`AudioSetSfxVolume` (`src/audio/audio.h`):
+il master **moltiplica** musica e SFX, non è un quarto canale, e le tre funzioni clampano
+già in [0,1] — il clamp vive in un solo posto, quello che possiede il valore.
+
+Perché sono **voci di menu a pieno titolo** e non un widget a parte: stesso indice, stessa
+geometria, stesso hit-test del mouse delle altre righe, perché la parità rigorosa di
+DEC-057 vale anche per uno slider. Su/giù scelgono la riga, sinistra/destra cambiano il
+valore, ESC esce sempre, ENTER esce solo dalla riga "Indietro" — su una riga-slider un
+ENTER non ha significato (il valore è già applicato) e chiudere la schermata sarebbe una
+sorpresa mentre si sta regolando. Il suono di navigazione fa da **anteprima** del volume
+appena scelto: è l'unico modo di sentire l'effetto dello slider SFX senza uscire dal menu.
+Il valore si legge sia dalle dieci caselle sia dalla percentuale scritta accanto — nessuna
+informazione affidata al solo colore o alla sola lunghezza (DEC-058).
+
+**Default proposti** (stile DEC-019, perché questo documento elenca "audio" senza fissare
+slider né valori): passo del **10%** su dieci caselle, ordine `generale`/`musica`/`effetti`,
+partenza a 1.0, e **nessuna persistenza** fra un avvio e l'altro — il gioco non ha un file
+di configurazione e inventarne uno avrebbe voluto dire decidere da soli percorso, formato e
+politica di migrazione. Domande aperte **24** e **25** in
+`../governance/open-questions.md`; voce **9** di `docs/engineering/known-issues.md` per lo
+stato del difetto noto.
 
 ## Parità rigorosa di input (DEC-057)
 

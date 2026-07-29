@@ -364,7 +364,7 @@
         "src/render",
         "src/assets"
       ],
-      "last_reviewed": "2026-07-28",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": null
     },
     {
@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (21 voci attive su 22 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (25 voci attive su 26 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -2037,8 +2037,13 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "source_files": [
+        "src/render/game_renderer.c",
+        "src/assets/art_atlas.h",
+        "src/render/art_draw.h",
+        "src/core/room_layout.h"
+      ],
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "17204df"
     },
     {
@@ -2399,9 +2404,12 @@
         "src/gameplay/combat.c",
         "src/render/game_renderer.c",
         "src/render/game_renderer.h",
-        "src/tests/discovery_tests.c"
+        "src/render/art_draw.h",
+        "src/assets/art_atlas.h",
+        "src/tests/discovery_tests.c",
+        "scripts/cp2_hud_mocks.lua"
       ],
-      "last_reviewed": "2026-07-28",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "1263957"
     },
     {
@@ -2534,8 +2542,12 @@
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "source_files": [
+        "src/app/app.c",
+        "src/audio/audio.h",
+        "src/render/game_renderer.c"
+      ],
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "0ec60d0"
     },
     {

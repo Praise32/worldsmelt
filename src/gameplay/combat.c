@@ -114,11 +114,31 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
 
     AudioPlaySfx(AUDIO_SFX_HIT_ENEMY);
     enemy->hp -= damage;
+    /* W8: apre la finestra dell'animazione 'hit' (vedi Enemy.hitFlash). 0.12 s
+       e' un fotogramma di quella riga a 10 fps piu' un margine: abbastanza per
+       vedersi, abbastanza poco per non nascondere la camminata di un nemico
+       colpito a raffica. */
+    enemy->hitFlash = 0.12f;
     if (traits & TRAIT_SLOW) enemy->slowTimer = 1.6f;
     EntitiesAddParticle(game, enemy->pos, game->theme.accent2, 4);
     if (enemy->hp <= 0.0f)
     {
         enemy->active = false;
+        /* W8: la riga 'death' dello spritesheet continua a scorrere dopo che il
+           nemico e' uscito di scena (ArtFx, core/game_types.h). La chiave si
+           compone qui e non in src/render perche' e' qui che si sa QUALE nemico
+           e' morto -- un istante dopo, l'Enemy e' uno slot riciclabile. Non e'
+           un percorso di file: e' l'image-id, e la risoluzione a spritesheet
+           resta di src/assets (DEC-175(b)).
+           La durata e' un tetto generoso per la riga 'death' del contratto
+           d'arte (4 fotogrammi a 8-10 fps per un nemico, 6 a 7 fps per un
+           boss); superarla e' innocuo, vedi EntitiesAddArtFx. La scala e' la
+           stessa che il renderer usa per il nemico vivo, espressa qui come
+           larghezza voluta in pixel (raggio*3.3) perche' src/gameplay non sa
+           quanti pixel abbia il fotogramma: la converte ArtScaleForWidth. */
+        EntitiesAddArtFx(game, enemy->type.imageId, "death", enemy->pos,
+                         enemy->radius*3.3f, (enemy->kind == ENEMY_BOSS) ? 0.95f : 0.55f,
+                         enemy->vel.x < -1.0f, WHITE);
         game->score += (enemy->kind == ENEMY_BOSS) ? 300 : 30;
         EntitiesAddParticle(game, enemy->pos, enemy->kind == ENEMY_BOSS ? game->theme.boss : game->theme.enemy, 22);
         /* Step C (fortuna): la probabilita' di rubare vita non e' piu' un 18%
@@ -534,6 +554,23 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
     if (IsKeyDown(KEY_A)) move.x -= 1.0f;
     if (IsKeyDown(KEY_D)) move.x += 1.0f;
     move = GameMathNormalize(move);
+    /* W8: lo stato di ANIMAZIONE del personaggio (Player.animFacing/walkTime,
+       core/game_types.h) si scrive QUI e in nessun altro punto -- e' l'unico
+       posto che sa se il giocatore si sta muovendo e verso dove, perche' il
+       movimento e' un delta applicato e dimenticato (non esiste una
+       Player.vel). L'asse VERTICALE vince sull'orizzontale in diagonale: le
+       quattro camminate dello spritesheet sono ortogonali, una diagonale deve
+       scegliere, e la scelta verticale rende leggibile "sto salendo/scendendo",
+       che e' l'informazione che conta in una stanza vista dall'alto.
+       'walkTime' si azzera appena si sta fermi, cosi' la camminata ricomincia
+       sempre dal primo fotogramma (un passo che riprende a meta' si vede) e
+       'walkTime == 0' significa esattamente "fermo" per il renderer. */
+    if (move.y < -0.001f) p->animFacing = DIR_UP;
+    else if (move.y > 0.001f) p->animFacing = DIR_DOWN;
+    else if (move.x < -0.001f) p->animFacing = DIR_LEFT;
+    else if (move.x > 0.001f) p->animFacing = DIR_RIGHT;
+    if (GameMathLengthSquared(move) > 0.0001f) p->walkTime += dt;
+    else p->walkTime = 0.0f;
     p->pos = GameMathAdd(p->pos, GameMathScale(move, p->speed*dt));
     /* DEC-170: il bordo e' quello della stanza corrente, che ora puo' valere
        piu' celle -- dentro ci si cammina senza transizioni (l'angolo mancante
@@ -700,6 +737,10 @@ void CombatUpdateEnemies(Game *game, float dt)
         float dist = sqrtf(GameMathLengthSquared(toPlayer));
         float slow = e->slowTimer > 0.0f ? 0.45f : 1.0f;
         if (e->slowTimer > 0.0f) e->slowTimer -= dt;
+        /* W8: la finestra dell'animazione 'hit' si chiude qui, nello stesso
+           ciclo che consuma slowTimer -- un solo posto in cui i timer di un
+           nemico avanzano. */
+        if (e->hitFlash > 0.0f) e->hitFlash -= dt;
 
         Vector2 move;
         if (e->type.active)
@@ -1157,5 +1198,16 @@ void GameUpdateParticles(Game *game, float dt)
         p->vel = GameMathScale(p->vel, 0.90f);
         p->life -= dt;
         if (p->life <= 0.0f) p->active = false;
+    }
+    /* W8: gli effetti grafici scorrono con lo stesso orologio delle particelle
+       (un solo passo di frame per il gioco intero) e si spengono da soli quando
+       l'animazione e' finita. Nessun altro modulo li legge: non hanno
+       collisione, danno ne' punteggio. */
+    for (int i = 0; i < MAX_ART_FX; i++)
+    {
+        ArtFx *fx = &game->artFx[i];
+        if (!fx->active) continue;
+        fx->elapsed += dt;
+        if (fx->elapsed >= fx->duration) fx->active = false;
     }
 }

@@ -37,7 +37,42 @@ Lua fallisce.
 - **`app`**: ciclo applicativo, finestra, opzioni da riga di comando, i nove stati sopra
   e l'orchestrazione dei due processi esterni (`gen.command`/`gen.spritesCommand`,
   `src/app/app.c:1124-1125`).
-- **`assets`**: caricamento e rilascio delle risorse Raylib (atlas, font).
+- **`assets`**: caricamento e rilascio delle risorse Raylib. Due moduli:
+  `game_assets.{h,c}` (l'atlas generato da `melting-sprites` + la cache delle immagini
+  CURATE di DEC-171, `AssetsCuratedTexture`) e — da **W8** — `art_atlas.{h,c}`,
+  prefisso `ArtAtlas*`: il pacchetto artistico ORIGINALE di `assets/art/`
+  (spritesheet + manifest, tileset dei temi, atlas icone, font pixel).
+  Tre scelte da ricordare:
+  1. **Perché in `assets` e non in `render`.** Qui si CARICA e si POSSIEDE (`Texture2D`
+     + geometria dei fotogrammi); chi DISEGNA è `src/render/art_draw.{h,c}` (vedi
+     `render` sotto) e riceve solo dati. Il taglio non è formale: `art_atlas.c` non
+     chiama una sola funzione di disegno, quindi il suo parser e il suo animatore sono
+     esercitabili senza finestra aperta (`--art-atlas-test`, `src/tests/art_atlas_tests.c`).
+     È lo stesso confine già in atto fra `content/curated_images.c` (solo testo) e
+     `assets/game_assets.c` (l'unico che tocca la GPU).
+  2. **Parser dedicato, nessuna libreria.** Il binario del gioco non linka mai cJSON
+     (AGENTS.md). I manifest degli spritesheet sono JSON ma li scrive uno script della
+     pipeline, non un modello: ASCII, profondità fissa di due livelli, nessun escape.
+     `ArtAtlasParseManifest` è quindi uno scanner SEQUENZIALE minimale (~200 righe),
+     nella tradizione di `ReadJsonString` in `content/curated_images.c` — sequenziale e
+     non a `strstr` perché qui le chiavi si ripetono annidate (`row`, `w`) e una ricerca
+     per sottostringa leggerebbe la voce sbagliata. Ogni chiave sconosciuta viene
+     SALTATA: un manifest esteso domani si carica comunque oggi (verificato dal test).
+     L'alternativa scartata era pre-generare una forma testuale in build: aggiungeva un
+     passo alla catena assets→gioco e un secondo formato da tenere sincronizzato, per
+     risparmiare 200 righe, e rompeva il ciclo di lavoro dell'artista (salva da Aseprite,
+     riavvia, vede).
+  3. **Ciclo di vita fuori da `Game`.** Il registro è statico al modulo, non un campo di
+     `Game`: gli asset di `assets/art/` non sono contenuto di run, e `Game` viene azzerato
+     più volte per partita (`GameResetRun`, ingresso nel Piano 0, `R`) — appenderci 73
+     spritesheet avrebbe significato ricaricarli da disco a ogni azzeramento.
+     Caricamento PIGRO al primo uso, voci NEGATIVE in cache (un file rotto si tenta una
+     volta, non a ogni frame), rilascio con `ArtAtlasShutdown` accanto ad `AudioShutdown`
+     nei percorsi di uscita del gioco vero.
+  Tre sapori di manifest, un solo `ArtSheet`: spritesheet (`frame_w`/`frame_h`/`anchor`/
+  `anims`, più `slice[4]` per i 9-patch), tileset (`tile_w`/`tile_h`/`grid`/`tiles`), font
+  bitmap (`glyph_h`/`baseline_y`/`space_w`/`letter_spacing`/`glyphs`). Contratto in
+  `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md`.
 - **`audio`** (nuovo, DEC-172): `audio.{h,c}`, prefisso `Audio*`. Legge **solo** il pacchetto
   statico pre-generato di `assets/audio/` (musica/ambience Stable Audio 3 Small, SFX
   rFXGen/ripiego) tramite una tabella di percorsi fissa in C — `manifest.json` resta per gli
@@ -77,13 +112,27 @@ Lua fallisce.
 - **`gen`**: `gen_runner.{h,c}`, ciclo di vita del processo esterno di generazione
   (avvio, sondaggio del progresso, timeout, annullamento). Nessuna logica di gioco;
   guardia di piattaforma Linux qui dentro (AGENTS.md).
-- **`render`**: rendering di scena e interfaccia, inclusa l'integrazione Raygui già
-  avvenuta (`render/raygui_impl.c`, `RAYGUI_IMPLEMENTATION`, vendor `deps/raygui`
-  4.5.0) — non in un `src/ui` separato, che non esiste ancora nel repo.
+- **`render`**: rendering di scena e interfaccia. `game_renderer.c` (scena, HUD, i nove
+  overlay di stato), `item_layers.c`, `rarity_style.c`, e — da **W8** —
+  `art_draw.{h,c}`, prefisso `ArtDraw*`: il DISEGNO degli asset di `assets/art/`
+  (fotogramma ancorato con specchiatura, tile con ritaglio proporzionale del sorgente,
+  cornici 9-patch a bordi ripetuti e non stirati, testo col font pixel, icone) e
+  l'accesso ai quattro componenti di sistema (`ArtUiFont`/`ArtUiIcons`/`ArtUiPanel`/
+  `ArtUiSlot`). `ArtUiReady()` è l'interruttore UNICO fra la veste pixel art e il
+  percorso a primitive di prima di W8: i due non si mescolano mai nello stesso frame
+  (mezza schermata in pixel art e mezza a `DrawText` sarebbe peggio di entrambe).
+  Dentro `game_renderer.c`, TUTTO il testo passa da `UiText`/`UiTextW`/`UiTextOutlined`,
+  che hanno la stessa firma di `DrawText`/`MeasureText` e hanno preso il loro posto in
+  ogni punto del file: un solo passaggio obbligato, così vestire l'interfaccia col font
+  pixel è una decisione presa una volta e il ripiego vale per l'interfaccia in blocco.
+  L'integrazione Raygui resta (`render/raygui_impl.c`, `RAYGUI_IMPLEMENTATION`, vendor
+  `deps/raygui` 4.5.0) ma da W8 non disegna più nulla nel percorso normale: `GuiPanel` è
+  il ripiego della cornice degli overlay quando `assets/art/ui` manca. Nessun `src/ui`
+  separato, che non esiste ancora nel repo.
 - **`script`**: sandbox Lua 5.5, percorso primario del comportamento generato. Vedi §3.
 - **`tests`**: test interni da riga di comando, non solo portale/mini-VM:
   `game_tests.c`, `catalog_tests.c`, `script_sandbox_tests.c`,
-  `script_items_tests.c`, `script_character_tests.c`.
+  `script_items_tests.c`, `script_character_tests.c`, `art_atlas_tests.c` (W8).
 - **`world`**: `world.c` (stanze multi-cella, forme, porte, transizioni, ricompense),
   `room_camera.{h,c}` (**DEC-170**: le due funzioni *pure* della telecamera — rettangolo di
   clamp e avvicinamento esponenziale — separate da `world.c` proprio perché testabili senza

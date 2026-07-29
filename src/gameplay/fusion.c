@@ -303,6 +303,7 @@ void FusionCompose(unsigned int key, const Item *a, const Item *b, Item *out)
     snprintf(out->fusedFrom[0], sizeof(out->fusedFrom[0]), "%.39s", a->name);
     snprintf(out->fusedFrom[1], sizeof(out->fusedFrom[1]), "%.39s", b->name);
     out->imagePath[0] = '\0';   /* la pesca FusionPerform: dipende da cosa la run ha gia' usato */
+    out->imageId[0] = '\0';     /* idem: l'image-id della voce pescata, W8 */
 
     if (out->kind == ITEM_ACTIVE)
     {
@@ -351,6 +352,14 @@ FusionStatus FusionPerform(Game *game, int indexA, int indexB, Item *outFused)
                                 game->curatedImageUsed, CURATED_IMAGE_MASK_BYTES, &image, &imageIndex))
     {
         snprintf(fused.imagePath, sizeof(fused.imagePath), "%s", image.file);
+        /* W8: si conserva anche l'IMAGE-ID della voce pescata, non solo il suo
+           file. E' il primo gradino della priorita' delle immagini: se per quel
+           id esiste un originale animato in assets/art/, il fuso mostra quello
+           invece del PNG statico CC0 -- e la pesca resta la stessa, quindi la
+           run non cambia di un bit (stesso seed, stessa voce, stessa maschera).
+           Il pacchetto CC0 e assets/art/ condividono gli image-id proprio
+           perche' l'indirezione di DEC-175(b) e' la stessa per entrambi. */
+        snprintf(fused.imageId, sizeof(fused.imageId), "%s", image.id);
         CuratedImageMaskSet(game->curatedImageUsed, CURATED_IMAGE_MASK_BYTES, imageIndex);
     }
 

@@ -268,12 +268,12 @@ c'era gia' prima e sarebbe passato anche col difetto aperto):
    (`ItemPoolMinimumCounts`, verificata da `ItemPoolTestMinimumCounts` in `make test`)
    potrebbero divergere con tutte le suite verdi.
 
-## 9 — Modulo audio (DEC-172): due lacune dichiarate, non mascherate
+## 9 — Modulo audio (DEC-172): una lacuna residua (la seconda chiusa a metà da W8)
 
 **Contesto**: `src/audio/audio.{h,c}` (nuovo, W4) copre la mappatura musica/stato,
 il crossfade, il duck di `PauseMenu` e i dieci SFX a evento elencati nel task
 (sparo, colpo a nemico, danno subito, pickup, porta, fusione, card di scoperta,
-navigazione/conferma/annulla UI). Restano due lacune note, deliberate per lo scope
+navigazione/conferma/annulla UI). Restano queste lacune note, deliberate per lo scope
 del task, non un difetto di implementazione dentro quello scope:
 
 1. **Famiglia sonora del Piano 0 (DEC-121) assente**: `docs/design/content/
@@ -285,13 +285,25 @@ del task, non un difetto di implementazione dentro quello scope:
    semanticamente scorrelato (es. `ui_confirm`) su un evento che il documento
    vuole riconoscibile come famiglia propria. Richiede due nuovi asset prima di
    poter chiudersi.
-2. **Nessuna voce di volume in `Options`**: `AudioSetMasterVolume/MusicVolume/
-   SfxVolume` esistono e funzionano (default 1.0, clampati in [0,1]), ma
-   `APP_OPTIONS` resta la schermata minima di M1a (una sola voce, "Indietro",
-   `src/app/app.c`, case `APP_OPTIONS`) -- `docs/design/ui/
-   options-and-accessibility.md` elenca "audio" fra le categorie minime senza
-   fissare slider/valori, quindi i tre volumi restano oggi solo costanti
-   raggiungibili da codice, non dal giocatore.
+2. ~~**Nessuna voce di volume in `Options`**~~ — **CHIUSA (parte UI) da W8**.
+   `APP_OPTIONS` ha ora tre righe-slider (`Volume generale`, `Musica`, `Effetti`)
+   agganciate ad `AudioSetMasterVolume/MusicVolume/SfxVolume`: su/giù scelgono la
+   riga, sinistra/destra cambiano il valore a passi di `OPTIONS_VOLUME_STEP` (10%,
+   dieci caselle), ENTER esce solo dalla riga "Indietro", ESC esce sempre — parità
+   tastiera/controller di DEC-057 senza codice dedicato. Il suono di navigazione fa
+   da anteprima del volume appena scelto. Il valore si legge sia dalle caselle sia
+   dalla percentuale scritta (DEC-058: nessuna informazione dal solo colore).
+   `src/app/app.c` (case `APP_OPTIONS`), `DrawOptionsOverlay`/`DrawOptionsSliderRow`
+   in `src/render/game_renderer.c`, costanti in `src/audio/audio.h`.
+   **Cosa RESTA aperto**: (a) i volumi **non persistono** fra un avvio e l'altro — il
+   gioco non ha un file di configurazione, e inventarne uno avrebbe voluto dire
+   decidere da soli percorso, formato e migrazione, tre cose che
+   `docs/design/ui/options-and-accessibility.md` non fissa; (b) passo, etichette e
+   ordine sono un **default proposto** (stile DEC-019), non canone: quel documento
+   elenca "audio" fra le categorie minime senza fissare slider né valori.
+   Entrambi in `docs/design/governance/open-questions.md`.
+   Le altre quattro categorie minime del documento (video, controlli, accessibilità,
+   gameplay) restano da scrivere e W8 non le ha inventate.
 
 **Verificato da**: `--audio-test` (`src/tests/audio_tests.c`, `GameAudioTest`) --
 mappatura pura stato/piano/stanza-boss -> traccia, clamp dei volumi, ciclo di vita
@@ -299,3 +311,55 @@ init/shutdown ripetuto con e senza device audio reale e con/senza `Game`, mai un
 crash. Gira sotto Xvfb senza alcun backend audio (ambiente di CI/sviluppo di
 questo repo): `AudioIsDeviceReady()` false dopo `AudioInit()` e' lo scenario
 REALE esercitato da `make test`, non solo un caso sintetico.
+
+## 10 — Consumo del pacchetto artistico (W8): buchi di ASSET dichiarati, non mascherati
+
+**Contesto**: `src/assets/art_atlas.{h,c}` + `src/render/art_draw.{h,c}` agganciano al
+motore le 73 coppie spritesheet+manifest di `assets/art/`: personaggio, nemici, boss,
+oggetti, colpi, prop, i 5 tileset dei temi e i quattro componenti di sistema
+dell'interfaccia. Ogni buco qui sotto è un asset che **non esiste ancora**, non un
+percorso di codice mancante: il motore lo cerca, non lo trova, e degrada al percorso
+precedente (immagine curata → cella d'atlas → primitiva geometrica). Tutti da chiudere
+con un giro artistico dedicato (**CP4**), nessuno richiede altro lavoro sul motore.
+
+1. **Font `font-5px`: solo maiuscole e un set chiuso di segni** (`A-Z 0-9 : / - . [ ] >
+   + ? ! , ' % =`). Mancano le **accentate italiane** (`à è é ì ò ù`) e le **parentesi
+   tonde**. `ArtDrawText` converte a maiuscolo da sola e un carattere fuori dal set
+   avanza come uno spazio: il testo resta allineato ma lascia un buco. Si vede negli
+   screenshot di W8 su stringhe come `"Scegli due oggetti da fondere (INVIO)."`.
+2. **Un solo spritesheet di personaggio** (`character/fonditrice`): i tre personaggi
+   della rosa base (DEC-030/033/049) e quello generato per-run (DEC-014) si vedono
+   identici. Della palette del personaggio si conserva solo l'**alfa** (il lampeggio di
+   invulnerabilità): tingere uno sprite disegnato con un colore ne sporcherebbe la
+   palette. Servono tre sheet.
+3. **Cuore, bomba e chiave non hanno un prop a terra** in `assets/art/props` (ci sono
+   solo `pickup-lingotto` e `pickup-flux`): quelle tre raccolte restano sulla cella
+   d'atlas o sulla primitiva. Energia (DEC-059) e uscita restano primitive **per
+   decisione**, non per mancanza di asset (aggiungere una cella d'atlas invaliderebbe
+   ogni atlas già generato).
+4. **Salute temporanea (DEC-008)**: l'icona `heart_temp` esiste nell'atlas icone, ma il
+   motore non ha ancora un contatore di cuori temporanei — nessun cuore temporaneo viene
+   disegnato. È una lacuna di GAMEPLAY, non d'arte: l'icona è pronta.
+5. **Timer di run (DEC-051)**: il layout V3 lo mette centrato in alto, `Game` non ha un
+   cronometro di run. Non disegnato. Anche questa è una lacuna di gameplay.
+6. **Le fasce di muro restano quelle decorative storiche** (34/12/14 px, non una fila
+   intera di tile da 32): sono lo spessore che la resa 2.5D dichiara da sempre ed è
+   ancorato al bordo REALE del campo di gioco. Allargarle a 32 px per lato avrebbe
+   spostato la parete di ~20 px rispetto alla collisione, cioè avrebbe fatto camminare
+   il giocatore dentro il muro. Il tile viene ritagliato alla fascia (il sorgente, non
+   compresso): il muro laterale mostra i suoi primi 12 px. Se in futuro si vuole una
+   parete "piena", va cambiato il campo di gioco, non solo il disegno.
+7. **Tema generato → tileset per hash**. `Theme` non ha un identificatore: si prova lo
+   SLUG del nome come nome di file (`"Lunar Forge"` → `tiles/lunar-forge`, il cammino
+   dei 5 temi curati) e, per un tema inventato dal modello (`"Library of Radiation"`),
+   si sceglie uno dei cinque per hash FNV-1a del nome — deterministico, quindi lo stesso
+   mondo si veste sempre allo stesso modo. Non è un difetto risolvibile con più codice:
+   un tileset per tema generato andrebbe GENERATO, che è la Style LoRA di DEC-148.
+
+**Verificato da**: `--art-atlas-test` (`src/tests/art_atlas_tests.c`, in `make test`) --
+parser dei tre sapori di manifest comprese le estensioni, manifest rotti/troncati,
+animatore deterministico ai confini esatti dei fotogrammi, cache e voci negative,
+risoluzione a priorità degli image-id, degrado con manifest rotto / PNG assente / chiave
+con `..`. `--atlas-fallback-test` esercita di proposito il gradino più basso (pacchetto
+artistico puntato su una cartella inesistente → primitive). Gli screenshot di
+`--art-screens-screenshot-test` (`logs/worldsmelt-w8-*.png`) sono la verifica visiva.

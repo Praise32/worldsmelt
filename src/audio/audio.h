@@ -98,10 +98,25 @@ void AudioSyncMusic(const Game *game, AppMode mode, float dt);
 void AudioPlaySfx(AudioSfx sfx);
 
 /* Volumi 0..1 (clampati qui, mai fuori banda). Master moltiplica sia
-   musica sia SFX; i tre canali restano indipendenti. Default proposti
-   (stile DEC-019, vedi docs/design/content/audio-and-feedback.md): tutti a
-   1.0 finche' Options non espone slider dedicati -- oggi non lo fa (nessuna
-   voce di volume in APP_OPTIONS, domanda registrata per il proprietario). */
+   musica sia SFX; i tre canali restano indipendenti. Default: tutti a 1.0.
+   Da W8 Options li espone come tre righe-slider (APP_OPTIONS, src/app/app.c e
+   DrawOptionsOverlay in src/render/game_renderer.c) a passi di
+   OPTIONS_VOLUME_STEP.
+   NON PERSISTONO fra un avvio e l'altro: il gioco non ha (ancora) un file di
+   configurazione, e inventarne uno qui avrebbe voluto dire decidere da solo
+   percorso, formato e politica di migrazione -- tre cose che
+   ui/options-and-accessibility.md non fissa. Ripartono quindi da 1.0 ad ogni
+   avvio; la persistenza e' registrata come domanda aperta. */
+
+/* Passo e numero di caselle degli slider di Options (default proposto, stile
+   DEC-019: il documento elenca "audio" fra le categorie minime senza fissare
+   ne' passo ne' etichette). Dieci caselle da 10%: abbastanza fine per
+   accordare, abbastanza grossa perche' una freccia sia un cambiamento
+   udibile. Stanno qui e non nel renderer perche' il passo e' una proprieta'
+   del canale audio, e chi disegna e chi modifica devono leggere lo stesso
+   numero. */
+#define OPTIONS_VOLUME_CELLS 10
+#define OPTIONS_VOLUME_STEP (1.0f/(float)OPTIONS_VOLUME_CELLS)
 void AudioSetMasterVolume(float volume);
 void AudioSetMusicVolume(float volume);
 void AudioSetSfxVolume(float volume);

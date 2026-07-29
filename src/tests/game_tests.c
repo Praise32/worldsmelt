@@ -1,5 +1,6 @@
 #include "tests/game_tests.h"
 
+#include "assets/art_atlas.h"
 #include "app/app.h"
 #include "app/app_internal.h"
 #include "content/character_roster.h"
@@ -607,6 +608,20 @@ static int ColorChannelDiff(Color a, Color b)
    era vuota (vedi il fix in DrawEnemy/DrawPickup). */
 bool GameAtlasFallbackTest(Game *game)
 {
+    /* W8: questo test verifica il ripiego dell'ATLAS generato, e la sua
+       controprova sul giocatore e' un pixel bianco preciso -- la testa dello
+       stickman di DrawBaseStickman. Da W8 il giocatore si disegna col suo
+       spritesheet quando assets/art/ c'e', quindi quel pixel non e' piu' bianco
+       e l'assert sarebbe diventato falso pur essendo il gioco MIGLIORATO.
+       Si punta quindi il pacchetto artistico su una cartella inesistente per la
+       durata del test: cosi' si esercita di proposito il gradino piu' basso
+       della priorita' delle immagini (nessun originale, nessun atlas utile ->
+       primitive geometriche), che e' esattamente cio' che questo test esiste per
+       proteggere. Il gradino ALTO (sprite presenti) e' coperto da
+       --art-atlas-test e dagli screenshot di W8.
+       Ripristinato SEMPRE prima di ogni return, anche sui rami di errore. */
+    ArtAtlasSetTestDir("generated/mai-esistita-art-fallback");
+
     const char *testPath = "generated/test_atlas_fallback.png";
     Image img = GenImageColor(ATLAS_CELL*ATLAS_COLS, ATLAS_CELL*ATLAS_COLS, WHITE);
     ImageDrawRectangle(&img, (SPR_PLAYER%ATLAS_COLS)*ATLAS_CELL, (SPR_PLAYER/ATLAS_COLS)*ATLAS_CELL, ATLAS_CELL, ATLAS_CELL, BLANK);
@@ -614,18 +629,22 @@ bool GameAtlasFallbackTest(Game *game)
     ImageDrawRectangle(&img, (SPR_EXIT%ATLAS_COLS)*ATLAS_CELL, (SPR_EXIT/ATLAS_COLS)*ATLAS_CELL, ATLAS_CELL, ATLAS_CELL, BLANK);
     bool exported = ExportImage(img, testPath);
     UnloadImage(img);
-    if (!exported) return false;
+    if (!exported) { ArtAtlasSetTestDir(NULL); return false; }
 
     GameUnloadAssets(game);
     snprintf(game->content.atlasPath, sizeof(game->content.atlasPath), "%s", testPath);
     AssetsLoad(game);
     remove(testPath);
 
-    if (!game->atlasLoaded) return false;
-    if (game->atlasCellPresent[SPR_PLAYER]) return false;         /* celle vuote: devono risultare assenti */
-    if (game->atlasCellPresent[SPR_ENEMY_CHASER]) return false;
-    if (game->atlasCellPresent[SPR_EXIT]) return false;
-    if (!game->atlasCellPresent[SPR_ITEM]) return false;          /* cella piena: deve risultare presente */
+    if (!game->atlasLoaded ||
+        game->atlasCellPresent[SPR_PLAYER] ||                     /* celle vuote: devono risultare assenti */
+        game->atlasCellPresent[SPR_ENEMY_CHASER] ||
+        game->atlasCellPresent[SPR_EXIT] ||
+        !game->atlasCellPresent[SPR_ITEM])                        /* cella piena: deve risultare presente */
+    {
+        ArtAtlasSetTestDir(NULL);
+        return false;
+    }
 
     Vector2 enemyPos = { 150.0f, 200.0f };
     Vector2 exitPos = { 750.0f, 450.0f };
@@ -684,6 +703,7 @@ bool GameAtlasFallbackTest(Game *game)
     bool enemyDrew = ColorChannelDiff(enemyBefore, enemyAfter) > 40;
     bool exitDrew = ColorChannelDiff(exitBefore, exitAfter) > 40;
 
+    ArtAtlasSetTestDir(NULL);
     return playerDrew && enemyDrew && exitDrew;
 }
 
@@ -1090,7 +1110,14 @@ bool GameFullscreenScreenshotTest(Game *game)
    cluster dell'HUD (cuori, risorse, build, mappa, log) mostri contenuto vero
    sopra il gioco. Il file esce in logs/worldsmelt-overlay-<W>x<H>.png: il nome
    porta la risoluzione, cosi' due scatti a risoluzioni diverse non si pestano. */
-bool GameOverlayScreenshotTest(Game *game)
+/* La scena "da vetrina" condivisa dagli screenshot di verifica: personaggio
+   scelto, mappa svelata, tre oggetti in mano con sinergie, risorse e vita
+   intaccate, qualche nemico, un pickup e un colpo in volo. Estratta da
+   GameOverlayScreenshotTest (W8) perche' gli scatti delle SCHERMATE
+   (GameArtScreensScreenshotTest) hanno bisogno esattamente della stessa scena:
+   due copie sarebbero divergute al primo ritocco, e uno scatto di verifica che
+   mostra una scena diversa dall'altro non e' confrontabile. */
+static void SetupShowcaseScene(Game *game)
 {
     /* Un personaggio scelto: il cluster vitali mostra nome/ruolo (rosa base,
        indice 0). GameResetRun ha gia' preparato piano 1 e statistiche base. */
@@ -1161,6 +1188,11 @@ bool GameOverlayScreenshotTest(Game *game)
        dell'HUD -- per lo scatto di gusto meglio pulito (in gioco vero il
        messaggio e' comunque effimero e sfuma da solo). */
     game->messageTimer = 0.0f;
+}
+
+bool GameOverlayScreenshotTest(Game *game)
+{
+    SetupShowcaseScene(game);
 
     char path[96];
     snprintf(path, sizeof(path), "logs/worldsmelt-overlay-%dx%d.png", GetScreenWidth(), GetScreenHeight());
@@ -1169,6 +1201,104 @@ bool GameOverlayScreenshotTest(Game *game)
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);   /* pixel-perfect come il canvas del gioco vero */
     RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, path);
     bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+    return textureValid;
+}
+
+/* W8: uno scatto per SCHERMATA, con gli asset artistici veri (tileset, HUD in
+   pixel art, cornici 9-patch, font da 5 pixel). Serve al giudizio di gusto sul
+   reskin -- nessun assert puo' dire "questa schermata e' bella" -- e alla
+   verifica che nessuna delle schermate rivestite sia rimasta indietro: se una
+   sola continuasse a disegnarsi col font vettoriale, si vedrebbe subito
+   mettendo gli scatti in fila.
+   Gli image-id vengono dal catalogo curato vero (le voci che la sessione
+   artistica ha disegnato): senza, il nemico e gli oggetti dello scatto
+   ricadrebbero sulle sagome geometriche e lo screenshot non mostrerebbe cio'
+   che deve mostrare. Un checkout senza assets/art/ produce comunque gli scatti,
+   col ripiego: e' la prova visiva del degrado. */
+bool GameArtScreensScreenshotTest(Game *game)
+{
+    SetupShowcaseScene(game);
+
+    /* Un nemico e un boss con un image-id disegnato davvero (assets/art/). */
+    for (int i = 0; i < MAX_ENEMIES; i++)
+    {
+        if (!game->enemies[i].active) continue;
+        snprintf(game->enemies[i].type.imageId, sizeof(game->enemies[i].type.imageId), "%s",
+                 (i%2 == 0) ? "goblin-di-slag" : "ragno-di-cenere");
+    }
+    /* Gli oggetti in mano: l'inventario di BuildScreen deve mostrare gli sprite
+       nuovi, non i rombi colorati (requisito 2 del task W8). */
+    static const char *const SHOWCASE_ITEM_IDS[] = { "dice-core", "lens-goggles", "root-tendril" };
+    for (int i = 0; i < 3 && i < MAX_ITEMS; i++)
+    {
+        if (!game->player.items[i].active) continue;
+        snprintf(game->player.items[i].imageId, sizeof(game->player.items[i].imageId), "%s",
+                 SHOWCASE_ITEM_IDS[i]);
+    }
+    /* Un pickup di oggetto a terra, con sprite: e' il caso "piedistallo". */
+    EntitiesAddPickup(game, PICKUP_ITEM, (Vector2){ ROOM_X + ROOM_W*0.3f, ROOM_Y + ROOM_H*0.75f }, 0, 0);
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        if (!game->pickups[i].active || game->pickups[i].kind != PICKUP_ITEM) continue;
+        game->pickups[i].item = game->player.items[0];
+        snprintf(game->pickups[i].item.imageId, sizeof(game->pickups[i].item.imageId), "%s", "crystal-shard");
+        break;
+    }
+    /* Una card di scoperta in mostra, con il suo sprite: e' l'unico modo di
+       vederla in uno scatto (in gioco dura ~3 s). */
+    GameQueueDiscoveryCardWithImage(game, "Goblin di Slag",
+                                    "Ruba lingotti quando ti colpisce.", "goblin-di-slag");
+    game->discoveryActive = game->discoveryQueue[0];
+    game->discoveryActiveValid = true;
+    game->discoveryActiveTimer = 3.0f;
+    game->player.flux = 2;   /* il Flux compare in HUD solo se se ne ha: qui deve comparire, col riquadro di evidenza */
+
+    /* Le sette schermate del reskin. FloorZero ha bisogno delle carte-tema
+       (altrimenti il pannello e' vuoto) e Gameplay dello stesso scatto di
+       GameOverlayScreenshotTest ma coi nuovi asset: si tengono entrambi, sono
+       due verifiche diverse (l'HUD in pixel art e il suo ripiego). */
+    AppUi ui;
+    memset(&ui, 0, sizeof(ui));
+    ui.seed = 4242u;
+    ui.focus = 1;   /* una voce col fuoco che NON e' la prima: la cornice accesa si vede meglio */
+
+    struct { AppMode mode; const char *name; } shots[] = {
+        { APP_GAMEPLAY, "gameplay" },
+        { APP_MAIN_MENU, "mainmenu" },
+        { APP_RUN_SETUP, "runsetup" },
+        { APP_OPTIONS, "options" },
+        { APP_PAUSE_MENU, "pausemenu" },
+        { APP_BUILD_SCREEN, "buildscreen" },
+        { APP_RUN_RESULTS, "runresults" },
+        { APP_EXIT_CONFIRM, "exitconfirm" },
+        { APP_FLOOR_ZERO, "floorzero" },
+    };
+    const int shotCount = (int)(sizeof(shots)/sizeof(shots[0]));
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
+    bool textureValid = canvas.texture.id != 0;
+    for (int i = 0; i < shotCount && textureValid; i++)
+    {
+        char path[128];
+        snprintf(path, sizeof(path), "logs/worldsmelt-w8-%s.png", shots[i].name);
+        /* Il Piano 0 disegna l'indicatore di generazione da 'genProgress' e non
+           da 'ui': gli si passa uno stato inattivo, che e' il caso normale di
+           una demo curata senza generazione. */
+        GenProgress progress;
+        memset(&progress, 0, sizeof(progress));
+        int savedFloor = game->floor;
+        if (shots[i].mode == APP_FLOOR_ZERO)
+        {
+            /* Il Piano 0 e' il piano 0 per definizione: senza questo, il tema e
+               la stanza sarebbero quelli del piano 1 e lo scatto mostrerebbe
+               una sala d'attesa vestita da stanza di combattimento. */
+            game->floor = 0;
+        }
+        RendererDrawApp(game, canvas, shots[i].mode, &ui, true, &progress, path);
+        game->floor = savedFloor;
+    }
     UnloadRenderTexture(canvas);
     return textureValid;
 }

@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11)."
-last_reviewed: 2026-07-28
+last_reviewed: 2026-07-30
 last_verified_commit: 1263957
 topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640]
 related: []
 supersedes: []
-source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/tests/discovery_tests.c]
+source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
 ---
 
 # HUD
@@ -148,9 +148,16 @@ nell'overflow di DEC-131: la card è la notifica, non il contenuto.
 > questo cluster quei campi non avevano alcun lettore nel binario di gioco (solo nei test) e
 > la card, pur accodata correttamente, non compariva mai a schermo: una versione precedente di
 > questa nota affermava per errore che fosse "solo testo, senza sprite", quando in realtà non
-> era disegnata affatto. Ora **è** solo testo (nome + riga), senza sprite — l'HUD pixel art
-> completo arriva con la milestone W7; questa nota si aggiorna/si rimuove quando lo sprite
-> entra nella card.
+> era disegnata affatto. **Da W8 la card ha anche lo sprite** che questo documento chiede
+> ("sprite, nome, una riga di descrizione"): `DiscoveryCard.imageId` porta l'image-id di
+> DEC-175(b), `GameQueueDiscoveryCardWithImage` lo accoda (i due call site veri, nemico e
+> boss, passano l'image-id del tipo incontrato) e `DrawHudV3Card` lo risolve con
+> `ArtAtlasFindByImageId`. Un contenuto senza image-id — ogni nemico inventato dal modello —
+> lascia la casella dello sprite vuota, mai un rettangolo bianco.
+> La card si è spostata in **basso al centro**, come il layout V3 approvato al CP2: in alto
+> avrebbe coperto la riga piano/mondo, che in V3 è allineata a destra a quella stessa quota.
+> La formulazione "in alto al centro" di questo documento descriveva l'HUD a quattro cluster
+> con riquadro, sostituito da V3 — divergenza registrata come **domanda aperta 26**.
 > Lo scarto DEC-152 è agganciato a `CombatDamagePlayer` (morte, `src/gameplay/combat.c`) e a
 > `WorldTryEnterRoom` (cambio stanza, `src/world/world.c`), **prima** che la stanza di arrivo
 > possa accodare le proprie scoperte — verificato che l'invariante "registrazione alla
@@ -168,6 +175,50 @@ nell'overflow di DEC-131: la card è la notifica, non il contenuto.
 
 L'HUD, come tutta l'interfaccia del gioco, è pixel art: fonte unica della regola è
 [Visual Language](../content/visual-language.md), non riformulata qui.
+
+## Stato di implementazione (W8, 2026-07-30)
+
+L'HUD **è** in pixel art e usa gli asset veri. Cosa questo significa concretamente, per
+chi legge il codice:
+
+- **Si disegna DENTRO il canvas 960×640**, non più in overlay sullo schermo — attuazione
+  diretta di DEC-174 qui sotto. Conseguenza pratica decisiva: le coordinate del codice sono
+  **esattamente** quelle del layout V3 approvato al CP2 (`scripts/cp2_hud_mocks.lua`,
+  variante `CP2-V3-minimal`), numero per numero, invece di essere riderivate da un fattore
+  di scala dell'interfaccia. L'HUD scala così con la game view a passi interi, e un pixel
+  dell'icona di un cuore resta grande come un pixel del pavimento: è la sola cosa che fa
+  leggere l'insieme come pixel art e non come due grafiche sovrapposte. Le quote sono
+  raccolte in un blocco di `#define HUD_V3_*` in `src/render/game_renderer.c` (criterio di
+  accettazione di `docs/ai-production/15-UI-DESIGN-PIPELINE.md`: nessun numero magico
+  sparso).
+- **Cifra del layout V3**: "niente pannelli, elementi flottanti con contorno". Il testo
+  poggia direttamente sulla scena con un contorno nero di 1 px scalato; le cornici 9-patch
+  restano solo dove delimitano una CASELLA (slot attivo, slot Innesto, card di scoperta),
+  che è informazione di stato e non decoro.
+- **Componenti**: i quattro asset di `assets/art/ui` — font da 5 px, atlas icone 16×16,
+  cornice a pannello (`slice [6,6,6,6]`, con rivetti), cornice a slot (`slice [4,4,4,4]`) —
+  vestono l'HUD **e tutte le nove schermate**, non solo l'HUD.
+- **Cuori**: icone `heart`/`heart_half`/`heart_empty`, 12 px con passo 13, stessa semantica
+  di prima (2 punti vita per cuore). `heart_temp` esiste nell'atlas ma non è disegnato: la
+  salute temporanea di DEC-008 non ha ancora un contatore nel motore (lacuna di gameplay,
+  non d'arte — `docs/engineering/known-issues.md` voce 10).
+- **Risorse**: ordine fisso `ingot` → `charge` → `key` → `flux`, icona 11 px + numero. Il
+  Flux compare solo quando se ne possiede almeno uno (regola già in vigore: una risorsa rara
+  con uno "0" fisso sarebbe rumore) e porta il riquadro di evidenza quando basta per una
+  fusione, come chiede questo documento.
+- **Slot attivo e Innesto**: due caselle 30×30 in basso a sinistra, con barra di ricarica
+  24×4 e l'etichetta del tasto (`[E]`/`[G]`) sotto. La barra si RIEMPIE mentre l'attesa
+  scende, così "piena = pronto" vale sia per gli attivi a cariche sia per quelli a cooldown
+  e il giocatore non deve ricordare quale dei due ha in mano. Una casella vuota resta
+  disegnata (cornice spenta): `grafts.md` chiede che l'interfaccia mostri gli slot
+  disponibili, non solo quelli pieni.
+- **Timer di run (DEC-051)**: il layout V3 lo mette centrato in alto ma `Game` non ha un
+  cronometro di run — **non disegnato**, lacuna di gameplay dichiarata in known-issues
+  voce 10.
+- **Visibilità invariata**: `HudCombatShouldDraw` (DEC-169) resta la regola unica, in un
+  solo punto. Il vecchio HUD a quattro cluster in overlay (`DrawOuterUi`) sopravvive come
+  **ripiego integrale** per il caso "`assets/art/ui` assente": i due percorsi si escludono
+  a vicenda, mai mescolati nello stesso frame.
 
 ## Canvas di riferimento della demo (DEC-174)
 

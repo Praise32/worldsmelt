@@ -8,6 +8,8 @@
 #include "gameplay/fusion.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/synergies.h"
+#include "audio/audio.h"
+#include "render/art_draw.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
 
@@ -31,6 +33,59 @@
 static int UiRound(float v)
 {
     return (int)(v + 0.5f);
+}
+
+/* ============================================================
+   W8: TUTTO il testo del gioco passa da qui.
+ *
+ * UiText/UiTextW hanno la stessa firma di DrawText/MeasureText di raylib e
+ * hanno preso il loro posto in ogni punto di questo file -- HUD, overlay dei
+ * menu, Piano 0, catalogo, nome del boss sulla scena. Un solo passaggio
+ * obbligato significa che vestire l'interfaccia col font pixel di
+ * assets/art/ui/font-5px e' una decisione presa UNA volta, e che il ripiego su
+ * DrawText (font vettoriale di raylib) resta disponibile per l'intera
+ * interfaccia in blocco, non a chiazze: senza questo, la prima schermata
+ * dimenticata avrebbe mostrato due tipografie diverse nello stesso frame.
+ *
+ * 'size' resta la dimensione in PIXEL che il chiamante chiedeva a DrawText:
+ * si traduce nel moltiplicatore intero piu' vicino del font da 5 pixel. Intero
+ * per forza (vedi ArtDrawText): un font pixel art scalato di 1.5 perde i
+ * tratti da un pixel. La divisione per 6 e non per 5 tiene conto della riga di
+ * spaziatura sotto i glifi -- a size 12 si ottiene scala 2 (10px di glifi,
+ * ~12px di riga), a size 15-18 scala 3, che e' la corrispondenza con cui i
+ * mock del layout V3 sono stati approvati.
+   ============================================================ */
+static int UiFontScale(int size)
+{
+    int scale = (size + 3)/6;
+    if (scale < 1) scale = 1;
+    if (scale > 6) scale = 6;
+    return scale;
+}
+
+static void UiText(const char *text, int x, int y, int size, Color color)
+{
+    const ArtSheet *font = ArtUiFont();
+    if (font) ArtDrawText(font, text, x, y, UiFontScale(size), color);
+    else DrawText(text, x, y, size, color);
+}
+
+/* La variante con contorno, per il testo che poggia DIRETTAMENTE sulla scena
+   senza una cornice sotto (la cifra del layout V3: "elementi flottanti con
+   contorno"). Fuori dal font pixel non c'e' contorno da imitare: si ricade sul
+   DrawText semplice, come faceva prima. */
+static void UiTextOutlined(const char *text, int x, int y, int size, Color color)
+{
+    const ArtSheet *font = ArtUiFont();
+    if (font) ArtDrawTextOutlined(font, text, x, y, UiFontScale(size), color);
+    else DrawText(text, x, y, size, color);
+}
+
+static int UiTextW(const char *text, int size)
+{
+    const ArtSheet *font = ArtUiFont();
+    if (font) return ArtTextWidth(font, text, UiFontScale(size));
+    return MeasureText(text, size);
 }
 
 /* M4: 'uiScale' arrotonda il TEXT_SIZE di raygui (GuiLabel/GuiPanel/GuiStatusBar
@@ -230,19 +285,273 @@ static void DrawFloorZeroExitGate(Game *game)
     }
 }
 
+/* ============================================================
+   W8: il TILESET della stanza (assets/art/tiles/<tema>.png).
+ *
+ * DA COSA SI SCEGLIE. Il motore non ha un identificatore di tema: Theme
+ * (core/game_types.h) porta un NOME testuale e nient'altro -- nessun enum,
+ * nessuno slug, perche' il nome lo INVENTA il modello ("Library of Radiation")
+ * e i cinque temi della demo esistono solo come nomi nel contenuto di ripiego
+ * (MakeFallbackTheme, content/run_content.c). La corrispondenza e' quindi in
+ * due gradini:
+ *   1. lo SLUG del nome (minuscolo, non-alfanumerico -> '-') e' provato come
+ *      nome di file: "Lunar Forge" -> tiles/lunar-forge. E' il cammino esatto
+ *      dei cinque temi curati, e resta valido per qualunque tema futuro a cui
+ *      la sessione artistica dedichi un tileset omonimo, senza toccare il C;
+ *   2. per un tema GENERATO, che non ha (e non avra') un tileset suo, si
+ *      sceglie uno dei cinque per HASH del nome. Deterministico dal nome:
+ *      lo stesso mondo si veste sempre allo stesso modo, in ogni run e in ogni
+ *      macchina, che e' il minimo perche' la vestizione non sembri un difetto.
+ * Nessun tileset trovato (checkout senza assets/art/) -> NULL, e la stanza si
+ * disegna coi colori piatti del tema come prima di W8.
+ *
+ * VARIANTE DI ESCALATION (DEC-024, "il tema si intensifica piano dopo piano"
+ * sull'asse aspetto). Il contratto d'arte emette tre ruoli col suffisso _deg
+ * (floor_deg/wall_deg/void_deg, "crepe di brace"), ma NESSUN documento fissa a
+ * quale piano scattano: e' un buco fra il contratto e il motore, registrato
+ * come domanda aperta. DEFAULT PROPOSTO qui (stile DEC-019): scattano dal
+ * PIANO 3, cioe' esattamente dove passa la seconda traccia di gameplay
+ * (AUDIO_GAMEPLAY_1_MAX_FLOOR, src/audio/audio.c) e dove i boss passano a due
+ * fasi (DEC-028/106). Far coincidere i tre assi dell'escalation su uno stesso
+ * confine e' l'ipotesi piu' leggibile per il giocatore, ed e' quella che il
+ * playtest dovra' confermare o spostare.
+   ============================================================ */
+#define ROOM_TILESET_DEGRADED_FROM_FLOOR 3
+
+static const char *const ROOM_TILESET_KEYS[] = {
+    "tiles/cathedral-of-sugar",
+    "tiles/lunar-forge",
+    "tiles/moldy-library",
+    "tiles/neon-cellar",
+    "tiles/radioactive-aquarium",
+};
+#define ROOM_TILESET_COUNT ((int)(sizeof(ROOM_TILESET_KEYS)/sizeof(ROOM_TILESET_KEYS[0])))
+
+static const ArtSheet *RoomTileset(const Theme *theme)
+{
+    if (!theme) return NULL;
+
+    char slug[80];
+    int out = 0;
+    for (int i = 0; theme->name[i] && out < (int)sizeof(slug) - 1; i++)
+    {
+        char c = theme->name[i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        bool alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+        if (alnum) slug[out++] = c;
+        else if (out > 0 && slug[out - 1] != '-') slug[out++] = '-';
+    }
+    while (out > 0 && slug[out - 1] == '-') out--;
+    slug[out] = '\0';
+
+    if (out > 0)
+    {
+        char key[ART_KEY_LEN];
+        int written = snprintf(key, sizeof(key), "tiles/%s", slug);
+        if (written > 0 && written < (int)sizeof(key))
+        {
+            const ArtSheet *sheet = ArtAtlasGet(key);
+            if (sheet) return sheet;
+        }
+    }
+
+    /* Hash FNV-1a a 32 bit sul nome: qualunque funzione stabile andrebbe, ma
+       una moltiplicativa distribuisce i nomi generati fra i cinque temi molto
+       meglio della somma dei caratteri (i nomi del ripiego del generatore
+       condividono quasi tutte le lettere: "Forge of Neon"/"Forge of Mold"). */
+    unsigned int hash = 2166136261u;
+    for (int i = 0; theme->name[i]; i++)
+    {
+        hash ^= (unsigned char)theme->name[i];
+        hash *= 16777619u;
+    }
+    for (int i = 0; i < ROOM_TILESET_COUNT; i++)
+    {
+        const ArtSheet *sheet = ArtAtlasGet(ROOM_TILESET_KEYS[(hash + (unsigned int)i)%ROOM_TILESET_COUNT]);
+        if (sheet) return sheet;
+    }
+    return NULL;
+}
+
+/* Il ruolo da usare per 'base' al piano corrente: la variante _deg dai piani
+   avanzati, il ruolo normale prima (vedi il commento sopra). Il ripiego e'
+   dentro ArtDrawTile: se un tileset non dichiarasse i ruoli _deg si otterrebbe
+   false e la stanza tornerebbe al colore piatto -- quindi qui si prova la
+   variante e chi chiama riprova il ruolo base. */
+static bool RoomTileDegraded(const Game *game)
+{
+    return game->floor >= ROOM_TILESET_DEGRADED_FROM_FLOOR;
+}
+
+/* Disegna 'role' in 'dst' provando prima la variante di escalation quando il
+   piano la richiede. Un tileset senza ruoli _deg si comporta come prima. */
+static bool DrawRoomTile(const Game *game, const ArtSheet *tiles, const char *role,
+                         const char *degradedRole, Rectangle dst, Color tint)
+{
+    if (degradedRole && RoomTileDegraded(game) && ArtDrawTile(tiles, degradedRole, dst, tint)) return true;
+    return ArtDrawTile(tiles, role, dst, tint);
+}
+
+/* Riempie 'area' ripetendo il tile 'role'. 'varyRoles' (opzionale, chiuso da
+   NULL) sono le varianti da alternare in modo DETERMINISTICO dalla posizione
+   della cella: un pavimento fatto di un solo tile si legge come una
+   quadrettatura, e alternare a caso lo farebbe sfarfallare da un frame
+   all'altro -- la variante dipende quindi solo dalle coordinate del tile,
+   quindi resta ferma mentre la telecamera si muove. */
+static void DrawTiledArea(const Game *game, const ArtSheet *tiles, Rectangle area,
+                          const char *role, const char *degradedRole,
+                          const char *const *varyRoles, Color tint)
+{
+    if (!tiles || tiles->tileW <= 0 || tiles->tileH <= 0) return;
+    if (area.width <= 0.0f || area.height <= 0.0f) return;
+    float tw = (float)tiles->tileW, th = (float)tiles->tileH;
+    int varyCount = 0;
+    while (varyRoles && varyRoles[varyCount]) varyCount++;
+
+    int row = 0;
+    for (float y = area.y; y < area.y + area.height; y += th, row++)
+    {
+        int col = 0;
+        for (float x = area.x; x < area.x + area.width; x += tw, col++)
+        {
+            Rectangle dst = { x, y, fminf(tw, area.x + area.width - x), fminf(th, area.y + area.height - y) };
+            const char *use = role;
+            if (varyCount > 0)
+            {
+                /* Due primi diversi per riga e colonna: una moltiplicazione
+                   sola darebbe fasce verticali regolari invece di una
+                   distribuzione sparsa. Il 3 su 4 di probabilita' che esca il
+                   tile base tiene le varianti "occasionali" come vuole il
+                   contratto (floor + tre varianti). */
+                unsigned int h = (unsigned int)(col*73856093) ^ (unsigned int)(row*19349663);
+                h ^= h >> 13;
+                if ((h & 3u) != 0u) use = varyRoles[(int)((h >> 2)%(unsigned int)varyCount)];
+            }
+            if (!DrawRoomTile(game, tiles, use, degradedRole, dst, tint) && use != role)
+                DrawRoomTile(game, tiles, role, degradedRole, dst, tint);
+        }
+    }
+}
+
+/* Lo STATO della porta di un lato, nel vocabolario del tileset (italiano, come
+   props/porta): "bloccata" quando la stanza tiene chiuse le uscite finche' non
+   la si pulisce (GameRoomIsLocked), "chiusa" quando la stanza non e' ancora
+   pulita ma nemmeno bloccata, "aperta" altrimenti. Le tre parole sono i tre
+   ruoli door_<lato>_<stato> del contratto, e sono anche le tre animazioni di
+   props/porta: un solo vocabolario per il tile e per lo sprite. */
+static const char *RoomDoorState(Game *game)
+{
+    if (GameRoomIsLocked(game)) return "bloccata";
+    const RoomState *room = GameCurrentRoom(game);
+    return (room && !room->cleared) ? "chiusa" : "aperta";
+}
+
 /* Una cella del riquadro che NON appartiene alla stanza (l'angolo mancante di
    una forma a L, DEC-170): muro pieno, con la stessa faccia illuminata in alto
    e lo stesso spigolo del muro di fondo, cosi' si legge come parete e non come
    un buco nel pavimento. Dal lato del giocatore e' solida davvero: e' un
-   ostacolo (Game.obstacleHoleCount), non solo un disegno. */
-static void DrawRoomHole(Rectangle hole, Color wallDark, Color wallLit)
+   ostacolo (Game.obstacleHoleCount), non solo un disegno.
+   Col tileset caricato il riempimento diventa il ruolo dedicato 'l_block', che
+   il contratto d'arte emette esattamente per questo caso. */
+static void DrawRoomHole(Game *game, const ArtSheet *tiles, Rectangle hole, Color wallDark, Color wallLit)
 {
+    if (tiles)
+    {
+        DrawTiledArea(game, tiles, hole, "l_block", NULL, NULL, WHITE);
+        return;
+    }
     DrawRectangleRec(hole, wallDark);
     DrawRectangleGradientV((int)hole.x, (int)hole.y, (int)hole.width, (int)WALL_BACK_H, wallLit, wallDark);
     DrawRectangle((int)hole.x, (int)(hole.y + hole.height - 2.0f), (int)hole.width, 2, wallLit);
 }
 
-static void DrawRoom(Game *game)
+/* La stanza VESTITA dal tileset (W8). Sostituisce i colori piatti + griglia in
+ * prospettiva di DrawRoomFlat qui sotto, che resta il ripiego integrale.
+ *
+ * Ordine di disegno, dal fondo in avanti: il vuoto fuori dalla stanza, il
+ * pavimento cella per cella, la cornice di muro sui quattro lati, gli angoli,
+ * le celle-buco di una forma a L, e per ultime le porte (che sono buchi NEL
+ * muro, quindi vanno sopra).
+ *
+ * PERCHE' LE FASCE DI MURO RESTANO QUELLE DECORATIVE DI SEMPRE
+ * (WALL_BACK_H/WALL_SIDE_W/WALL_FRONT_H, 34/12/14 px) invece di diventare una
+ * fila intera di tile da 32: quelle misure sono lo SPESSORE che la resa 2.5D
+ * dichiara da sempre, e sono ancorate al bordo REALE del campo di gioco --
+ * allargarle a 32 px per lato avrebbe spostato di 20 px la parete rispetto
+ * alla collisione, cioe' avrebbe fatto camminare il giocatore dentro il muro.
+ * Il tile viene quindi RITAGLIATO alla fascia (ArtDrawTile ritaglia il
+ * sorgente, non comprime), e il muro laterale mostra i suoi primi 12 px: e'
+ * esattamente cio' che si vede di uno spessore visto di taglio.
+ */
+static void DrawRoomTiled(Game *game, const ArtSheet *tiles)
+{
+    Rectangle roomRect = WorldCurrentRoomRect(game);
+    /* Il vuoto copre tutta l'inquadratura: cosi' non resta mai una banda di
+       ClearBackground visibile fra la cornice di muro e il bordo dello schermo,
+       nemmeno mentre la telecamera scorre su una stanza multi-cella. */
+    DrawTiledArea(game, tiles, WorldCameraView(game), "void", "void_deg", NULL, WHITE);
+
+    static const char *const FLOOR_VARIANTS[] = { "floor_var1", "floor_var2", "floor_var3", NULL };
+    int cellX[4], cellY[4];
+    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+    for (int i = 0; i < cellCount; i++)
+        DrawTiledArea(game, tiles, WorldCellRect(game, cellX[i], cellY[i]), "floor", "floor_deg", FLOOR_VARIANTS, WHITE);
+
+    const float rx = roomRect.x, ry = roomRect.y, rw = roomRect.width, rh = roomRect.height;
+    const float rRight = rx + rw, rBottom = ry + rh;
+    DrawTiledArea(game, tiles, (Rectangle){ rx, ry - WALL_BACK_H, rw, WALL_BACK_H }, "wall_n", "wall_deg", NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rx, rBottom, rw, WALL_FRONT_H }, "wall_s", "wall_deg", NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rx - WALL_SIDE_W, ry, WALL_SIDE_W, rh }, "wall_w", "wall_deg", NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rRight, ry, WALL_SIDE_W, rh }, "wall_e", "wall_deg", NULL, WHITE);
+    /* Angoli ESTERNI ai quattro spigoli della cornice: sono i quattro
+       rettangoli che le quattro fasce qui sopra lasciano scoperti. */
+    DrawTiledArea(game, tiles, (Rectangle){ rx - WALL_SIDE_W, ry - WALL_BACK_H, WALL_SIDE_W, WALL_BACK_H }, "corner_nw", NULL, NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rRight, ry - WALL_BACK_H, WALL_SIDE_W, WALL_BACK_H }, "corner_ne", NULL, NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rRight, rBottom, WALL_SIDE_W, WALL_FRONT_H }, "corner_se", NULL, NULL, WHITE);
+    DrawTiledArea(game, tiles, (Rectangle){ rx - WALL_SIDE_W, rBottom, WALL_SIDE_W, WALL_FRONT_H }, "corner_sw", NULL, NULL, WHITE);
+
+    int holes = WorldRoomHoleCount(game);
+    for (int i = 0; i < holes; i++) DrawRoomHole(game, tiles, WorldRoomHoleRect(game, i), BLACK, BLACK);
+
+    const char *state = RoomDoorState(game);
+    for (int i = 0; i < cellCount; i++)
+    {
+        const RoomState *cell = &game->rooms[cellY[i]][cellX[i]];
+        Rectangle c = WorldCellRect(game, cellX[i], cellY[i]);
+        float ccx = c.x + c.width*0.5f, ccy = c.y + c.height*0.5f;
+        float cRight = c.x + c.width, cBottom = c.y + c.height;
+        char role[ART_ROLE_NAME_LEN];
+        if (cell->doors[DIR_UP])
+        {
+            snprintf(role, sizeof(role), "door_n_%s", state);
+            DrawTiledArea(game, tiles, (Rectangle){ ccx - DOOR_HALF, c.y - WALL_BACK_H, DOOR_HALF*2.0f, WALL_BACK_H }, role, NULL, NULL, WHITE);
+        }
+        if (cell->doors[DIR_DOWN])
+        {
+            snprintf(role, sizeof(role), "door_s_%s", state);
+            DrawTiledArea(game, tiles, (Rectangle){ ccx - DOOR_HALF, cBottom, DOOR_HALF*2.0f, WALL_FRONT_H }, role, NULL, NULL, WHITE);
+        }
+        if (cell->doors[DIR_LEFT])
+        {
+            snprintf(role, sizeof(role), "door_w_%s", state);
+            DrawTiledArea(game, tiles, (Rectangle){ c.x - WALL_SIDE_W, ccy - DOOR_HALF, WALL_SIDE_W, DOOR_HALF*2.0f }, role, NULL, NULL, WHITE);
+        }
+        if (cell->doors[DIR_RIGHT])
+        {
+            snprintf(role, sizeof(role), "door_e_%s", state);
+            DrawTiledArea(game, tiles, (Rectangle){ cRight, ccy - DOOR_HALF, WALL_SIDE_W, DOOR_HALF*2.0f }, role, NULL, NULL, WHITE);
+        }
+    }
+
+    /* La sfumatura che scurisce il fondo della stanza resta anche col tileset:
+       e' la prospettiva atmosferica della resa 2.5D (step E, trucco 3), non una
+       texture -- senza, un pavimento a tile piatto perde ogni profondita'. */
+    DrawRectangleGradientV((int)rx, (int)ry, (int)rw, (int)(rh*0.35f),
+                           GameColorWithAlpha(BLACK, 52), BLANK);
+    if (game->floor == 0) DrawFloorZeroExitGate(game);
+}
+
+static void DrawRoomFlat(Game *game)
 {
     /* DEC-170: si disegna in coordinate di MONDO, dentro la telecamera (vedi
        DrawGameplayCanvas). La stanza e' il RIQUADRO delle sue celle: una per
@@ -319,7 +628,7 @@ static void DrawRoom(Game *game)
        griglia in prospettiva resta una sola per stanza invece di spezzarsi in
        quattro). */
     int holes = WorldRoomHoleCount(game);
-    for (int i = 0; i < holes; i++) DrawRoomHole(WorldRoomHoleRect(game, i), wallDark, wallLit);
+    for (int i = 0; i < holes; i++) DrawRoomHole(game, NULL, WorldRoomHoleRect(game, i), wallDark, wallLit);
 
     Color doorColor = GameRoomIsLocked(game) ? (Color){ 200, 58, 58, 255 } : game->theme.accent2;
     /* Le porte si disegnano SOPRA i muri (sono buchi nel muro), al centro del
@@ -349,6 +658,17 @@ static void DrawRoom(Game *game)
        ROOM_X/ROOM_W fissi (non roomRect): il Piano 0 e' sempre una sola cella,
        dove le due cose coincidono. */
     if (game->floor == 0) DrawFloorZeroExitGate(game);
+}
+
+/* Il punto di scelta fra le due rese della stanza: il tileset originale se il
+   tema ne ha uno caricabile (W8), i colori piatti del tema altrimenti. Un solo
+   ramo, qui: nessun altro punto del renderer deve sapere che esistono due
+   percorsi. */
+static void DrawRoom(Game *game)
+{
+    const ArtSheet *tiles = RoomTileset(&game->theme);
+    if (tiles) DrawRoomTiled(game, tiles);
+    else DrawRoomFlat(game);
 }
 
 /* Vignettatura: quattro sfumature ai bordi del canvas. Non e' decorazione fine a
@@ -387,6 +707,74 @@ static bool DrawAtlasCell(Game *game, int cell, Vector2 pos, float size, Color t
     return true;
 }
 
+/* ============================================================
+   W8: dove POGGIA uno sprite, e quanto e' grande.
+ *
+ * L'ancora dei manifest e' ai piedi (anchor y ~28 su 32 per un personaggio, 56
+ * su 64 per un boss), mentre la posizione di un'entita' nel motore e' il CENTRO
+ * del suo cerchio di collisione. Il punto di appoggio si ricava quindi dal
+ * raggio, e -- deliberatamente -- con la STESSA frazione che DrawGroundShadow
+ * usa per la sua ombra: sprite e ombra devono toccare il pavimento nello stesso
+ * punto, o l'entita' sembra sollevata da terra (era proprio il difetto che
+ * l'ombra del giocatore, ancorata al raggio invece che al piede, aveva mostrato
+ * nella resa a stickman).
+   ============================================================ */
+static Vector2 SpriteGroundPos(Vector2 pos, float radius, float footFraction)
+{
+    return (Vector2){ pos.x, pos.y + radius*footFraction };
+}
+
+/* La scala di uno sprite di entita': tanto quanto serve perche' occupi la
+   stessa larghezza a schermo che la cella d'atlas occupava (raggio*3.3),
+   agganciata a mezzi passi. Cosi' un nemico "grande" (sizeMul alto) resta
+   grande e uno piccolo resta piccolo, come dice il suo tipo -- il tier
+   disegnato (32/48/64 px) cambia solo la definizione, mai l'ingombro. */
+static float EntitySpriteScale(const ArtSheet *sheet, float radius)
+{
+    return ArtScaleForWidth(sheet->frameW, radius*3.3f);
+}
+
+/* Lo spritesheet di un nemico: l'image-id del suo tipo (DEC-175(b)) risolto
+   nella categoria giusta. Un boss cerca in bosses/, un nemico normale in
+   enemies/; ArtAtlasFindByImageId scandisce comunque tutte le categorie, quindi
+   un boss il cui sprite fosse stato consegnato fra i nemici (o viceversa) si
+   trova comunque. NULL = nessun originale: si ricade sulle sagome geometriche. */
+static const ArtSheet *EnemySheet(const Enemy *e)
+{
+    if (!e->type.imageId[0]) return NULL;
+    return ArtAtlasFindByImageId(e->type.imageId);
+}
+
+/* L'animazione di un nemico VIVO. 'hit' vince su tutto (il colpo subito deve
+   vedersi), poi la camminata; 'idle' esiste solo sui boss e fa da riposo. La
+   morte non passa da qui: e' un ArtFx che sopravvive all'entita' (vedi ArtFx in
+   core/game_types.h). */
+static void DrawEnemySprite(const ArtSheet *sheet, const Enemy *e, Color tint)
+{
+    Vector2 ground = SpriteGroundPos(e->pos, e->radius, 0.62f);
+    float scale = EntitySpriteScale(sheet, e->radius);
+    /* Si guarda a sinistra quando ci si muove a sinistra, e si RESTA girati
+       quando si e' fermi (nessuna soglia sullo zero: uno |vel.x| minuscolo
+       farebbe sfarfallare il verso ad ogni frame). Gli sprite dei nemici sono
+       disegnati verso destra per contratto, quindi si specchia solo l'altro
+       verso. */
+    bool flip = e->vel.x < -1.0f;
+    if (e->hitFlash > 0.0f && ArtDrawAnim(sheet, "hit", 0.0f, ground, scale, flip, tint)) return;
+    /* La fase per-nemico entra nel tempo dell'animazione: senza, tutti i
+       nemici della stanza camminerebbero all'unisono (lo stesso motivo per cui
+       EntitiesAddEnemyTyped randomizza e->phase per il movimento). */
+    float elapsed = (float)GetTime() + e->phase;
+    bool moving = (e->vel.x*e->vel.x + e->vel.y*e->vel.y) > 4.0f;
+    if (!moving && ArtDrawAnim(sheet, "idle", elapsed, ground, scale, flip, tint)) return;
+    if (ArtDrawAnim(sheet, "walk", elapsed, ground, scale, flip, tint)) return;
+    if (ArtDrawAnim(sheet, "idle", elapsed, ground, scale, flip, tint)) return;
+    /* Nessuno dei nomi canonici: si disegna comunque la prima riga dello
+       sheet, che e' sempre l'animazione principale per contratto. Meglio uno
+       sprite fermo che nessuno sprite. */
+    if (sheet->animCount > 0)
+        ArtDrawFrame(sheet, sheet->anims[0].row, ArtAnimFrameAt(&sheet->anims[0], elapsed), ground, scale, flip, tint);
+}
+
 static void DrawEnemy(Game *game, const Enemy *e)
 {
     Color c = e->kind == ENEMY_BOSS ? game->theme.boss : game->theme.enemy;
@@ -396,7 +784,17 @@ static void DrawEnemy(Game *game, const Enemy *e)
        cella e' vuota si ripiega sulla forma geometrica, invece di lasciare
        il nemico invisibile. */
     bool drew = false;
-    if (game->atlasLoaded)
+    /* W8, PRIMO gradino della priorita': l'originale animato di assets/art/.
+       Sta PRIMA del ramo 'atlasLoaded' perche' vince sull'atlas generato: e'
+       arte disegnata a mano per QUESTO nemico, contro una cella scelta dalla
+       sua forma generica. */
+    const ArtSheet *sheet = EnemySheet(e);
+    if (sheet)
+    {
+        DrawEnemySprite(sheet, e, WHITE);
+        drew = true;
+    }
+    if (!drew && game->atlasLoaded)
     {
         /* Fase 3b: lo sprite si sceglie dalla FORMA del nemico (inventata dal
            modello), non piu' dal vecchio 'kind'. Senza questo, con un atlas
@@ -427,7 +825,7 @@ static void DrawEnemy(Game *game, const Enemy *e)
     if (e->kind == ENEMY_BOSS)
     {
         Rectangle view = WorldCameraView(game);
-        DrawText(game->theme.bossName, (int)(view.x + ROOM_X + 20.0f), (int)(view.y + ROOM_Y + 16.0f), 18, RAYWHITE);
+        UiText(game->theme.bossName, (int)(view.x + ROOM_X + 20.0f), (int)(view.y + ROOM_Y + 16.0f), 18, RAYWHITE);
     }
     if (!drew)
     {
@@ -516,6 +914,32 @@ static void DrawEnemy(Game *game, const Enemy *e)
    si centra, invece di stirare lo sprite dentro un quadrato. */
 static bool DrawItemIcon(Game *game, const Item *item, Vector2 center, float size)
 {
+    /* W8, PRIMO gradino della priorita' delle immagini (DEC-175(b) + DEC-171):
+       l'originale animato di assets/art/ risolto dall'image-id, POI il ponte
+       CC0 di assets/curated/ risolto dal percorso, POI la cella d'atlas, POI la
+       forma geometrica. I quattro gradini sono uno solo per punto di disegno --
+       inventario, piedistallo, anteprima del piano e fascia di fusione passano
+       tutti da qui, cosi' un oggetto non puo' mostrare due immagini diverse in
+       due schermate.
+       L'icona di un oggetto usa 'glow' quando c'e' (una pulsazione lenta che lo
+       fa notare a terra) e 'idle' altrimenti: sono i due nomi che il contratto
+       emette per la categoria oggetti. */
+    if (item->imageId[0])
+    {
+        const ArtSheet *sheet = ArtAtlasFindByImageId(item->imageId);
+        if (sheet)
+        {
+            float scale = ArtScaleForWidth(sheet->frameW, size);
+            /* Un'icona si centra sul punto richiesto, non ci poggia: qui il
+               punto e' il centro di una casella d'inventario o di un pickup,
+               non un pavimento. Si compensa quindi l'ancora ai piedi
+               riportando il centro del fotogramma sul centro chiesto. */
+            Vector2 anchorPos = { center.x + ((float)sheet->anchorX - (float)sheet->frameW*0.5f)*scale,
+                                  center.y + ((float)sheet->anchorY - (float)sheet->frameH*0.5f)*scale };
+            if (ArtDrawAnim(sheet, "glow", (float)GetTime(), anchorPos, scale, false, WHITE)) return true;
+            if (ArtDrawAnim(sheet, "idle", (float)GetTime(), anchorPos, scale, false, WHITE)) return true;
+        }
+    }
     if (item->imagePath[0])
     {
         const Texture2D *tex = AssetsCuratedTexture(game, item->imagePath);
@@ -580,7 +1004,32 @@ static void DrawPickup(Game *game, const Pickup *p)
        mai lasciare il pickup invisibile (l'uscita PICKUP_EXIT non aveva
        nemmeno un'etichetta di riserva: senza sprite era del tutto invisibile). */
     bool drew = false;
-    if (game->atlasLoaded)
+    /* W8: i prop originali di assets/art/props per le raccolte che ne hanno
+       uno. Solo due oggi (lingotto e Flux, i due pickup disegnati dalla
+       sessione artistica): tutte le altre restano sulla cella d'atlas o sulla
+       forma geometrica, che e' anche l'unica resa possibile per l'energia e per
+       l'uscita (nessuna cella d'atlas, vedi il commento sotto).
+       GAP DICHIARATO (CP4): cuore, bomba e chiave non hanno ancora uno sprite
+       dedicato in assets/art/props -- restano sulle primitive. */
+    const char *propKey = NULL;
+    if (p->kind == PICKUP_COIN) propKey = "props/pickup-lingotto";
+    else if (p->kind == PICKUP_FLUX) propKey = "props/pickup-flux";
+    if (propKey)
+    {
+        const ArtSheet *prop = ArtAtlasGet(propKey);
+        if (prop)
+        {
+            float scale = ArtScaleForWidth(prop->frameW, 28.0f);
+            drew = ArtDrawAnim(prop, "idle", (float)GetTime() + p->pos.x*0.01f,
+                               SpriteGroundPos(pos, p->radius, 0.7f), scale, false, WHITE);
+        }
+    }
+    if (!drew && p->kind == PICKUP_ITEM && (p->item.imageId[0] || p->item.imagePath[0]))
+    {
+        drew = DrawItemIcon(game, &p->item, pos, 46.0f);
+        if (drew) label = p->item.name;
+    }
+    if (!drew && game->atlasLoaded)
     {
         int cell = SPR_ITEM;
         float size = 46.0f;
@@ -593,15 +1042,6 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_FLUX) cell = -1;     /* idem: il catalizzatore di fusione e' una forma geometrica */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
-    }
-    /* Un oggetto con sprite curato (DEC-171: un fuso lasciato su un
-       piedistallo da uno scambio) si disegna con la SUA immagine, anche se
-       l'atlas non e' caricato affatto -- per questo il tentativo sta fuori
-       dal blocco 'atlasLoaded' qui sopra. */
-    if (!drew && p->kind == PICKUP_ITEM && p->item.imagePath[0])
-    {
-        drew = DrawItemIcon(game, &p->item, pos, 46.0f);
-        if (drew) label = p->item.name;
     }
     if (!drew)
     {
@@ -654,9 +1094,9 @@ static void DrawPickup(Game *game, const Pickup *p)
        sprite/forma ma PRIMA delle etichette sotto, cosi' il testo (nome o
        costo in monete) resta sempre leggibile sopra l'anello. */
     if (p->kind == PICKUP_ITEM) DrawItemRarityRing(pos, p->item.rarity);
-    if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) DrawText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
-    if (p->cost > 0) DrawText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
-    else if (p->kind == PICKUP_ITEM) DrawText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
+    if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) UiText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
+    if (p->cost > 0) UiText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
+    else if (p->kind == PICKUP_ITEM) UiText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
 }
 
 /* Lo stickman minimale e FISSO: il personaggio base, mai generato (vision
@@ -690,6 +1130,62 @@ static void DrawBaseStickman(Vector2 pos, Color tint)
    sullo stack dimensionato su MAX_ITEMS basta sempre, perche' BuildItemLayers
    non puo' mai scrivere piu' elementi di quanti oggetti attivi esistano —
    zero allocazioni per frame. */
+/* W8: la BASE del personaggio disegnata a mano (assets/art/character/), al
+ * posto dello stickman.
+ *
+ * NON contraddice la decisione citata su DrawBaseStickman, la ATTUA: l'obiezione
+ * del documento era contro una base GENERATA -- "se il personaggio base cambiasse
+ * ad ogni run generata, DrawEquipment non saprebbe piu' dove mettere
+ * cappello/occhiali con certezza". Uno sprite disegnato a mano e versionato nel
+ * repo e' MENO variabile dello stickman procedurale, non piu': gli agganci di
+ * PlayerComputeAnchors continuano a derivare da posizione e raggio, che non
+ * cambiano, e i layer degli oggetti restano esattamente dove erano.
+ *
+ * Quattro camminate + idle si scelgono da Player.animFacing/walkTime (scritti
+ * da GameUpdatePlayer); 'hit' scatta durante l'invulnerabilita' da danno, che e'
+ * il segnale che il motore ha gia'. La morte non passa da qui: e' un ArtFx.
+ * false = nessuno sprite (checkout senza assets/art/): si torna allo stickman. */
+static bool DrawCharacterSprite(const Player *p, Color palette)
+{
+    const ArtSheet *sheet = ArtAtlasGet("character/fonditrice");
+    if (!sheet) return false;
+    /* Della tinta del personaggio si conserva SOLO l'alfa. Lo stickman era una
+       silhouette monocroma e la palette del personaggio (M6a) era l'unico modo
+       di dargli identita'; uno sprite disegnato ha la sua palette dentro, e
+       moltiplicarla per un colore la sporcherebbe. L'alfa invece porta ancora
+       informazione di gioco: e' il lampeggio di invulnerabilita', che deve
+       restare visibile.
+       GAP DICHIARATO (CP4): con un solo spritesheet di personaggio, i tre
+       personaggi della rosa e quello generato si vedono identici -- l'identita'
+       visiva per personaggio richiede tre sheet, giro artistico dedicato. */
+    Color tint = (Color){ 255, 255, 255, palette.a };
+    /* Lo stickman ha i piedi a +31 px dal centro (DrawBaseStickman) e il
+       PLAYER_FOOT_Y di DrawGameplayCanvas ancora l'ombra la': lo sprite poggia
+       sullo STESSO punto, o l'ombra resterebbe staccata dai piedi. */
+    Vector2 ground = { p->pos.x, p->pos.y + 31.0f*(p->radius/14.0f) };
+    float scale = ArtScaleForWidth(sheet->frameW, p->radius*4.6f);
+
+    if (p->invuln > 0.0f && ArtDrawAnim(sheet, "hit", 0.0f, ground, scale, false, tint)) return true;
+
+    /* Si traduce Direction in NOME di animazione con uno switch esplicito e non
+       indicizzando una tabella con l'enum: l'ordine di Direction e' UP, RIGHT,
+       DOWN, LEFT (core/game_types.h) e non quello alfabetico o cardinale che
+       verrebbe naturale scrivere in una tabella -- un giorno che qualcuno
+       aggiunga una direzione, uno switch e' un -Wswitch, una tabella e' una
+       camminata che punta dalla parte sbagliata in silenzio. */
+    const char *walk = "walk_down";
+    switch ((Direction)p->animFacing)
+    {
+        case DIR_UP: walk = "walk_up"; break;
+        case DIR_RIGHT: walk = "walk_right"; break;
+        case DIR_DOWN: walk = "walk_down"; break;
+        case DIR_LEFT: walk = "walk_left"; break;
+    }
+    if (p->walkTime > 0.0f && ArtDrawAnim(sheet, walk, p->walkTime, ground, scale, false, tint)) return true;
+    if (ArtDrawAnim(sheet, "idle", (float)GetTime(), ground, scale, false, tint)) return true;
+    return ArtDrawAnim(sheet, walk, 0.0f, ground, scale, false, tint);
+}
+
 static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
 {
     PlayerAnchors anchors = PlayerComputeAnchors(pos, p->radius);
@@ -698,7 +1194,7 @@ static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
 
     int i = 0;
     for (; i < count && ItemLayerIsBehindBase(layers[i].slot); i++) DrawItemLayer(anchors, layers[i]);
-    DrawBaseStickman(pos, tint);
+    if (!DrawCharacterSprite(p, tint)) DrawBaseStickman(pos, tint);
     for (; i < count; i++) DrawItemLayer(anchors, layers[i]);
 }
 
@@ -749,7 +1245,7 @@ static void DrawTransientMessage(Game *game)
     if (game->messageTimer <= 0.0f) return;
     Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 46.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
     DrawRectangleRec(box, GameColorWithAlpha(BLACK, 160));
-    DrawText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
+    UiText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
 }
 
 /* Un colpo, disegnato secondo la sua FORMA (step C, core/shot_type.h). Le forme
@@ -760,6 +1256,47 @@ static void DrawTransientMessage(Game *game)
    SHOT_FORM_ORB e' lo zero-default: ogni colpo nemico, ogni colpo generato da uno
    script Lua e ogni colpo di una run senza tipi di colpo passa di qui e viene
    disegnato ESATTAMENTE come prima di questa fase (due cerchi). */
+/* W8: lo spritesheet di un colpo, scelto dalla sua FORMA. La corrispondenza
+   forma->file e' 1:1 col vocabolario di core/shot_type.h e coi file consegnati
+   (assets/art/shots/{orb,spike,beam,arc,blade}); orb ha anche un tier "grande"
+   (orb-grande) che si usa per i colpi di raggio alto, esattamente come il
+   contratto della pipeline prevede ("il motore sceglie il tier piu' vicino").
+   NULL = nessun originale: si ricade sui cinque disegni geometrici di sempre. */
+static const ArtSheet *ShotSheet(const Shot *shot)
+{
+    const char *key = NULL;
+    switch (shot->form)
+    {
+        case SHOT_FORM_SPIKE: key = "shots/spike"; break;
+        case SHOT_FORM_BEAM: key = "shots/beam"; break;
+        case SHOT_FORM_ARC: key = "shots/arc"; break;
+        case SHOT_FORM_BLADE: key = "shots/blade"; break;
+        case SHOT_FORM_ORB:
+        case SHOT_FORM_COUNT:
+        default: key = (shot->radius >= 11.0f) ? "shots/orb-grande" : "shots/orb"; break;
+    }
+    const ArtSheet *sheet = ArtAtlasGet(key);
+    if (!sheet && shot->form == SHOT_FORM_ORB) sheet = ArtAtlasGet("shots/orb");
+    return sheet;
+}
+
+/* Il colpo con lo sprite vero. Lo sprite NON ruota con la direzione: i colpi
+   consegnati sono simmetrici o radiali, e ruotare pixel art di un angolo
+   arbitrario la sfoca -- e' la stessa ragione per cui la scala si aggancia a
+   mezzi passi. Il colore del colpo (che porta informazione: e' il colore
+   dell'oggetto che ha dato il tipo) si applica come TINTA moltiplicativa, cosi'
+   due build diverse hanno colpi distinguibili pur condividendo il disegno. */
+static bool DrawShotSprite(const Shot *shot)
+{
+    const ArtSheet *sheet = ShotSheet(shot);
+    if (!sheet) return false;
+    float scale = ArtScaleForWidth(sheet->frameW, shot->radius*3.2f);
+    /* L'ancora dei colpi e' il CENTRO del fotogramma (8,8 su 16): il punto di
+       appoggio e' quindi la posizione del colpo, senza correzione di piede. */
+    return ArtDrawAnim(sheet, "fly", (float)GetTime()*1.0f + shot->pos.x*0.01f,
+                       shot->pos, scale, false, shot->color);
+}
+
 static void DrawShot(const Shot *shot)
 {
     Color halo = GameColorWithAlpha(shot->color, 80);
@@ -777,6 +1314,11 @@ static void DrawShot(const Shot *shot)
         DrawCircleLines((int)shot->pos.x, (int)shot->pos.y, shot->radius + pulse + 3.0f,
                         GameColorWithAlpha(RAYWHITE, 150));
     }
+
+    /* W8: lo sprite vince sulle cinque forme geometriche. L'anello di sinergia
+       qui sopra resta comunque disegnato PRIMA in entrambi i casi: e'
+       informazione di gioco (step D), non decorazione della forma. */
+    if (DrawShotSprite(shot)) return;
 
     switch (shot->form)
     {
@@ -885,6 +1427,38 @@ static void DepthSort(DepthEntry *list, int count)
    complessita' per coperture cosi' basse). */
 static void DrawObstacles(Game *game)
 {
+    /* W8: gli ostacoli vestiti dal tileset. Il ruolo si sceglie dalla FAMIGLIA
+       di layout del piano (obst_pillar/corridor/arena/scatter, uno per valore di
+       RoomForm): il contratto d'arte emette esattamente un tile per famiglia,
+       cosi' una stanza a colonne si vede come colonne e una a strozzature come
+       strozzature, non come lo stesso blocco quattro volte. */
+    const ArtSheet *tiles = RoomTileset(&game->theme);
+    if (tiles)
+    {
+        int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
+        const RoomLayoutDef *layout = &game->content.floors[floorIndex].roomLayout;
+        const char *role = "obst_pillar";
+        switch (layout->form)
+        {
+            case ROOM_LAYOUT_CORRIDOR: role = "obst_corridor"; break;
+            case ROOM_LAYOUT_ARENA: role = "obst_arena"; break;
+            case ROOM_LAYOUT_SCATTER: role = "obst_scatter"; break;
+            case ROOM_LAYOUT_PILLARS:
+            case ROOM_LAYOUT_OPEN:
+            case ROOM_LAYOUT_COUNT:
+            default: role = "obst_pillar"; break;
+        }
+        for (int i = game->obstacleHoleCount; i < game->obstacleCount; i++)
+        {
+            Obstacle *o = &game->obstacles[i];
+            /* L'ombra a terra resta: e' cio' che fa poggiare il blocco sul
+               pavimento, e nessun tile puo' disegnarla (non sa cosa ha sotto). */
+            DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
+            DrawTiledArea(game, tiles, (Rectangle){ o->x, o->y, o->w, o->h }, role, NULL, NULL, WHITE);
+        }
+        return;
+    }
+
     const float LIFT = 16.0f;   /* quanto e' "alto" il blocco: la faccia superiore e' spostata su di tanto */
     Color side = GameColorLerp(game->theme.wall, BLACK, 0.55f);
     Color top = GameColorLerp(game->theme.wall, WHITE, 0.12f);
@@ -994,6 +1568,22 @@ static void DrawGameplayCanvas(Game *game)
         if (!s->active) continue;
         DrawShot(s);
     }
+    /* W8: le animazioni di morte (ArtFx). Dopo le entita' e prima delle
+       particelle: un nemico che muore e' ormai scenografia, e le sue particelle
+       (che esplodono nello stesso istante) devono restare sopra di lui. */
+    for (int i = 0; i < MAX_ART_FX; i++)
+    {
+        const ArtFx *fx = &game->artFx[i];
+        if (!fx->active) continue;
+        const ArtSheet *sheet = ArtAtlasFindByImageId(fx->imageId);
+        if (!sheet) continue;
+        /* Il punto di appoggio e' la stessa frazione di raggio usata per il
+           nemico vivo, ricostruita dalla larghezza voluta: senza, lo sprite
+           della morte "salterebbe" verso l'alto nell'istante del passaggio. */
+        Vector2 ground = { fx->pos.x, fx->pos.y + fx->wantedWidth*(0.62f/3.3f) };
+        float scale = ArtScaleForWidth(sheet->frameW, fx->wantedWidth);
+        ArtDrawAnim(sheet, fx->anim, fx->elapsed, ground, scale, fx->flipX, fx->tint);
+    }
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
         Particle *p = &game->particles[i];
@@ -1047,11 +1637,13 @@ static void TraitsToText(unsigned int traits, char *out, int outSize)
 
 static void DrawStatLine(const char *label, const char *value, int x, int y, Color color, float uiScale)
 {
-    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 150, 158, 172, 255 }));
-    GuiLabel((Rectangle){ (float)x, (float)y, 116.0f*uiScale, 18.0f*uiScale }, label);
-    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt(color));
-    GuiLabel((Rectangle){ (float)x + 118.0f*uiScale, (float)y, 220.0f*uiScale, 18.0f*uiScale }, value);
-    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));   /* ripristina il default */
+    /* W8: due colonne allineate a mano invece di due GuiLabel -- raygui
+       resterebbe l'ultimo punto con una tipografia propria dentro una
+       schermata vestita coi componenti. Le due quote (0 e 118) sono quelle di
+       prima, moltiplicate per la scala come faceva il rettangolo di GuiLabel. */
+    int font = UiRound(14.0f*uiScale);
+    UiText(label, x, y, font, (Color){ 150, 158, 172, 255 });
+    UiText(value, x + UiRound(118.0f*uiScale), y, font, color);
 }
 
 /* La vita come CUORI (fase 4, richiesta dell'utente): stile Isaac, un cuore pieno
@@ -1108,8 +1700,8 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_BOSS) g = "B";
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
-    int w = MeasureText(g, fontSize);
-    DrawText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f), fontSize, color);
+    int w = UiTextW(g, fontSize);
+    UiText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f), fontSize, color);
 }
 
 /* DEC-137: la minimappa e' passata da pannello laterale a overlay in un angolo
@@ -1199,7 +1791,7 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
        colpo in coda al nome: si vede a colpo d'occhio quali oggetti danno un tipo
        di colpo. */
     if (item->shotType.active) DrawCircleV((Vector2){ x + 47.0f*uiScale, y + 15.0f*uiScale }, 4.0f*uiScale, item->color);
-    DrawText(item->name, x + UiRound(55.0f*uiScale), y + UiRound(9.0f*uiScale), fontName, RAYWHITE);
+    UiText(item->name, x + UiRound(55.0f*uiScale), y + UiRound(9.0f*uiScale), fontName, RAYWHITE);
     /* Nome della rarita' in coda alla riga slot/traits, nel suo colore (design
        doc, sezione 6: "...e col nome nel pannello"): due DrawText invece di
        uno solo cosi' SOLO il nome della rarita' prende il suo colore, il
@@ -1208,9 +1800,9 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
     snprintf(slotTraits, sizeof(slotTraits), "%s  |  %s  |  ", SlotName(item->slot), traits);
     int textX = x + UiRound(55.0f*uiScale);
     int textY = y + UiRound(31.0f*uiScale);
-    DrawText(slotTraits, textX, textY, fontSlot, (Color){ 190, 198, 211, 255 });
-    int rarityTextX = textX + MeasureText(slotTraits, fontSlot);
-    DrawText(RarityName(item->rarity), rarityTextX, textY, fontSlot, rarityColor);
+    UiText(slotTraits, textX, textY, fontSlot, (Color){ 190, 198, 211, 255 });
+    int rarityTextX = textX + UiTextW(slotTraits, fontSlot);
+    UiText(RarityName(item->rarity), rarityTextX, textY, fontSlot, rarityColor);
     return hover;
 }
 
@@ -1246,8 +1838,8 @@ static void DrawItemTooltip(const Item *item, float uiScale)
 
     int titleFont = UiRound(16.0f*uiScale);
     int lineFont = UiRound(13.0f*uiScale);
-    int w = MeasureText(item->name, titleFont);
-    for (int i = 0; i < n; i++) { int lw = MeasureText(lines[i], lineFont); if (lw > w) w = lw; }
+    int w = UiTextW(item->name, titleFont);
+    for (int i = 0; i < n; i++) { int lw = UiTextW(lines[i], lineFont); if (lw > w) w = lw; }
     w += UiRound(24.0f*uiScale);
     int lineStep = UiRound(18.0f*uiScale);
     int h = UiRound(30.0f*uiScale) + n*lineStep + UiRound(8.0f*uiScale);
@@ -1260,9 +1852,9 @@ static void DrawItemTooltip(const Item *item, float uiScale)
 
     DrawRectangleRec((Rectangle){ bx, by, (float)w, (float)h }, (Color){ 12, 14, 19, 245 });
     DrawRectangleLinesEx((Rectangle){ bx, by, (float)w, (float)h }, 2.0f, GameColorWithAlpha(RarityColor(item->rarity), 230));
-    DrawText(item->name, (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(8.0f*uiScale), titleFont, RAYWHITE);
+    UiText(item->name, (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(8.0f*uiScale), titleFont, RAYWHITE);
     for (int i = 0; i < n; i++)
-        DrawText(lines[i], (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(30.0f*uiScale) + i*lineStep, lineFont, (Color){ 198, 205, 217, 255 });
+        UiText(lines[i], (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(30.0f*uiScale) + i*lineStep, lineFont, (Color){ 198, 205, 217, 255 });
 }
 
 /* Il blocco BUILD (fase 4, richiesta dell'utente: "sinergie/colpo piu' in vista").
@@ -1291,9 +1883,9 @@ static int DrawBuildBlock(Game *game, int x, int y, int width, float uiScale, bo
         DrawRectangleLinesEx(bar, 2.0f, GameColorWithAlpha(shotTint, 200));
         DrawCircleV((Vector2){ (float)x + 16.0f*uiScale, (float)cy + 15.0f*uiScale }, 6.0f*uiScale, shotTint);
         if (p->shotType.active)
-            DrawText(TextFormat("%s  (%s)", p->shotType.name, ShotFormName(p->shotType.form)), x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, RAYWHITE);
+            UiText(TextFormat("%s  (%s)", p->shotType.name, ShotFormName(p->shotType.form)), x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, RAYWHITE);
         else
-            DrawText("Colpo base", x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, (Color){ 170, 178, 190, 255 });
+            UiText("Colpo base", x + UiRound(30.0f*uiScale), cy + UiRound(7.0f*uiScale), fontShot, (Color){ 170, 178, 190, 255 });
     }
     cy += UiRound(38.0f*uiScale);
 
@@ -1306,20 +1898,20 @@ static int DrawBuildBlock(Game *game, int x, int y, int width, float uiScale, bo
     {
         if (!(p->synergies & (1u << i))) continue;
         const char *name = SynergyName(i);
-        int w = MeasureText(name, fontPill) + UiRound(20.0f*uiScale);
+        int w = UiTextW(name, fontPill) + UiRound(20.0f*uiScale);
         if (chipX + w > x + width) { chipX = x; chipY += chipRowStep; }
         if (!measureOnly)
         {
             DrawRectangleRounded((Rectangle){ (float)chipX, (float)chipY, (float)w, (float)chipH }, 0.5f, 6, GameColorWithAlpha(GOLD, 40));
             DrawRectangleRoundedLines((Rectangle){ (float)chipX, (float)chipY, (float)w, (float)chipH }, 0.5f, 6, GOLD);
-            DrawText(name, chipX + UiRound(10.0f*uiScale), chipY + UiRound(4.0f*uiScale), fontPill, GOLD);
+            UiText(name, chipX + UiRound(10.0f*uiScale), chipY + UiRound(4.0f*uiScale), fontPill, GOLD);
         }
         chipX += w + UiRound(8.0f*uiScale);
         anyPill++;
     }
     if (!anyPill)
     {
-        if (!measureOnly) DrawText("Nessuna sinergia: combina gli oggetti.", x, cy + UiRound(2.0f*uiScale), fontPill, (Color){ 150, 158, 172, 255 });
+        if (!measureOnly) UiText("Nessuna sinergia: combina gli oggetti.", x, cy + UiRound(2.0f*uiScale), fontPill, (Color){ 150, 158, 172, 255 });
         chipY = cy;
     }
     return (chipY + chipRowStep) - y;
@@ -1418,9 +2010,9 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
     float heartsW = (float)heartSlots*heartS*1.15f + heartS;
 
     int slotFont = UiRound(13.0f*s);
-    float contentW = fmaxf(fmaxf((float)MeasureText(nameLine, nameFont), (float)MeasureText(resLine, resFont)), heartsW);
-    contentW = fmaxf(contentW, (float)MeasureText(activeLine, slotFont));
-    contentW = fmaxf(contentW, (float)MeasureText(graftLine, slotFont));
+    float contentW = fmaxf(fmaxf((float)UiTextW(nameLine, nameFont), (float)UiTextW(resLine, resFont)), heartsW);
+    contentW = fmaxf(contentW, (float)UiTextW(activeLine, slotFont));
+    contentW = fmaxf(contentW, (float)UiTextW(graftLine, slotFont));
     float boxW = contentW + ip*2.0f;
     float rowName = 22.0f*s, rowHeart = heartS + 10.0f*s, rowRes = 22.0f*s, rowSlot = 18.0f*s;
     float boxH = ip*2.0f + rowName + rowHeart + rowRes + rowSlot*2.0f;
@@ -1430,15 +2022,15 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
 
     int cx = (int)(box.x + ip);
     int cy = (int)(box.y + ip);
-    DrawText(nameLine, cx, cy, nameFont, character ? character->palette : (Color){ 205, 210, 220, 255 });
+    UiText(nameLine, cx, cy, nameFont, character ? character->palette : (Color){ 205, 210, 220, 255 });
     cy += UiRound(rowName);
     DrawHearts(p, cx, cy, s);
     cy += UiRound(rowHeart);
-    DrawText(resLine, cx, cy, resFont, GOLD);
+    UiText(resLine, cx, cy, resFont, GOLD);
     cy += UiRound(rowRes);
-    DrawText(activeLine, cx, cy, slotFont, activeColor);
+    UiText(activeLine, cx, cy, slotFont, activeColor);
     cy += UiRound(rowSlot);
-    DrawText(graftLine, cx, cy, slotFont, graftColor);
+    UiText(graftLine, cx, cy, slotFont, graftColor);
 }
 
 /* Alto-destra: progressione della run e minimappa (priorita' 4 di ui/hud.md).
@@ -1465,9 +2057,9 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
     int mmH = mmW;
 
     float lineH = 18.0f*s;
-    float wText = fmaxf(fmaxf((float)MeasureText(worldLine, font), (float)MeasureText(bossLine, font)),
-                        fmaxf((float)MeasureText(floorLine, font),
-                              (float)MeasureText(sourceLine, font) + (float)MeasureText(fpsText, fpsFont) + 14.0f*s));
+    float wText = fmaxf(fmaxf((float)UiTextW(worldLine, font), (float)UiTextW(bossLine, font)),
+                        fmaxf((float)UiTextW(floorLine, font),
+                              (float)UiTextW(sourceLine, font) + (float)UiTextW(fpsText, fpsFont) + 14.0f*s));
     float contentW = fmaxf(wText, (float)mmW);
     float boxW = contentW + ip*2.0f;
     float gapAfterText = 8.0f*s;
@@ -1478,12 +2070,12 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
 
     int cx = (int)(box.x + ip);
     int cy = (int)(box.y + ip);
-    DrawText(worldLine, cx, cy, font, game->theme.accent2); cy += UiRound(lineH);
-    DrawText(bossLine, cx, cy, font, (Color){ 214, 218, 226, 255 }); cy += UiRound(lineH);
-    DrawText(floorLine, cx, cy, font, RAYWHITE); cy += UiRound(lineH);
-    DrawText(sourceLine, cx, cy, font, (Color){ 170, 178, 190, 255 });
+    UiText(worldLine, cx, cy, font, game->theme.accent2); cy += UiRound(lineH);
+    UiText(bossLine, cx, cy, font, (Color){ 214, 218, 226, 255 }); cy += UiRound(lineH);
+    UiText(floorLine, cx, cy, font, RAYWHITE); cy += UiRound(lineH);
+    UiText(sourceLine, cx, cy, font, (Color){ 170, 178, 190, 255 });
     /* FPS in coda alla riga della fonte, allineato al bordo destro del riquadro. */
-    DrawText(fpsText, (int)(box.x + boxW - ip) - MeasureText(fpsText, fpsFont), cy + UiRound(1.0f*s), fpsFont, (Color){ 126, 232, 152, 255 });
+    UiText(fpsText, (int)(box.x + boxW - ip) - UiTextW(fpsText, fpsFont), cy + UiRound(1.0f*s), fpsFont, (Color){ 126, 232, 152, 255 });
     cy += UiRound(lineH + gapAfterText);
     DrawMinimap(game, (int)(box.x + (boxW - (float)mmW)*0.5f), cy, mmCell, mmGap, s);
 }
@@ -1505,7 +2097,7 @@ static void DrawHudBuild(Game *game, Rectangle gr, float s)
 
     /* Larghezza interna: abbastanza per la riga statistiche, entro meta' della
        game view (non deve diventare una colonna). */
-    float innerW = fmaxf((float)MeasureText(statLine, statFont), 300.0f*s);
+    float innerW = fmaxf((float)UiTextW(statLine, statFont), 300.0f*s);
     innerW = fminf(innerW, gr.width*0.5f - ip*2.0f);
     int buildH = DrawBuildBlock(game, 0, 0, (int)innerW, s, true);   /* misura, non disegna */
 
@@ -1518,7 +2110,7 @@ static void DrawHudBuild(Game *game, Rectangle gr, float s)
     int cx = (int)(box.x + ip);
     int cy = (int)(box.y + ip);
     DrawBuildBlock(game, cx, cy, (int)innerW, s, false);
-    DrawText(statLine, cx, (int)(box.y + box.height - ip) - statFont, statFont, (Color){ 198, 205, 217, 255 });
+    UiText(statLine, cx, (int)(box.y + box.height - ip) - statFont, statFont, (Color){ 198, 205, 217, 255 });
 }
 
 /* Basso-destra: il LOG come area discreta (DEC-137, "log come toast/area
@@ -1540,8 +2132,8 @@ static void DrawHudLog(Game *game, Rectangle gr, float s)
 
     float lineH = 16.0f*s;
     int nLines = hasArch ? 2 : 1;
-    float contentW = (float)MeasureText(atlasMode, font);
-    if (hasArch) contentW = fmaxf(contentW, (float)MeasureText(archLine, font));
+    float contentW = (float)UiTextW(atlasMode, font);
+    if (hasArch) contentW = fmaxf(contentW, (float)UiTextW(archLine, font));
     float boxW = contentW + ip*2.0f;
     float boxH = ip*2.0f + (float)nLines*lineH;
 
@@ -1550,8 +2142,8 @@ static void DrawHudLog(Game *game, Rectangle gr, float s)
 
     int cx = (int)(box.x + ip);
     int cy = (int)(box.y + ip);
-    DrawText(atlasMode, cx, cy, font, GameColorWithAlpha(game->theme.accent2, 210));
-    if (hasArch) DrawText(archLine, cx, cy + UiRound(lineH), font, (Color){ 170, 178, 190, 255 });
+    UiText(atlasMode, cx, cy, font, GameColorWithAlpha(game->theme.accent2, 210));
+    if (hasArch) UiText(archLine, cx, cy + UiRound(lineH), font, (Color){ 170, 178, 190, 255 });
 }
 
 /* Alto-centro: la card di scoperta breve (DEC-065), quinto cluster dell'HUD.
@@ -1576,7 +2168,7 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
     char nameLine[64];
     snprintf(nameLine, sizeof(nameLine), "Scoperta: %s", card->name);
 
-    float contentW = fmaxf((float)MeasureText(nameLine, nameFont), (float)MeasureText(card->line, lineFont));
+    float contentW = fmaxf((float)UiTextW(nameLine, nameFont), (float)UiTextW(card->line, lineFont));
     contentW = fminf(contentW, gr.width*0.6f - ip*2.0f);
     float boxW = contentW + ip*2.0f;
     float rowName = 20.0f*s, rowLine = 18.0f*s;
@@ -1587,9 +2179,255 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
 
     int cx = (int)(box.x + ip);
     int cy = (int)(box.y + ip);
-    DrawText(nameLine, cx, cy, nameFont, RAYWHITE);
+    UiText(nameLine, cx, cy, nameFont, RAYWHITE);
     cy += UiRound(rowName);
-    DrawText(card->line, cx, cy, lineFont, (Color){ 205, 210, 220, 255 });
+    UiText(card->line, cx, cy, lineFont, (Color){ 205, 210, 220, 255 });
+}
+
+/* ============================================================
+   W8: l'HUD in PIXEL ART, layout V3.
+ *
+ * DOVE SI DISEGNA. Dentro il CANVAS logico 960x640, non piu' in overlay sullo
+ * schermo -- e' quanto prescrive DEC-174 ("l'HUD in pixel art della demo si
+ * disegna per il canvas logico attuale, 960x640") e ha una conseguenza pratica
+ * decisiva: le coordinate qui sotto sono ESATTAMENTE quelle del layout V3
+ * approvato (scripts/cp2_hud_mocks.lua, variante CP2-V3-minimal), numero per
+ * numero, invece di essere riderivate da uiScale. L'HUD scala quindi con la
+ * game view, a passi interi, e un pixel dell'icona di un cuore resta grande
+ * come un pixel del pavimento -- che e' la sola cosa che fa leggere l'insieme
+ * come pixel art e non come due grafiche sovrapposte.
+ * Il vecchio HUD in overlay (DrawOuterUi) resta come RIPIEGO integrale per il
+ * caso "assets/art/ui assente": mai i due mescolati.
+ *
+ * CIFRA DEL LAYOUT V3: "niente pannelli, elementi flottanti con contorno". Il
+ * testo poggia direttamente sulla scena con un contorno nero (UiTextOutlined);
+ * le cornici 9-patch restano solo dove delimitano una CASELLA (slot attivo,
+ * slot Innesto, card di scoperta), che e' informazione di stato, non decoro.
+   ============================================================ */
+
+/* Le quote del layout V3, tutte in pixel di canvas. Raccolte qui e non sparse
+   nelle funzioni: sono il contratto col mock approvato, e un giro artistico
+   futuro deve poterle rileggere in un colpo d'occhio (criterio di
+   accettazione di 15-UI-DESIGN-PIPELINE.md: nessun numero magico sparso). */
+#define HUD_V3_MARGIN 10
+#define HUD_V3_NAME_Y 8
+#define HUD_V3_HEARTS_Y 17
+#define HUD_V3_HEART_PX 12
+#define HUD_V3_HEART_STEP 13
+#define HUD_V3_RES_Y 34
+#define HUD_V3_RES_ICON_PX 11
+#define HUD_V3_RES_ICON_ADVANCE 13
+#define HUD_V3_RES_GROUP_GAP 10
+#define HUD_V3_SLOTS_Y (SCREEN_HEIGHT - 76)
+#define HUD_V3_SLOT_BOX 30
+#define HUD_V3_SLOT_STEP 40
+#define HUD_V3_MINIMAP_CELL 14
+#define HUD_V3_MINIMAP_GAP 3
+#define HUD_V3_MINIMAP_Y 40
+#define HUD_V3_CARD_W 250
+#define HUD_V3_CARD_H 48
+#define HUD_V3_CARD_Y (SCREEN_HEIGHT - 56)
+#define HUD_V3_HINT_Y (SCREEN_HEIGHT - 50)
+
+/* La riga dei cuori (priorita' 1 di ui/hud.md). Tre icone dal set consegnato:
+   heart pieno, heart_half per il mezzo cuore, heart_empty per lo slot vuoto --
+   la stessa semantica di DrawHearts (2 punti vita per cuore), disegnata con gli
+   sprite invece che con due cerchi e un triangolo.
+   GAP DICHIARATO (CP4 + DEC-008): l'icona heart_temp esiste nell'atlas ma non
+   ha ancora un contatore nel motore (la salute temporanea non e' implementata):
+   nessun cuore temporaneo viene disegnato, come prima di W8. */
+static void DrawHudV3Hearts(const Player *p, int x, int y)
+{
+    int full = p->hp/2;
+    bool half = (p->hp%2) != 0;
+    int slots = (p->maxHp + 1)/2;
+    if (slots < 1) slots = 1;
+    float scale = (float)HUD_V3_HEART_PX/16.0f;   /* le icone sono 16x16, il layout ne vuole 12 */
+    for (int i = 0; i < slots; i++)
+    {
+        float ix = (float)(x + i*HUD_V3_HEART_STEP);
+        const char *icon = (i < full) ? "heart" : ((i == full && half) ? "heart_half" : "heart_empty");
+        if (i == full && half) ArtDrawIcon("heart_empty", ix, (float)y, scale, WHITE);
+        ArtDrawIcon(icon, ix, (float)y, scale, WHITE);
+    }
+}
+
+/* La riga delle risorse, nell'ordine fisso del layout V3: lingotti, cariche di
+   breccia, chiavi, Flux (DEC-072 per i nomi in gioco, DEC-013 per il
+   raggruppamento per funzione). Il Flux entra solo quando se ne possiede
+   almeno uno -- e' una risorsa rara, e uno "0" fisso sarebbe rumore per la
+   maggior parte della run (regola gia' in vigore prima di W8) -- e porta il
+   riquadro di evidenza quando basta per una fusione, come chiede ui/hud.md
+   ("evidenziato quando sufficiente per una fusione"). */
+static void DrawHudV3Resources(Game *game, int x, int y)
+{
+    const Player *p = &game->player;
+    struct { const char *icon; int value; bool show; } row[4] = {
+        { "ingot", p->coins, true },
+        { "charge", p->bombs, true },
+        { "key", p->keys, true },
+        { "flux", p->flux, p->flux > 0 },
+    };
+    float scale = (float)HUD_V3_RES_ICON_PX/16.0f;
+    int cx = x;
+    for (int i = 0; i < 4; i++)
+    {
+        if (!row[i].show) continue;
+        char text[16];
+        snprintf(text, sizeof(text), "%d", row[i].value);
+        int textW = UiTextW(text, 12);
+        /* FUSION_FLUX_COST vale 1 (gameplay/fusion.c, FusionCheck): "abbastanza
+           per fondere" e' quindi "almeno uno". Si esprime come confronto e non
+           come costante nuova per non duplicare una regola che vive li'. */
+        if (i == 3 && row[i].value >= 1)
+            DrawRectangleLinesEx((Rectangle){ (float)cx - 2.0f, (float)y - 2.0f,
+                                              (float)(HUD_V3_RES_ICON_ADVANCE + textW + 4), 15.0f },
+                                 1.0f, game->theme.accent);
+        ArtDrawIcon(row[i].icon, (float)cx, (float)y, scale, WHITE);
+        cx += HUD_V3_RES_ICON_ADVANCE;
+        UiTextOutlined(text, cx, y + 2, 12, RAYWHITE);
+        cx += textW + HUD_V3_RES_GROUP_GAP;
+    }
+}
+
+/* Le due CASELLE funzionali: attivo (tasto E) e Innesto (tasto G). Entrambe
+   sono una cornice a slot 9-patch con l'icona del set (active/graft) e
+   l'etichetta del tasto sotto -- il tasto fra parentesi quadre e' l'unico
+   posto in cui il giocatore scopre come si usano.
+   Lo STATO di ricarica e' la barra sotto l'icona: piena in proporzione alle
+   cariche o al cooldown residuo. active-items.md chiede che "disponibile/in
+   ricarica" sia SEMPRE visibile, e una barra lo dice senza far leggere numeri.
+   Una casella vuota resta disegnata (una cornice spenta): grafts.md chiede che
+   l'interfaccia mostri quanti slot sono disponibili, non solo quelli pieni. */
+static void DrawHudV3Slot(Game *game, int x, int y, const char *icon, const char *key,
+                          bool filled, float fill, bool ready)
+{
+    Rectangle box = { (float)x, (float)y, (float)HUD_V3_SLOT_BOX, (float)HUD_V3_SLOT_BOX };
+    Color frame = filled ? (ready ? game->theme.accent : (Color){ 140, 146, 158, 255 })
+                         : (Color){ 96, 100, 112, 255 };
+    DrawRectangleRec((Rectangle){ box.x + 2.0f, box.y + 2.0f, box.width - 4.0f, box.height - 4.0f },
+                     (Color){ 13, 15, 21, 200 });
+    if (!ArtDrawSlot(box, frame)) DrawRectangleLinesEx(box, 1.0f, frame);
+    if (filled) ArtDrawIcon(icon, box.x + 4.0f, box.y + 3.0f, 11.0f/16.0f*2.0f, WHITE);
+    /* Barra 24x4 a 3 px dal bordo, come il mock. Il fondo si disegna sempre:
+       una barra vuota e' informazione ("non e' pronto"), una barra assente no. */
+    Rectangle bar = { box.x + 3.0f, box.y + 23.0f, 24.0f, 4.0f };
+    DrawRectangleRec(bar, (Color){ 24, 20, 24, 220 });
+    float clamped = GameMathClampFloat(fill, 0.0f, 1.0f);
+    if (clamped > 0.0f)
+        DrawRectangleRec((Rectangle){ bar.x, bar.y, bar.width*clamped, bar.height },
+                         ready ? game->theme.accent : (Color){ 120, 126, 138, 255 });
+    UiTextOutlined(key, x + 8, y + 33, 8, (Color){ 198, 205, 217, 255 });
+}
+
+static void DrawHudV3Slots(Game *game, int x, int y)
+{
+    const Player *p = &game->player;
+    int activeIndex = ItemSelectedActiveIndex(p);
+    const Item *active = (activeIndex >= 0) ? &p->items[activeIndex] : NULL;
+    float activeFill = 0.0f;
+    bool activeReady = false;
+    if (active)
+    {
+        activeReady = ItemActiveIsReady(active);
+        if (ItemActiveIsChargeBased(active))
+        {
+            int capacity = ItemActiveChargeCapacity(active);
+            activeFill = (capacity > 0) ? (float)active->chargeNow/(float)capacity : 0.0f;
+        }
+        else
+        {
+            /* Cooldown: la barra si RIEMPIE mentre l'attesa scende, cosi' "piena
+               = pronto" vale per entrambi i modi di ricarica e il giocatore non
+               deve ricordare quale dei due ha in mano. */
+            float total = (active->cooldown > 0.0f) ? active->cooldown : 1.0f;
+            activeFill = 1.0f - GameMathClampFloat(active->cooldownTimer/total, 0.0f, 1.0f);
+        }
+    }
+    DrawHudV3Slot(game, x, y, "active", "[E]", active != NULL, activeFill, activeReady);
+
+    int graftOwned = ItemCountOfKind(p, ITEM_GRAFT);
+    /* Un Innesto non ha ricarica (grafts.md: e' passivo finche' resta
+       innestato): la barra e' piena quando lo slot e' occupato, vuota se no --
+       "occupato/libero", che e' l'unico stato che quello slot ha. */
+    DrawHudV3Slot(game, x + HUD_V3_SLOT_STEP, y, "graft", "[G]", graftOwned > 0,
+                  graftOwned > 0 ? 1.0f : 0.0f, graftOwned > 0);
+}
+
+/* La card di scoperta (DEC-065/131/152), ora con lo sprite che il documento
+   chiede da sempre ("sprite, nome, una riga di descrizione") e che la v1 a solo
+   testo non poteva mostrare. Posizione BASSO-CENTRO come il mock V3, non piu'
+   alto-centro: in alto avrebbe coperto la riga piano/mondo, che nel layout V3
+   e' allineata a destra proprio a quella quota.
+   Le regole di visibilita' non cambiano di una riga: una card alla volta, coda
+   in Game, scarto silenzioso su morte e cambio stanza -- tutte in src/game. */
+static void DrawHudV3Card(Game *game)
+{
+    if (!game->discoveryActiveValid) return;
+    const DiscoveryCard *card = &game->discoveryActive;
+    int x = SCREEN_WIDTH/2 - HUD_V3_CARD_W/2;
+    int y = HUD_V3_CARD_Y;
+    Rectangle box = { (float)x, (float)y, (float)HUD_V3_CARD_W, (float)HUD_V3_CARD_H };
+    DrawRectangleRec(box, (Color){ 13, 15, 21, 214 });
+    if (!ArtDrawPanel(box, WHITE)) DrawHudBox(box, game->theme.accent, 1.0f, 214);
+    Rectangle slot = { box.x + 5.0f, box.y + 5.0f, 38.0f, 38.0f };
+    ArtDrawSlot(slot, game->theme.accent2);
+    /* Lo sprite della scoperta: l'image-id sta nella card se chi l'ha accodata
+       lo conosceva (GameQueueDiscoveryCard). Assente = la casella resta vuota,
+       come nella v1 a solo testo: mai un rettangolo bianco al suo posto. */
+    const ArtSheet *sheet = card->imageId[0] ? ArtAtlasFindByImageId(card->imageId) : NULL;
+    if (sheet)
+    {
+        float scale = ArtScaleForWidth(sheet->frameW, 28.0f);
+        Vector2 center = { slot.x + slot.width*0.5f, slot.y + slot.height*0.5f };
+        Vector2 anchorPos = { center.x + ((float)sheet->anchorX - (float)sheet->frameW*0.5f)*scale,
+                              center.y + ((float)sheet->anchorY - (float)sheet->frameH*0.5f)*scale };
+        if (!ArtDrawAnim(sheet, "idle", (float)GetTime(), anchorPos, scale, false, WHITE))
+            ArtDrawAnim(sheet, "walk", (float)GetTime(), anchorPos, scale, false, WHITE);
+    }
+    UiText(card->name, x + 50, y + 10, 12, game->theme.accent);
+    UiText(card->line, x + 50, y + 28, 8, (Color){ 190, 196, 208, 255 });
+    const char *badge = "NUOVO!";
+    UiText(badge, x + HUD_V3_CARD_W - UiTextW(badge, 8) - 7, y + 6, 8, game->theme.accent2);
+}
+
+/* L'orchestratore dell'HUD V3. Chiamato DENTRO il canvas (vedi RendererDrawApp)
+   e solo quando HudCombatShouldDraw lo consente: la regola di visibilita'
+   (DEC-169) resta quella di prima, in un solo punto. */
+static void DrawHudCanvas(Game *game)
+{
+    const Player *p = &game->player;
+    const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
+
+    UiTextOutlined(character ? character->name : "SENZA PERSONAGGIO",
+                   HUD_V3_MARGIN, HUD_V3_NAME_Y, 8,
+                   character ? character->palette : (Color){ 205, 210, 220, 255 });
+    DrawHudV3Hearts(p, HUD_V3_MARGIN, HUD_V3_HEARTS_Y);
+    DrawHudV3Resources(game, HUD_V3_MARGIN, HUD_V3_RES_Y);
+    DrawHudV3Slots(game, HUD_V3_MARGIN, HUD_V3_SLOTS_Y);
+
+    /* Progressione a DESTRA, allineata al bordo: piano/stanza sopra, mondo
+       sotto. Nel layout V3 prendono il posto del cluster con riquadro. */
+    char floorLine[96];
+    snprintf(floorLine, sizeof(floorLine), "PIANO %d/%d - %s", game->floor, FLOOR_COUNT,
+             GameRoomKindName(GameCurrentRoom(game)->kind));
+    UiTextOutlined(floorLine, SCREEN_WIDTH - UiTextW(floorLine, 12) - HUD_V3_MARGIN, HUD_V3_NAME_Y, 12, RAYWHITE);
+    UiTextOutlined(game->theme.name, SCREEN_WIDTH - UiTextW(game->theme.name, 12) - HUD_V3_MARGIN, 22, 12, game->theme.accent2);
+
+    int mmW = GRID_SIZE*HUD_V3_MINIMAP_CELL + (GRID_SIZE - 1)*HUD_V3_MINIMAP_GAP;
+    DrawMinimap(game, SCREEN_WIDTH - mmW - HUD_V3_MARGIN, HUD_V3_MINIMAP_Y,
+                HUD_V3_MINIMAP_CELL, HUD_V3_MINIMAP_GAP, 1.0f);
+
+    DrawHudV3Card(game);
+    UiTextOutlined("[TAB] BUILD", 90, HUD_V3_HINT_Y, 12, (Color){ 176, 184, 198, 255 });
+
+    /* Diagnostica di fonte grafica (era il cluster LOG in basso a destra): il
+       layout V3 non ha un pannello per lei, ma l'informazione serve a chi
+       verifica una build -- resta una riga sola, alla scala piu' piccola, dove
+       il mock metteva l'indicatore di forgia. */
+    const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "SPRITE LOCALI (SD)" : "ATLAS FALLBACK";
+    UiTextOutlined(atlasMode, SCREEN_WIDTH - UiTextW(atlasMode, 8) - HUD_V3_MARGIN,
+                   SCREEN_HEIGHT - 18, 8, GameColorWithAlpha(game->theme.accent2, 200));
 }
 
 /* DEC-169: vedi il commento sulla dichiarazione in game_renderer.h. Nucleo
@@ -1669,7 +2507,12 @@ static int MenuItemCountForMode(AppMode mode)
         case APP_MAIN_MENU: return 4;    /* Nuova run, Catalogo (M8, DEC-045), Opzioni, Esci */
         case APP_RUN_SETUP: return 3;    /* Seed, Avvia, Indietro ("Modalita'" non e' selezionabile: unica modalita' esistente) */
         case APP_PAUSE_MENU: return 4;   /* Riprendi, Build e sinergie, Opzioni, Abbandona run */
-        case APP_OPTIONS: return 1;      /* Indietro */
+        /* W8 (chiude la parte UI del difetto noto 9): tre volumi + Indietro.
+           Le tre righe sono voci di menu a pieno titolo -- stesso indice, stessa
+           geometria, stesso hit-test del mouse -- perche' la parita'
+           tastiera/controller di DEC-057 vale anche per gli slider: su/giu'
+           scelgono la riga, sinistra/destra cambiano il valore. */
+        case APP_OPTIONS: return 4;      /* Volume generale, Musica, Effetti, Indietro */
         case APP_BUILD_SCREEN: return 1; /* Indietro */
         case APP_RUN_RESULTS: return 2;  /* Nuova run subito, Menu principale */
         case APP_EXIT_CONFIRM: return 2; /* Conferma, Annulla */
@@ -1738,8 +2581,13 @@ static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, C
     bool hasFocus = (index == focus);
     bool hover = CheckCollisionPointRec(GetMousePosition(), row);
     DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
-    DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 130));
-    DrawText(label, (int)row.x + UiRound(16.0f*uiScale), (int)row.y + UiRound(10.0f*uiScale), UiRound(18.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
+    /* W8: la cornice della riga e' il 9-patch a SLOT (bordo sottile, senza
+       rivetti), tinto dall'accento quando la riga ha il fuoco. Il fuoco resta
+       segnalato da DUE cose (cornice accesa piu' riempimento piu' chiaro), non
+       dal solo colore: DEC-058. */
+    if (!ArtDrawSlot(row, hasFocus ? accent : GameColorWithAlpha(accent, 150)))
+        DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 130));
+    UiText(label, (int)row.x + UiRound(16.0f*uiScale), (int)row.y + UiRound(10.0f*uiScale), UiRound(18.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
 }
 
 /* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
@@ -1755,11 +2603,32 @@ static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, 
     int sh = GetScreenHeight();
     float uiScale = UiScaleForHeight((float)sh);
     DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
+    /* W8: la cornice di OGNI schermata e' il pannello 9-patch di
+       assets/art/ui, non piu' GuiPanel. Non e' solo estetica: raygui disegnava
+       col proprio font vettoriale e col proprio tema, cioe' con una tipografia
+       diversa da quella dei contenuti dentro il pannello -- due grafiche nello
+       stesso riquadro. Il tema raygui si applica comunque (UiApplyTheme) perche'
+       DrawStatLine usa ancora GuiLabel per l'allineamento delle sue due
+       colonne; il resto dell'interfaccia non passa piu' da raygui.
+       Il riquadro di fondo scuro si disegna PRIMA della cornice: il 9-patch e'
+       una cornice con un centro semitrasparente, e senza un fondo pieno sotto
+       il testo della scena si leggerebbe attraverso. */
     UiApplyTheme(&game->theme, uiScale);
-    GuiPanel(box, title);
-    /* Il "24" non scala: stesso motivo di DrawPanel (RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
-       e' un #define fisso di raygui). */
-    DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
+    DrawRectangleRec(box, (Color){ 14, 16, 22, 240 });
+    if (!ArtDrawPanel(box, WHITE))
+    {
+        GuiPanel(box, title);
+        /* Il "24" non scala: stesso motivo di DrawPanel (RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
+           e' un #define fisso di raygui). */
+        DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
+        return;
+    }
+    /* Titolo e filetto: la stessa gerarchia che GuiPanel dava (una barra in
+       testa col nome della schermata), ridisegnata coi componenti. */
+    UiText(title, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(8.0f*uiScale),
+           UiRound(16.0f*uiScale), accent);
+    DrawRectangle((int)box.x + UiRound(8.0f*uiScale), (int)box.y + UiRound(28.0f*uiScale),
+                  (int)box.width - UiRound(16.0f*uiScale), UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
 }
 
 /* Ritorna il box, cosi' il chiamante posiziona il resto del proprio
@@ -1775,7 +2644,7 @@ static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2);
-    DrawText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
+    UiText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 1, "Catalogo", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_MAIN_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
@@ -1791,7 +2660,7 @@ static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
        niente selettore di difficolta'), non una voce selezionabile: disegnata
        fra le righe 0 e 1 senza passare da DrawMenuRow/MenuItemRect, cosi' non
        occupa un indice ne' e' cliccabile. */
-    DrawText("Modalita': Standard", (int)box.x + UiRound(76.0f*uiScale), (int)(box.y + (MENU_ROW_START_Y_BASE + MENU_ROW_H_BASE*0.62f)*uiScale), UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
+    UiText("Modalita': Standard", (int)box.x + UiRound(76.0f*uiScale), (int)(box.y + (MENU_ROW_START_Y_BASE + MENU_ROW_H_BASE*0.62f)*uiScale), UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
     DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
 }
@@ -1812,10 +2681,10 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
     int labelFont = UiRound(15.0f*uiScale);
     int x = (int)box.x + UiRound(40.0f*uiScale);
     int y = (int)box.y + UiRound(320.0f*uiScale);
-    DrawText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
+    UiText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
     y += UiRound(22.0f*uiScale);
     DrawHearts(p, x, y, uiScale);
-    DrawText(TextFormat("%dc  %db  %dk  %df", p->coins, p->bombs, p->keys, p->flux),
+    UiText(TextFormat("%dc  %db  %dk  %df", p->coins, p->bombs, p->keys, p->flux),
               x + UiRound(140.0f*uiScale), y, labelFont, GOLD);
 }
 
@@ -1830,15 +2699,69 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
         DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
 
+/* Una riga-slider del menu Opzioni (W8): etichetta, barra a passi discreti,
+   valore in percentuale. La barra e' fatta di CASELLE e non di un cursore
+   continuo -- il volume si muove a passi del 10% (OPTIONS_VOLUME_STEP), e dieci
+   caselle dicono a colpo d'occhio quante ce ne sono e quante sono accese, cosa
+   che un cursore su una guida liscia non dice. Le frecce ai due lati
+   dell'etichetta sono il promemoria del comando (DEC-057: la tastiera e' la via
+   primaria, il mouse e' ammesso ma non obbligatorio).
+   Il valore si legge SIA dalla barra SIA dalla percentuale scritta: nessuna
+   informazione affidata al solo colore o alla sola lunghezza (DEC-058). */
+static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const char *label, float value)
+{
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    Rectangle row = MenuItemRect(APP_OPTIONS, index);
+    DrawMenuRow(APP_OPTIONS, index, label, ui->focus, game->theme.accent2);
+
+    bool hasFocus = (index == ui->focus);
+    int font = UiRound(14.0f*uiScale);
+    char percent[8];
+    snprintf(percent, sizeof(percent), "%d%%", (int)(GameMathClampFloat(value, 0.0f, 1.0f)*100.0f + 0.5f));
+
+    /* La barra occupa la meta' destra della riga, il testo la sinistra: cosi'
+       un'etichetta piu' lunga non spinge mai la barra fuori dal riquadro. */
+    float cellGap = 2.0f*uiScale;
+    float barW = row.width*0.42f;
+    float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
+    float cellW = (barW - cellGap*(float)(OPTIONS_VOLUME_CELLS - 1))/(float)OPTIONS_VOLUME_CELLS;
+    float cellH = UiRound(12.0f*uiScale);
+    float barY = row.y + (row.height - cellH)*0.5f;
+    int lit = (int)(GameMathClampFloat(value, 0.0f, 1.0f)*(float)OPTIONS_VOLUME_CELLS + 0.5f);
+    for (int i = 0; i < OPTIONS_VOLUME_CELLS; i++)
+    {
+        Rectangle cell = { barX + (float)i*(cellW + cellGap), barY, cellW, cellH };
+        DrawRectangleRec(cell, i < lit ? (hasFocus ? game->theme.accent : GameColorWithAlpha(game->theme.accent, 170))
+                                       : (Color){ 34, 37, 46, 220 });
+        DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 160));
+    }
+    UiText(percent, (int)(row.x + row.width - UiRound(42.0f*uiScale)), (int)(row.y + UiRound(11.0f*uiScale)),
+           font, hasFocus ? RAYWHITE : (Color){ 190, 196, 208, 255 });
+    if (hasFocus)
+    {
+        UiText("<", (int)(barX - UiRound(14.0f*uiScale)), (int)(barY - UiRound(1.0f*uiScale)), font, game->theme.accent2);
+        UiText(">", (int)(barX + barW + UiRound(4.0f*uiScale)), (int)(barY - UiRound(1.0f*uiScale)), font, game->theme.accent2);
+    }
+}
+
 static void DrawOptionsOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_OPTIONS, game, "OPZIONI", game->theme.accent2);
-    /* Schermata minima M1a (spec): una sola informazione consultabile, non
-       modificabile da qui. Le opzioni vere arrivano con
-       ui/options-and-accessibility.md, fuori scope in M1a. */
-    DrawText("Schermo intero -- F11", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
-    DrawMenuRow(APP_OPTIONS, 0, "Indietro", ui->focus, game->theme.accent2);
+    /* La categoria "audio" e' la prima delle categorie minime di
+       ui/options-and-accessibility.md; le altre (video, controlli,
+       accessibilita', gameplay) restano da scrivere e non si inventano qui.
+       Lo schermo intero resta l'unica informazione consultabile non ancora
+       promossa a voce, come prima di W8. */
+    UiText("AUDIO", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(52.0f*uiScale),
+           UiRound(14.0f*uiScale), game->theme.accent);
+    DrawOptionsSliderRow(game, ui, 0, "Volume generale", AudioGetMasterVolume());
+    DrawOptionsSliderRow(game, ui, 1, "Musica", AudioGetMusicVolume());
+    DrawOptionsSliderRow(game, ui, 2, "Effetti", AudioGetSfxVolume());
+    DrawMenuRow(APP_OPTIONS, 3, "Indietro", ui->focus, game->theme.accent2);
+    UiText("Schermo intero -- F11", (int)box.x + UiRound(40.0f*uiScale),
+           (int)(box.y + box.height - UiRound(34.0f*uiScale)), UiRound(13.0f*uiScale),
+           (Color){ 160, 168, 182, 255 });
 }
 
 /* ============================================================
@@ -1870,7 +2793,7 @@ static void DrawFusionRowMark(const AppUi *ui, int index, int focus, int x, int 
     int size = UiRound(20.0f*uiScale);
     Rectangle mark = { (float)(x + width - size - UiRound(8.0f*uiScale)), (float)(y + UiRound(8.0f*uiScale)), (float)size, (float)size };
     DrawRectangleRec(mark, GameColorWithAlpha(accent, 200));
-    DrawText(badge, (int)mark.x + UiRound(6.0f*uiScale), (int)mark.y + UiRound(3.0f*uiScale), UiRound(14.0f*uiScale), BLACK);
+    UiText(badge, (int)mark.x + UiRound(6.0f*uiScale), (int)mark.y + UiRound(3.0f*uiScale), UiRound(14.0f*uiScale), BLACK);
 }
 
 /* DrawText che non deborda: se il testo e' piu' largo di 'maxWidth' lo taglia
@@ -1879,7 +2802,7 @@ static void DrawFusionRowMark(const AppUi *ui, int index, int focus, int x, int 
    senza, un nome lungo scriverebbe sopra il riquadro accanto. */
 static void DrawTextClipped(const char *text, int x, int y, int font, Color color, int maxWidth)
 {
-    if (MeasureText(text, font) <= maxWidth) { DrawText(text, x, y, font, color); return; }
+    if (UiTextW(text, font) <= maxWidth) { UiText(text, x, y, font, color); return; }
 
     char head[160];
     snprintf(head, sizeof(head), "%s", text);
@@ -1888,7 +2811,7 @@ static void DrawTextClipped(const char *text, int x, int y, int font, Color colo
         char probe[164];
         head[len - 1] = '\0';
         snprintf(probe, sizeof(probe), "%s..", head);
-        if (MeasureText(probe, font) <= maxWidth) { DrawText(probe, x, y, font, color); return; }
+        if (UiTextW(probe, font) <= maxWidth) { UiText(probe, x, y, font, color); return; }
     }
     /* Nemmeno ".." ci starebbe: meglio non scrivere nulla che debordare. */
 }
@@ -1902,13 +2825,31 @@ static void DrawFusionSourceSlot(const Game *game, int field, int ordinal, int x
     Rectangle box = { (float)x, (float)y, (float)width, 34.0f*uiScale };
 
     DrawRectangleRec(box, GameColorWithAlpha(BLACK, 120));
-    DrawRectangleLinesEx(box, filled ? 2.0f : 1.0f,
-                         filled ? RarityColor(p->items[slot].rarity) : (Color){ 90, 96, 110, 255 });
+    Color frame = filled ? RarityColor(p->items[slot].rarity) : (Color){ 90, 96, 110, 255 };
+    if (!ArtDrawSlot(box, frame)) DrawRectangleLinesEx(box, filled ? 2.0f : 1.0f, frame);
+    /* W8: la casella mostra anche lo SPRITE della sorgente scelta, non solo il
+       nome -- e' cio' che rende leggibile "quali due oggetti si consumano"
+       senza rileggere due righe di testo (mock V3 della fascia FUSIONE). Il
+       testo si sposta a destra dell'icona solo quando l'icona c'e' davvero:
+       una casella vuota non deve avere un rientro senza motivo. */
+    int textX = x + UiRound(10.0f*uiScale);
+    if (filled)
+    {
+        float iconSize = 26.0f*uiScale;
+        Vector2 center = { box.x + iconSize*0.5f + 4.0f*uiScale, box.y + box.height*0.5f };
+        /* Cast: DrawItemIcon deve poter riempire la cache delle texture curate,
+           che vive dentro Game -- questa funzione riceve un Game const perche'
+           non tocca stato di gioco, e la cache non e' stato di gioco. Stessa
+           natura del cast che DrawHudBuild non ha bisogno di fare solo perche'
+           riceve un Game* non-const. */
+        if (DrawItemIcon((Game *)game, &p->items[slot], center, iconSize))
+            textX = x + UiRound(38.0f*uiScale);
+    }
     char line[96];
     if (filled) snprintf(line, sizeof(line), "%d.  %s", ordinal, p->items[slot].name);
     else snprintf(line, sizeof(line), "%d.  -- (INVIO sceglie)", ordinal);
-    DrawTextClipped(line, x + UiRound(10.0f*uiScale), y + UiRound(9.0f*uiScale), UiRound(14.0f*uiScale),
-                    filled ? RAYWHITE : (Color){ 140, 148, 162, 255 }, width - UiRound(20.0f*uiScale));
+    DrawTextClipped(line, textX, y + UiRound(9.0f*uiScale), UiRound(14.0f*uiScale),
+                    filled ? RAYWHITE : (Color){ 140, 148, 162, 255 }, width - (textX - x) - UiRound(10.0f*uiScale));
 }
 
 static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width, float uiScale)
@@ -1918,14 +2859,14 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
     DrawRectangle(x, y, width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 120));
 
     int ty = y + UiRound(10.0f*uiScale);
-    DrawText("FUSIONE", x, ty, UiRound(16.0f*uiScale), accent);
+    UiText("FUSIONE", x, ty, UiRound(16.0f*uiScale), accent);
     /* Il catalizzatore in chiaro: e' l'unica condizione che il giocatore non
        puo' dedurre dalla lista oggetti (item-fusion.md, caso limite
        "nessun catalizzatore": l'interfaccia lo segnala). */
     char fluxLine[48];
     snprintf(fluxLine, sizeof(fluxLine), "Flux: %d", p->flux);
     int fluxFont = UiRound(15.0f*uiScale);
-    DrawText(fluxLine, x + width - MeasureText(fluxLine, fluxFont), ty, fluxFont,
+    UiText(fluxLine, x + width - UiTextW(fluxLine, fluxFont), ty, fluxFont,
              p->flux > 0 ? (Color){ 226, 138, 255, 255 } : (Color){ 150, 158, 172, 255 });
 
     int sy = ty + UiRound(24.0f*uiScale);
@@ -1951,12 +2892,16 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
     int ry = hy + UiRound(22.0f*uiScale);
     float thumb = 44.0f*uiScale;
     Rectangle dst = { (float)x, (float)ry, thumb, thumb };
-    const Texture2D *tex = AssetsCuratedTexture(game, ui->fusionResultImage);
-    if (tex)
-    {
-        Rectangle src = { 0.0f, 0.0f, (float)tex->width, (float)tex->height };
-        DrawTexturePro(*tex, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
-    }
+    /* W8: si riusa DrawItemIcon (la sola fonte della priorita' delle immagini)
+       costruendo un Item minimo coi due riferimenti che 'ui' porta -- invece di
+       ripetere qui la catena originale/curato/atlas, che sarebbe divergita al
+       primo ritocco. Un Item azzerato con solo imageId/imagePath e' esattamente
+       cio' che quella funzione legge. */
+    Item resultIcon;
+    memset(&resultIcon, 0, sizeof(resultIcon));
+    snprintf(resultIcon.imageId, sizeof(resultIcon.imageId), "%s", ui->fusionResultImageId);
+    snprintf(resultIcon.imagePath, sizeof(resultIcon.imagePath), "%s", ui->fusionResultImage);
+    DrawItemIcon(game, &resultIcon, (Vector2){ dst.x + thumb*0.5f, dst.y + thumb*0.5f }, thumb);
     DrawRectangleLinesEx(dst, 1.0f, GameColorWithAlpha(accent, 160));
     int textX = x + UiRound(54.0f*uiScale);
     int textW = x + width - textX;
@@ -1995,9 +2940,9 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     int ly = innerY;
     int buildH = DrawBuildBlock(game, innerX, ly, leftW, uiScale, false);
     ly += buildH + UiRound(12.0f*uiScale);
-    DrawText("OGGETTI PRESI", innerX, ly, UiRound(16.0f*uiScale), game->theme.accent2);
+    UiText("OGGETTI PRESI", innerX, ly, UiRound(16.0f*uiScale), game->theme.accent2);
     ly += UiRound(28.0f*uiScale);
-    if (p->itemCount == 0) DrawText("Nessun oggetto ancora.", innerX, ly, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
+    if (p->itemCount == 0) UiText("Nessun oggetto ancora.", innerX, ly, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
     else
     {
         /* Finestra scorrevole: la riga a fuoco resta sempre visibile anche
@@ -2023,7 +2968,7 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     /* Colonna destra: statistiche estese (le stesse righe del vecchio pannello
        GIOCATORE, con DrawStatLine) e cuori, poi cosa puo' offrire il piano. */
     int ry = innerY;
-    DrawText("PERSONAGGIO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
+    UiText("PERSONAGGIO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
     ry += UiRound(26.0f*uiScale);
     DrawHearts(p, rightX, ry, uiScale);
     ry += UiRound(30.0f*uiScale);
@@ -2036,7 +2981,7 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     ry += UiRound(140.0f*uiScale);
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
-    DrawText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
+    UiText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
     ry += UiRound(28.0f*uiScale);
     /* Le righe del piano si fermano sopra la riga "Indietro" (la fascia
        FUSIONE occupa solo la colonna sinistra, quindi non le toglie spazio). */
@@ -2060,8 +3005,8 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
     const char *outcome = (game->phase == PHASE_WIN)
         ? "Boss del piano 5 sconfitto."
         : "La run e' finita qui.";
-    DrawText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
-    DrawText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    UiText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
+    UiText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
     /* DEC-159: la causa della sconfitta, SOLO a game over (mai a vittoria: li'
        game->deathCause resta la stringa vuota dello zero-default, scritta
        unicamente da CombatDamagePlayer). Riga indipendente da quella del
@@ -2071,7 +3016,7 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
     float lineY = 102.0f;
     if (game->phase == PHASE_GAME_OVER && game->deathCause[0])
     {
-        DrawText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
+        UiText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
         lineY += 22.0f;
     }
     /* M7 (DEC-015/041/045/069, substrato del catalogo): il feedback canonico
@@ -2082,7 +3027,7 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        AppWriteRunCatalog non e' mai stata chiamata per questa run (il caso
        "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER). */
     if (game->catalogRecordsWritten > 0)
-        DrawText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
+        UiText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
                  (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
@@ -2102,7 +3047,7 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
         : (ui->openedFrom == APP_FLOOR_ZERO
             ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
             : "Abbandonare la run in corso? Il progresso non salvato si perde.");
-    DrawText(question, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    UiText(question, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
     DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);
 }
@@ -2124,11 +3069,11 @@ static void DrawFloorZeroIndicator(Rectangle gameRect, float uiScale, const GenP
     const char *text = (status && status->message[0]) ? status->message : NULL;
     if (!text) return;
     int font = UiRound(16.0f*uiScale);
-    int tw = MeasureText(text, font);
+    int tw = UiTextW(text, font);
     Rectangle box = { gameRect.x + gameRect.width*0.5f - ((float)tw*0.5f + 16.0f*uiScale), gameRect.y + 40.0f*uiScale, (float)tw + 32.0f*uiScale, 30.0f*uiScale };
     DrawRectangleRec(box, (Color){ 16, 18, 24, 205 });
     DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 200 });
-    DrawText(text, (int)box.x + UiRound(16.0f*uiScale), (int)box.y + UiRound(7.0f*uiScale), font, RAYWHITE);
+    UiText(text, (int)box.x + UiRound(16.0f*uiScale), (int)box.y + UiRound(7.0f*uiScale), font, RAYWHITE);
 }
 
 /* M5 (DEC-005): spezza 'text' in righe che stanno entro 'maxWidth' pixel a
@@ -2152,7 +3097,7 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
         if (line[0]) snprintf(candidate, sizeof(candidate), "%s %.*s", line, (int)wordLen, word);
         else snprintf(candidate, sizeof(candidate), "%.*s", (int)wordLen, word);
 
-        if (MeasureText(candidate, fontSize) <= (int)maxWidth || !line[0])
+        if (UiTextW(candidate, fontSize) <= (int)maxWidth || !line[0])
         {
             snprintf(line, sizeof(line), "%s", candidate);
         }
@@ -2174,7 +3119,7 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
         char original[160];
         snprintf(original, sizeof(original), "%s", last);
         size_t len = strlen(original);
-        while (len > 0 && MeasureText(TextFormat("%.*s...", (int)len, original), fontSize) > (int)maxWidth) len--;
+        while (len > 0 && UiTextW(TextFormat("%.*s...", (int)len, original), fontSize) > (int)maxWidth) len--;
         snprintf(last, 160, "%.*s...", (int)len, original);
     }
     return lineCount;
@@ -2242,7 +3187,7 @@ static void DrawCatalogTabs(Rectangle box, const RunCatalogSummary *cat, int act
         char label[24];
         snprintf(label, sizeof(label), "%s (%d)", CatalogCategoryLabel((RunCatalogCategory)c), cat->entryCount[c]);
         int font = UiRound(11.0f*uiScale);
-        DrawText(label, (int)tab.x + UiRound(6.0f*uiScale), (int)tab.y + UiRound(6.0f*uiScale), font, isActive ? RAYWHITE : (Color){ 190, 196, 206, 255 });
+        UiText(label, (int)tab.x + UiRound(6.0f*uiScale), (int)tab.y + UiRound(6.0f*uiScale), font, isActive ? RAYWHITE : (Color){ 190, 196, 206, 255 });
     }
 }
 
@@ -2258,7 +3203,7 @@ static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCata
     int count = cat->entryCount[active];
     if (count == 0)
     {
-        DrawText("Nessuna voce in questa categoria.", (int)box.x + UiRound(24.0f*uiScale), (int)listTop,
+        UiText("Nessuna voce in questa categoria.", (int)box.x + UiRound(24.0f*uiScale), (int)listTop,
                  UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
         return;
     }
@@ -2281,7 +3226,7 @@ static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCata
             snprintf(label, sizeof(label), "%s -- %s", e->name, e->bossDefeated ? "sconfitto" : "incontrato");
         else
             snprintf(label, sizeof(label), "%s (x%d)", e->name, e->encounterCount);
-        DrawText(label, (int)row.x + UiRound(8.0f*uiScale), (int)row.y + UiRound(5.0f*uiScale),
+        UiText(label, (int)row.x + UiRound(8.0f*uiScale), (int)row.y + UiRound(5.0f*uiScale),
                  UiRound(13.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 200, 206, 216, 255 });
     }
 
@@ -2289,14 +3234,14 @@ static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCata
     {
         char pos[24];
         snprintf(pos, sizeof(pos), "%d/%d", focus + 1, count);
-        DrawText(pos, (int)(box.x + 20.0f*uiScale + listW - UiRound(40.0f*uiScale)), (int)(listTop - UiRound(16.0f*uiScale)),
+        UiText(pos, (int)(box.x + 20.0f*uiScale + listW - UiRound(40.0f*uiScale)), (int)(listTop - UiRound(16.0f*uiScale)),
                  UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
     }
     if (cat->overflowCount[active] > 0)
     {
         char more[48];
         snprintf(more, sizeof(more), "-- e altre %d", cat->overflowCount[active]);
-        DrawText(more, (int)box.x + UiRound(20.0f*uiScale), (int)(listTop + (float)visibleMax*rowH + 2.0f*uiScale),
+        UiText(more, (int)box.x + UiRound(20.0f*uiScale), (int)(listTop + (float)visibleMax*rowH + 2.0f*uiScale),
                  UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
     }
 }
@@ -2312,7 +3257,7 @@ static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float lis
     float detailX = box.x + box.width*0.58f;
     float detailW = box.width - box.width*0.58f - 20.0f*uiScale;
     int nameFont = UiRound(15.0f*uiScale);
-    DrawText(e->name, (int)detailX, (int)listTop, nameFont, accent);
+    UiText(e->name, (int)detailX, (int)listTop, nameFont, accent);
 
     int lineY = (int)listTop + UiRound(26.0f*uiScale);
     if (e->detail[0])
@@ -2322,12 +3267,12 @@ static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float lis
         int n = WrapTextLines(e->detail, detailFont, detailW, lines, 6);
         for (int l = 0; l < n; l++)
         {
-            DrawText(lines[l], (int)detailX, lineY, detailFont, (Color){ 205, 210, 220, 255 });
+            UiText(lines[l], (int)detailX, lineY, detailFont, (Color){ 205, 210, 220, 255 });
             lineY += UiRound(16.0f*uiScale);
         }
     }
     lineY += UiRound(6.0f*uiScale);
-    DrawText(TextFormat("Incontri: %d  --  Run: %d", e->encounterCount, e->runCount),
+    UiText(TextFormat("Incontri: %d  --  Run: %d", e->encounterCount, e->runCount),
              (int)detailX, lineY, UiRound(12.0f*uiScale), (Color){ 176, 184, 198, 255 });
 }
 
@@ -2344,10 +3289,10 @@ static void DrawCatalogOverlay(Game *game, const AppUi *ui)
         /* Catalogo vuoto (spec M8): un messaggio sobrio, MAI un errore -- vale
            per l'intera vista (nessuna categoria ha nulla da mostrare, quindi
            niente tabs/lista/dettaglio vuoti a fare da rumore). */
-        DrawText("Il crogiolo non ricorda ancora nulla: gioca una run.",
+        UiText("Il crogiolo non ricorda ancora nulla: gioca una run.",
                  (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(70.0f*uiScale),
                  UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
-        DrawText("ESC -- torna al menu.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(98.0f*uiScale),
+        UiText("ESC -- torna al menu.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(98.0f*uiScale),
                  UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
         return;
     }
@@ -2369,7 +3314,7 @@ static void DrawCatalogOverlay(Game *game, const AppUi *ui)
     DrawCatalogList(box, cat, active, focus, listTop, rowH, visibleMax, uiScale, game->theme.accent2);
     if (count > 0) DrawCatalogDetail(box, &cat->entries[active][focus], listTop, uiScale, game->theme.accent2);
 
-    DrawText("Sinistra/destra: categoria -- Su/giu': voce -- ESC: torna al menu",
+    UiText("Sinistra/destra: categoria -- Su/giu': voce -- ESC: torna al menu",
              (int)box.x + UiRound(20.0f*uiScale), (int)(box.y + box.height - UiRound(24.0f*uiScale)),
              UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
 }
@@ -2428,7 +3373,7 @@ static void DrawFloorZeroSectionTabs(Rectangle box, int section, float uiScale, 
         DrawRectangleRec(tab, active ? GameColorWithAlpha(accent, 50) : GameColorWithAlpha(BLACK, 120));
         DrawRectangleLinesEx(tab, active ? 2.5f : 1.0f, active ? accent : GameColorWithAlpha(accent, 130));
         int font = UiRound(13.0f*uiScale);
-        DrawText(labels[s], (int)tab.x + UiRound(10.0f*uiScale), (int)tab.y + UiRound(4.0f*uiScale), font,
+        UiText(labels[s], (int)tab.x + UiRound(10.0f*uiScale), (int)tab.y + UiRound(4.0f*uiScale), font,
                  active ? RAYWHITE : (Color){ 190, 196, 206, 255 });
         if (active)
         {
@@ -2482,10 +3427,10 @@ static void DrawWorldCards(const Game *game, Rectangle box, float uiScale)
         Rectangle card = DrawFloorZeroCardFrame(box, i, game->themeCardCount, uiScale, focused, selected, game->theme.accent2);
 
         const ThemeCard *proposal = &game->themeCards[i];
-        DrawText(proposal->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
+        UiText(proposal->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
                  titleFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
         if (selected)
-            DrawText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
+            UiText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
                      UiRound(11.0f*uiScale), GOLD);
 
         char lines[4][160];
@@ -2494,7 +3439,7 @@ static void DrawWorldCards(const Game *game, Rectangle box, float uiScale)
         int ly = (int)card.y + UiRound((float)wrapY*uiScale);
         int lineStep = UiRound(16.0f*uiScale);
         for (int l = 0; l < n; l++)
-            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
+            UiText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
     }
 }
 
@@ -2528,12 +3473,12 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
 
         float dotR = 6.0f*uiScale;
         DrawCircleV((Vector2){ card.x + card.width - 16.0f*uiScale, card.y + 16.0f*uiScale }, dotR, c->palette);
-        DrawText(c->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
+        UiText(c->name, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(10.0f*uiScale),
                  nameFont, focused ? RAYWHITE : (Color){ 205, 210, 220, 255 });
-        DrawText(c->role, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
+        UiText(c->role, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(30.0f*uiScale),
                  roleFont, game->theme.accent2);
         if (selected)
-            DrawText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(48.0f*uiScale),
+            UiText("SCELTO", (int)card.x + UiRound(10.0f*uiScale), (int)card.y + UiRound(48.0f*uiScale),
                      UiRound(11.0f*uiScale), GOLD);
 
         /* M6b-2 (DEC-037): riga onesta e sobria sul trait Lua del personaggio
@@ -2548,7 +3493,7 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
         {
             char traitText[32];
             snprintf(traitText, sizeof(traitText), "Trait: %s", c->traitHook);
-            DrawText(traitText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
+            UiText(traitText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
                      UiRound(11.0f*uiScale), game->theme.accent2);
             blurbOffset += UiRound(15.0f*uiScale);
         }
@@ -2564,7 +3509,7 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
         {
             char shotText[48];
             snprintf(shotText, sizeof(shotText), "Signature: %s", c->signatureShot.name);
-            DrawText(shotText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
+            UiText(shotText, (int)card.x + UiRound(10.0f*uiScale), (int)card.y + blurbOffset,
                      UiRound(11.0f*uiScale), game->theme.accent2);
             blurbOffset += UiRound(15.0f*uiScale);
         }
@@ -2574,15 +3519,15 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
         int ly = (int)card.y + blurbOffset;
         int lineStep = UiRound(15.0f*uiScale);
         for (int l = 0; l < n; l++)
-            DrawText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
+            UiText(lines[l], (int)card.x + UiRound(10.0f*uiScale), ly + l*lineStep, blurbFont, (Color){ 190, 196, 206, 255 });
 
         /* Statistiche chiave in piccola tabella (requisito 3), ancorate al
            fondo della carta cosi' restano leggibili a qualunque numero di
            righe di blurb sopra. */
         int statsY = (int)(card.y + card.height - 40.0f*uiScale);
-        DrawText(TextFormat("DMG %.0f", c->baseDamage), (int)card.x + UiRound(10.0f*uiScale), statsY, statFont, RAYWHITE);
-        DrawText(TextFormat("SPD %.0f", c->baseSpeed), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(16.0f*uiScale), statFont, RAYWHITE);
-        DrawText(TextFormat("HP %d/%d", c->baseMaxHp, c->hpCap), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(32.0f*uiScale), statFont, RAYWHITE);
+        UiText(TextFormat("DMG %.0f", c->baseDamage), (int)card.x + UiRound(10.0f*uiScale), statsY, statFont, RAYWHITE);
+        UiText(TextFormat("SPD %.0f", c->baseSpeed), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(16.0f*uiScale), statFont, RAYWHITE);
+        UiText(TextFormat("HP %d/%d", c->baseMaxHp, c->hpCap), (int)card.x + UiRound(10.0f*uiScale), statsY + UiRound(32.0f*uiScale), statFont, RAYWHITE);
     }
 }
 
@@ -2609,11 +3554,11 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
            cambiare personaggio (requisito 1: sempre modificabile). */
         const char *hint = "TAB -- mondo e personaggio";
         int font = UiRound(14.0f*uiScale);
-        int tw = MeasureText(hint, font);
+        int tw = UiTextW(hint, font);
         Rectangle box = { sw*0.5f - ((float)tw*0.5f + 14.0f*uiScale), 80.0f*uiScale, (float)tw + 28.0f*uiScale, 26.0f*uiScale };
         DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
         DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 180 });
-        DrawText(hint, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, (Color){ 205, 210, 220, 255 });
+        UiText(hint, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, (Color){ 205, 210, 220, 255 });
         return;
     }
 
@@ -2626,7 +3571,7 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
     const char *title = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
                          ? "Scegli il mondo -- sinistra/destra, conferma (su/giu': personaggio)"
                          : "Scegli il personaggio -- sinistra/destra, conferma (su/giu': mondo)";
-    DrawText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(42.0f*uiScale),
+    UiText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(42.0f*uiScale),
              UiRound(13.0f*uiScale), (Color){ 205, 210, 220, 255 });
 
     /* La geometria delle carte usa la stessa 'box' del titolo (ThemeCardRectFor
@@ -2655,11 +3600,11 @@ static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiS
         const ThemeCard *chosen = &game->themeCards[game->themeChosenIndex];
         char text[64];
         snprintf(text, sizeof(text), "Mondo: %s", chosen->name);
-        int tw = MeasureText(text, font);
+        int tw = UiTextW(text, font);
         Rectangle box = { gameRect.x + 12.0f*uiScale, y, (float)tw + 24.0f*uiScale, 26.0f*uiScale };
         DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
         DrawRectangleLinesEx(box, 1.5f, game->theme.accent2);
-        DrawText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+        UiText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
         y += 30.0f*uiScale;
     }
 
@@ -2673,11 +3618,11 @@ static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiS
     {
         char ctext[64];
         snprintf(ctext, sizeof(ctext), "Personaggio: %s", character->name);
-        int ctw = MeasureText(ctext, font);
+        int ctw = UiTextW(ctext, font);
         Rectangle cbox = { gameRect.x + 12.0f*uiScale, y, (float)ctw + 24.0f*uiScale, 26.0f*uiScale };
         DrawRectangleRec(cbox, (Color){ 16, 18, 24, 190 });
         DrawRectangleLinesEx(cbox, 1.5f, character->palette);
-        DrawText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
+        UiText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
     }
 }
 
@@ -2686,6 +3631,14 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
 {
     BeginTextureMode(canvas);
     DrawGameplayCanvas(game);
+    /* W8: l'HUD in pixel art vive DENTRO il canvas (DEC-174), quindi si disegna
+       qui, prima che il canvas venga scalato. La regola di visibilita' resta
+       HudCombatShouldDraw, una sola: e' la stessa condizione che governa il
+       ripiego in overlay poco piu' sotto -- i due percorsi si escludono a
+       vicenda (ArtUiReady), mai entrambi nello stesso frame. */
+    bool hudVisible = HudCombatShouldDraw(mode, game->floorZeroTrialActive);
+    bool hudPixelArt = ArtUiReady();
+    if (hudVisible && hudPixelArt) DrawHudCanvas(game);
     EndTextureMode();
 
     BeginDrawing();
@@ -2704,7 +3657,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
        fuori da queste due situazioni e' nascosto (ui/hud.md), e il Piano 0 ha
        i suoi overlay dedicati (riepilogo + carte) sullo stesso angolo -- vedi
        il case APP_FLOOR_ZERO sotto. */
-    if (HudCombatShouldDraw(mode, game->floorZeroTrialActive)) DrawOuterUi(game, layout);
+    if (hudVisible && !hudPixelArt) DrawOuterUi(game, layout);
 
     /* UN overlay per stato (switch esplicito, M1a): 'ui' e' NULL solo per
        Gameplay (che non ne ha bisogno) e per FloorZero (che legge

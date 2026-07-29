@@ -19,7 +19,7 @@ void GameSetMessage(Game *game, const char *message)
 
 /* DEC-065/131: vedi il commento sulla dichiarazione in game_internal.h e su
    Game.discoveryQueue in core/game_types.h. */
-void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
+void GameQueueDiscoveryCardWithImage(Game *game, const char *name, const char *line, const char *imageId)
 {
     if (game->discoveryQueueCount >= DISCOVERY_QUEUE_MAX)
     {
@@ -32,11 +32,17 @@ void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
     DiscoveryCard *card = &game->discoveryQueue[game->discoveryQueueCount++];
     snprintf(card->name, sizeof(card->name), "%s", name ? name : "");
     snprintf(card->line, sizeof(card->line), "%s", line ? line : "");
+    snprintf(card->imageId, sizeof(card->imageId), "%s", imageId ? imageId : "");
     /* "Card di scoperta mostrata" (audio-and-feedback.md): l'HUD disegna
        SEMPRE la coda cosi' com'e' (DrawHudDiscovery, src/render/
        game_renderer.c), quindi accodare qui E' il momento in cui la card
        diventa visibile -- nessun evento "mostrata" separato da inseguire. */
     AudioPlaySfx(AUDIO_SFX_DISCOVERY_CARD);
+}
+
+void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
+{
+    GameQueueDiscoveryCardWithImage(game, name, line, NULL);
 }
 
 /* DEC-152: vedi il commento sulla dichiarazione in game_internal.h. */

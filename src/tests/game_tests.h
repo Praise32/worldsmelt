@@ -7,6 +7,16 @@
 
 bool GamePortalRespawnTest(Game *game);
 
+/* W8: il pacchetto artistico originale (assets/art/) -- parser dei tre sapori
+   di manifest (spritesheet, tileset, font bitmap) comprese le estensioni,
+   manifest rotti, animatore deterministico, cache e voci negative, risoluzione
+   a priorita' degli image-id, e degrado quando un asset manca o e' corrotto.
+   Le fixture sono in una cartella temporanea, MAI in assets/art/. Gira dopo
+   InitWindow perche' gli scenari di caricamento creano texture vere; la parte
+   di parsing e di animazione e' pura e non ne avrebbe bisogno. Vedi
+   src/tests/art_atlas_tests.c. */
+bool GameArtAtlasTest(Game *game);
+
 /* M1a: la macchina a stati canonica dei 9 stati (ui/navigation-map.md).
    Come GamePortalRespawnTest, gira dopo InitWindow ma chiama UpdateApp
    (src/app/app_internal.h) direttamente con AppInput sintetici -- mai
@@ -65,6 +75,14 @@ bool GameFullscreenScreenshotTest(Game *game);
    logs/worldsmelt-overlay-<W>x<H>.png (il nome porta la risoluzione). Serve al
    giudizio di gusto del proprietario, non e' in make test. */
 bool GameOverlayScreenshotTest(Game *game);
+
+/* W8: uno scatto per ciascuna delle nove schermate canoniche, con gli asset
+   artistici veri (tileset della stanza, HUD in pixel art, cornici 9-patch, font
+   da 5 pixel). Scrive logs/worldsmelt-w8-<schermata>.png. Serve al giudizio di
+   gusto sul reskin e a vedere in fila se una schermata e' rimasta indietro;
+   come gli altri screenshot test NON e' in make test (nessun assert puo' dire
+   "questa schermata e' bella"). Vedi src/tests/game_tests.c. */
+bool GameArtScreensScreenshotTest(Game *game);
 
 bool GameScriptSandboxTest(Game *game);
 bool GameManifestTest(Game *game);

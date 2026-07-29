@@ -6,9 +6,9 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (21 voci attive su 22 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (25 voci attive su 26 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-28
-last_updated_from_session: 2026-07-28-night-implementation-review
+last_updated_from_session: 2026-07-30-w8-art-consumption
 last_verified_commit: d30890b
 topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176]
 related: []
@@ -157,3 +157,40 @@ La sessione di revisione finale ha registrato le 10 domande accumulate durante l
 19. Quante immagini originali il proprietario può realisticamente produrre e rivedere per i **dataset definitivi**, quale regime di review manuale vale per gli asset (approvazione umana sempre, solo per la release, a campione) e serve uno strumento interno di approvazione/rifiuto già nella pre-alpha? (DEC-148 stabilisce che i dataset definitivi li crea il proprietario, non la loro ampiezza né il regime di review. Provenienza: `Q-IMG-003`, `Q-IMG-004`, `Q-F0-002`.)
 20. Il primo esperimento audio riguarda solo SFX, solo musica, o entrambi con due milestone separate? (DEC-109 fissa pipeline e catena di fallback, non l'ordine degli esperimenti. Provenienza: `Q-AUD-002`.)
 21. Qual è il budget cloud disponibile e quante ore settimanali il proprietario può dedicare a domande, review di codice e asset, ascolto audio e playtest? (DEC-168 porta il training sulle 30 ore settimanali gratuite di Kaggle e declassa il runbook RunPod a fallback a pagamento, senza impegnare alcun budget. Serve a dimensionare i batch di lavoro. Provenienza: `Q-BUD-001` e `Q-BUD-002`.)
+
+---
+
+## Consumo del pacchetto artistico nel motore (W8, 2026-07-30)
+
+Quattro domande aperte dall'aggancio degli asset di `assets/art/` al motore. Ognuna ha
+già un **default proposto** implementato (stile DEC-019): il gioco funziona, ma il numero
+o la politica non sono canone e vanno confermati o spostati.
+
+23. A quale piano scatta la variante di **escalation** del tileset? DEC-024 chiede che il
+    tema si intensifichi piano dopo piano sull'asse aspetto, e il contratto d'arte emette
+    tre ruoli dedicati (`floor_deg`/`wall_deg`/`void_deg`, "crepe di brace",
+    `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md`), ma nessun documento fissa la
+    soglia. *Default proposto e implementato*: dal **piano 3**, cioè lo stesso confine
+    della seconda traccia di gameplay (`AUDIO_GAMEPLAY_1_MAX_FLOOR`) e del passaggio dei
+    boss a due fasi (DEC-028/106) — far coincidere i tre assi dell'escalation su un solo
+    confine è l'ipotesi più leggibile per il giocatore. Da confermare al playtest.
+    (`ROOM_TILESET_DEGRADED_FROM_FLOOR`, `src/render/game_renderer.c`.)
+24. I **volumi audio devono persistere** fra un avvio e l'altro, e in quale forma? W8
+    espone i tre slider in `Options` ma il gioco non ha un file di configurazione:
+    inventarne uno avrebbe voluto dire decidere da soli percorso, formato e politica di
+    migrazione. *Default proposto e implementato*: nessuna persistenza, si riparte da 1.0
+    ad ogni avvio. La domanda vera è più ampia dei volumi — serve un file di
+    preferenze del giocatore, e se sì dove vive (accanto a `catalog/`?) e con quale
+    schema versionato. (`docs/design/ui/options-and-accessibility.md` elenca "audio" fra
+    le categorie minime senza fissare né slider né persistenza.)
+25. Passo, etichette e ordine degli **slider di volume** sono canone o solo un default?
+    *Default proposto e implementato*: tre righe nell'ordine `Volume generale` / `Musica`
+    / `Effetti`, passo del 10% su dieci caselle, valore mostrato anche in percentuale
+    (DEC-058). Le altre quattro categorie minime del documento (video, controlli,
+    accessibilità, gameplay) restano da scrivere e W8 non le ha inventate.
+26. La **card di scoperta** va in alto al centro o in basso al centro? `ui/hud.md` dice
+    "un riquadro in alto al centro (fuori dai quattro angoli)", ma quella formulazione
+    descriveva l'HUD a quattro cluster con riquadro, che il layout V3 approvato al CP2 ha
+    sostituito — e in V3 la quota alta a destra è occupata dalla riga piano/mondo.
+    *Default proposto e implementato*: **basso al centro**, come il mock V3. Da
+    confermare, e in ogni caso `ui/hud.md` va allineato alla scelta.

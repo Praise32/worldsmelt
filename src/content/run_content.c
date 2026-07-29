@@ -650,6 +650,21 @@ void RunContentRefreshFloorScripts(RunContent *content, int floorIndex)
    CuratedCatalogValidateFloor l'ha gia' segnalato su stderr) resta
    ESATTAMENTE quello procedurale: CuratedCatalogPickItem torna NULL e il
    ciclo passa oltre, mai uno slot vuoto. */
+/* W8: l'image-id di un NEMICO curato (DEC-175(b)). Stessa indirezione degli
+   oggetti -- content-id -> image-id attraverso la mappa, mai il content-id usato
+   direttamente come image-id -- ma con una tappa in meno: un nemico non ha
+   bisogno del ponte CC0 di DEC-171 (nessun Enemy ha mai portato un percorso di
+   immagine), quindi l'id si scrive e basta. Vuoto se la mappa non lo copre:
+   sagome geometriche come prima di W8. */
+static void ResolveTypeImageId(EnemyTypeDef *type, const char *contentId, const char *mapText)
+{
+    type->imageId[0] = '\0';
+    if (!contentId || !contentId[0]) return;
+    char imageId[CURATED_CATALOG_ID_LEN];
+    if (CuratedImageMapResolveInText(mapText, contentId, imageId, sizeof(imageId)))
+        snprintf(type->imageId, sizeof(type->imageId), "%s", imageId);
+}
+
 static void ApplyCuratedCatalog(RunContent *content, unsigned int seed)
 {
     CuratedCatalogPool pool;
@@ -726,12 +741,22 @@ static void ApplyCuratedCatalog(RunContent *content, unsigned int seed)
                una qualunque delle due tappe lascia imagePath vuoto -- resa
                geometrica di sempre, mai un crash. */
             dst->imagePath[0] = '\0';
+            dst->imageId[0] = '\0';
             content->floors[f].curatedImageIdx[i] = -1;
             if (pick->id[0])
             {
                 char imageId[CURATED_CATALOG_ID_LEN];
                 if (CuratedImageMapResolveInText(mapText, pick->id, imageId, sizeof(imageId)))
                 {
+                    /* W8: l'image-id si conserva SUBITO, prima di cercarlo nel
+                       manifest CC0. E' il primo gradino della priorita' delle
+                       immagini (l'originale animato di assets/art/), e non
+                       dipende dal ponte provvisorio di DEC-171: uno sprite
+                       disegnato a mano esiste anche per un id che il pacchetto
+                       CC0 non conosce -- legare la scrittura di imageId
+                       all'esito di CuratedImagesFindByIdInText avrebbe reso il
+                       gradino nuovo dipendente da quello vecchio. */
+                    snprintf(dst->imageId, sizeof(dst->imageId), "%s", imageId);
                     CuratedImage image;
                     int imageIdx = -1;
                     if (CuratedImagesFindByIdInText(manifestText, imageId, &image, &imageIdx))
@@ -802,10 +827,18 @@ static void ApplyCuratedCatalog(RunContent *content, unsigned int seed)
            qui e' coerente, non un secondo RNG da tenere sincronizzato. */
         if (pool.enemyCount > 0)
             for (int slotIdx = 0; slotIdx < 2; slotIdx++)
-                content->floors[f].enemies[slotIdx] = pool.enemies[GameRngRange(&rng, 0, pool.enemyCount - 1)].def;
+            {
+                const CuratedCatalogEnemy *pickEnemy = &pool.enemies[GameRngRange(&rng, 0, pool.enemyCount - 1)];
+                content->floors[f].enemies[slotIdx] = pickEnemy->def;
+                ResolveTypeImageId(&content->floors[f].enemies[slotIdx], pickEnemy->id, mapText);
+            }
 
         if (pool.bossCount > 0)
-            content->floors[f].bossType = pool.bosses[GameRngRange(&rng, 0, pool.bossCount - 1)].def;
+        {
+            const CuratedCatalogEnemy *pickBoss = &pool.bosses[GameRngRange(&rng, 0, pool.bossCount - 1)];
+            content->floors[f].bossType = pickBoss->def;
+            ResolveTypeImageId(&content->floors[f].bossType, pickBoss->id, mapText);
+        }
     }
 
     if (mapText) UnloadFileText(mapText);
@@ -957,6 +990,7 @@ void RunContentLoad(RunContent *content, unsigned int seed)
                lasciarlo qui sottrarrebbe a FusionPerform immagini che nessuno
                sta usando. */
             item->imagePath[0] = '\0';
+            item->imageId[0] = '\0';   /* W8: l'image-id si azzera in coppia col percorso, per lo stesso motivo */
             floor->curatedImageIdx[i] = -1;
 
             snprintf(key, sizeof(key), "floor%d.item%d.name=", n, i + 1);

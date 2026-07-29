@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009. Il Piano 0 non è un piano generato: vedi floor-zero.md."
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-30
 last_verified_commit: 17204df
 topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h]
 ---
 
 # Rooms and Floor Generation
@@ -254,6 +254,56 @@ tema), sempre dentro le garanzie di giocabilità della validazione dei contenuti
 qui). Questo fa parte dell'asse "regole di stanza" dell'escalation leggibile del tema
 descritta in [Difficulty and Progression](../07-difficulty-and-progression.md), fonte del
 principio generale; questo documento non lo ripete.
+
+## Stato di implementazione: la stanza vestita dal tileset (W8, 2026-07-30)
+
+Le stanze non sono più colori piatti: `assets/art/tiles/<tema>.png` + il suo manifest
+(contratto in `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md`) vestono pavimento,
+cornice di muro, angoli, porte, angolo mancante della forma a L, ostacoli e il vuoto fuori
+dalla stanza. Cinque cose da sapere, tutte in `src/render/game_renderer.c`
+(`RoomTileset`/`DrawRoomTiled`/`DrawTiledArea`):
+
+- **Come si scegle il tileset.** `Theme` (`src/core/game_types.h`) non ha un
+  identificatore: porta un NOME testuale e nient'altro, perché il nome lo **inventa il
+  modello** e i cinque temi della demo esistono solo come nomi nel contenuto di ripiego.
+  Due gradini: (1) lo **slug** del nome è provato come nome di file (`"Lunar Forge"` →
+  `tiles/lunar-forge`, il cammino esatto dei cinque temi curati, e valido per qualunque
+  tema futuro a cui la sessione artistica dedichi un tileset omonimo, senza toccare il C);
+  (2) per un tema generato (`"Library of Radiation"`) si sceglie uno dei cinque per **hash
+  FNV-1a** del nome — deterministico, quindi lo stesso mondo si veste sempre allo stesso
+  modo in ogni run e su ogni macchina. Un tileset per tema *generato* andrebbe generato:
+  è la Style LoRA di DEC-148, non un problema risolvibile con più codice.
+- **La variante di escalation (DEC-024, asse aspetto).** Il contratto emette tre ruoli col
+  suffisso `_deg` (`floor_deg`/`wall_deg`/`void_deg`, "crepe di brace"); nessun documento
+  fissava a quale piano scattano. **Default proposto e implementato**: dal **piano 3**, lo
+  stesso confine della seconda traccia di gameplay e del passaggio dei boss a due fasi
+  (DEC-028/106). Registrato come domanda aperta 23.
+- **Le porte hanno tre stati leggibili** — `aperta`, `chiusa`, `bloccata` — nello stesso
+  vocabolario (italiano) dei ruoli del tileset e delle animazioni di `props/porta`: un solo
+  vocabolario per il tile e per lo sprite. `bloccata` quando la stanza tiene chiuse le
+  uscite finché non la si pulisce, `chiusa` quando la stanza non è ancora pulita, `aperta`
+  altrimenti.
+- **Gli ostacoli si vestono per FAMIGLIA di layout** (`obst_pillar`/`obst_corridor`/
+  `obst_arena`/`obst_scatter`, uno per valore di `RoomForm`): una stanza a colonne si vede
+  come colonne e una a strozzature come strozzature, non come lo stesso blocco quattro
+  volte. Il campo di gioco (`ROOM_*`) e la collisione **non cambiano di un pixel**: è
+  tutta resa, come per la resa 2.5D.
+- **Cosa NON è cambiato, e perché.** Le fasce di muro restano quelle decorative storiche
+  (34 px al fondo, 12 ai lati, 14 davanti), non una fila intera di tile da 32: quelle
+  misure sono ancorate al bordo REALE del campo di gioco, e allargarle a 32 px per lato
+  avrebbe spostato la parete di ~20 px rispetto alla collisione — cioè avrebbe fatto
+  camminare il giocatore dentro il muro. Il tile viene **ritagliato** alla fascia (si
+  ritaglia il rettangolo sorgente, non si comprime il tile: comprimere avrebbe deformato i
+  pixel proprio sul bordo, dove l'occhio confronta il tile col suo vicino intero), quindi
+  il muro laterale mostra i suoi primi 12 px — che è esattamente ciò che si vede di uno
+  spessore visto di taglio. Analogamente `ROOM_W`×`ROOM_H` (876×458) non è multiplo di 32:
+  l'ultima colonna e l'ultima riga di tile sono ritagliate allo stesso modo. Resta anche
+  la sfumatura che scurisce il fondo della stanza: è la prospettiva atmosferica della resa
+  2.5D, senza la quale un pavimento a tile piatto perde ogni profondità.
+- **Ripiego integrale**: nessun tileset caricabile (checkout senza `assets/art/`, PNG
+  corrotto) → `DrawRoomFlat`, i colori piatti del tema con la griglia in prospettiva, cioè
+  esattamente la resa di prima di W8. Un solo punto di scelta (`DrawRoom`), mai i due
+  percorsi mescolati.
 
 ## Interazioni
 

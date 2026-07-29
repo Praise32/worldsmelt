@@ -4,6 +4,7 @@
 #include "gameplay/item_slots.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void EntitiesClear(Game *game)
@@ -13,6 +14,10 @@ void EntitiesClear(Game *game)
     memset(game->pickups, 0, sizeof(game->pickups));
     memset(game->bombs, 0, sizeof(game->bombs));
     memset(game->particles, 0, sizeof(game->particles));
+    /* W8: gli effetti grafici seguono le particelle -- stesso ciclo di vita,
+       stesso punto di azzeramento (un cambio di stanza non deve mostrare la
+       morte di un nemico della stanza precedente). */
+    memset(game->artFx, 0, sizeof(game->artFx));
 }
 
 /* M2: il rettangolo lo decide il chiamante (WorldCurrentRoomRect o simili) --
@@ -45,6 +50,35 @@ void EntitiesAddParticle(Game *game, Vector2 pos, Color color, int count)
             p->color = color;
             break;
         }
+    }
+}
+
+/* W8: accoda un'animazione puramente GRAFICA (vedi ArtFx in
+   core/game_types.h). 'imageId' vuoto o slot tutti occupati = non succede
+   nulla: un effetto perso e' invisibile, mai un errore. 'duration' la decide
+   chi chiama, perche' questo modulo non legge i manifest degli spritesheet (li
+   legge src/assets/art_atlas.c) e quindi non puo' sapere quanti fotogrammi
+   abbia la riga 'death' di quel nemico. Una durata piu' LUNGA del dovuto e'
+   innocua: l'animazione non cicla, quindi resta ferma sull'ultimo fotogramma
+   per il tempo che avanza, mai su un fotogramma sbagliato. */
+void EntitiesAddArtFx(Game *game, const char *imageId, const char *anim, Vector2 pos,
+                      float wantedWidth, float duration, bool flipX, Color tint)
+{
+    if (!imageId || !imageId[0] || !anim || !anim[0] || duration <= 0.0f) return;
+    for (int i = 0; i < MAX_ART_FX; i++)
+    {
+        ArtFx *fx = &game->artFx[i];
+        if (fx->active) continue;
+        memset(fx, 0, sizeof(*fx));
+        fx->active = true;
+        snprintf(fx->imageId, sizeof(fx->imageId), "%s", imageId);
+        snprintf(fx->anim, sizeof(fx->anim), "%s", anim);
+        fx->pos = pos;
+        fx->wantedWidth = wantedWidth;
+        fx->duration = duration;
+        fx->flipX = flipX;
+        fx->tint = tint;
+        return;
     }
 }
 

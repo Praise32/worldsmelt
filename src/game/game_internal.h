@@ -13,6 +13,11 @@ void GameSetMessage(Game *game, const char *message);
    registrazione nel Catalogo e quella coda restano volutamente disaccoppiate
    (vedi il commento su Game.discoveryQueue in core/game_types.h). */
 void GameQueueDiscoveryCard(Game *game, const char *name, const char *line);
+/* W8: la stessa cosa con l'image-id dello sprite da mostrare nella card. Le due
+   funzioni coesistono invece di essere una con un parametro in piu' perche' la
+   grande maggioranza dei chiamanti (compresi tutti quelli dei test) non ha un
+   image-id da dare, e un NULL in coda a ogni chiamata sarebbe rumore. */
+void GameQueueDiscoveryCardWithImage(Game *game, const char *name, const char *line, const char *imageId);
 /* DEC-152: scarta silenziosamente le card ANCORA IN CODA (non la card
    eventualmente gia' mostrata). Chiamata da CombatDamagePlayer alla morte del
    giocatore e da WorldTryEnterRoom al cambio stanza. */
@@ -81,6 +86,11 @@ void EntitiesClear(Game *game);
    sa nulla di "stanza corrente"). */
 Vector2 EntitiesRandomRoomPosition(unsigned int *rng, Rectangle room, float padding);
 void EntitiesAddParticle(Game *game, Vector2 position, Color color, int count);
+/* W8: un'animazione puramente grafica che sopravvive all'entita' che l'ha
+   generata (le righe 'death' degli spritesheet). Vedi ArtFx in
+   core/game_types.h per il perche' non sia un'entita'. */
+void EntitiesAddArtFx(Game *game, const char *imageId, const char *anim, Vector2 pos,
+                      float wantedWidth, float duration, bool flipX, Color tint);
 void EntitiesAddEnemy(Game *game, EnemyKind kind, Vector2 position);
 /* Fase 3b: il nemico con un TIPO inventato dal modello (core/enemy_type.h).
    'type' NULL/non attivo = esattamente EntitiesAddEnemy (i nemici storici). */

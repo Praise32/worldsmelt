@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "app/app_internal.h"
 
+#include "assets/art_atlas.h"
 #include "audio/audio.h"
 #include "content/character_proposal.h"
 #include "content/character_roster.h"
@@ -517,6 +518,7 @@ static void AppFusionConfirm(Game *game, AppUi *ui)
     AudioPlaySfx(AUDIO_SFX_FUSION_COMPLETE);
     snprintf(ui->fusionResultName, sizeof(ui->fusionResultName), "%s", fused.name);
     snprintf(ui->fusionResultImage, sizeof(ui->fusionResultImage), "%s", fused.imagePath);
+    snprintf(ui->fusionResultImageId, sizeof(ui->fusionResultImageId), "%s", fused.imageId);   /* W8: primo gradino della priorita' */
     /* Precisioni esplicite: la riga deve stare in fusionMessage[96] qualunque
        nome abbiano i tre oggetti coinvolti (troncare un nome lunghissimo e'
        corretto, perdere il messaggio no). */
@@ -1055,10 +1057,39 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_OPTIONS:
         {
-            /* Schermata minima (M1a): una sola voce, "Indietro" -- back o
-               confirm fanno la stessa cosa. Le opzioni vere arrivano con
-               ui/options-and-accessibility.md, fuori scope qui. */
-            if (effective.back || effective.confirm)
+            /* W8 (chiude la parte UI del difetto noto 9, categoria "audio" di
+               ui/options-and-accessibility.md): tre volumi piu' "Indietro".
+               Su/giu' scelgono la riga, sinistra/destra cambiano il valore
+               della riga scelta, ENTER/ESC escono -- la stessa grammatica di
+               ogni altro menu, quindi la parita' tastiera/controller di
+               DEC-057 vale senza codice dedicato.
+               ESC esce SEMPRE; ENTER esce solo dalla riga "Indietro": su una
+               riga-slider un ENTER non ha significato (non c'e' nulla da
+               confermare, il valore e' gia' applicato) e chiudere la schermata
+               sarebbe una sorpresa mentre si sta regolando. */
+            const int OPTIONS_ROWS = 4;
+            const int OPTIONS_ROW_BACK = 3;
+            if (effective.up || effective.down)
+            {
+                ui->focus = (ui->focus + OPTIONS_ROWS + (effective.down ? 1 : -1))%OPTIONS_ROWS;
+                break;
+            }
+            if ((effective.left || effective.right) && ui->focus < OPTIONS_ROW_BACK)
+            {
+                float delta = effective.right ? OPTIONS_VOLUME_STEP : -OPTIONS_VOLUME_STEP;
+                /* Nessun clamp qui: le tre AudioSet* clampano gia' in [0,1]
+                   per contratto (audio.h), ed e' giusto che il clamp viva in un
+                   solo posto -- quello che possiede il valore. */
+                if (ui->focus == 0) AudioSetMasterVolume(AudioGetMasterVolume() + delta);
+                else if (ui->focus == 1) AudioSetMusicVolume(AudioGetMusicVolume() + delta);
+                else AudioSetSfxVolume(AudioGetSfxVolume() + delta);
+                /* Il suono di navigazione FA da anteprima del volume appena
+                   scelto: e' l'unico modo di sentire l'effetto di uno slider
+                   SFX senza uscire dal menu. */
+                AudioPlaySfx(AUDIO_SFX_UI_MOVE);
+                break;
+            }
+            if (effective.back || (effective.confirm && ui->focus == OPTIONS_ROW_BACK))
             {
                 *mode = ui->openedFrom;
                 ui->focus = ui->returnFocus;
@@ -1190,6 +1221,7 @@ int AppRun(int argc, char **argv)
        vero della finestra (GameCuratedContentTest non disegna nulla, vedi
        src/tests/curated_content_tests.c). */
     bool curatedContentTest = false;
+    bool artAtlasTest = false;
     bool catalogTest = false;
     /* M8 (DEC-045, vista Catalogo v1): in make test, come --catalog-test --
        gira DOPO InitWindow (esercita davvero UpdateApp/RendererDrawApp). */
@@ -1209,6 +1241,7 @@ int AppRun(int argc, char **argv)
        dimensione del monitor, NON smokeTest), ma scatta l'HUD in overlay in
        APP_GAMEPLAY -- vedi GameOverlayScreenshotTest. */
     bool overlayScreenshotTest = false;
+    bool artScreensScreenshotTest = false;
     unsigned int scriptSeed = 12345u;
     AppGen gen = { 0 };
     gen.command = "bin/melting-gen";
@@ -1376,6 +1409,14 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             curatedContentTest = true;
         }
+        /* W8: come --curated-content-test, gira dopo InitWindow -- gli scenari
+           di caricamento creano texture vere, quindi serve un contesto grafico
+           (il parser e l'animatore sarebbero puri, vedi art_atlas_tests.c). */
+        if (strcmp(argv[i], "--art-atlas-test") == 0)
+        {
+            smokeTest = true;
+            artAtlasTest = true;
+        }
         /* M7 (substrato del catalogo): come --states-test/--rooms-test, gira
            DOPO InitWindow (GameCatalogTest chiama UpdateApp) ma con la SUA
            PROPRIA AppUi locale per ogni scenario (mai la 'appUi' costruita
@@ -1411,6 +1452,10 @@ int AppRun(int argc, char **argv)
         if (strcmp(argv[i], "--layout-test") == 0) layoutTest = true;
         if (strcmp(argv[i], "--fullscreen-screenshot-test") == 0) fullscreenScreenshotTest = true;
         if (strcmp(argv[i], "--overlay-screenshot-test") == 0) overlayScreenshotTest = true;
+        /* W8: come --overlay-screenshot-test (finestra a schermo pieno, un
+           warmup di scambi di buffer prima dello scatto a freddo), ma uno scatto
+           per SCHERMATA invece di uno solo. */
+        if (strcmp(argv[i], "--art-screens-screenshot-test") == 0) artScreensScreenshotTest = true;
         if (strcmp(argv[i], "--script-sandbox-test") == 0) scriptSandboxTest = true;
         if (strcmp(argv[i], "--script-determinism-test") == 0) scriptDeterminismTest = true;
         if (strcmp(argv[i], "--script-items-test") == 0) scriptItemsTest = true;
@@ -1522,7 +1567,7 @@ int AppRun(int argc, char **argv)
            fisica pur riportando gia' le dimensioni nuove. Guardia dietro
            'fullscreenScreenshotTest' apposta: il gioco vero non deve pagare
            qualche frame nero in piu' per un problema che non ha. */
-        if (fullscreenScreenshotTest || overlayScreenshotTest)
+        if (fullscreenScreenshotTest || overlayScreenshotTest || artScreensScreenshotTest)
         {
             for (int warmup = 0; warmup < 5; warmup++)
             {
@@ -1591,6 +1636,15 @@ int AppRun(int argc, char **argv)
         CloseWindow();
         return ok ? 0 : 25;
     }
+    if (artScreensScreenshotTest)
+    {
+        bool ok = GameArtScreensScreenshotTest(&game);
+        printf("Art screens screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        ArtAtlasShutdown();
+        CloseWindow();
+        return ok ? 0 : 36;   /* 36: il primo codice libero dopo --art-atlas-test=35 */
+    }
     if (roomsTest)
     {
         bool ok = GameRoomsTest(&game);
@@ -1652,6 +1706,7 @@ int AppRun(int argc, char **argv)
         bool ok = GameAudioTest(&game);
         printf("Audio test: %s\n", ok ? "ok" : "failed");
         GameUnloadAssets(&game);
+        ArtAtlasShutdown();
         AudioShutdown();
         CloseWindow();
         return ok ? 0 : 33;   /* 33: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --discovery-test=32) */
@@ -1663,6 +1718,15 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 34;   /* 34: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --audio-test=33) */
+    }
+    if (artAtlasTest)
+    {
+        bool ok = GameArtAtlasTest(&game);
+        printf("Art atlas test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        ArtAtlasShutdown();
+        CloseWindow();
+        return ok ? 0 : 35;   /* 35: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --curated-content-test=34) */
     }
     if (catalogTest)
     {
@@ -1836,6 +1900,13 @@ int AppRun(int argc, char **argv)
 
     UnloadRenderTexture(gameCanvas);
     GameUnloadAssets(&game);
+    /* W8: le texture del pacchetto artistico (src/assets/art_atlas.c) non
+       seguono il ciclo di vita di Game -- sono asset statici, non contenuto di
+       run -- quindi si rilasciano qui, accanto ad AudioShutdown e per la stessa
+       ragione: e' il punto in cui il gioco VERO esce. I percorsi di test qui
+       sopra escono subito dopo e lasciano la pulizia al teardown del contesto
+       OpenGL di CloseWindow, esattamente come fanno gia' col device audio. */
+    ArtAtlasShutdown();
     AudioShutdown();
     CloseWindow();
     return 0;

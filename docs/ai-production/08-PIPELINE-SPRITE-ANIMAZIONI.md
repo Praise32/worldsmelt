@@ -7,7 +7,7 @@ authority: supporting
 owner: ai-production
 summary: >-
   Pipeline dalla EnemySpec allo SpriteBundle animato: guide/ControlNet, Pixel Art Fixer, validazione automatica, formato eventi/animazioni e struct raylib. Aseprite è ora anche il percorso di produzione diretta di sprite originali (HUD, personaggio, nemici, boss, oggetti, colpi, prop) a contratto spritesheet fisso, che serve insieme come asset di gioco e dataset LoRA (DEC-175).
-last_reviewed: 2026-07-28
+last_reviewed: 2026-07-30
 topics: [sprite-bundle, animazione, raylib, pixel-art-fixer, validazione, controlnet, aseprite, contratto-spritesheet, DEC-175, tileset-manifest, ui-9patch, font-pixel]
 related: []
 supersedes: []
@@ -97,8 +97,23 @@ committato per personaggio, nemici, colpi, oggetti, prop e UI:
 
 **Estensioni UI** (`assets/art/ui/`): `panel-9patch`/`slot-9patch` aggiungono al json
 il campo `"slice":[l,t,r,b]` (bordi 9-patch in pixel); `font-5px.json` è una mappa
-glifi `{"glyph_h":5,"space_w":3,"letter_spacing":1,"glyphs":{"A":{"x":0,"w":3},...}}`
+glifi `{"glyph_h":5,"baseline_y":1,"space_w":3,"letter_spacing":1,"glyphs":{"A":{"x":0,"w":3},...}}`
 sul PNG a striscia; `icons.png` usa una riga-anim per icona (1 frame ciascuna).
+`baseline_y` è la riga del PNG da cui i glifi cominciano (la striscia è alta
+`glyph_h+2`, con una riga di guardia sopra): era già nel file reale ma mancava da questo
+elenco — aggiunta a W8, dopo che il loader del motore ha dovuto leggerla per non disegnare
+i glifi spostati di un pixel.
+
+**Consumo lato motore** (W8): lo legge `src/assets/art_atlas.{h,c}` (`ArtAtlas*`) con uno
+scanner sequenziale minimale — il binario del gioco non linka cJSON (AGENTS.md) — e lo
+disegna `src/render/art_draw.{h,c}` (`ArtDraw*`). Due garanzie da rispettare quando questo
+contratto si estende: (1) **ogni chiave sconosciuta viene saltata**, quindi una chiave nuova
+non fa sparire lo sprite sui motori più vecchi (verificato da `--art-atlas-test`); (2) il
+manifest deve restare **ASCII, senza escape, profondo due livelli** — è la condizione che
+rende lecito uno scanner invece di una libreria. I nomi delle animazioni per famiglia e i
+ruoli del tileset elencati qui sono quelli che il renderer cerca per nome: rinominarne uno
+lo fa ricadere sul percorso precedente in silenzio (primitiva geometrica o colore piatto),
+mai un errore visibile. Buchi di asset noti: `docs/engineering/known-issues.md` voce 10.
 
 **Tileset ambiente** (`assets/art/tiles/<tema>.png` + `.json`, temi fallback della
 demo): manifest `{"tile_w":32,"tile_h":32,"grid":[cols,rows],"tiles":{"<ruolo>":[col,riga]}}`.

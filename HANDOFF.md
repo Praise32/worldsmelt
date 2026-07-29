@@ -3,6 +3,49 @@
 Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 `docs/archive/handoffs/` (integrale precedente: `docs/archive/handoffs/HANDOFF-2026-07-19.md`).
 
+## Stato al 2026-07-30 — W8: il motore consuma gli asset artistici veri
+
+- **Branch**: `main`. **NON committato**: in attesa del giudizio di Fable (task di gradino 3).
+- **Il problema che chiudeva**: `make run-demo` mostrava ancora la grafica vecchia. Le 73
+  coppie spritesheet+manifest della sessione artistica erano su disco e nessuna riga di C le
+  leggeva; il commit B3 ("aggancio completo al layer image-id") aveva agganciato solo il
+  ramo OGGETTI attraverso il ponte CC0 statico — nemici, boss, tileset, HUD e personaggio no.
+- **Moduli nuovi** (confini documentati in `docs/engineering/architecture.md`):
+  - `src/assets/art_atlas.{h,c}` (`ArtAtlas*`): carica e POSSIEDE gli asset di `assets/art/`.
+    Scanner sequenziale minimale per i tre sapori di manifest (spritesheet + `slice` per i
+    9-patch, tileset, font bitmap) — il gioco non linka cJSON; ogni chiave sconosciuta viene
+    saltata, così un contratto esteso domani si carica oggi. Animatore PURO e deterministico
+    (`ArtAnimFrameAt`/`ArtAnimDone`, nessun `GetTime` dentro). Registro statico al modulo e
+    non in `Game`: gli asset non sono contenuto di run e `Game` viene azzerato più volte per
+    partita. Caricamento pigro, voci negative in cache, `ArtAtlasShutdown` accanto ad
+    `AudioShutdown`.
+  - `src/render/art_draw.{h,c}` (`ArtDraw*`): DISEGNA. Fotogramma ancorato con specchiatura,
+    tile con ritaglio proporzionale del sorgente, 9-patch a bordi ripetuti (non stirati),
+    font pixel, icone. `ArtUiReady()` è l'interruttore unico fra veste pixel art e ripiego.
+- **Cosa si vede ora**: tileset dei 5 temi (pavimento con varianti deterministiche, cornice,
+  angoli, porte a 3 stati, `l_block`, ostacoli per famiglia `ROOM_LAYOUT_*`, vuoto, variante
+  di escalation `_deg` dal piano 3); personaggio animato (4 camminate/idle/hit) al posto
+  dello stickman, coi layer degli oggetti sopra invariati; nemici e boss animati con flip e
+  `hit`; animazione di MORTE via `Game.artFx` (effetti solo grafici che sopravvivono
+  all'entità — un nemico esce di scena nell'istante in cui muore, e cambiare quella
+  semantica avrebbe toccato ogni `if (e->active)` del motore); colpi per forma; HUD in
+  pixel art nel canvas 960×640 col layout V3 approvato al CP2, numero per numero (DEC-174);
+  **tutte le nove schermate** rivestite coi componenti di sistema; tre slider di volume in
+  `Options`.
+- **Priorità delle immagini** (DEC-175(b)): `Item.imageId`/`EnemyTypeDef.imageId`/
+  `DiscoveryCard.imageId` nuovi accanto a `imagePath`, scritti dagli stessi punti che già
+  scrivevano il percorso. Ordine: originale in `assets/art` → ponte CC0 di `assets/curated`
+  → cella d'atlas → primitiva. Il seed non cambia di un bit: la pesca della fusione è la
+  stessa, si conserva anche l'id della voce pescata.
+- **Test**: `make test` (con `--art-atlas-test` nuovo), `make test-script`, `make docs-check`
+  verdi. `--atlas-fallback-test` ora punta di proposito il pacchetto artistico su una
+  cartella inesistente, così continua a proteggere il gradino più basso della priorità.
+  Screenshot di verifica: `logs/worldsmelt-w8-<schermata>.png` (9 scatti).
+- **Buchi dichiarati** (asset mancanti, non codice): `docs/engineering/known-issues.md`
+  voce 10 — font senza accentate né parentesi tonde, un solo sheet di personaggio per tre
+  personaggi, cuore/bomba/chiave senza prop, salute temporanea e timer di run assenti dal
+  motore. Domande aperte 23-26 in `docs/design/governance/open-questions.md`.
+
 ## Stato al 2026-07-28 — Chiusura maratona implementativa della demo
 
 - **Branch**: `main` (tutto committato e pushato; policy: ogni cambiamento verificato va
