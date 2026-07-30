@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Grammatica degli avversari generati o curati, incluso il Veterano (nemico potenziato non-boss). Grado ed escalation per piano (DEC-024): Veterani più frequenti nei piani alti. Bande di potenza (DEC-019) restano un default draft da validare col playtest. Il tema genera un roster compatto di 6-8 tipi di nemici per l'intera run, distribuiti sui piani (DEC-053); nei piani avanzati il roster può essere esteso da 1-2 tipi 'best-of' dal Catalogo, entro budget di leggibilità e bande di potenza del piano (DEC-104). Il danno da contatto è dichiarato dalla forma: solo i nemici la cui silhouette lo telegrafa feriscono al contatto, gli altri spingono soltanto (DEC-061)."
-last_reviewed: 2026-07-19
-last_verified_commit: 0ec60d0
-topics: [nemici, roster, Veterano, escalation, DEC-053, DEC-061, danno da contatto]
+last_reviewed: 2026-07-30
+last_verified_commit: 06b9b16
+topics: [nemici, roster, Veterano, escalation, DEC-053, DEC-061, danno da contatto, arena-di-sfida, WP6]
 related: []
 supersedes: []
 source_files: []
@@ -146,6 +146,18 @@ Il giocatore osserva pattern e telegraph, si muove liberamente, spara nelle quat
   spinge ma non ferisce al contatto (DEC-061).
 - **Bande di potenza (DEC-019):** i nemici generati vengono oggi scalati entro una banda di potenza **[0.7–1.35]** rispetto al nemico base di riferimento. **Stato: draft, default proposto dall'implementazione attuale, da validare col playtest** — non è una decisione di design chiusa.
 - Il Veterano occupa la fascia alta della stessa banda, o una variante dichiarata dal generatore, restando comunque un nemico potenziato non-boss.
+
+**Stato di implementazione (WP6, 30/07) — i nemici dell'arena di sfida:** l'arena di
+sfida ([special-rooms.md](./special-rooms.md), `ROOM_ARENA`) è oggi l'unico luogo del
+motore che applica davvero "fascia alta della banda": a sfida accettata i tipi del piano
+vengono portati a `ENEMY_TYPE_POWER_MAX` prima dello spawn
+(`WorldArenaGradeUpEnemyType`, `src/world/world.c`) — mai oltre, quindi la banda draft
+[0.7–1.35] resta rispettata — e il budget della stanza è moltiplicato per 1.5. Entrambi
+i valori sono **default proposti dall'implementazione** (stile DEC-019), da playtest:
+vedi `governance/open-questions.md`, voce 38. Il Veterano come **archetipo dichiarato dal
+generatore** resta invece non implementato: qui non nasce un tipo nuovo, si alza il grado
+di quelli che il tema ha già generato. Senza tipi generati (manifest vecchio o assente)
+l'arena sale di sola quantità: i quattro nemici storici non hanno manopole da alzare.
 - Ogni nemico generato dichiara un'origine (curato | composto | variato | nuovo) e supera la validazione prevista prima di apparire in una run standard: la regola di garanzia entro cui l'IA inventa nemici è descritta in [generated-content-validation.md](./generated-content-validation.md), non qui.
 
 ## Casi limite
@@ -169,6 +181,9 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - Valore finale delle bande di potenza nemico e Veterano dopo playtest (DEC-019).
+- Quanto deve valere il "grado più alto" dell'arena di sfida (moltiplicatore di budget e
+  posizione nella banda): **default proposto e implementato dal WP6** — budget ×1.5 e tipi
+  portati al massimo della banda dichiarata — vedi `governance/open-questions.md`, voce 38.
 - Numero massimo di Veterano contemporanei per stanza.
 - Tasso esatto di crescita della frequenza di Veterani per piano (DEC-024 fissa solo che
   cresce con il piano, non i numeri).

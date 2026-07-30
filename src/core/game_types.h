@@ -139,7 +139,34 @@ typedef enum RoomKind {
        nel piano (Game.floorEntryElapsedSeconds sotto): valuta principale di
        completamento (DEC-167) SOLO se in tempo; oltre soglia resta comunque una
        stanza percorribile, mai bloccante (special-rooms.md, "Casi limite"). */
-    ROOM_TIMED
+    ROOM_TIMED,
+    /* WP6 (docs/design/systems/special-rooms.md, "Arena di sfida", DEC-010):
+       il TERZO archetipo speciale con un RoomKind fisico nel motore. In coda
+       come ROOM_TIMED sopra, stesso motivo. NON e' la versione "best-of" del
+       Piano 0 (DEC-004, floor-zero.md): quella e' un accesso alternativo
+       distinto, esplicitamente fuori dal lavoro che ha introdotto questo tipo
+       -- qui c'e' solo l'arena INCONTRATA DURANTE IL PIANO.
+       Tre differenze rispetto a ogni altra stanza speciale:
+       (1) PIAZZAMENTO PROPRIO (WorldPlaceArenaRoom, world.c), non
+           WorldPlaceSpecialRoom: l'arena e' combattimento, e una 1x1 la
+           mortificherebbe -- prova le taglie GRANDI per prime e non scende mai
+           sotto le due celle. E' sempre una FOGLIA del grafo di adiacenza
+           (come la stanza boss, DEC-182), che e' il modo strutturale di
+           garantire "mai un passaggio obbligato" del documento.
+       (2) OPZIONALITA': la sfida NON parte entrando. Dentro c'e' un segnale
+           interagibile (Pickup di kind PICKUP_ARENA_ALTAR, sotto) e finche' il
+           giocatore non conferma esplicitamente (Game.interactQueued) la
+           stanza e' attraversabile come una stanza vuota -- porte mai bloccate,
+           nessun nemico.
+       (3) STATO A TRE VALORI, letto da RoomState: sfida disponibile
+           (!arenaActive && !cleared), in corso (arenaActive && !cleared),
+           superata (cleared). Confermata la sfida, le porte restano chiuse
+           finche' non si vince (GameRoomIsLocked), col budget nemici
+           maggiorato e i tipi portati in fascia alta della banda di potenza
+           (WorldSpawnEnemyWave); alla vittoria, valuta e ricompensa
+           maggiorate (WorldAwardRoomCompletionCurrency/WorldSpawnRoomReward).
+           Morire dentro e' una morte normale: permadeath, nessun retry. */
+    ROOM_ARENA
 } RoomKind;
 
 typedef enum Direction {
@@ -210,7 +237,21 @@ typedef enum PickupKind {
        assets/art/props/clessidra quando arriva dalla corsia arte, forma
        geometrica di riserva nel frattempo (stesso degrado standard del
        crogiolo sopra). */
-    PICKUP_TIMED_MARKER
+    PICKUP_TIMED_MARKER,
+    /* WP6: il segnale interagibile dell'arena di sfida (ROOM_ARENA sopra) --
+       il piedistallo/insegna con cui il giocatore ACCETTA la sfida. In coda
+       come PICKUP_TIMED_MARKER sopra e per lo stesso motivo. Non si consuma
+       mai (CombatPickup lo rimette 'active' subito) e, a differenza del
+       crogiolo della fusione, TOCCARLO NON FA PARTIRE NULLA: la sfida e'
+       irreversibile, quindi serve una conferma esplicita (il tasto di
+       interazione, Game.interactQueued -> WorldTryStartArenaChallenge), mai
+       un'attivazione per inerzia camminando. 'value' non e' una quantita' ma
+       lo STATO della stanza, tre valori: 0 = sfida disponibile, 1 = sfida in
+       corso, 2 = sfida superata (etichetta e colore in DrawPickup; 0 e' lo
+       zero-default corretto -- una stanza appena creata non ha una sfida in
+       corso ne' una gia' vinta). Nessuna cella d'atlas dedicata: si ripiega
+       su props/piedistallo quando c'e', altrimenti forma geometrica. */
+    PICKUP_ARENA_ALTAR
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -638,6 +679,15 @@ typedef struct RoomState {
     bool visited;
     bool cleared;
     bool rewardTaken;
+    /* WP6 (ROOM_ARENA, systems/special-rooms.md "Arena di sfida"): la sfida di
+       QUESTA arena e' stata accettata dal giocatore. Falso = non ancora
+       accettata, che e' anche lo zero-default corretto e il piu' innocuo (una
+       stanza azzerata dal memset di WorldGenerateFloorMap e' attraversabile,
+       senza nemici e senza porte bloccate). Insieme a 'cleared' forma i tre
+       stati dell'archetipo -- disponibile / in corso / superata -- letti da
+       WorldSpawnRoomContents, GameRoomIsLocked e DrawPickup. Privo di
+       significato per ogni altro RoomKind: nessuno lo scrive. */
+    bool arenaActive;
     RoomKind kind;
     bool doors[4];
     unsigned char cells;   /* maschera 2x2 (ROOM_CELL_BIT), relativa a originX/originY */
@@ -1273,6 +1323,14 @@ typedef struct Game {
        carica, anche su un frame che contiene due passi. */
     bool useActiveQueued;   /* E: usare l'oggetto attivo selezionato */
     bool dropGraftQueued;   /* G: sganciare l'Innesto equipaggiato (DEC-115/DEC-160) */
+    /* WP6 (systems/special-rooms.md, "Arena di sfida"): la CONFERMA esplicita
+       di un'azione irreversibile del mondo -- oggi solo "accetto la sfida
+       dell'arena" (WorldTryStartArenaChallenge, src/world/world.c), l'unica
+       che esista. Stessa disciplina di bombQueued/useActiveQueued sopra: un
+       evento latchato una volta per frame di finestra e consumato dal primo
+       passo di simulazione che lo legge. Falso = nessuna conferma in sospeso,
+       lo zero-default piu' innocuo per un'azione senza ritorno. */
+    bool interactQueued;    /* X: confermare l'interazione della stanza */
     /* WP4 (systems/special-rooms.md, "Stanza di fusione"): scritto SOLO da
        gameplay (CombatPickup, quando il giocatore tocca il crogiolo -- Pickup
        di kind PICKUP_FUSION_ALTAR -- della stanza ROOM_FUSION) e consumato

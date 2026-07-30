@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (35 voci attive su 36 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 40 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore.
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp-int-art-hookup
-last_verified_commit: bf0fde8
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, WP4, WP-INT]
+last_updated_from_session: 2026-07-30-wp6-arena-di-sfida
+last_verified_commit: 06b9b16
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, WP4, WP5, WP6, WP-INT]
 related: []
 supersedes: []
 source_files: []
@@ -386,3 +386,67 @@ personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 
     una veste propria — richiederebbe generazione procedurale dello sprite, fuori scope
     di questo lavoro. Da confermare al playtest o da promuovere a decisione.
     (`systems/characters.md`, sezione "Default proposti dall'implementazione".)
+
+## Arena di sfida nel motore (WP6, 2026-07-30)
+
+Il lavoro che porta nel motore la versione dell'arena di sfida **incontrata nel piano**
+(`ROOM_ARENA`; l'accesso "best-of" dal Piano 0, DEC-004, resta fuori) apre quattro
+domande che nessun documento chiude: `systems/special-rooms.md` fissa l'archetipo
+("combattimento più impegnativo in cambio di ricompensa maggiore") e il caso limite
+("mai un passaggio obbligato"), non i numeri né l'input.
+
+37. A quale piano MINIMO compare l'arena di sfida, con quale frequenza e di quale taglia?
+    Il documento non fissa nulla di tutto questo. *Default proposto e implementato*:
+    **dal piano 2** (`WORLD_ARENA_ROOM_MIN_FLOOR`, `src/world/world.h`) — il piano 1 resta
+    il primo contatto col mondo generato, l'arena è un'escalation volontaria che comincia
+    subito dopo; confine deliberatamente DIVERSO da quello della stanza a tempo (piano 3),
+    perché lì "dai piani avanzati" è parte della decisione DEC-051 e qui è solo frequenza.
+    Un solo tentativo di piazzamento per piano, non garantito, **mai 1x1** (si provano
+    2x2 → L → 1x2/2x1 e si rinuncia se nessuna entra: una 1x1 stretta mortificherebbe un
+    combattimento maggiorato) e **sempre foglia del grafo** di adiacenza come la stanza
+    boss (DEC-182), che è il modo strutturale di garantire "mai un passaggio obbligato".
+    Misurato su 120 piani generati (5 piani × 24 semi, `--rooms-test`; solo i piani 2-5,
+    96 tentativi, sono candidati): piazzata in 82 casi su 96. Effetto collaterale
+    dichiarato e misurato: piazzando l'arena PRIMA delle speciali 1x1 (l'unica che chiede
+    celle contigue) la stanza di fusione scende da 119/120 a 101/120 e la stanza a tempo
+    da 69/72 a 40/72 — l'ordine inverso salverebbe quei due numeri ma ridurrebbe l'arena
+    a 17/96. Da confermare al playtest. (`systems/special-rooms.md`, sezione "Stato di
+    implementazione: l'arena di sfida nel piano".)
+
+38. Quanto vale il "combattimento più impegnativo" dell'arena? Il documento dice solo
+    "più impegnativo", non di quanto. *Default proposto e implementato*: budget nemici
+    della stanza **×1.5** (`WORLD_ARENA_BUDGET_MULTIPLIER`, applicato dopo la scala per
+    celle di DEC-170 e prima della riduzione per ostacoli di DEC-043, così resta un
+    moltiplicatore della difficoltà che quella stanza avrebbe avuto come combattimento
+    normale) e tipi di nemico portati alla **fascia alta della banda di potenza
+    dichiarata** (`ENEMY_TYPE_POWER_MAX`, cioè dove `systems/enemies.md` colloca il
+    Veterano — mai fuori dalla banda draft [0.7–1.35] di DEC-019). Tutto deterministico
+    dal seed. Limite dichiarato: senza tipi generati (manifest vecchio o assente) l'arena
+    sale di sola quantità, perché i quattro nemici storici non hanno manopole da alzare.
+    Da confermare al playtest. (`systems/enemies.md`, "Stato di implementazione (WP6)";
+    `systems/special-rooms.md`, "Default proposti dall'implementazione".)
+
+39. Quanto vale la "ricompensa maggiore" dell'arena? `rewards-and-economy.md` fissa solo
+    "superiore alla media di una stanza di combattimento equivalente non a rischio"
+    (Scenario 2). *Default proposto e implementato*, su tre canali: **8 Ingots** di valuta
+    di completamento (il doppio del combattimento, meno del boss); **l'oggetto di rarità
+    migliore fra i tre candidati del piano** — la forma concreta scelta per "rarità minima
+    alzata", preferita a un'estrazione pesata perché una sfida vinta non deve poter pagare
+    un oggetto comune quando nel pool c'è una rara; **catalizzatore di fusione al 50%**,
+    più del 35% del drop di boss perché l'arena è un rischio scelto — e questo chiude la
+    terza delle tre fonti di Flux dichiarate da DEC-022, che nel motore ne aveva solo due.
+    Tutto SOLO a sfida accettata e vinta: attraversare l'arena non è completarla (DEC-167).
+    Da confermare al playtest. (`systems/rewards-and-economy.md`, "Pattern
+    rischio/ricompensa dell'arena di sfida"; `systems/special-rooms.md`.)
+
+40. Con quale TASTO si conferma la sfida dell'arena? Il documento chiede una "conferma
+    esplicita prima di un'azione irreversibile" ma nessun documento fissa i tasti — stessa
+    situazione già registrata per `E` (usa attivo), `G` (sgancia Innesto), `F` (fondi) e
+    `C` (statistiche HUD). *Default proposto e implementato*: **X**, premuto **a contatto**
+    col segnale della stanza (`PICKUP_ARENA_ALTAR`); premuto altrove non fa nulla, e il
+    solo TOCCO del segnale non basta (camminarci sopra non è una conferma, e la sfida è
+    irreversibile). Non si può riusare "conferma" (ENTER/SPAZIO) perché in Gameplay SPAZIO
+    è già la bomba: una sfida senza ritorno non deve poter partire premendo il tasto con
+    cui si spara. Resta aperta la domanda più ampia se questi cinque tasti debbano
+    diventare una mappatura rivedibile dal giocatore. (`app/app_internal.h`, `AppInput`;
+    `systems/special-rooms.md`, "Stato di implementazione: l'arena di sfida nel piano".)

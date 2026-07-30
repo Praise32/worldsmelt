@@ -3209,6 +3209,322 @@ static bool RoomsTestTimedRoomInteraction(void)
     return false;
 }
 
+/* WP6: contenuto MINIMO ma non vuoto per il piano di prova -- un tipo di
+   nemico attivo (senza il quale WorldSpawnEnemyWave cadrebbe sul ramo storico
+   "nemici senza tipo", dove il grado non ha manopole da alzare) e tre oggetti
+   con rarita' DIVERSE, per poter verificare che la ricompensa dell'arena
+   peschi davvero la migliore delle tre e non la prima. Un Game azzerato dal
+   memset di RoomsTestGenerateFloor non ha nulla di tutto questo. */
+static void RoomsTestInstallArenaContent(Game *g, int floor)
+{
+    FloorContent *fc = &g->content.floors[floor - 1];
+    EnemyTypeDef base;
+    EnemyTypeExample(&base, 0);   /* l'inseguitore d'esempio, gia' bilanciato in banda */
+    fc->enemies[0] = base;
+    fc->enemies[1].active = false;
+    fc->items[0].rarity = RARITY_COMMON;
+    fc->items[1].rarity = RARITY_RARE;
+    fc->items[2].rarity = RARITY_UNCOMMON;
+    snprintf(fc->items[0].name, sizeof(fc->items[0].name), "%s", "Comune di prova");
+    snprintf(fc->items[1].name, sizeof(fc->items[1].name), "%s", "Rara di prova");
+    snprintf(fc->items[2].name, sizeof(fc->items[2].name), "%s", "Non comune di prova");
+}
+
+static float RoomsTestTotalEnemyHp(const Game *g)
+{
+    float total = 0.0f;
+    for (int i = 0; i < MAX_ENEMIES; i++) if (g->enemies[i].active) total += g->enemies[i].maxHp;
+    return total;
+}
+
+static int RoomsTestCountActiveEnemies(const Game *g)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++) if (g->enemies[i].active) n++;
+    return n;
+}
+
+static Pickup *RoomsTestFindPickup(Game *g, PickupKind kind)
+{
+    for (int i = 0; i < MAX_PICKUPS; i++)
+        if (g->pickups[i].active && g->pickups[i].kind == kind) return &g->pickups[i];
+    return NULL;
+}
+
+/* Test (q), WP6 (systems/special-rooms.md, "Arena di sfida"): l'intero ciclo di
+   vita dell'archetipo su un'arena vera, pescata dai semi di prova.
+     A. sfida NON accettata: nessun nemico, porte mai bloccate, si esce davvero
+        dalla stanza, toccare il segnale non fa partire nulla, premere il tasto
+        di conferma LONTANO dal segnale non fa partire nulla, e la stanza non
+        si "ripulisce" da sola (attraversarla non e' completarla: niente
+        valuta, niente ricompensa).
+     B. sfida ACCETTATA: nemici presenti, porte chiuse, segnale in stato "in
+        corso"; budget maggiorato rispetto a una stanza di COMBATTIMENTO della
+        stessa taglia/piano con la stessa identica estrazione, e nemici portati
+        in fascia alta della banda di potenza.
+     C. VITTORIA: valuta dell'arena (mai quella del combattimento), oggetto
+        della rarita' migliore fra i tre del piano, porte riaperte, segnale in
+        stato "superata" anche rientrando.
+     D. controprova: la stessa vittoria in una stanza di COMBATTIMENTO paga la
+        valuta del combattimento e non lascia alcun oggetto -- i nemici uccisi
+        fuori dall'arena non pagano mai la ricompensa dell'arena. */
+static bool RoomsTestArenaInteraction(void)
+{
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u, 90210u, 5150u
+    };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        for (int floor = WORLD_ARENA_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT; floor++)
+        {
+            Game probe;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+            RoomsTestInstallArenaContent(&probe, floor);
+
+            int ax = -1, ay = -1, combatX = -1, combatY = -1;
+            for (int y = 0; y < GRID_SIZE; y++)
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!probe.rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(&probe, x, y);
+                    if (state != &probe.rooms[y][x]) continue;
+                    if (state->kind == ROOM_ARENA && ax < 0) { ax = x; ay = y; }
+                    if (state->kind == ROOM_COMBAT && combatX < 0) { combatX = x; combatY = y; }
+                }
+            if (ax < 0) continue;   /* niente arena su questo piano/seme: si prova il prossimo */
+
+            /* ---- A. sfida non accettata ---- */
+            probe.roomX = ax; probe.roomY = ay;
+            int coinsIdle = probe.player.coins;
+            WorldSpawnRoomContents(&probe);
+            Pickup *altar = RoomsTestFindPickup(&probe, PICKUP_ARENA_ALTAR);
+            if (!altar || altar->value != 0)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: nessun segnale 'sfida disponibile' nell'arena\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (RoomsTestCountActiveEnemies(&probe) != 0 || GameRoomIsLocked(&probe))
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: l'arena parte gia' con nemici o porte bloccate (la sfida NON deve partire entrando)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* Toccare il segnale non e' una conferma: nessun nemico, nessuno
+               stato che cambia, e il segnale non si consuma mai. */
+            probe.player.pos = altar->pos;
+            CombatUpdatePickups(&probe);
+            if (!altar->active || altar->value != 0 || WorldRoomAt(&probe, ax, ay)->arenaActive ||
+                RoomsTestCountActiveEnemies(&probe) != 0)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: toccare il segnale fa partire la sfida (serve la conferma esplicita)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* Il tasto di conferma LONTANO dal segnale non fa partire nulla. */
+            Vector2 onAltar = altar->pos;
+            probe.player.pos = (Vector2){ onAltar.x + 400.0f, onAltar.y + 200.0f };
+            probe.interactQueued = true;
+            if (WorldTryStartArenaChallenge(&probe) || WorldRoomAt(&probe, ax, ay)->arenaActive)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: la sfida parte anche lontano dal segnale\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            probe.interactQueued = false;
+
+            /* Attraversare NON e' completare: WorldCheckRoomClear su un'arena
+               senza sfida accettata non deve dichiararla ripulita ne' pagare
+               nulla, anche se dentro non c'e' un solo nemico. */
+            WorldCheckRoomClear(&probe);
+            if (WorldRoomAt(&probe, ax, ay)->cleared || probe.player.coins != coinsIdle)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: l'arena si e' completata (o ha pagato) senza che la sfida partisse\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* Si esce davvero: la stanza e' attraversabile come una vuota. */
+            bool leftRoom = false;
+            for (int d = 0; d < 4 && !leftRoom; d++)
+            {
+                Game exitProbe = probe;
+                int px, py;
+                WorldPlayerCell(&exitProbe, &px, &py);
+                for (int cy = 0; cy < GRID_SIZE && !leftRoom; cy++)
+                    for (int cx = 0; cx < GRID_SIZE && !leftRoom; cx++)
+                    {
+                        if (!exitProbe.rooms[cy][cx].exists || !exitProbe.rooms[cy][cx].doors[d]) continue;
+                        if (WorldRoomAt(&exitProbe, cx, cy)->kind != ROOM_ARENA) continue;
+                        exitProbe.player.keys = 9;
+                        Rectangle fromCell = WorldCellRect(&exitProbe, cx, cy);
+                        exitProbe.player.pos = (Vector2){ fromCell.x + fromCell.width*0.5f, fromCell.y + fromCell.height*0.5f };
+                        exitProbe.roomX = cx; exitProbe.roomY = cy;
+                        WorldTryEnterRoom(&exitProbe, d);
+                        if (WorldRoomAt(&exitProbe, exitProbe.roomX, exitProbe.roomY)->kind != ROOM_ARENA) leftRoom = true;
+                    }
+                (void)px; (void)py;
+            }
+            if (!leftRoom)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: dall'arena con sfida non accettata non si esce\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* ---- B. riferimento: la STESSA stanza come combattimento ---- */
+            Game reference = probe;
+            RoomState *refRoom = WorldRoomAtMutable(&reference, ax, ay);
+            refRoom->kind = ROOM_COMBAT;
+            refRoom->cleared = false;
+            reference.rng = 4242u;
+            EntitiesClear(&reference);
+            WorldSpawnCombatRoom(&reference);
+            float combatHp = RoomsTestTotalEnemyHp(&reference);
+            int combatCount = RoomsTestCountActiveEnemies(&reference);
+
+            /* ---- B. sfida accettata, stessa estrazione ---- */
+            probe.player.pos = onAltar;
+            probe.rng = 4242u;
+            if (!WorldTryStartArenaChallenge(&probe))
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: la conferma sul segnale non fa partire la sfida\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            const RoomState *arenaRoom = WorldRoomAt(&probe, ax, ay);
+            if (!arenaRoom->arenaActive || altar->value != 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: sfida accettata ma stato/segnale non aggiornati\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            int arenaCount = RoomsTestCountActiveEnemies(&probe);
+            float arenaHp = RoomsTestTotalEnemyHp(&probe);
+            if (arenaCount <= 0 || !GameRoomIsLocked(&probe))
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: sfida accettata ma nessun nemico o porte non bloccate\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            /* Budget maggiorato: il moltiplicatore e' 1.5, il margine di
+               verifica 1.2 assorbe la discretizzazione (l'ultimo nemico si
+               spawna anche se sfora un po'). Con lo stesso seme e la stessa
+               stanza, una stanza di combattimento normale non puo' avvicinarsi. */
+            if (!(arenaHp > combatHp*1.2f))
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: budget non maggiorato -- arena %.1f HP totali (%d nemici) contro combattimento %.1f (%d nemici)\n",
+                        floor, kSeeds[si], (double)arenaHp, arenaCount, (double)combatHp, combatCount);
+                return false;
+            }
+            /* Grado piu' alto: ogni nemico dell'arena e' portato in fascia alta
+               della sua banda di potenza (enemies.md, il Veterano), mai lasciato
+               al valore del tipo di base. */
+            float basePower = EnemyTypePower(&probe.content.floors[floor - 1].enemies[0]);
+            for (int i = 0; i < MAX_ENEMIES; i++)
+            {
+                if (!probe.enemies[i].active || !probe.enemies[i].type.active) continue;
+                float p = EnemyTypePower(&probe.enemies[i].type);
+                if (p <= basePower + 0.001f)
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: nemico d'arena a potenza %.3f, non sopra il tipo base %.3f\n",
+                            floor, kSeeds[si], (double)p, (double)basePower);
+                    return false;
+                }
+                if (p > ENEMY_TYPE_POWER_MAX + 0.001f)
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: nemico d'arena a potenza %.3f, FUORI dalla banda dichiarata (max %.3f)\n",
+                            floor, kSeeds[si], (double)p, (double)ENEMY_TYPE_POWER_MAX);
+                    return false;
+                }
+            }
+
+            /* ---- C. vittoria ---- */
+            for (int i = 0; i < MAX_ENEMIES; i++) probe.enemies[i].active = false;
+            int coinsBeforeWin = probe.player.coins;
+            WorldCheckRoomClear(&probe);
+            if (!WorldRoomAt(&probe, ax, ay)->cleared || GameRoomIsLocked(&probe))
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: sfida vinta ma stanza non completata o porte ancora chiuse\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (probe.player.coins != coinsBeforeWin + WORLD_ROOM_CURRENCY_ARENA)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: valuta attesa %d, ottenuta %d\n",
+                        floor, kSeeds[si], coinsBeforeWin + WORLD_ROOM_CURRENCY_ARENA, probe.player.coins);
+                return false;
+            }
+            Pickup *prize = RoomsTestFindPickup(&probe, PICKUP_ITEM);
+            if (!prize || prize->item.rarity != RARITY_RARE)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: la ricompensa dell'arena non e' l'oggetto di rarita' migliore del piano\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (altar->value != 2)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: il segnale non passa a 'superata' alla vittoria\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            /* Rientrando, l'esito resta scritto: nessun nemico, segnale
+               'superata', nessuna seconda ricompensa. */
+            int coinsAfterWin = probe.player.coins;
+            WorldSpawnRoomContents(&probe);
+            Pickup *altarAgain = RoomsTestFindPickup(&probe, PICKUP_ARENA_ALTAR);
+            if (!altarAgain || altarAgain->value != 2 || RoomsTestCountActiveEnemies(&probe) != 0 ||
+                probe.player.coins != coinsAfterWin)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: rientrando nell'arena superata la sfida riparte o ripaga\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* ---- D. controprova fuori dall'arena ---- */
+            if (combatX >= 0)
+            {
+                Game outside;
+                RoomsTestGenerateFloor(kSeeds[si], floor, &outside);
+                RoomsTestInstallArenaContent(&outside, floor);
+                outside.roomX = combatX; outside.roomY = combatY;
+                WorldSpawnRoomContents(&outside);
+                for (int i = 0; i < MAX_ENEMIES; i++) outside.enemies[i].active = false;
+                int coinsBeforeCombat = outside.player.coins;
+                WorldCheckRoomClear(&outside);
+                /* WORLD_ROOM_CURRENCY_COMBAT resta privata a src/world/world.c:
+                   il numero si ripete qui come lo ripete gia' GameEconomyTest
+                   (stessa convenzione dichiarata nel suo commento -- se quel
+                   valore cambia, entrambi i test vanno aggiornati). Il
+                   confronto che conta davvero e' comunque quello con la valuta
+                   dell'arena, che NON deve mai uscire da qui. */
+                const int kCombatCurrency = 4;
+                int paid = outside.player.coins - coinsBeforeCombat;
+                if (paid == WORLD_ROOM_CURRENCY_ARENA || paid != kCombatCurrency)
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: una stanza di combattimento ripulita paga %d invece di %d (mai la valuta dell'arena, %d)\n",
+                            floor, kSeeds[si], paid, kCombatCurrency, WORLD_ROOM_CURRENCY_ARENA);
+                    return false;
+                }
+                if (RoomsTestFindPickup(&outside, PICKUP_ITEM))
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: una stanza di combattimento ripulita lascia l'oggetto-ricompensa dell'arena\n",
+                            floor, kSeeds[si]);
+                    return false;
+                }
+            }
+
+            printf("  [rooms-q] arena di sfida (seed %u piano %d): non accettata -> attraversabile e mai completata; accettata -> %d nemici e %.0f HP contro %d e %.0f di un combattimento pari (budget +50%%, grado in fascia alta), porte chiuse; vinta -> %d Ingots + oggetto di rarita' migliore, segnale 'superata' -> ok\n",
+                   kSeeds[si], floor, arenaCount, (double)arenaHp, combatCount, (double)combatHp, WORLD_ROOM_CURRENCY_ARENA);
+            return true;
+        }
+    }
+    fprintf(stderr, "GameRoomsTest: (q) nessuna arena di sfida nei semi di prova: verifica non eseguita\n");
+    return false;
+}
+
 /* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
 typedef struct RoomsTestRoom {
     int stateX, stateY;
@@ -3280,6 +3596,16 @@ bool GameRoomsTest(Game *game)
        floorsWithFusion/floorsChecked sopra non ha lo stesso problema: la
        fusione non ha un piano minimo. */
     int floorsEligibleForTimed = 0;
+    /* WP6 (q): stessa idea di floorsWithFusion/floorsWithTimed -- quante volte
+       l'arena di sfida ha trovato posto, sui soli piani candidati
+       (WORLD_ARENA_ROOM_MIN_FLOOR). */
+    int floorsWithArena = 0;
+    int floorsEligibleForArena = 0;
+    /* WP6: quante volte ciascuna classe di taglia e' toccata all'arena --
+       serve a verificare che il piazzamento "prima le grandi" sia vivo, non
+       solo dichiarato nel commento. */
+    int arenaSizeSeen[ROOM_SIZE_COUNT];
+    for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++) arenaSizeSeen[i] = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -3289,6 +3615,7 @@ bool GameRoomsTest(Game *game)
             RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
             floorsChecked++;
             if (floor >= WORLD_TIMED_ROOM_MIN_FLOOR) floorsEligibleForTimed++;
+            if (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) floorsEligibleForArena++;
 
             RoomsTestRoom rooms[GRID_SIZE*GRID_SIZE];
             int roomCount = RoomsTestCollectRooms(&probe, rooms, GRID_SIZE*GRID_SIZE);
@@ -3303,6 +3630,9 @@ bool GameRoomsTest(Game *game)
             /* WP5: idem per la stanza a tempo, controllo (p) sotto. */
             int timedRooms = 0;
             int timedX = -1, timedY = -1;
+            /* WP6: idem per l'arena di sfida, controllo (q) sotto. */
+            int arenaRooms = 0;
+            int arenaX = -1, arenaY = -1;
 
             /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
                stanza e' una delle cinque classi di DEC-170; (b) niente
@@ -3327,6 +3657,7 @@ bool GameRoomsTest(Game *game)
                 if (rooms[r].kind == ROOM_START) startRooms++;
                 if (rooms[r].kind == ROOM_FUSION) { fusionRooms++; fusionX = rooms[r].stateX; fusionY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_TIMED) { timedRooms++; timedX = rooms[r].stateX; timedY = rooms[r].stateY; }
+                if (rooms[r].kind == ROOM_ARENA) { arenaRooms++; arenaSizeSeen[size]++; arenaX = rooms[r].stateX; arenaY = rooms[r].stateY; }
                 cellCount += bits;
 
                 /* La forma a L e' TRE celle di un blocco 2x2 con un angolo
@@ -3474,14 +3805,115 @@ bool GameRoomsTest(Game *game)
                 }
             }
 
+            /* (q) WP6, arena di sfida: al piu' una per piano (un solo
+               tentativo di piazzamento, mai garantito), MAI prima del piano
+               WORLD_ARENA_ROOM_MIN_FLOOR, MAI adiacente alla stanza boss (le
+               darebbe una seconda porta, DEC-182), MAI piu' piccola di due
+               celle (una 1x1 mortificherebbe un combattimento maggiorato) e
+               SEMPRE foglia del grafo di adiacenza -- esattamente una porta su
+               tutto il perimetro. La foglia e' la garanzia strutturale del
+               caso limite di special-rooms.md ("mai un passaggio obbligato,
+               mai un blocco del piano se ignorata"): accettare la sfida chiude
+               le porte, e su un nodo di passaggio taglierebbe il piano in due. */
+            if (arenaRooms > 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: %d arene di sfida (atteso al piu' 1)\n",
+                        floor, kSeeds[si], arenaRooms);
+                ok = false;
+            }
+            if (arenaRooms > 0 && floor < WORLD_ARENA_ROOM_MIN_FLOOR)
+            {
+                fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: arena di sfida prima del piano minimo %d\n",
+                        floor, kSeeds[si], WORLD_ARENA_ROOM_MIN_FLOOR);
+                ok = false;
+            }
+            if (arenaRooms == 1)
+            {
+                floorsWithArena++;
+                const RoomState *arenaState = &probe.rooms[arenaY][arenaX];
+                int arenaCellCount = 0, arenaDoorCount = 0;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(arenaState->cells & (unsigned char)(1u << i))) continue;
+                    arenaCellCount++;
+                    int cx = arenaState->originX + (i & 1), cy = arenaState->originY + (i >> 1);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        if (probe.rooms[cy][cx].doors[d]) arenaDoorCount++;
+                        int nx = cx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = cy + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists) continue;
+                        if (WorldRoomAt(&probe, nx, ny)->kind != ROOM_BOSS) continue;
+                        fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: l'arena di sfida tocca la stanza boss\n",
+                                floor, kSeeds[si]);
+                        ok = false;
+                    }
+                }
+                if (arenaCellCount < 2)
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: arena di sfida da %d cella (mai sotto le due, special-rooms.md)\n",
+                            floor, kSeeds[si], arenaCellCount);
+                    ok = false;
+                }
+                if (arenaDoorCount != 1)
+                {
+                    fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: l'arena di sfida ha grado %d nel grafo (atteso 1: mai un passaggio obbligato)\n",
+                            floor, kSeeds[si], arenaDoorCount);
+                    ok = false;
+                }
+
+                /* (q) "mai bloccare il piano se ignorata": BFS dalla partenza
+                   che NON entra mai in una cella dell'arena -- tutte le altre
+                   stanze restano raggiungibili. Stesso schema del controllo
+                   (n) per la stanza boss, ma qui la garanzia e' piu' forte
+                   nella pratica: la stanza boss si attraversa una volta sola a
+                   fine piano, l'arena si puo' ignorare per sempre. */
+                bool reachedNoArena[GRID_SIZE][GRID_SIZE];
+                memset(reachedNoArena, 0, sizeof(reachedNoArena));
+                int aqx[GRID_SIZE*GRID_SIZE], aqy[GRID_SIZE*GRID_SIZE];
+                int aHead = 0, aTail = 0;
+                aqx[aTail] = probe.roomX; aqy[aTail] = probe.roomY; aTail++;
+                reachedNoArena[probe.roomY][probe.roomX] = true;
+                while (aHead < aTail)
+                {
+                    int x = aqx[aHead], y = aqy[aHead];
+                    aHead++;
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists || reachedNoArena[ny][nx]) continue;
+                        if (WorldRoomAt(&probe, nx, ny)->kind == ROOM_ARENA) continue;   /* nodo ignorato dal giocatore */
+                        if (!probe.rooms[y][x].doors[d] && !WorldSameRoom(&probe, x, y, nx, ny)) continue;
+                        reachedNoArena[ny][nx] = true;
+                        aqx[aTail] = nx; aqy[aTail] = ny; aTail++;
+                    }
+                }
+                for (int y = 0; y < GRID_SIZE; y++)
+                    for (int x = 0; x < GRID_SIZE; x++)
+                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_ARENA && !reachedNoArena[y][x])
+                        {
+                            fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: la cella (%d,%d) non e' raggiungibile ignorando l'arena di sfida\n",
+                                    floor, kSeeds[si], x, y);
+                            ok = false;
+                        }
+            }
+
             /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
                fino a 4 celle di stanza boss e le celle speciali 1x1 (tesoro,
                negozio, fusione -- WP4 -- e, dal piano 3, anche la stanza a
                tempo -- WP5, la QUARTA); una forma grande puo' sforare il
-               budget di al massimo 3 celle (l'ultima piazzata). */
+               budget di al massimo 3 celle (l'ultima piazzata). WP6: dal piano
+               WORLD_ARENA_ROOM_MIN_FLOOR si aggiunge l'arena di sfida, che NON
+               e' 1x1 -- ha un piazzamento suo che prova le taglie grandi per
+               prime e non scende mai sotto le due celle, quindi vale fino a
+               4 celle in piu' come la stanza boss. */
             int lowerBound = 6 + floor;
             int specialRoomSlots = (floor >= 3) ? 4 : 3;
-            int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots;
+            int arenaCells = (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) ? 4 : 0;
+            int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots + arenaCells;
             if (existing < lowerBound || existing > upperBound)
             {
                 fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d celle, fuori dalla banda attesa [%d,%d]\n",
@@ -3794,6 +4226,34 @@ bool GameRoomsTest(Game *game)
         fprintf(stderr, "GameRoomsTest: (p) la stanza a tempo non trova mai posto in %d piani generati\n", floorsChecked);
         ok = false;
     }
+    /* (q) WP6: stessa idea di (o)/(p) -- il resto del controllo (q) va
+       esercitato davvero almeno una volta. */
+    if (floorsWithArena == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (q) l'arena di sfida non trova mai posto in %d piani candidati\n", floorsEligibleForArena);
+        ok = false;
+    }
+    /* (q) WP6: l'arena non e' MAI 1x1 (garanzia gia' verificata piano per
+       piano sopra) e la preferenza per le taglie grandi deve essere viva --
+       la 2x2, che il piazzamento prova per prima, deve comparire davvero. */
+    if (arenaSizeSeen[ROOM_SIZE_1X1] > 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (q) l'arena di sfida e' 1x1 in %d piani (mai ammesso)\n", arenaSizeSeen[ROOM_SIZE_1X1]);
+        ok = false;
+    }
+    /* La preferenza per le taglie GRANDI deve essere viva, non solo dichiarata
+       nel commento del piazzamento: una buona parte delle arene deve avere TRE
+       o quattro celle (L o 2x2), non fermarsi sempre alle due. Soglia con
+       margine (un quarto), non il valore misurato: la 2x2 in particolare resta
+       rara perche' il vincolo di foglia la penalizza esattamente come penalizza
+       la stanza boss (piu' perimetro = piu' occasioni di toccare due stanze). */
+    int arenaBigSeen = arenaSizeSeen[ROOM_SIZE_2X2] + arenaSizeSeen[ROOM_SIZE_L];
+    if (floorsWithArena > 0 && arenaBigSeen < floorsWithArena/4)
+    {
+        fprintf(stderr, "GameRoomsTest: (q) l'arena di sfida ha 3+ celle solo %d volte su %d (il piazzamento deve preferire le taglie grandi)\n",
+                arenaBigSeen, floorsWithArena);
+        ok = false;
+    }
 
     printf("  [rooms-abcdefijlmno] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
            FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
@@ -3804,12 +4264,16 @@ bool GameRoomsTest(Game *game)
            floorsWithFusion, floorsChecked);
     printf("  [rooms-p] stanza a tempo (WP5) piazzata in %d piani su %d candidati (piani >= %d), mai prima del piano 3, mai adiacente al boss, mai piu' di una per piano\n",
            floorsWithTimed, floorsEligibleForTimed, WORLD_TIMED_ROOM_MIN_FLOOR);
+    printf("  [rooms-q] arena di sfida (WP6) piazzata in %d piani su %d candidati (piani >= %d): taglie 1x2 %d, 2x1 %d, 2x2 %d, L %d (mai 1x1), sempre foglia del grafo, mai adiacente al boss\n",
+           floorsWithArena, floorsEligibleForArena, WORLD_ARENA_ROOM_MIN_FLOOR,
+           arenaSizeSeen[ROOM_SIZE_1X2], arenaSizeSeen[ROOM_SIZE_2X1], arenaSizeSeen[ROOM_SIZE_2X2], arenaSizeSeen[ROOM_SIZE_L]);
 
     if (!RoomsTestMinSizeStillPlayable()) ok = false;
     if (!RoomsTestCameraClamp()) ok = false;
     if (!RoomsTestHoleIsSolid()) ok = false;
     if (!RoomsTestFusionInteraction()) ok = false;
     if (!RoomsTestTimedRoomInteraction()) ok = false;
+    if (!RoomsTestArenaInteraction()) ok = false;
 
     return ok;
 }

@@ -250,6 +250,7 @@ static AppInput AppInputCollect(void)
     input.dropGraft = IsKeyPressed(KEY_G);
     input.fuse = IsKeyPressed(KEY_F);
     input.toggleStats = IsKeyPressed(KEY_C);
+    input.interact = IsKeyPressed(KEY_X);   /* WP6: conferma della sfida dell'arena, vedi AppInput */
     return input;
 }
 
@@ -1226,6 +1227,11 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                sulla simulazione -- vive su 'ui' (sopravvive a GameResetRun),
                mai su 'game'. */
             if (effective.toggleStats) ui->hudStatsHidden = !ui->hudStatsHidden;
+            /* WP6: come la bomba e gli slot funzionali sopra -- solo dentro
+               Gameplay, latchato per il primo passo di simulazione che lo
+               legge (WorldTryStartArenaChallenge da CombatUpdatePlayer). In un
+               menu X non deve fare nulla. */
+            if (effective.interact) game->interactQueued = true;
             break;
         }
 

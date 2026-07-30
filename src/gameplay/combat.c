@@ -758,6 +758,18 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
         game->dropGraftQueued = false;
         CombatDropGraft(game);
     }
+    /* WP6 (systems/special-rooms.md, "Arena di sfida"): la conferma esplicita
+       dell'unica azione irreversibile che il MONDO offre dentro una stanza. Si
+       consuma sempre (stessa disciplina della bomba: un evento = un tentativo,
+       anche su un frame a due passi), anche quando non c'e' nulla da
+       confermare -- altrimenti una pressione fuori dall'arena resterebbe
+       latchata e farebbe partire la sfida al primo passo dentro l'arena,
+       senza che il giocatore l'abbia chiesto li'. */
+    if (game->interactQueued)
+    {
+        game->interactQueued = false;
+        WorldTryStartArenaChallenge(game);
+    }
 }
 
 /* ============================================================
@@ -1231,7 +1243,12 @@ static void CombatPickup(Game *game, Pickup *pickup)
     /* WP5: stessa esclusione di PICKUP_FUSION_ALTAR sopra -- la clessidra
        della stanza a tempo (DEC-051) e' un segnale, non una raccolta: nessun
        suono di pickup, coerente col fatto che non aggiunge/toglie nulla. */
-    if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR && pickup->kind != PICKUP_TIMED_MARKER)
+    /* WP6: stessa esclusione per il segnale dell'arena di sfida -- toccarlo
+       non raccoglie nulla e non fa nemmeno partire la sfida (serve la conferma
+       esplicita, WorldTryStartArenaChallenge): un suono di raccolta
+       prometterebbe un effetto che non c'e'. */
+    if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR &&
+        pickup->kind != PICKUP_TIMED_MARKER && pickup->kind != PICKUP_ARENA_ALTAR)
         AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
@@ -1380,6 +1397,21 @@ static void CombatPickup(Game *game, Pickup *pickup)
            campo di Game da scrivere, nessuna schermata da aprire. Stessa
            disciplina 'non si consuma mai' -- resta li' per tutta la
            permanenza nella stanza, un segnale sempre leggibile. */
+        pickup->active = true;
+        pickup->locked = true;
+    }
+    else if (pickup->kind == PICKUP_ARENA_ALTAR)
+    {
+        /* WP6 (systems/special-rooms.md, "Arena di sfida"): a differenza del
+           crogiolo della fusione (che apre una schermata, azione reversibile)
+           qui il TOCCO NON FA PARTIRE NULLA. La sfida e' irreversibile --
+           porte chiuse fino alla fine, morte = permadeath -- e il documento
+           chiede una conferma esplicita: camminarci sopra non e' una conferma.
+           Chi fa partire davvero la sfida e' WorldTryStartArenaChallenge,
+           chiamata solo quando il giocatore preme il tasto di interazione
+           (Game.interactQueued, consumato in CombatUpdatePlayer). Qui resta
+           solo la disciplina "non si consuma mai", come gli altri due segnali
+           di stanza sopra. */
         pickup->active = true;
         pickup->locked = true;
     }

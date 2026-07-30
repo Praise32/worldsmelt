@@ -96,4 +96,42 @@ void WorldUpdateCamera(Game *game, float dt);
 #define WORLD_TIMED_ROOM_MIN_FLOOR 3
 #define WORLD_ROOM_CURRENCY_TIMED 6
 
+/* WP6 (systems/special-rooms.md, "Arena di sfida"). Pubbliche per lo stesso
+   motivo delle due sopra: il test dedicato (src/tests/game_tests.c,
+   RoomsTestArenaInteraction e il controllo (q) di GameRoomsTest) verifica
+   proprio "mai prima di questo piano", "esattamente questa valuta alla
+   vittoria" e "budget davvero maggiorato", e deve confrontarsi con la fonte
+   vera invece che con numeri duplicati a mano.
+   Tutti e quattro sono DEFAULT PROPOSTI DALL'IMPLEMENTAZIONE (stile DEC-019):
+   nessun documento fissa questi numeri, solo il principio "piu' impegnativa
+   in cambio di una ricompensa maggiore" (special-rooms.md) e la proporzione
+   rischio/ricompensa di rewards-and-economy.md.
+   - MIN_FLOOR 2: il piano 1 insegna le basi (nessun trattamento speciale, ma
+     e' il primo contatto col mondo generato); l'arena e' un'escalation
+     volontaria e comincia appena dopo. Confine DIVERSO da quello della stanza
+     a tempo (piano 3) di proposito: quello e' parte della decisione DEC-051
+     ("esclusiva dei piani avanzati"), questo e' solo frequenza.
+   - CURRENCY 8: il doppio di una stanza di combattimento (4), sotto il boss
+     (12) -- "superiore alla media di una stanza di combattimento equivalente
+     non a rischio" (rewards-and-economy.md, Scenario 2).
+   - BUDGET_MULTIPLIER 1.5: il "+50%" sul budget nemici della stanza, applicato
+     DOPO la scala per celle di DEC-170 e PRIMA della riduzione per ostacoli
+     (DEC-043), cosi' resta un moltiplicatore della difficolta' della stanza,
+     non un numero assoluto scollegato dal piano.
+   - FLUX_DROP_PERCENT 50: DEC-022 dichiara le arene di sfida una delle TRE
+     fonti del catalizzatore di fusione, e prima del WP6 ne esistevano solo
+     due (drop di boss, acquisto in negozio). Piu' alto del boss (35%) perche'
+     l'arena e' un rischio SCELTO, non una tappa obbligata. */
+#define WORLD_ARENA_ROOM_MIN_FLOOR 2
+#define WORLD_ROOM_CURRENCY_ARENA 8
+#define WORLD_ARENA_BUDGET_MULTIPLIER 1.5f
+#define WORLD_ARENA_FLUX_DROP_PERCENT 50
+
+/* WP6: la conferma esplicita della sfida (Game.interactQueued, consumato da
+   CombatUpdatePlayer). Vero SOLO se ha davvero fatto partire la sfida: stanza
+   ROOM_ARENA, sfida non gia' accettata ne' superata, e giocatore a contatto
+   col segnale (PICKUP_ARENA_ALTAR). Altrimenti falso e nessun effetto --
+   premere il tasto ovunque altro non fa niente. */
+bool WorldTryStartArenaChallenge(Game *game);
+
 #endif

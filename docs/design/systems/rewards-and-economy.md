@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
 last_reviewed: 2026-07-30
-last_verified_commit: 27aab4d
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, WP5]
+last_verified_commit: 06b9b16
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, WP5, WP6]
 related: []
 supersedes: []
 source_files: []
@@ -87,7 +87,13 @@ completamento — la funzione stessa non rileva nulla, assegna solo l'importo:
   ingresso e SOLO se raggiunta entro la soglia di tempo (vedi
   [Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza
   a tempo"); oltre soglia non paga, coerente col principio "nessun bonus"
-  sotto.
+  sotto;
+- **arena di sfida** (WP6, 30/07): ha ora un `RoomKind` (`ROOM_ARENA`) e un
+  punto di innesto DEC-167 in `WorldCheckRoomClear`, ma con una condizione di
+  completamento **propria e stretta** — "sfida **accettata** e vinta", mai
+  "attraversata": entrare in un'arena e uscirne senza confermare la sfida non
+  la completa e non paga nulla (vedi [Special Rooms](./special-rooms.md),
+  "Stato di implementazione: l'arena di sfida nel piano").
 
 Importi per tipo di stanza, **default proposti dall'implementazione (stile
 DEC-019)**: nessun documento fissa i numeri, solo che la fonte esiste per
@@ -101,14 +107,18 @@ ogni archetipo (DEC-167) — questi restano da confermare col playtest.
 | negozio | 2 |
 | a tempo, entro soglia | 6 |
 | a tempo, oltre soglia | 0 |
+| arena di sfida, vinta | 8 |
+| arena di sfida, attraversata senza accettare | 0 |
 
 Il boss vale più di un combattimento normale (è la stanza più impegnativa del
 piano); tesoro e negozio meno di un combattimento perché non richiedono di
 sopravvivere a nulla. La stanza a tempo vale più di tesoro/negozio ma meno del
 boss: raggiungerla in tempo in un piano avanzato è un rischio scelto (deviare
 rotta, correre) proporzionato a un premio superiore alla media — coerente col
-§Principio sopra, e col pattern rischio/ricompensa già usato per l'arena di
-sfida (sotto). Con il budget di celle
+§Principio sopra, e col pattern rischio/ricompensa dell'arena di
+sfida (sotto). L'arena di sfida vale il **doppio** di un combattimento e resta
+sotto il boss: è la stanza più impegnativa del piano dopo di lui, ma è
+**opzionale** e il giocatore sceglie di affrontarla — il boss no. Con il budget di celle
 per piano introdotto da DEC-170 (`6 + numero_piano + estrazione(0..3)` celle,
 tipicamente ~5-9 stanze più boss/tesoro/negozio/partenza per piano, vedi
 [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), un piano
@@ -172,6 +182,33 @@ La ricompensa deve essere proporzionata a rischio, costo e rarità, considerando
 ## Pattern rischio/ricompensa dell'arena di sfida
 
 L'arena di sfida ([special-rooms.md](./special-rooms.md), DEC-010) è una fonte dichiarata di rischio-ricompensa: propone contenuti "best-of" più impegnativi (anche in versione Piano 0, vedi [floor-zero.md](./floor-zero.md)) in cambio di ricompense superiori alla media di una stanza equivalente non a rischio. Il dettaglio dell'archetipo — accesso, costo, frequenza — è definito in [special-rooms.md](./special-rooms.md); questo documento descrive solo il pattern economico che ne deriva.
+
+### Stato di implementazione (WP6, 2026-07-30)
+
+La versione **incontrata nel piano** esiste ora nel motore (`ROOM_ARENA`). Il
+pattern economico si concretizza in **tre canali**, tutti maggiorati rispetto a
+una stanza di combattimento equivalente non a rischio (Scenario 2 sotto) —
+**default proposti dall'implementazione (stile DEC-019)**, nessun documento ne
+fissa i numeri:
+
+- **valuta di completamento: 8 Ingots**, il doppio del combattimento (4) e meno
+  del boss (12), assegnata SOLO a sfida accettata e vinta;
+- **oggetto: quello di rarità migliore fra i tre candidati del piano** — è
+  questa la forma concreta della "rarità minima alzata": mai un'estrazione
+  pesata che possa pagare un oggetto comune quando nel pool c'è una rara,
+  altrimenti il rischio non sarebbe proporzionato al premio;
+- **catalizzatore di fusione al 50%**, più del 35% del drop di boss perché
+  l'arena è un rischio **scelto**. Questo chiude la terza delle tre fonti di
+  Flux dichiarate da DEC-022 ("drop di boss o di **arene di sfida**, oppure un
+  acquisto costoso nel negozio"), che fino al WP6 esisteva nel motore solo per
+  due terzi.
+
+Attraversare un'arena **senza** accettare la sfida non paga nessuno dei tre: la
+condizione di completamento dell'archetipo (DEC-167) è "sfida accettata e
+vinta". Verificato da `--rooms-test` (`RoomsTestArenaInteraction`,
+`src/tests/game_tests.c`), che controlla anche la contro-prova — una stanza di
+combattimento ripulita paga la valuta del combattimento e mai quella
+dell'arena.
 
 ## Ricompense delle stanze a tempo (DEC-051)
 
@@ -284,6 +321,12 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Elenco completo delle prove specifiche (fisse e generate) che danno bonus punti sblocco.
 - Prezzi e range esatti degli scambi nella stanza ad alto rischio.
 - Quanti "slot" di spesa significativa devono esistere per piano.
+- Valore esatto della ricompensa dell'arena di sfida (valuta, rarità minima dell'oggetto,
+  probabilità del catalizzatore): DEC-010 fissa il principio "ricompensa maggiore in cambio
+  di un rischio maggiore", non i numeri. **Aggiornamento 30/07 (WP6):** esistono ora
+  default proposti e implementati — 8 Ingots, l'oggetto di rarità migliore del piano,
+  catalizzatore al 50% — vedi "Stato di implementazione" sopra e
+  `governance/open-questions.md`, voce 39.
 - Valori esatti di soglia e ricompensa delle stanze a tempo (DEC-051, da playtest).
   **Aggiornamento 30/07 (WP5):** esiste ora un default proposto e
   implementato — soglia `40s + 6s × celle del piano` dall'ingresso nel

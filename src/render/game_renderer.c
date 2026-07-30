@@ -209,6 +209,15 @@ static Color RoomMapColor(RoomKind kind)
            nota su ROOM_FUSION sopra (known-issues.md, voce 12): l'icona di
            DrawRoomIcon compare solo a stanza gia' visitata. */
         case ROOM_TIMED: return (Color){ 88, 214, 224, 255 };
+        /* WP6: blu acceso -- l'unica tinta francamente BLU della tavola (il
+           combattimento sopra e' un grigio-azzurro slavato), quindi non si
+           confonde ne' con lui ne' col rosso del boss a colpo d'occhio. Stesso
+           limite DEC-058 pre-ingresso delle due note sopra (known-issues.md,
+           voce 12): l'icona "A" di DrawRoomIcon compare solo a stanza gia'
+           visitata. DENTRO la stanza, pero', lo stato della sfida non dipende
+           mai dal solo colore -- il segnale porta sempre un'etichetta testuale
+           (DrawPickup, PICKUP_ARENA_ALTAR). */
+        case ROOM_ARENA: return (Color){ 84, 132, 246, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -1047,6 +1056,16 @@ static void DrawPickup(Game *game, const Pickup *p)
         propKey = "props/clessidra";
         label = (p->value != 0) ? "IN TEMPO" : "SCADUTO";
     }
+    /* WP6: il segnale dell'arena di sfida. Come la clessidra sopra l'etichetta
+       si scrive SEMPRE, anche quando il prop manca e si ripiega sulla forma
+       geometrica: lo stato della sfida deve restare leggibile "senza solo
+       colore" (DEC-058) in ogni caso. Tre stati, tre parole diverse -- mai due
+       tinte dello stesso testo. */
+    else if (p->kind == PICKUP_ARENA_ALTAR)
+    {
+        propKey = "props/piedistallo";
+        label = (p->value >= 2) ? "SUPERATA" : ((p->value == 1) ? "IN CORSO" : "SFIDA");
+    }
     if (propKey)
     {
         const ArtSheet *prop = ArtAtlasGet(propKey);
@@ -1071,6 +1090,15 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_TIMED_MARKER)
         {
             animName = (p->value != 0) ? "attiva" : "scaduta";
+        }
+        /* WP6: nessun prop dedicato all'arena e' stato prodotto -- si riusa il
+           piedistallo generico (vocabolario "vuoto"/"pieno"), con "pieno"
+           finche' la sfida e' disponibile o in corso (c'e' qualcosa da fare) e
+           "vuoto" quando e' superata (non c'e' piu' nulla). Se manca anche
+           quello si scende alla forma geometrica sotto, il degrado standard. */
+        else if (p->kind == PICKUP_ARENA_ALTAR)
+        {
+            animName = (p->value >= 2) ? "vuoto" : "pieno";
         }
         if (prop)
         {
@@ -1107,6 +1135,7 @@ static void DrawPickup(Game *game, const Pickup *p)
            mai. La clessidra e' una forma/prop dedicata, mai una cella
            d'atlas generica, stessa ragione del crogiolo sopra. */
         else if (p->kind == PICKUP_TIMED_MARKER) cell = -1;
+        else if (p->kind == PICKUP_ARENA_ALTAR) cell = -1;   /* WP6: idem -- prop/forma dedicata, mai una cella d'atlas generica (e l'etichetta di stato non va sovrascritta da p->item.name) */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1196,6 +1225,19 @@ static void DrawPickup(Game *game, const Pickup *p)
             Vector2 mid = { pos.x, pos.y };
             DrawTriangle(topL, topR, mid, c);
             DrawTriangle(mid, botL, botR, c);
+        }
+        else if (p->kind == PICKUP_ARENA_ALTAR)
+        {
+            /* WP6: due lame incrociate su un basamento -- la silhouette
+               "sfida" che nessun'altra raccolta usa (cerchio, rombo, esagono,
+               fiamma e clessidra sono gia' prese). Il colore segue lo stato
+               (disponibile / in corso / superata), ma non e' MAI l'unico
+               canale: l'etichetta testuale sopra e' sempre disegnata. */
+            c = (p->value >= 2) ? (Color){ 140, 140, 148, 255 }
+                                : ((p->value == 1) ? (Color){ 246, 128, 96, 255 } : (Color){ 122, 168, 255, 255 });
+            DrawRectangle((int)pos.x - 13, (int)pos.y + 4, 26, 10, DARKGRAY);
+            DrawLineEx((Vector2){ pos.x - 10, pos.y + 6 }, (Vector2){ pos.x + 10, pos.y - 14 }, 4.0f, c);
+            DrawLineEx((Vector2){ pos.x + 10, pos.y + 6 }, (Vector2){ pos.x - 10, pos.y - 14 }, 4.0f, c);
         }
         else
         {
@@ -1988,6 +2030,7 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_BOSS) g = "B";
     else if (kind == ROOM_FUSION) g = "F";   /* WP4: distingue la stanza senza colore, DEC-058 */
     else if (kind == ROOM_TIMED) g = "!";    /* WP5: idem, stanza a tempo (DEC-051) */
+    else if (kind == ROOM_ARENA) g = "A";    /* WP6: idem, arena di sfida (special-rooms.md) */
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
     int w = UiTextW(g, fontSize);

@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) e la stanza a tempo (WP5, 30/07) sono i primi due dei cinque archetipi con un RoomKind fisico nel motore."
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07) e l'arena di sfida incontrata nel piano (WP6, 30/07) sono i primi tre dei cinque archetipi con un RoomKind fisico nel motore."
 last_reviewed: 2026-07-30
-last_verified_commit: 27aab4d
-topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, WP5, ROOM_FUSION, ROOM_TIMED]
+last_verified_commit: 06b9b16
+topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, WP5, WP6, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA]
 related: []
 supersedes: []
 source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -44,6 +44,12 @@ colloca solo l'archetipo nella tassonomia.
 ### Arena di sfida
 
 Stanza opzionale con combattimento più impegnativo in cambio di ricompensa maggiore. È anche accessibile in versione "best-of" dal Piano 0, usando contenuti già validati delle run passate (DEC-004): vedi [floor-zero.md](./floor-zero.md) per il dettaglio di questo accesso alternativo; questo documento descrive solo la versione incontrata durante il piano.
+
+**Stato (WP6, 30/07):** la versione **incontrata nel piano** ha ora un `RoomKind`
+fisico nel motore (`ROOM_ARENA`) — vedi "Stato di implementazione: l'arena di sfida
+nel piano" sotto. L'accesso "best-of" dal Piano 0 resta **non implementato** e dipende
+dal museo delle creazioni descritto in [floor-zero.md](./floor-zero.md): le due versioni
+sono distinte, e questo lavoro non ne anticipa nulla.
 
 ### Scambio ad alto rischio
 
@@ -185,8 +191,11 @@ dopo `ROOM_FUSION` (WP4).
   adiacente alla stanza boss (DEC-182), deterministico dal seed del piano. Non
   garantito. Il giro di prova genera 120 piani (5 piani × 24 semi,
   `--rooms-test`), ma solo i piani 3-5 (72 = 3 × 24) sono candidati — i piani
-  1-2 (48 casi) non tentano nemmeno il piazzamento: **piazzata in 69 casi su
-  72 tentativi**.
+  1-2 (48 casi) non tentano nemmeno il piazzamento: **piazzata in 40 casi su
+  72 tentativi** (era 69/72 prima del WP6: l'arena di sfida si piazza prima
+  delle speciali 1x1 e le toglie qualche cella libera — vedi "Stato di
+  implementazione: l'arena di sfida nel piano" sotto, dove il prezzo è
+  dichiarato e misurato).
 - **Soglia di tempo**: misurata da `Game.floorEntryElapsedSeconds` (il valore
   di `runElapsedSeconds` catturato da `WorldStartFloor` all'ingresso nel
   piano, MAI dall'inizio della run) — `WorldTimedRoomThresholdSeconds`
@@ -236,10 +245,11 @@ dopo `ROOM_FUSION` (WP4).
   confonderebbero (il tempo trascorso nel frattempo non è più quello
   rilevante). La soglia vera dipende dalla taglia del piano
   (`WorldTimedRoomThresholdSeconds` sotto): sui piani 3-5 dei semi di test
-  varia in **136-172s** (celle vere 16-22; il minimo lo tocca ad esempio il
-  seme 90210 al piano 3, 16 celle → 136s), mai un valore fisso come 82s
+  varia in **148-178s** (celle vere 18-23), mai un valore fisso come 82s
   dell'esempio precedente di questa sezione (corretto il 30/07 dopo verifica
-  sui semi reali).
+  sui semi reali; la fascia è salita da 136-172s / 16-22 celle dopo il WP6, che
+  aggiunge al piano le 2-4 celle dell'arena di sfida — la formula non è
+  cambiata, è cambiata la taglia vera dei piani).
 - **Test**: `RoomsTestTimedRoomInteraction` dentro `GameRoomsTest`
   (`src/tests/game_tests.c`, `--rooms-test`/`make test`) — unicità, non
   adiacenza al boss, mai prima del piano 3 su 120 piani generati, più la
@@ -258,6 +268,123 @@ dopo `ROOM_FUSION` (WP4).
 | **Soglia di tempo** | `40s + 6s × taglia vera del piano in celle`, misurata dall'ingresso nel piano. | `WorldTimedRoomThresholdSeconds`, `src/world/world.c` |
 | **Ricompensa entro soglia** | 6 Ingots (tra tesoro/negozio e boss). | `WORLD_ROOM_CURRENCY_TIMED`, `src/world/world.h` |
 | **Ricompensa oltre soglia** | Nessuna (né il bonus né la valuta DEC-167 di base). | `WorldSpawnRoomContents`, `src/world/world.c` |
+
+## Stato di implementazione: l'arena di sfida nel piano (WP6, 2026-07-30)
+
+Terzo dei cinque archetipi speciali di questo documento ad avere un `RoomKind`
+fisico nel motore (`ROOM_ARENA`, `src/core/game_types.h`), in coda dopo
+`ROOM_FUSION` (WP4) e `ROOM_TIMED` (WP5). Copre **solo** la versione incontrata
+durante il piano: l'accesso "best-of" dal Piano 0 (DEC-004, Scenario 2) è
+esplicitamente fuori da questo lavoro e resta descritto in
+[floor-zero.md](./floor-zero.md).
+
+- **Piazzamento proprio, non `WorldPlaceSpecialRoom`**: l'arena è l'unica delle
+  stanze speciali del motore a **non** passare dall'algoritmo delle 1x1
+  (tesoro/negozio/fusione/a tempo, che restano quattro chiamanti). Ha
+  `WorldPlaceArenaRoom` (`src/world/world.c`), che prova le taglie **grandi per
+  prime** — 2x2, poi le quattro forme a L, poi 1x2/2x1 — e **non scende mai
+  sotto le due celle**: l'arena è combattimento, e una 1x1 stretta la
+  mortificherebbe (nessuno spazio per schivare un'ondata maggiorata). Meglio
+  nessuna arena su quel piano che un'arena che non si può giocare.
+- **Sempre foglia del grafo, come la stanza boss (DEC-182)**: ogni incastro
+  deve toccare **esattamente una** stanza esistente, e mai la stanza boss (le
+  darebbe una seconda porta). È la forma **strutturale** — verificabile con un
+  test, non dichiarata a parole — del caso limite di questo documento: l'arena
+  non è mai un passaggio obbligato e non blocca il piano se ignorata. Senza
+  questa garanzia, accettare la sfida (che chiude le porte) potrebbe tagliare
+  il piano in due. Anche le quattro speciali 1x1 non si attaccano mai
+  all'arena, per lo stesso motivo per cui non si attaccano al boss.
+- **Solo dai piani 2+** (`WORLD_ARENA_ROOM_MIN_FLOOR`, `src/world/world.h`), un
+  tentativo per piano, non garantito. Piazzata **PRIMA** delle quattro speciali
+  1x1: è l'unica che ha bisogno di celle libere **contigue**, e una griglia 5x5
+  già cresciuta si frammenta in fretta. Misurato su 120 piani generati (5 piani
+  × 24 semi, `--rooms-test`; solo i piani 2-5, **96 tentativi**, sono
+  candidati): **piazzata in 82 casi su 96**, mai 1x1 (taglie osservate: L 43,
+  1x2 20, 2x1 17, 2x2 2 — la 2x2 resta rara per lo stesso motivo per cui è rara
+  per il boss, più perimetro significa più occasioni di toccare due stanze).
+  L'ordine ha un prezzo dichiarato e misurato sulle 1x1 già esistenti: la
+  stanza di fusione scende da 119/120 a **101/120** e la stanza a tempo da
+  69/72 a **40/72** (con l'arena piazzata per ultima i due valori resterebbero
+  intatti, ma l'arena stessa scenderebbe a 17/96 — cioè quasi non esisterebbe).
+  Entrambe restano frequenti e nessuna delle due è necessaria a completare un
+  piano.
+- **L'opzionalità è il cuore dell'archetipo: la sfida NON parte entrando.**
+  Dentro c'è un segnale interagibile — un `Pickup` di kind
+  `PICKUP_ARENA_ALTAR`, ri-materializzato a ogni ingresso come il crogiolo
+  della fusione e la clessidra della stanza a tempo — e finché il giocatore non
+  **conferma esplicitamente** la stanza è attraversabile come una stanza vuota:
+  nessun nemico, porte mai bloccate, nessuna valuta di completamento (DEC-167:
+  attraversare non è completare).
+- **Conferma esplicita, mai per inerzia**: a differenza del crogiolo della
+  fusione, **toccare** il segnale non fa partire nulla — camminarci sopra non è
+  una conferma, e la sfida è irreversibile. Serve il **tasto di interazione**
+  (`X`, `Game.interactQueued` → `WorldTryStartArenaChallenge`) premuto **a
+  contatto** con il segnale; premuto altrove non fa niente. Il tasto è un
+  DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019) come `E`/`G`/`F`/`C`:
+  nessun documento fissa quale sia, e non può essere "conferma" (ENTER/SPAZIO,
+  perché SPAZIO in Gameplay è già la bomba). Suono: `ui_confirm`, quello già
+  esistente, nessun evento sonoro nuovo.
+- **Sfida accettata**: porte chiuse fino alla fine (`GameRoomIsLocked`, lo
+  stesso pattern di `ROOM_COMBAT`/`ROOM_BOSS`, nessuna regola nuova), ondata a
+  **budget +50%** e nemici portati alla **fascia alta della loro banda di
+  potenza** — cioè dove [enemies.md](./enemies.md) colloca il Veterano, mai
+  fuori dalla banda dichiarata (DEC-019). Tutto deterministico dal seed: due
+  run con lo stesso seme trovano la stessa arena e la stessa ondata.
+- **Abbandono e morte**: non esistono. Da sfida accettata si esce solo
+  vincendo; morire dentro è una morte normale — **permadeath, nessun retry**
+  (`PHASE_GAME_OVER` come ovunque). Non c'è codice dedicato: è la conseguenza
+  di non averne aggiunto.
+- **Vittoria**: `WorldCheckRoomClear` la tratta come qualunque altra stanza che
+  si ripulisce, con la propria condizione di completamento (DEC-167) —
+  "**sfida accettata e vinta**", mai "attraversata". Ricompensa su tre canali,
+  tutti maggiorati rispetto a una stanza di combattimento equivalente
+  ([rewards-and-economy.md](./rewards-and-economy.md), Scenario 2): **8 Ingots**
+  (il doppio di un combattimento, sotto il boss), **l'oggetto di rarità
+  migliore fra i tre candidati del piano** (rarità minima alzata: mai
+  un'estrazione che possa pagare una comune quando nel pool c'è una rara) e un
+  **catalizzatore di fusione al 50%** — che chiude la terza delle tre fonti di
+  Flux dichiarate da DEC-022 ("drop di boss o di arene di sfida, oppure un
+  acquisto costoso nel negozio"), prima del WP6 presente nel motore solo per
+  due terzi.
+- **Segnale visivo (DEC-058)**: colore dedicato in `RoomMapColor` (blu acceso,
+  l'unica tinta francamente blu della tavola) e icona `"A"` in `DrawRoomIcon`.
+  Stesso limite pre-ingresso di `ROOM_FUSION`/`ROOM_TIMED`, ereditato e non
+  nuovo: l'icona compare solo a stanza `visited`, vedi
+  `docs/engineering/known-issues.md` voce 12. **Dentro** la stanza, invece, i
+  tre stati sono leggibili **senza dipendere dal colore**: il segnale porta
+  sempre un'etichetta testuale — `"SFIDA"` / `"IN CORSO"` / `"SUPERATA"` —
+  scritta anche quando lo sprite non carica, oltre alla forma dedicata (due
+  lame incrociate su un basamento) e al colore di stato.
+- **Test**: il controllo `(q)` di `GameRoomsTest` più
+  `RoomsTestArenaInteraction` (`src/tests/game_tests.c`, `--rooms-test`/`make
+  test`): al più una arena per piano, mai prima del piano 2, mai adiacente al
+  boss, mai sotto le due celle, **sempre di grado 1 nel grafo**, e una BFS che
+  ignora l'arena raggiunge comunque ogni altra stanza del piano; poi il ciclo
+  di vita completo su un'arena vera — non accettata (attraversabile, si esce
+  davvero, non si completa né paga), toccata (non parte), tasto premuto lontano
+  (non parte), accettata (porte chiuse, budget davvero maggiorato rispetto a
+  una stanza di combattimento della stessa taglia/piano con la stessa
+  estrazione, nemici sopra il tipo base ma dentro la banda), vinta (valuta
+  dell'arena, oggetto di rarità migliore, segnale "superata" anche rientrando)
+  e la controprova che una stanza di combattimento ripulita **non** paga mai la
+  valuta dell'arena né lascia il suo oggetto.
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Piani ammessi** | Dal piano 2 in su (il piano 1 resta il primo contatto col mondo generato). Confine diverso da quello della stanza a tempo di proposito: lì il "dai piani avanzati" è parte di DEC-051, qui è solo frequenza. | `WORLD_ARENA_ROOM_MIN_FLOOR`, `src/world/world.h` |
+| **Frequenza per piano** | Un tentativo per piano, non garantito (82 casi su 96 piani candidati). | `WorldGenerateFloorMap`, `src/world/world.c` |
+| **Taglia della stanza** | Mai 1x1: si provano 2x2 → L → 1x2/2x1, e se nessuna entra il piano resta senza arena. | `WorldPlaceArenaRoom`, `src/world/world.c` |
+| **Struttura** | Sempre foglia del grafo di adiacenza (grado 1), come la stanza boss (DEC-182). | `WorldPlaceArenaRoom` |
+| **Innesco** | Segnale interagibile al centro + conferma col tasto `X` a contatto; il solo tocco non basta. | `PICKUP_ARENA_ALTAR`, `WorldTryStartArenaChallenge` |
+| **Budget nemici** | ×1.5 rispetto alla stessa stanza come combattimento (dopo la scala per celle di DEC-170, prima della riduzione per ostacoli di DEC-043). | `WORLD_ARENA_BUDGET_MULTIPLIER`, `src/world/world.h` |
+| **Grado dei nemici** | Tipi portati alla fascia ALTA della banda di potenza dichiarata (dove enemies.md colloca il Veterano), mai fuori banda. Senza tipi generati (manifest vecchio) l'arena sale di sola quantità. | `WorldArenaGradeUpEnemyType`, `src/world/world.c` |
+| **Valuta alla vittoria** | 8 Ingots — il doppio di un combattimento, meno del boss. | `WORLD_ROOM_CURRENCY_ARENA`, `src/world/world.h` |
+| **Oggetto alla vittoria** | Il migliore per rarità fra i tre candidati del piano (rarità minima alzata), non un'estrazione pesata. | `WorldSpawnRoomReward`, `src/world/world.c` |
+| **Catalizzatore di fusione** | 50% (più del 35% del boss: l'arena è un rischio scelto). Chiude la terza fonte di DEC-022. | `WORLD_ARENA_FLUX_DROP_PERCENT`, `src/world/world.h` |
+| **Arredo della stanza** | Nessun ostacolo di layout (come boss/tesoro/negozio): l'arena resta uno spazio libero, perché un'ondata maggiorata dev'essere schivabile. Conseguenza: la riduzione di budget per ostacoli di DEC-043 non tocca mai l'arena. | `WorldBuildObstacles`, `src/world/world.c` |
+| **Abbandono/retry** | Non esistono: si esce solo vincendo, morire dentro è permadeath come ovunque. | — |
 
 ## Regola di originalità
 
@@ -279,6 +406,8 @@ giocatore.
 - Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore.
 - Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore.
 - L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md).
+- L'arena di sfida incontrata nel piano non deve **mai** essere un passaggio obbligato né bloccare il piano se il giocatore la ignora. **Stato (WP6, 30/07):** garantito per costruzione — l'arena è sempre una foglia del grafo di adiacenza (grado 1, come la stanza boss di DEC-182) e, finché la sfida non è accettata, è attraversabile come una stanza vuota; verificato dal controllo `(q)` di `GameRoomsTest` con una BFS che ignora l'arena e raggiunge comunque ogni altra stanza del piano.
+- Il giocatore accetta la sfida dell'arena e non riesce a vincerla: non esiste abbandono né retry — si esce solo vincendo, e morire dentro è una morte normale della run (permadeath). È la conseguenza voluta di "rischio dichiarato in cambio di un guadagno superiore" (DEC-010): il rischio deve essere reale.
 - Il giocatore raggiunge una stanza a tempo dopo la scadenza della soglia: non deve mai bloccare il progresso del piano; resta almeno accessibile come stanza ordinaria, anche senza il bonus a tempo (soglia esatta e comportamento di mancato rispetto da definire col playtest, vedi `governance/open-questions.md`).
 
 ## Fallback
@@ -299,8 +428,12 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   per la stanza di fusione e per la stanza a tempo esiste ora un default
   proposto e implementato — un tentativo per piano, la stanza a tempo solo
   dal piano 3 — vedi "Stato di implementazione" sopra e
-  `governance/open-questions.md` voci 30 e 32; resta aperta per gli altri due
-  archetipi (segreta, arena, scambio), non ancora nel motore.
+  `governance/open-questions.md` voci 30 e 32. **Aggiornamento 30/07 (WP6):**
+  anche l'arena di sfida incontrata nel piano ha ora un default proposto e
+  implementato — un tentativo per piano dal piano 2, vedi
+  `governance/open-questions.md` voce 37; resta aperta per i due archetipi non
+  ancora nel motore (segreta, scambio) e per l'accesso "best-of" dell'arena dal
+  Piano 0.
 - Valori esatti di soglia e ricompensa della stanza a tempo. **Aggiornamento
   30/07 (WP5):** esiste ora un default proposto e implementato — soglia
   `40s + 6s × celle del piano` dall'ingresso nel piano, ricompensa 6 Ingots
@@ -359,6 +492,18 @@ Then il prezzo appartiene a una delle categorie ammesse (salute immediata o mass
 Given un giocatore che entra in due stanze di scambio ad alto rischio diverse nella stessa run
 When confronta le due puntate proposte
 Then offerta e prezzo delle due stanze sono diversi tra loro, perché ogni scambio è generato per l'occasione (DEC-044)
+
+### Scenario 10 — Arena di sfida ignorata
+
+Given un piano generato che contiene un'arena di sfida (`ROOM_ARENA`)
+When il giocatore la attraversa senza confermare la sfida, o non ci entra affatto
+Then la stanza non ha nemici e non blocca mai le porte, nessuna ricompensa e nessuna valuta di completamento vengono assegnate, e ogni altra stanza del piano resta raggiungibile senza passare da lì (l'arena è sempre una foglia del grafo)
+
+### Scenario 11 — Arena di sfida accettata e superata
+
+Given un giocatore che, dentro un'arena di sfida, si porta sul segnale e preme il tasto di interazione
+When la sfida parte
+Then le porte restano chiuse fino alla fine, i nemici arrivano con un budget maggiorato e in fascia alta della loro banda di potenza, e alla vittoria il giocatore riceve una ricompensa superiore a quella di una stanza di combattimento equivalente (valuta doppia, l'oggetto di rarità migliore del piano e una probabilità di catalizzatore di fusione, DEC-022)
 
 ### Scenario 9 — Stanza a tempo raggiunta in tempo
 

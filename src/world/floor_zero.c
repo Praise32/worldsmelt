@@ -60,6 +60,7 @@ void FloorZeroEnter(Game *game)
     game->resetQueued = false;
     game->useActiveQueued = false;
     game->dropGraftQueued = false;
+    game->interactQueued = false;   /* WP6: nessuna conferma in sospeso nel Piano 0 (nessuna arena li') */
     game->message[0] = '\0';
     game->messageTimer = 0.0f;
     game->score = 0;

@@ -69,6 +69,16 @@ typedef struct AppInput {
        pannello di BuildScreen che questo blocco rispecchia). Domanda aperta
        registrata per il proprietario. */
     bool toggleStats; /* C */
+    /* WP6 (systems/special-rooms.md, "Arena di sfida"): la CONFERMA esplicita
+       di un'interazione irreversibile del mondo -- oggi solo "accetto la sfida
+       dell'arena". Serve un tasto suo e non 'confirm': in Gameplay ENTER/SPACE
+       significano gia' altro (SPACE e' la bomba, vedi 'bomb' sopra), e una
+       sfida senza ritorno non deve poter partire premendo il tasto con cui si
+       spara una bomba. Come E/G/F/C sopra il tasto e' un DEFAULT PROPOSTO
+       DALL'IMPLEMENTAZIONE (stile DEC-019, nessun documento di design lo
+       fissa) -- X perche' e' l'ultimo tasto libero sotto la mano che sta gia'
+       su WASD. Domanda aperta registrata per il proprietario. */
+    bool interact;    /* X */
 } AppInput;
 
 /* Contesto della generazione in-game (invariato da prima di M1a, solo spostato

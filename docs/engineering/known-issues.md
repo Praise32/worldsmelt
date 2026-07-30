@@ -10,8 +10,8 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: bf0fde8
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, font, glyphs_ext, personaggi]
+last_verified_commit: 06b9b16
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
 source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c]
@@ -477,3 +477,13 @@ tempo o no) NON dipende solo dal colore: `DrawPickup` scrive sempre un'etichetta
 ("IN TEMPO"/"SCADUTO") accanto alla clessidra, indipendente dal caricamento dello sprite —
 quel canale non-colore esiste già per lo stato interno alla stanza, il gap resta solo
 sulla minimappa prima di entrarci.
+
+**Aggiornamento WP6 (30/07)**: l'arena di sfida (`ROOM_ARENA`) eredita lo stesso limite
+pre-ingresso — `"A"` in `DrawRoomIcon` compare solo su `room->visited`, come `"F"` e `"!"`.
+Nessuna garanzia nuova viene dichiarata: prima di entrarci l'arena si distingue solo per
+il suo colore dedicato (blu) sulla minimappa. DENTRO la stanza, invece, i tre stati della
+sfida — disponibile / in corso / superata — NON dipendono mai dal solo colore: il segnale
+(`PICKUP_ARENA_ALTAR`) porta sempre un'etichetta testuale (`"SFIDA"`/`"IN CORSO"`/
+`"SUPERATA"`) scritta anche quando lo sprite non carica, oltre alla forma dedicata e al
+colore di stato — stessa struttura a due canali già usata dalla clessidra della stanza a
+tempo.

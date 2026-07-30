@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
-last_verified_commit: 27aab4d
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, WP5]
+last_verified_commit: 06b9b16
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, WP5, WP6]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -128,6 +128,13 @@ da confermare (vedi `governance/open-questions.md`).
   funzione sola (una ricompensa, una vetrina, il crogiolo, la clessidra), tutta visibile
   appena si entra. La stanza a tempo (WP5) è anche l'unica delle quattro esclusiva dei
   piani avanzati (dal piano 3, vedi sotto e [Special Rooms](./special-rooms.md)).
+- **Arena di sfida: mai 1x1** (WP6, [Special Rooms](./special-rooms.md)). È l'eccezione
+  dichiarata alla riga sopra, e per il motivo opposto: l'arena è **combattimento**, non
+  una funzione sola da leggere a colpo d'occhio, e una 1x1 stretta mortificherebbe
+  un'ondata maggiorata. Ha un piazzamento suo (`WorldPlaceArenaRoom`) che prova
+  **2x2 → L → 1x2/2x1** in quest'ordine e rinuncia del tutto se nessuna entra. È anche
+  sempre una **foglia del grafo** come la stanza boss (DEC-182): è così che si garantisce
+  strutturalmente il caso limite "l'arena non è mai un passaggio obbligato".
 - **Distribuzione delle taglie delle altre stanze** (estrazione dall'RNG del piano, quindi
   deterministica dal seed): **1x1 55% · 1x2 15% · 2x1 15% · 2x2 8% · L 7%** (per la L
   l'orientamento dell'angolo mancante è a sua volta estratto fra i quattro). La 1x1 resta
@@ -140,6 +147,11 @@ da confermare (vedi `governance/open-questions.md`).
   stanze speciali 1x1 (tesoro, negozio e — dal WP4 — la stanza di fusione `ROOM_FUSION`), o
   fino a **quattro** nei piani 3+, dove si aggiunge — dal WP5, solo un tentativo, non
   garantito — la stanza a tempo `ROOM_TIMED` ([Special Rooms](./special-rooms.md), DEC-051).
+  Dal WP6 si aggiungono, nei piani 2+, le **2-4 celle dell'arena di sfida** `ROOM_ARENA`
+  (anch'essa un solo tentativo, non garantito): è l'unica delle stanze speciali che non è
+  1x1, e si piazza **prima** delle quattro sopra perché è l'unica a chiedere celle libere
+  contigue — il costo di quell'ordine sulle 1x1 è misurato e dichiarato in
+  [Special Rooms](./special-rooms.md).
   La superficie giocabile di un piano resta quindi quella di sempre; il
   **numero di stanze scende** (~5-10 più boss e speciali). È una conseguenza dichiarata di
   DEC-170, non un effetto collaterale.
@@ -241,8 +253,16 @@ parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
   stanza di fusione e (dal piano 3, WP5) stanza a tempo — piazzate **dopo** il boss, non si
   attaccano mai ad esso (`WorldPlaceSpecialRoom` scarta le celle candidate che toccano la
   stanza boss, per tutti e quattro i chiamanti) — altrimenti gli darebbero una seconda porta.
+  **WP6:** la stessa regola vale ora per due stanze invece che per una — la stanza boss e
+  l'**arena di sfida**, che deve restare foglia per lo stesso motivo (`ROOM_ARENA`,
+  [Special Rooms](./special-rooms.md)): `WorldShapeTouchesLeafRoom` è il predicato unico
+  che i quattro chiamanti 1x1 e il piazzamento dell'arena condividono. L'arena non passa da
+  `WorldPlaceSpecialRoom` (che resta a quattro chiamanti): ha `WorldPlaceArenaRoom`, che
+  oltre al vincolo di foglia prova le taglie grandi per prime e non scende sotto le due
+  celle.
   Test dedicati: (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra
-  mai in una cella della stanza boss raggiunge comunque tutte le altre stanze del piano.
+  mai in una cella della stanza boss raggiunge comunque tutte le altre stanze del piano;
+  (q, WP6) gli stessi due controlli per l'arena di sfida.
 - **Effetto collaterale misurato:** il vincolo di foglia riduce la frequenza della classe
   2x2 per la stanza boss (una 2x2 ha più perimetro, quindi più occasioni di toccare due
   stanze diverse): da ~110/120 piani (pre-DEC-182) a **54/120** piani misurati dopo
@@ -263,7 +283,8 @@ più quattro archetipi speciali:
 
 - stanza di fusione;
 - stanza segreta;
-- arena di sfida;
+- arena di sfida (`ROOM_ARENA` dal WP6 nella versione **incontrata nel piano**; l'accesso
+  "best-of" dal Piano 0 resta descritto solo in [floor-zero.md](./floor-zero.md));
 - scambio ad alto rischio;
 
 più un quinto archetipo speciale, aggiunto da DEC-051:
@@ -445,9 +466,12 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   valga la pena di una regola più permissiva.~~ — **Chiusa (30/07, DEC-180):** il clamp è
   ora sul rettangolo dell'**intera stanza**, non sulla cella corrente; l'angolo mancante
   può entrare in inquadratura e il tileset lo rende come muro/sfondo (W8).
-- Il test dedicato che verifica la connettività del grafo delle stanze **meno il nodo
+- ~~Il test dedicato che verifica la connettività del grafo delle stanze **meno il nodo
   boss** (DEC-182) non esiste ancora nel motore: resta un gap di implementazione da
-  chiudere, non solo una regola di design.
+  chiudere, non solo una regola di design.~~ — **Chiusa (testo non aggiornato):** il test
+  esiste ed è il controllo `(n)` di `GameRoomsTest` (`src/tests/game_tests.c`), che gira
+  in `make test` su 120 piani generati. Dal WP6 esiste anche il gemello per l'arena di
+  sfida (controllo `(q)`: BFS che ignora l'arena e raggiunge comunque ogni altra stanza).
 
 ## Scenari
 

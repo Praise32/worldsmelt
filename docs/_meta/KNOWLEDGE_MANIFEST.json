@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (35 voci attive su 36 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 40 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore.",
       "topics": [
         "open-questions",
         "governance",
@@ -1661,14 +1661,18 @@
         "DEC-051",
         "DEC-008",
         "DEC-043",
+        "DEC-010",
+        "DEC-022",
         "WP4",
+        "WP5",
+        "WP6",
         "WP-INT"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "bf0fde8"
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "gd-system-active-items",
@@ -1782,13 +1786,15 @@
         "escalation",
         "DEC-053",
         "DEC-061",
-        "danno da contatto"
+        "danno da contatto",
+        "arena-di-sfida",
+        "WP6"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "gd-system-floor-zero",
@@ -2026,13 +2032,15 @@
         "punteggio",
         "DEC-167",
         "stanza-a-tempo",
-        "WP5"
+        "arena-di-sfida",
+        "WP5",
+        "WP6"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "27aab4d"
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2063,7 +2071,9 @@
         "ostacoli",
         "ROOM_FUSION",
         "ROOM_TIMED",
-        "WP5"
+        "ROOM_ARENA",
+        "WP5",
+        "WP6"
       ],
       "related": [],
       "supersedes": [],
@@ -2076,7 +2086,7 @@
         "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "27aab4d"
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2174,7 +2184,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) e la stanza a tempo (WP5, 30/07) sono i primi due dei cinque archetipi con un RoomKind fisico nel motore.",
+      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07) e l'arena di sfida incontrata nel piano (WP6, 30/07) sono i primi tre dei cinque archetipi con un RoomKind fisico nel motore.",
       "topics": [
         "stanze-speciali",
         "fusione",
@@ -2183,8 +2193,10 @@
         "stanza-a-tempo",
         "WP4",
         "WP5",
+        "WP6",
         "ROOM_FUSION",
-        "ROOM_TIMED"
+        "ROOM_TIMED",
+        "ROOM_ARENA"
       ],
       "related": [],
       "supersedes": [],
@@ -2195,7 +2207,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "27aab4d"
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "gd-system-synergies",
@@ -2989,9 +3001,11 @@
         "ostacoli",
         "persistenza",
         "WP-INT",
+        "WP6",
         "font",
         "glyphs_ext",
-        "personaggi"
+        "personaggi",
+        "arena-di-sfida"
       ],
       "related": [
         "eng-dependencies",
@@ -3029,7 +3043,7 @@
         "src/content/character_roster.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "bf0fde8"
+      "last_verified_commit": "06b9b16"
     },
     {
       "id": "eng-multiplayer-steam-direction",

@@ -35,6 +35,10 @@ const char *GameRoomKindName(RoomKind kind)
            dedicato, non il "vuota" del default, per il quinto archetipo
            speciale (special-rooms.md, "Stanza a tempo"). */
         case ROOM_TIMED: return "a tempo";
+        /* WP6: stesso motivo dei due nomi sopra -- l'arena di sfida
+           (special-rooms.md) e' un archetipo suo, non una stanza di
+           combattimento con piu' nemici. */
+        case ROOM_ARENA: return "arena";
         default: return "vuota";
     }
 }
@@ -121,6 +125,14 @@ void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
            WorldSpawnRoomContents non chiama questa funzione affatto quando la
            soglia e' scaduta (nessuna doppia via per "nessun bonus"). */
         case ROOM_TIMED:    amount = WORLD_ROOM_CURRENCY_TIMED;    break;
+        /* WP6: la condizione di completamento dell'arena e' "sfida ACCETTATA e
+           vinta" (WorldCheckRoomClear, che chiama qui solo in quel caso) --
+           attraversarla senza accettare non e' un completamento e non paga
+           nulla, coerente con "ripulita secondo la PROPRIA condizione"
+           (DEC-167). Il doppio di un combattimento: rischio scelto, premio
+           maggiore (rewards-and-economy.md, "Pattern rischio/ricompensa
+           dell'arena di sfida"). */
+        case ROOM_ARENA:    amount = WORLD_ROOM_CURRENCY_ARENA;    break;
         default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
     }
     game->player.coins += amount;
@@ -468,10 +480,18 @@ bool WorldNoEnemiesActive(const Game *game)
     return true;
 }
 
+/* WP6: l'arena chiude le porte SOLO a sfida accettata (room->arenaActive) --
+   e' esattamente il cuore dell'opzionalita' dell'archetipo: finche' il
+   giocatore non conferma, la stanza si attraversa come una stanza vuota
+   (special-rooms.md, "Casi limite": mai un passaggio obbligato, mai un blocco
+   se ignorata). Da li' in poi vale lo stesso pattern di ROOM_COMBAT/ROOM_BOSS,
+   nessuna regola nuova: porte chiuse finche' non e' 'cleared'. */
 bool GameRoomIsLocked(const Game *game)
 {
     const RoomState *room = GameCurrentRoom(game);
-    return (room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) && !room->cleared && !WorldNoEnemiesActive(game);
+    bool gated = (room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) ||
+                 (room->kind == ROOM_ARENA && room->arenaActive);
+    return gated && !room->cleared && !WorldNoEnemiesActive(game);
 }
 
 /* ============================================================
@@ -719,12 +739,102 @@ static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY,
     return false;
 }
 
+/* WP6: vero se la forma 'cells' ancorata a (ox,oy) tocca una stanza che DEVE
+   restare foglia del grafo -- la stanza boss (DEC-182) e l'arena di sfida
+   (special-rooms.md: mai un passaggio obbligato). Attaccarsi a una delle due
+   le regalerebbe una seconda porta e romperebbe la garanzia. Il tipo vive solo
+   sulla cella di stato, quindi si legge SEMPRE da WorldRoomAt, mai dal campo
+   '.kind' grezzo della cella vicina. */
+static bool WorldShapeTouchesLeafRoom(const Game *game, int ox, int oy, unsigned char cells)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        int cx = ox + CellBitDx(i), cy = oy + CellBitDy(i);
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = cx + DirDx(d), ny = cy + DirDy(d);
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists) continue;
+            RoomKind k = WorldRoomAt(game, nx, ny)->kind;
+            if (k == ROOM_BOSS || k == ROOM_ARENA) return true;
+        }
+    }
+    return false;
+}
+
+/* WP6 (systems/special-rooms.md, "Arena di sfida"): l'arena NON passa da
+   WorldPlaceSpecialRoom (sotto), che resta a quattro chiamanti tutti 1x1.
+   Due motivi, entrambi di design e non di comodo:
+     - E' una stanza di COMBATTIMENTO, la piu' impegnativa del piano dopo il
+       boss: una 1x1 stretta la mortificherebbe (nessuno spazio per schivare
+       un'ondata maggiorata). Si provano le taglie GRANDI per prime -- 2x2, poi
+       le quattro L, poi 1x2/2x1 -- e non si scende MAI sotto le due celle:
+       meglio nessuna arena su questo piano che un'arena che non si puo'
+       giocare. DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019: il
+       documento non fissa la taglia di questo archetipo).
+     - Deve essere una FOGLIA del grafo di adiacenza, esattamente come la
+       stanza boss (WorldPlaceShapeAtLeaf sopra usa lo stesso predicato di
+       grado): e' il modo STRUTTURALE -- verificabile con un test, non con una
+       dichiarazione -- di garantire il caso limite del documento, "l'arena non
+       deve mai essere un passaggio obbligato ne' bloccare il piano se
+       ignorata". Se fosse un nodo di passaggio, accettare la sfida (che chiude
+       le porte) taglierebbe in due il piano.
+   Si piazza DOPO il boss, e ogni incastro deve toccare esattamente una stanza
+   esistente che NON sia il boss (WorldShapeTouchesLeafRoom): attaccarsi al
+   boss gli darebbe la seconda porta che DEC-182 vieta. Un solo tentativo per
+   piano, non garantito: come per gli altri speciali, una griglia satura lascia
+   il piano senza arena -- ed e' innocuo, l'arena e' opzionale per definizione. */
+static bool WorldPlaceArenaRoom(Game *game, const int *orderX, const int *orderY, int orderCount)
+{
+    static const unsigned char kArenaShapes[] = {
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0) | ROOM_CELL_BIT(0, 1) | ROOM_CELL_BIT(1, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(1, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(0, 1)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(1, 0)),
+        (unsigned char)(0x0Fu & ~ROOM_CELL_BIT(0, 0)),
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(1, 0)),
+        (unsigned char)(ROOM_CELL_BIT(0, 0) | ROOM_CELL_BIT(0, 1))
+        /* Nessuna 1x1 in coda, di proposito: vedi il commento sopra. */
+    };
+    const int shapeCount = (int)(sizeof(kArenaShapes)/sizeof(kArenaShapes[0]));
+    int dirStart = GameRngRange(&game->rng, 0, 3);
+    int rot = GameRngRange(&game->rng, 0, 3);
+    for (int s = 0; s < shapeCount; s++)
+    {
+        for (int c = 0; c < orderCount; c++)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                int d = (dirStart + k)%4;
+                int nx = orderX[c] + DirDx(d), ny = orderY[c] + DirDy(d);
+                if (!WorldCellFree(game, nx, ny)) continue;
+                for (int j = 0; j < 4; j++)
+                {
+                    int i = (rot + j)%4;
+                    if (!(kArenaShapes[s] & (unsigned char)(1u << i))) continue;
+                    int ox = nx - CellBitDx(i), oy = ny - CellBitDy(i);
+                    if (!WorldShapeFits(game, ox, oy, kArenaShapes[s])) continue;
+                    if (WorldShapeNeighborRoomCount(game, ox, oy, kArenaShapes[s]) != 1) continue;
+                    if (WorldShapeTouchesLeafRoom(game, ox, oy, kArenaShapes[s])) continue;
+                    WorldWriteRoom(game, ox, oy, kArenaShapes[s], ROOM_ARENA);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /* DEC-182: le stanze speciali 1x1 (tesoro, negozio, la stanza di fusione dal
-   WP4 e la stanza a tempo dal WP5, quattro chiamanti) si piazzano DOPO il
-   boss (sotto), quindi NON devono mai attaccarsi alla stanza boss -- le
-   farebbero guadagnare una seconda porta, rompendo la foglia. Si scarta l'intera cella candidata se
-   anche solo UNO dei suoi vicini esistenti e' il boss (il tipo vive solo
-   sulla cella di stato, WorldRoomAt lo risolve sempre); altrimenti si
+   WP4 e la stanza a tempo dal WP5, quattro chiamanti -- l'arena di sfida del
+   WP6 NON passa di qui, ha un piazzamento suo, vedi WorldPlaceArenaRoom sopra)
+   si piazzano DOPO il boss (sotto), quindi NON devono mai attaccarsi alla
+   stanza boss -- le farebbero guadagnare una seconda porta, rompendo la
+   foglia. WP6 estende la stessa regola all'arena, che per lo stesso motivo
+   deve restare anch'essa una foglia: si scarta l'intera cella candidata se
+   anche solo UNO dei suoi vicini esistenti e' il boss o l'arena (il tipo vive
+   solo sulla cella di stato, WorldRoomAt lo risolve sempre); altrimenti si
    piazza appena si trova un vicino qualsiasi, come prima. */
 static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
 {
@@ -735,7 +845,6 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
         int y = GameRngRange(&game->rng, 0, GRID_SIZE - 1);
         if (!WorldCellFree(game, x, y)) continue;
         bool touchesAny = false;
-        bool touchesBoss = false;
         for (int d = 0; d < 4; d++)
         {
             int nx = x + DirDx(d);
@@ -743,9 +852,10 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
             if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
             if (!game->rooms[ny][nx].exists) continue;
             touchesAny = true;
-            if (WorldRoomAt(game, nx, ny)->kind == ROOM_BOSS) { touchesBoss = true; break; }
+            break;
         }
-        if (!touchesAny || touchesBoss) continue;
+        if (!touchesAny) continue;
+        if (WorldShapeTouchesLeafRoom(game, x, y, ROOM_CELL_BIT(0, 0))) continue;
         /* Le stanze speciali di questo cammino (tesoro, negozio, fusione e
            stanza a tempo) restano 1x1 (default proposto): una funzione sola,
            tutta visibile appena si entra -- e' proprio il caso in cui la
@@ -985,6 +1095,25 @@ static void WorldGenerateFloorMap(Game *game)
         }
     }
 
+    /* WP6 (systems/special-rooms.md, "Arena di sfida"): PRIMA delle quattro
+       speciali 1x1 sotto e subito DOPO il boss. L'ordine e' una scelta
+       misurata, non estetica: l'arena e' l'unica di queste cinque che ha
+       bisogno di celle libere CONTIGUE (mai meno di due), e una griglia 5x5
+       gia' cresciuta si frammenta in fretta -- piazzata per ultima trova posto
+       in 17 piani candidati su 96, piazzata qui in 82 su 96 (misure di
+       --rooms-test). Il prezzo lo pagano le speciali 1x1, che perdono qualche
+       cella libera (la stanza di fusione scende da 119/120 a 101/120, la
+       stanza a tempo da 69/72 a 40/72): entrambe restano frequenti e nessuna
+       delle due e' necessaria a completare un piano (la fusione ha anche
+       l'accesso globale TAB/PauseMenu come rete di sicurezza dichiarata dal
+       WP4). Dopo il boss perche' deve poterlo riconoscere per non
+       attaccarcisi. Solo dai piani >= WORLD_ARENA_ROOM_MIN_FLOOR: DEFAULT
+       PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019, vedi il commento sulle
+       costanti in world.h) -- il documento fissa l'archetipo, non la
+       frequenza. Un solo tentativo, non garantito: l'arena e' opzionale per
+       definizione, un piano senza arena non perde nulla di necessario. */
+    if (game->floor >= WORLD_ARENA_ROOM_MIN_FLOOR)
+        WorldPlaceArenaRoom(game, orderX, orderY, orderCount);
     WorldPlaceSpecialRoom(game, ROOM_TREASURE);
     WorldPlaceSpecialRoom(game, ROOM_SHOP);
     /* WP4 (systems/special-rooms.md, "Stanza di fusione"): stesso algoritmo di
@@ -1072,6 +1201,13 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
     }
     game->obstacleHoleCount = game->obstacleCount;
 
+    /* WP6: l'arena di sfida (ROOM_ARENA) NON riceve l'arredo del layout, come
+       gia' non lo ricevono boss/tesoro/negozio -- resta uno spazio libero. E'
+       una scelta di design, non una dimenticanza: l'ondata maggiorata ha
+       bisogno di spazio per essere schivabile, ed e' anche il motivo per cui
+       l'arena non e' mai 1x1 (WorldPlaceArenaRoom). Conseguenza dichiarata: la
+       riduzione di budget per ostacoli di DEC-043 (WorldSpawnEnemyWave) non
+       tocca mai l'arena, che non ne ha. */
     if (room->kind != ROOM_COMBAT || room->cleared) return;
     const RoomLayoutDef *layout = &game->content.floors[game->floor - 1].roomLayout;
     if (!layout->active) return;
@@ -1172,7 +1308,35 @@ static Vector2 WorldFreeRoomPosition(Game *game, float pad)
  * sola schermata sarebbe vuota. */
 #define WORLD_OBSTACLE_ENEMY_BUDGET_COST 0.18f
 #define WORLD_OBSTACLE_ENEMY_BUDGET_FLOOR 0.35f
-void WorldSpawnCombatRoom(Game *game)
+
+/* WP6 ("grado piu' alto" dell'arena di sfida, systems/special-rooms.md +
+   systems/enemies.md): porta un tipo di nemico alla FASCIA ALTA della sua
+   banda di potenza dichiarata -- esattamente cio' che enemies.md concede al
+   Veterano ("occupa la fascia alta della stessa banda"), non un'uscita dalla
+   banda. La potenza e' lineare in hpMul (EnemyTypePower = PowerDurability *
+   resto, e solo PowerDurability contiene hpMul), quindi un solo fattore
+   centra il bersaglio; EnemyTypeClamp riporta comunque hpMul dentro le sue
+   manopole, che puo' lasciare la potenza sotto il bersaglio -- va bene: e'
+   un tetto, non una promessa.
+   Deterministico e senza RNG di proposito: due run con lo stesso seed devono
+   trovare la stessa arena, non una piu' cattiva dell'altra. Un tipo gia' in
+   fascia alta resta com'e' (mai indebolito: sarebbe il contrario del senso di
+   questa funzione). */
+static void WorldArenaGradeUpEnemyType(EnemyTypeDef *type)
+{
+    if (!type || !type->active) return;
+    float target = type->boss ? ENEMY_TYPE_BOSS_POWER_MAX : ENEMY_TYPE_POWER_MAX;
+    float power = EnemyTypePower(type);
+    if (power <= 0.0f || power >= target) return;
+    type->hpMul *= target/power;
+    EnemyTypeClamp(type);
+}
+
+/* L'ondata di nemici di una stanza. 'budgetScale' e 'gradeUp' esistono solo
+   per l'arena di sfida (WP6): la stanza di combattimento normale chiama
+   sempre con (1.0f, false) e si comporta ESATTAMENTE come prima -- stesse
+   estrazioni, stesso ordine, stesso risultato a parita' di seed. */
+static void WorldSpawnEnemyWave(Game *game, float budgetScale, bool gradeUp)
 {
     const FloorContent *fc = &game->content.floors[game->floor - 1];
     float budget = 3.0f + (float)game->floor + (float)GameRngRange(&game->rng, 0, 2);
@@ -1181,6 +1345,14 @@ void WorldSpawnCombatRoom(Game *game)
        deve sembrare piu' grande, non quattro stanze appiccicate. */
     int cellCount = WorldRoomCellCount(game, game->roomX, game->roomY);
     if (cellCount > 1) budget *= sqrtf((float)cellCount);
+
+    /* WP6: il "+50%" dell'arena di sfida (WORLD_ARENA_BUDGET_MULTIPLIER,
+       world.h) -- qui, DOPO la scala per celle di DEC-170 e PRIMA della
+       riduzione per ostacoli di DEC-043, cosi' resta un moltiplicatore della
+       difficolta' che quella stanza avrebbe avuto come combattimento normale,
+       non un numero assoluto scollegato dal piano e dalla taglia. Per ogni
+       altra stanza budgetScale vale 1.0f: nessun cambiamento. */
+    budget *= budgetScale;
 
     /* DEC-043 (budget di difficolta' condiviso; default proposto stile
        DEC-019, registrato in secrets-and-obstacles.md "Default proposti
@@ -1225,7 +1397,20 @@ void WorldSpawnCombatRoom(Game *game)
         if (typeCount > 0)
         {
             int slot = activeIdx[GameRngRange(&game->rng, 0, typeCount - 1)];
+            /* WP6: nell'arena il tipo si affronta nella sua fascia alta -- si
+               lavora su una COPIA, mai sul contenuto del piano (fc e' const, e
+               una modifica in place renderebbe piu' cattivi anche i nemici
+               delle stanze normali dello stesso piano). Costare di piu' e'
+               voluto: il budget maggiorato compra nemici migliori, non solo
+               piu' nemici. */
+            EnemyTypeDef graded;
             const EnemyTypeDef *type = &fc->enemies[slot];
+            if (gradeUp)
+            {
+                graded = *type;
+                WorldArenaGradeUpEnemyType(&graded);
+                type = &graded;
+            }
             float cost = EnemyTypePower(type);
             if (cost < 0.35f) cost = 0.35f;   /* mai gratis: un nemico costa sempre qualcosa, o il ciclo non finirebbe */
             /* L'ultimo nemico si spawna anche se sfora un po': una stanza deve
@@ -1257,12 +1442,32 @@ void WorldSpawnCombatRoom(Game *game)
         }
         else
         {
+            /* Nessun tipo generato (manifest vecchio/assente): restano i quattro
+               nemici storici, che non hanno manopole da alzare -- l'arena
+               (gradeUp) qui sale di sola QUANTITA', col budget maggiorato.
+               Limite dichiarato, non dimenticanza: il grado piu' alto vive nel
+               vocabolario dei TIPI (core/enemy_type.h), che e' il cammino vero
+               del gioco generato. */
             EnemyKind kind = (EnemyKind)GameRngRange(&game->rng, 0, 2);
             EntitiesAddEnemy(game, kind, WorldFreeRoomPosition(game, 58.0f));
             budget -= 1.0f;   /* i nemici storici valgono 1.0 per definizione */
         }
         spawned++;
     }
+}
+
+void WorldSpawnCombatRoom(Game *game)
+{
+    WorldSpawnEnemyWave(game, 1.0f, false);
+}
+
+/* WP6: l'ondata dell'arena di sfida -- budget maggiorato e tipi in fascia alta
+   della banda. Stessa funzione, stessi vincoli (tetto per cella, soglia minima
+   di budget, posizioni libere dagli ostacoli): l'arena e' una stanza di
+   combattimento piu' impegnativa, non un sistema di spawn a parte. */
+static void WorldSpawnArenaWave(Game *game)
+{
+    WorldSpawnEnemyWave(game, WORLD_ARENA_BUDGET_MULTIPLIER, true);
 }
 
 /* Vero se il negozio di questo piano tiene un catalizzatore in banco (vedi
@@ -1486,6 +1691,36 @@ void WorldSpawnRoomContents(Game *game)
                                                      : "Stanza a tempo: soglia gia' scaduta.");
         }
     }
+    else if (room->kind == ROOM_ARENA)
+    {
+        /* WP6 (systems/special-rooms.md, "Arena di sfida"): il segnale della
+           sfida e' un arredo fisso, ri-materializzato a OGNI ingresso come il
+           crogiolo (ROOM_FUSION) e la clessidra (ROOM_TIMED) -- EntitiesClear a
+           inizio funzione ha appena svuotato i pickup. Il suo 'value' porta lo
+           STATO della stanza, i tre di questo archetipo. */
+        int arenaState = room->cleared ? 2 : (room->arenaActive ? 1 : 0);
+        EntitiesAddPickup(game, PICKUP_ARENA_ALTAR, center, arenaState, 0);
+        if (room->cleared)
+        {
+            GameSetMessage(game, "Arena: sfida gia' superata.");
+        }
+        else if (room->arenaActive)
+        {
+            /* Ramo NON raggiungibile in gioco: a sfida accettata le porte
+               restano chiuse (GameRoomIsLocked) e l'unico esito possibile e'
+               vincere -- o morire, che chiude la run (permadeath, nessun
+               retry). Esiste comunque, e ri-crea davvero l'ondata, perche' un
+               rientro con la sfida accettata e non vinta NON deve trovare una
+               stanza vuota: WorldCheckRoomClear la dichiarerebbe superata al
+               primo passo e regalerebbe la ricompensa senza combattere. */
+            WorldSpawnArenaWave(game);
+            GameSetMessage(game, "Arena: sfida in corso.");
+        }
+        else
+        {
+            GameSetMessage(game, "Arena: tocca il segnale e premi X per accettare la sfida.");
+        }
+    }
     else
     {
         GameSetMessage(game, "Scegli una porta.");
@@ -1527,6 +1762,41 @@ void WorldSpawnRoomContents(Game *game)
     /* DEC-170: entrare in una stanza NON e' un movimento di telecamera -- si
        riparte dall'inquadratura giusta, senza scivolate. */
     WorldSnapCamera(game);
+}
+
+/* WP6 (systems/special-rooms.md, "Arena di sfida"): la CONFERMA esplicita
+   della sfida. Tre guardie, tutte necessarie: si deve essere in un'arena, la
+   sfida non deve essere gia' accettata (una seconda conferma non ri-crea
+   l'ondata) ne' gia' superata, e il giocatore deve essere A CONTATTO col
+   segnale -- il tasto premuto in mezzo alla stanza non fa nulla. La geometria
+   di contatto e' la stessa di ogni altro pickup (CombatUpdatePickups): un
+   segnale che si "accende" quando ci sei sopra e non a distanza.
+   L'irreversibilita' e' voluta e dichiarata: da qui in poi si esce solo
+   vincendo (le porte si chiudono) o morendo, che chiude la run -- permadeath,
+   nessun retry (special-rooms.md). */
+bool WorldTryStartArenaChallenge(Game *game)
+{
+    RoomState *room = WorldCurrentRoomMutable(game);
+    if (room->kind != ROOM_ARENA || room->arenaActive || room->cleared) return false;
+
+    Pickup *altar = NULL;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        if (game->pickups[i].active && game->pickups[i].kind == PICKUP_ARENA_ALTAR) { altar = &game->pickups[i]; break; }
+    }
+    if (!altar) return false;
+    float r = altar->radius + game->player.radius;
+    if (GameMathLengthSquared(GameMathSubtract(altar->pos, game->player.pos)) > r*r) return false;
+
+    room->arenaActive = true;
+    altar->value = 1;   /* "IN CORSO": il segnale racconta lo stato per tutta la sfida */
+    WorldSpawnArenaWave(game);
+    /* audio-and-feedback.md: la conferma di un'azione volontaria usa il suono
+       di conferma gia' esistente -- nessun evento sonoro nuovo per questo
+       archetipo (le porte che si chiudono le racconta il loro stato visivo). */
+    AudioPlaySfx(AUDIO_SFX_UI_CONFIRM);
+    GameSetMessage(game, "Sfida accettata: porte chiuse fino alla fine.");
+    return true;
 }
 
 void WorldStartFloor(Game *game, int floor)
@@ -1685,14 +1955,57 @@ static void WorldSpawnRoomReward(Game *game)
             EntitiesAddPickup(game, PICKUP_FLUX, (Vector2){ center.x + 6.0f, center.y - 60.0f }, 1, 0);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Boss finale sconfitto. Entra nell'uscita." : "Boss sconfitto. Prendi il premio e scendi.");
     }
+    else if (room->kind == ROOM_ARENA)
+    {
+        /* WP6 -- la ricompensa maggiorata di rewards-and-economy.md
+           ("superiore alla media di una stanza di combattimento equivalente
+           non a rischio", Scenario 2), su tre canali:
+           1) l'oggetto: dal pool del piano ma con la RARITA' MINIMA ALZATA --
+              qui significa "il migliore dei tre candidati", non un'estrazione
+              pesata come tesoro/negozio (ItemPoolDrawIndex). Deterministico e
+              senza tiratura di proposito: una sfida vinta non deve poter
+              pagare una comune quando nel pool c'e' una rara, altrimenti il
+              rischio non sarebbe proporzionato al premio. A parita' di rarita'
+              vince l'indice piu' basso (stabile a parita' di seed).
+           2) la valuta: WORLD_ROOM_CURRENCY_ARENA, gia' assegnata da
+              WorldCheckRoomClear.
+           3) il catalizzatore di fusione: DEC-022 dichiara le arene di sfida
+              una delle tre fonti di Flux, e prima del WP6 ne esistevano solo
+              due nel motore (vedi il commento su WORLD_BOSS_FLUX_DROP_PERCENT
+              in cima al file, ora superato). Tiratura vera di game->rng: come
+              per il boss, questa funzione gira una volta sola per stanza
+              (protetta da 'rewardTaken' in cima). */
+        const FloorContent *afc = &game->content.floors[game->floor - 1];
+        int best = 0;
+        for (int i = 1; i < 3; i++) if ((int)afc->items[i].rarity > (int)afc->items[best].rarity) best = i;
+        EntitiesAddItemPickup(game, (Vector2){ center.x - 52.0f, center.y }, afc->items[best], 0);
+        if (GameRngRange(&game->rng, 0, 99) < WORLD_ARENA_FLUX_DROP_PERCENT)
+            EntitiesAddPickup(game, PICKUP_FLUX, (Vector2){ center.x + 60.0f, center.y }, 1, 0);
+        GameSetMessage(game, "Sfida superata: prendi la ricompensa.");
+    }
 }
 
 void WorldCheckRoomClear(Game *game)
 {
     RoomState *room = WorldCurrentRoomMutable(game);
-    if ((room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) && !room->cleared && WorldNoEnemiesActive(game))
+    /* WP6: l'arena si "ripulisce" solo se la sfida e' stata ACCETTATA -- una
+       stanza attraversata senza accettare non e' completata (non paga valuta,
+       non lascia ricompensa) e non deve nemmeno diventarlo per il fatto banale
+       che non ci sono nemici dentro. E' la stessa disciplina "ogni archetipo
+       ha la propria condizione di completamento" di DEC-167. */
+    bool clearable = (room->kind == ROOM_COMBAT || room->kind == ROOM_BOSS) ||
+                     (room->kind == ROOM_ARENA && room->arenaActive);
+    if (clearable && !room->cleared && WorldNoEnemiesActive(game))
     {
         room->cleared = true;
+        /* WP6: il segnale della sfida passa a "SUPERATA" subito, senza
+           aspettare un rientro nella stanza: il giocatore e' li' adesso ed e'
+           adesso che l'esito cambia. */
+        if (room->kind == ROOM_ARENA)
+        {
+            for (int i = 0; i < MAX_PICKUPS; i++)
+                if (game->pickups[i].active && game->pickups[i].kind == PICKUP_ARENA_ALTAR) game->pickups[i].value = 2;
+        }
         /* M7 (substrato del catalogo): il boss di QUESTO piano e' appena
            stato sconfitto -- vedi il commento su Game.bossDefeated in
            core/game_types.h. game->floor e' sempre valido qui (la stanza
