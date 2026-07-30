@@ -1895,7 +1895,9 @@
         "Crust",
         "Ingots",
         "tetto vita",
-        "WP2"
+        "WP2",
+        "WP7",
+        "pourhouse"
       ],
       "related": [],
       "supersedes": [],
@@ -1906,7 +1908,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "82a0232"
+      "last_verified_commit": "9b27fb6"
     },
     {
       "id": "gd-system-item-fusion",
@@ -2033,14 +2035,18 @@
         "DEC-167",
         "stanza-a-tempo",
         "arena-di-sfida",
+        "pourhouse",
+        "budget-di-equita",
+        "DEC-044",
         "WP5",
-        "WP6"
+        "WP6",
+        "WP7"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "06b9b16"
+      "last_verified_commit": "9b27fb6"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2072,8 +2078,10 @@
         "ROOM_FUSION",
         "ROOM_TIMED",
         "ROOM_ARENA",
+        "ROOM_POURHOUSE",
         "WP5",
-        "WP6"
+        "WP6",
+        "WP7"
       ],
       "related": [],
       "supersedes": [],
@@ -2086,7 +2094,7 @@
         "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "06b9b16"
+      "last_verified_commit": "9b27fb6"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2184,19 +2192,24 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07) e l'arena di sfida incontrata nel piano (WP6, 30/07) sono i primi tre dei cinque archetipi con un RoomKind fisico nel motore.",
+      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07), l'arena di sfida incontrata nel piano (WP6, 30/07) e la Pourhouse (WP7, 30/07) sono i primi quattro dei cinque archetipi con un RoomKind fisico nel motore: resta fuori solo la stanza segreta.",
       "topics": [
         "stanze-speciali",
         "fusione",
         "scambio-alto-rischio",
+        "pourhouse",
         "arena-di-sfida",
         "stanza-a-tempo",
         "WP4",
         "WP5",
         "WP6",
+        "WP7",
         "ROOM_FUSION",
         "ROOM_TIMED",
-        "ROOM_ARENA"
+        "ROOM_ARENA",
+        "ROOM_POURHOUSE",
+        "DEC-044",
+        "DEC-136"
       ],
       "related": [],
       "supersedes": [],
@@ -2207,7 +2220,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "06b9b16"
+      "last_verified_commit": "9b27fb6"
     },
     {
       "id": "gd-system-synergies",

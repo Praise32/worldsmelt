@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
 last_reviewed: 2026-07-30
-last_verified_commit: 06b9b16
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, WP5, WP6]
+last_verified_commit: 9b27fb6
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, budget-di-equita, DEC-044, WP5, WP6, WP7]
 related: []
 supersedes: []
 source_files: []
@@ -88,6 +88,13 @@ completamento — la funzione stessa non rileva nulla, assegna solo l'importo:
   [Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza
   a tempo"); oltre soglia non paga, coerente col principio "nessun bonus"
   sotto;
+- **Pourhouse / scambio ad alto rischio** (WP7, 30/07): ha ora un `RoomKind`
+  (`ROOM_POURHOUSE`) ma **nessun** punto di innesto DEC-167, per scelta
+  esplicita — accettare o rifiutare una puntata è uno **scambio**, non un
+  completamento, e il guadagno è l'offerta stessa, già pagata col prezzo. La
+  tavola dei compensi sotto la ignora quindi come ignora la stanza di fusione,
+  e per lo stesso motivo (vedi [Special Rooms](./special-rooms.md), "Stato di
+  implementazione: la Pourhouse");
 - **arena di sfida** (WP6, 30/07): ha ora un `RoomKind` (`ROOM_ARENA`) e un
   punto di innesto DEC-167 in `WorldCheckRoomClear`, ma con una condizione di
   completamento **propria e stretta** — "sfida **accettata** e vinta", mai
@@ -109,6 +116,7 @@ ogni archetipo (DEC-167) — questi restano da confermare col playtest.
 | a tempo, oltre soglia | 0 |
 | arena di sfida, vinta | 8 |
 | arena di sfida, attraversata senza accettare | 0 |
+| Pourhouse (scambio ad alto rischio) | 0 — non è un completamento |
 
 Il boss vale più di un combattimento normale (è la stanza più impegnativa del
 piano); tesoro e negozio meno di un combattimento perché non richiedono di
@@ -153,8 +161,42 @@ ad alto rischio (vedi [Special Rooms](./special-rooms.md)). Questo risolve la do
 design precedentemente aperta su prezzi dinamici e costi in salute nel negozio.
 
 Nella stanza di scambio ad alto rischio, offerta e prezzo sono generati dall'IA dentro un
-budget di equità (DEC-044): fonte unica del dettaglio è [Special Rooms](./special-rooms.md),
-non riformulato qui.
+budget di equità (DEC-044): fonte unica del **contratto dell'archetipo** (accesso, flusso,
+categorie ammesse, casi limite) è [Special Rooms](./special-rooms.md), non riformulato qui.
+Questo documento è invece la fonte unica dei **valori economici** di quel budget, sotto.
+
+### Tabella di equivalenza della Pourhouse (DEC-044)
+
+**Default proposti dall'implementazione (stile DEC-019), WP7 2026-07-30**: DEC-044 fissa il
+principio del budget di equità e le categorie ammesse, non i numeri. Questi restano da
+confermare col playtest (vedi `governance/open-questions.md`, voce 42).
+
+Il budget si misura in **punti di equità**, ancorati alla valuta principale: **1 Ingot = 1
+punto**. Gli altri valori sono ancorati ai prezzi che il negozio già pratica, così la
+Pourhouse non inventa una seconda economia parallela accanto a quella di DEC-026:
+
+| Voce | Punti di equità | Ancoraggio |
+|---|---|---|
+| 1 Ingot (valuta principale) | 1 | l'unità di misura |
+| 1 punto di salute immediata | 4 | poco sopra il cuore in vendita nel negozio |
+| 1 punto di salute **massima** (il tetto) | 14 | più del triplo della salute immediata: è l'unica voce davvero irreversibile |
+| 1 punto di Crust | 12 | il banco del negozio vende 2 punti a 25 Ingots |
+| 1 strumento di breccia (Blast Charge) | 4 | il prezzo del banco |
+| 1 strumento di apertura (Cast Key) | 5 | il prezzo del banco |
+| 1 catalizzatore di fusione (Flux) | 30 | l'acquisto costoso di DEC-022 |
+| 1 oggetto, per fascia di rarità | 8 / 16 / 28 / 45 | **esattamente** i prezzi fissi per rarità di DEC-026, non numeri nuovi |
+
+La regola del budget è simmetrica:
+`|valore(offerta) − valore(prezzo)| ≤ max(4 punti, 20% del valore dell'offerta)`. Il minimo
+assoluto di 4 punti esiste perché sotto le offerte piccole una percentuale sola sarebbe più
+stretta della granularità delle risorse: un punto di salute vale 4, quindi nessun prezzo in
+salute passerebbe mai sotto i 20 punti di offerta. Una coppia fuori tolleranza è **respinta
+e non viene mai proposta** al giocatore.
+
+Il **rischio** della Pourhouse non sta quindi in uno sconto o in un sovrapprezzo, ma in
+**cosa** si versa: salute, il proprio tetto, un pezzo della propria build — voci che il
+negozio non accetta mai (DEC-026) e che, a differenza degli Ingots, non si ricomprano.
+L'equità nominale resta pari; l'irreversibilità no.
 
 ### Ricompra nel negozio (DEC-048)
 
@@ -319,7 +361,10 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Tasso esatto di guadagno dei punti base e dei bonus da prova specifica (DEC-027 fissa la
   struttura a doppio canale, non i numeri).
 - Elenco completo delle prove specifiche (fisse e generate) che danno bonus punti sblocco.
-- Prezzi e range esatti degli scambi nella stanza ad alto rischio.
+- Prezzi e range esatti degli scambi nella stanza ad alto rischio. **Aggiornamento 30/07
+  (WP7):** esistono ora una tabella di valori equivalenti e una tolleranza proposte e
+  implementate — vedi "Tabella di equivalenza della Pourhouse (DEC-044)" sopra e
+  `governance/open-questions.md`, voce 42. Restano default di implementazione, non canone.
 - Quanti "slot" di spesa significativa devono esistere per piano.
 - Valore esatto della ricompensa dell'arena di sfida (valuta, rarità minima dell'oggetto,
   probabilità del catalizzatore): DEC-010 fissa il principio "ricompensa maggiore in cambio

@@ -144,6 +144,19 @@ void CombatFirePlayer(Game *game, Vector2 direction);
    senza passare da un frame intero di simulazione. */
 void CombatUseActive(Game *game, Vector2 aimDirection);
 void CombatDropGraft(Game *game);
+/* WP7 (systems/special-rooms.md, "Scambio ad alto rischio"): i tre soli modi
+   in cui la Pourhouse (src/world/pourhouse.c) tocca il giocatore. Vivono in
+   src/gameplay/combat.c e non in src/world perche' toccano l'inventario e il
+   sistema delle cache delle statistiche, cioe' ScriptItems* -- che per
+   AGENTS.md ha un solo chiamante fuori da src/script. Vedi i commenti sulle
+   definizioni per il perche' di ciascuna.
+   'CombatGrantPlayerItem' presuppone che ci sia posto (itemCount < MAX_ITEMS);
+   'CombatRemovePlayerItemByName' torna falso se quel nome non e' posseduto;
+   'CombatReducePlayerMaxHp' abbassa il TETTO (Player.baseMaxHp) e non scende
+   mai sotto un cuore. */
+void CombatGrantPlayerItem(Game *game, Item item);
+bool CombatRemovePlayerItemByName(Game *game, const char *name);
+void CombatReducePlayerMaxHp(Game *game, int amount);
 void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame);
 void CombatUpdateEnemies(Game *game, float dt);
 void CombatUpdateShots(Game *game, float dt);

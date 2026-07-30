@@ -487,3 +487,35 @@ sfida — disponibile / in corso / superata — NON dipendono mai dal solo color
 `"SUPERATA"`) scritta anche quando lo sprite non carica, oltre alla forma dedicata e al
 colore di stato — stessa struttura a due canali già usata dalla clessidra della stanza a
 tempo.
+
+**Aggiornamento WP7 (30/07)**: la Pourhouse (`ROOM_POURHOUSE`) eredita lo stesso limite
+pre-ingresso — `"P"` in `DrawRoomIcon` compare solo su `room->visited`, come `"F"`, `"!"` e
+`"A"`. Prima di entrarci si distingue solo per il suo colore dedicato (magenta) sulla
+minimappa. DENTRO la stanza, invece, il contratto non dipende **mai** dal colore: il banco
+(`PICKUP_POURHOUSE_BANK`) porta sempre l'etichetta di stato (`"PUNTATA"`/`"VERSATA"`/
+`"FREDDA"`) e, sotto, **offerta e prezzo scritti per esteso su due righe** — è l'unica
+stanza in cui una decisione irreversibile dipende da un contenuto composto al momento,
+quindi il testo non è decorazione ma il contratto stesso.
+
+## 13 — La Pourhouse (WP7) non ha un prop dedicato: riusa il piedistallo generico
+
+**Sintomo**: il banco della Pourhouse (`PICKUP_POURHOUSE_BANK`, l'unica cosa interagibile
+della stanza) si disegna con `assets/art/props/piedistallo` — lo stesso prop del segnale
+dell'arena di sfida e del ripiego del crogiolo — usando il suo vocabolario a due tag
+(`pieno` quando c'è una puntata aperta, `vuoto` quando è già versata o quando la colata è
+fredda). Una stanza il cui tema è «Casa della Colata» (DEC-136) meriterebbe un banco di
+colata suo, con una silhouette riconoscibile a colpo d'occhio come le altre stanze speciali
+hanno ricevuto (`props/crogiolo` per la fusione, `props/clessidra` per la stanza a tempo).
+
+**Evidenza**: `src/render/game_renderer.c`, `DrawPickup` — `else if (p->kind ==
+PICKUP_POURHOUSE_BANK) propKey = "props/piedistallo";`. Il degrado successivo esiste ed è
+completo: se anche il piedistallo manca si disegna una forma geometrica dedicata (un
+crogiolo rovesciato che cola), mai un pickup invisibile.
+
+**Stato**: **non bloccante e dichiarato**, non una dimenticanza. Il work package richiedeva
+esplicitamente di non produrre asset nuovi e di usare il degrado quando serve. La leggibilità
+del contratto non dipende dallo sprite: etichetta di stato e le due righe con offerta e
+prezzo sono scritte sempre, anche quando nessuno dei due prop carica. Da chiudere quando la
+corsia arte produrrà `assets/art/props/banco-colata` (vocabolario suggerito: `acceso` /
+`spento`, coerente con `attivo`/`spento` del crogiolo): basterà cambiare la `propKey` e i
+due nomi di animazione in `DrawPickup`, nessuna altra modifica.

@@ -7,6 +7,11 @@
 #include "gameplay/item_traits.h"
 #include "gameplay/synergies.h"
 #include "script/script_items.h"
+/* WP7: la Pourhouse dichiara qui la sua sola porta verso il gameplay
+   (WorldTryAcceptPourhouseWager, la conferma esplicita della puntata). Le
+   altre funzioni di world arrivano gia' per via indiretta da game_internal.h;
+   questa vive in un modulo suo, quindi si include esplicitamente. */
+#include "world/pourhouse.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -765,10 +770,18 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
        confermare -- altrimenti una pressione fuori dall'arena resterebbe
        latchata e farebbe partire la sfida al primo passo dentro l'arena,
        senza che il giocatore l'abbia chiesto li'. */
+    /* WP7: lo stesso tasto serve ora due azioni irreversibili del mondo --
+       accettare la sfida dell'arena e accettare la puntata della Pourhouse.
+       Non si accavallano mai (ciascuna esce subito se la stanza corrente non
+       e' la sua), quindi l'ordine e' indifferente: si prova la prima e, solo
+       se non era lei, la seconda. Un tasto solo perche' per il giocatore e'
+       un solo gesto -- "accetto quello che questa stanza mi propone" -- e un
+       secondo tasto sarebbe una regola in piu' da imparare senza una
+       distinzione da fare. */
     if (game->interactQueued)
     {
         game->interactQueued = false;
-        WorldTryStartArenaChallenge(game);
+        if (!WorldTryStartArenaChallenge(game)) WorldTryAcceptPourhouseWager(game);
     }
 }
 
@@ -1247,8 +1260,12 @@ static void CombatPickup(Game *game, Pickup *pickup)
        non raccoglie nulla e non fa nemmeno partire la sfida (serve la conferma
        esplicita, WorldTryStartArenaChallenge): un suono di raccolta
        prometterebbe un effetto che non c'e'. */
+    /* WP7: stessa esclusione per il banco della Pourhouse -- toccarlo non
+       raccoglie nulla e non accetta nulla (serve la conferma esplicita,
+       WorldTryAcceptPourhouseWager). */
     if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR &&
-        pickup->kind != PICKUP_TIMED_MARKER && pickup->kind != PICKUP_ARENA_ALTAR)
+        pickup->kind != PICKUP_TIMED_MARKER && pickup->kind != PICKUP_ARENA_ALTAR &&
+        pickup->kind != PICKUP_POURHOUSE_BANK)
         AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
@@ -1415,6 +1432,91 @@ static void CombatPickup(Game *game, Pickup *pickup)
         pickup->active = true;
         pickup->locked = true;
     }
+    else if (pickup->kind == PICKUP_POURHOUSE_BANK)
+    {
+        /* WP7 (systems/special-rooms.md, "Scambio ad alto rischio"): identico
+           al segnale dell'arena qui sopra, e per la stessa ragione -- versare
+           salute, il proprio tetto o un oggetto e' irreversibile, quindi
+           camminare sul banco non e' una conferma. Chi accetta davvero e'
+           WorldTryAcceptPourhouseWager, chiamata solo dal tasto di
+           interazione. */
+        pickup->active = true;
+        pickup->locked = true;
+    }
+}
+
+/* ============================================================
+   WP7 -- i tre soli modi in cui la Pourhouse (src/world/pourhouse.c) tocca il
+   giocatore. Vivono QUI e non li' per il confine di modulo dichiarato in
+   AGENTS.md: src/gameplay/combat.c e' l'unico punto che chiama ScriptItems*
+   (rimozione di un oggetto e sistema delle cache delle statistiche), e
+   src/world non deve conoscerlo. La Pourhouse possiede LA PUNTATA; questi tre
+   possiedono l'effetto sul Player.
+   ============================================================ */
+
+/* Consegna un oggetto direttamente nell'inventario -- lo stesso percorso di un
+   pickup raccolto (sinergie, sandbox Lua, ricalcolo delle statistiche, tutto
+   incluso), non una scrittura grezza in items[]. Il chiamante DEVE aver gia'
+   verificato che ci sia posto (itemCount < MAX_ITEMS): a inventario pieno
+   CombatApplyItem sovrascrive l'ultimo slot, che per una puntata pagata a
+   prezzo pieno sarebbe una consegna a meta'. */
+void CombatGrantPlayerItem(Game *game, Item item)
+{
+    CombatApplyItem(game, item);
+}
+
+/* Toglie dall'inventario il PRIMO oggetto con questo nome esatto. Vero se ne
+   ha davvero tolto uno: chi paga un prezzo in oggetti deve poter distinguere
+   "pagato" da "non c'era piu'", altrimenti l'atomicita' della puntata sarebbe
+   solo una speranza. Si identifica per NOME e non per indice perche' fra la
+   composizione della puntata e l'accettazione l'inventario puo' essere
+   cambiato (vedi PourhouseWager in core/game_types.h). */
+bool CombatRemovePlayerItemByName(Game *game, const char *name)
+{
+    if (!name || !name[0]) return false;
+    Player *p = &game->player;
+    for (int i = 0; i < p->itemCount && i < MAX_ITEMS; i++)
+    {
+        if (strncmp(p->items[i].name, name, sizeof(p->items[i].name)) != 0) continue;
+        ScriptItemsRemoveItem(game, i);
+        return true;
+    }
+    return false;
+}
+
+/* Abbassa il TETTO di salute base di 'amount' punti, mai sotto il minimo di
+   design (un cuore, POURHOUSE_MIN_BASE_MAX_HP). Si scrive su 'baseMaxHp' e non
+   su 'maxHp' perche' quest'ultimo e' un valore DERIVATO che
+   ScriptItemsRecomputeStats ricalcola da zero ad ogni passaggio (sistema delle
+   cache "alla Isaac", src/script/script_items.c): scrivere solo maxHp
+   verrebbe annullato al primo ricalcolo -- cioe' il prezzo piu' rischioso
+   della Pourhouse sarebbe gratis senza che nessuno se ne accorgesse. Il
+   ricalcolo si forza SUBITO (e non si lascia alla bandiera sporca del frame
+   successivo) cosi' il giocatore vede il cuore in meno nello stesso istante in
+   cui accetta la puntata, e riclampa da solo 'hp' al nuovo tetto. */
+void CombatReducePlayerMaxHp(Game *game, int amount)
+{
+    if (amount <= 0) return;
+    Player *p = &game->player;
+    /* Un cuore, la granularita' dei cuori dell'HUD (DrawHearts). Si prende dal
+       modulo che lo dichiara (POURHOUSE_MIN_BASE_MAX_HP, src/world/pourhouse.h)
+       invece di ripetere il letterale: oggi l'unico a spendere il tetto e' lo
+       scambio ad alto rischio, e due copie dello stesso limite in due file
+       diversi potrebbero divergere in silenzio -- proprio sul numero che
+       impedisce a una puntata di azzerare la salute massima del giocatore. */
+    int floorValue = POURHOUSE_MIN_BASE_MAX_HP;
+    /* Gia' al minimo (o sotto, per un Player mai passato da
+       GamePlayerResetBaseStatsFor): non si scende, e soprattutto non si SALE
+       -- un tetto piu' alto come effetto di un prezzo pagato sarebbe il
+       fallimento piu' assurdo possibile di questa funzione. */
+    if (p->baseMaxHp <= floorValue) return;
+    int next = p->baseMaxHp - amount;
+    if (next < floorValue) next = floorValue;
+    p->baseMaxHp = next;
+    game->statsDirty = true;
+    ScriptItemsProcessDirty(game);
+    if (p->hp > p->maxHp) p->hp = p->maxHp;
+    if (p->hp < 1) p->hp = 1;
 }
 
 void CombatUpdatePickups(Game *game)

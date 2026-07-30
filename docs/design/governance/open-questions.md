@@ -450,3 +450,55 @@ domande che nessun documento chiude: `systems/special-rooms.md` fissa l'archetip
     cui si spara. Resta aperta la domanda più ampia se questi cinque tasti debbano
     diventare una mappatura rivedibile dal giocatore. (`app/app_internal.h`, `AppInput`;
     `systems/special-rooms.md`, "Stato di implementazione: l'arena di sfida nel piano".)
+
+## Pourhouse / scambio ad alto rischio nel motore (WP7, 2026-07-30)
+
+Il lavoro che porta nel motore lo **scambio ad alto rischio** (`ROOM_POURHOUSE`, in-game
+Pourhouse — DEC-136) apre tre domande che nessun documento chiude: `systems/special-rooms.md`
+fissa l'archetipo, le categorie ammesse di prezzo e offerta e il principio del budget di
+equità (DEC-044), non i numeri né la politica di rifiuto.
+
+41. Con quale FREQUENZA e da quale piano compare la Pourhouse? Il documento dice che è un
+    archetipo speciale, non quanto sia raro. *Default proposto e implementato*: **dal piano
+    2** (`WORLD_POURHOUSE_ROOM_MIN_FLOOR`, `src/world/world.h`) — come l'arena, perché prima
+    di possedere qualcosa la risposta della Pourhouse sarebbe quasi sempre «la colata è
+    fredda» — e **non a ogni piano**: un tentativo di piazzamento solo quando l'estrazione
+    del piano lo concede (`WORLD_POURHOUSE_ROOM_CHANCE_PERCENT` = 70%, tiratura dell'RNG del
+    piano, quindi deterministica dal seed di run). Il 70% è la probabilità del *tentativo*,
+    non del risultato: piazzandosi per ultima su una griglia 5x5 già occupata da boss, arena
+    e quattro speciali 1x1, la stanza trova posto nel 44% dei casi anche con l'estrazione
+    forzata al 100%. Misurato su 120 piani generati (`--rooms-test`; solo i piani 2-5, 96
+    candidati): **piazzata in 27 casi su 96**, circa un piano candidato su quattro, ~73%
+    delle run ne incontra almeno una. Taglia sempre 1x1, quinta chiamante di
+    `WorldPlaceSpecialRoom`, mai adiacente a boss o arena. Da confermare al playtest.
+    (`systems/special-rooms.md`, "Stato di implementazione: la Pourhouse";
+    `systems/rooms-and-floor-generation.md`, "Quantità di piano".)
+
+42. Quali sono i VALORI del budget di equità della puntata (DEC-044)? La decisione fissa il
+    principio — offerta e prezzo devono equivalersi dentro un budget dichiarato — e le
+    categorie ammesse, non i numeri. *Default proposto e implementato*: una **tabella di
+    valori equivalenti** in punti di equità, ancorata alla valuta principale (1 Ingot = 1
+    punto) e ai prezzi che il negozio già pratica (DEC-026), fonte unica in
+    `systems/rewards-and-economy.md` — salute immediata 4, salute massima 14, Crust 12,
+    strumento di breccia 4, strumento di apertura 5, Flux 30, oggetti 8/16/28/45 — con la
+    regola simmetrica `|offerta − prezzo| ≤ max(4 punti, 20% dell'offerta)`. Una coppia
+    fuori tolleranza è respinta e non viene mai proposta. Il rischio dell'archetipo non sta
+    quindi in uno sconto ma in **cosa** si versa (salute, il tetto, un pezzo della build):
+    l'equità nominale resta pari, l'irreversibilità no. Nella stessa voce rientrano due
+    regole di contorno adottate dall'implementazione: una puntata non baratta mai una
+    risorsa con sé stessa (Ingots per Ingots, Flux per Flux, oggetto per oggetto di pari
+    valore), e **il Crust non paga mai un prezzo di salute** (DEC-008: è protezione, non
+    valuta — l'ordine di consumo vale per il danno subito, non per un patto volontario;
+    registrato anche in `systems/health-and-resources.md`). Da confermare al playtest.
+
+43. Cosa succede alla puntata quando il giocatore la RIFIUTA: resta disponibile per un
+    ritorno successivo o si brucia? Il documento dice solo che il rifiuto non deve avere
+    penalità. *Default proposto e implementato*: **resta disponibile**. Non esiste un tasto
+    «rifiuta» — si esce dalla porta, senza alcun costo — e tornando nella stessa stanza si
+    ritrova la stessa identica puntata: solo l'accettazione la consuma. Bruciare l'occasione
+    per aver esitato punirebbe l'esplorazione, e la conferma esplicita di DEC-058 serve a
+    proteggere dall'azione irreversibile, non a trasformare l'indecisione in una. Corollario
+    della stessa scelta: una puntata **fredda** (nessuna coppia pagabile, Scenario 3) si
+    ricompone invece a ogni ingresso, così chi torna con qualcosa da versare trova il banco
+    acceso. Da confermare al playtest. (`systems/special-rooms.md`, "Default proposti
+    dall'implementazione" della Pourhouse.)

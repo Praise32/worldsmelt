@@ -166,7 +166,32 @@ typedef enum RoomKind {
            (WorldSpawnEnemyWave); alla vittoria, valuta e ricompensa
            maggiorate (WorldAwardRoomCompletionCurrency/WorldSpawnRoomReward).
            Morire dentro e' una morte normale: permadeath, nessun retry. */
-    ROOM_ARENA
+    ROOM_ARENA,
+    /* WP7 (docs/design/systems/special-rooms.md, "Scambio ad alto rischio" --
+       in-game Pourhouse, «Casa della Colata», DEC-136): il QUARTO archetipo
+       speciale con un RoomKind fisico nel motore. In coda come ROOM_ARENA
+       sopra, stesso motivo. E' l'UNICO luogo dove sono ammessi patti a costo
+       salute (DEC-026): il negozio non li offre mai.
+       Tre cose la distinguono da ogni altra stanza:
+       (1) PIAZZAMENTO: la QUINTA chiamante di WorldPlaceSpecialRoom (1x1, mai
+           adiacente a boss/arena, deterministica dal seed del piano) ma, a
+           differenza delle altre quattro, NON si tenta ad ogni piano -- e' un
+           archetipo raro: dai piani >= WORLD_POURHOUSE_ROOM_MIN_FLOOR e solo
+           se l'estrazione del piano lo concede
+           (WORLD_POURHOUSE_ROOM_CHANCE_PERCENT, world.h).
+       (2) LA PUNTATA (DEC-044): offerta e prezzo NON sono una coppia curata
+           fissa, si COMPONGONO deterministicamente dal seed di run + piano +
+           cella dentro un BUDGET DI EQUITA' dichiarato (src/world/pourhouse.h,
+           PourhouseWager sotto). Nella demo nessun modello gira a runtime
+           (DEC-171): la composizione e' pura aritmetica sul seed, stessa
+           disciplina di FusionKey/sinergie.
+       (3) CONFERMA ESPLICITA: il banco (Pickup di kind PICKUP_POURHOUSE_BANK)
+           scrive offerta e prezzo per esteso, e serve il tasto di interazione
+           a contatto (Game.interactQueued -> WorldTryAcceptPourhouseWager) per
+           accettare. Uscire senza accettare NON e' una penalita' e non
+           consuma la puntata: la stanza non blocca mai il progresso
+           (special-rooms.md, Scenario 3). */
+    ROOM_POURHOUSE
 } RoomKind;
 
 typedef enum Direction {
@@ -251,7 +276,23 @@ typedef enum PickupKind {
        zero-default corretto -- una stanza appena creata non ha una sfida in
        corso ne' una gia' vinta). Nessuna cella d'atlas dedicata: si ripiega
        su props/piedistallo quando c'e', altrimenti forma geometrica. */
-    PICKUP_ARENA_ALTAR
+    PICKUP_ARENA_ALTAR,
+    /* WP7: il banco della Pourhouse (ROOM_POURHOUSE sopra) -- il piano di
+       colata su cui la puntata e' scritta per esteso. In coda come
+       PICKUP_ARENA_ALTAR sopra e per lo stesso motivo. Non si consuma mai e,
+       come il segnale dell'arena, TOCCARLO NON ACCETTA NULLA: accettare una
+       puntata e' irreversibile (si versa salute, il tetto, un oggetto), quindi
+       serve il tasto di interazione a contatto
+       (Game.interactQueued -> WorldTryAcceptPourhouseWager, src/world/
+       pourhouse.c). 'value' non e' una quantita' ma lo STATO del banco, tre
+       valori: 0 = nessuna puntata pagabile (uscita libera, Scenario 3 di
+       special-rooms.md), 1 = puntata aperta, 2 = puntata gia' accettata. Lo
+       zero-default e' quello giusto: un banco appena creato non promette
+       nulla. Il TESTO della puntata non vive qui -- lo legge il renderer da
+       Game.pourhouse, cosi' non va troncato dentro un Pickup. Nessuna cella
+       d'atlas dedicata: si ripiega su props/piedistallo quando c'e',
+       altrimenti forma geometrica. */
+    PICKUP_POURHOUSE_BANK
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -741,6 +782,89 @@ typedef struct DroppedGraftRecord {
     Vector2 pos;
 } DroppedGraftRecord;
 
+/* WP7 (systems/special-rooms.md, "Puntata generata dentro un budget di
+   equita'", DEC-044): le CATEGORIE DI PREZZO ammesse dal documento -- salute
+   immediata, salute MASSIMA (il tetto, non solo il valore corrente), un
+   oggetto/Innesto posseduto, valuta principale, catalizzatore di fusione.
+   Nessun'altra categoria e' ammessa: chi ne aggiungesse una deve prima
+   passare dal documento.
+   POURHOUSE_PRICE_COINS vale 0 di proposito (disciplina zero-default): fra le
+   cinque e' la piu' innocua -- la valuta e' l'unica risorsa il cui prezzo non
+   e' mai irreversibile, e una puntata azzerata da un memset chiede zero
+   Ingots, cioe' niente. */
+typedef enum PourhousePriceKind {
+    POURHOUSE_PRICE_COINS = 0,
+    POURHOUSE_PRICE_HP,
+    POURHOUSE_PRICE_MAX_HP,
+    POURHOUSE_PRICE_ITEM,
+    POURHOUSE_PRICE_FLUX,
+    POURHOUSE_PRICE_COUNT
+} PourhousePriceKind;
+
+/* WP7: le categorie di OFFERTA della puntata. Stessa disciplina zero-default
+   della lista dei prezzi sopra: POURHOUSE_OFFER_COINS a 0 (una puntata
+   azzerata offre zero Ingots, cioe' niente -- mai un oggetto o un Flux
+   regalati per sbaglio). */
+typedef enum PourhouseOfferKind {
+    POURHOUSE_OFFER_COINS = 0,
+    POURHOUSE_OFFER_SUPPLIES,   /* strumento di breccia + strumento di apertura (Blast Charges/Cast Keys) */
+    POURHOUSE_OFFER_CRUST,      /* salute temporanea/protettiva (DEC-008) */
+    POURHOUSE_OFFER_ITEM,       /* l'oggetto di rarita' migliore fra i tre candidati del piano */
+    POURHOUSE_OFFER_FLUX,       /* catalizzatore di fusione (DEC-022) */
+    POURHOUSE_OFFER_COUNT
+} PourhouseOfferKind;
+
+/* WP7 (DEC-044): LA PUNTATA di una Pourhouse -- una coppia offerta/prezzo
+   composta per l'occasione dentro il budget di equita' dichiarato in
+   src/world/pourhouse.h, non una coppia curata fissa.
+ *
+ * Vive in Game (una sola Pourhouse per piano, vedi Game.pourhouse) e non in
+ * RoomState: la puntata porta un Item intero e due stringhe, cioe' molto piu'
+ * di quanto abbia senso replicare per GRID_SIZE*GRID_SIZE celle -- stessa
+ * ragione per cui gli Innesti a terra di DEC-183 vivono in una lista globale
+ * al piano invece che dentro RoomState. 'roomX/roomY' dicono a QUALE stanza
+ * appartiene, cosi' entrare in una Pourhouse diversa non eredita mai la
+ * puntata di un'altra.
+ *
+ * Zero-default: tutto a zero significa "nessuna puntata composta, nessuna
+ * valida, nessuna accettata, zero Ingots chiesti e zero offerti" -- il
+ * significato piu' innocuo possibile, e cioe' esattamente lo stato di una
+ * stanza mai visitata. */
+typedef struct PourhouseWager {
+    /* Vero appena la composizione e' stata TENTATA per questa stanza. Serve a
+       distinguere "non ancora composta" da "composta e non ne esiste alcuna
+       pagabile" (valid falso), due stati diversi per il banco. */
+    bool composed;
+    /* Vero se esiste davvero una coppia offerta/prezzo dentro il budget di
+       equita' che il giocatore PUO' pagare adesso. Falso = la stanza offre
+       comunque l'uscita libera, senza penalita' (special-rooms.md, Scenario 3
+       e "Casi limite"). */
+    bool valid;
+    bool accepted;
+    int roomX;
+    int roomY;
+    PourhouseOfferKind offerKind;
+    int offerAmount;    /* Ingots / Crust / Flux, oppure gli strumenti di BRECCIA per SUPPLIES */
+    int offerKeys;      /* SUPPLIES: gli strumenti di APERTURA; zero per ogni altra categoria */
+    Item offerItem;     /* POURHOUSE_OFFER_ITEM: copiato per valore, come ogni altro Item del motore */
+    PourhousePriceKind priceKind;
+    int priceAmount;
+    /* POURHOUSE_PRICE_ITEM: l'oggetto si identifica per NOME, non per indice
+       in Player.items[] -- fra la composizione e l'accettazione il giocatore
+       puo' raccogliere, sganciare o scambiare oggetti, e un indice
+       memorizzato punterebbe a un altro oggetto senza accorgersene. Se al
+       momento di accettare quel nome non e' piu' posseduto, la puntata non e'
+       piu' pagabile e non si accetta nulla (mai un pagamento parziale). */
+    char priceItemName[48];
+    Rarity priceItemRarity;
+    /* I due valori in PUNTI DI EQUITA' (src/world/pourhouse.h, tabella di
+       equivalenza): tenuti perche' sono l'unica cosa che rende verificabile
+       "dentro il budget di equita'" da un test, invece di doverla ricalcolare
+       in due posti che potrebbero divergere. */
+    int offerValue;
+    int priceValue;
+} PourhouseWager;
+
 /* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2): un secondo
    strato di punti vita che Player.tempHp sotto rappresenta, consumato PRIMA
    della salute base (vedi CombatDamagePlayer, src/gameplay/combat.c) e mai
@@ -1216,6 +1340,21 @@ typedef struct Game {
        a 'rooms' in memoria) ad ogni nuovo piano, e dal memset che
        GameResetRun/GameResetRunWithSeed applicano a tutto Game. */
     DroppedGraftRecord droppedGrafts[MAX_DROPPED_GRAFTS];
+    /* WP7 (DEC-044): la puntata della Pourhouse del piano CORRENTE -- vedi
+       PourhouseWager sopra. Azzerata da un memset ESPLICITO e SEPARATO in
+       WorldGenerateFloorMap (stesso spirito di droppedGrafts qui sopra: la
+       puntata ha senso solo dentro il piano che l'ha generata) e dal memset
+       che GameResetRun/GameResetRunWithSeed applicano a tutto Game. */
+    PourhouseWager pourhouse;
+    /* WP7 (special-rooms.md, Scenario 8: "due Pourhouse nella stessa run ->
+       puntate diverse"): la FIRMA della puntata composta piu' di recente in
+       QUESTA run (WorldPourhouseSignature, src/world/pourhouse.h; 0 = nessuna
+       ancora). A differenza di 'pourhouse' sopra NON si azzera al cambio di
+       piano -- e' un fatto della RUN, non del piano: e' proprio quello che
+       permette alla Pourhouse del piano successivo di scartare una puntata
+       identica alla precedente finche' ne esiste un'altra valida. Azzerata
+       solo dal memset di GameResetRun/GameResetRunWithSeed. */
+    unsigned int pourhouseLastSignature;
     Player player;
     Enemy enemies[MAX_ENEMIES];
     Shot shots[MAX_SHOTS];

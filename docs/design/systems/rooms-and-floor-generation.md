@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
-last_verified_commit: 06b9b16
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, WP5, WP6]
+last_verified_commit: 9b27fb6
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, WP5, WP6, WP7]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -124,10 +124,14 @@ da confermare (vedi `governance/open-questions.md`).
   [bosses.md](./bosses.md)). Non è una garanzia: si piazza per ultima e la griglia può
   essere satura, nel qual caso scende di classe (L → 1x2/2x1 → 1x1). Misurato su 120 piani
   generati (5 piani × 24 semi): **2x2 in 110 casi su 120**.
-- **Tesoro, negozio, stanza di fusione e stanza a tempo: sempre 1x1.** Sono stanze da una
-  funzione sola (una ricompensa, una vetrina, il crogiolo, la clessidra), tutta visibile
-  appena si entra. La stanza a tempo (WP5) è anche l'unica delle quattro esclusiva dei
-  piani avanzati (dal piano 3, vedi sotto e [Special Rooms](./special-rooms.md)).
+- **Tesoro, negozio, stanza di fusione, stanza a tempo e Pourhouse: sempre 1x1.** Sono
+  stanze da una funzione sola (una ricompensa, una vetrina, il crogiolo, la clessidra, il
+  banco della colata), tutta visibile appena si entra — leggere una puntata e decidere non
+  ha bisogno di spazio, ha bisogno che il banco sia sotto gli occhi. La stanza a tempo
+  (WP5) è l'unica delle cinque esclusiva dei piani avanzati (dal piano 3); la Pourhouse
+  (WP7) è l'unica il cui tentativo di piazzamento **non si fa a ogni piano** — dal piano 2
+  e solo quando l'estrazione del piano lo concede, vedi sotto e
+  [Special Rooms](./special-rooms.md).
 - **Arena di sfida: mai 1x1** (WP6, [Special Rooms](./special-rooms.md)). È l'eccezione
   dichiarata alla riga sopra, e per il motivo opposto: l'arena è **combattimento**, non
   una funzione sola da leggere a colpo d'occhio, e una 1x1 stretta mortificherebbe
@@ -152,6 +156,14 @@ da confermare (vedi `governance/open-questions.md`).
   1x1, e si piazza **prima** delle quattro sopra perché è l'unica a chiedere celle libere
   contigue — il costo di quell'ordine sulle 1x1 è misurato e dichiarato in
   [Special Rooms](./special-rooms.md).
+  Dal WP7 si aggiunge, nei piani 2+, la **quinta speciale 1x1**: la Pourhouse
+  `ROOM_POURHOUSE` (scambio ad alto rischio, DEC-136). È l'unica il cui tentativo è
+  **condizionato**: non si prova a ogni piano ma solo quando l'estrazione del piano lo
+  concede (70%, default proposto), e si piazza **per ultima** dopo ogni altra stanza —
+  scelta deliberata, così la sua estrazione non sposta il flusso RNG di nessun altro
+  piazzamento e le misure del WP6 restano valide parola per parola. Il totale massimo di
+  celle speciali 1x1 per piano sale quindi a **cinque** dal piano 3 in su (tesoro, negozio,
+  fusione, a tempo, Pourhouse) e a **quattro** nei piani 2.
   La superficie giocabile di un piano resta quindi quella di sempre; il
   **numero di stanze scende** (~5-10 più boss e speciali). È una conseguenza dichiarata di
   DEC-170, non un effetto collaterale.
@@ -250,19 +262,27 @@ parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
   (`WorldShapeNeighborRoomCount`, anch'essa risolta per cella di stato, mai per origine
   grezza); il ripiego di griglia satura promuove a boss la stanza già piazzata di grado
   minimo (preferendo la più lontana con grado ≤1). Le stanze speciali 1x1 — tesoro, negozio,
-  stanza di fusione e (dal piano 3, WP5) stanza a tempo — piazzate **dopo** il boss, non si
+  stanza di fusione, (dal piano 3, WP5) stanza a tempo e (dal piano 2, WP7) Pourhouse —
+  piazzate **dopo** il boss, non si
   attaccano mai ad esso (`WorldPlaceSpecialRoom` scarta le celle candidate che toccano la
-  stanza boss, per tutti e quattro i chiamanti) — altrimenti gli darebbero una seconda porta.
+  stanza boss, per tutti e cinque i chiamanti) — altrimenti gli darebbero una seconda porta.
   **WP6:** la stessa regola vale ora per due stanze invece che per una — la stanza boss e
   l'**arena di sfida**, che deve restare foglia per lo stesso motivo (`ROOM_ARENA`,
   [Special Rooms](./special-rooms.md)): `WorldShapeTouchesLeafRoom` è il predicato unico
-  che i quattro chiamanti 1x1 e il piazzamento dell'arena condividono. L'arena non passa da
-  `WorldPlaceSpecialRoom` (che resta a quattro chiamanti): ha `WorldPlaceArenaRoom`, che
+  che i chiamanti 1x1 e il piazzamento dell'arena condividono. L'arena non passa da
+  `WorldPlaceSpecialRoom`: ha `WorldPlaceArenaRoom`, che
   oltre al vincolo di foglia prova le taglie grandi per prime e non scende sotto le due
   celle.
+  **WP7:** `WorldPlaceSpecialRoom` passa da quattro a **cinque chiamanti** con la
+  Pourhouse (`ROOM_POURHOUSE`), che eredita senza modifiche entrambi i vincoli — 1x1 e mai
+  a contatto con una stanza che deve restare foglia. L'unica differenza è a monte, nel
+  chiamante e non nella funzione: il suo tentativo è condizionato all'estrazione del piano
+  (vedi «Quantità di piano» sopra).
   Test dedicati: (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra
   mai in una cella della stanza boss raggiunge comunque tutte le altre stanze del piano;
-  (q, WP6) gli stessi due controlli per l'arena di sfida.
+  (q, WP6) gli stessi due controlli per l'arena di sfida; (r, WP7) unicità, taglia 1x1,
+  piano minimo, non-adiacenza a boss e arena, e — controllo che fallirebbe se qualcuno
+  rendesse il tentativo incondizionato — la Pourhouse **non** su tutti i piani candidati.
 - **Effetto collaterale misurato:** il vincolo di foglia riduce la frequenza della classe
   2x2 per la stanza boss (una 2x2 ha più perimetro, quindi più occasioni di toccare due
   stanze diverse): da ~110/120 piani (pre-DEC-182) a **54/120** piani misurati dopo
@@ -285,7 +305,7 @@ più quattro archetipi speciali:
 - stanza segreta;
 - arena di sfida (`ROOM_ARENA` dal WP6 nella versione **incontrata nel piano**; l'accesso
   "best-of" dal Piano 0 resta descritto solo in [floor-zero.md](./floor-zero.md));
-- scambio ad alto rischio;
+- scambio ad alto rischio — in-game **Pourhouse** (DEC-136), `ROOM_POURHOUSE` dal WP7;
 
 più un quinto archetipo speciale, aggiunto da DEC-051:
 

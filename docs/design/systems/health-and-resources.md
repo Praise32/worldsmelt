@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione (DEC-013), ora affiancate dai nomi inglesi in-game fissati da DEC-072."
 last_reviewed: 2026-07-30
-last_verified_commit: 82a0232
-topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita, WP2]
+last_verified_commit: 9b27fb6
+topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita, WP2, WP7, pourhouse]
 related: []
 supersedes: []
 source_files: [src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/render/game_renderer.c]
@@ -157,6 +157,19 @@ al playtest o da promuovere a decisione, vedi `governance/open-questions.md` voc
   `tempHp` (2 icone). Nessuna delle fonti previste da DEC-008 per la
   salute base (stanze/oggetti/eventi) è stata scelta come fonte del Crust in questa fase:
   il negozio è il minimo ragionevole per la demo, non un'esclusione delle altre.
+  **Aggiornamento WP7 (30/07):** si aggiunge una **seconda** fonte, la Pourhouse — il
+  Crust è una delle categorie di offerta della puntata (2 o 3 punti), quindi si può
+  ottenere anche versando salute, un oggetto o valuta allo scambio ad alto rischio (vedi
+  [Special Rooms](./special-rooms.md)). Resta un default proposto come il primo.
+- **Il Crust non paga MAI un prezzo di salute (WP7, DEC-008).** L'ordine di consumo sopra
+  descrive il **danno subito**: prima la temporanea, poi la base. Un **patto volontario**
+  non è danno subito, e la Pourhouse — l'unico luogo dove si può cedere salute in cambio di
+  un guadagno (DEC-026) — attinge sempre e solo alla salute **base**, mai al Crust. Il
+  motivo è la funzione stessa dello strato: il Crust è protezione, non valuta, e lasciarlo
+  spendere lo avrebbe reso una seconda tasca di monete. Il documento non lo diceva
+  esplicitamente perché prima del WP7 non esisteva alcun modo di «spendere» salute:
+  registrato qui come default proposto dall'implementazione, verificato dal test
+  `RoomsTestPourhouseInteraction` (`--rooms-test`).
 
 ## Non-obiettivi
 
@@ -171,7 +184,7 @@ al playtest o da promuovere a decisione, vedi `governance/open-questions.md` voc
 - Persistenza tra piani e a fine run per ciascuna risorsa oltre alla salute: non definita da nessuna DEC (draft, ipotesi di persistenza tra piani nella stessa run indicate sopra come non confermate).
 - Presenza di contenitori permanenti (capacità massima ampliabile) nella run.
 - Relazione esatta tra strumento di apertura e i singoli archetipi di stanza speciale (quali richiedono quale risorsa).
-- Tetto e fonte concreta della salute temporanea/protettiva (Crust, DEC-008): default proposti dall'implementazione (WP2, sezione sopra), non canone — vedi `governance/open-questions.md` voce 28.
+- Tetto e fonte concreta della salute temporanea/protettiva (Crust, DEC-008): default proposti dall'implementazione (WP2, sezione sopra), non canone — vedi `governance/open-questions.md` voce 28. **Aggiornamento 30/07 (WP7):** alle fonti si aggiunge la Pourhouse come offerta della puntata, e si registra la regola «il Crust non paga mai un prezzo di salute» — entrambe default proposti, vedi `governance/open-questions.md` voce 42.
 
 ## Scenari verificabili
 

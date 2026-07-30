@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07) e l'arena di sfida incontrata nel piano (WP6, 30/07) sono i primi tre dei cinque archetipi con un RoomKind fisico nel motore."
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07), l'arena di sfida incontrata nel piano (WP6, 30/07) e la Pourhouse (WP7, 30/07) sono i primi quattro dei cinque archetipi con un RoomKind fisico nel motore: resta fuori solo la stanza segreta."
 last_reviewed: 2026-07-30
-last_verified_commit: 06b9b16
-topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, WP5, WP6, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA]
+last_verified_commit: 9b27fb6
+topics: [stanze-speciali, fusione, scambio-alto-rischio, pourhouse, arena-di-sfida, stanza-a-tempo, WP4, WP5, WP6, WP7, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, DEC-044, DEC-136]
 related: []
 supersedes: []
 source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -53,7 +53,11 @@ sono distinte, e questo lavoro non ne anticipa nulla.
 
 ### Scambio ad alto rischio
 
-Stanza che propone uno scambio non convenzionale (es. cedere una risorsa, salute o una parte della build per un guadagno maggiore ma incerto), ri-tematizzata in modo originale. È l'**unico** archetipo dove sono ammessi scambi a costo salute (DEC-026): il negozio non li offre mai. Nome e presentazione precisi restano da definire in fase di contenuto, ma la funzione — rischio dichiarato in cambio di un guadagno superiore alla media — è fissata da DEC-010.
+Stanza che propone uno scambio non convenzionale (es. cedere una risorsa, salute o una parte della build per un guadagno maggiore ma incerto), ri-tematizzata in modo originale. È l'**unico** archetipo dove sono ammessi scambi a costo salute (DEC-026): il negozio non li offre mai. Nome e presentazione sono fissati da DEC-136 — in-game **Pourhouse**, «Casa della Colata», vedi il [glossario](../governance/glossary.md) — e la funzione, rischio dichiarato in cambio di un guadagno superiore alla media, è fissata da DEC-010.
+
+**Stato (WP7, 30/07):** ha ora un `RoomKind` fisico nel motore (`ROOM_POURHOUSE`), con la
+puntata di DEC-044 composta deterministicamente dal seed dentro un budget di equità
+dichiarato — vedi "Stato di implementazione: la Pourhouse" sotto.
 
 ### Stanza a tempo (DEC-051)
 
@@ -386,6 +390,149 @@ esplicitamente fuori da questo lavoro e resta descritto in
 | **Arredo della stanza** | Nessun ostacolo di layout (come boss/tesoro/negozio): l'arena resta uno spazio libero, perché un'ondata maggiorata dev'essere schivabile. Conseguenza: la riduzione di budget per ostacoli di DEC-043 non tocca mai l'arena. | `WorldBuildObstacles`, `src/world/world.c` |
 | **Abbandono/retry** | Non esistono: si esce solo vincendo, morire dentro è permadeath come ovunque. | — |
 
+## Stato di implementazione: la Pourhouse (WP7, 2026-07-30)
+
+**Quarto** dei cinque archetipi speciali di questo documento ad avere un `RoomKind`
+fisico nel motore (`ROOM_POURHOUSE`, `src/core/game_types.h`), in coda dopo `ROOM_FUSION`
+(WP4), `ROOM_TIMED` (WP5) e `ROOM_ARENA` (WP6). Resta fuori dal motore solo la **stanza
+segreta**, che dipende dai rivelatori di DEC-127 e da
+[secrets-and-obstacles.md](./secrets-and-obstacles.md).
+
+- **Piazzamento: la QUINTA chiamante di `WorldPlaceSpecialRoom`** (`src/world/world.c`) —
+  stesso algoritmo di tesoro/negozio/fusione/stanza a tempo: taglia 1x1, mai adiacente a
+  una stanza che deve restare foglia (boss, DEC-182, e arena di sfida), deterministica dal
+  seed del piano. Una differenza sola, ed è di design: **non si tenta a ogni piano**. La
+  Pourhouse è un archetipo raro, non un servizio di piano come il negozio — dal piano 2 in
+  su, e solo quando l'estrazione del piano lo concede
+  (`WORLD_POURHOUSE_ROOM_CHANCE_PERCENT` = 70%). Si piazza **per ultima**, dopo ogni altra
+  stanza: è ciò che permette alla sua estrazione di non spostare il flusso RNG di nessun
+  altro piazzamento — i numeri misurati al WP6 per fusione (101/120), stanza a tempo
+  (40/72) e arena (82/96) sono rimasti **identici**. Prezzo di quella scelta: la Pourhouse
+  eredita la griglia più satura di tutte, quindi il 70% è la probabilità del *tentativo*,
+  non del risultato — con l'estrazione forzata al 100% troverebbe posto nel 44% dei piani
+  candidati. **Misurato su 120 piani generati** (5 piani × 24 semi, `--rooms-test`; solo i
+  piani 2-5, 96 candidati): **piazzata in 27 casi su 96**, cioè circa un piano candidato su
+  quattro, e circa il 73% delle run ne incontra almeno una.
+- **La puntata si COMPONE, non si genera a runtime (DEC-044 + DEC-171).** Nella demo
+  nessun modello gira mentre si gioca, quindi «l'IA genera sia l'offerta sia il prezzo» si
+  realizza come **composizione deterministica** dal seed di run + piano + cella —  la
+  stessa disciplina già usata per `FusionKey` e per le sinergie (DEC-161).
+  `WorldComposePourhouseWager` (`src/world/pourhouse.c`) enumera le 55 coppie candidate
+  (11 offerte × 5 categorie di prezzo) in un ordine derivato dal seed e restituisce la
+  prima che è insieme **equa** e **pagabile**. Il modulo è nuovo e separato da `world.c`
+  proprio perché la puntata è un sistema a sé: composizione, validazione, testi e
+  applicazione atomica.
+- **Il budget di equità è una tabella di valori equivalenti**, ancorata alla valuta
+  principale (1 Ingot = 1 punto) e ai prezzi che il negozio già pratica: fonte unica della
+  tabella e del suo perché in
+  [rewards-and-economy.md](./rewards-and-economy.md#tabella-di-equivalenza-della-pourhouse-dec-044),
+  non ripetuta qui. La regola è
+  `|valore(offerta) − valore(prezzo)| ≤ max(4 punti, 20% dell'offerta)`: una coppia fuori
+  tolleranza è **respinta e non viene mai proposta** al giocatore, esattamente come chiede
+  la sezione «Regole per contenuti generati» sopra.
+- **Categorie ammesse, nessuna in più.** Prezzo: salute immediata, salute **massima** (il
+  tetto), un oggetto/Innesto posseduto, valuta principale, catalizzatore di fusione — le
+  cinque di DEC-044. Offerta: valuta abbondante, strumenti di breccia/apertura, Crust,
+  l'oggetto di rarità migliore fra i tre candidati del piano, Flux. Una puntata non baratta
+  mai una risorsa **con sé stessa** (Ingots per Ingots, Flux per Flux, un oggetto per un
+  oggetto di pari valore): sarebbe un giro a vuoto, non uno scambio.
+- **Validazione contro lo stato del giocatore, sempre.** Il prezzo non può chiedere
+  risorse che il giocatore non ha: mai più Ingots/Flux di quelli in tasca, mai un oggetto
+  non posseduto, mai un prezzo in salute che lo ucciderebbe, e — caso limite esplicito del
+  documento — **mai più salute massima di quella posseduta**, con il tetto che non scende
+  comunque mai sotto **un cuore** (`POURHOUSE_MIN_BASE_MAX_HP`, 2 punti vita). Un'offerta
+  che non potrebbe essere consegnata per intero (Crust oltre il proprio tetto, un oggetto
+  con l'inventario pieno) viene scartata già in composizione: il banco non promette mai
+  ciò che il motore non può mantenere.
+- **Scenario 3 — niente da cedere: uscita libera.** Se nessuna delle 55 coppie è insieme
+  equa e pagabile, la puntata resta `valid = false`: il banco lo **dice per esteso** («la
+  colata è fredda»), la stanza non blocca mai le porte (`GameRoomIsLocked` non la considera
+  mai) e il tasto di conferma non fa nulla. Non è un fallback né un errore: è uno stato
+  previsto del contratto. Finché la puntata resta fredda, un ritorno successivo la
+  ricompone — un giocatore che torna con qualcosa da versare trova il banco acceso.
+- **Scenario 8 — due Pourhouse, due puntate diverse.** `Game.pourhouseLastSignature`
+  ricorda la firma dell'ultima puntata composta nella **run** (non nel piano): la
+  composizione fa una prima passata che scarta le coppie con quella firma e ricade sulla
+  seconda solo se non esiste alternativa valida — così due Pourhouse successive propongono
+  puntate diverse quando è possibile, senza mai lasciare muto il banco di chi possiede una
+  cosa sola.
+- **Flusso: leggere prima, confermare poi (DEC-058).** Dentro la stanza c'è un banco
+  (`PICKUP_POURHOUSE_BANK`, ri-materializzato a ogni ingresso come il crogiolo della
+  fusione) che scrive **offerta e prezzo per esteso su due righe** — `DAI: …` /
+  `PRENDI: …` — sempre, anche quando lo sprite non carica; il testo è la fonte, non il
+  colore. Accettare richiede il **tasto di interazione `X` a contatto** col banco, lo
+  stesso pattern dell'arena (`Game.interactQueued` → `WorldTryAcceptPourhouseWager`):
+  toccare il banco non accetta nulla, premere il tasto altrove nemmeno. Suoni: `ui_confirm`
+  quando la colata si versa, `ui_cancel` quando la puntata non è più pagabile — entrambi
+  già esistenti, nessun evento sonoro nuovo.
+- **Applicazione ATOMICA.** All'accettazione si ricontrolla **tutto** prima di toccare
+  qualunque cosa: prezzo ancora pagabile *e* offerta ancora consegnabile. Se una delle due
+  cade (il giocatore ha speso il prezzo altrove, ha riempito l'inventario, ha sganciato
+  l'oggetto richiesto) non si conclude nulla e **non si paga nulla** — mai mezza puntata.
+  Un fallimento qui non è una penalità: il banco lo dice e la stanza resta com'era.
+- **Rifiuto = uscire.** Non esiste un tasto «rifiuta»: si esce dalla porta, senza alcun
+  costo, e la puntata **resta la stessa** se si torna. È un default proposto
+  dall'implementazione (vedi la tavola sotto): bruciare l'occasione per aver esitato
+  punirebbe l'esplorazione, e la conferma esplicita di DEC-058 serve a proteggere
+  dall'azione irreversibile, non a trasformare l'indecisione in una.
+- **Salute massima: il tetto vero.** Il prezzo in salute massima scrive su
+  `Player.baseMaxHp` (`CombatReducePlayerMaxHp`, `src/gameplay/combat.c`) e forza subito il
+  ricalcolo delle statistiche: `maxHp` è un valore *derivato* che il sistema delle cache
+  ricalcola da zero a ogni passaggio, quindi ridurre solo quello sarebbe stato annullato al
+  primo ricalcolo — il prezzo più rischioso dell'archetipo sarebbe risultato gratis. La
+  riduzione è **permanente per la run** e verificata come tale dal test.
+- **Il Crust non paga mai un prezzo di salute (DEC-008).** Un prezzo in salute immediata
+  tocca solo `Player.hp`, mai `Player.tempHp`: la salute temporanea/protettiva è
+  protezione, non valuta, e l'ordine di consumo di
+  [health-and-resources.md](./health-and-resources.md) vale per il **danno subito**, non
+  per un patto volontario. Il documento non lo diceva esplicitamente perché non prevedeva
+  un modo di «spendere» salute: registrato qui come default proposto e verificato dal test.
+- **Nessuna valuta di completamento (DEC-167).** La Pourhouse non ha una condizione di
+  «ripulita»: accettare o rifiutare è uno **scambio**, non un completamento, e il guadagno
+  è l'offerta stessa — già pagata col prezzo. Stessa scelta esplicita già fatta per la
+  stanza di fusione.
+- **Segnale visivo (DEC-058)**: colore dedicato in `RoomMapColor` (magenta caldo, l'unica
+  tinta rosa della tavola) e icona `"P"` in `DrawRoomIcon`. Stesso limite pre-ingresso di
+  `ROOM_FUSION`/`ROOM_TIMED`/`ROOM_ARENA`, ereditato e non nuovo (`known-issues.md`, voce
+  12): l'icona compare solo a stanza `visited`. **Dentro** la stanza il colore non porta
+  mai da solo l'informazione: l'etichetta del banco (`PUNTATA` / `VERSATA` / `FREDDA`) e le
+  due righe del contratto sono sempre scritte.
+- **Sprite**: nessun asset nuovo richiesto. Il banco riusa `assets/art/props/piedistallo`
+  (vocabolario `vuoto`/`pieno`) e, se manca, ripiega su una forma geometrica dedicata —
+  un crogiolo rovesciato che cola, silhouette non usata da nessun'altra raccolta. Un prop
+  dedicato sarebbe un miglioramento, non un requisito: registrato in
+  `docs/engineering/known-issues.md`.
+- **Test**: il controllo `(r)` di `GameRoomsTest` più `RoomsTestPourhouseInteraction`
+  (`src/tests/game_tests.c`, `--rooms-test`/`make test`): al più una Pourhouse per piano,
+  sempre 1x1, mai prima del piano 2, mai adiacente a boss o arena, e — controllo che
+  fallirebbe se qualcuno rendesse il tentativo incondizionato — **mai su tutti** i piani
+  candidati; poi la puntata vera e propria: composizione deterministica (stesso seed e
+  stesso stato → stessa puntata; 19 puntate composte, 15 distinte fra i semi; due Pourhouse
+  della stessa run → firme diverse), prezzo dentro le risorse possedute su sei stati
+  diversi del giocatore (compreso quello senza nulla → uscita libera e porte mai bloccate),
+  budget di equità rispettato, accettazione atomica (valuta↔Crust, oggetto↔valuta) con le
+  due prove di fallimento a metà (inventario pieno; risorsa sparita fra composizione e
+  conferma), rifiuto senza penalità con la stessa puntata al ritorno, tetto mai sotto un
+  cuore neanche con una richiesta assurda, e Crust mai intaccato da un prezzo di salute.
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Piani ammessi** | Dal piano 2 in su, come l'arena: il piano 1 resta il primo contatto col mondo generato, e prima di possedere qualcosa la risposta della Pourhouse sarebbe quasi sempre «la colata è fredda». | `WORLD_POURHOUSE_ROOM_MIN_FLOOR`, `src/world/world.h` |
+| **Frequenza per piano** | **Non ogni piano**: un tentativo solo quando l'estrazione del piano lo concede (70%), e comunque non garantito. Misurato: 27 piani su 96 candidati. | `WORLD_POURHOUSE_ROOM_CHANCE_PERCENT`, `WorldGenerateFloorMap` |
+| **Taglia della stanza** | Sempre 1x1, come le altre quattro speciali di `WorldPlaceSpecialRoom`: leggere una puntata e decidere non ha bisogno di spazio. | `WorldPlaceSpecialRoom` |
+| **Ordine di piazzamento** | Per ultima, dopo ogni altra stanza: così la sua estrazione non sposta il flusso RNG degli altri piazzamenti e le misure del WP6 restano valide. | `WorldGenerateFloorMap` |
+| **Budget di equità** | `\|offerta − prezzo\| ≤ max(4 punti, 20% dell'offerta)`, su una tabella di valori equivalenti ancorata a 1 Ingot = 1 punto. | `POURHOUSE_EQUITY_TOLERANCE_*`, `src/world/pourhouse.h`; tabella in [rewards-and-economy.md](./rewards-and-economy.md) |
+| **Baratto con sé stessa** | Vietato: mai Ingots per Ingots, Flux per Flux, oggetto per oggetto di pari valore. | `PourhouseSameResource`, `src/world/pourhouse.c` |
+| **Tetto minimo di salute** | Il prezzo in salute massima non porta mai il tetto sotto **un cuore** (2 punti vita). | `POURHOUSE_MIN_BASE_MAX_HP` |
+| **Crust e prezzi di salute** | Il Crust non paga **mai** un prezzo di salute (DEC-008: è protezione, non valuta). L'ordine di consumo vale per il danno subito, non per un patto volontario. | `WorldTryAcceptPourhouseWager` |
+| **Rifiuto** | Uscire dalla stanza. Nessun tasto dedicato, nessuna penalità, e la puntata **resta disponibile** per un ritorno successivo: si consuma solo accettandola. | `WorldPourhousePrepareRoom` |
+| **Ricomposizione** | Una puntata valida non si ri-tira mai (una sola puntata per stanza per run). Una puntata **fredda** invece sì, a ogni ingresso: se il giocatore torna con qualcosa da versare, il banco si accende. | `WorldPourhousePrepareRoom` |
+| **Puntate diverse nella stessa run** | La composizione scarta, in prima passata, la firma dell'ultima puntata della run; ricade su di essa solo se non esiste alternativa valida. | `Game.pourhouseLastSignature` |
+| **Tasto di conferma** | `X` a contatto col banco, lo stesso dell'arena: per il giocatore è un solo gesto — «accetto ciò che questa stanza propone». | `Game.interactQueued`, `WorldTryAcceptPourhouseWager` |
+| **Valuta di completamento** | Nessuna: uno scambio non è un completamento (DEC-167). | `WorldAwardRoomCompletionCurrency` |
+
 ## Regola di originalità
 
 I nomi, la presentazione e la logica precisa dei quattro archetipi devono essere originali. Gli archetipi sono funzioni di design, non contenuti da copiare da giochi esistenti (vedi `09-originality-guardrails.md`).
@@ -402,9 +549,10 @@ giocatore.
 ## Casi limite
 
 - Una stanza di fusione generata senza almeno due oggetti fondibili posseduti dal giocatore: resta accessibile ma senza azione disponibile finché non sono soddisfatti i requisiti.
-- Uno scambio ad alto rischio proposto quando il giocatore non ha nulla di cedibile: la stanza non deve bloccare il progresso, deve offrire un'uscita senza penalità.
-- Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore.
-- Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore.
+- Uno scambio ad alto rischio proposto quando il giocatore non ha nulla di cedibile: la stanza non deve bloccare il progresso, deve offrire un'uscita senza penalità. **Stato (WP7, 30/07):** garantito — se nessuna delle coppie candidate è insieme equa e pagabile la puntata resta non valida, il banco lo dichiara per esteso, le porte non si bloccano mai e il tasto di conferma non fa nulla; una puntata «fredda» si ricompone a ogni ritorno, così chi torna con qualcosa da versare la trova accesa.
+- Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore. **Stato (WP7, 30/07):** una coppia fuori tolleranza non viene mai proposta — la composizione scarta e prova la successiva fra le 55 candidate, e il test ricalcola il budget dalle stesse costanti per accorgersi di una tolleranza allargata di nascosto.
+- Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore. **Stato (WP7, 30/07):** garantito per costruzione — la composizione valida ogni coppia contro lo stato del giocatore in quel momento, il tetto non scende mai sotto un cuore, e l'accettazione ricontrolla tutto una seconda volta (prezzo ancora pagabile *e* offerta ancora consegnabile) prima di toccare qualunque cosa: mai mezza puntata.
+- Il giocatore accetta una puntata la cui offerta non entra più nell'inventario, o il cui prezzo non possiede più: non si conclude nulla e non si paga nulla. Rifiutare — cioè uscire dalla stanza — non costa mai niente e non consuma la puntata, che resta la stessa per un ritorno successivo.
 - L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md).
 - L'arena di sfida incontrata nel piano non deve **mai** essere un passaggio obbligato né bloccare il piano se il giocatore la ignora. **Stato (WP6, 30/07):** garantito per costruzione — l'arena è sempre una foglia del grafo di adiacenza (grado 1, come la stanza boss di DEC-182) e, finché la sfida non è accettata, è attraversabile come una stanza vuota; verificato dal controllo `(q)` di `GameRoomsTest` con una BFS che ignora l'arena e raggiunge comunque ogni altra stanza del piano.
 - Il giocatore accetta la sfida dell'arena e non riesce a vincerla: non esiste abbandono né retry — si esce solo vincendo, e morire dentro è una morte normale della run (permadeath). È la conseguenza voluta di "rischio dichiarato in cambio di un guadagno superiore" (DEC-010): il rischio deve essere reale.
@@ -431,16 +579,31 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   `governance/open-questions.md` voci 30 e 32. **Aggiornamento 30/07 (WP6):**
   anche l'arena di sfida incontrata nel piano ha ora un default proposto e
   implementato — un tentativo per piano dal piano 2, vedi
-  `governance/open-questions.md` voce 37; resta aperta per i due archetipi non
-  ancora nel motore (segreta, scambio) e per l'accesso "best-of" dell'arena dal
-  Piano 0.
+  `governance/open-questions.md` voce 37. **Aggiornamento 30/07 (WP7):** anche
+  lo scambio ad alto rischio (Pourhouse) ha ora un default proposto e
+  implementato — dal piano 2 e **non a ogni piano**: un tentativo solo quando
+  l'estrazione del piano lo concede (70%), misurato in 27 piani su 96
+  candidati, sempre 1x1 — vedi `governance/open-questions.md` voce 41. Resta
+  aperta per l'unico archetipo non ancora nel motore (la stanza segreta) e per
+  l'accesso "best-of" dell'arena dal Piano 0.
 - Valori esatti di soglia e ricompensa della stanza a tempo. **Aggiornamento
   30/07 (WP5):** esiste ora un default proposto e implementato — soglia
   `40s + 6s × celle del piano` dall'ingresso nel piano, ricompensa 6 Ingots
   solo entro soglia — vedi "Stato di implementazione" sopra,
   [rewards-and-economy.md](./rewards-and-economy.md) e
   `governance/open-questions.md` voce 3.
-- Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
+- Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il
+  principio, non i numeri). **Aggiornamento 30/07 (WP7):** esistono ora una tabella di
+  valori equivalenti e una tolleranza proposte e implementate — 1 Ingot = 1 punto, salute
+  immediata 4, salute massima 14, Crust 12, strumento di breccia 4, strumento di apertura
+  5, Flux 30, oggetti 8/16/28/45 come i prezzi fissi del negozio; tolleranza
+  `max(4 punti, 20% dell'offerta)` — vedi "Stato di implementazione: la Pourhouse" sopra,
+  la tabella in [rewards-and-economy.md](./rewards-and-economy.md) e
+  `governance/open-questions.md`, voce 42. Restano default di implementazione, non canone.
+- Cosa succede alla puntata quando il giocatore la rifiuta: resta disponibile per un
+  ritorno successivo o si brucia? **Aggiornamento 30/07 (WP7):** default proposto e
+  implementato — **resta disponibile**, il rifiuto è semplicemente uscire e non consuma
+  nulla; solo l'accettazione chiude la stanza. Vedi `governance/open-questions.md`, voce 43.
 - ~~Quali rivelatori esistono per le super-segrete~~: risolto da DEC-127 (Innesti sensore + oggetti rari), vedi `secrets-and-obstacles.md`.
 
 ## Scenari
@@ -461,7 +624,7 @@ Then accede a un'arena costruita con contenuti "best-of" di run passate, distint
 
 Given un giocatore senza risorse o oggetti cedibili che entra in una stanza di scambio ad alto rischio
 When valuta le opzioni disponibili
-Then la stanza offre comunque un'uscita senza penalità, senza bloccare il progresso
+Then la stanza offre comunque un'uscita senza penalità, senza bloccare il progresso, e il banco dichiara per esteso che non c'è nulla da versare (WP7: `Game.pourhouse.valid` falso, porte mai bloccate, tasto di conferma senza effetto)
 
 ### Scenario 4 — Stanza di fusione senza requisiti soddisfatti
 
@@ -504,6 +667,24 @@ Then la stanza non ha nemici e non blocca mai le porte, nessuna ricompensa e nes
 Given un giocatore che, dentro un'arena di sfida, si porta sul segnale e preme il tasto di interazione
 When la sfida parte
 Then le porte restano chiuse fino alla fine, i nemici arrivano con un budget maggiorato e in fascia alta della loro banda di potenza, e alla vittoria il giocatore riceve una ricompensa superiore a quella di una stanza di combattimento equivalente (valuta doppia, l'oggetto di rarità migliore del piano e una probabilità di catalizzatore di fusione, DEC-022)
+
+### Scenario 12 — Puntata accettata: prezzo e offerta insieme, mai una sola delle due
+
+Given un giocatore che, dentro una Pourhouse, legge sul banco offerta e prezzo scritti per esteso
+When si porta sul banco e preme il tasto di interazione
+Then il prezzo viene pagato **e** l'offerta consegnata nello stesso istante; se una delle due non fosse più possibile — inventario pieno, risorsa spesa altrove, oggetto non più posseduto — non accade nessuna delle due e il giocatore non perde nulla
+
+### Scenario 13 — Puntata rifiutata
+
+Given un giocatore che entra in una Pourhouse, legge la puntata e decide di non accettarla
+When esce dalla stanza dalla porta
+Then non paga alcun prezzo e non subisce alcuna penalità, e tornando nella stessa stanza ritrova **la stessa** puntata: il rifiuto non la consuma
+
+### Scenario 14 — Prezzo in salute massima
+
+Given un giocatore che accetta una puntata il cui prezzo è salute **massima**
+When la colata viene versata
+Then il tetto di salute base scende in modo permanente per il resto della run, non torna al primo ricalcolo delle statistiche, non scende mai sotto un cuore, e la salute temporanea/protettiva (Crust, DEC-008) resta intatta: il Crust è protezione, non valuta, e non paga mai un prezzo di salute
 
 ### Scenario 9 — Stanza a tempo raggiunta in tempo
 

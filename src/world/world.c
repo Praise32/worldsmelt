@@ -8,6 +8,7 @@
 #include "gameplay/item_pool.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
+#include "world/pourhouse.h"
 #include "world/room_camera.h"
 
 #include <math.h>
@@ -39,6 +40,11 @@ const char *GameRoomKindName(RoomKind kind)
            (special-rooms.md) e' un archetipo suo, non una stanza di
            combattimento con piu' nemici. */
         case ROOM_ARENA: return "arena";
+        /* WP7: il nome IN-GAME dell'archetipo, fissato da DEC-136
+           (governance/glossary.md) -- «Pourhouse», Casa della Colata. A
+           differenza di fusione/a tempo/arena qui il nome canonico e' gia'
+           quello, non un termine di lavoro italiano da tradurre. */
+        case ROOM_POURHOUSE: return "pourhouse";
         default: return "vuota";
     }
 }
@@ -133,6 +139,13 @@ void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
            maggiore (rewards-and-economy.md, "Pattern rischio/ricompensa
            dell'arena di sfida"). */
         case ROOM_ARENA:    amount = WORLD_ROOM_CURRENCY_ARENA;    break;
+        /* WP7: la Pourhouse non ha una condizione di "ripulita" -- accettare o
+           rifiutare una puntata e' uno SCAMBIO, non un completamento, e il
+           documento non le assegna alcuna ricompensa di stanza (il guadagno e'
+           l'offerta stessa, gia' pagata col prezzo). Stessa scelta esplicita
+           della stanza di fusione sopra: cade qui e non nel default, cosi' si
+           legge che e' una decisione e non una dimenticanza. */
+        case ROOM_POURHOUSE: return;
         default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
     }
     game->player.coins += amount;
@@ -827,8 +840,9 @@ static bool WorldPlaceArenaRoom(Game *game, const int *orderX, const int *orderY
 }
 
 /* DEC-182: le stanze speciali 1x1 (tesoro, negozio, la stanza di fusione dal
-   WP4 e la stanza a tempo dal WP5, quattro chiamanti -- l'arena di sfida del
-   WP6 NON passa di qui, ha un piazzamento suo, vedi WorldPlaceArenaRoom sopra)
+   WP4, la stanza a tempo dal WP5 e la Pourhouse dal WP7, CINQUE chiamanti --
+   l'arena di sfida del WP6 NON passa di qui, ha un piazzamento suo, vedi
+   WorldPlaceArenaRoom sopra)
    si piazzano DOPO il boss (sotto), quindi NON devono mai attaccarsi alla
    stanza boss -- le farebbero guadagnare una seconda porta, rompendo la
    foglia. WP6 estende la stessa regola all'arena, che per lo stesso motivo
@@ -856,10 +870,12 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
         }
         if (!touchesAny) continue;
         if (WorldShapeTouchesLeafRoom(game, x, y, ROOM_CELL_BIT(0, 0))) continue;
-        /* Le stanze speciali di questo cammino (tesoro, negozio, fusione e
-           stanza a tempo) restano 1x1 (default proposto): una funzione sola,
-           tutta visibile appena si entra -- e' proprio il caso in cui la
-           telecamera fissa di DEC-170 e' un pregio. */
+        /* Le stanze speciali di questo cammino (tesoro, negozio, fusione,
+           stanza a tempo e Pourhouse) restano 1x1 (default proposto): una
+           funzione sola, tutta visibile appena si entra -- e' proprio il caso
+           in cui la telecamera fissa di DEC-170 e' un pregio. Vale anche per
+           la Pourhouse (WP7): leggere una puntata e decidere non ha bisogno di
+           spazio, ha bisogno che il banco sia sotto gli occhi. */
         RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
         state->cleared = true;
         return;
@@ -993,6 +1009,14 @@ static void WorldGenerateFloorMap(Game *game)
        e stesso schema di azzeramento esplicito, separato dal memset di
        game->rooms. */
     memset(game->destroyedObstacleMask, 0, sizeof(game->destroyedObstacleMask));
+    /* WP7: la puntata della Pourhouse e' un fatto del PIANO (porta con se' le
+       coordinate della stanza che l'ha composta), quindi si azzera qui come
+       droppedGrafts/destroyedObstacleMask sopra e per lo stesso motivo --
+       ereditarla nel piano nuovo significherebbe trovare al banco la puntata
+       di un'altra stanza. Game.pourhouseLastSignature invece NON si tocca: e'
+       un fatto della RUN, ed e' proprio cio' che fa proporre puntate diverse a
+       due Pourhouse successive (special-rooms.md, Scenario 8). */
+    memset(&game->pourhouse, 0, sizeof(game->pourhouse));
     int sx = GRID_SIZE/2;
     int sy = GRID_SIZE/2;
     game->roomX = sx;
@@ -1137,6 +1161,26 @@ static void WorldGenerateFloorMap(Game *game)
        fa parte della decisione stessa (DEC-051, "esclusiva dei piani
        avanzati"). */
     if (game->floor >= WORLD_TIMED_ROOM_MIN_FLOOR) WorldPlaceSpecialRoom(game, ROOM_TIMED);
+    /* WP7 (systems/special-rooms.md, "Scambio ad alto rischio", DEC-136): la
+       QUINTA chiamante di WorldPlaceSpecialRoom -- stesso algoritmo delle
+       altre quattro (1x1, mai adiacente a boss/arena, deterministica dal seed
+       del piano). L'unica differenza, ed e' la ragione per cui il tentativo e'
+       dentro un 'if' invece che incondizionato come tesoro/negozio/fusione:
+       la Pourhouse e' un archetipo RARO, non un servizio di piano. DEFAULT
+       PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019, il documento non fissa la
+       frequenza di questo archetipo): dai piani
+       >= WORLD_POURHOUSE_ROOM_MIN_FLOOR e solo se l'estrazione del piano la
+       concede (WORLD_POURHOUSE_ROOM_CHANCE_PERCENT).
+       Tiratura vera di game->rng e non un hash del seed come il banco del
+       negozio: WorldGenerateFloorMap gira UNA volta sola per piano (uscire e
+       rientrare da una stanza non la richiama), quindi non esiste il modo di
+       ri-tirarla che quella tecnica serve a chiudere. Ultima delle cinque,
+       DOPO ogni altro piazzamento, cosi' la tiratura non sposta il flusso di
+       nessuno di essi: i numeri misurati di fusione/stanza a tempo/arena
+       restano quelli del WP6. */
+    if (game->floor >= WORLD_POURHOUSE_ROOM_MIN_FLOOR &&
+        GameRngRange(&game->rng, 0, 99) < WORLD_POURHOUSE_ROOM_CHANCE_PERCENT)
+        WorldPlaceSpecialRoom(game, ROOM_POURHOUSE);
     WorldLinkRooms(game);
     /* WP5: la taglia VERA del piano appena generato, in celle -- il totale
        finale (partenza + combattimento + boss + speciali 1x1), non il
@@ -1720,6 +1764,17 @@ void WorldSpawnRoomContents(Game *game)
         {
             GameSetMessage(game, "Arena: tocca il segnale e premi X per accettare la sfida.");
         }
+    }
+    else if (room->kind == ROOM_POURHOUSE)
+    {
+        /* WP7: tutto il contenuto di questa stanza e' LA PUNTATA, che vive in
+           src/world/pourhouse.c -- composizione, banco e messaggio d'ingresso
+           insieme, perche' sono tre facce dello stesso stato. Come il crogiolo
+           e la clessidra, il banco e' arredo fisso: ri-materializzato ad OGNI
+           ingresso perche' EntitiesClear (inizio funzione) ha appena svuotato i
+           pickup. Nessun 'firstVisit' qui: la puntata sa da sola se e' gia'
+           composta per QUESTA stanza. */
+        WorldPourhousePrepareRoom(game);
     }
     else
     {

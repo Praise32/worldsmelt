@@ -127,6 +127,31 @@ void WorldUpdateCamera(Game *game, float dt);
 #define WORLD_ARENA_BUDGET_MULTIPLIER 1.5f
 #define WORLD_ARENA_FLUX_DROP_PERCENT 50
 
+/* WP7 (systems/special-rooms.md, "Scambio ad alto rischio" -- Pourhouse,
+   DEC-136). Pubbliche per lo stesso motivo delle precedenti: il test dedicato
+   (src/tests/game_tests.c, RoomsTestPourhouseInteraction e il controllo (r) di
+   GameRoomsTest) verifica "mai prima di questo piano" e "non ad ogni piano", e
+   deve confrontarsi con la fonte vera invece che con numeri duplicati a mano.
+   Entrambi sono DEFAULT PROPOSTI DALL'IMPLEMENTAZIONE (stile DEC-019): il
+   documento fissa l'archetipo e le categorie della puntata, non la frequenza.
+   - MIN_FLOOR 2: come l'arena, il piano 1 resta il primo contatto col mondo
+     generato -- e una puntata proposta prima che il giocatore possieda
+     qualcosa avrebbe quasi sempre come unica risposta "la colata e' fredda".
+   - CHANCE_PERCENT 70: la Pourhouse e' un archetipo RARO, non un servizio di
+     piano come tesoro/negozio -- il tentativo si fa solo quando l'estrazione
+     del piano lo concede. La tiratura e' dell'RNG del piano, quindi
+     deterministica dal seed di run. Il 70 e' la probabilita' del TENTATIVO,
+     non del risultato: piazzandosi per ULTIMA su una griglia 5x5 gia' occupata
+     da boss, arena e quattro speciali 1x1, la stanza trova posto in circa il
+     44% dei casi anche quando il tentativo si fa sempre (misurato con
+     l'estrazione forzata al 100%). Il risultato composto, misurato su 120
+     piani generati (`--rooms-test`; solo i piani 2-5, 96 candidati): piazzata
+     in 27 casi su 96, cioe' circa un piano candidato su quattro, ~73% delle
+     run ne incontra almeno una. Numeri in questo ordine di grandezza sono
+     l'intento: non ogni piano, ma nemmeno una rarita' che quasi nessuno vede. */
+#define WORLD_POURHOUSE_ROOM_MIN_FLOOR 2
+#define WORLD_POURHOUSE_ROOM_CHANCE_PERCENT 70
+
 /* WP6: la conferma esplicita della sfida (Game.interactQueued, consumato da
    CombatUpdatePlayer). Vero SOLO se ha davvero fatto partire la sfida: stanza
    ROOM_ARENA, sfida non gia' accettata ne' superata, e giocatore a contatto

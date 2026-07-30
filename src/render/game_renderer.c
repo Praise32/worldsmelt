@@ -12,6 +12,10 @@
 #include "render/art_draw.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
+/* WP7: i due testi della puntata della Pourhouse (offerta e prezzo per esteso,
+   DEC-058). Il renderer non li compone: li chiede al modulo che possiede la
+   puntata, cosi' non esistono due formulazioni della stessa cosa. */
+#include "world/pourhouse.h"
 
 #include "rlgl.h"
 #include "raygui.h"   /* solo dichiarazioni: l'implementazione e' in src/render/raygui_impl.c */
@@ -218,6 +222,14 @@ static Color RoomMapColor(RoomKind kind)
            mai dal solo colore -- il segnale porta sempre un'etichetta testuale
            (DrawPickup, PICKUP_ARENA_ALTAR). */
         case ROOM_ARENA: return (Color){ 84, 132, 246, 255 };
+        /* WP7: magenta caldo -- la sola tinta rosa della tavola, distinta dal
+           violetto della fusione (che vira al blu) e dal rosso del boss.
+           Stesso limite DEC-058 pre-ingresso delle note sopra
+           (known-issues.md, voce 12): l'icona "P" di DrawRoomIcon compare solo
+           a stanza gia' visitata. DENTRO la stanza, invece, la puntata non
+           dipende mai dal colore: il banco la scrive PER ESTESO, offerta e
+           prezzo su due righe (DrawPickup, PICKUP_POURHOUSE_BANK). */
+        case ROOM_POURHOUSE: return (Color){ 232, 96, 160, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -1066,6 +1078,14 @@ static void DrawPickup(Game *game, const Pickup *p)
         propKey = "props/piedistallo";
         label = (p->value >= 2) ? "SUPERATA" : ((p->value == 1) ? "IN CORSO" : "SFIDA");
     }
+    /* WP7: il banco della Pourhouse. Come i due segnali sopra l'etichetta si
+       scrive SEMPRE; le due righe con offerta e prezzo PER ESTESO si
+       aggiungono in fondo alla funzione, dove c'e' spazio sotto lo sprite. */
+    else if (p->kind == PICKUP_POURHOUSE_BANK)
+    {
+        propKey = "props/piedistallo";
+        label = (p->value >= 2) ? "VERSATA" : ((p->value == 1) ? "PUNTATA" : "FREDDA");
+    }
     if (propKey)
     {
         const ArtSheet *prop = ArtAtlasGet(propKey);
@@ -1099,6 +1119,15 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_ARENA_ALTAR)
         {
             animName = (p->value >= 2) ? "vuoto" : "pieno";
+        }
+        /* WP7: nessun prop dedicato al banco della Pourhouse -- si riusa il
+           piedistallo generico come l'arena, con "pieno" finche' c'e' una
+           puntata aperta e "vuoto" quando e' gia' versata o quando la colata
+           e' fredda. Se manca anche quello si scende alla forma geometrica
+           sotto, il degrado standard. */
+        else if (p->kind == PICKUP_POURHOUSE_BANK)
+        {
+            animName = (p->value == 1) ? "pieno" : "vuoto";
         }
         if (prop)
         {
@@ -1136,6 +1165,7 @@ static void DrawPickup(Game *game, const Pickup *p)
            d'atlas generica, stessa ragione del crogiolo sopra. */
         else if (p->kind == PICKUP_TIMED_MARKER) cell = -1;
         else if (p->kind == PICKUP_ARENA_ALTAR) cell = -1;   /* WP6: idem -- prop/forma dedicata, mai una cella d'atlas generica (e l'etichetta di stato non va sovrascritta da p->item.name) */
+        else if (p->kind == PICKUP_POURHOUSE_BANK) cell = -1;   /* WP7: idem per il banco della Pourhouse */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1239,6 +1269,21 @@ static void DrawPickup(Game *game, const Pickup *p)
             DrawLineEx((Vector2){ pos.x - 10, pos.y + 6 }, (Vector2){ pos.x + 10, pos.y - 14 }, 4.0f, c);
             DrawLineEx((Vector2){ pos.x + 10, pos.y + 6 }, (Vector2){ pos.x - 10, pos.y - 14 }, 4.0f, c);
         }
+        else if (p->kind == PICKUP_POURHOUSE_BANK)
+        {
+            /* WP7: un crogiolo rovesciato che cola -- il banco della «Casa
+               della Colata» (DEC-136). Silhouette non ancora usata da nessuna
+               altra raccolta (cerchio, rombo, esagono, fiamma, clessidra e
+               lame incrociate sono gia' prese). Il colore segue lo stato del
+               banco, ma non e' MAI l'unico canale: l'etichetta e le due righe
+               della puntata sono sempre scritte. */
+            c = (p->value >= 2) ? (Color){ 140, 140, 148, 255 }
+                                : ((p->value == 1) ? (Color){ 245, 128, 186, 255 } : (Color){ 132, 122, 130, 255 });
+            DrawRectangle((int)pos.x - 15, (int)pos.y + 4, 30, 9, DARKGRAY);
+            Vector2 lipL = { pos.x - 13, pos.y - 13 }, lipR = { pos.x + 13, pos.y - 13 }, spout = { pos.x + 2, pos.y + 3 };
+            DrawTriangle(lipL, spout, lipR, c);
+            DrawLineEx((Vector2){ pos.x + 2, pos.y + 3 }, (Vector2){ pos.x + 2, pos.y + 12 }, 3.0f, c);
+        }
         else
         {
             DrawItemShape(pos, p->item, 14.0f);
@@ -1254,6 +1299,35 @@ static void DrawPickup(Game *game, const Pickup *p)
     if (p->kind != PICKUP_ITEM && p->kind != PICKUP_EXIT) UiText(label, (int)pos.x - 6, (int)pos.y - 8, 14, BLACK);
     if (p->cost > 0) UiText(TextFormat("%dc", p->cost), (int)pos.x - 11, (int)pos.y + 24, 14, GOLD);
     else if (p->kind == PICKUP_ITEM) UiText(label, (int)pos.x - 55, (int)pos.y + 24, 12, RAYWHITE);
+    /* WP7 (systems/special-rooms.md + DEC-058): LA PUNTATA SCRITTA PER ESTESO.
+       Offerta e prezzo devono essere leggibili PRIMA di accettare -- e' l'unica
+       stanza in cui una decisione irreversibile dipende da un contenuto
+       composto al momento, quindi il testo non e' decorazione, e' il contratto.
+       Si legge da Game.pourhouse e non da campi del Pickup apposta: dentro un
+       Pickup andrebbe troncato, e un contratto troncato non e' un contratto.
+       Sotto lo sprite, dove non copre il banco ne' il giocatore. */
+    if (p->kind == PICKUP_POURHOUSE_BANK)
+    {
+        char offerText[96], priceText[96];
+        WorldPourhouseOfferText(&game->pourhouse, offerText, (int)sizeof(offerText));
+        WorldPourhousePriceText(&game->pourhouse, priceText, (int)sizeof(priceText));
+        if (game->pourhouse.valid && !game->pourhouse.accepted)
+        {
+            UiText(TextFormat("DAI: %s", priceText), (int)pos.x - 120, (int)pos.y + 26, 14, (Color){ 255, 176, 176, 255 });
+            UiText(TextFormat("PRENDI: %s", offerText), (int)pos.x - 120, (int)pos.y + 42, 14, (Color){ 176, 255, 208, 255 });
+            UiText("X per accettare, esci per rifiutare", (int)pos.x - 120, (int)pos.y + 58, 12, RAYWHITE);
+        }
+        else if (game->pourhouse.accepted)
+        {
+            UiText(TextFormat("VERSATO: %s", priceText), (int)pos.x - 120, (int)pos.y + 26, 14, (Color){ 190, 190, 198, 255 });
+            UiText(TextFormat("RICEVUTO: %s", offerText), (int)pos.x - 120, (int)pos.y + 42, 14, (Color){ 190, 190, 198, 255 });
+        }
+        else
+        {
+            UiText("La colata e' fredda: non hai nulla da versare.", (int)pos.x - 120, (int)pos.y + 26, 14, (Color){ 200, 190, 190, 255 });
+            UiText("Nessun prezzo, nessuna penalita': esci quando vuoi.", (int)pos.x - 120, (int)pos.y + 42, 12, RAYWHITE);
+        }
+    }
 }
 
 /* Lo stickman minimale e FISSO: il personaggio base, mai generato (vision
@@ -2031,6 +2105,7 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_FUSION) g = "F";   /* WP4: distingue la stanza senza colore, DEC-058 */
     else if (kind == ROOM_TIMED) g = "!";    /* WP5: idem, stanza a tempo (DEC-051) */
     else if (kind == ROOM_ARENA) g = "A";    /* WP6: idem, arena di sfida (special-rooms.md) */
+    else if (kind == ROOM_POURHOUSE) g = "P";   /* WP7: idem, Pourhouse (DEC-136) */
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
     int w = UiTextW(g, fontSize);

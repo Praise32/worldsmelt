@@ -22,6 +22,7 @@
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
 #include "world/floor_zero.h"
+#include "world/pourhouse.h"
 #include "world/room_camera.h"
 
 #include <math.h>
@@ -3525,6 +3526,710 @@ static bool RoomsTestArenaInteraction(void)
     return false;
 }
 
+/* ============================================================
+   WP7 -- la Pourhouse (systems/special-rooms.md, "Scambio ad alto rischio",
+   DEC-136/DEC-044). Verifica il contratto dell'archetipo:
+     - la puntata si compone in modo DETERMINISTICO dal seed (stesso seed e
+       stesso stato -> stessa puntata; semi diversi -> puntate diverse; due
+       Pourhouse nella stessa run -> puntate diverse, Scenario 8);
+     - il prezzo non chiede MAI risorse che il giocatore non ha, su piu' stati
+       del giocatore, e non porta MAI il tetto di salute sotto un cuore;
+     - senza nulla di cedibile la stanza offre l'uscita libera (Scenario 3);
+     - l'accettazione e' ATOMICA: prezzo pagato E offerta ricevuta, mai una
+       sola delle due, nemmeno quando l'inventario e' pieno o la risorsa e'
+       sparita nel frattempo;
+     - rifiutare (uscire senza confermare) non costa nulla e non consuma la
+       puntata;
+     - il Crust non paga mai un prezzo di salute (DEC-008).
+   ============================================================ */
+
+/* Contenuto minimo del piano per la Pourhouse: tre oggetti di rarita' diverse
+   (l'offerta pesca il migliore) con nomi veri, altrimenti un Game azzerato
+   offrirebbe un oggetto senza nome e senza valore. */
+static void RoomsTestInstallPourhouseContent(Game *g, int floor)
+{
+    FloorContent *fc = &g->content.floors[floor - 1];
+    fc->items[0].rarity = RARITY_COMMON;
+    fc->items[1].rarity = RARITY_RARE;
+    fc->items[2].rarity = RARITY_UNCOMMON;
+    snprintf(fc->items[0].name, sizeof(fc->items[0].name), "%s", "Scoria Comune");
+    snprintf(fc->items[1].name, sizeof(fc->items[1].name), "%s", "Lingua di Fiamma");
+    snprintf(fc->items[2].name, sizeof(fc->items[2].name), "%s", "Tenaglia Fredda");
+}
+
+/* Un giocatore "ricco": ha qualcosa di ognuna delle cinque categorie di
+   prezzo, cosi' il compositore ha davvero da scegliere. Costruito a mano e non
+   via GameResetRun perche' questi test girano su un Game locale senza asset. */
+static void RoomsTestMakeRichPlayer(Game *g)
+{
+    Player *p = &g->player;
+    p->radius = 14.0f;
+    p->baseMaxHp = 12;
+    p->maxHp = 12;
+    p->hp = 12;
+    p->hpCap = 16;
+    p->coins = 90;
+    p->flux = 3;
+    p->bombs = 1;
+    p->keys = 1;
+    p->tempHp = 0;
+    p->itemCount = 2;
+    memset(p->items, 0, sizeof(p->items));
+    snprintf(p->items[0].name, sizeof(p->items[0].name), "%s", "Anello di Scoria");
+    p->items[0].rarity = RARITY_COMMON;
+    snprintf(p->items[1].name, sizeof(p->items[1].name), "%s", "Molla Temprata");
+    p->items[1].rarity = RARITY_UNCOMMON;
+}
+
+/* Il budget di equita' dichiarato in src/world/pourhouse.h, ricalcolato qui
+   dalle stesse costanti: se qualcuno allargasse la tolleranza nel codice senza
+   passare dalle costanti, questo controllo lo vedrebbe. */
+static bool RoomsTestPourhouseEquityOk(const PourhouseWager *w)
+{
+    int tolerance = w->offerValue*POURHOUSE_EQUITY_TOLERANCE_PERCENT/100;
+    if (tolerance < POURHOUSE_EQUITY_TOLERANCE_MIN) tolerance = POURHOUSE_EQUITY_TOLERANCE_MIN;
+    int diff = w->offerValue - w->priceValue;
+    if (diff < 0) diff = -diff;
+    return diff <= tolerance;
+}
+
+/* Il controllo che conta di piu' del work package: il prezzo non puo' MAI
+   chiedere piu' di quello che il giocatore possiede, e il tetto di salute non
+   puo' MAI scendere sotto un cuore. Scritto in modo indipendente da
+   WorldPourhousePricePayable (che il codice usa) proprio perche' un difetto
+   dentro quella funzione non deve poter passare inosservato qui. */
+static bool RoomsTestPourhousePriceWithinMeans(const Game *g, const PourhouseWager *w, const char *ctx)
+{
+    const Player *p = &g->player;
+    switch (w->priceKind)
+    {
+        case POURHOUSE_PRICE_COINS:
+            if (w->priceAmount > p->coins)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) %s: prezzo di %d Ingots con %d posseduti\n", ctx, w->priceAmount, p->coins);
+                return false;
+            }
+            return true;
+        case POURHOUSE_PRICE_HP:
+            if (w->priceAmount >= p->hp)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) %s: prezzo di %d salute con %d punti vita (mai letale)\n",
+                        ctx, w->priceAmount, p->hp);
+                return false;
+            }
+            return true;
+        case POURHOUSE_PRICE_MAX_HP:
+            if (p->baseMaxHp - w->priceAmount < POURHOUSE_MIN_BASE_MAX_HP)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) %s: prezzo di %d di tetto con tetto %d (mai sotto %d, un cuore)\n",
+                        ctx, w->priceAmount, p->baseMaxHp, POURHOUSE_MIN_BASE_MAX_HP);
+                return false;
+            }
+            return true;
+        case POURHOUSE_PRICE_FLUX:
+            if (w->priceAmount > p->flux)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) %s: prezzo di %d Flux con %d posseduti\n", ctx, w->priceAmount, p->flux);
+                return false;
+            }
+            return true;
+        case POURHOUSE_PRICE_ITEM:
+        {
+            for (int i = 0; i < p->itemCount && i < MAX_ITEMS; i++)
+                if (strcmp(p->items[i].name, w->priceItemName) == 0) return true;
+            fprintf(stderr, "GameRoomsTest: (r) %s: prezzo l'oggetto '%s', che il giocatore non possiede\n",
+                    ctx, w->priceItemName);
+            return false;
+        }
+        case POURHOUSE_PRICE_COUNT: break;
+    }
+    fprintf(stderr, "GameRoomsTest: (r) %s: categoria di prezzo sconosciuta (%d)\n", ctx, (int)w->priceKind);
+    return false;
+}
+
+/* Cerca fra i semi/piani una Pourhouse davvero piazzata, la rende la stanza
+   corrente su 'out' e scrive le sue coordinate. Falso se nessuno dei semi ne
+   produce una (sarebbe gia' di per se' un difetto: lo segnala il chiamante). */
+static bool RoomsTestFindPourhouse(unsigned int seed, int floor, Game *out, int *px, int *py)
+{
+    RoomsTestGenerateFloor(seed, floor, out);
+    for (int y = 0; y < GRID_SIZE; y++)
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            if (!out->rooms[y][x].exists) continue;
+            const RoomState *state = WorldRoomAt(out, x, y);
+            if (state != &out->rooms[y][x] || state->kind != ROOM_POURHOUSE) continue;
+            *px = x; *py = y;
+            return true;
+        }
+    return false;
+}
+
+/* Costruisce a mano una puntata di una categoria voluta e la installa nella
+   stanza corrente, saltando il compositore: i controlli sull'ATOMICITA' e sul
+   tetto devono poter esercitare una categoria PRECISA, non quella che il seed
+   ha scelto quel giorno. */
+static void RoomsTestForceWager(Game *g, PourhouseOfferKind offerKind, int offerAmount,
+                                PourhousePriceKind priceKind, int priceAmount)
+{
+    PourhouseWager *w = &g->pourhouse;
+    memset(w, 0, sizeof(*w));
+    w->composed = true;
+    w->valid = true;
+    w->accepted = false;
+    w->roomX = g->roomX;
+    w->roomY = g->roomY;
+    w->offerKind = offerKind;
+    w->offerAmount = offerAmount;
+    w->offerKeys = (offerKind == POURHOUSE_OFFER_SUPPLIES) ? offerAmount : 0;
+    w->offerValue = 24;
+    w->priceKind = priceKind;
+    w->priceAmount = priceAmount;
+    w->priceValue = 24;
+    if (offerKind == POURHOUSE_OFFER_ITEM)
+    {
+        snprintf(w->offerItem.name, sizeof(w->offerItem.name), "%s", "Colata Vetrificata");
+        w->offerItem.rarity = RARITY_RARE;
+        w->offerAmount = 1;
+    }
+    if (priceKind == POURHOUSE_PRICE_ITEM)
+    {
+        snprintf(w->priceItemName, sizeof(w->priceItemName), "%s", g->player.items[0].name);
+        w->priceItemRarity = g->player.items[0].rarity;
+        w->priceAmount = 1;
+    }
+}
+
+static bool RoomsTestPourhouseInteraction(void)
+{
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u,
+        20260727u, 424242u, 90210u, 5150u, 137u, 2718u, 31415u, 65537u
+    };
+    const int kSeedCount = (int)(sizeof(kSeeds)/sizeof(kSeeds[0]));
+
+    /* ---------- A. composizione deterministica e varia ---------- */
+    unsigned int seenSignatures[64];
+    int seenSignatureCount = 0;
+    int composedValid = 0;
+    for (int si = 0; si < kSeedCount; si++)
+    {
+        for (int floor = WORLD_POURHOUSE_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT; floor++)
+        {
+            Game probe;
+            int px = -1, py = -1;
+            if (!RoomsTestFindPourhouse(kSeeds[si], floor, &probe, &px, &py)) continue;
+            probe.runSeed = kSeeds[si];
+            RoomsTestInstallPourhouseContent(&probe, floor);
+            RoomsTestMakeRichPlayer(&probe);
+            probe.roomX = px; probe.roomY = py;
+
+            PourhouseWager a, b;
+            WorldComposePourhouseWager(&probe, px, py, &a);
+            WorldComposePourhouseWager(&probe, px, py, &b);
+            if (!a.valid)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: un giocatore con Ingots, Flux, salute e due oggetti non trova alcuna puntata\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            composedValid++;
+            if (WorldPourhouseSignature(&a) != WorldPourhouseSignature(&b) ||
+                a.offerKind != b.offerKind || a.priceKind != b.priceKind ||
+                a.offerAmount != b.offerAmount || a.priceAmount != b.priceAmount ||
+                strcmp(a.priceItemName, b.priceItemName) != 0)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: due composizioni con lo stesso seed e lo stesso stato danno puntate diverse\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (!RoomsTestPourhouseEquityOk(&a))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: puntata fuori dal budget di equita' (offerta %d, prezzo %d)\n",
+                        floor, kSeeds[si], a.offerValue, a.priceValue);
+                return false;
+            }
+            if (!RoomsTestPourhousePriceWithinMeans(&probe, &a, "composizione su giocatore ricco")) return false;
+
+            unsigned int sig = WorldPourhouseSignature(&a);
+            bool seen = false;
+            for (int i = 0; i < seenSignatureCount; i++) if (seenSignatures[i] == sig) { seen = true; break; }
+            if (!seen && seenSignatureCount < 64) seenSignatures[seenSignatureCount++] = sig;
+        }
+    }
+    if (composedValid == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (r) nessuna Pourhouse nei semi di prova: verifica non eseguita\n");
+        return false;
+    }
+    /* Semi diversi -> puntate diverse: se il compositore ignorasse il seed
+       tutte le firme coinciderebbero e questo controllo cadrebbe. */
+    if (seenSignatureCount < 3)
+    {
+        fprintf(stderr, "GameRoomsTest: (r) su %d Pourhouse composte esistono solo %d puntate distinte: la composizione non dipende davvero dal seed\n",
+                composedValid, seenSignatureCount);
+        return false;
+    }
+
+    /* ---------- A2. Scenario 8: due Pourhouse nella stessa run ---------- */
+    {
+        Game run;
+        int px = -1, py = -1;
+        int firstFloor = -1;
+        for (int si = 0; si < kSeedCount && firstFloor < 0; si++)
+        {
+            for (int floor = WORLD_POURHOUSE_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT; floor++)
+            {
+                if (!RoomsTestFindPourhouse(kSeeds[si], floor, &run, &px, &py)) continue;
+                run.runSeed = kSeeds[si];
+                RoomsTestInstallPourhouseContent(&run, floor);
+                RoomsTestMakeRichPlayer(&run);
+                run.roomX = px; run.roomY = py;
+                firstFloor = floor;
+                break;
+            }
+        }
+        if (firstFloor < 0)
+        {
+            fprintf(stderr, "GameRoomsTest: (r) Scenario 8 non eseguibile: nessuna Pourhouse trovata\n");
+            return false;
+        }
+        PourhouseWager first;
+        WorldComposePourhouseWager(&run, px, py, &first);
+
+        /* (b) la GARANZIA nuda: stessi identici ingressi (stesso seed, stesso
+           piano, stessa cella, stesso giocatore), cambia SOLO la memoria della
+           run. Senza il filtro sulla firma dell'ultima puntata la composizione
+           tornerebbe identica per costruzione -- e' questo il controllo che
+           esercita davvero il meccanismo, non il caso (c) sotto (dove basta il
+           cambio di piano a far divergere lo stream). */
+        run.pourhouseLastSignature = WorldPourhouseSignature(&first);
+        PourhouseWager guarded;
+        WorldComposePourhouseWager(&run, px, py, &guarded);
+        if (!guarded.valid || WorldPourhouseSignature(&guarded) == WorldPourhouseSignature(&first))
+        {
+            fprintf(stderr, "GameRoomsTest: (r) Scenario 8: con la firma dell'ultima puntata gia' registrata la composizione ripropone la STESSA puntata\n");
+            return false;
+        }
+
+        /* (c) il caso di gioco vero: la seconda Pourhouse della stessa run --
+           stesso giocatore, piano successivo (e' l'unico modo in cui due
+           Pourhouse coesistono, una per piano). Deve proporre una puntata
+           DIVERSA da quella appena composta. */
+        run.pourhouseLastSignature = WorldPourhouseSignature(&first);
+        int nextFloor = (firstFloor < FLOOR_COUNT) ? firstFloor + 1 : firstFloor - 1;
+        run.floor = nextFloor;
+        RoomsTestInstallPourhouseContent(&run, nextFloor);
+        PourhouseWager second;
+        WorldComposePourhouseWager(&run, px, py, &second);
+        if (!second.valid || WorldPourhouseSignature(&second) == WorldPourhouseSignature(&first))
+        {
+            fprintf(stderr, "GameRoomsTest: (r) Scenario 8: le due Pourhouse della stessa run propongono la STESSA puntata\n");
+            return false;
+        }
+    }
+
+    /* ---------- B. il prezzo su piu' stati del giocatore ---------- */
+    {
+        Game probe;
+        int px = -1, py = -1;
+        int foundFloor = -1;
+        for (int si = 0; si < kSeedCount && foundFloor < 0; si++)
+            for (int floor = WORLD_POURHOUSE_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT && foundFloor < 0; floor++)
+                if (RoomsTestFindPourhouse(kSeeds[si], floor, &probe, &px, &py))
+                {
+                    probe.runSeed = kSeeds[si];
+                    RoomsTestInstallPourhouseContent(&probe, floor);
+                    foundFloor = floor;
+                }
+
+        /* Sei stati diversi, ciascuno con una risorsa quasi esaurita: la
+           composizione deve o proporre una puntata pagabile, o dichiararsi
+           fredda -- mai una via di mezzo. */
+        for (int state = 0; state < 6; state++)
+        {
+            Game probeState = probe;
+            RoomsTestMakeRichPlayer(&probeState);
+            probeState.roomX = px; probeState.roomY = py;
+            Player *p = &probeState.player;
+            switch (state)
+            {
+                case 0: break;                                     /* ricco */
+                case 1: p->coins = 0; p->flux = 0; break;          /* senza valute */
+                case 2: p->itemCount = 0; break;                   /* senza oggetti */
+                case 3: p->hp = 1; break;                          /* un solo punto vita */
+                case 4: p->baseMaxHp = POURHOUSE_MIN_BASE_MAX_HP; p->hp = 2; break;   /* tetto gia' al minimo */
+                default:
+                    /* Nulla di nulla: e' il caso limite/Scenario 3. */
+                    p->coins = 0; p->flux = 0; p->itemCount = 0; p->hp = 1;
+                    p->baseMaxHp = POURHOUSE_MIN_BASE_MAX_HP;
+                    break;
+            }
+            PourhouseWager w;
+            WorldComposePourhouseWager(&probeState, px, py, &w);
+            if (!w.valid)
+            {
+                if (state != 5 && state != 1 && state != 2 && state != 3 && state != 4)
+                {
+                    fprintf(stderr, "GameRoomsTest: (r) stato %d: nessuna puntata anche con risorse abbondanti\n", state);
+                    return false;
+                }
+                continue;
+            }
+            char ctx[64];
+            snprintf(ctx, sizeof(ctx), "stato %d", state);
+            if (!RoomsTestPourhousePriceWithinMeans(&probeState, &w, ctx)) return false;
+            if (!RoomsTestPourhouseEquityOk(&w))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) stato %d: puntata fuori dal budget di equita'\n", state);
+                return false;
+            }
+            if (!WorldPourhousePricePayable(&probeState, &w))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) stato %d: puntata dichiarata valida ma non pagabile\n", state);
+                return false;
+            }
+        }
+
+        /* Lo stato 5 e' anche il caso limite dichiarato dal documento: nessuna
+           puntata pagabile -> la stanza dice che la colata e' fredda, non
+           blocca le porte, e il tasto di conferma non fa nulla. */
+        Game broke;
+        RoomsTestGenerateFloor(kSeeds[0], foundFloor, &broke);
+        /* Game azzerato: giocatore senza niente per costruzione. */
+        broke.roomX = px; broke.roomY = py;
+        if (WorldRoomAt(&broke, px, py)->kind == ROOM_POURHOUSE)
+        {
+            broke.player.radius = 14.0f;
+            WorldSpawnRoomContents(&broke);
+            Pickup *bank = RoomsTestFindPickup(&broke, PICKUP_POURHOUSE_BANK);
+            if (!bank || bank->value != 0 || broke.pourhouse.valid)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) senza nulla da cedere il banco non dichiara la colata fredda\n");
+                return false;
+            }
+            if (GameRoomIsLocked(&broke))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la Pourhouse blocca le porte (mai ammesso, Scenario 3)\n");
+                return false;
+            }
+            Player before = broke.player;
+            broke.player.pos = bank->pos;
+            broke.interactQueued = true;
+            if (WorldTryAcceptPourhouseWager(&broke))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) si accetta una puntata che non esiste\n");
+                return false;
+            }
+            if (broke.player.coins != before.coins || broke.player.hp != before.hp ||
+                broke.player.baseMaxHp != before.baseMaxHp || broke.player.itemCount != before.itemCount)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il banco a colata fredda ha comunque cambiato lo stato del giocatore\n");
+                return false;
+            }
+        }
+    }
+
+    /* ---------- C/D/E/F. il ciclo di vita su una Pourhouse vera ---------- */
+    {
+        Game probe;
+        int px = -1, py = -1;
+        int foundFloor = -1;
+        for (int si = 0; si < kSeedCount && foundFloor < 0; si++)
+            for (int floor = WORLD_POURHOUSE_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT && foundFloor < 0; floor++)
+                if (RoomsTestFindPourhouse(kSeeds[si], floor, &probe, &px, &py))
+                {
+                    probe.runSeed = kSeeds[si];
+                    RoomsTestInstallPourhouseContent(&probe, floor);
+                    foundFloor = floor;
+                }
+        if (foundFloor < 0)
+        {
+            fprintf(stderr, "GameRoomsTest: (r) nessuna Pourhouse per il ciclo di vita\n");
+            return false;
+        }
+
+        /* --- C1. accettazione atomica: valuta contro Crust --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_CRUST, 2, POURHOUSE_PRICE_COINS, 24);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) nessun banco nella Pourhouse\n");
+                return false;
+            }
+            /* Toccare il banco non accetta nulla: serve la conferma esplicita. */
+            g.player.pos = bank->pos;
+            CombatUpdatePickups(&g);
+            if (!bank->active || g.pourhouse.accepted)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) toccare il banco accetta la puntata (serve la conferma esplicita)\n");
+                return false;
+            }
+            /* Il tasto premuto LONTANO dal banco non fa nulla. */
+            Vector2 onBank = bank->pos;
+            g.player.pos = (Vector2){ onBank.x + 400.0f, onBank.y + 200.0f };
+            if (WorldTryAcceptPourhouseWager(&g) || g.pourhouse.accepted)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la puntata si accetta anche lontano dal banco\n");
+                return false;
+            }
+            int coinsBefore = g.player.coins, crustBefore = g.player.tempHp;
+            g.player.pos = onBank;
+            if (!WorldTryAcceptPourhouseWager(&g))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la conferma sul banco non accetta la puntata\n");
+                return false;
+            }
+            if (g.player.coins != coinsBefore - 24 || g.player.tempHp != crustBefore + 2)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) accettazione non atomica: Ingots %d -> %d, Crust %d -> %d\n",
+                        coinsBefore, g.player.coins, crustBefore, g.player.tempHp);
+                return false;
+            }
+            if (!g.pourhouse.accepted || bank->value != 2)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la puntata accettata non risulta versata sul banco\n");
+                return false;
+            }
+            /* Una seconda conferma non ripaga e non ricompra: una sola puntata
+               per stanza per run. */
+            int coinsAfter = g.player.coins, crustAfter = g.player.tempHp;
+            if (WorldTryAcceptPourhouseWager(&g) || g.player.coins != coinsAfter || g.player.tempHp != crustAfter)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la stessa puntata si accetta due volte\n");
+                return false;
+            }
+            /* Rientrando: la puntata resta versata, il banco lo dice, niente si ripete. */
+            WorldSpawnRoomContents(&g);
+            Pickup *bankAgain = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bankAgain || bankAgain->value != 2 || g.player.coins != coinsAfter || g.player.tempHp != crustAfter)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) rientrando nella Pourhouse la puntata si ricompone o si ripaga\n");
+                return false;
+            }
+        }
+
+        /* --- C2. fallimento a meta': inventario pieno --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.player.itemCount = MAX_ITEMS;   /* nessuno slot libero */
+            for (int i = 0; i < MAX_ITEMS; i++) snprintf(g.player.items[i].name, sizeof(g.player.items[i].name), "Zavorra %d", i);
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_ITEM, 1, POURHOUSE_PRICE_COINS, 24);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank) return false;
+            g.player.pos = bank->pos;
+            int coinsBefore = g.player.coins;
+            int itemsBefore = g.player.itemCount;
+            if (WorldTryAcceptPourhouseWager(&g))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) si accetta una puntata la cui offerta non entra nell'inventario\n");
+                return false;
+            }
+            if (g.player.coins != coinsBefore || g.player.itemCount != itemsBefore || g.pourhouse.accepted)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) offerta non consegnabile ma prezzo comunque incassato (%d -> %d Ingots)\n",
+                        coinsBefore, g.player.coins);
+                return false;
+            }
+        }
+
+        /* --- C3. la risorsa sparisce fra composizione e conferma --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_COINS, 30, POURHOUSE_PRICE_ITEM, 1);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank) return false;
+            /* Il giocatore sgancia/perde proprio quell'oggetto prima di
+               confermare: la puntata non e' piu' pagabile. */
+            g.player.itemCount = 0;
+            g.player.pos = bank->pos;
+            int coinsBefore = g.player.coins;
+            if (WorldTryAcceptPourhouseWager(&g) || g.player.coins != coinsBefore || g.pourhouse.accepted)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) si accetta una puntata il cui prezzo non e' piu' posseduto\n");
+                return false;
+            }
+        }
+
+        /* --- C4. il prezzo in oggetto toglie DAVVERO quell'oggetto --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_COINS, 30, POURHOUSE_PRICE_ITEM, 1);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank) return false;
+            char sold[48];
+            snprintf(sold, sizeof(sold), "%s", g.pourhouse.priceItemName);
+            int itemsBefore = g.player.itemCount, coinsBefore = g.player.coins;
+            g.player.pos = bank->pos;
+            if (!WorldTryAcceptPourhouseWager(&g))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la puntata a prezzo di oggetto non si accetta\n");
+                return false;
+            }
+            if (g.player.itemCount != itemsBefore - 1 || g.player.coins != coinsBefore + 30)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) prezzo in oggetto: oggetti %d -> %d, Ingots %d -> %d\n",
+                        itemsBefore, g.player.itemCount, coinsBefore, g.player.coins);
+                return false;
+            }
+            for (int i = 0; i < g.player.itemCount; i++)
+                if (strcmp(g.player.items[i].name, sold) == 0)
+                {
+                    fprintf(stderr, "GameRoomsTest: (r) l'oggetto venduto '%s' e' ancora nell'inventario\n", sold);
+                    return false;
+                }
+        }
+
+        /* --- D. rifiuto: uscire senza confermare non costa nulla --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            if (!g.pourhouse.valid)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il giocatore ricco non trova una puntata all'ingresso\n");
+                return false;
+            }
+            unsigned int sigBefore = WorldPourhouseSignature(&g.pourhouse);
+            Player before = g.player;
+            /* Si esce davvero dalla stanza: la Pourhouse non blocca mai. */
+            bool leftRoom = false;
+            for (int d = 0; d < 4 && !leftRoom; d++)
+            {
+                Game exitProbe = g;
+                if (!exitProbe.rooms[py][px].doors[d]) continue;
+                exitProbe.player.keys = 9;
+                Rectangle fromCell = WorldCellRect(&exitProbe, px, py);
+                exitProbe.player.pos = (Vector2){ fromCell.x + fromCell.width*0.5f, fromCell.y + fromCell.height*0.5f };
+                WorldTryEnterRoom(&exitProbe, d);
+                if (WorldRoomAt(&exitProbe, exitProbe.roomX, exitProbe.roomY)->kind != ROOM_POURHOUSE) leftRoom = true;
+            }
+            if (!leftRoom)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) dalla Pourhouse senza accettare non si esce\n");
+                return false;
+            }
+            if (g.player.coins != before.coins || g.player.hp != before.hp ||
+                g.player.baseMaxHp != before.baseMaxHp || g.player.flux != before.flux ||
+                g.player.itemCount != before.itemCount || g.pourhouse.accepted)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) rifiutare la puntata ha comunque avuto un costo\n");
+                return false;
+            }
+            /* Tornando indietro si ritrova LA STESSA puntata, non una nuova:
+               il rifiuto non la consuma (default proposto dall'implementazione). */
+            WorldSpawnRoomContents(&g);
+            if (WorldPourhouseSignature(&g.pourhouse) != sigBefore)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) rientrando dopo un rifiuto la puntata e' cambiata\n");
+                return false;
+            }
+        }
+
+        /* --- E. salute massima: mai sotto un cuore, mai col Crust --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.player.tempHp = PLAYER_TEMP_HP_CAP;   /* Crust pieno: non deve pagare nulla */
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_COINS, 30, POURHOUSE_PRICE_MAX_HP, 2);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank) return false;
+            g.player.pos = bank->pos;
+            int capBefore = g.player.baseMaxHp, crustBefore = g.player.tempHp;
+            if (!WorldTryAcceptPourhouseWager(&g))
+            {
+                fprintf(stderr, "GameRoomsTest: (r) la puntata a prezzo di salute massima non si accetta\n");
+                return false;
+            }
+            if (g.player.baseMaxHp != capBefore - 2)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il tetto non e' sceso: %d -> %d\n", capBefore, g.player.baseMaxHp);
+                return false;
+            }
+            if (g.player.maxHp > g.player.baseMaxHp)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il tetto derivato (maxHp %d) non segue baseMaxHp %d\n",
+                        g.player.maxHp, g.player.baseMaxHp);
+                return false;
+            }
+            if (g.player.tempHp != crustBefore)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) DEC-008: il Crust ha pagato un prezzo di salute (%d -> %d)\n",
+                        crustBefore, g.player.tempHp);
+                return false;
+            }
+            /* Un ricalcolo successivo (raccogliere un oggetto, un frame
+               qualunque) non deve restituire il tetto perduto: il prezzo piu'
+               rischioso della Pourhouse dev'essere davvero permanente. */
+            int capAfter = g.player.maxHp;
+            g.statsDirty = true;
+            ScriptItemsProcessDirty(&g);
+            if (g.player.maxHp != capAfter)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il tetto perduto torna al primo ricalcolo (%d -> %d)\n",
+                        capAfter, g.player.maxHp);
+                return false;
+            }
+            /* Il limite duro: il tetto non scende mai sotto un cuore, per
+               quanto grande sia la richiesta. */
+            CombatReducePlayerMaxHp(&g, 999);
+            if (g.player.baseMaxHp < POURHOUSE_MIN_BASE_MAX_HP || g.player.hp < 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) il tetto e' sceso sotto un cuore (baseMaxHp %d, hp %d)\n",
+                        g.player.baseMaxHp, g.player.hp);
+                return false;
+            }
+        }
+
+        /* --- F. prezzo in salute: solo la salute BASE, mai il Crust --- */
+        {
+            Game g = probe;
+            RoomsTestMakeRichPlayer(&g);
+            g.player.tempHp = 3;
+            g.roomX = px; g.roomY = py;
+            WorldSpawnRoomContents(&g);
+            RoomsTestForceWager(&g, POURHOUSE_OFFER_COINS, 24, POURHOUSE_PRICE_HP, 6);
+            Pickup *bank = RoomsTestFindPickup(&g, PICKUP_POURHOUSE_BANK);
+            if (!bank) return false;
+            g.player.pos = bank->pos;
+            int hpBefore = g.player.hp, crustBefore = g.player.tempHp;
+            if (!WorldTryAcceptPourhouseWager(&g)) return false;
+            if (g.player.hp != hpBefore - 6 || g.player.tempHp != crustBefore)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) prezzo in salute: hp %d -> %d, Crust %d -> %d (DEC-008: il Crust non paga mai)\n",
+                        hpBefore, g.player.hp, crustBefore, g.player.tempHp);
+                return false;
+            }
+            if (g.player.hp < 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) un prezzo in salute ha ucciso il giocatore\n");
+                return false;
+            }
+        }
+    }
+
+    printf("  [rooms-r] Pourhouse (WP7): %d puntate composte, %d distinte fra i semi; prezzo sempre dentro le risorse possedute, budget di equita' rispettato, accettazione atomica, rifiuto gratuito, tetto mai sotto un cuore, Crust mai usato per pagare -> ok\n",
+           composedValid, seenSignatureCount);
+    return true;
+}
+
 /* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
 typedef struct RoomsTestRoom {
     int stateX, stateY;
@@ -3606,6 +4311,12 @@ bool GameRoomsTest(Game *game)
        solo dichiarato nel commento. */
     int arenaSizeSeen[ROOM_SIZE_COUNT];
     for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++) arenaSizeSeen[i] = 0;
+    /* WP7 (r): quante volte la Pourhouse compare, sui soli piani candidati
+       (WORLD_POURHOUSE_ROOM_MIN_FLOOR). A differenza delle altre quattro 1x1
+       qui ci si aspetta un numero SENSIBILMENTE minore dei candidati: non e' un
+       servizio di piano, e' un archetipo raro (WORLD_POURHOUSE_ROOM_CHANCE_PERCENT). */
+    int floorsWithPourhouse = 0;
+    int floorsEligibleForPourhouse = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -3616,6 +4327,7 @@ bool GameRoomsTest(Game *game)
             floorsChecked++;
             if (floor >= WORLD_TIMED_ROOM_MIN_FLOOR) floorsEligibleForTimed++;
             if (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) floorsEligibleForArena++;
+            if (floor >= WORLD_POURHOUSE_ROOM_MIN_FLOOR) floorsEligibleForPourhouse++;
 
             RoomsTestRoom rooms[GRID_SIZE*GRID_SIZE];
             int roomCount = RoomsTestCollectRooms(&probe, rooms, GRID_SIZE*GRID_SIZE);
@@ -3633,6 +4345,9 @@ bool GameRoomsTest(Game *game)
             /* WP6: idem per l'arena di sfida, controllo (q) sotto. */
             int arenaRooms = 0;
             int arenaX = -1, arenaY = -1;
+            /* WP7: idem per la Pourhouse, controllo (r) sotto. */
+            int pourhouseRooms = 0;
+            int pourhouseX = -1, pourhouseY = -1;
 
             /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
                stanza e' una delle cinque classi di DEC-170; (b) niente
@@ -3658,6 +4373,18 @@ bool GameRoomsTest(Game *game)
                 if (rooms[r].kind == ROOM_FUSION) { fusionRooms++; fusionX = rooms[r].stateX; fusionY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_TIMED) { timedRooms++; timedX = rooms[r].stateX; timedY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_ARENA) { arenaRooms++; arenaSizeSeen[size]++; arenaX = rooms[r].stateX; arenaY = rooms[r].stateY; }
+                if (rooms[r].kind == ROOM_POURHOUSE)
+                {
+                    pourhouseRooms++;
+                    pourhouseX = rooms[r].stateX;
+                    pourhouseY = rooms[r].stateY;
+                    if (size != ROOM_SIZE_1X1)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: la Pourhouse non e' 1x1 (classe %d)\n",
+                                floor, kSeeds[si], (int)size);
+                        ok = false;
+                    }
+                }
                 cellCount += bits;
 
                 /* La forma a L e' TRE celle di un blocco 2x2 con un angolo
@@ -3901,6 +4628,46 @@ bool GameRoomsTest(Game *game)
                         }
             }
 
+            /* (r) WP7, Pourhouse: al piu' una per piano, MAI prima del piano
+               WORLD_POURHOUSE_ROOM_MIN_FLOOR e, quando c'e', mai adiacente
+               alla stanza boss -- stesso schema dei controlli (o)/(p) per
+               fusione e stanza a tempo, perche' e' la stessa
+               WorldPlaceSpecialRoom a piazzarla (la sua quinta chiamante). */
+            if (pourhouseRooms > 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: %d Pourhouse (atteso al piu' 1)\n",
+                        floor, kSeeds[si], pourhouseRooms);
+                ok = false;
+            }
+            if (pourhouseRooms > 0 && floor < WORLD_POURHOUSE_ROOM_MIN_FLOOR)
+            {
+                fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: Pourhouse prima del piano minimo %d\n",
+                        floor, kSeeds[si], WORLD_POURHOUSE_ROOM_MIN_FLOOR);
+                ok = false;
+            }
+            if (pourhouseRooms == 1)
+            {
+                floorsWithPourhouse++;
+                const RoomState *phState = &probe.rooms[pourhouseY][pourhouseX];
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(phState->cells & (unsigned char)(1u << i))) continue;
+                    int cx = phState->originX + (i & 1), cy = phState->originY + (i >> 1);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = cx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = cy + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists) continue;
+                        RoomKind nk = WorldRoomAt(&probe, nx, ny)->kind;
+                        if (nk != ROOM_BOSS && nk != ROOM_ARENA) continue;
+                        fprintf(stderr, "GameRoomsTest: (r) piano %d seed %u: la Pourhouse tocca una stanza che deve restare foglia (%s)\n",
+                                floor, kSeeds[si], GameRoomKindName(nk));
+                        ok = false;
+                    }
+                }
+            }
+
             /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
                fino a 4 celle di stanza boss e le celle speciali 1x1 (tesoro,
                negozio, fusione -- WP4 -- e, dal piano 3, anche la stanza a
@@ -3909,9 +4676,13 @@ bool GameRoomsTest(Game *game)
                WORLD_ARENA_ROOM_MIN_FLOOR si aggiunge l'arena di sfida, che NON
                e' 1x1 -- ha un piazzamento suo che prova le taglie grandi per
                prime e non scende mai sotto le due celle, quindi vale fino a
-               4 celle in piu' come la stanza boss. */
+               4 celle in piu' come la stanza boss. WP7: dal piano
+               WORLD_POURHOUSE_ROOM_MIN_FLOOR si aggiunge la QUINTA speciale
+               1x1, la Pourhouse -- una cella sola, e solo quando l'estrazione
+               del piano la concede. */
             int lowerBound = 6 + floor;
             int specialRoomSlots = (floor >= 3) ? 4 : 3;
+            if (floor >= WORLD_POURHOUSE_ROOM_MIN_FLOOR) specialRoomSlots++;
             int arenaCells = (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) ? 4 : 0;
             int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots + arenaCells;
             if (existing < lowerBound || existing > upperBound)
@@ -4255,6 +5026,36 @@ bool GameRoomsTest(Game *game)
         ok = false;
     }
 
+    /* (r) WP7: la Pourhouse deve trovare posto almeno una volta (o il resto
+       del controllo (r) non avrebbe esercitato nulla) ma NON su ogni piano
+       candidato -- "non ogni piano" e' il default proposto dichiarato, e
+       questo controllo fallirebbe se qualcuno rendesse il tentativo
+       incondizionato come tesoro/negozio. */
+    if (floorsWithPourhouse == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (r) la Pourhouse non trova mai posto in %d piani candidati\n", floorsEligibleForPourhouse);
+        ok = false;
+    }
+    /* La soglia e' UN TERZO dei piani candidati, non "meno di tutti": la
+       griglia e' gia' satura quando tocca alla Pourhouse, quindi anche
+       tentando il piazzamento a OGNI piano candidato ne uscirebbe circa il 44%
+       (42 su 96, misurato) -- un controllo del tipo "< 100%" passerebbe lo
+       stesso e non direbbe nulla. Con l'estrazione dichiarata (70%) il valore
+       misurato e' 27 su 96, cioe' 28%: la soglia di 32 sta comodamente in
+       mezzo ai due, e fallisce davvero se qualcuno rende il tentativo
+       incondizionato. Se un giorno l'estrazione salisse per decisione di
+       design, questo numero va aggiornato con lei -- ed e' voluto: e' un
+       default proposto che deve restare visibile. */
+    if (floorsWithPourhouse > floorsEligibleForPourhouse/3)
+    {
+        fprintf(stderr, "GameRoomsTest: (r) la Pourhouse compare in %d piani candidati su %d (soglia %d): dovrebbe essere un archetipo raro, non un servizio di ogni piano\n",
+                floorsWithPourhouse, floorsEligibleForPourhouse, floorsEligibleForPourhouse/3);
+        ok = false;
+    }
+
+    printf("  [rooms-r] Pourhouse (WP7) piazzata in %d piani su %d candidati (piani >= %d, estrazione %d%%): sempre 1x1, mai piu' di una per piano, mai adiacente a boss o arena\n",
+           floorsWithPourhouse, floorsEligibleForPourhouse, WORLD_POURHOUSE_ROOM_MIN_FLOOR, WORLD_POURHOUSE_ROOM_CHANCE_PERCENT);
+
     printf("  [rooms-abcdefijlmno] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
            FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
            sizeSeen[ROOM_SIZE_2X2], sizeSeen[ROOM_SIZE_L], seenCountsN, ok ? "ok" : "FALLITO");
@@ -4274,6 +5075,7 @@ bool GameRoomsTest(Game *game)
     if (!RoomsTestFusionInteraction()) ok = false;
     if (!RoomsTestTimedRoomInteraction()) ok = false;
     if (!RoomsTestArenaInteraction()) ok = false;
+    if (!RoomsTestPourhouseInteraction()) ok = false;
 
     return ok;
 }
