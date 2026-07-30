@@ -11,7 +11,7 @@ last_verified_commit: 1263957
 topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche]
 related: []
 supersedes: []
-source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
+source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/app/app.c, src/app/app_internal.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
 ---
 
 # HUD
@@ -118,6 +118,25 @@ dati diversa, solo una seconda collocazione consultabile senza uscire dal gamepl
 - **Collocazione:** sotto il blocco salute/risorse.
 - **Visibilità:** visibile **di default**, con un **tasto di toggle** (tasto esatto da
   assegnare in implementazione) per nasconderlo a chi preferisce uno schermo più pulito.
+
+> **Nota di implementazione (W9, 2026-07-30):** blocco disegnato, `DrawHudV3Stats`
+> (`src/render/game_renderer.c`), componenti V3 (font 5px, cornice 9-patch `ArtDrawPanel`
+> con ripiego `DrawHudBox`), sotto la riga risorse (priorità 4, mai sopra cuori/risorse/
+> caselle attivo-Innesto). **Nessun calcolo duplicato**: `HudStatRowsFill` è l'UNICA
+> funzione che legge `Player` per le sei righe — sia questo blocco sia il pannello
+> "PERSONAGGIO" di `BuildScreen` la chiamano, mai un `TextFormat` locale proprio.
+> **Tasto di toggle: `C`** (default proposto dall'implementazione, stile DEC-019 — non in
+> conflitto con W/A/S/D/E/Q/F/R/TAB/SPACE, mnemonico per "Character"/statistiche del
+> PERSONAGGIO). Vive su `AppInput.toggleStats`/`AppUi.hudStatsHidden`
+> (`src/app/app_internal.h`, `src/core/game_types.h`): la preferenza sta su `AppUi`, non su
+> `Game`, apposta per sopravvivere a `GameResetRun`/`FloorZeroEnter` (un giocatore che
+> nasconde il blocco non se lo ritrova acceso alla run successiva). Zero-default falso =
+> **visibile**, come il documento chiede. Rispetta DEC-169 (nascosto col resto dell'HUD nel
+> Piano 0 fuori da una prova): il chiamante è `DrawHudCanvas`, chiamata solo quando
+> `HudCombatShouldDraw` lo consente, nessuna seconda regola di visibilità. Domanda aperta
+> registrata per il proprietario sul tasto esatto. Verificato da `--states-test`
+> (cablaggio input→toggle) e screenshot manuale `--hud-stats-screenshot-test`
+> (`logs/worldsmelt-hud-stats-visible-screen.png`/`-hidden-screen.png`).
 
 ## Timer di run sempre visibile (DEC-051)
 

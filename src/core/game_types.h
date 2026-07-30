@@ -1564,6 +1564,19 @@ typedef struct AppUi {
        mostrare l'originale animato quando esiste, il ponte CC0 altrimenti.
        Copiato dal fuso da AppFusionConfirm, insieme a nome e percorso. */
     char fusionResultImageId[40];
+    /* DEC-184 (ui/hud.md, "Blocco statistiche"): preferenza di VISIBILITA'
+       del blocco compatto danno/cadenza/vel.colpo/vel.movimento/raggio/Fortuna
+       nell'HUD di Gameplay, non stato di run -- vive qui apposta, come
+       'catalogWritesEnabled'/'buildItemFocus' sopra, cosi' sopravvive intatta
+       a GameResetRun/FloorZeroEnter (un giocatore che nasconde il blocco non
+       se lo ritrova acceso alla run successiva). Zero-default (falso) =
+       blocco VISIBILE: il documento chiede "visibile di default", quindi il
+       flag e' l'inverso ("nascosto"), non "visibile", per restare nella
+       disciplina zero-default del resto di questo struct (vedi il commento
+       su fusionSourceA/B sopra) senza dover inizializzare nulla a mano nei
+       tanti "AppUi ui = { 0 }" dei test. Tasto di toggle: C (default proposto
+       dall'implementazione, stile DEC-019 -- vedi AppInput.toggleStats). */
+    bool hudStatsHidden;
 } AppUi;
 
 #endif

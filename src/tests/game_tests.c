@@ -313,6 +313,25 @@ bool GameStatesTest(Game *game)
     game->useActiveQueued = false;
     game->dropGraftQueued = false;
 
+    /* DEC-184 (ui/hud.md, "Blocco statistiche"): il toggle C nasconde/mostra
+       il blocco -- vive su AppUi (sopravvive a GameResetRun), zero-default
+       falso = VISIBILE, come il documento chiede ("visibile di default").
+       Nessun effetto sullo stato applicativo (mode) ne' su 'game'. */
+    STATES_CHECK(!ui.hudStatsHidden, "il blocco statistiche non e' visibile di default (hudStatsHidden zero-default atteso falso)");
+    { AppInput in = { 0 }; in.toggleStats = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(ui.hudStatsHidden, "C in Gameplay non ha nascosto il blocco statistiche");
+    STATES_CHECK(mode == APP_GAMEPLAY, "C in Gameplay ha cambiato stato applicativo");
+    { AppInput in = { 0 }; in.toggleStats = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(!ui.hudStatsHidden, "una seconda pressione di C non ha rimostrato il blocco statistiche");
+    /* Fuori da Gameplay il tasto non deve toccare la preferenza: stessa regola
+       di E/G verificata sopra per useActive/dropGraft. */
+    { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Gameplay -> BuildScreen */
+    STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen (pre-condizione del controllo C fuori Gameplay)");
+    { AppInput in = { 0 }; in.toggleStats = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(!ui.hudStatsHidden, "C fuori da Gameplay ha comunque nascosto il blocco statistiche");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_GAMEPLAY, "il ritorno a Gameplay dopo il controllo C e' fallito");
+
     /* Gameplay -> TAB -> BuildScreen -> (back) -> Gameplay */
     { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen");
@@ -984,6 +1003,52 @@ bool GameShotFormsScreenshotTest(Game *game)
     UnloadRenderTexture(canvas);
 
     return textureValid && game->player.shotType.active && game->player.synergies != 0u;
+}
+
+/* DEC-184 (ui/hud.md, "Blocco statistiche"), SOLO manuale
+   (--hud-stats-screenshot-test, mai in make test, stessa tradizione di
+   GameRarityScreenshotTest/GameShotFormsScreenshotTest sopra). Impone sul
+   Player valori non-default e ben distinguibili l'uno dall'altro per le sei
+   statistiche del blocco -- danno, cadenza, vel. colpo, vel. movimento,
+   raggio, Fortuna -- cosi' lo screenshot mostra sei numeri diversi e non un
+   campo azzerato per errore. Due scatti con lo STESSO Player: uno col blocco
+   visibile (default, AppUi.hudStatsHidden falso) e uno col blocco nascosto
+   dopo il toggle C, per verificare a occhio che DEC-184 "tasto di toggle" e
+   "visibile di default" reggano entrambi nello stesso frame di riferimento. */
+bool GameHudStatsScreenshotTest(Game *game)
+{
+    Player *p = &game->player;
+    p->damage = 12.5f;
+    p->fireDelay = 0.35f;
+    p->shotSpeed = 480.0f;
+    p->speed = 220.0f;
+    p->shotRadius = 9.5f;
+    p->luck = 3.5f;
+
+    AppUi ui = { 0 };   /* hudStatsHidden falso: blocco visibile di default (DEC-184) */
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, &ui, true, NULL, "logs/worldsmelt-hud-stats-visible-screen.png");
+    bool textureValid = canvas.texture.id != 0;
+    UnloadRenderTexture(canvas);
+
+    /* Stesso identico Player, stesso identico frame: la SOLA differenza fra i
+       due scatti e' il toggle -- se qualcos'altro cambiasse fra i due file non
+       sarebbe piu' un confronto valido "visibile vs nascosto". */
+    AppMode mode = APP_GAMEPLAY;
+    AppGen gen = { 0 };
+    { AppInput in = { 0 }; in.toggleStats = true; UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (!ui.hudStatsHidden)
+    {
+        fprintf(stderr, "GameHudStatsScreenshotTest: il toggle C non ha nascosto il blocco statistiche\n");
+        return false;
+    }
+
+    RenderTexture2D canvas2 = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    RendererDrawApp(game, canvas2, APP_GAMEPLAY, &ui, true, NULL, "logs/worldsmelt-hud-stats-hidden-screen.png");
+    bool textureValid2 = canvas2.texture.id != 0;
+    UnloadRenderTexture(canvas2);
+
+    return textureValid && textureValid2;
 }
 
 /* M1b/M5/M6a, SOLO manuale (--floor-zero-screenshot-test, mai in make test:

@@ -1646,6 +1646,24 @@ static void DrawStatLine(const char *label, const char *value, int x, int y, Col
     UiText(value, x + UiRound(118.0f*uiScale), y, font, color);
 }
 
+/* DEC-184 (ui/hud.md, "Blocco statistiche"): le SEI righe -- danno, cadenza,
+   velocita' del colpo, velocita' di movimento, raggio, Fortuna -- nell'ORDINE
+   fissato dal documento. UN SOLO punto che legge Player per queste sei righe:
+   sia il pannello "PERSONAGGIO" di BuildScreen (DrawBuildScreenOverlay) sia il
+   blocco compatto dell'HUD V3 (DrawHudV3Stats) chiamano SOLO questa funzione,
+   mai un TextFormat locale proprio -- "stessa fonte dati, non duplicare i
+   calcoli" del requisito, applicato alla lettera: non e' solo lo stesso
+   campo Player, e' la stessa formattazione, in un punto solo. */
+static void HudStatRowsFill(const Player *p, const char *labels[6], char values[6][16])
+{
+    labels[0] = "Danno";        snprintf(values[0], 16, "%.1f", p->damage);
+    labels[1] = "Cadenza";      snprintf(values[1], 16, "%.2fs", p->fireDelay);
+    labels[2] = "Vel. colpo";   snprintf(values[2], 16, "%.0f", p->shotSpeed);
+    labels[3] = "Vel. mov.";    snprintf(values[3], 16, "%.0f", p->speed);
+    labels[4] = "Raggio";       snprintf(values[4], 16, "%.1f", p->shotRadius);
+    labels[5] = "Fortuna";      snprintf(values[5], 16, "%+.1f", p->luck);
+}
+
 /* La vita come CUORI (fase 4, richiesta dell'utente): stile Isaac, un cuore pieno
    ogni due HP piu' un mezzo cuore per l'HP dispari, poi cuori vuoti fino a maxHp.
    Disegnati come due lobi + un triangolo, cosi' non servono sprite. Ritorna la
@@ -2228,6 +2246,15 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
 #define HUD_V3_CARD_H 48
 #define HUD_V3_CARD_Y (SCREEN_HEIGHT - 56)
 #define HUD_V3_HINT_Y (SCREEN_HEIGHT - 50)
+/* DEC-184 (ui/hud.md, "Blocco statistiche"): sotto la riga risorse (RES_Y=34
+   + l'altezza della sua icona/testo), ben sopra le caselle attivo/Innesto in
+   fondo (SLOTS_Y) -- priorita' 4 di ui/hud.md, un gradino sotto sopravvivenza/
+   minacce/risorse, mai a competere visivamente con quelle. */
+#define HUD_V3_STATS_Y 50
+#define HUD_V3_STATS_ROW_H 7
+#define HUD_V3_STATS_PAD 4
+#define HUD_V3_STATS_GAP 4
+#define HUD_V3_STATS_FONT 8
 
 /* La riga dei cuori (priorita' 1 di ui/hud.md). Tre icone dal set consegnato:
    heart pieno, heart_half per il mezzo cuore, heart_empty per lo slot vuoto --
@@ -2287,6 +2314,58 @@ static void DrawHudV3Resources(Game *game, int x, int y)
         cx += HUD_V3_RES_ICON_ADVANCE;
         UiTextOutlined(text, cx, y + 2, 12, RAYWHITE);
         cx += textW + HUD_V3_RES_GROUP_GAP;
+    }
+}
+
+/* DEC-184 (ui/hud.md, "Blocco statistiche"): il blocco compatto di sola
+   lettura sotto salute/risorse -- danno, cadenza, velocita' del colpo,
+   velocita' di movimento, raggio, Fortuna, nell'ordine del documento e con
+   gli STESSI valori del pannello "PERSONAGGIO" di BuildScreen (HudStatRowsFill
+   sopra e' l'unica fonte per entrambi: nessun calcolo qui, solo disegno).
+   Priorita' visiva 4 (sotto sopravvivenza/minacce/risorse, sopra
+   progressione): una cornice 9-patch piccola e un font 5px, mai un riquadro
+   grande quanto quello dei cuori/risorse -- "leggibile ma discreto", non deve
+   competere con un telegraph di minaccia. Il CHIAMANTE (DrawHudCanvas) decide
+   se disegnarla, leggendo AppUi.hudStatsHidden: questa funzione non conosce
+   il toggle, stessa disciplina di HudCombatShouldDraw/DrawHudCanvas per il
+   resto dell'HUD (una sola regola di visibilita' per elemento, in un punto
+   solo). */
+static void DrawHudV3Stats(Game *game, int x, int y)
+{
+    const Player *p = &game->player;
+    const char *labels[6];
+    char values[6][16];
+    HudStatRowsFill(p, labels, values);
+
+    /* Colonna valori allineata alla LARGHEZZA VERA della piu' lunga fra le sei
+       etichette (misurata, non un numero magico fisso): "Vel. colpo"/"Vel.
+       mov." sono piu' larghe di "Danno"/"Raggio", un HUD_V3_STATS_LABEL_W
+       tarato sulle corte le avrebbe fatte scontrare col valore (visto nello
+       screenshot di verifica prima di questa correzione). */
+    int labelW = 0, valueW = 0;
+    for (int i = 0; i < 6; i++)
+    {
+        int lw = UiTextW(labels[i], HUD_V3_STATS_FONT);
+        if (lw > labelW) labelW = lw;
+        int vw = UiTextW(values[i], HUD_V3_STATS_FONT);
+        if (vw > valueW) valueW = vw;
+    }
+    int valueX = x + HUD_V3_STATS_PAD + labelW + HUD_V3_STATS_GAP;
+    Rectangle box = { (float)x, (float)y,
+                      (float)(HUD_V3_STATS_PAD*2 + labelW + HUD_V3_STATS_GAP + valueW),
+                      (float)(HUD_V3_STATS_PAD*2 + 6*HUD_V3_STATS_ROW_H) };
+    DrawRectangleRec(box, (Color){ 13, 15, 21, 190 });
+    if (!ArtDrawPanel(box, WHITE)) DrawHudBox(box, game->theme.accent2, 1.0f, 190);
+
+    for (int i = 0; i < 6; i++)
+    {
+        int ry = y + HUD_V3_STATS_PAD + i*HUD_V3_STATS_ROW_H;
+        /* Fortuna (indice 5) e' l'unica delle sei che il giocatore legge come
+           "buono/cattivo" col segno -- stesso trattamento verde del pannello
+           PERSONAGGIO di BuildScreen, le altre restano testo neutro. */
+        Color valueColor = (i == 5) ? (Color){ 126, 232, 152, 255 } : (Color){ 224, 228, 236, 255 };
+        UiText(labels[i], x + HUD_V3_STATS_PAD, ry, HUD_V3_STATS_FONT, (Color){ 150, 158, 172, 255 });
+        UiText(values[i], valueX, ry, HUD_V3_STATS_FONT, valueColor);
     }
 }
 
@@ -2393,8 +2472,12 @@ static void DrawHudV3Card(Game *game)
 
 /* L'orchestratore dell'HUD V3. Chiamato DENTRO il canvas (vedi RendererDrawApp)
    e solo quando HudCombatShouldDraw lo consente: la regola di visibilita'
-   (DEC-169) resta quella di prima, in un solo punto. */
-static void DrawHudCanvas(Game *game)
+   (DEC-169) resta quella di prima, in un solo punto. 'ui' puo' essere NULL
+   (alcuni test disegnano APP_GAMEPLAY senza costruire un AppUi, vedi i vari
+   RendererDrawApp(..., NULL, ...) in src/tests/game_tests.c): NULL si legge
+   come "nessuna preferenza salvata", quindi blocco statistiche VISIBILE, la
+   stessa scelta zero-default di AppUi.hudStatsHidden. */
+static void DrawHudCanvas(Game *game, const AppUi *ui)
 {
     const Player *p = &game->player;
     const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
@@ -2404,6 +2487,11 @@ static void DrawHudCanvas(Game *game)
                    character ? character->palette : (Color){ 205, 210, 220, 255 });
     DrawHudV3Hearts(p, HUD_V3_MARGIN, HUD_V3_HEARTS_Y);
     DrawHudV3Resources(game, HUD_V3_MARGIN, HUD_V3_RES_Y);
+    /* DEC-184: priorita' visiva 4 (sotto sopravvivenza/minacce/risorse sopra,
+       sopra progressione sotto) -- disegnata PRIMA delle caselle attivo/
+       Innesto nell'ordine di chiamata solo perche' sta piu' in alto sullo
+       schermo, non per priorita': le due caselle restano priorita' 2. */
+    if (!(ui && ui->hudStatsHidden)) DrawHudV3Stats(game, HUD_V3_MARGIN, HUD_V3_STATS_Y);
     DrawHudV3Slots(game, HUD_V3_MARGIN, HUD_V3_SLOTS_Y);
 
     /* Progressione a DESTRA, allineata al bordo: piano/stanza sopra, mondo
@@ -2420,6 +2508,7 @@ static void DrawHudCanvas(Game *game)
 
     DrawHudV3Card(game);
     UiTextOutlined("[TAB] BUILD", 90, HUD_V3_HINT_Y, 12, (Color){ 176, 184, 198, 255 });
+    UiTextOutlined("[C] STATS", 90 + UiTextW("[TAB] BUILD", 12) + 14, HUD_V3_HINT_Y, 12, (Color){ 176, 184, 198, 255 });
 
     /* Diagnostica di fonte grafica (era il cluster LOG in basso a destra): il
        layout V3 non ha un pannello per lei, ma l'informazione serve a chi
@@ -2972,13 +3061,19 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     ry += UiRound(26.0f*uiScale);
     DrawHearts(p, rightX, ry, uiScale);
     ry += UiRound(30.0f*uiScale);
-    DrawStatLine("Danno", TextFormat("%.1f", p->damage), rightX, ry, RAYWHITE, uiScale);
-    DrawStatLine("Cadenza", TextFormat("%.2fs", p->fireDelay), rightX, ry + UiRound(22.0f*uiScale), RAYWHITE, uiScale);
-    DrawStatLine("Vel. colpo", TextFormat("%.0f", p->shotSpeed), rightX, ry + UiRound(44.0f*uiScale), RAYWHITE, uiScale);
-    DrawStatLine("Raggio", TextFormat("%.1f", p->shotRadius), rightX, ry + UiRound(66.0f*uiScale), RAYWHITE, uiScale);
-    DrawStatLine("Fortuna", TextFormat("%+.1f", p->luck), rightX, ry + UiRound(88.0f*uiScale), (Color){ 126, 232, 152, 255 }, uiScale);
-    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rightX, ry + UiRound(110.0f*uiScale), GOLD, uiScale);
-    ry += UiRound(140.0f*uiScale);
+    const char *statLabels[6];
+    char statValues[6][16];
+    HudStatRowsFill(p, statLabels, statValues);
+    for (int i = 0; i < 6; i++)
+    {
+        /* Fortuna (indice 5) resta evidenziata in verde come prima di DEC-184:
+           e' l'unica delle sei che il giocatore legge come "buono/cattivo"
+           col segno, le altre sono grandezze neutre. */
+        Color color = (i == 5) ? (Color){ 126, 232, 152, 255 } : RAYWHITE;
+        DrawStatLine(statLabels[i], statValues[i], rightX, ry + UiRound((float)(22*i)*uiScale), color, uiScale);
+    }
+    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rightX, ry + UiRound(132.0f*uiScale), GOLD, uiScale);
+    ry += UiRound(162.0f*uiScale);
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
     UiText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
@@ -3638,7 +3733,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
        vicenda (ArtUiReady), mai entrambi nello stesso frame. */
     bool hudVisible = HudCombatShouldDraw(mode, game->floorZeroTrialActive);
     bool hudPixelArt = ArtUiReady();
-    if (hudVisible && hudPixelArt) DrawHudCanvas(game);
+    if (hudVisible && hudPixelArt) DrawHudCanvas(game, ui);
     EndTextureMode();
 
     BeginDrawing();

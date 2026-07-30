@@ -60,6 +60,15 @@ typedef struct AppInput {
        merita una conferma che non si possa premere per inerzia scorrendo la
        lista. Domanda aperta registrata per il proprietario. */
     bool fuse;        /* F */
+    /* DEC-184 (ui/hud.md, "Blocco statistiche"): mostra/nasconde il blocco
+       compatto di statistiche correnti nell'HUD di Gameplay. Tasto C -- come
+       E/G/F sopra, e' un default proposto dall'implementazione (stile
+       DEC-019), non fissato da alcun documento di design: scelto perche' era
+       libero (non in conflitto con W/A/S/D/E/Q/F/R/TAB/SPACE) e mnemonico
+       ("Character"/"statistiche del PERSONAGGIO", lo stesso titolo del
+       pannello di BuildScreen che questo blocco rispecchia). Domanda aperta
+       registrata per il proprietario. */
+    bool toggleStats; /* C */
 } AppInput;
 
 /* Contesto della generazione in-game (invariato da prima di M1a, solo spostato

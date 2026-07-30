@@ -111,6 +111,16 @@ bool GameRarityScreenshotTest(Game *game);
    screenshot di test. */
 bool GameShotFormsScreenshotTest(Game *game);
 
+/* DEC-184 (ui/hud.md, "Blocco statistiche"), SOLO manuale
+   (--hud-stats-screenshot-test, mai in make test, come GameRarityScreenshotTest
+   sopra): imposta sul Player valori non-default per le sei statistiche del
+   blocco (danno, cadenza, vel. colpo, vel. movimento, raggio, Fortuna) e
+   scatta l'HUD di Gameplay due volte -- blocco visibile (default) e blocco
+   nascosto dal toggle C (AppUi.hudStatsHidden) -- in
+   logs/worldsmelt-hud-stats-visible-screen.png e
+   logs/worldsmelt-hud-stats-hidden-screen.png. Vedi src/tests/game_tests.c. */
+bool GameHudStatsScreenshotTest(Game *game);
+
 /* DEC-170, SOLO manuale (--room-shapes-screenshot-test, mai in make test):
    cerca fra i seed un piano che contenga ciascuna taglia maggiore, ci entra
    col giocatore in un punto scelto e scatta logs/worldsmelt-room-*.png (2x2 al

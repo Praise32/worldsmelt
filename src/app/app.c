@@ -241,6 +241,7 @@ static AppInput AppInputCollect(void)
     input.useActive = IsKeyPressed(KEY_E);
     input.dropGraft = IsKeyPressed(KEY_G);
     input.fuse = IsKeyPressed(KEY_F);
+    input.toggleStats = IsKeyPressed(KEY_C);
     return input;
 }
 
@@ -1021,6 +1022,10 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                menu E e G non devono fare nulla. */
             if (effective.useActive) game->useActiveQueued = true;
             if (effective.dropGraft) game->dropGraftQueued = true;
+            /* DEC-184: solo un toggle di visibilita' sull'HUD, nessun effetto
+               sulla simulazione -- vive su 'ui' (sopravvive a GameResetRun),
+               mai su 'game'. */
+            if (effective.toggleStats) ui->hudStatsHidden = !ui->hudStatsHidden;
             break;
         }
 
@@ -1195,6 +1200,7 @@ int AppRun(int argc, char **argv)
     bool rarityScreenshotTest = false;
     bool roomShapesScreenshotTest = false;
     bool shotFormsScreenshotTest = false;
+    bool hudStatsScreenshotTest = false;
     bool scriptSandboxTest = false;
     bool scriptDeterminismTest = false;
     bool scriptItemsTest = false;
@@ -1294,6 +1300,16 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             shotFormsScreenshotTest = true;
+        }
+        /* DEC-184 (ui/hud.md, "Blocco statistiche"), SOLO manuale (mai in make
+           test, come --rarity-screenshot-test/--room-shapes-screenshot-test):
+           il blocco compatto sotto salute/risorse con valori non-default,
+           una volta visibile e una volta nascosto dal toggle C. Vedi
+           GameHudStatsScreenshotTest. */
+        if (strcmp(argv[i], "--hud-stats-screenshot-test") == 0)
+        {
+            smokeTest = true;
+            hudStatsScreenshotTest = true;
         }
         if (strcmp(argv[i], "--screenshot-test") == 0)
         {
@@ -1531,7 +1547,7 @@ int AppRun(int argc, char **argv)
        che nella finestra compatta 960x640 finisce in parte sotto il
        riquadro "GAME VIEW" (overlap gia' presente anche in --layer-test:
        vedi logs/melting-run-layers-screen.png). */
-    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !floorZeroScreenshotTest && !catalogScreenshotTest && !roomShapesScreenshotTest;
+    bool compactTestWindow = smokeTest && !screenshotTest && !rarityScreenshotTest && !shotFormsScreenshotTest && !hudStatsScreenshotTest && !floorZeroScreenshotTest && !catalogScreenshotTest && !roomShapesScreenshotTest;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     /* Titolo della finestra WORLDSMELT (DEC-071): il repo conserva il nome
        storico solo in locale (percorsi, binari, cartelle) -- vedi CLAUDE.md. */
@@ -1817,6 +1833,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 13;   /* 13: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
+    if (hudStatsScreenshotTest)
+    {
+        bool ok = GameHudStatsScreenshotTest(&game);
+        printf("HUD stats screenshot test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 37;   /* 37: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --art-atlas-test=36) */
     }
 
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);

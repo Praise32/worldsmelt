@@ -2418,6 +2418,8 @@
         "src/render/game_renderer.h",
         "src/render/art_draw.h",
         "src/assets/art_atlas.h",
+        "src/app/app.c",
+        "src/app/app_internal.h",
         "src/tests/discovery_tests.c",
         "scripts/cp2_hud_mocks.lua"
       ],
