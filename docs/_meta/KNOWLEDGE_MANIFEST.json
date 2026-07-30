@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (27 voci attive su 28 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (28 voci attive su 29 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1659,13 +1659,14 @@
         "DEC-174",
         "DEC-176",
         "DEC-051",
-        "DEC-008"
+        "DEC-008",
+        "DEC-043"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d30890b"
+      "last_verified_commit": "a2de293"
     },
     {
       "id": "gd-system-active-items",
@@ -2049,7 +2050,10 @@
         "DEC-181",
         "DEC-182",
         "porta-unica",
-        "boss-isolato"
+        "boss-isolato",
+        "DEC-043",
+        "WP3",
+        "ostacoli"
       ],
       "related": [],
       "supersedes": [],
@@ -2062,7 +2066,7 @@
         "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "17204df"
+      "last_verified_commit": "a2de293"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2133,13 +2137,24 @@
         "segreti",
         "strumento-di-breccia",
         "telegraph",
-        "budget-difficoltà"
+        "budget-difficoltà",
+        "DEC-043",
+        "WP3",
+        "ostacoli-distruttibili",
+        "pericoli-passivi"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/core/room_layout.h",
+        "src/core/room_layout.c",
+        "src/core/game_types.h",
+        "src/world/world.c",
+        "src/gameplay/combat.c",
+        "src/render/game_renderer.c"
+      ],
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "a2de293"
     },
     {
       "id": "gd-system-special-rooms",
@@ -2949,7 +2964,11 @@
         "catalogo",
         "audio",
         "DEC-008",
-        "Crust"
+        "Crust",
+        "DEC-043",
+        "WP3",
+        "ostacoli",
+        "persistenza"
       ],
       "related": [
         "eng-dependencies",
@@ -2982,7 +3001,7 @@
         "src/world/world.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "8210480"
+      "last_verified_commit": "a2de293"
     },
     {
       "id": "eng-multiplayer-steam-direction",

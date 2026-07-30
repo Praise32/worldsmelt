@@ -75,6 +75,12 @@ static int AddBlock(Obstacle *out, int count, int maxOut, float cx, float cy,
     if (bw < 8.0f || bh < 8.0f) return count;
     if (!BlockInQuadrant(bx, by, bw, bh, cx, cy)) return count;   /* rete di sicurezza: mai sulla croce/centro */
     out[count].x = bx; out[count].y = by; out[count].w = bw; out[count].h = bh;
+    /* WP3: sempre SOLID qui -- questo modulo non sa nulla di piani o
+       degenerazione del tema (vedi il commento su ObstacleFamily in
+       room_layout.h). Esplicito, non affidato allo zero-default del chiamante:
+       'out' e' spesso un buffer riusato fra una stanza e l'altra (Game.obstacles),
+       e senza questa riga la famiglia porterebbe avanti un valore vecchio. */
+    out[count].family = OBSTACLE_SOLID;
     return count + 1;
 }
 

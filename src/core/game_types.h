@@ -153,7 +153,15 @@ typedef enum PickupKind {
        e per lo stesso motivo; nessuna cella d'atlas propria, forma
        geometrica in DrawPickup. Raccoglierlo non da' un oggetto: incrementa
        Player.flux, che non ha alcun cap (DEC-129). */
-    PICKUP_FLUX
+    PICKUP_FLUX,
+    /* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2). In coda
+       all'enum come PICKUP_ENERGY/PICKUP_FLUX sopra e per lo stesso motivo;
+       nessuna cella d'atlas propria (il negozio e' la fonte scelta per la
+       demo, vedi WorldShopStocksCrust in src/world/world.c -- DEFAULT
+       PROPOSTO DALL'IMPLEMENTAZIONE, il documento non fissa una fonte
+       concreta), forma geometrica in DrawPickup. Raccoglierlo somma
+       'value' punti a Player.tempHp, clampati a PLAYER_TEMP_HP_CAP. */
+    PICKUP_CRUST
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -634,12 +642,33 @@ typedef struct DroppedGraftRecord {
     Vector2 pos;
 } DroppedGraftRecord;
 
+/* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2): un secondo
+   strato di punti vita che Player.tempHp sotto rappresenta, consumato PRIMA
+   della salute base (vedi CombatDamagePlayer, src/gameplay/combat.c) e mai
+   ricaricato dalla cura normale (systems/health-and-resources.md, "Ordine di
+   consumo"). Il documento non fissa un tetto numerico per questo strato --
+   a differenza del tetto di salute BASE (DEC-033, per-personaggio, vedi
+   Player.hpCap sotto), qui il design non chiede alcuna variazione per
+   personaggio, quindi un singolo tetto GLOBALE basta: DEFAULT PROPOSTO
+   DALL'IMPLEMENTAZIONE (stile DEC-019, registrato in
+   docs/design/systems/health-and-resources.md e
+   docs/design/governance/open-questions.md), non canone. */
+#define PLAYER_TEMP_HP_CAP 4
+
 typedef struct Player {
     Vector2 pos;
     float radius;
     float speed;
     int hp;
     int maxHp;
+    /* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2): vedi
+       PLAYER_TEMP_HP_CAP sopra e CombatDamagePlayer/CombatPickup
+       (src/gameplay/combat.c) per consumo/guadagno. Zero-default: un Player
+       azzerato non ha Crust, cioe' esattamente "nessuna salute temporanea da
+       consumare", il significato piu' innocuo. NON e' soggetta a hpCap
+       (DEC-033): quel tetto resta solo della salute BASE, vedi il commento
+       su hpCap sotto. */
+    int tempHp;
     int coins;
     int bombs;
     int keys;
@@ -784,8 +813,9 @@ typedef struct Player {
        script_items.c ripiega sul tetto STORICO 12, cosi' nessun test esistente
        cambia esito. Non e' un tetto per-oggetto (quelli restano relativi a
        baseMaxHp, invariati) ne' tocca la salute temporanea/protettiva
-       (Crust, DEC-008), che non e' rappresentata da un campo separato in
-       questa versione del motore e quindi non e' mai soggetta a QUESTO clamp. */
+       (Crust, DEC-008, campo Player.tempHp sopra, WP2): quello strato ha il
+       proprio tetto separato, PLAYER_TEMP_HP_CAP, e non e' mai soggetto a
+       QUESTO clamp. */
     int hpCap;
 } Player;
 
@@ -1111,6 +1141,43 @@ typedef struct Game {
     Obstacle obstacles[MAX_OBSTACLES];
     int obstacleCount;
     int obstacleHoleCount;
+    /* WP3 (secrets-and-obstacles.md, "Ostacoli"): a quale cella ASSOLUTA della
+       griglia di stato e quale indice LOCALE nella lista che RoomLayoutBuild
+       ha prodotto per quella cella appartiene ciascuno slot di
+       Game.obstacles -- SOLO per gli ostacoli che WorldBuildObstacles ha
+       piazzato da un RoomLayoutDef vero. Gli altri (celle-buco di una L,
+       arredo del Piano 0) portano -1/-1/-1: nessuna identita' persistente,
+       CombatExplodeAt li tratta come non-tracciabili (non possono comunque
+       essere DESTRUCTIBLE, vedi sotto). Array PARALLELI a Game.obstacles
+       (stesso indice, stesso ciclo di vita, ricostruiti da zero a ogni
+       ingresso in stanza) invece di campi dentro Obstacle stesso: room_layout.h
+       resta un modulo puro di geometria, condiviso con melting-gen, che non
+       deve sapere nulla della griglia del piano. */
+    int obstacleCellX[MAX_OBSTACLES];
+    int obstacleCellY[MAX_OBSTACLES];
+    int obstacleLocalIndex[MAX_OBSTACLES];
+    /* Un bit per indice LOCALE (0..ROOM_LAYOUT_MAX_PER_CELL-1, ci stanno in un
+       unsigned short) prodotto da RoomLayoutBuild per la cella (x,y) della
+       griglia del piano: bit a 1 = quel distruttibile e' stato fatto saltare
+       con lo strumento di breccia (CombatExplodeAt, breach=true) e resta
+       rimosso per TUTTA la permanenza su QUESTO piano se si rientra nella
+       stessa cella (secrets-and-obstacles.md, "Risultato": la distruzione
+       persiste). La disposizione resta comunque derivata dal seme -- questa
+       maschera non sposta o rigenera nulla, filtra solo cio' che
+       WorldBuildObstacles rimette sullo scaffale a ogni ingresso.
+       INFRASTRUTTURA in vista delle stanze segrete: nel gioco attuale una
+       stanza di combattimento perde comunque TUTTI i suoi ostacoli quando si
+       ripulisce (WorldBuildObstacles, comportamento preesistente a WP3), e
+       la porta resta bloccata finche' non si ripulisce, quindi non esiste
+       ancora una sequenza "esco e rientro in una stanza ancora aperta" in cui
+       osservare questo bit in gioco (docs/engineering/known-issues.md voce
+       11). Indicizzata [y][x], come
+       Game.rooms. Azzerata dal memset ESPLICITO in WorldGenerateFloorMap ad
+       ogni nuovo piano (stesso spirito di Game.droppedGrafts, stesso motivo:
+       le coordinate di cella hanno senso solo dentro il piano che le ha
+       generate) e dal memset che GameResetRun/GameResetRunWithSeed applicano
+       a tutto Game. */
+    unsigned short destroyedObstacleMask[GRID_SIZE][GRID_SIZE];
     /* Contatori di generazione per l'API a handle di Lua (spec, sezione 5):
        incrementati in EntitiesAddEnemy/EntitiesAddShot ogni volta che uno
        slot viene (ri)assegnato. Un handle e' indice+generazione impacchettati

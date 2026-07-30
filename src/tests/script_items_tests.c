@@ -1370,7 +1370,7 @@ static bool TestObstaclesBlockMovementAndShots(void)
 
     /* Un ostacolo FRA il giocatore e il nemico: il nemico, inseguendo, ci sbatte. */
     game.obstacleCount = 1;
-    game.obstacles[0] = (Obstacle){ px + 60.0f, py - 60.0f, 70.0f, 120.0f };
+    game.obstacles[0] = (Obstacle){ px + 60.0f, py - 60.0f, 70.0f, 120.0f, OBSTACLE_SOLID };
 
     EnemyTypeDef chaser = MakeEnemyType(ENEMY_FORM_BLOB, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE, 1.0f, 1.5f, 1.0f, 0.0f, 1, false);
     EntitiesAddEnemyTyped(&game, ENEMY_CHASER, (Vector2){ px + 220.0f, py }, &chaser);
@@ -1423,7 +1423,7 @@ static bool TestObstacleAgainstWallDoesNotPushThroughIt(void)
     /* Blocco a ridosso del muro sinistro (come un angolo ARENA/SCATTER: gap ~26px),
        e un nemico corazzato (grosso) spinto nella strozzatura. */
     game.obstacleCount = 1;
-    game.obstacles[0] = (Obstacle){ ROOM_X + 26.0f, ROOM_Y + 150.0f, 120.0f, 120.0f };
+    game.obstacles[0] = (Obstacle){ ROOM_X + 26.0f, ROOM_Y + 150.0f, 120.0f, 120.0f, OBSTACLE_SOLID };
 
     EnemyTypeDef tank = MakeEnemyType(ENEMY_FORM_ARMORED, ENEMY_MOVE_CHASE, ENEMY_FIRE_NONE, 2.0f, 0.6f, 2.0f, 0.0f, 1, false);
     EnemyTypeBalance(&tank);

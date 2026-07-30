@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025)."
-last_reviewed: 2026-07-22
-last_verified_commit: 0ec60d0
-topics: [ostacoli, segreti, strumento-di-breccia, telegraph, budget-difficoltà]
+last_reviewed: 2026-07-30
+last_verified_commit: a2de293
+topics: [ostacoli, segreti, strumento-di-breccia, telegraph, budget-difficoltà, DEC-043, WP3, ostacoli-distruttibili, pericoli-passivi]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/core/room_layout.h, src/core/room_layout.c, src/core/game_types.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c]
 ---
 
 # Secrets and Obstacles
@@ -116,6 +116,64 @@ garanzie di giocabilità non negoziabili, verificate secondo
 
 Vale la regola unica di [generated-content-validation.md](./generated-content-validation.md): ogni categoria di ostacolo/indizio ha un contenuto curato sufficiente a completare la run senza generazione nuova. Non ripetuta qui.
 
+## Default proposti dall'implementazione
+
+Voci aggiunte da WP3 (2026-07-30, stile DEC-019): il motore ora distingue tre **famiglie**
+di ostacolo generato a tema — **solido** (il blocco di sempre, zero-default), **distruttibile**
+(si comporta come solido finché lo strumento di breccia non lo rimuove) e **pericolo
+passivo** (non blocca, danneggia al contatto, sempre telegrafato prima). Il documento fissa
+il principio (due famiglie oltre al solido, budget di difficoltà condiviso, degenerazione del
+tema più aggressiva nei piani alti) ma non i numeri: quelli restano da confermare al
+playtest, vedi `governance/open-questions.md` voce 29.
+
+- **Proporzione fra famiglie:** probabilità **piatta** (non scalata col piano) del 35% che un
+  blocco generato diventi **distruttibile**; probabilità di **pericolo** che parte all'8% al
+  piano 1 e cresce del 5% per piano (DEC-024, degenerazione del tema), fino a un tetto del
+  40%; il resto resta **solido**. La scelta è testata **prima per il pericolo**, così le due
+  percentuali non si accavallano mai. Deterministica dal seme della cella (stessa cella,
+  stesso piano ⇒ stessa famiglia ad ogni rientro), mai da un flusso condiviso col resto del
+  gioco.
+- **Costo nel budget nemici (DEC-043):** ogni ostacolo della stanza — di qualunque famiglia,
+  le celle-buco di una forma a L escluse — sottrae 0.18 punti al budget nemici della stanza;
+  il budget non scende mai sotto 0.35 punti residui (la stessa soglia minima di costo di un
+  singolo nemico), così la stanza ha sempre almeno un nemico anche quando è fittissima di
+  ostacoli ("Casi limite" sopra).
+- **Danno di contatto di un pericolo:** 1 punto, dentro gli i-frames esistenti del
+  giocatore (stessa finestra di invulnerabilità di ogni altro danno). I nemici lo
+  **ignorano** del tutto — l'interpretazione scelta fra le due ammesse più sopra
+  ("ignorano o evitano"): il motore non ha ancora un'euristica di pathing per "evitare" un
+  ostacolo.
+- **Telegraph dei pericoli:** nessun windup a tempo — il pericolo è disegnato con un segnale
+  distinto (forma a bande, leggibile senza colore, DEC-058) fin dal primo frame in cui esiste
+  nella stanza, quindi sempre prima di qualunque contatto possibile.
+- **Persistenza dei distruttibili (infrastruttura, non ancora osservabile in gioco):** il
+  motore registra per cella/piano quali distruttibili sono stati spaccati e non li
+  ricostruisce a un ingresso successivo nella stessa cella; si azzera al piano successivo (i
+  piani non si riattraversano in questa fase, DEC-183 registra lo stesso principio per gli
+  Innesti sganciati). **Limite noto (revisione WP3, 30/07)**: nel motore attuale una stanza
+  di combattimento perde TUTTI i suoi ostacoli, di qualunque famiglia, non appena si ripulisce
+  (comportamento del motore preesistente a questo lavoro, non toccato qui), e la porta resta
+  bloccata finché non si ripulisce: non esiste quindi ancora, nel gioco vero, una sequenza
+  "esco e rientro in una stanza di combattimento ancora aperta" in cui osservare questa
+  persistenza. Il meccanismo è comunque implementato e testato come infrastruttura, in vista
+  delle stanze segrete di un lavoro successivo (che potranno rientrare più volte prima di
+  essere "ripulite" in quel senso) — vedi `docs/engineering/known-issues.md`, voce 11.
+- **Origine delle esplosioni che sbrecciano un distruttibile:** nel motore, `CombatExplodeAt`
+  è la stessa funzione dietro la bomba (lo strumento di breccia in senso stretto, DEC-128) E
+  dietro le altre esplosioni di ORIGINE giocatore già esistenti (un colpo con il trait
+  Esplosivo, un attivo con trait Esplosivo/Gigante): tutte aprono i distruttibili nel raggio,
+  non solo la bomba in senso stretto — un parametro esplicito (`breach`) tiene comunque la
+  garanzia che un'esplosione di origine NEMICA (oggi nessuna: nessun colpo nemico porta il
+  trait Esplosivo) non apra mai un varco. Default proposto, non canone: questo documento
+  descrive solo la bomba come strumento di breccia (DEC-128); estenderlo a "qualunque
+  esplosione di origine giocatore" è una scelta di implementazione, non ancora una decisione
+  di design.
+
+(`OBSTACLE_DESTRUCTIBLE_CHANCE`, `OBSTACLE_HAZARD_CHANCE_BASE/PER_FLOOR/MAX`,
+`WORLD_OBSTACLE_ENEMY_BUDGET_COST/FLOOR` in `src/world/world.c`; `ObstacleFamily` in
+`src/core/room_layout.h`; `CombatResolveHazards`/`CombatExplodeAt` in
+`src/gameplay/combat.c`.)
+
 ## Non-obiettivi
 
 - Non definisce le regole generali dello strumento di breccia come risorsa (come si ottiene, cap, ecc.): vedi [health-and-resources.md](./health-and-resources.md).
@@ -132,7 +190,8 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   variabilità sta solo in che cosa è breccia-bile e che cosa no.
 - Proporzione esatta tra blocchi e pericoli passivi telegrafati nella generazione a tema, e
   valori numerici del budget di difficoltà condiviso tra ostacoli e nemici (DEC-043 fissa il
-  principio, non i numeri).
+  principio, non i numeri): **default proposti dall'implementazione** (WP3, sezione sopra),
+  non canone — vedi `governance/open-questions.md` voce 29.
 
 ## Scenari
 

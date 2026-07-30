@@ -10,11 +10,11 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: 8210480
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio]
+last_verified_commit: a2de293
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -337,9 +337,17 @@ con un giro artistico dedicato (**CP4**), nessuno richiede altro lavoro sul moto
    d'atlas o sulla primitiva. Energia (DEC-059) e uscita restano primitive **per
    decisione**, non per mancanza di asset (aggiungere una cella d'atlas invaliderebbe
    ogni atlas già generato).
-4. **Salute temporanea (DEC-008)**: l'icona `heart_temp` esiste nell'atlas icone, ma il
-   motore non ha ancora un contatore di cuori temporanei — nessun cuore temporaneo viene
-   disegnato. È una lacuna di GAMEPLAY, non d'arte: l'icona è pronta.
+4. **RISOLTO (2026-07-30, WP2) — Salute temporanea (DEC-008)**: `Player.tempHp`
+   (`src/core/game_types.h`) è il secondo strato della salute stratificata; `CombatDamagePlayer`
+   (`src/gameplay/combat.c`) lo consuma PRIMA della salute base, con l'eccedenza nello stesso
+   evento, e la cura normale (`PICKUP_HEART`) non lo tocca mai. Il cap è un default proposto
+   dall'implementazione (`PLAYER_TEMP_HP_CAP = 4`, non canone — vedi
+   `docs/design/governance/open-questions.md` voce 28); la fonte scelta per la demo è il
+   negozio (`PICKUP_CRUST`, `WorldShopStocksCrust` in `src/world/world.c`, stessa tecnica
+   hash-based del Flux). L'icona `heart_temp` **si disegna** ora accanto ai cuori base
+   (`DrawHudV3TempHearts`, `src/render/game_renderer.c`, layout V3), con un ripiego testuale
+   `+N` nel cluster senza pacchetto artistico (`DrawHudVitals`, DEC-058: mai solo colore).
+   Verificato da `--temp-health-test` (`GameTempHealthTest`, in `make test`).
 5. **RISOLTO (2026-07-30) — Timer di run (DEC-051)**: `Game.runElapsedSeconds` accumula
    durante la run vera e non nell'esplorazione del Piano 0 (`game->inRealRun`, WP1: la
    sala d'attesa mette anch'essa `PHASE_PLAY` per essere giocabile, M1b, ma non è una run
@@ -371,3 +379,34 @@ risoluzione a priorità degli image-id, degrado con manifest rotto / PNG assente
 con `..`. `--atlas-fallback-test` esercita di proposito il gradino più basso (pacchetto
 artistico puntato su una cartella inesistente → primitive). Gli screenshot di
 `--art-screens-screenshot-test` (`logs/worldsmelt-w8-*.png`) sono la verifica visiva.
+
+## 11 — La persistenza dei distruttibili spaccati (WP3, DEC-043) non è ancora osservabile in gioco
+
+**Sintomo**: `docs/design/systems/secrets-and-obstacles.md` ("Ostacoli generati a tema")
+descrive lo stato "spaccato" di un ostacolo distruttibile come qualcosa che persiste "per
+tutta la permanenza sul piano corrente, uscendo e rientrando nella stessa stanza". Il
+motore registra davvero questo stato per cella/piano (`Game.destroyedObstacleMask`,
+`CombatExplodeAt` con `breach=true` lo marca, `WorldBuildObstacles` non rimette sullo
+scaffale un distruttibile già marcato) — ma non esiste, nel gioco vero, nessuna sequenza
+in cui un giocatore possa uscire e rientrare in una stanza di combattimento ancora aperta
+per osservarlo.
+
+**Evidenza**: `src/world/world.c` — `WorldBuildObstacles` esce subito (nessun ostacolo
+ricostruito, di NESSUNA famiglia) quando `room->cleared` è vero; `GameRoomIsLocked` tiene
+bloccate le porte di una stanza `ROOM_COMBAT`/`ROOM_BOSS` finché non è `cleared`;
+`WorldCheckRoomClear` marca `cleared = true` nello stesso istante in cui muore l'ultimo
+nemico. Non esiste quindi una finestra osservabile in cui una stanza di combattimento sia
+sia "già visitata con un distruttibile spaccato" sia "ancora aperta e rientrabile":
+appena il giocatore può uscire e rientrare, la stanza è già `cleared` e non ha più nessun
+ostacolo, di nessuna famiglia (comportamento del motore preesistente a WP3, non toccato da
+questo lavoro).
+
+**Stato**: infrastruttura implementata e testata direttamente (`GameObstaclesTest`, test
+(a) in `src/tests/game_tests.c`, che chiama `WorldSpawnRoomContents` due volte sullo stesso
+`Game` per esercitare il meccanismo senza passare da una transizione di stanza vera) in
+vista delle stanze segrete di un lavoro successivo, che potranno rientrare più volte prima
+di essere "ripulite" in quel senso. Non è un difetto da correggere in isolamento: o si fa
+sopravvivere l'arredo di una stanza di combattimento alla sua ripulitura (cambio di
+comportamento più ampio del solo WP3), oppure la si tratta come infrastruttura in attesa
+del task delle stanze segrete. `docs/design/systems/secrets-and-obstacles.md` registra lo
+stesso limite nella sua sezione "Default proposti dall'implementazione".

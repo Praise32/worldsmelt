@@ -1437,6 +1437,43 @@ static void DepthSort(DepthEntry *list, int count)
     }
 }
 
+/* WP3 (secrets-and-obstacles.md, "Feedback" + DEC-058 "mai un'informazione
+   affidata al solo colore"): segnale leggibile per le due famiglie che non
+   sono il solido di sempre -- varianti di DISEGNO sopra il tile/blocco
+   esistente, NESSUN asset nuovo (stessa grammatica visiva delle strisce del
+   cancello del Piano 0 non ancora aperto, DrawFloorZeroExitGate sopra: una
+   FORMA a bande per il pericolo, non solo un colore, leggibile anche in
+   scala di grigi; una crepa a X per il distruttibile). 'r' e' il rettangolo
+   VISIVO gia' trasformato dal chiamante (nel fallback senza tileset la
+   faccia superiore e' sollevata di LIFT, nel tileset no): questa funzione
+   non sa nulla di quella differenza, disegna solo dentro 'r'. */
+static void DrawObstacleFamilyOverlay(ObstacleFamily family, Rectangle r)
+{
+    if (family == OBSTACLE_DESTRUCTIBLE)
+    {
+        Color crack = (Color){ 20, 16, 12, 210 };
+        float pad = fminf(r.width, r.height)*0.18f + 3.0f;
+        DrawLineEx((Vector2){ r.x + pad, r.y + pad }, (Vector2){ r.x + r.width - pad, r.y + r.height - pad }, 3.0f, crack);
+        DrawLineEx((Vector2){ r.x + r.width - pad, r.y + pad }, (Vector2){ r.x + pad, r.y + r.height - pad }, 3.0f, crack);
+    }
+    else if (family == OBSTACLE_HAZARD)
+    {
+        Color hazard = (Color){ 224, 168, 42, 255 };
+        for (float sx = r.x - r.height; sx < r.x + r.width; sx += 14.0f)
+        {
+            Vector2 p1 = { sx, r.y + r.height };
+            Vector2 p2 = { sx + r.height, r.y };
+            /* Clamp orizzontale, stesso spirito di DrawFloorZeroExitGate: le
+               strisce nascono/muoiono fuori da 'r' per coprirlo fino ai
+               bordi, ma disegnate intere sforerebbero fuori dal blocco. */
+            if (p1.x < r.x) p1.x = r.x;
+            if (p2.x > r.x + r.width) p2.x = r.x + r.width;
+            DrawLineEx(p1, p2, 3.0f, hazard);
+        }
+        DrawRectangleLinesEx(r, 2.0f, hazard);
+    }
+}
+
 /* Fase 3c: gli ostacoli solidi della stanza, in 2.5D (blocchi rialzati). Ogni
    blocco ha un'ombra a terra, una FACCIA FRONTALE scura (lo spessore, verso
    l'osservatore) e una FACCIA SUPERIORE piu' chiara (la cima, dove batte la luce),
@@ -1474,6 +1511,7 @@ static void DrawObstacles(Game *game)
                pavimento, e nessun tile puo' disegnarla (non sa cosa ha sotto). */
             DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
             DrawTiledArea(game, tiles, (Rectangle){ o->x, o->y, o->w, o->h }, role, NULL, NULL, WHITE);
+            DrawObstacleFamilyOverlay(o->family, (Rectangle){ o->x, o->y, o->w, o->h });
         }
         return;
     }
@@ -1496,6 +1534,7 @@ static void DrawObstacles(Game *game)
         /* Faccia superiore: il rettangolo del blocco, spostato SU di LIFT. */
         DrawRectangle((int)o->x, (int)(o->y - LIFT), (int)o->w, (int)o->h, top);
         DrawRectangleLinesEx((Rectangle){ o->x, o->y - LIFT, o->w, o->h }, 2.0f, edge);
+        DrawObstacleFamilyOverlay(o->family, (Rectangle){ o->x, o->y - LIFT, o->w, o->h });
     }
 }
 

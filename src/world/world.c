@@ -824,6 +824,12 @@ static void WorldGenerateFloorMap(Game *game)
        effetto collaterale del memset sopra (campo diverso, vedi il commento
        su Game.droppedGrafts in core/game_types.h). */
     memset(game->droppedGrafts, 0, sizeof(game->droppedGrafts));
+    /* WP3: la persistenza dei distruttibili spaccati (Game.destroyedObstacleMask)
+       e' per-PIANO come Game.droppedGrafts appena sopra -- stesso motivo (le
+       coordinate di cella hanno senso solo dentro il piano che le ha generate)
+       e stesso schema di azzeramento esplicito, separato dal memset di
+       game->rooms. */
+    memset(game->destroyedObstacleMask, 0, sizeof(game->destroyedObstacleMask));
     int sx = GRID_SIZE/2;
     int sy = GRID_SIZE/2;
     game->roomX = sx;
@@ -944,6 +950,20 @@ static void WorldGenerateFloorMap(Game *game)
    garanzie di RoomLayoutBuild (croce centrale libera => la porta al centro di
    ogni lato, e il passaggio verso la cella accanto, restano sempre
    raggiungibili). */
+/* WP3 (docs/design/systems/secrets-and-obstacles.md, "Ostacoli generati a
+   tema" + DEC-024 "degenerazione del tema"; default proposto stile DEC-019,
+   registrato in secrets-and-obstacles.md "Default proposti dall'implementazione"
+   e in governance/open-questions.md voce 29 -- NON canone, da playtest).
+   Quanti dei blocchi che RoomLayoutBuild produce diventano DISTRUTTIBILI o
+   PERICOLO invece di restare SOLIDI (zero-default): chance FLAT per i
+   distruttibili (il documento non chiede una scala col piano), chance
+   CRESCENTE col piano per i pericoli (piu' aggressivi nei piani alti),
+   testata PRIMA cosi' le due percentuali non si accavallano mai. */
+#define OBSTACLE_DESTRUCTIBLE_CHANCE 0.35f
+#define OBSTACLE_HAZARD_CHANCE_BASE 0.08f
+#define OBSTACLE_HAZARD_CHANCE_PER_FLOOR 0.05f
+#define OBSTACLE_HAZARD_CHANCE_MAX 0.40f
+
 static void WorldBuildObstacles(Game *game, const RoomState *room)
 {
     game->obstacleCount = 0;
@@ -954,10 +974,18 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
     {
         Rectangle hole = WorldRoomHoleRect(game, i);
         if (hole.width <= 0.0f || hole.height <= 0.0f) continue;
-        game->obstacles[game->obstacleCount].x = hole.x;
-        game->obstacles[game->obstacleCount].y = hole.y;
-        game->obstacles[game->obstacleCount].w = hole.width;
-        game->obstacles[game->obstacleCount].h = hole.height;
+        int idx = game->obstacleCount;
+        game->obstacles[idx].x = hole.x;
+        game->obstacles[idx].y = hole.y;
+        game->obstacles[idx].w = hole.width;
+        game->obstacles[idx].h = hole.height;
+        /* WP3: l'angolo mancante di una L e' sempre muro vero, mai
+           distruttibile ne' pericolo -- e senza identita' di cella: nessuno
+           stato persistente ha senso per un buco strutturale del piano. */
+        game->obstacles[idx].family = OBSTACLE_SOLID;
+        game->obstacleCellX[idx] = -1;
+        game->obstacleCellY[idx] = -1;
+        game->obstacleLocalIndex[idx] = -1;
         game->obstacleCount++;
     }
     game->obstacleHoleCount = game->obstacleCount;
@@ -965,6 +993,10 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
     if (room->kind != ROOM_COMBAT || room->cleared) return;
     const RoomLayoutDef *layout = &game->content.floors[game->floor - 1].roomLayout;
     if (!layout->active) return;
+
+    float hazardChance = OBSTACLE_HAZARD_CHANCE_BASE +
+                          (float)(game->floor - 1)*OBSTACLE_HAZARD_CHANCE_PER_FLOOR;
+    if (hazardChance > OBSTACLE_HAZARD_CHANCE_MAX) hazardChance = OBSTACLE_HAZARD_CHANCE_MAX;
 
     int cellX[4], cellY[4];
     int cellCount = WorldRoomCells(game, cellX, cellY, 4);
@@ -976,8 +1008,44 @@ static void WorldBuildObstacles(Game *game, const RoomState *room)
         int budget = MAX_OBSTACLES - game->obstacleCount;
         if (budget > ROOM_LAYOUT_MAX_PER_CELL) budget = ROOM_LAYOUT_MAX_PER_CELL;
         if (budget <= 0) break;
-        game->obstacleCount += RoomLayoutBuild(layout, seed, rect.x, rect.y, rect.width, rect.height,
-                                               game->obstacles + game->obstacleCount, budget);
+
+        /* La FORMA (posizioni/misure) si costruisce prima in un buffer locale:
+           RoomLayoutBuild resta un modulo puro, non sa nulla di famiglie ne' di
+           persistenza (vedi il commento su ObstacleFamily in room_layout.h).
+           La famiglia si assegna DOPO con un secondo stream deterministico
+           derivato dallo STESSO seme (mai game->rng: due visite alla stessa
+           cella devono produrre la STESSA disposizione E la STESSA famiglia,
+           altrimenti la persistenza sotto perderebbe senso). */
+        Obstacle cellObs[ROOM_LAYOUT_MAX_PER_CELL];
+        int n = RoomLayoutBuild(layout, seed, rect.x, rect.y, rect.width, rect.height, cellObs, budget);
+
+        unsigned int familySeed = seed ^ 0x9E3779B9u;
+        unsigned short destroyedMask = 0;
+        if (cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE) destroyedMask = game->destroyedObstacleMask[cy][cx];
+
+        for (int k = 0; k < n && game->obstacleCount < MAX_OBSTACLES; k++)
+        {
+            ObstacleFamily family = OBSTACLE_SOLID;
+            float roll = GameRngFloat(&familySeed, 0.0f, 1.0f);
+            if (roll < hazardChance) family = OBSTACLE_HAZARD;
+            else if (roll < hazardChance + OBSTACLE_DESTRUCTIBLE_CHANCE) family = OBSTACLE_DESTRUCTIBLE;
+
+            /* Gia' spaccato in questa run (CombatExplodeAt, vedi combat.c):
+               non rientra fra gli ostacoli di questa visita. Solo i
+               distruttibili possono essere segnati -- il bit resta 0 per
+               chiunque altro, quindi questo controllo e' innocuo anche se
+               'family' fosse cambiata fra una visita e l'altra (non puo':
+               stesso seme, stesso roll). */
+            if (family == OBSTACLE_DESTRUCTIBLE && (destroyedMask & (unsigned short)(1u << k))) continue;
+
+            int idx = game->obstacleCount;
+            game->obstacles[idx] = cellObs[k];
+            game->obstacles[idx].family = family;
+            game->obstacleCellX[idx] = cx;
+            game->obstacleCellY[idx] = cy;
+            game->obstacleLocalIndex[idx] = k;
+            game->obstacleCount++;
+        }
     }
 }
 
@@ -1020,6 +1088,8 @@ static Vector2 WorldFreeRoomPosition(Game *game, float pad)
  * stanze della stessa difficolta' di sempre. DEC-170 aggiunge una scala per
  * CELLA: una stanza 2x2 e' quattro schermate di spazio, e col budget di una
  * sola schermata sarebbe vuota. */
+#define WORLD_OBSTACLE_ENEMY_BUDGET_COST 0.18f
+#define WORLD_OBSTACLE_ENEMY_BUDGET_FLOOR 0.35f
 void WorldSpawnCombatRoom(Game *game)
 {
     const FloorContent *fc = &game->content.floors[game->floor - 1];
@@ -1029,6 +1099,26 @@ void WorldSpawnCombatRoom(Game *game)
        deve sembrare piu' grande, non quattro stanze appiccicate. */
     int cellCount = WorldRoomCellCount(game, game->roomX, game->roomY);
     if (cellCount > 1) budget *= sqrtf((float)cellCount);
+
+    /* DEC-043 (budget di difficolta' condiviso; default proposto stile
+       DEC-019, registrato in secrets-and-obstacles.md "Default proposti
+       dall'implementazione" e in governance/open-questions.md voce 29): ogni
+       ostacolo ambientale della stanza -- di QUALUNQUE famiglia, solido,
+       distruttibile o pericolo -- costa un pezzo del budget nemici; le
+       celle-buco di una L NON contano (sono struttura del piano, non arredo a
+       tema). Gli ostacoli di QUESTA stanza sono gia' pronti: WorldSpawnRoomContents
+       chiama WorldBuildObstacles prima di questa funzione. Non si scende mai
+       sotto WORLD_OBSTACLE_ENEMY_BUDGET_FLOOR (la stessa soglia minima di
+       costo di un singolo nemico, poco sotto): garantisce che il budget resti
+       > 0 e che il PRIMO nemico si spawni sempre, anche in una stanza fittissima
+       di ostacoli (secrets-and-obstacles.md, "Casi limite": "non deve
+       azzerarsi la presenza di nemici"). */
+    int obstacleSpend = game->obstacleCount - game->obstacleHoleCount;
+    if (obstacleSpend > 0)
+    {
+        budget -= (float)obstacleSpend * WORLD_OBSTACLE_ENEMY_BUDGET_COST;
+        if (budget < WORLD_OBSTACLE_ENEMY_BUDGET_FLOOR) budget = WORLD_OBSTACLE_ENEMY_BUDGET_FLOOR;
+    }
 
     /* Gli INDICI degli slot attivi, compattati (correzione da review). Contare
        quanti sono e poi indicizzare enemies[0..typeCount-1] presuppone che gli slot

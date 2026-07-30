@@ -46,9 +46,36 @@ typedef struct RoomLayoutDef {
     float density;     /* 0..1: scala numero e dimensione degli ostacoli */
 } RoomLayoutDef;
 
-/* Un ostacolo: rettangolo solido allineato agli assi, in pixel. */
+/* WP3 (docs/design/systems/secrets-and-obstacles.md, "Ostacoli generati a
+   tema"): la FAMIGLIA di un ostacolo, indipendente dalla sua FORMA (RoomForm
+   sopra decide come sono disposti i blocchi nella stanza; ObstacleFamily
+   decide come si comporta CIASCUN blocco).
+     - OBSTACLE_SOLID (zero-default): il blocco di sempre, blocca movimento,
+       linea di tiro, nemici. Comportamento identico a prima di WP3.
+     - OBSTACLE_DESTRUCTIBLE: si comporta come SOLID finche' lo strumento di
+       breccia (la bomba, CombatExplodeAt in src/gameplay/combat.c) non lo
+       rimuove nel raggio dell'esplosione.
+     - OBSTACLE_HAZARD ("pericolo passivo"): NON blocca -- il giocatore ci
+       cammina sopra/attraverso -- ma danneggia al contatto, sempre
+       telegrafato visivamente PRIMA di poter colpire (DEC-058: mai
+       un'informazione affidata al solo colore).
+   Questo modulo resta un modulo PURO di geometria (RoomLayoutBuild produce
+   sempre e solo OBSTACLE_SOLID: assegnare le altre famiglie e' compito del
+   chiamante, che sa in quale PIANO e CELLA sta costruendo -- vedi
+   WorldBuildObstacles in src/world/world.c, l'unico punto che decide le
+   proporzioni fra famiglie secondo la degenerazione del tema, DEC-024). */
+typedef enum ObstacleFamily {
+    OBSTACLE_SOLID = 0,
+    OBSTACLE_DESTRUCTIBLE,
+    OBSTACLE_HAZARD,
+    OBSTACLE_FAMILY_COUNT
+} ObstacleFamily;
+
+/* Un ostacolo: rettangolo solido allineato agli assi, in pixel, con una
+   famiglia (vedi sopra). */
 typedef struct Obstacle {
     float x, y, w, h;
+    ObstacleFamily family;   /* zero-default = OBSTACLE_SOLID, comportamento di sempre */
 } Obstacle;
 
 /* DEC-170: una stanza puo' occupare fino a 4 celle, e il layout si espande UNA

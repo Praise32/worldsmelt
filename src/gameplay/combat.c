@@ -38,6 +38,13 @@ static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
         for (int i = 0; i < game->obstacleCount; i++)
         {
             Obstacle *o = &game->obstacles[i];
+            /* WP3: un pericolo passivo NON blocca -- si attraversa (e
+               danneggia al contatto, vedi CombatResolveHazards sotto). Vale
+               per giocatore E nemici, entrambi chiamano questa stessa
+               funzione: e' il default proposto "i nemici ignorano i
+               pericoli" (secrets-and-obstacles.md, "Pericoli"; registrato in
+               governance/open-questions.md voce 29). */
+            if (o->family == OBSTACLE_HAZARD) continue;
             Rectangle r = { o->x, o->y, o->w, o->h };
             if (GameMathResolveCircleRect(pos, radius, r)) { any = true; touched = true; }
         }
@@ -55,6 +62,20 @@ static bool CombatResolveObstacles(Game *game, Vector2 *pos, float radius)
        celle) -- gli ostacoli vivono comunque solo li'. */
     if (touched) WorldClampToRoom(game, pos, radius);
     return touched;
+}
+
+/* WP3: vero se il cerchio di centro 'pos' e raggio 'radius' tocca il
+   rettangolo di 'o' -- punto piu' vicino sul rettangolo (clampato sui due
+   assi), poi distanza al quadrato contro il raggio. A differenza di
+   GameMathResolveCircleRect NON muta 'pos': qui 'pos' e' il centro
+   dell'esplosione o del giocatore, un punto di lettura, mai un'entita' da
+   spingere fuori (CombatExplodeAt/CombatResolveHazards, sotto). */
+static bool CombatCircleTouchesObstacle(Vector2 pos, float radius, const Obstacle *o)
+{
+    float cx = GameMathClampFloat(pos.x, o->x, o->x + o->w);
+    float cy = GameMathClampFloat(pos.y, o->y, o->y + o->h);
+    float dx = pos.x - cx, dy = pos.y - cy;
+    return (dx*dx + dy*dy) < radius*radius;
 }
 
 static Enemy *CombatNearestEnemy(Game *game, Vector2 pos)
@@ -79,7 +100,23 @@ void CombatDamagePlayer(Game *game, int amount, const char *cause)
 {
     if (game->player.invuln > 0.0f || game->phase != PHASE_PLAY) return;
     AudioPlaySfx(AUDIO_SFX_HIT_PLAYER);
-    game->player.hp -= amount;
+    /* DEC-008 (Crust, health-and-resources.md "Ordine di consumo", scenario 1):
+       il danno intacca PRIMA la salute temporanea/protettiva (Player.tempHp),
+       e solo l'eccedenza -- se presente -- va alla salute base, nello STESSO
+       evento (stessa sezione, "Casi limite"). Perdere Crust resta comunque
+       "subire un colpo" (DEC-159): AudioPlaySfx sopra e player.invuln sotto
+       si applicano SEMPRE, indipendentemente da quanto (o se) la salute base
+       viene toccata qui -- la morte resta legata solo alla salute base a
+       zero (vedi il controllo hp<=0 sotto), mai al solo esaurimento del
+       Crust. */
+    int remaining = amount;
+    if (remaining > 0 && game->player.tempHp > 0)
+    {
+        int absorbed = (remaining < game->player.tempHp) ? remaining : game->player.tempHp;
+        game->player.tempHp -= absorbed;
+        remaining -= absorbed;
+    }
+    if (remaining > 0) game->player.hp -= remaining;
     game->player.invuln = 0.85f;
     EntitiesAddParticle(game, game->player.pos, RED, 22);
     if (game->player.hp <= 0)
@@ -170,7 +207,7 @@ void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int trai
     }
 }
 
-void CombatExplodeAt(Game *game, Vector2 pos, float radius, float damage)
+void CombatExplodeAt(Game *game, Vector2 pos, float radius, float damage, bool breach)
 {
     EntitiesAddParticle(game, pos, ORANGE, 42);
     for (int i = 0; i < MAX_ENEMIES; i++)
@@ -186,6 +223,47 @@ void CombatExplodeAt(Game *game, Vector2 pos, float radius, float damage)
         {
             game->shots[i].active = false;
         }
+    }
+
+    /* WP3 (secrets-and-obstacles.md, "Ostacoli" + "Risultato"; revisione:
+       "Default proposti dall'implementazione", origine delle esplosioni che
+       sbrecciano): 'breach' e' vero SOLO per un'esplosione di origine
+       giocatore (vedi il commento sulla dichiarazione in game_internal.h).
+       Falso, questo blocco non tocca NULLA -- il danno ad area sopra si
+       applica comunque, cambia solo l'effetto sui distruttibili: un
+       ipotetico colpo/effetto di origine nemica non deve mai aprire un
+       varco. Quando vero, spacca i DISTRUTTIBILI nel raggio -- mai i solidi
+       ne' i pericoli passivi, quella distinzione e' proprio il senso della
+       famiglia. Si scandisce dal FONDO dell'array, solo indici >=
+       obstacleHoleCount (le celle-buco di una L non sono mai distruttibili,
+       vedi WorldBuildObstacles), cosi' lo swap-con-l'ultimo qui sotto non
+       salta mai l'elemento appena spostato in questo stesso slot. Lo stato
+       distrutto persiste per tutta la permanenza su questo piano in
+       Game.destroyedObstacleMask (solo per gli ostacoli con un'identita' di
+       cella valida -- cx/cy/local negativi, come per un buco o l'arredo del
+       Piano 0, non hanno mai family==DESTRUCTIBLE, quindi non arrivano mai
+       qui): WorldBuildObstacles non li rimette piu' sullo scaffale al
+       prossimo ingresso in stanza, senza toccare la disposizione derivata
+       dal seme. */
+    if (!breach) return;
+    for (int i = game->obstacleCount - 1; i >= game->obstacleHoleCount; i--)
+    {
+        Obstacle *o = &game->obstacles[i];
+        if (o->family != OBSTACLE_DESTRUCTIBLE) continue;
+        if (!CombatCircleTouchesObstacle(pos, radius, o)) continue;
+
+        int cx = game->obstacleCellX[i], cy = game->obstacleCellY[i], local = game->obstacleLocalIndex[i];
+        if (cx >= 0 && cx < GRID_SIZE && cy >= 0 && cy < GRID_SIZE && local >= 0 && local < 16)
+            game->destroyedObstacleMask[cy][cx] |= (unsigned short)(1u << local);
+
+        EntitiesAddParticle(game, (Vector2){ o->x + o->w*0.5f, o->y + o->h*0.5f }, game->theme.wall, 16);
+
+        int last = game->obstacleCount - 1;
+        game->obstacles[i] = game->obstacles[last];
+        game->obstacleCellX[i] = game->obstacleCellX[last];
+        game->obstacleCellY[i] = game->obstacleCellY[last];
+        game->obstacleLocalIndex[i] = game->obstacleLocalIndex[last];
+        game->obstacleCount--;
     }
 }
 
@@ -407,7 +485,7 @@ static void CombatActiveFallbackEffect(Game *game, const Item *item, Vector2 dir
     }
     if (item->traits & (unsigned int)(TRAIT_EXPLODE | TRAIT_GIANT))
     {
-        CombatExplodeAt(game, p->pos, 120.0f, (18.0f + 6.0f*(float)game->floor)*power);
+        CombatExplodeAt(game, p->pos, 120.0f, (18.0f + 6.0f*(float)game->floor)*power, true);   /* attivo del giocatore: sbreccia */
         return;
     }
     if (item->traits & TRAIT_SLOW)
@@ -579,6 +657,36 @@ static int CombatSlotToSwapFor(const Player *p, ItemKind kind)
     return -1;
 }
 
+/* WP3 (secrets-and-obstacles.md, "Pericoli"): un pericolo passivo non ferma
+   il movimento (CombatResolveObstacles lo salta, sopra) ma danneggia al
+   contatto -- SEMPRE gia' telegrafato visivamente PRIMA di poter colpire
+   (DrawObstacles in src/render/game_renderer.c lo disegna con un segnale
+   distinto fin dal primo frame in cui esiste, mai un windup nascosto), dentro
+   gli STESSI i-frames di ogni altro danno (CombatDamagePlayer gestisce gia'
+   Player.invuln, niente da duplicare qui). I nemici lo ignorano del tutto
+   (default proposto, la meta' semplice di "ignorano o evitano": il motore
+   non ha un'euristica di pathing per "evitare", registrato in
+   governance/open-questions.md voce 29) -- coerente col fatto che
+   CombatResolveObstacles, sopra, salta i pericoli per QUALUNQUE cerchio,
+   giocatore o nemico. Statica: i test passano dal frame vero
+   (CombatUpdatePlayer, come qualunque altro chiamante) invece di isolare
+   questa funzione, cosi' la copertura segue davvero cio' che succede in
+   gioco (revisione WP3). */
+static void CombatResolveHazards(Game *game)
+{
+    Player *p = &game->player;
+    for (int i = game->obstacleHoleCount; i < game->obstacleCount; i++)
+    {
+        Obstacle *o = &game->obstacles[i];
+        if (o->family != OBSTACLE_HAZARD) continue;
+        if (CombatCircleTouchesObstacle(p->pos, p->radius, o))
+        {
+            CombatDamagePlayer(game, 1, "un pericolo ambientale");
+            break;   /* un contatto alla volta basta: l'invuln appena aperto copre gia' il resto del frame */
+        }
+    }
+}
+
 void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
 {
     Player *p = &game->player;
@@ -611,6 +719,7 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
        di una forma a L e' un ostacolo, lo risolve la riga sotto). */
     WorldClampToRoom(game, &p->pos, p->radius);
     CombatResolveObstacles(game, &p->pos, p->radius);   /* fase 3c: non si passa attraverso i muri */
+    CombatResolveHazards(game);   /* WP3: i pericoli passivi si attraversano, ma danneggiano al contatto */
     WorldHandleTransitions(game, move);
 
     if (p->invuln > 0.0f) p->invuln -= dt;
@@ -937,6 +1046,7 @@ void CombatUpdateShots(Game *game, float dt)
             for (int oi = 0; oi < game->obstacleCount; oi++)
             {
                 Obstacle *o = &game->obstacles[oi];
+                if (o->family == OBSTACLE_HAZARD) continue;   /* WP3: un pericolo passivo non blocca i colpi */
                 Rectangle r = { o->x - s->radius, o->y - s->radius, o->w + s->radius*2.0f, o->h + s->radius*2.0f };
                 if (!GameMathSegmentHitsRect(prevPos, s->pos, r)) continue;
                 /* Da che lato e' entrato: si guarda dove stava PRIMA rispetto al
@@ -959,7 +1069,7 @@ void CombatUpdateShots(Game *game, float dt)
         if (!s->active) continue;
         if (s->life <= 0.0f)
         {
-            if (s->fromPlayer && (s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 45.0f, s->damage*0.65f);
+            if (s->fromPlayer && (s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 45.0f, s->damage*0.65f, true);   /* colpo del giocatore: sbreccia */
             s->active = false;
             continue;
         }
@@ -992,7 +1102,7 @@ void CombatUpdateShots(Game *game, float dt)
                    colpo com'e' adesso (posizione, danno, forma), non dopo che
                    pierce gli ha gia' ridotto il danno qui sotto. */
                 if (s->chain > 0) CombatChainShot(game, s, e);
-                if ((s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 50.0f + s->radius*2.0f, s->damage*0.55f);
+                if ((s->traits & TRAIT_EXPLODE)) CombatExplodeAt(game, s->pos, 50.0f + s->radius*2.0f, s->damage*0.55f, true);   /* dentro 'if (s->fromPlayer)': colpo del giocatore, sbreccia */
                 if ((s->traits & TRAIT_SPLIT) && !s->splitDone)
                 {
                     CombatSplitShot(game, s);
@@ -1144,6 +1254,16 @@ static void CombatPickup(Game *game, Pickup *pickup)
         game->player.flux += pickup->value > 0 ? pickup->value : 1;
         GameSetMessage(game, "Flux raccolto: apri la build (TAB) per fondere due oggetti.");
     }
+    else if (pickup->kind == PICKUP_CRUST)
+    {
+        /* Crust (DEC-008, WP2): a differenza della cura normale (PICKUP_HEART
+           sopra) NON tocca mai player.hp -- e' esattamente la regola "la cura
+           normale non ricarica la temporanea" di health-and-resources.md.
+           Clampato a PLAYER_TEMP_HP_CAP: nessun overflow anche raccogliendone
+           piu' di uno di fila. */
+        game->player.tempHp = GameMathClampInt(game->player.tempHp + pickup->value, 0, PLAYER_TEMP_HP_CAP);
+        GameSetMessage(game, "Crust raccolto: scudo temporaneo.");
+    }
     else if (pickup->kind == PICKUP_ITEM)
     {
         Item taken = pickup->item;
@@ -1257,7 +1377,7 @@ void CombatUpdateBombs(Game *game, float dt)
         b->timer -= dt;
         if (b->timer <= 0.0f)
         {
-            CombatExplodeAt(game, b->pos, b->radius, 60.0f + 10.0f*(float)game->floor);
+            CombatExplodeAt(game, b->pos, b->radius, 60.0f + 10.0f*(float)game->floor, true);   /* la bomba: lo strumento di breccia in senso stretto, DEC-128 */
             b->active = false;
         }
     }

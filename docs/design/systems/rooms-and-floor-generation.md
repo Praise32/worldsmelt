@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
-last_verified_commit: 17204df
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato]
+last_verified_commit: a2de293
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -144,6 +144,14 @@ da confermare (vedi `governance/open-questions.md`).
   quattro schermate di spazio e col budget di una sola resterebbe vuota, ma con quattro volte
   i nemici sarebbe quattro stanze appiccicate invece di una stanza grande. Il tetto di buon
   senso agli spawn (16) scala per cella, sempre sotto il tetto duro di motore.
+- **Riduzione del budget per gli ostacoli della stanza (DEC-043, WP3):** dopo la
+  moltiplicazione per la radice quadrata sopra, il budget nemici si riduce di un importo per
+  ogni ostacolo ambientale generato nella stanza (qualunque famiglia — solido, distruttibile
+  o pericolo — croce centrale esclusa per costruzione), mai sotto una soglia minima che
+  garantisce almeno un nemico. I numeri esatti (costo per ostacolo, soglia minima) sono un
+  default proposto dall'implementazione, fonte unica in
+  [secrets-and-obstacles.md](./secrets-and-obstacles.md) ("Default proposti
+  dall'implementazione"), non riformulati qui.
 - **Layout di ostacoli: applicati PER CELLA** (`RoomLayoutBuild` una volta per cella, seme
   mescolato dalle coordinate assolute della cella). Due celle della stessa stanza non hanno
   lo stesso arredo, e ogni cella conserva la garanzia esistente della croce centrale libera:

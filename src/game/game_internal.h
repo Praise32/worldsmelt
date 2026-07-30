@@ -122,7 +122,16 @@ void AssetsLoad(Game *game);
    solo come rete di sicurezza, mai la via normale. */
 void CombatDamagePlayer(Game *game, int amount, const char *cause);
 void CombatDamageEnemy(Game *game, Enemy *enemy, float damage, unsigned int traits);
-void CombatExplodeAt(Game *game, Vector2 position, float radius, float damage);
+/* 'breach' (WP3, revisione): vero SOLO per un'esplosione di ORIGINE giocatore
+   (la bomba/strumento di breccia, un attivo con trait Esplosivo/Gigante, un
+   colpo del giocatore con trait Esplosivo) -- e' l'unico caso in cui apre i
+   distruttibili nel raggio (secrets-and-obstacles.md, "Ostacoli"/DEC-128).
+   Falso per un'esplosione di origine NEMICA (oggi nessun colpo nemico porta
+   il trait Esplosivo, ma la funzione non deve aprire varchi per un nemico se
+   in futuro uno script Lua o un tipo generato lo introducesse): il danno ad
+   area resta identico in entrambi i casi, cambia solo l'effetto sui
+   distruttibili. Vedi i call site in combat.c per come ciascuno lo passa. */
+void CombatExplodeAt(Game *game, Vector2 position, float radius, float damage, bool breach);
 void CombatSplitShot(Game *game, const Shot *shot);
 void CombatFirePlayer(Game *game, Vector2 direction);
 /* Attivazione volontaria dell'attivo selezionato e sgancio dell'Innesto

@@ -174,6 +174,8 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --mouse-hit-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --rng-seed-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --run-timer-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --temp-health-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --obstacles-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --item-pool-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --economy-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --fusion-test

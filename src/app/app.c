@@ -1518,6 +1518,19 @@ int AppRun(int argc, char **argv)
        RendererMouseHitTestSelfTest in src/render/game_renderer.c. */
     bool mouseHitTest = false;
     bool rngSeedTest = false;
+    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): il cronometro
+       della run accumula SOLO durante PHASE_PLAY, si azzera con
+       GameResetRunWithSeed. Come rngSeedTest, gira dopo InitWindow senza
+       bisogno vero della finestra (GameRunTimerTest non disegna nulla). */
+    bool runTimerTest = false;
+    /* DEC-008 (Crust, WP2): come rngSeedTest/runTimerTest, gira dopo
+       InitWindow ma senza bisogno vero della finestra (GameTempHealthTest
+       non disegna nulla, vedi src/tests/game_tests.c). */
+    bool tempHealthTest = false;
+    /* WP3: come tempHealthTest/rngSeedTest, gira dopo InitWindow ma senza
+       bisogno vero della finestra (GameObstaclesTest non disegna nulla,
+       vedi src/tests/game_tests.c). */
+    bool obstaclesTest = false;
     bool itemPoolTest = false;
     bool economyTest = false;
     bool fusionTest = false;
@@ -1684,6 +1697,30 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             rngSeedTest = true;
+        }
+        /* DEC-051: come --rng-seed-test, gira dopo InitWindow ma senza bisogno
+           vero della finestra (GameRunTimerTest non disegna nulla, vedi
+           src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--run-timer-test") == 0)
+        {
+            smokeTest = true;
+            runTimerTest = true;
+        }
+        /* DEC-008: come --run-timer-test, gira dopo InitWindow ma senza
+           bisogno vero della finestra (GameTempHealthTest non disegna
+           nulla, vedi src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--temp-health-test") == 0)
+        {
+            smokeTest = true;
+            tempHealthTest = true;
+        }
+        /* WP3: come --temp-health-test, gira dopo InitWindow ma senza
+           bisogno vero della finestra (GameObstaclesTest non disegna nulla,
+           vedi src/tests/game_tests.c). */
+        if (strcmp(argv[i], "--obstacles-test") == 0)
+        {
+            smokeTest = true;
+            obstaclesTest = true;
         }
         /* DEC-144/DEC-145: come --rng-seed-test, gira dopo InitWindow ma
            senza bisogno vero della finestra (GameItemPoolTest non disegna
@@ -1998,6 +2035,30 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 26;   /* 26: il primo codice di uscita libero (vedi gli altri test sopra) */
+    }
+    if (runTimerTest)
+    {
+        bool ok = GameRunTimerTest(&game);
+        printf("Run timer test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 39;   /* 39: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --mouse-hit-test=38) */
+    }
+    if (tempHealthTest)
+    {
+        bool ok = GameTempHealthTest(&game);
+        printf("Temp health test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 40;   /* 40: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --run-timer-test=39) */
+    }
+    if (obstaclesTest)
+    {
+        bool ok = GameObstaclesTest(&game);
+        printf("Obstacles test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 41;   /* 41: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --temp-health-test=40) */
     }
     if (itemPoolTest)
     {

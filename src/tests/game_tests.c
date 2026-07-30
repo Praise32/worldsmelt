@@ -10,6 +10,7 @@
 #include "core/character_type.h"
 #include "game/game_internal.h"
 #include "content/curated_images.h"
+#include "core/game_math.h"
 #include "core/shot_type.h"
 #include "gameplay/fusion.h"
 #include "gameplay/item_pool.h"
@@ -3977,6 +3978,333 @@ bool GameTempHealthTest(Game *game)
 
     if (ok) printf("  [temp-health] Crust (DEC-008): consumo prima della base con eccedenza nello stesso evento, colpo assorbito senza toccare la base, morte solo a base 0, cap %d senza overflow, cura normale non ricarica il Crust, nuclei HUD (icone/X/testo +N) corretti con tempHp>0: ok\n", PLAYER_TEMP_HP_CAP);
     else fprintf(stderr, "GameTempHealthTest: FALLITO -- vedi i messaggi sopra\n");
+    return ok;
+}
+
+/* ============================================================
+   WP3 (docs/design/systems/secrets-and-obstacles.md, "Ostacoli generati a
+   tema" + DEC-043): tre famiglie di ostacolo (solido/distruttibile/pericolo,
+   room_layout.h), persistenza dei distruttibili spaccati per tutto il piano
+   (Game.destroyedObstacleMask, INFRASTRUTTURA -- vedi il commento sul test
+   (a) sotto e docs/engineering/known-issues.md voce 11), danno da contatto
+   telegrafato dei pericoli (CombatResolveHazards, chiamata attraverso il
+   frame VERO -- CombatUpdatePlayer, mai isolata), croce centrale libera
+   indipendente dalla famiglia, budget nemici ridotto dagli ostacoli della
+   stanza (WorldSpawnCombatRoom). Come GameRoomsTest, gira su Game LOCALI
+   (RoomsTestGenerateFloor, definita sopra): non serve la finestra per
+   davvero (girando comunque DOPO InitWindow, vedi app.c -- CombatUpdatePlayer
+   legge IsKeyDown/IsMouseButtonDown, che senza finestra darebbero risultati
+   indefiniti), il parametro 'game' rispetta solo la convenzione di firma di
+   AppRun. */
+bool GameObstaclesTest(Game *game)
+{
+    (void)game;
+    bool ok = true;
+    const unsigned int seed = 4200u;
+    const float crossHalf = 70.0f;   /* stessa fascia di prova di RoomsTestMinSizeStillPlayable: piu' stretta della vera ROOM_CROSS_HALF (90px) */
+
+    /* (a) La bomba (lo strumento di breccia, CombatExplodeAt con breach=true)
+       rimuove il distruttibile nel raggio, e il BIT di persistenza
+       (Game.destroyedObstacleMask) resta segnato quando WorldSpawnRoomContents
+       ricostruisce gli ostacoli della stessa cella. Questo e' un test di
+       INFRASTRUTTURA (chiama WorldSpawnRoomContents due volte a mano sullo
+       stesso Game, come farebbe una transizione vera): nel gioco vero, oggi,
+       una stanza di combattimento perde comunque TUTTI i suoi ostacoli non
+       appena si ripulisce (WorldBuildObstacles esce subito se
+       'room->cleared', comportamento preesistente a WP3 e non toccato qui) e
+       la porta resta bloccata finche' non si ripulisce (GameRoomIsLocked):
+       non esiste quindi ancora, in gioco, una sequenza "esco e rientro in una
+       stanza di combattimento ancora aperta" in cui osservare la persistenza
+       -- il meccanismo serve alle stanze segrete di un lavoro successivo, che
+       potranno rientrare piu' volte prima di essere "ripulite" in quel senso
+       (vedi docs/design/systems/secrets-and-obstacles.md, "Persistenza dei
+       distruttibili", e docs/engineering/known-issues.md voce 11). Insieme,
+       in questo stesso blocco, (c): la croce centrale resta libera da
+       QUALUNQUE ostacolo, di QUALUNQUE famiglia. */
+    {
+        bool found = false;
+        for (int floor = 1; floor <= FLOOR_COUNT && !found; floor++)
+        {
+            Game g;
+            RoomsTestGenerateFloor(seed, floor, &g);
+            /* La stanza di partenza e' sempre 1x1 (WorldGenerateFloorMap): il
+               modo piu' semplice di ottenere ostacoli VERI (WorldBuildObstacles,
+               famiglie comprese) e' forzarla a stanza di combattimento non
+               ripulita, con un layout SCATTER a densita' massima (il maggior
+               numero possibile di blocchi -- ROOM_LAYOUT_MAX_PER_CELL -- alza le
+               probabilita' di trovare almeno un distruttibile). */
+            g.content.floors[floor - 1].roomLayout.active = true;
+            g.content.floors[floor - 1].roomLayout.form = ROOM_LAYOUT_SCATTER;
+            g.content.floors[floor - 1].roomLayout.density = ROOM_LAYOUT_DENSITY_MAX;
+            RoomState *r = WorldCurrentRoomMutable(&g);
+            r->kind = ROOM_COMBAT;
+            r->cleared = false;
+            WorldSpawnRoomContents(&g);   /* costruisce ostacoli VERI (WorldBuildObstacles) */
+
+            /* (c) croce centrale libera, qualunque famiglia -- stessa logica
+               di rifiuto di BlockInQuadrant (room_layout.c): un ostacolo che
+               intersechi la fascia verticale O quella orizzontale del centro
+               non e' ammesso. */
+            Rectangle roomRect = WorldCurrentRoomRect(&g);
+            float ccx = roomRect.x + roomRect.width*0.5f, ccy = roomRect.y + roomRect.height*0.5f;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+            {
+                Obstacle *o = &g.obstacles[i];
+                bool hitsVertical = (o->x < ccx + crossHalf) && (o->x + o->w > ccx - crossHalf);
+                bool hitsHorizontal = (o->y < ccy + crossHalf) && (o->y + o->h > ccy - crossHalf);
+                if (hitsVertical || hitsHorizontal)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (c) piano %d: un ostacolo (famiglia %d) invade la croce centrale (%.1f,%.1f %.1fx%.1f)\n",
+                            floor, (int)o->family, o->x, o->y, o->w, o->h);
+                    ok = false;
+                }
+            }
+
+            int destroyIdx = -1;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+                if (g.obstacles[i].family == OBSTACLE_DESTRUCTIBLE) { destroyIdx = i; break; }
+            if (destroyIdx < 0) continue;   /* questo piano non ne ha piazzato uno: si riprova al prossimo */
+            found = true;
+
+            Obstacle target = g.obstacles[destroyIdx];
+            int cellX = g.obstacleCellX[destroyIdx], cellY = g.obstacleCellY[destroyIdx], local = g.obstacleLocalIndex[destroyIdx];
+            Vector2 center = { target.x + target.w*0.5f, target.y + target.h*0.5f };
+
+            CombatExplodeAt(&g, center, fmaxf(target.w, target.h)*0.5f + 4.0f, 40.0f, true);   /* la bomba: sbreccia */
+
+            bool stillThereAfterBlast = false;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+                if (g.obstacleCellX[i] == cellX && g.obstacleCellY[i] == cellY && g.obstacleLocalIndex[i] == local)
+                    stillThereAfterBlast = true;
+            if (stillThereAfterBlast)
+            {
+                fprintf(stderr, "GameObstaclesTest: (a) piano %d: CombatExplodeAt non ha rimosso il distruttibile (cella %d,%d indice %d)\n",
+                        floor, cellX, cellY, local);
+                ok = false;
+            }
+            if (cellX < 0 || cellY < 0 || !(g.destroyedObstacleMask[cellY][cellX] & (unsigned short)(1u << local)))
+            {
+                fprintf(stderr, "GameObstaclesTest: (a) piano %d: il bit di persistenza non e' stato segnato per cella (%d,%d) indice %d\n",
+                        floor, cellX, cellY, local);
+                ok = false;
+            }
+
+            /* Uscita e rientro nella STESSA stanza: WorldSpawnRoomContents
+               gira di nuovo, esattamente come ad ogni ingresso vero. */
+            WorldSpawnRoomContents(&g);
+            bool reappeared = false;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+                if (g.obstacleCellX[i] == cellX && g.obstacleCellY[i] == cellY && g.obstacleLocalIndex[i] == local)
+                    reappeared = true;
+            if (reappeared)
+            {
+                fprintf(stderr, "GameObstaclesTest: (a) piano %d: il distruttibile spaccato e' ricomparso rientrando nella stanza (cella %d,%d indice %d)\n",
+                        floor, cellX, cellY, local);
+                ok = false;
+            }
+        }
+        if (!found)
+        {
+            fprintf(stderr, "GameObstaclesTest: (a)/(c) nessun ostacolo DISTRUTTIBILE trovato in %d piani a densita' massima: verifica (a) non eseguita\n", FLOOR_COUNT);
+            ok = false;
+        }
+    }
+
+    /* (b) Il pericolo passivo (OBSTACLE_HAZARD) e' gia' presente -- quindi
+       gia' disegnato con un segnale distinto, DrawObstacles in
+       game_renderer.c -- nell'istante in cui la stanza e' pronta, PRIMA che
+       il giocatore possa toccarlo: nessuna finestra in cui colpisca "a
+       sorpresa" (telegraph). Danneggia al contatto dentro gli i-frames
+       esistenti, e i nemici lo ignorano. */
+    {
+        bool found = false;
+        for (int floor = 1; floor <= FLOOR_COUNT && !found; floor++)
+        {
+            Game g;
+            RoomsTestGenerateFloor(seed + 1u, floor, &g);
+            g.content.floors[floor - 1].roomLayout.active = true;
+            g.content.floors[floor - 1].roomLayout.form = ROOM_LAYOUT_SCATTER;
+            g.content.floors[floor - 1].roomLayout.density = ROOM_LAYOUT_DENSITY_MAX;
+            RoomState *r = WorldCurrentRoomMutable(&g);
+            r->kind = ROOM_COMBAT;
+            r->cleared = false;
+            g.phase = PHASE_PLAY;
+            WorldSpawnRoomContents(&g);
+
+            int hazardIdx = -1;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+                if (g.obstacles[i].family == OBSTACLE_HAZARD) { hazardIdx = i; break; }
+            if (hazardIdx < 0) continue;
+            found = true;
+            Obstacle hz = g.obstacles[hazardIdx];   /* esiste (ed e' quindi gia' telegrafato) da PRIMA di ogni contatto */
+
+            Rectangle roomRectB = WorldCurrentRoomRect(&g);
+
+            int startHp = 6;
+            g.player.maxHp = startHp;
+            g.player.hp = startHp;
+            g.player.tempHp = 0;
+            g.player.invuln = 0.0f;
+            g.player.radius = 14.0f;
+            g.player.pos = (Vector2){ hz.x + hz.w*0.5f, hz.y + hz.h*0.5f };
+
+            /* Il contatto vero passa dal FRAME intero (CombatUpdatePlayer),
+               non da CombatResolveHazards isolata: e' l'unico modo per cui
+               togliere lo skip dei pericoli da CombatResolveObstacles (che
+               tornerebbe a bloccare il movimento invece di danneggiare) o
+               togliere la chiamata a CombatResolveHazards da
+               CombatUpdatePlayer (che spegnerebbe la feature per l'intero
+               gioco) facciano fallire QUESTO test. Nessun tasto/mouse premuto
+               (move e mira restano zero): il giocatore resta fermo sul
+               pericolo, come se ci fosse nato sopra. */
+            CombatUpdatePlayer(&g, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+            if (g.player.hp >= startHp || g.player.invuln <= 0.0f)
+            {
+                fprintf(stderr, "GameObstaclesTest: (b) piano %d: il contatto col pericolo non ha fatto danno/aperto gli i-frames (hp %d->%d, invuln=%.2f)\n",
+                        floor, startHp, g.player.hp, g.player.invuln);
+                ok = false;
+            }
+            int hpAfterFirst = g.player.hp;
+
+            /* Dentro gli STESSI i-frames: un secondo contatto immediato non
+               deve fare danno una seconda volta (CombatDamagePlayer li
+               rispetta gia', qui si verifica solo che il frame intero non li
+               scavalchi). */
+            CombatUpdatePlayer(&g, 1.0f/60.0f, (Vector2){ 0.0f, 0.0f }, false);
+            if (g.player.hp != hpAfterFirst)
+            {
+                fprintf(stderr, "GameObstaclesTest: (b) piano %d: un secondo contatto dentro gli i-frames ha fatto danno di nuovo (hp %d->%d)\n",
+                        floor, hpAfterFirst, g.player.hp);
+                ok = false;
+            }
+
+            /* I nemici lo ignorano (default proposto, governance/open-questions.md
+               voce 29): un nemico piazzato ESATTAMENTE al centro del pericolo,
+               con il giocatore alla STESSA posizione (dir verso il giocatore
+               nulla -> nessun movimento d'IA), non deve MUOVERSI affatto:
+               ne' spinto fuori (se CombatResolveObstacles trattasse il
+               pericolo come un solido, lo spingerebbe fuori dal rettangolo),
+               ne' altrimenti alterato. Confrontare la POSIZIONE (non l'hp,
+               che nessuna variante di questo codice puo' toccare per un
+               nemico: CombatResolveHazards agisce solo sul giocatore) e'
+               cio' che rende il controllo capace di fallire se lo skip dei
+               pericoli sparisse da CombatResolveObstacles. */
+            EntitiesClear(&g);
+            Vector2 hazardCenter = { hz.x + hz.w*0.5f, hz.y + hz.h*0.5f };
+            g.player.pos = hazardCenter;   /* dir verso il giocatore = 0: l'IA del nemico non lo sposta */
+            EntitiesAddEnemy(&g, ENEMY_CHASER, hazardCenter);
+            int enemyIdx = -1;
+            Vector2 enemyPosBefore = { 0.0f, 0.0f };
+            for (int i = 0; i < MAX_ENEMIES; i++)
+                if (g.enemies[i].active) { enemyIdx = i; enemyPosBefore = g.enemies[i].pos; break; }
+            if (enemyIdx < 0)
+            {
+                fprintf(stderr, "GameObstaclesTest: (b) piano %d: nessuno slot nemico libero per il controllo\n", floor);
+                ok = false;
+            }
+            else
+            {
+                CombatUpdateEnemies(&g, 1.0f/60.0f);
+                Vector2 enemyPosAfter = g.enemies[enemyIdx].pos;
+                float moved2 = GameMathLengthSquared(GameMathSubtract(enemyPosAfter, enemyPosBefore));
+                if (moved2 > 0.001f)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (b) piano %d: un nemico sul pericolo si e' spostato (atteso: fermo, lo ignora), (%.2f,%.2f) -> (%.2f,%.2f)\n",
+                            floor, enemyPosBefore.x, enemyPosBefore.y, enemyPosAfter.x, enemyPosAfter.y);
+                    ok = false;
+                }
+            }
+
+            /* Un colpo ATTRAVERSA un pericolo (non rimbalza, non sparisce):
+               parte appena fuori dal lato del pericolo rivolto verso il
+               BORDO della stanza e attraversa verso il CENTRO (la croce e'
+               sempre libera oltre, mai un altro ostacolo sulla rotta), cosi'
+               lo spazio necessario c'e' sempre, qualunque sia la posizione
+               del pericolo nel suo quadrante. */
+            EntitiesClear(&g);
+            float centerX = roomRectB.x + roomRectB.width*0.5f;
+            bool hazardLeftOfCenter = (hz.x + hz.w*0.5f) < centerX;
+            float shotRadius = 4.0f;
+            float buffer = shotRadius + 4.0f;
+            float travel = hz.w + buffer*2.0f + 12.0f;
+            Vector2 shotStart = hazardLeftOfCenter
+                ? (Vector2){ hz.x - buffer, hz.y + hz.h*0.5f }
+                : (Vector2){ hz.x + hz.w + buffer, hz.y + hz.h*0.5f };
+            Vector2 shotDir = hazardLeftOfCenter ? (Vector2){ 1.0f, 0.0f } : (Vector2){ -1.0f, 0.0f };
+            float crossSpeed = travel*60.0f;   /* copre 'travel' in un solo passo a 1/60s */
+            float expectedPastEdge = hazardLeftOfCenter ? (hz.x + hz.w) : hz.x;
+            Shot *hazardShot = EntitiesAddShot(&g, true, shotStart, shotDir, crossSpeed, 10.0f, shotRadius, 0, WHITE);
+            if (!hazardShot)
+            {
+                fprintf(stderr, "GameObstaclesTest: (b) piano %d: impossibile creare il colpo di prova per l'attraversamento\n", floor);
+                ok = false;
+            }
+            else
+            {
+                CombatUpdateShots(&g, 1.0f/60.0f);
+                bool crossed = hazardLeftOfCenter ? (hazardShot->pos.x > expectedPastEdge) : (hazardShot->pos.x < expectedPastEdge);
+                if (!hazardShot->active || !crossed)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (b) piano %d: un colpo non ha attraversato il pericolo (active=%d, pos.x=%.1f, atteso %s %.1f)\n",
+                            floor, hazardShot->active, hazardShot->pos.x, hazardLeftOfCenter ? "oltre" : "sotto", expectedPastEdge);
+                    ok = false;
+                }
+            }
+        }
+        if (!found)
+        {
+            fprintf(stderr, "GameObstaclesTest: (b) nessun ostacolo PERICOLO trovato in %d piani a densita' massima: verifica non eseguita\n", FLOOR_COUNT);
+            ok = false;
+        }
+    }
+
+    /* (d) DEC-043: il budget nemici condiviso si riduce con gli ostacoli
+       della stanza, mai sotto la soglia minima che garantisce almeno un
+       nemico (secrets-and-obstacles.md, "Casi limite"). Stesso stato di
+       partenza (rng SALVATO e ripristinato) per isolare l'unica differenza
+       che conta: quanti ostacoli ha la stanza. */
+    {
+        Game g;
+        RoomsTestGenerateFloor(seed + 2u, 1, &g);
+        unsigned int savedRng = g.rng;
+
+        EntitiesClear(&g);
+        g.obstacleCount = 0;
+        g.obstacleHoleCount = 0;
+        g.rng = savedRng;
+        WorldSpawnCombatRoom(&g);
+        int spawnedBaseline = 0;
+        for (int i = 0; i < MAX_ENEMIES; i++) if (g.enemies[i].active) spawnedBaseline++;
+
+        EntitiesClear(&g);
+        for (int i = 0; i < 30; i++) g.obstacles[i] = (Obstacle){ -1000.0f, -1000.0f, 10.0f, 10.0f, OBSTACLE_SOLID };
+        g.obstacleCount = 30;   /* ben oltre quanto un budget di poche unita' possa assorbire */
+        g.obstacleHoleCount = 0;
+        g.rng = savedRng;
+        WorldSpawnCombatRoom(&g);
+        int spawnedWithObstacles = 0;
+        for (int i = 0; i < MAX_ENEMIES; i++) if (g.enemies[i].active) spawnedWithObstacles++;
+
+        if (spawnedBaseline <= 1)
+        {
+            fprintf(stderr, "GameObstaclesTest: (d) baseline sospetta (spawnedBaseline=%d, atteso >1 per un confronto significativo)\n", spawnedBaseline);
+            ok = false;
+        }
+        if (spawnedWithObstacles != 1)
+        {
+            fprintf(stderr, "GameObstaclesTest: (d) con 30 ostacoli il budget nemici doveva ridursi al minimo garantito (1 nemico), ottenuto %d\n", spawnedWithObstacles);
+            ok = false;
+        }
+        if (spawnedWithObstacles >= spawnedBaseline)
+        {
+            fprintf(stderr, "GameObstaclesTest: (d) gli ostacoli non hanno ridotto il budget nemici (baseline=%d, con ostacoli=%d)\n",
+                    spawnedBaseline, spawnedWithObstacles);
+            ok = false;
+        }
+    }
+
+    if (ok) printf("  [obstacles] WP3: distruttibile rimosso dalla bomba e persistente rientrando, croce centrale libera per ogni famiglia, pericolo telegrafato che danneggia dentro gli i-frames (nemici lo ignorano), budget nemici ridotto dagli ostacoli (DEC-043): ok\n");
+    else fprintf(stderr, "GameObstaclesTest: FALLITO -- vedi i messaggi sopra\n");
     return ok;
 }
 

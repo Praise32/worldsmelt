@@ -218,6 +218,21 @@ bool GameRunTimerTest(Game *game);
    AssetsLoad) ma non disegna nulla. Vedi src/tests/game_tests.c. */
 bool GameTempHealthTest(Game *game);
 
+/* WP3 (docs/design/systems/secrets-and-obstacles.md, "Ostacoli generati a
+   tema" + DEC-043): le tre famiglie di ostacolo (solido/distruttibile/
+   pericolo, core/room_layout.h) -- la bomba (strumento di breccia,
+   CombatExplodeAt) rimuove i distruttibili nel raggio e lo stato distrutto
+   persiste per tutto il piano rientrando nella stessa stanza
+   (Game.destroyedObstacleMask); i pericoli passivi sono gia' presenti (quindi
+   gia' telegrafati) prima di ogni contatto possibile e danneggiano dentro gli
+   i-frames esistenti, ma i nemici li ignorano; la croce centrale resta libera
+   da qualunque ostacolo indipendentemente dalla famiglia; il budget nemici
+   condiviso (DEC-043) si riduce con gli ostacoli della stanza, mai sotto la
+   soglia che garantisce almeno un nemico. Come GameRoomsTest, gira su Game
+   LOCALI (RoomsTestGenerateFloor): non serve la finestra per davvero, 'game'
+   rispetta solo la convenzione di firma di AppRun. Vedi src/tests/game_tests.c. */
+bool GameObstaclesTest(Game *game);
+
 /* DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
    estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del
    pool curato minimo (DEC-144) e correzione di fortuna con soglia N ridotta

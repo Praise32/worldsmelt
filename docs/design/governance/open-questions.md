@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (27 voci attive su 28 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (28 voci attive su 29 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp2-temp-health
-last_verified_commit: d30890b
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008]
+last_updated_from_session: 2026-07-30-wp3-obstacles
+last_verified_commit: a2de293
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043]
 related: []
 supersedes: []
 source_files: []
@@ -226,3 +226,42 @@ o la politica non sono canone e vanno confermati o spostati.
     base (stanze/oggetti/eventi) è stata esclusa, solo non ancora scelta per il Crust.
     (`src/core/game_types.h`, `src/gameplay/combat.c`, `src/world/world.c`; vedi
     `systems/health-and-resources.md`, sezione "Default proposti dall'implementazione".)
+
+## Ostacoli distruttibili e pericoli passivi nel motore (WP3, 2026-07-30)
+
+Una domanda aperta dall'implementazione degli ostacoli a tema di
+`systems/secrets-and-obstacles.md` (famiglie solido/distruttibile/pericolo, DEC-043): il
+documento fissa il principio del budget di difficoltà condiviso e la richiesta di telegraph
+leggibile, ma lascia esplicitamente aperti (sezione "Domande aperte residue" dello stesso
+documento) sia la proporzione blocchi/pericoli sia i valori numerici del budget condiviso.
+Ha già un **default proposto** implementato (stile DEC-019): il gioco funziona, ma i numeri
+non sono canone.
+
+29. Qual è la **proporzione esatta** fra ostacoli solidi, distruttibili e pericoli passivi
+    telegrafati nella generazione a tema, e quale il **costo esatto** che ogni ostacolo
+    sottrae al budget nemici condiviso (DEC-043)? Il documento fissa solo il principio (due
+    famiglie generate a tema oltre al solido, più aggressive nei piani alti; budget
+    condiviso fra ostacoli e nemici), non i numeri. *Default proposto e implementato*:
+    probabilità **piatta** (non scalata col piano) del 35% che un blocco generato diventi
+    distruttibile; probabilità di pericolo che parte all'8% al piano 1 e cresce del 5% per
+    piano (DEC-024, degenerazione del tema), fino a un tetto del 40%; il resto resta solido
+    (comportamento di sempre, zero-default). Costo nemici: 0.18 punti di budget per ogni
+    ostacolo della stanza (di qualunque famiglia, celle-buco di una L escluse), mai sotto
+    0.35 punti residui — la stessa soglia minima di costo di un singolo nemico, così il
+    budget non azzera mai la presenza di nemici (`secrets-and-obstacles.md`, "Casi limite").
+    Danno di contatto di un pericolo: 1 punto, dentro gli i-frames esistenti; i nemici lo
+    ignorano (interpretazione scelta fra le due ammesse dal documento, "ignorano o evitano"
+    — nessuna euristica di pathing per "evitare" esiste ancora nel motore). Da confermare al
+    playtest. (`OBSTACLE_DESTRUCTIBLE_CHANCE`, `OBSTACLE_HAZARD_CHANCE_BASE/PER_FLOOR/MAX`,
+    `WORLD_OBSTACLE_ENEMY_BUDGET_COST/FLOOR`, `src/world/world.c`, `src/gameplay/combat.c`;
+    vedi `systems/secrets-and-obstacles.md`, sezione "Default proposti
+    dall'implementazione".)
+
+    **Aggiornamento 30/07 (revisione WP3):** due precisazioni ulteriori, stesso stato di
+    default proposto. (1) La persistenza dei distruttibili spaccati è oggi infrastruttura
+    non ancora osservabile in gioco (una stanza di combattimento perde comunque tutti i suoi
+    ostacoli quando si ripulisce, e la porta resta bloccata finché non si ripulisce): vedi
+    `docs/engineering/known-issues.md` voce 11. (2) `CombatExplodeAt` apre i distruttibili
+    per qualunque esplosione di origine GIOCATORE (bomba, colpo/attivo con trait Esplosivo),
+    non solo per la bomba in senso stretto — un parametro `breach` esplicito impedisce
+    comunque che un'ipotetica esplosione di origine nemica apra un varco.
