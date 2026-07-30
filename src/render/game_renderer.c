@@ -2053,7 +2053,7 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
 }
 
 /* Alto-destra: progressione della run e minimappa (priorita' 4 di ui/hud.md).
-   Mondo/boss/piano/stanza/fonte in testa, poi la mappa in un angolo
+   Mondo/boss/piano/stanza/tempo/fonte in testa, poi la mappa in un angolo
    semitrasparente (DEC-137, "minimappa in un angolo"). L'FPS resta ma discreto,
    in coda alla riga della fonte. */
 static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
@@ -2062,10 +2062,17 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
     int font = UiRound(13.0f*s);
     int fpsFont = UiRound(12.0f*s);
 
-    char worldLine[128], floorLine[96], bossLine[80];
+    char worldLine[128], floorLine[96], bossLine[80], timerLine[32];
     snprintf(worldLine, sizeof(worldLine), "%s / %s", game->theme.name, game->theme.style);
     snprintf(bossLine, sizeof(bossLine), "Boss: %s", game->theme.bossName);
     snprintf(floorLine, sizeof(floorLine), "Piano %d/%d  -  %s", game->floor, FLOOR_COUNT, GameRoomKindName(GameCurrentRoom(game)->kind));
+    /* DEC-051 chiede il timer SEMPRE visibile: questo e' il ripiego integrale
+       dell'HUD (nessun pacchetto artistico), quindi il cronometro deve esserci
+       anche qui, non solo nel layout V3 di DrawHudCanvas. Sta in questo
+       cluster perche' e' progressione della run come piano e mondo; stesso
+       formato m:ss dell'HUD V3 e di RunResults, mai ricalcolato. */
+    snprintf(timerLine, sizeof(timerLine), "Tempo: %d:%02d",
+             (int)game->runElapsedSeconds / 60, (int)game->runElapsedSeconds % 60);
     const char *sourceLine = game->content.loaded ? "Fonte: LLM cache" : "Fonte: fallback";
     const char *fpsText = TextFormat("%d FPS", GetFPS());
 
@@ -2077,12 +2084,14 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
 
     float lineH = 18.0f*s;
     float wText = fmaxf(fmaxf((float)UiTextW(worldLine, font), (float)UiTextW(bossLine, font)),
-                        fmaxf((float)UiTextW(floorLine, font),
+                        fmaxf(fmaxf((float)UiTextW(floorLine, font), (float)UiTextW(timerLine, font)),
                               (float)UiTextW(sourceLine, font) + (float)UiTextW(fpsText, fpsFont) + 14.0f*s));
     float contentW = fmaxf(wText, (float)mmW);
     float boxW = contentW + ip*2.0f;
     float gapAfterText = 8.0f*s;
-    float boxH = ip*2.0f + lineH*4.0f + gapAfterText + (float)mmH;
+    /* 5 righe e non piu' 4: la riga del tempo (DEC-051) e' fissa come le altre
+       quattro, il riquadro deve crescere o la minimappa le finirebbe sopra. */
+    float boxH = ip*2.0f + lineH*5.0f + gapAfterText + (float)mmH;
 
     Rectangle box = { gr.x + gr.width - margin - boxW, gr.y + margin, boxW, boxH };
     DrawHudBox(box, game->theme.accent2, s, 214);
@@ -2092,6 +2101,7 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
     UiText(worldLine, cx, cy, font, game->theme.accent2); cy += UiRound(lineH);
     UiText(bossLine, cx, cy, font, (Color){ 214, 218, 226, 255 }); cy += UiRound(lineH);
     UiText(floorLine, cx, cy, font, RAYWHITE); cy += UiRound(lineH);
+    UiText(timerLine, cx, cy, font, RAYWHITE); cy += UiRound(lineH);
     UiText(sourceLine, cx, cy, font, (Color){ 170, 178, 190, 255 });
     /* FPS in coda alla riga della fonte, allineato al bordo destro del riquadro. */
     UiText(fpsText, (int)(box.x + boxW - ip) - UiTextW(fpsText, fpsFont), cy + UiRound(1.0f*s), fpsFont, (Color){ 126, 232, 152, 255 });
@@ -2486,6 +2496,14 @@ static void DrawHudCanvas(Game *game, const AppUi *ui)
     UiTextOutlined(character ? character->name : "SENZA PERSONAGGIO",
                    HUD_V3_MARGIN, HUD_V3_NAME_Y, 8,
                    character ? character->palette : (Color){ 205, 210, 220, 255 });
+    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): il timer della run
+       centrato in alto, formato MM:SS. */
+    int minutes = (int)game->runElapsedSeconds / 60;
+    int seconds = (int)game->runElapsedSeconds % 60;
+    char timerText[16];
+    snprintf(timerText, sizeof(timerText), "%d:%02d", minutes, seconds);
+    int timerW = UiTextW(timerText, 8);
+    UiTextOutlined(timerText, SCREEN_WIDTH / 2 - timerW / 2, HUD_V3_NAME_Y, 8, RAYWHITE);
     DrawHudV3Hearts(p, HUD_V3_MARGIN, HUD_V3_HEARTS_Y);
     DrawHudV3Resources(game, HUD_V3_MARGIN, HUD_V3_RES_Y);
     /* DEC-184: priorita' visiva 4 (sotto sopravvivenza/minacce/risorse sopra,
@@ -2613,13 +2631,17 @@ static int MenuItemCountForMode(AppMode mode)
 /* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. */
 #define MENU_ROW_START_Y_BASE 110.0f
 #define MENU_ROW_H_BASE 52.0f
-/* DEC-159: RunResults ha, sopra le sue due voci, un numero VARIABILE di righe
-   informative facoltative (esito, piano raggiunto, causa della sconfitta se
-   game over, conteggio catalogo se >0) -- una quota fissa piu' bassa di
-   MENU_ROW_START_Y_BASE lascia sempre spazio a tutte, comparissero o no,
-   senza dover far dipendere la geometria delle voci (quindi anche il
-   hit-test del mouse, RendererMenuItemAt) dal contenuto della run. */
-#define MENU_ROW_START_Y_RUN_RESULTS 150.0f
+/* DEC-159/DEC-051: RunResults ha, sopra le sue due voci, un blocco di righe
+   SEMPRE presenti (esito, piano raggiunto, tempo) piu' un numero VARIABILE di
+   righe facoltative (causa della sconfitta se game over, conteggio catalogo
+   se >0) -- una quota fissa piu' bassa di MENU_ROW_START_Y_BASE lascia sempre
+   spazio a tutte, comparissero o no le facoltative, senza dover far dipendere
+   la geometria delle voci (quindi anche il hit-test del mouse,
+   RendererMenuItemAt) dal contenuto della run. 172 e non piu' 150: la riga
+   Tempo (WP1) e' una quinta riga SEMPRE disegnata, non una facoltativa in
+   piu' -- serve lo stesso passo di 22px delle altre per non farla toccare la
+   prima voce di menu. */
+#define MENU_ROW_START_Y_RUN_RESULTS 172.0f
 
 /* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
    stessa garanzia (uiScale==1.0 => letterali identici a prima). */
@@ -3286,13 +3308,23 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
         : "La run e' finita qui.";
     UiText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
     UiText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    /* WP1 (DEC-051/DEC-056, ui/results-and-leaderboards.md riga "Tempo e piano
+       raggiunto | Sempre"): il tempo finale, sia a vittoria che a sconfitta --
+       stesso game->runElapsedSeconds gia' accumulato durante PHASE_PLAY in una
+       run vera (game.c), mai ricalcolato qui. Stesso formato m:ss dell'HUD
+       (DrawHudCanvas). Testo senza accentate ne' parentesi: il font pixel non
+       le ha (known-issues.md voce 10 punto 1). */
+    int runMinutes = (int)game->runElapsedSeconds / 60;
+    int runSeconds = (int)game->runElapsedSeconds % 60;
+    UiText(TextFormat("Tempo: %d:%02d", runMinutes, runSeconds), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(102.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
     /* DEC-159: la causa della sconfitta, SOLO a game over (mai a vittoria: li'
        game->deathCause resta la stringa vuota dello zero-default, scritta
        unicamente da CombatDamagePlayer). Riga indipendente da quella del
        catalogo sotto: 'lineY' avanza SOLO per le righe davvero disegnate, cosi'
        le due righe facoltative non si sovrappongono ne' lasciano un buco
-       quando una delle due manca. */
-    float lineY = 102.0f;
+       quando una delle due manca. Parte da 124 (non piu' 102): la riga Tempo
+       sopra ha gia' preso la quota 102. */
+    float lineY = 124.0f;
     if (game->phase == PHASE_GAME_OVER && game->deathCause[0])
     {
         UiText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });

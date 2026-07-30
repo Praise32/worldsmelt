@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (25 voci attive su 26 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
-last_reviewed: 2026-07-28
-last_updated_from_session: 2026-07-30-w8-art-consumption
+  Coda ufficiale e unica delle domande ancora aperte (26 voci attive su 27 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+last_reviewed: 2026-07-30
+last_updated_from_session: 2026-07-30-wp1-run-timer
 last_verified_commit: d30890b
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051]
 related: []
 supersedes: []
 source_files: []
@@ -162,7 +162,9 @@ La sessione di revisione finale ha registrato le 10 domande accumulate durante l
 
 ## Consumo del pacchetto artistico nel motore (W8, 2026-07-30)
 
-Quattro domande aperte dall'aggancio degli asset di `assets/art/` al motore. Ognuna ha
+Cinque domande aperte dallo stesso giro di lavoro sul consumo del pacchetto W8: quattro
+dall'aggancio degli asset di `assets/art/` al motore, una dal gating del timer di run
+(DEC-051) chiuso nello stesso lavoro in `known-issues.md` voce 10 punto 5 (WP1). Ognuna ha
 già un **default proposto** implementato (stile DEC-019): il gioco funziona, ma il numero
 o la politica non sono canone e vanno confermati o spostati.
 
@@ -194,3 +196,16 @@ o la politica non sono canone e vanno confermati o spostati.
     sostituito — e in V3 la quota alta a destra è occupata dalla riga piano/mondo.
     *Default proposto e implementato*: **basso al centro**, come il mock V3. Da
     confermare, e in ogni caso `ui/hud.md` va allineato alla scelta.
+27. Il **timer di run non deve correre nel Piano 0**? DEC-051 fissa il timer sempre
+    visibile durante il gameplay ma non si pronuncia sul crogiolo, che nel motore usa la
+    stessa `PHASE_PLAY` del gameplay vero per restare esplorabile mentre le proposte
+    girano in sottofondo (M1b). *Default proposto e implementato*: **il cronometro viene
+    azzerato all'ingresso nel Piano 0 e resta fermo a zero** per tutta la permanenza —
+    `FloorZeroEnter` spegne `game->inRealRun` (che blocca l'accumulo) e riporta
+    `runElapsedSeconds` a zero (che cancella il tempo della run precedente: senza
+    quest'ultimo il crogiolo mostrerebbe congelato il tempo dell'ultima run dalla seconda
+    visita in poi). Il conteggio riparte da zero solo con `GameResetRunWithSeed`, cioè
+    dopo l'attraversamento del varco verso il piano 1. Da confermare al playtest —
+    l'alternativa scartata (farlo accumulare anche nell'hub) penalizzerebbe chi si ferma a
+    leggere le carte-proposta prima di scegliere. (`src/game/game.c`,
+    `src/world/floor_zero.c`.)

@@ -196,6 +196,12 @@ void GameResetRunWithSeed(Game *game, unsigned int runSeed)
         }
     AssetsLoad(game);
     game->phase = PHASE_PLAY;
+    /* WP1 (DEC-051): questa e' l'UNICA funzione che accende 'inRealRun' --
+       il memset sopra l'ha gia' azzerato a falso, qui si dichiara "da questo
+       punto in poi e' una run vera" prima di WorldStartFloor(1) sotto.
+       FloorZeroEnter (il crogiolo) lo rispegne esplicitamente: vedi il
+       commento sul campo in game_types.h. */
+    game->inRealRun = true;
     GamePlayerResetBaseStats(&game->player);
     /* M6a: -1, MAI 0 (che il memset sopra scriverebbe da solo e che
        collide con "personaggio 0 scelto", vedi CharacterRosterGet) --
@@ -294,6 +300,22 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
         GameUpdateParticles(game, dt);
         return;
     }
+
+    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): accumulare il tempo
+       SOLO durante PHASE_PLAY (gameplay attivo) E SOLO in una run vera
+       ('inRealRun', WP1) -- questa guardia esclude game over e win (in realta'
+       gia' usciti col return sopra) e il Piano 0, che mette anch'esso
+       PHASE_PLAY per rendere il crogiolo giocabile (M1b, FloorZeroEnter) ma
+       spegne 'inRealRun': la sala d'attesa non e' una run cronometrata.
+       Pausa, menu e BuildScreen NON passano di qui e non hanno bisogno di
+       essere esclusi: 'phase' resta PHASE_PLAY anche li', e' AppSimStep
+       (src/app/app.c) che fuori da APP_GAMEPLAY/APP_FLOOR_ZERO chiama solo
+       GameUpdateParticles, quindi l'intera GameUpdate non gira. Usa il dt del
+       frame (gia' clamped a max 0.033f sopra) e NON entra mai in alcuna
+       decisione di gameplay ne' in alcuno stream RNG -- e' una misura di
+       tempo reale passato. */
+    if (game->phase == PHASE_PLAY && game->inRealRun)
+        game->runElapsedSeconds += dt;
 
     /* Rete di sicurezza del sistema delle cache (spec, sezione 7): consuma
        Game.statsDirty una volta per frame, PRIMA che CombatUpdatePlayer

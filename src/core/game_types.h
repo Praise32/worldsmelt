@@ -1333,6 +1333,26 @@ typedef struct Game {
        GameUpdate), cosi' la stessa run riparte con la stessa sequenza. */
     unsigned int runSeed;
     unsigned int rng;
+    /* WP1 (DEC-051): distingue una run VERA (piani 1-5, dopo l'attraversamento
+       del varco del Piano 0) dalla sola permanenza nel crogiolo -- impostato a
+       vero da GameResetRunWithSeed (l'unico punto che fa poi partire
+       WorldStartFloor sul piano 1), a falso da FloorZeroEnter. Serve perche'
+       'phase' da solo NON basta a distinguere i due casi: FloorZeroEnter
+       mette anch'essa PHASE_PLAY per rendere il crogiolo giocabile (M1b), e
+       FloorZeroEnter NON passa da GameResetRunWithSeed (azzeramento MIRATO,
+       non un memset dell'intero Game) -- senza questo campo esplicito
+       erediterebbe il 'vero' della run precedente. Unico consumatore oggi:
+       il gate di runElapsedSeconds sotto, in GameUpdate. */
+    bool inRealRun;
+    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): tempo trascorso in
+       secondi dall'inizio della run, accumulato SOLO durante PHASE_PLAY E
+       inRealRun (gameplay attivo in una run vera, non pausa/menu/game-over ne'
+       esplorazione del Piano 0 -- WP1: il timer non deve correre nell'hub).
+       Azzerato da GameResetRunWithSeed come ogni altro campo di stato della
+       run. Disegnato nell'HUD durante Gameplay in formato m:ss (vedi
+       DrawHudCanvas) e ripetuto in RunResults (DrawRunResultsOverlay,
+       DEC-056: tempo sempre presente, vittoria e sconfitta). */
+    float runElapsedSeconds;
     /* DEC-145 -- correzione di fortuna: estrazioni consecutive di rarita'
        comune viste da ciascun pool, indipendenti fra loro (la stessa
        sequenza sfortunata sul tesoro non deve consumare la soglia del

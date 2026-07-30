@@ -20,6 +20,7 @@
 #include "script/script_api.h"
 #include "script/script_items.h"
 #include "script/script_sandbox.h"
+#include "world/floor_zero.h"
 #include "world/room_camera.h"
 
 #include <math.h>
@@ -3689,6 +3690,129 @@ bool GameRngSeedTest(Game *game)
     return true;
 }
 
+/* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): il cronometro della run
+   accumula SOLO durante PHASE_PLAY in una run vera ('inRealRun', WP1: NON nel
+   Piano 0), si azzera con GameResetRunWithSeed, e non entra mai in alcuna
+   decisione di gameplay ne' in alcuno stream RNG. */
+bool GameRunTimerTest(Game *game)
+{
+    const unsigned int seed = 42u;
+    const float dt = 0.016f;   /* ~60 Hz */
+
+    /* Azzera il timer e verifica che parta da 0. */
+    GameResetRunWithSeed(game, seed);
+    if (game->runElapsedSeconds != 0.0f)
+    {
+        fprintf(stderr, "GameRunTimerTest: GameResetRunWithSeed non ha azzerato runElapsedSeconds (valore: %.3f)\n", game->runElapsedSeconds);
+        return false;
+    }
+
+    /* Accumula timer durante PHASE_PLAY. */
+    game->phase = PHASE_PLAY;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    if (game->runElapsedSeconds < dt * 0.99f)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer non accumula in PHASE_PLAY (atteso ~%.3f, ottenuto %.3f)\n", dt, game->runElapsedSeconds);
+        return false;
+    }
+    float timerAfterOneStep = game->runElapsedSeconds;
+
+    /* Un secondo step accumulato. */
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    if (game->runElapsedSeconds < timerAfterOneStep + dt * 0.99f)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer non accumula al secondo step (precedente %.3f, atteso ~%.3f, ottenuto %.3f)\n",
+                timerAfterOneStep, timerAfterOneStep + dt, game->runElapsedSeconds);
+        return false;
+    }
+
+    /* Timer NON accumula in PHASE_GAME_OVER. */
+    float timerBeforeGameOver = game->runElapsedSeconds;
+    game->phase = PHASE_GAME_OVER;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    if (game->runElapsedSeconds > timerBeforeGameOver)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer accumula in PHASE_GAME_OVER (prima: %.3f, dopo: %.3f)\n",
+                timerBeforeGameOver, game->runElapsedSeconds);
+        return false;
+    }
+
+    /* Timer NON accumula in PHASE_WIN. */
+    GameResetRunWithSeed(game, seed);
+    game->phase = PHASE_PLAY;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    float timerBeforeWin = game->runElapsedSeconds;
+    game->phase = PHASE_WIN;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    if (game->runElapsedSeconds > timerBeforeWin)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer accumula in PHASE_WIN (prima: %.3f, dopo: %.3f)\n",
+                timerBeforeWin, game->runElapsedSeconds);
+        return false;
+    }
+
+    /* Reset rapido R azzera il timer. GameResetRunWithSeed dentro GameUpdate
+       lo azzera, ma il dt dello stesso frame del reset viene comunque aggiunto
+       (perche' il reset avviene in mezzo al GameUpdate, prima del check
+       di PHASE_PLAY). Quindi dopo il reset, il timer contiene il dt di quel
+       frame, che e' corretto (il nuovo gioco ha appena iniziato). */
+    GameResetRunWithSeed(game, seed);
+    game->phase = PHASE_PLAY;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    float timerBeforeReset = game->runElapsedSeconds;
+    if (timerBeforeReset < dt * 0.99f)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer non accumula prima del reset (atteso ~%.3f, ottenuto %.3f)\n", dt, timerBeforeReset);
+        return false;
+    }
+    game->resetQueued = true;
+    GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    /* Dopo il reset, il timer contiene solo il dt dello stesso frame di reset
+       (il nuovo gioco e' partito in questo frame). */
+    if (game->runElapsedSeconds < dt * 0.99f || game->runElapsedSeconds > dt * 1.01f)
+    {
+        fprintf(stderr, "GameRunTimerTest: reset rapido non azzera correttamente runElapsedSeconds (atteso ~%.3f, ottenuto %.3f)\n", dt, game->runElapsedSeconds);
+        return false;
+    }
+
+    /* WP1 (DEC-051): il Piano 0 (crogiolo) NON e' una run cronometrata.
+       FloorZeroEnter mette anch'essa PHASE_PLAY per rendere l'hub giocabile
+       (M1b, stesso cammino di GameFloorZeroTest sopra), ma spegne 'inRealRun'
+       E riporta il cronometro a zero. Il tempo si accumula PRIMA di entrare
+       nel crogiolo apposta: e' la seconda visita al Piano 0 (o la prima dopo
+       un abbandono) il caso che rompe -- con un Game appena resettato le due
+       verifiche sotto sarebbero vere per costruzione e non sorveglierebbero
+       nulla. Cosi' invece falliscono sia se qualcuno toglie l'azzeramento in
+       FloorZeroEnter (il tempo resterebbe congelato a quello della run
+       precedente) sia se qualcuno torna a guardare solo 'phase' come prima
+       del gate 'inRealRun' (il timer ripartirebbe nell'hub). */
+    GameResetRunWithSeed(game, seed);
+    for (int i = 0; i < 30; i++)
+        GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    float timerBeforeFloorZero = game->runElapsedSeconds;
+    if (timerBeforeFloorZero < dt*0.99f)
+    {
+        fprintf(stderr, "GameRunTimerTest: la run vera non ha accumulato tempo prima del Piano 0 (valore: %.3f) -- le verifiche sul crogiolo sarebbero vuote\n", timerBeforeFloorZero);
+        return false;
+    }
+    FloorZeroEnter(game);
+    if (game->runElapsedSeconds != 0.0f)
+    {
+        fprintf(stderr, "GameRunTimerTest: FloorZeroEnter non azzera runElapsedSeconds (accumulato prima: %.3f, rimasto: %.3f)\n",
+                timerBeforeFloorZero, game->runElapsedSeconds);
+        return false;
+    }
+    for (int i = 0; i < 30; i++)
+        GameUpdate(game, dt, (Vector2){ 0, 0 }, false);
+    if (game->runElapsedSeconds != 0.0f)
+    {
+        fprintf(stderr, "GameRunTimerTest: il timer accumula nel Piano 0 (valore dopo 30 step: %.3f)\n", game->runElapsedSeconds);
+        return false;
+    }
+
+    printf("  [run-timer] accumulo in PHASE_PLAY (%.3f), blocco in GAME_OVER/WIN/Piano 0, azzeramento dopo reset: ok\n", timerBeforeReset);
+    return true;
+}
 
 /* ============================================================
    DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):

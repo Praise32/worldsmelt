@@ -273,6 +273,10 @@ int RunCatalogWriteRun(const Game *game, unsigned int seed, const char *outcome)
     fprintf(f, "source=%s\n", source);
     fprintf(f, "outcome=%s\n", outcome);
     fprintf(f, "floorReached=%d\n", game->floor);
+    /* DEC-051 (ui/hud.md, ui/results-and-leaderboards.md): tempo della run in
+       secondi (formato float). Retrocompatibile: record vecchi senza tempo=
+       hanno valore 0 (zero-default). */
+    fprintf(f, "runTime=%.2f\n", (double)game->runElapsedSeconds);
 
     /* Il tema SCELTO della run (world), distinto dai floorN.theme sotto. */
     char worldName[48];

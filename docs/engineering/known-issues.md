@@ -9,12 +9,12 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-28
+last_reviewed: 2026-07-30
 last_verified_commit: 8210480
 topics: [difetti, limiti, test, rng, generazione, catalogo, audio]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h]
 ---
 
 # Registro dei difetti e limiti noti
@@ -340,8 +340,16 @@ con un giro artistico dedicato (**CP4**), nessuno richiede altro lavoro sul moto
 4. **Salute temporanea (DEC-008)**: l'icona `heart_temp` esiste nell'atlas icone, ma il
    motore non ha ancora un contatore di cuori temporanei — nessun cuore temporaneo viene
    disegnato. È una lacuna di GAMEPLAY, non d'arte: l'icona è pronta.
-5. **Timer di run (DEC-051)**: il layout V3 lo mette centrato in alto, `Game` non ha un
-   cronometro di run. Non disegnato. Anche questa è una lacuna di gameplay.
+5. **RISOLTO (2026-07-30) — Timer di run (DEC-051)**: `Game.runElapsedSeconds` accumula
+   durante la run vera e non nell'esplorazione del Piano 0 (`game->inRealRun`, WP1: la
+   sala d'attesa mette anch'essa `PHASE_PLAY` per essere giocabile, M1b, ma non è una run
+   cronometrata) e `FloorZeroEnter` lo riazzera all'ingresso nell'hub, così la seconda
+   visita non mostra congelato il tempo della run precedente. Si disegna centrato in alto
+   nel layout V3 (`DrawHudCanvas`, formato `m:ss`), nel ripiego senza pacchetto artistico
+   (`DrawHudRunStatus`, riga "Tempo: m:ss" nel cluster di progressione) e in `RunResults`
+   (`DrawRunResultsOverlay`, coerente con DEC-056). Verificato da `--run-timer-test`
+   (`GameRunTimerTest`, in `make test`), che copre anche il blocco durante
+   `PHASE_GAME_OVER`/`PHASE_WIN` e l'azzeramento all'ingresso nel Piano 0.
 6. **Le fasce di muro restano quelle decorative storiche** (34/12/14 px, non una fila
    intera di tile da 32): sono lo spessore che la resa 2.5D dichiara da sempre ed è
    ancorato al bordo REALE del campo di gioco. Allargarle a 32 px per lato avrebbe

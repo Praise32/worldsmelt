@@ -103,6 +103,18 @@ void FloorZeroEnter(Game *game)
     ScriptItemsInit(game, CharacterRosterGet(game->characterChosenIndex));   /* deriva damage/fireDelay/... dai base* con zero oggetti posseduti (Wayfinder non ha trait: traitHook vuoto) */
 
     game->phase = PHASE_PLAY;
+    /* WP1 (DEC-051): il crogiolo E' giocabile (PHASE_PLAY sopra, M1b), ma NON
+       e' una run cronometrata -- va spento esplicitamente, perche' questa
+       funzione fa un azzeramento MIRATO (vedi il commento in cima) e non un
+       memset dell'intero Game come GameResetRunWithSeed: senza questa riga
+       il campo erediterebbe il 'vero' lasciato dalla run precedente e il
+       timer continuerebbe a correre nell'hub. */
+    game->inRealRun = false;
+    /* Stessa ragione per il cronometro: 'inRealRun' da solo ferma l'accumulo
+       ma NON riporta indietro il valore gia' accumulato, e l'azzeramento
+       MIRATO non tocca questo campo -- dalla seconda visita in poi il Piano 0
+       mostrerebbe congelato il tempo della run precedente. */
+    game->runElapsedSeconds = 0.0f;
     game->floor = 0;
 
     int cx = GRID_SIZE/2;

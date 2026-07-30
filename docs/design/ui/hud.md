@@ -249,9 +249,18 @@ chi legge il codice:
   e il giocatore non deve ricordare quale dei due ha in mano. Una casella vuota resta
   disegnata (cornice spenta): `grafts.md` chiede che l'interfaccia mostri gli slot
   disponibili, non solo quelli pieni.
-- **Timer di run (DEC-051)**: il layout V3 lo mette centrato in alto ma `Game` non ha un
-  cronometro di run — **non disegnato**, lacuna di gameplay dichiarata in known-issues
-  voce 10.
+- **Timer di run (DEC-051, WP1 2026-07-30)**: `Game.runElapsedSeconds` accumula durante
+  la run vera (`game->inRealRun`, acceso da `GameResetRunWithSeed`) e **si disegna**
+  centrato in alto nel layout V3, formato `m:ss` (`DrawHudCanvas`), oltre che in
+  `RunResults` (`DrawRunResultsOverlay`, coerente con DEC-056: "Tempo e piano raggiunto |
+  Sempre"). Nel Piano 0 il cronometro è azzerato all'ingresso e resta fermo a zero — il
+  crogiolo è giocabile (PHASE_PLAY, M1b) ma non è una run cronometrata, `FloorZeroEnter`
+  spegne `inRealRun` **e** riporta `runElapsedSeconds` a zero (altrimenti dalla seconda
+  visita l'hub mostrerebbe congelato il tempo della run precedente). "Sempre visibile"
+  vale anche nel **ripiego** senza pacchetto artistico: `DrawHudRunStatus` disegna una
+  riga `Tempo: m:ss` nel cluster di progressione in alto a destra, accanto a piano e
+  mondo. Lacuna chiusa in `docs/engineering/known-issues.md` voce 10 punto 5; verificato
+  da `--run-timer-test` (`GameRunTimerTest`, in `make test`).
 - **Visibilità invariata**: `HudCombatShouldDraw` (DEC-169) resta la regola unica, in un
   solo punto. Il vecchio HUD a quattro cluster in overlay (`DrawOuterUi`) sopravvive come
   **ripiego integrale** per il caso "`assets/art/ui` assente": i due percorsi si escludono

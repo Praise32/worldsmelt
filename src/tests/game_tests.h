@@ -193,6 +193,16 @@ bool GameCatalogScreenshotTest(Game *game);
    diversi devono produrne una diversa. Vedi src/tests/game_tests.c. */
 bool GameRngSeedTest(Game *game);
 
+/* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): il cronometro della run
+   accumula SOLO durante PHASE_PLAY (gameplay attivo), si azzera con
+   GameResetRunWithSeed, e NON entra mai in alcuna decisione di gameplay ne'
+   in alcuno stream RNG. Come GameRngSeedTest, gira dopo InitWindow e usa
+   'game' per davvero (GameResetRunWithSeed chiama AssetsLoad). Verifica che
+   il timer accumuli in PHASE_PLAY, si blocchi in PHASE_GAME_OVER/PHASE_WIN,
+   e si azzeri dopo un reset rapido o GameResetRunWithSeed. Vedi
+   src/tests/game_tests.c. */
+bool GameRunTimerTest(Game *game);
+
 /* DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
    estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del
    pool curato minimo (DEC-144) e correzione di fortuna con soglia N ridotta
