@@ -1280,15 +1280,21 @@
         "exitconfirm",
         "overlay",
         "build-screen",
+        "DEC-082",
+        "DEC-089",
         "DEC-137",
         "DEC-139",
-        "DEC-156"
+        "DEC-156",
+        "WP19"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "source_files": [
+        "src/app/app.c",
+        "src/core/game_types.h"
+      ],
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "775314e"
     },
     {
       "id": "gd-ai-content-model",
@@ -2072,17 +2078,24 @@
         "prove",
         "DEC-042",
         "DEC-027",
+        "DEC-082",
+        "DEC-089",
         "WP5",
         "WP6",
         "WP7",
         "WP8",
-        "WP16"
+        "WP16",
+        "WP19"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
+      "source_files": [
+        "src/game/trials.h",
+        "src/game/trials.c",
+        "src/app/app.c"
+      ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d5c5f43"
+      "last_verified_commit": "775314e"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2709,7 +2722,9 @@
         "DEC-082",
         "DEC-089",
         "DEC-114",
+        "DEC-159",
         "DEC-169",
+        "WP19",
         "WP16",
         "WP15a",
         "Piano-0",
@@ -2738,13 +2753,17 @@
         "run-results",
         "classifiche",
         "vittoria-sconfitta",
+        "abbandono-run",
         "punti-sblocco",
         "daily",
         "causa-sconfitta",
         "DEC-041",
         "DEC-056",
         "DEC-062",
-        "DEC-159"
+        "DEC-082",
+        "DEC-089",
+        "DEC-159",
+        "WP19"
       ],
       "related": [],
       "supersedes": [],
@@ -2753,10 +2772,11 @@
         "src/gameplay/combat.c",
         "src/game/game_internal.h",
         "src/render/game_renderer.c",
+        "src/app/app.c",
         "src/tests/discovery_tests.c"
       ],
-      "last_reviewed": "2026-07-28",
-      "last_verified_commit": "1263957"
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "775314e"
     },
     {
       "id": "gd-ui-run-setup",

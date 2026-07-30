@@ -10,6 +10,7 @@
 #include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+#include "game/trials.h"
 #include "gameplay/fusion.h"
 #include "gen/gen_runner.h"
 #include "render/game_renderer.h"
@@ -1623,10 +1624,35 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                         /* M7: secondo chiamante dell'hook (spec, punto 3) --
                            l'abbandono confermato. Un unico punto per ENTRAMBE le
                            origini di questo dialogo (openedFrom FLOOR_ZERO o
-                           PAUSE_MENU): niente da distinguere qui, la guardia
-                           "game->floor < 1" dentro AppWriteRunCatalog esclude gia'
-                           da sola l'abbandono della preparazione nel Piano 0
-                           (floor resta 0 li', WorldStartFloor non e' mai girata). */
+                           PAUSE_MENU): niente da distinguere qui per la
+                           SCRITTURA del catalogo, la guardia "game->floor < 1"
+                           dentro AppWriteRunCatalog esclude gia' da sola
+                           l'abbandono della preparazione nel Piano 0 (floor
+                           resta 0 li', WorldStartFloor non e' mai girata). */
+                        /* WP19 (DEC-082/089, ui/results-and-leaderboards.md,
+                           05-game-states-and-flow.md): la STESSA guardia
+                           "floor >= 1" decide anche DOVE si torna -- una run
+                           VERA abbandonata chiude come sconfitta e passa da
+                           RunResults (mai piu' MainMenu diretto); l'abbandono
+                           della sola preparazione nel Piano 0 (floor resta 0,
+                           sia da ExitConfirm diretto FLOOR_ZERO sia da
+                           PauseMenu aperto DAL Piano 0, WP15a
+                           'pauseFromFloorZero') resta verso MainMenu (DEC-074),
+                           comportamento storico invariato da questo lavoro. */
+                        bool realRunAbandon = (game->floor >= 1);
+                        /* Le prove non ancora decise si chiudono QUI come a
+                           fine run vera -- STESSA TrialsFinalizeAtRunEnd che
+                           combat.c chiama per vittoria/sconfitta per morte
+                           (WP16): un abbandono e' un'altra via per finire la
+                           run, non deve lasciarne nessuna TRIAL_IN_PROGRESS
+                           (rimarrebbero indecise per sempre, RunResults le
+                           mostrerebbe a meta'). Solo per una run vera: nella
+                           sola preparazione del Piano 0 nessuna prova e' mai
+                           stata assegnata (TrialsAssignForRun parte da
+                           GameResetRunWithSeed, mai da FloorZeroEnter), quindi
+                           chiamarla li' sarebbe un no-op innocuo ma fuorviante
+                           da leggere -- la si evita con la stessa guardia. */
+                        if (realRunAbandon) TrialsFinalizeAtRunEnd(game);
                         AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
                         /* Abbandono dalla preparazione (M1b): i runner di primo
                            piano attivi vanno cancellati SOLO qui, alla conferma
@@ -1639,7 +1665,9 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                            provenienza registrata li' e' APP_PAUSE_MENU, ma la
                            preparazione da interrompere e' la stessa. */
                         if (ui->openedFrom == APP_FLOOR_ZERO || ui->pauseFromFloorZero) AppCancelFloorZeroGeneration(gen);
-                        *mode = APP_MAIN_MENU; ui->focus = 0;
+                        if (realRunAbandon) { game->runAbandoned = true; *mode = APP_RUN_RESULTS; }
+                        else *mode = APP_MAIN_MENU;
+                        ui->focus = 0;
                     }
                     else return true;   /* uscita dall'applicazione: l'UNICO modo, niente piu' scorciatoie dirette */
                 }

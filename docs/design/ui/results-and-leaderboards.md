@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Vittoria chiusa al boss del piano 5 (DEC-031); alla sconfitta restano i punti sblocco maturati in misura ridotta (DEC-041), con un campo esplicito che dichiara la causa della sconfitta (ultimo colpo o nemico letale, DEC-159). L'abbandono confermato (ExitConfirm da PauseMenu) e il reroll da Gameplay contano entrambi come sconfitta ai fini dei punti sblocco (DEC-082), ma la presentazione differisce: l'abbandono passa da RunResults con i punti ridotti visibili lì, il reroll salta i risultati e accredita in silenzio, consultabile poi nel Catalogo (DEC-089); riprova non classificata. Schermata risultati completa con timeline, scoperte e confronto con le run passate (DEC-056); classifiche divise per metrica, tempo e punteggio separati (DEC-062). Se la run appartiene alla Classificata giornaliera, i risultati mostrano la medaglia/cornice cosmetica guadagnata, fuori dall'economia dei punti (DEC-064)."
-last_reviewed: 2026-07-28
-last_verified_commit: 1263957
-topics: [run-results, classifiche, vittoria-sconfitta, punti-sblocco, daily, causa-sconfitta, DEC-041, DEC-056, DEC-062, DEC-159]
+last_reviewed: 2026-07-30
+last_verified_commit: 775314e
+topics: [run-results, classifiche, vittoria-sconfitta, abbandono-run, punti-sblocco, daily, causa-sconfitta, DEC-041, DEC-056, DEC-062, DEC-082, DEC-089, DEC-159, WP19]
 related: []
 supersedes: []
-source_files: [src/core/game_types.h, src/gameplay/combat.c, src/game/game_internal.h, src/render/game_renderer.c, src/tests/discovery_tests.c]
+source_files: [src/core/game_types.h, src/gameplay/combat.c, src/game/game_internal.h, src/render/game_renderer.c, src/app/app.c, src/tests/discovery_tests.c]
 ---
 
 # Results and Leaderboards (RunResults)
@@ -66,6 +66,18 @@ dichiarare.
 > decisione di design: colmarlo richiederebbe un campo owner su `Shot` (tocca
 > `entities.c`/`script_api.c`/`script_vm.c`), fuori perimetro di questo lavoro. Verificato da
 > `--discovery-test` (`src/tests/discovery_tests.c`) con un `PHASE_GAME_OVER` sintetico.
+
+> **Nota di implementazione (WP19, 2026-07-30):** l'abbandono volontario di una run vera
+> (vedi [Alla sconfitta](#alla-sconfitta-dec-041) sotto) mostra a sua volta una causa
+> dichiarata, ma con una fonte SEPARATA da `Game.deathCause`: un nuovo campo booleano,
+> `Game.runAbandoned` (`src/core/game_types.h`), scritto SOLO dal ramo `exitAbandonsRun` di
+> `APP_EXIT_CONFIRM` (`src/app/app.c`) quando `game->floor >= 1`. `DrawRunResultsOverlay`
+> disegna la riga "Causa: abbandono volontario." da questo campo, mai insieme alla riga
+> DEC-159 sopra (`deathCause` resta la stringa vuota per costruzione su questo percorso:
+> `CombatDamagePlayer` non viene mai chiamato durante un abbandono). Verificato da
+> `--states-test`, `--catalog-test` (test G) e `--arena-hub-test` (blocco (m)). Il titolo
+> resta "SCONFITTA" (mai un terzo esito "ABBANDONO"): **default proposto
+> dall'implementazione**, non canone — vedi `governance/open-questions.md`, voce 53.
 
 ## Alla sconfitta (DEC-041)
 

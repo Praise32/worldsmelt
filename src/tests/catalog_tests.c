@@ -588,8 +588,26 @@ static bool TestPauseMenuAbandonWritesRecord(void)
 
     char newFile[256];
     bool wroteOne = FindNewFile(&before, &after, newFile, sizeof(newFile));
-    CATALOG_TEST_CHECK(mode == APP_MAIN_MENU, "abbandono da PauseMenu non torna a MainMenu");
+    /* WP19 (DEC-082/089): l'abbandono confermato di una run VERA (floor>=1)
+       passa da RunResults, non piu' da MainMenu diretto -- solo la
+       scrittura del catalogo resta identica al reroll (stesso outcome
+       "abbandono", vedi TestRerollWritesRecord sopra). */
+    CATALOG_TEST_CHECK(mode == APP_RUN_RESULTS, "abbandono da PauseMenu (floor>=1) non porta a RunResults");
+    CATALOG_TEST_CHECK(game.runAbandoned, "abbandono da PauseMenu (floor>=1) non ha impostato game.runAbandoned");
+    CATALOG_TEST_CHECK(game.phase != PHASE_WIN, "l'abbandono confermato non deve mai apparire come vittoria");
     CATALOG_TEST_CHECK(wroteOne, "abbandono da PauseMenu (floor=1) non ha scritto alcun file in catalog/");
+    /* Verifica del CONTENUTO del record (giudizio round 2, must-fix 4): non
+       basta "un file nuovo e' comparso" -- va provato che l'esito scritto sia
+       PROPRIO RUN_CATALOG_OUTCOME_ABANDON (e non, per esempio,
+       RUN_CATALOG_OUTCOME_LOSS, la domanda di design che questo work package
+       doveva presidiare), esattamente come win/loss/reroll sopra. */
+    char fullPath[300];
+    snprintf(fullPath, sizeof(fullPath), "catalog/%s", newFile);
+    bool recordOk = wroteOne && VerifyWrittenRecord(fullPath, ui.seed, RUN_CATALOG_OUTCOME_ABANDON, 1);
+    CATALOG_TEST_CHECK(recordOk, "il record scritto dall'abbandono da PauseMenu non passa la verifica dei campi (outcome=abbandono atteso)");
+    /* Scritto una sola volta (pattern CatalogFileCount della spec): esattamente
+       un file di catalogo in piu' rispetto a prima, non zero e non due. */
+    CATALOG_TEST_CHECK(after.count == before.count + 1, "l'abbandono da PauseMenu non ha scritto esattamente un record di catalogo in piu'");
     CATALOG_TEST_CHECK(game.catalogRecordsWritten > 0, "catalogRecordsWritten non valorizzato dopo l'abbandono da PauseMenu");
     return true;
 }

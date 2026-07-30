@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
-last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
-topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-137, DEC-139, DEC-156]
+last_reviewed: 2026-07-30
+last_verified_commit: 775314e
+topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-082, DEC-089, DEC-137, DEC-139, DEC-156, WP19]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/app/app.c, src/core/game_types.h]
 ---
 
 # Game States and Flow
@@ -134,6 +134,19 @@ flowchart TD
   leggero** sopra il menu, non una schermata dedicata; gli altri usi di `ExitConfirm`
   (abbandono di una run in corso, abbandono della preparazione nel Piano 0) mantengono la
   presentazione già documentata nei rispettivi contratti (DEC-090).
+
+> **Nota di implementazione (WP19, 2026-07-30):** il case `APP_EXIT_CONFIRM`
+> (`src/app/app.c`) sceglie fra i due archi `ExitConfirm --> RunResults` e
+> `ExitConfirm --> MainMenu` del diagramma sopra con un'unica guardia,
+> `game->floor >= 1` (vera solo dopo che `WorldStartFloor` ha fatto partire una run vera,
+> mai durante il Piano 0): sopra la soglia entra in `RunResults` con `Game.runAbandoned`
+> impostato (`src/core/game_types.h`, letto da `DrawRunResultsOverlay` per la causa
+> dichiarata "abbandono volontario", distinta dal colpo letale di DEC-159) e le prove
+> ancora in corso finalizzate come a fine run vera (`TrialsFinalizeAtRunEnd`, WP16); sotto
+> la soglia (Piano 0, sia da `ExitConfirm` diretto sia da `PauseMenu` aperto dal Piano 0)
+> resta verso `MainMenu`, invariato. Dettaglio completo in
+> [Pause Menu](ui/pause-menu.md#regole). Verificato da `--states-test`, `--catalog-test`
+> (test G) e `--arena-hub-test` (blocco (m)).
 
 ## Regola sulla pausa (DEC-016, coerenza)
 

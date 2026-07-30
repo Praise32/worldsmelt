@@ -127,9 +127,14 @@ void TrialsOnFusionPerformed(Game *game);
    buon fine. */
 void TrialsOnShopPurchase(Game *game);
 
-/* Chiamata ai due soli punti in cui una run finisce (game->phase diventa
+/* Chiamata ai tre punti in cui una run finisce: game->phase diventa
    PHASE_WIN in CombatPickup/PICKUP_EXIT, o PHASE_GAME_OVER in
-   CombatDamagePlayer): risolve ogni prova ancora TRIAL_IN_PROGRESS --
+   CombatDamagePlayer -- oppure (WP19, src/app/app.c, case APP_EXIT_CONFIRM)
+   il giocatore conferma l'abbandono di una run VERA (game->floor >= 1): in
+   quest'ultimo caso e' l'UNICO dei tre a essere chiamato A MANO invece che da
+   dentro combat.c, e l'UNICO in cui game->phase NON diventa terminale
+   (resta PHASE_PLAY) -- e' l'abbandono stesso a chiudere la run, non un
+   evento di combattimento. Risolve ogni prova ancora TRIAL_IN_PROGRESS --
    TRIAL_END_WITH_INGOTS confrontando Player.coins con la soglia,
    TRIAL_NO_SHOP_PURCHASE come superata (non fallita finora = mai comprato
    per tutta la run). Per TRIAL_SECRET_FOUND/TRIAL_ARENA_WON/

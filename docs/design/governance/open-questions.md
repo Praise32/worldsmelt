@@ -679,3 +679,56 @@ limite, mai i numeri né gli input.
     (`BuildScreen`) come in `Gameplay`, non il pannello mondi/personaggi. Resta aperta la
     domanda più ampia se questi tasti debbano diventare una mappatura rivedibile dal
     giocatore. (`systems/floor-zero.md`; `app/app_internal.h`, `AppInput`.)
+
+## Abbandono di una run in corso nel motore (WP19, 2026-07-30)
+
+Il lavoro che corregge il flusso di abbandono (DEC-082/089, `ui/pause-menu.md`,
+`ui/results-and-leaderboards.md`, `05-game-states-and-flow.md`): l'abbandono confermato di
+una run VERA (piani 1-5) passa ora da `RunResults` come sconfitta, non più da `MainMenu`
+diretto. Il **routing** e la **finalizzazione delle prove** sono la lettura diretta delle
+regole già canoniche (DEC-082/089/WP16), non un default; la sola cosa che nessun documento
+fissa è **come si presenta la causa** sulla schermata dei risultati.
+
+53. Con quale meccanismo distinguere, in `RunResults`, "sconfitta per morte" (DEC-159,
+    causa = ultimo colpo o nemico letale) da "sconfitta per abbandono volontario"? La
+    tabella di `ui/results-and-leaderboards.md` elenca "Vittoria, sconfitta, o abbandono"
+    come tre testi di esito possibili, ma DEC-159 dice esplicitamente che il suo campo
+    "non compare... in caso di abbandono volontario, dove non c'è un colpo letale da
+    dichiarare" — nessun documento dice se l'abbandono debba avere un titolo/esito TERZO
+    e distinto ("ABBANDONO") o restare "SCONFITTA" con una causa dichiarata a parte.
+    *Default proposto e implementato*: il titolo resta quello già esistente per ogni
+    sconfitta ("SCONFITTA", derivato da `game->phase != PHASE_WIN` — l'abbandono non
+    tocca mai `phase`, che resta `PHASE_PLAY`), e una riga dedicata indipendente,
+    "Causa: abbandono volontario.", si aggiunge SOLO quando il nuovo campo
+    `Game.runAbandoned` è vero (`src/core/game_types.h`, scritto da `APP_EXIT_CONFIRM`
+    quando `game->floor >= 1`, letto da `DrawRunResultsOverlay`,
+    `src/render/game_renderer.c`) — mai insieme alla riga DEC-159 (`deathCause` resta
+    vuota per costruzione su questo percorso, i due campi si escludono a vicenda per
+    come sono scritti). Scelto per continuità con l'impianto esistente (una riga "Causa:
+    ..." già c'è per la morte, qui si aggiunge la stessa forma per l'abbandono) invece di
+    un terzo valore di titolo, che avrebbe richiesto toccare ogni altro punto del codice
+    che legge `game->phase == PHASE_WIN` per dedurre il titolo. Resta un default
+    d'implementazione: la scelta esatta del testo e se meriti un titolo distinto è del
+    proprietario. Verificato da `--states-test` (`src/tests/game_tests.c`),
+    `--catalog-test` (`src/tests/catalog_tests.c`, test G) e `--arena-hub-test`
+    (`src/tests/floor_zero_arena_tests.c`, blocco (m)).
+    (`ui/results-and-leaderboards.md`, `ui/pause-menu.md`, `05-game-states-and-flow.md`.)
+
+54. Riusare `TrialsFinalizeAtRunEnd` per un abbandono chiude le prove ancora in corso
+    esattamente come a fine run vera — **anche in positivo**. Un giocatore che abbandona
+    con `Player.coins >= 30` vede `TRIAL_END_WITH_INGOTS` (+10) diventare `TRIAL_PASSED`;
+    uno che non ha mai comprato nulla vede `TRIAL_NO_SHOP_PURCHASE` (+20) diventare
+    `TRIAL_PASSED` — due prove il cui testo chiede esplicitamente di **finire** la run,
+    mostrate come superate a chi ha invece mollato. Nessun documento dice se questo sia
+    accettabile o se l'abbandono debba invece far fallire SEMPRE queste due prove
+    (indipendentemente dalla soglia/dall'acquisto). *Default proposto e implementato*:
+    accettato — la disciplina "nessuna prova resta `TRIAL_IN_PROGRESS` per sempre" (WP16)
+    prevale, e riusare la stessa funzione di finalizzazione evita un secondo percorso di
+    chiusura da mantenere in parallelo. **Impatto dichiarato oggi: di sola presentazione**
+    — nessun sistema di punti sblocco esiste ancora nel motore
+    (`systems/save-and-meta-progression.md`), quindi il bonus mostrato in `RunResults` non
+    si traduce ancora in un vantaggio spendibile. Se in futuro le prove alimenteranno la
+    meta-progressione, questa combinazione (abbandono + soglia già raggiunta) andrà
+    rivalutata come possibile incentivo a mollare la run invece di finirla. Resta un
+    default d'implementazione: la scelta finale è del proprietario.
+    (`systems/rewards-and-economy.md`.)

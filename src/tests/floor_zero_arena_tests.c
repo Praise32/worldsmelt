@@ -621,6 +621,75 @@ bool GameArenaHubTest(Game *game)
             fprintf(stderr, "ArenaHubTest: (l) ESC nell'hub non apre piu' ExitConfirm (mode=%d)\n", (int)mode);
             return false;
         }
+        /* Annulla, per tornare nel Piano 0 prima di (m) sotto: quella
+           ExitConfirm era il ramo diretto ESC->FLOOR_ZERO, gia' coperto da
+           GameStatesTest (src/tests/game_tests.c); (m) esercita invece la
+           STESSA voce "Abbandona run" ma raggiunta da dentro PauseMenu. */
+        { AppInput in = ArenaInputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_FLOOR_ZERO)
+        {
+            fprintf(stderr, "ArenaHubTest: (l) Annulla da ExitConfirm non torna nel Piano 0 (mode=%d)\n", (int)mode);
+            return false;
+        }
+
+        /* --- (m) WP19 (DEC-082/089): "Abbandona run" scelto DENTRO PauseMenu
+           aperto DAL Piano 0 (WP15a, 'pauseFromFloorZero') resta il
+           comportamento storico verso MainMenu (DEC-074) -- la run vera non
+           e' mai partita (game->floor resta 0), quindi NON deve passare da
+           RunResults come farebbe l'abbandono di una run vera (quel caso e'
+           coperto da GameStatesTest, src/tests/game_tests.c). --- */
+        { AppInput in = ArenaInputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        if (mode != APP_PAUSE_MENU || !ui.pauseFromFloorZero)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) il comando di pausa non riapre PauseMenu dal Piano 0 (mode=%d)\n", (int)mode);
+            return false;
+        }
+        for (int d = 0; d < 4; d++)
+        {
+            AppInput in = { 0 };
+            in.down = true;
+            UpdateApp(game, &mode, &gen, &ui, &in);
+        }
+        if (ui.focus != 4)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) la navigazione in PauseMenu non arriva su Abbandona run (focus=%d)\n", ui.focus);
+            return false;
+        }
+        {
+            AppInput in = { 0 };
+            in.confirm = true;
+            UpdateApp(game, &mode, &gen, &ui, &in);
+        }
+        if (mode != APP_EXIT_CONFIRM || !ui.exitAbandonsRun)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) confirm su Abbandona run non apre ExitConfirm (mode=%d)\n", (int)mode);
+            return false;
+        }
+        if (ui.focus != 1)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) il focus iniziale di ExitConfirm non e' 1 (Annulla) (focus=%d)\n", ui.focus);
+            return false;
+        }
+        {
+            AppInput in = { 0 };
+            in.down = true;   /* Annulla -> Conferma */
+            UpdateApp(game, &mode, &gen, &ui, &in);
+        }
+        {
+            AppInput in = { 0 };
+            in.confirm = true;
+            UpdateApp(game, &mode, &gen, &ui, &in);
+        }
+        if (mode != APP_MAIN_MENU)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) l'abbandono confermato dal Piano 0 (via PauseMenu) non torna a MainMenu (mode=%d)\n", (int)mode);
+            return false;
+        }
+        if (game->runAbandoned)
+        {
+            fprintf(stderr, "ArenaHubTest: (m) l'abbandono della sola preparazione ha impostato game->runAbandoned per errore\n");
+            return false;
+        }
     }
 
     RunCatalogSetTestPath(NULL);   /* il catalogo reale torna quello di default */

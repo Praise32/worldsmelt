@@ -8,7 +8,7 @@ owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
 last_reviewed: 2026-07-30
 last_verified_commit: 63753fc
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169, WP16, WP15a, Piano-0, consultazione]
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP19, WP16, WP15a, Piano-0, consultazione]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h]
@@ -63,6 +63,22 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 - Tornando da `BuildScreen`, il focus ritorna sull'elemento "Visualizza build e sinergie".
 - Tornando dall'elenco delle prove, il focus ritorna sull'elemento "Prove".
 - L'abbandono confermato conta come sconfitta ai fini dei punti sblocco (DEC-082) e porta a `RunResults`, non più a `MainMenu` diretto (DEC-089); il dettaglio dei punti ridotti, dell'esito mostrato e del ritorno al menu da lì è definito in `ui/results-and-leaderboards.md`, non ripetuto qui.
+
+> **Nota di implementazione (WP19, 2026-07-30):** il case `APP_EXIT_CONFIRM`
+> (`src/app/app.c`) distingue ora l'abbandono di una **run vera** da quello della sola
+> **preparazione** con un'unica guardia, `game->floor >= 1` (vera solo dopo
+> `WorldStartFloor`, mai durante il Piano 0): sopra la soglia, il ramo `exitAbandonsRun`
+> chiama `TrialsFinalizeAtRunEnd` (le prove ancora in corso si chiudono come a fine run
+> vera, WP16, mai lasciate `TRIAL_IN_PROGRESS`), scrive il catalogo con l'esito
+> `RUN_CATALOG_OUTCOME_ABANDON` (invariato), imposta `Game.runAbandoned` (nuovo campo,
+> `src/core/game_types.h`, letto da `DrawRunResultsOverlay` per la riga "Causa: abbandono
+> volontario.", distinta dal colpo letale di DEC-159 che qui resta vuoto per costruzione)
+> ed entra in `APP_RUN_RESULTS`. Sotto la soglia (Piano 0, sia da `ExitConfirm` diretto
+> sia da `PauseMenu` aperto dal Piano 0, WP15a `pauseFromFloorZero`) il comportamento resta
+> quello storico verso `APP_MAIN_MENU` (DEC-074), invariato da questo lavoro. Verificato da
+> `--states-test` (`src/tests/game_tests.c`), `--catalog-test`
+> (`src/tests/catalog_tests.c`, test G) e `--arena-hub-test`
+> (`src/tests/floor_zero_arena_tests.c`, blocco (m)).
 
 ## Prove (DEC-042)
 

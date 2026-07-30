@@ -4048,6 +4048,18 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
         UiText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
         lineY += 22.0f;
     }
+    /* WP19 (DEC-082/089): l'abbandono confermato di una run vera chiude come
+       sconfitta (il titolo sopra segue gia' "phase != PHASE_WIN", e phase
+       resta PHASE_PLAY qui: mai un vero game over) ma con una causa DISTINTA
+       dal colpo letale di DEC-159 -- game->deathCause resta vuota per
+       costruzione su questo percorso (CombatDamagePlayer non viene mai
+       chiamato durante un abbandono), quindi questa riga e quella sopra non
+       si disegnano mai insieme. */
+    if (game->runAbandoned)
+    {
+        UiText("Causa: abbandono volontario.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
+        lineY += 22.0f;
+    }
     /* M7 (DEC-015/041/045/069, substrato del catalogo): il feedback canonico
        "se sono stati registrati nuovi contenuti nel catalogo"
        (05-game-states-and-flow.md, righe 83-85). game->catalogRecordsWritten
@@ -4064,9 +4076,11 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
     /* WP16 (DEC-042/DEC-027): il bonus delle prove specifiche, riga dedicata
        come richiesto dal work package -- TrialsFinalizeAtRunEnd (chiamata da
        CombatDamagePlayer/CombatPickup non appena game->phase diventa
-       terminale, prima che questo overlay possa mai disegnarsi) ha gia'
-       risolto ogni prova rimasta in corso, quindi qui il conteggio e' gia'
-       DEFINITIVO. Omessa (mai "0/0") quando non c'e' NULLA da contare --
+       terminale, oppure -- WP19, src/app/app.c, case APP_EXIT_CONFIRM -- a
+       mano quando il giocatore conferma l'abbandono di una run vera, dove
+       game->phase resta PHASE_PLAY -- prima che questo overlay possa mai
+       disegnarsi) ha gia' risolto ogni prova rimasta in corso, quindi qui il
+       conteggio e' gia' DEFINITIVO. Omessa (mai "0/0") quando non c'e' NULLA da contare --
        stessa disciplina della riga del catalogo sopra. La guardia e' sul
        DENOMINATORE stampato (TrialsCountedTotal), non su trialCount: con
        tutte le prove assegnate finite TRIAL_VOID (raro ma possibile, es.

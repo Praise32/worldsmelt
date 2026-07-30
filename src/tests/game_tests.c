@@ -397,12 +397,31 @@ bool GameStatesTest(Game *game)
        abbandono confermato da PauseMenu, game->floor >= 1 per davvero (la run
        e' entrata in Gameplay poco sopra). Stessa controprova su disco delle
        due sopra: la guardia test-safe deve tenere anche col piano davvero
-       giocato, non solo nei due casi PHASE_WIN/PHASE_GAME_OVER. */
+       giocato, non solo nei due casi PHASE_WIN/PHASE_GAME_OVER.
+       WP19 (DEC-082/089, 05-game-states-and-flow.md): l'abbandono confermato
+       di una run VERA non torna piu' a MainMenu diretto -- chiude come
+       sconfitta e passa da RunResults, con le prove ancora TRIAL_IN_PROGRESS
+       finalizzate come a fine run vera (WP16). Precondizione verificata qui:
+       nessuna prova e' ancora decisa prima della conferma, altrimenti il
+       controllo sotto ("nessuna e' rimasta in corso") sarebbe vuoto di
+       significato. */
+    for (int t = 0; t < game->trialCount; t++)
+        STATES_CHECK(game->trials[t].state == TRIAL_IN_PROGRESS, "precondizione: una prova e' gia' decisa prima dell'abbandono, il controllo di finalizzazione sotto non proverebbe nulla");
     int catalogBeforeAbandon = CatalogFileCount();
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
-    STATES_CHECK(mode == APP_MAIN_MENU, "ExitConfirm/Conferma (abbandono) non torna a MainMenu");
+    STATES_CHECK(mode == APP_RUN_RESULTS, "ExitConfirm/Conferma (abbandono di una run vera) non porta a RunResults");
+    STATES_CHECK(game->phase != PHASE_WIN, "l'abbandono confermato non deve mai apparire come vittoria");
+    STATES_CHECK(game->runAbandoned, "l'abbandono confermato non ha impostato game->runAbandoned (causa dichiarata assente)");
     STATES_CHECK(CatalogFileCount() == catalogBeforeAbandon, "ExitConfirm/Conferma (abbandono) ha scritto un file in catalog/ (guardia test-safe non attiva)");
     STATES_CHECK(game->catalogRecordsWritten == 0, "ExitConfirm/Conferma (abbandono) ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
+    for (int t = 0; t < game->trialCount; t++)
+        STATES_CHECK(game->trials[t].state != TRIAL_IN_PROGRESS, "l'abbandono confermato ha lasciato una prova ancora TRIAL_IN_PROGRESS (TrialsFinalizeAtRunEnd non chiamata)");
+    STATES_CHECK(ui.focus == 0, "il focus iniziale di RunResults dopo l'abbandono non e' 0 (Nuova run subito)");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(ui.focus == 1, "down in RunResults (dopo abbandono) non porta a Menu principale (indice 1)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_MAIN_MENU, "RunResults/Menu principale (dopo l'abbandono) non torna a MainMenu");
+    STATES_CHECK(ui.focus == 0, "il ritorno a MainMenu da RunResults (dopo abbandono) non ripristina il focus su 'Nuova run'");
 
     /* MainMenu -> Catalogo (M8, DEC-045): niente nuovo AppMode, la vista vive
        dentro APP_MAIN_MENU (spec M8, nota architetturale). Catalogo vuoto per

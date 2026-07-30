@@ -1856,6 +1856,20 @@ typedef struct Game {
        logica di sopravvivenza a un memset come characterChosenIndex sopra --
        torna a 0 con ogni nuova run, esattamente come deve. */
     int catalogRecordsWritten;
+    /* WP19 (DEC-082/089, ui/results-and-leaderboards.md): l'abbandono
+       CONFERMATO di una run VERA (game->floor >= 1 al momento della
+       conferma) chiude come sconfitta ma con una causa DISTINTA dal colpo
+       letale di DEC-159 -- deathCause sopra resta la stringa vuota dello
+       zero-default in questo percorso (CombatDamagePlayer non viene mai
+       chiamato), quindi questo campo e' la fonte separata che
+       DrawRunResultsOverlay legge per la riga "Causa: abbandono
+       volontario.". Scritto SOLO dal ramo ui->exitAbandonsRun di
+       APP_EXIT_CONFIRM (src/app/app.c) quando la guardia "floor >= 1" e'
+       vera; falso e' lo zero-default innocuo per ogni altro esito
+       (vittoria, sconfitta per morte, abbandono della sola preparazione nel
+       Piano 0). Azzerato come ogni altro campo di stato della run dal
+       memset di GameResetRunWithSeed. */
+    bool runAbandoned;
     GamePhase phase;
     /* DEC-141: il seed della run corrente (quello scelto/condiviso in
        RunSetup, o un valore orologio quando nessuna generazione l'ha
