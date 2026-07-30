@@ -285,18 +285,31 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(!game->floorZeroExitCrossed, "floorZeroExitCrossed non e' stato consumato");
     STATES_CHECK(game->phase == PHASE_PLAY, "l'ingresso in Gameplay via FloorZero non ha richiamato GameResetRun");
 
-    /* Gameplay -> PauseMenu -> Options -> (back) -> PauseMenu, focus su "Opzioni" */
+    /* Gameplay -> PauseMenu -> Prove -> (back) -> PauseMenu, focus su "Prove"
+       (WP16, DEC-042): il pannello e' un ramo DENTRO APP_PAUSE_MENU (nessun
+       nuovo AppMode), voce d'indice 2 inserita tra "Build e sinergie" e
+       "Opzioni" -- vedi il commento su AppUi.pauseTrialsOpen. */
     { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_PAUSE_MENU, "P in Gameplay non apre PauseMenu");
     STATES_CHECK(ui.focus == 0, "il focus iniziale di PauseMenu non e' 0 (Riprendi)");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi -> Build e sinergie */
-    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Build e sinergie -> Opzioni */
-    STATES_CHECK(ui.focus == 2, "due 'down' da Riprendi non arrivano su Opzioni (indice 2)");
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Build e sinergie -> Prove */
+    STATES_CHECK(ui.focus == 2, "due 'down' da Riprendi non arrivano su Prove (indice 2)");
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(mode == APP_PAUSE_MENU, "confirm su Prove ha lasciato PauseMenu (deve restare, e' un pannello interno)");
+    STATES_CHECK(ui.pauseTrialsOpen, "confirm su Prove non apre il pannello delle prove");
+    { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    STATES_CHECK(!ui.pauseTrialsOpen, "back sul pannello Prove non lo chiude");
+    STATES_CHECK(ui.focus == 2, "chiudere il pannello Prove non ripristina il focus sull'indice 2 (Prove)");
+
+    /* PauseMenu -> Options -> (back) -> PauseMenu, focus su "Opzioni" */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Prove -> Opzioni */
+    STATES_CHECK(ui.focus == 3, "un 'down' da Prove non arriva su Opzioni (indice 3)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_OPTIONS, "confirm su Opzioni non apre Options");
     { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_PAUSE_MENU, "Options/back non torna a PauseMenu");
-    STATES_CHECK(ui.focus == 2, "il ritorno da Options non ripristina il focus su Opzioni");
+    STATES_CHECK(ui.focus == 3, "il ritorno da Options non ripristina il focus su Opzioni");
 
     /* PauseMenu -> BuildScreen -> (back) -> PauseMenu */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Abbandona run */
@@ -364,16 +377,17 @@ bool GameStatesTest(Game *game)
        poi di nuovo -> (conferma) -> MainMenu */
     { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PauseMenu, focus su Riprendi */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Build e sinergie */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Prove (WP16) */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Opzioni */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Abbandona run */
-    STATES_CHECK(ui.focus == 3, "la navigazione in PauseMenu non arriva su Abbandona run (indice 3)");
+    STATES_CHECK(ui.focus == 4, "la navigazione in PauseMenu non arriva su Abbandona run (indice 4)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Abbandona run non apre ExitConfirm");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da PauseMenu non e' 'abbandono run'");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
     STATES_CHECK(mode == APP_PAUSE_MENU, "ExitConfirm/Annulla non torna a PauseMenu");
-    STATES_CHECK(ui.focus == 3, "il ritorno da ExitConfirm/Annulla non ripristina il focus su Abbandona run");
+    STATES_CHECK(ui.focus == 4, "il ritorno da ExitConfirm/Annulla non ripristina il focus su Abbandona run");
 
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* di nuovo in ExitConfirm */
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "rientro in ExitConfirm fallito");
@@ -884,6 +898,39 @@ bool GameMouseHoverFocusTest(Game *game)
         HOVER_CHECK(AppFloorZeroCardToConfirm(-1, true, false, 1) == -1,
             "(i) un click FUORI dalle carte non deve confermare la carta a fuoco");
     }
+
+    /* (j) WP16, seconda tornata (bocciatura del giudice): il pannello "Prove"
+       e' un ramo di sola lettura DENTRO APP_PAUSE_MENU (nessuna geometria
+       propria, come il pannello Catalogo dentro APP_MAIN_MENU al blocco (a))
+       -- mentre e' aperto (ui.pauseTrialsOpen) i rettangoli delle 5 righe di
+       menu restano vivi SOTTO al pannello per RendererMenuItemAt: senza la
+       guardia in src/app/app.c (la stessa esclusione di 'catalogOpen') un
+       puntatore fermo su una riga qualunque riscriverebbe ui.focus dietro al
+       pannello ad ogni frame. Verificato: prima di questa correzione,
+       questo test falliva davvero (l'hover su 'Abbandona run', indice 4,
+       spostava ui.focus da 2 a 4). */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_PAUSE_MENU;
+        ui.pauseTrialsOpen = true;
+        ui.focus = 2;   /* "Prove": il focus con cui il codice reale apre il pannello */
+
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererMenuItemAt(APP_PAUSE_MENU, (Vector2){ x, y }) == 4) target = (Vector2){ x, y };
+        HOVER_CHECK(target.x >= 0.0f, "(j) nessun punto dello schermo colpisce la riga 4 ('Abbandona run') di PauseMenu");
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        HOVER_CHECK(mode == APP_PAUSE_MENU, "(j) il solo hover sul pannello Prove ha cambiato lo stato applicativo");
+        HOVER_CHECK(ui.pauseTrialsOpen, "(j) il solo hover ha richiuso il pannello Prove");
+        HOVER_CHECK(ui.focus == 2,
+            "(j) l'hover su una riga di menu sotto il pannello Prove ha riscritto ui.focus (regressione WP16)");
+    }
+    SetMousePosition(2, 2);
 
 #undef HOVER_CHECK
     return true;

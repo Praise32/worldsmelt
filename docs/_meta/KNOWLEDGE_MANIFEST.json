@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (45 voci attive su 46 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore, inclusa la stanza segreta a due livelli (WP8).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (48 voci attive su 49 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), e il catalogo delle prove specifiche della run (WP16).",
       "topics": [
         "open-questions",
         "governance",
@@ -1665,18 +1665,21 @@
         "DEC-022",
         "DEC-025",
         "DEC-127",
+        "DEC-042",
+        "DEC-027",
         "WP4",
         "WP5",
         "WP6",
         "WP7",
         "WP8",
-        "WP-INT"
+        "WP-INT",
+        "WP16"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "gd-system-active-items",
@@ -1819,7 +1822,10 @@
         "onboarding",
         "Reliquie",
         "DEC-153",
-        "DEC-169"
+        "DEC-169",
+        "prove",
+        "DEC-042",
+        "WP16"
       ],
       "related": [],
       "supersedes": [],
@@ -1828,8 +1834,8 @@
         "src/render/game_renderer.h",
         "src/core/game_types.h"
       ],
-      "last_reviewed": "2026-07-28",
-      "last_verified_commit": "1263957"
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "gd-system-content-validation",
@@ -2044,16 +2050,20 @@
         "budget-di-equita",
         "DEC-044",
         "DEC-025",
+        "prove",
+        "DEC-042",
+        "DEC-027",
         "WP5",
         "WP6",
         "WP7",
-        "WP8"
+        "WP8",
+        "WP16"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2532,7 +2542,8 @@
         "pause-menu",
         "DEC-012",
         "DEC-042",
-        "DEC-184"
+        "DEC-184",
+        "WP16"
       ],
       "related": [],
       "supersedes": [],
@@ -2541,7 +2552,7 @@
         "src/app/app.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "82a0232"
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "gd-ui-main-menu",
@@ -2673,15 +2684,16 @@
         "DEC-082",
         "DEC-089",
         "DEC-114",
-        "DEC-169"
+        "DEC-169",
+        "WP16"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
         "src/render/game_renderer.c"
       ],
-      "last_reviewed": "2026-07-28",
-      "last_verified_commit": "1263957"
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "gd-ui-results-leaderboards",
@@ -3043,7 +3055,11 @@
         "stanze-segrete",
         "DEC-025",
         "DEC-127",
-        "rivelatori"
+        "rivelatori",
+        "prove",
+        "DEC-042",
+        "DEC-027",
+        "WP16"
       ],
       "related": [
         "eng-dependencies",
@@ -3078,10 +3094,12 @@
         "src/assets/art_atlas.h",
         "src/render/art_draw.c",
         "src/tests/art_atlas_tests.c",
-        "src/content/character_roster.c"
+        "src/content/character_roster.c",
+        "src/game/trials.c",
+        "src/game/trials.h"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_verified_commit": "d5c5f43"
     },
     {
       "id": "eng-multiplayer-steam-direction",

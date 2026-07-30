@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
 last_reviewed: 2026-07-30
-last_verified_commit: 82a0232
-topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042, DEC-184]
+last_verified_commit: d5c5f43
+topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042, DEC-184, WP16]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c]
@@ -102,6 +102,21 @@ stesse prove sono anche consultabili da `ui/pause-menu.md`, dove sono state pres
 la prima volta al passaggio dal Piano 0 al piano 1. Il contenuto e il punteggio bonus delle
 prove sono definiti in `systems/rewards-and-economy.md`; questo documento non li ripete,
 colloca solo la sezione qui.
+
+> **Nota di implementazione (WP16, 2026-07-30) — limite dichiarato.** La tabella sopra chiede
+> una sezione **selezionabile** ("Seleziona la sezione prove" → elenco completo). Oggi
+> `DrawBuildScreenOverlay` (`src/render/game_renderer.c`) disegna solo una riga di
+> **riepilogo** nel blocco statistiche di destra — "Prove: N/M, +X" — visibile quando
+> `game->trialCount > 0`, con lo stesso pattern delle altre righe statistiche (sola lettura,
+> nessuna selezione dedicata). Il denominatore M di questa riga è `TrialsCountedTotal`
+> (aggiornamento 30/07, seconda tornata), non il grezzo `trialCount`: esclude le prove
+> "annullate" (`TRIAL_VOID`, vedi `systems/rewards-and-economy.md`, "Casi limite") il cui
+> archetipo non è mai comparso in questa run. L'elenco COMPLETO per prova (testo + stato)
+> esiste solo nel pannello di `PauseMenu` (`DrawTrialsPanel`, vedi `ui/pause-menu.md`),
+> coerente in numeri con questa riga (`TrialsPassedCount`/`TrialsCountedTotal`/
+> `TrialsBonusTotal`, unica fonte per entrambe le schermate) ma non duplicato qui. Colmare il
+> gap — rendere la riga selezionabile e aprire lo stesso dettaglio anche da `BuildScreen` —
+> resta lavoro futuro, non fatto in questo giro.
 
 ## Non mostrare
 

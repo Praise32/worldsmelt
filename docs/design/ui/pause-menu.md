@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
-last_reviewed: 2026-07-28
-last_verified_commit: 1263957
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169]
+last_reviewed: 2026-07-30
+last_verified_commit: d5c5f43
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169, WP16]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c]
@@ -70,6 +70,24 @@ attendere la fine della run. Il dettaglio di quando e come vengono presentate è
 `systems/floor-zero.md`; il dettaglio del loro contenuto e del punteggio bonus è definito in
 `systems/rewards-and-economy.md`. Questo documento non ripete quei dettagli, colloca solo
 la voce di menu.
+
+> **Nota di implementazione (WP16, 2026-07-30, aggiornata 30/07 seconda tornata):** "Prove" è
+> la terza riga di `PauseMenu` (indice 2, tra "Visualizza build e sinergie" e "Opzioni" —
+> cinque righe in tutto oggi, `DrawPauseMenuOverlay`/`src/render/game_renderer.c`), visibile
+> ogni volta che questo menu è raggiungibile (solo da `Gameplay`, cioè sempre dopo che le
+> prove sono state assegnate). Confermarla apre un pannello INTERNO a `PauseMenu` (nessun
+> nuovo `AppMode`, stessa scelta architetturale del Catalogo dentro `APP_MAIN_MENU`): elenco
+> delle prove con testo e stato ("in corso"/"superata"/"fallita"/"annullata", mai il solo
+> colore, DEC-058) più il totale "N/M superate, +X punti" (`TrialsPassedCount`/
+> `TrialsCountedTotal`/`TrialsBonusTotal`, la stessa fonte che `RunResults` e `BuildScreen`
+> leggono, così le tre schermate non possono mai divergere). Il quarto stato, "annullata"
+> (`TRIAL_VOID`), è una prova scartata perché il suo archetipo non è mai comparso in questa
+> run (vedi `systems/rewards-and-economy.md`, "Casi limite"): esclusa dal denominatore M,
+> mai contata contro il giocatore. ESC o INVIO chiudono il pannello e riportano il focus
+> sull'indice 2, come da tabella sopra. Mentre il pannello è aperto il mouse è sospeso sulle
+> righe di menu sottostanti (stessa esclusione del Catalogo dentro `APP_MAIN_MENU`,
+> `src/app/app.c`): senza questa guardia un click o un hover sui rettangoli invisibili delle
+> righe di `PauseMenu` chiuderebbe il pannello o ne corromperebbe il focus a caso.
 
 ## Consultazione dell'HUD nel Piano 0 (DEC-169)
 

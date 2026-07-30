@@ -915,6 +915,68 @@ typedef struct PourhouseWager {
     int priceValue;
 } PourhouseWager;
 
+/* WP16 (DEC-042/DEC-027, systems/rewards-and-economy.md "Meta-progressione e
+   punti sblocco", systems/floor-zero.md "Presentazione delle prove"): le
+   PROVE specifiche della run -- obiettivi dichiarati all'ingresso nel piano 1
+   che danno un bonus punti se soddisfatti. Non confondere con
+   Game.floorZeroTrialActive (le prove/arene OPZIONALI del Piano 0, DEC-004/
+   047): quelle sono un hook di un archetipo diverso, non ancora implementato;
+   queste sono la lista fissa presentata al varco Piano 0 -> piano 1.
+   Catalogo CURATO e deterministico (mai testo generato): otto tipi, in coda
+   qui sotto nell'ordine in cui TrialsAssignForRun (src/game/trials.c) li
+   estrae dall'enumerazione -- aggiungerne uno nuovo va SEMPRE in fondo, come
+   ogni altro enum esteso del motore (RoomKind sopra, PickupKind sotto). */
+typedef enum TrialKind {
+    TRIAL_BOSS_NO_DAMAGE,               /* sconfiggi il boss del piano N senza subire un colpo */
+    TRIAL_SECRET_FOUND,                 /* trova una stanza segreta (normale o super) */
+    TRIAL_ARENA_WON,                    /* vinci una sfida dell'arena incontrata nel piano */
+    TRIAL_FLOOR_UNDER_TIME,             /* completa il piano N (boss sconfitto) entro una soglia dall'ingresso */
+    TRIAL_END_WITH_INGOTS,              /* finisci la run con almeno N Ingots */
+    TRIAL_FUSE_ITEM,                    /* fondi almeno un oggetto */
+    TRIAL_TIMED_ROOM_WITHIN_THRESHOLD,  /* raggiungi una stanza a tempo entro soglia */
+    TRIAL_NO_SHOP_PURCHASE,             /* non comprare mai nulla al negozio */
+    TRIAL_KIND_COUNT                    /* non e' un tipo vero: conta quelli sopra */
+} TrialKind;
+
+/* Zero-default (TRIAL_IN_PROGRESS = 0) e' il significato piu' innocuo per una
+   prova appena assegnata: ne' superata ne' fallita, ancora aperta.
+   TRIAL_VOID (WP16, seconda tornata -- rewards-and-economy.md "Casi limite":
+   "una prova ... risulta impossibile ... va scartata"), in coda come ogni
+   enum esteso del motore: lo stato di una prova ancora TRIAL_IN_PROGRESS a
+   fine run il cui archetipo (stanza a tempo/arena/segreta) non e' MAI
+   comparso in nessun piano generato di QUESTA run -- mai offerta al
+   giocatore, quindi mai "fallita" nel senso che gli conta contro (vedi
+   TrialsFinalizeAtRunEnd in game/trials.c e i tre campi Game.*EverGenerated
+   sotto). Diversa da TRIAL_FAILED: esclusa dal denominatore che il giocatore
+   vede (TrialsCountedTotal, mai il grezzo 'trialCount'), coerente col "non
+   deve mai negare i punti base gia' maturati" dello stesso caso limite. */
+typedef enum TrialState {
+    TRIAL_IN_PROGRESS,
+    TRIAL_PASSED,
+    TRIAL_FAILED,
+    TRIAL_VOID
+} TrialState;
+
+/* 2-3 prove per run (default proposto, vedi trials.c): il catalogo ne conta
+   otto (TRIAL_KIND_COUNT), quindi tre slot bastano sempre senza dover
+   ridimensionare l'array per un catalogo piu' ricco in futuro. */
+#define TRIAL_SLOTS_MAX 3
+#define TRIAL_TEXT_MAX 96
+
+/* Una prova ASSEGNATA (Game.trials[] sotto): il testo e' gia' pronto in
+   italiano (nessuna interpolazione a ogni frame di disegno), come
+   RunCatalogEntry.detail (vedi sopra il commento su quella struct). */
+typedef struct Trial {
+    TrialKind kind;
+    TrialState state;
+    /* Significato secondo 'kind': il piano bersaglio per TRIAL_BOSS_NO_DAMAGE/
+       TRIAL_FLOOR_UNDER_TIME, la soglia di Ingots per TRIAL_END_WITH_INGOTS,
+       inutilizzato (0) per gli altri tipi. */
+    int param;
+    int bonus;
+    char text[TRIAL_TEXT_MAX];
+} Trial;
+
 /* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2): un secondo
    strato di punti vita che Player.tempHp sotto rappresenta, consumato PRIMA
    della salute base (vedi CombatDamagePlayer, src/gameplay/combat.c) e mai
@@ -1774,6 +1836,58 @@ typedef struct Game {
     int roomNumber;
     char message[160];
     float messageTimer;
+    /* WP16 (DEC-042/DEC-027): le prove specifiche di QUESTA run --
+       'trialCount' voci valide in 'trials[0..trialCount-1]', assegnate UNA
+       volta sola da TrialsAssignForRun (src/game/trials.c), chiamata da
+       GameResetRunWithSeed -- quindi sia il primo ingresso nel piano 1 sia un
+       reset rapido R (che richiama GameResetRunWithSeed con lo STESSO
+       runSeed, vedi il commento su quella funzione in game.c) riassegnano le
+       IDENTICHE prove con lo stato azzerato, mai prove nuove. 'trialCount' a
+       zero (zero-default del memset di GameResetRunWithSeed prima che
+       TrialsAssignForRun scriva) significa "nessuna prova ancora assegnata":
+       lo stato naturale del Piano 0, dove questa run non e' ancora iniziata.
+       La presentazione (floor-zero.md, "Presentazione delle prove") e' un
+       EVENTO di TrialsAssignForRun (una card di scoperta per prova, accodata
+       nello stesso momento), non uno stato a parte: nessun campo lo traccia,
+       la consultazione da PauseMenu/BuildScreen resta disponibile per
+       l'intera run guardando solo 'trialCount' > 0 (vero da subito dopo
+       l'assegnazione, visto che quei due stati sono raggiungibili solo da
+       APP_GAMEPLAY, cioe' da piano >= 1, cioe' da DOPO l'assegnazione). */
+    Trial trials[TRIAL_SLOTS_MAX];
+    int trialCount;
+    /* WP16: vero mentre il giocatore e' dentro una stanza boss (ROOM_BOSS)
+       NON ancora ripulita e ha gia' incassato almeno un colpo in QUESTO
+       tentativo -- azzerato da TrialsOnBossRoomEntered (chiamata da
+       WorldSpawnRoomContents al primo ingresso nella stanza boss ancora
+       viva), scritto da TrialsOnPlayerDamaged (chiamata da
+       CombatDamagePlayer per OGNI colpo davvero incassato, Crust compreso:
+       DEC-159, "perdere Crust resta comunque subire un colpo"), letto da
+       TrialsOnRoomCleared quando quel boss cade. Innocuo fuori da un
+       combattimento contro un boss: nessun codice lo legge se
+       Game.trials[].kind non e' TRIAL_BOSS_NO_DAMAGE per QUESTO piano. */
+    bool currentBossFightDamaged;
+    /* WP16, seconda tornata (rewards-and-economy.md, "Casi limite": "una
+       prova ... risulta impossibile ... va scartata"): vero se un
+       ROOM_TIMED/ROOM_ARENA/ROOM_SECRET e' comparso ALMENO UNA VOLTA in un
+       piano gia' generato di QUESTA run -- scritti da WorldGenerateFloorMap
+       (src/world/world.c) subito dopo ogni piazzamento, mai azzerati finche'
+       la run non ricomincia (memset di GameResetRunWithSeed, come ogni altro
+       campo di stato della run). Nessuno dei tre archetipi e' garantito per
+       costruzione (misure di --rooms-test: la stanza a tempo manca in circa
+       1 piano su 5 fra i piani candidati, la segreta normale in circa 1 su
+       10 -- vedi docs/engineering/known-issues.md voce 15): senza questi
+       flag TrialsFinalizeAtRunEnd (game/trials.c) non potrebbe distinguere
+       "la prova non e' mai stata soddisfatta" (l'archetipo e' comparso ma
+       non e' bastato: TRIAL_FAILED, un tentativo vero mancato) da "la prova
+       non ha mai avuto un'occasione" (l'archetipo non e' comparso affatto:
+       TRIAL_VOID, scartata senza contare contro il giocatore). Zero-default
+       (falso) e' il piu' innocuo: una run appena iniziata non ha ancora
+       visto nessuno dei tre archetipi. ROOM_SECRET copre sia il livello
+       normale sia il super (stesso RoomKind, WorldWriteRoom scrive lo stesso
+       valore per entrambi): un solo flag basta per entrambi i livelli. */
+    bool timedRoomEverGenerated;
+    bool secretRoomEverGenerated;
+    bool arenaRoomEverGenerated;
 } Game;
 
 typedef struct UiLayout {
@@ -1906,6 +2020,15 @@ typedef struct AppUi {
     AppMode openedFrom;
     int returnFocus;
     bool exitAbandonsRun;
+    /* WP16 (DEC-042): vero mentre il pannello "Prove" e' aperto DENTRO
+       PauseMenu (nessun nuovo AppMode, stessa scelta architetturale del
+       Catalogo dentro APP_MAIN_MENU sopra catalogOpen/APP_MAIN_MENU) --
+       selezionato con "Prove" (indice 2), chiuso da ESC/conferma, che
+       riportano il focus sull'indice 2 (ui/pause-menu.md, "Feedback: Al
+       ritorno, focus su questo elemento"). Zero-default (falso): un
+       PauseMenu appena aperto mostra sempre le righe di menu, mai il
+       pannello. */
+    bool pauseTrialsOpen;
     unsigned int seed;
     /* M7 (substrato del catalogo persistente): guardia test-safe per
        AppWriteRunCatalog (src/app/app.c) -- vive qui, non su AppGen, perche'

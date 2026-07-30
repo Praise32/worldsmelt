@@ -10,11 +10,11 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: a8a85bf
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori]
+last_verified_commit: d5c5f43
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h]
 ---
 
 # Registro dei difetti e limiti noti
@@ -579,3 +579,83 @@ super-segreta senza rivelatori disponibili **resta comunque scopribile per intui
 estrema, e non è mai l'unico modo di completare un requisito obbligatorio della run"),
 quindi nessuna garanzia di design è violata — manca solo un aiuto. Vedi
 `docs/design/governance/open-questions.md`, voce 46.
+
+## 15 — Prove specifiche della run (WP16): canale meta non collegato, BuildScreen senza drill-down, abbandono da PauseMenu non finalizza le prove, archetipi non garantiti
+
+**Sintomo**: quattro limiti dichiarati intorno al canale bonus di DEC-027/DEC-042 (i primi tre
+esistenti dal primo giorno di questo work package, non regressioni; il quarto misurato e
+mitigato nella seconda tornata del 30/07):
+
+1. **Canale meta non collegato.** Il bonus delle prove (`TrialsBonusTotal`) alimenta solo la
+   riga "Prove superate: N/M, +X punti" di `RunResults` — il punteggio di RUN, non i punti
+   sblocco di DEC-027. Nessun sistema di punti sblocco esiste ancora nel motore (gap già
+   dichiarato in `docs/design/systems/save-and-meta-progression.md`): quando arriverà, dovrà
+   sommare `TrialsBonusTotal(game)` al proprio calcolo, oggi non c'è nulla da sommare.
+2. **`BuildScreen` mostra solo un riepilogo, mai l'elenco.** La tabella di
+   `docs/design/ui/inventory-and-synergy-screen.md` chiede una sezione "Prove" selezionabile
+   che apre l'elenco completo (testo + stato per prova). `DrawBuildScreenOverlay`
+   (`src/render/game_renderer.c`) disegna solo una riga statistica "Prove: N/M, +X" — stesso
+   pattern delle altre righe di sola lettura del blocco statistiche, nessuna selezione.
+   L'elenco completo esiste solo nel pannello di `PauseMenu` (`DrawTrialsPanel`).
+3. **L'abbandono di una run da `PauseMenu` non finalizza le prove.** `TrialsFinalizeAtRunEnd`
+   gira ai due soli punti in cui `game->phase` diventa terminale (`PHASE_WIN` in
+   `CombatPickup`, `PHASE_GAME_OVER` in `CombatDamagePlayer`) — coerente col contratto della
+   funzione. L'abbandono confermato da `PauseMenu`/`ExitConfirm` (`src/app/app.c`, ramo
+   `exitAbandonsRun`) non passa da nessuno dei due: torna direttamente a `APP_MAIN_MENU`
+   senza mai attraversare `PHASE_GAME_OVER` né `APP_RUN_RESULTS`. Le prove di una run
+   abbandonata restano quindi nello stato in cui si trovavano al momento dell'abbandono
+   (alcune magari ancora `TRIAL_IN_PROGRESS`), ma **non c'è alcun sintomo visibile**: lo
+   stesso `APP_RUN_RESULTS` con la riga "Prove superate" non viene mai raggiunto
+   dall'abbandono oggi, per lo stesso motivo del punto sotto — non è un difetto introdotto da
+   questo work package, la strada che dovrebbe portarci non esiste ancora.
+4. **Tre delle otto prove del catalogo dipendono da un archetipo NON garantito per
+   costruzione** (`TRIAL_SECRET_FOUND`/`ROOM_SECRET`, `TRIAL_ARENA_WON`/`ROOM_ARENA`,
+   `TRIAL_TIMED_ROOM_WITHIN_THRESHOLD`/`ROOM_TIMED`). Numeri misurati da `--rooms-test`
+   (output reale del binario, invariati da questo lavoro — nessuna delle correzioni sotto
+   tocca l'ordine o la probabilità di piazzamento): la stanza a tempo (`[rooms-p]`) è piazzata
+   in **30 piani su 72 candidati** (piani ≥3); la segreta (`[rooms-s]`) normale in **36 su
+   120** (piani ≥2) e la super in **13 su 96** (piani ≥4, estrazione 50%); l'arena
+   (`[rooms-q]`) in **82 su 96** (piani ≥2, rara ma quasi sempre presente quando candidata).
+   Su una run di 5 piani (tipicamente 3 piani candidati per la stanza a tempo, piani 3-5) la
+   probabilità che NESSUNO dei piani candidati piazzi l'archetipo è circa **20%** per la
+   stanza a tempo e **9-10%** per la segreta normale (stime derivate dai tassi per-piano
+   sopra, non da un conteggio diretto per-run) — non trascurabile. Con la generazione pigra
+   dei piani (Step B2) questo non è verificabile al momento dell'ASSEGNAZIONE
+   (`TrialsAssignForRun` gira subito dopo `WorldStartFloor(1)`, quando i piani 2-5 non sono
+   ancora generati). **Mitigato** (seconda tornata, 30/07): `TrialsFinalizeAtRunEnd` ora
+   distingue, tramite tre flag a livello di run
+   (`Game.timedRoomEverGenerated`/`secretRoomEverGenerated`/`arenaRoomEverGenerated`, scritti
+   da `WorldGenerateFloorMap` a ogni piano), "l'archetipo non è mai comparso in questa run"
+   (la prova si scarta, nuovo stato `TRIAL_VOID`/"annullata", esclusa dal denominatore
+   mostrato al giocatore, `TrialsCountedTotal`) da "l'archetipo c'era ma non è bastato"
+   (`TRIAL_FAILED` per davvero). Resta un limite del CATALOGO, non un difetto
+   dell'implementazione: il giocatore può comunque vedere occasionalmente una prova
+   "annullata" nell'elenco a fine run invece di una terza prova sempre verificabile —
+   accettato come compromesso deliberato (il catalogo resta "verificabile col motore
+   attuale" per costruzione degli EVENTI che lo chiudono, non per garanzia di occorrenza
+   dell'archetipo che li ospita).
+
+**Evidenza**: `src/render/game_renderer.c` (`DrawRunResultsOverlay`, `DrawBuildScreenOverlay`,
+`DrawTrialsPanel`); `src/gameplay/combat.c` (`TrialsFinalizeAtRunEnd` chiamata solo nei due
+punti terminali); `src/app/app.c`, caso `APP_EXIT_CONFIRM`/`exitAbandonsRun`, riga
+`*mode = APP_MAIN_MENU;` — nessuna chiamata a `TrialsFinalizeAtRunEnd` o transizione a
+`APP_RUN_RESULTS` su quel ramo; `src/world/world.c` (`WorldGenerateFloorMap`, i commenti sulle
+misure di `--rooms-test` accanto a ciascun piazzamento) per il punto 4.
+
+**Stato**: **limiti dichiarati**, non dimenticanze. Il punto 3 è lo stesso gap già in coda
+prima di questo lavoro — "Abbandono di una run in corso da `PauseMenu` porta a `RunResults`
+come sconfitta con punti sblocco ridotti, non a `MainMenu`" (DEC-082/DEC-089) — che
+`docs/design/ui/pause-menu.md` e `docs/design/ui/results-and-leaderboards.md` descrivono
+come comportamento canonico non ancora implementato: quando quel percorso arriverà a
+`APP_RUN_RESULTS`/`PHASE_GAME_OVER` per davvero, la riga delle prove e la finalizzazione
+funzioneranno senza altro lavoro su `trials.c`, esattamente come la nota di implementazione
+di DEC-169 in `docs/design/systems/floor-zero.md` descrive per il pannello di consultazione
+del Piano 0. Il punto 2 è lavoro futuro esplicitamente rimandato (vedi la nota di
+implementazione in `docs/design/ui/inventory-and-synergy-screen.md`). Il punto 1 dipende
+interamente dal sistema di punti sblocco, fuori scope di questo lavoro (vedi
+`docs/design/systems/save-and-meta-progression.md`). Il punto 4 era in precedenza MASCHERATO
+da un'affermazione falsa nel codice e nella documentazione ("l'esclusione non ha oggi alcun
+caso su cui attivarsi") corretta nella seconda tornata — vedi
+`docs/design/governance/open-questions.md` voce 48 e
+`docs/design/systems/rewards-and-economy.md`, "Stato di implementazione: le prove
+specifiche".

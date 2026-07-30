@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (45 voci attive su 46 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore, inclusa la stanza segreta a due livelli (WP8).
+  Coda ufficiale e unica delle domande ancora aperte (48 voci attive su 49 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), e il catalogo delle prove specifiche della run (WP16).
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp8-stanza-segreta
-last_verified_commit: a8a85bf
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, WP4, WP5, WP6, WP7, WP8, WP-INT]
+last_updated_from_session: 2026-07-30-wp16-prove-specifiche
+last_verified_commit: d5c5f43
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16]
 related: []
 supersedes: []
 source_files: []
@@ -568,3 +568,64 @@ numeri, geometria o ricompensa.
     (`systems/rewards-and-economy.md`, "Fonti canoniche della valuta principale";
     `systems/special-rooms.md`, "Default proposti dall'implementazione" della stanza
     segreta.)
+
+## Prove specifiche della run nel motore (WP16, 2026-07-30)
+
+Il canale bonus di DEC-027, presentato secondo DEC-042, apre tre domande che nessun
+documento chiude: `systems/rewards-and-economy.md` fissa la struttura a doppio canale e
+qualche esempio ("boss senza danni", "2 stanze segrete", "arena completata"), non un
+catalogo chiuso né i numeri.
+
+47. Quale CATALOGO di prove è verificabile col motore attuale, e con quale testo? Il
+    documento dà solo esempi sparsi. *Default proposto e implementato*: un catalogo
+    **curato e deterministico** di **otto** tipi (`TrialKind`, `src/core/game_types.h`) —
+    boss senza danno, stanza segreta trovata, arena vinta, piano sotto soglia di tempo, fine
+    run con almeno N Ingots, una fusione riuscita, stanza a tempo entro soglia, mai comprare
+    al negozio — scelto perché ciascuno ha già un evento del motore che lo decide senza
+    ambiguità (nessuna prova "quasi verificabile"). Nessuna prova GENERATA: il documento
+    ammette "fisse o generate", qui solo la parte fissa, coerente col principio del work
+    package di restare dentro ciò che il motore attuale garantisce. Testo in italiano,
+    ironico-leggero (DEC-105), senza accentate (coerenza con lo stile esistente dei testi di
+    gioco, non più un limite del font). Da confermare al playtest.
+    (`systems/rewards-and-economy.md`, "Stato di implementazione: le prove specifiche".)
+
+48. QUANTE prove per run, e come si scelgono? DEC-027 non fissa un numero.
+    *Default proposto e implementato*: **2 o 3**, estratto anche questo da uno stream locale
+    derivato dal seed di RUN (mai `game->rng`) — così anche il CONTEGGIO è deterministico dal
+    seed come i tipi. Le prove assegnate sono sempre di tipo DIVERSO fra loro (mai due prove
+    identiche nella stessa run); il piano bersaglio di `TRIAL_BOSS_NO_DAMAGE`/
+    `TRIAL_FLOOR_UNDER_TIME` è estratto uniformemente in `[1, FLOOR_COUNT]`, che esiste sempre
+    per costruzione (ogni piano generato ha sempre una stanza boss) — per questi due tipi
+    l'esclusione dei parametri non verificabili che il documento chiede (Caso limite: "una
+    prova ... impossibile ... va scartata") non ha oggi alcun caso su cui attivarsi AL
+    MOMENTO DELL'ASSEGNAZIONE, ma resta un vincolo scritto esplicitamente nel codice perché è
+    un requisito della decisione, non un effetto collaterale dell'assenza di casi limite di
+    oggi. **Aggiornamento 30/07 (seconda tornata), correzione di un'affermazione precedente
+    FALSA**: per `TRIAL_SECRET_FOUND`/`TRIAL_ARENA_WON`/`TRIAL_TIMED_ROOM_WITHIN_THRESHOLD` il
+    caso ESISTE davvero (nessuno dei tre archetipi è garantito per costruzione, misure di
+    `--rooms-test` in `docs/engineering/known-issues.md` voce 15 — la stanza a tempo manca in
+    circa 1 piano su 5 fra i candidati, la segreta normale in circa 1 su 10), semplicemente
+    non è verificabile AL MOMENTO DELL'ASSEGNAZIONE (generazione pigra dei piani: i piani 2-5
+    non esistono ancora quando `TrialsAssignForRun` gira). L'esclusione per questi tre tipi si
+    applica invece A FINE RUN (`TrialsFinalizeAtRunEnd`): una prova ancora in corso il cui
+    archetipo non è mai comparso in nessun piano della run si scarta (nuovo stato
+    `TRIAL_VOID`, "annullata"), non fallisce. Da confermare al playtest.
+    (`systems/rewards-and-economy.md`, "Stato di implementazione: le prove specifiche";
+    verificato da `--trials-test`, test (a), (k), (n).)
+
+49. Quali sono i BONUS punti e le SOGLIE numeriche di ciascuna prova (Ingots richiesti,
+    secondi per completare un piano)? Nessun documento fissa numeri. *Default proposto e
+    implementato*: bonus da **10 a 25 punti**, alla stessa scala della valuta di stanza
+    (`WORLD_ROOM_CURRENCY_*` va da 2 a 12) ma più alti, perché una prova vincola l'INTERA run
+    e non un solo evento — boss senza danno il massimo (25, la più difficile: un solo colpo
+    la chiude per sempre, senza un secondo tentativo sullo stesso piano); mai comprare al
+    negozio (20) più delle altre prove "passive" perché è la più facile da rovinare per
+    distrazione e la più difficile da recuperare, senza una seconda occasione. Soglia
+    Ingots: **30**, poco sopra un acquisto comune (8, DEC-026) più margine, per chiedere di
+    arrivare a fine run con una riserva vera. Soglia di tempo per piano: `90s + 25s × N`
+    (piano N), più larga della soglia della stanza a tempo (WP5) perché qui si chiede di
+    completare l'INTERO piano, non di raggiungere una sola stanza; non dipende dalla taglia
+    vera del piano bersaglio perché al momento dell'assegnazione — l'ingresso nel piano 1 — i
+    piani successivi non sono ancora generati. Tabella completa in
+    `systems/rewards-and-economy.md`, "Stato di implementazione: le prove specifiche". Da
+    confermare al playtest.

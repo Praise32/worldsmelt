@@ -5,6 +5,7 @@
 
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "game/trials.h"
 #include "gameplay/item_pool.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
@@ -1380,6 +1381,25 @@ static void WorldGenerateFloorMap(Game *game)
        fonte di WorldTimedRoomThresholdSeconds. */
     int cellsX[GRID_SIZE*GRID_SIZE], cellsY[GRID_SIZE*GRID_SIZE];
     game->floorCellCount = WorldCollectCells(game, cellsX, cellsY);
+    /* WP16, seconda tornata (vedi il commento su Game.timedRoomEverGenerated
+       in core/game_types.h): registra se questo piano ha piazzato uno dei tre
+       archetipi non garantiti -- un OR con lo stato dei piani precedenti
+       della stessa run, mai un azzeramento (solo GameResetRunWithSeed
+       azzera). WorldWriteRoom scrive 'kind' su una sola cella per stanza (la
+       "cella di STATO", il primo bit della maschera): scandire ogni cella
+       'exists' senza filtrare quella cella e' comunque corretto, perche' le
+       altre celle della stessa stanza multi-cella hanno 'kind' a zero
+       (ROOM_EMPTY, mai un archetipo) e non possono produrre un falso
+       positivo. */
+    for (int fy = 0; fy < GRID_SIZE; fy++)
+        for (int fx = 0; fx < GRID_SIZE; fx++)
+        {
+            if (!game->rooms[fy][fx].exists) continue;
+            RoomKind fk = game->rooms[fy][fx].kind;
+            if (fk == ROOM_TIMED) game->timedRoomEverGenerated = true;
+            else if (fk == ROOM_ARENA) game->arenaRoomEverGenerated = true;
+            else if (fk == ROOM_SECRET) game->secretRoomEverGenerated = true;
+        }
 }
 
 /* Fase 3c (DEC-170: una espansione PER CELLA): ricostruisce gli ostacoli della
@@ -1756,7 +1776,14 @@ void WorldSpawnRoomContents(Game *game)
         float threshold = WorldTimedRoomThresholdSeconds(game);
         float elapsed = game->runElapsedSeconds - game->floorEntryElapsedSeconds;
         room->rewardTaken = elapsed <= threshold;
-        if (room->rewardTaken) WorldAwardRoomCompletionCurrency(game, ROOM_TIMED);
+        if (room->rewardTaken)
+        {
+            WorldAwardRoomCompletionCurrency(game, ROOM_TIMED);
+            /* WP16 (DEC-042): stessa condizione che paga la valuta sopra --
+               "entro soglia" e' esattamente cosa chiede TRIAL_TIMED_ROOM_
+               WITHIN_THRESHOLD. */
+            TrialsOnTimedRoomWithinThreshold(game);
+        }
     }
     /* WP8 (DEC-167, rewards-and-economy.md: "una stanza segreta quando e'
        stata trovata"): la condizione di completamento di QUESTO archetipo e'
@@ -1771,6 +1798,9 @@ void WorldSpawnRoomContents(Game *game)
     {
         WorldAwardRoomCompletionCurrency(game, ROOM_SECRET);
         if (room->secretSuper) game->player.flux += WORLD_SECRET_SUPER_FLUX;
+        /* WP16 (DEC-042): "trovata" e' la stessa condizione di DEC-167 sopra
+           -- entrambi i livelli (normale/super) contano per la prova. */
+        TrialsOnSecretFound(game);
     }
     /* DEC-170: le posizioni di spawno sono relative al BARICENTRO delle celle
        occupate, non al centro del riquadro -- su una forma a L quel centro
@@ -1788,6 +1818,11 @@ void WorldSpawnRoomContents(Game *game)
     }
     else if (room->kind == ROOM_BOSS && !room->cleared)
     {
+        /* WP16 (DEC-042): l'inizio di un tentativo "pulito" per
+           TRIAL_BOSS_NO_DAMAGE -- vedi il commento sulla funzione in
+           trials.h per il perche' un ri-ingresso qui e' sempre sicuro (le
+           porte restano chiuse finche' il boss e' vivo, GameRoomIsLocked). */
+        TrialsOnBossRoomEntered(game);
         /* Fase 3b: il boss del piano e' il TIPO che il modello ha inventato per
            questo piano. Se non c'e' (manifest vecchio, nessun manifest) resta il
            boss storico: EntitiesAddEnemyTyped con un tipo non attivo e' esattamente
@@ -2404,6 +2439,11 @@ void WorldCheckRoomClear(Game *game)
            core/game_types.h. game->floor e' sempre valido qui (la stanza
            boss esiste solo dentro un piano vero, mai nel Piano 0). */
         if (room->kind == ROOM_BOSS) game->bossDefeated[game->floor - 1] = true;
+        /* WP16 (DEC-042): TRIAL_BOSS_NO_DAMAGE/TRIAL_FLOOR_UNDER_TIME (boss)
+           e TRIAL_ARENA_WON leggono qui, subito dopo che 'cleared' e'
+           diventato vero -- stessa guardia "mai due volte" dell'if di sopra
+           (una stanza gia' ripulita non richiama mai questo blocco). */
+        TrialsOnRoomCleared(game, room->kind);
         /* DEC-059, primo canale di ricarica degli attivi a cariche: la stanza
            completata. Qui e non in WorldSpawnRoomReward perche' non e' una
            ricompensa estratta (nessuna tiratura, nessun 'rewardTaken' che

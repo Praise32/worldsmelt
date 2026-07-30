@@ -153,6 +153,12 @@ static bool DiscoveryTestDiscardOnDeath(Game *game)
 {
     bool ok = true;
     GameResetRunWithSeed(game, 20260728u);
+    /* WP16 (DEC-042): GameResetRunWithSeed accoda anche 2-3 card "Prova"
+       (TrialsAssignForRun) -- scartate qui come farebbe il giocatore che le
+       ha gia' viste, cosi' questo test isola davvero la SOLA card che vuole
+       esercitare (stessa disciplina di DEC-152 sotto, mai un tocco al
+       Catalogo). */
+    GameDiscardPendingDiscoveries(game);
 
     /* Scoperta gia' registrata nel Catalogo (simula cio' che
        WorldSpawnCombatRoom scrive PRIMA di accodare la card, vedi il
@@ -190,6 +196,9 @@ static bool DiscoveryTestDiscardOnRoomChange(Game *game)
 {
     bool ok = true;
     GameResetRunWithSeed(game, 20260728u);
+    /* WP16 (DEC-042): stesso scarto delle card "Prova" di
+       DiscoveryTestDiscardOnDeath sopra, stesso motivo. */
+    GameDiscardPendingDiscoveries(game);
 
     /* 'cleared' a vero OVUNQUE (stesso spirito di EconomyEnterRoomOfKind in
        game_tests.c, che forza i flag a mano per isolare cio' che interessa):

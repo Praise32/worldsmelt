@@ -255,6 +255,18 @@ bool GameItemPoolTest(Game *game);
    quattro scenari (piu' le guardie anti-doppio-pagamento). */
 bool GameEconomyTest(Game *game);
 
+/* WP16 (DEC-042/DEC-027, docs/design/systems/rewards-and-economy.md "Prove
+   specifiche della run"; docs/design/systems/floor-zero.md "Presentazione
+   delle prove"): assegnazione deterministica dal seed di run (stesso seed ->
+   stesse prove; seed diversi -> di norma diverse; R riassegna le identiche
+   prove con lo stato pulito), verifica vera di almeno tre tipi con
+   simulazione (segreta trovata, arena vinta, boss senza danno), fallimento
+   definitivo (boss danneggiato, negozio comprato, run finita), bonus
+   sommati una volta sola. Come GameEconomyTest, gira dopo InitWindow e usa
+   'game' per davvero (GameResetRunWithSeed chiama AssetsLoad) ma non
+   disegna nulla. Vedi src/tests/trials_tests.c. */
+bool GameTrialsTest(Game *game);
+
 /* LA FUSIONE (docs/design/systems/item-fusion.md; DEC-022/023/101/102/143/
    162/171). Come GameEconomyTest, gira dopo InitWindow e usa 'game' per
    davvero (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla.

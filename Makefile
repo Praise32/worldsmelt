@@ -178,6 +178,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --obstacles-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --item-pool-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --economy-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --trials-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --fusion-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --discovery-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --audio-test

@@ -3,6 +3,7 @@
 #include "audio/audio.h"
 #include "core/game_math.h"
 #include "game/game_internal.h"
+#include "game/trials.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
 #include "gameplay/synergies.h"
@@ -105,6 +106,12 @@ void CombatDamagePlayer(Game *game, int amount, const char *cause)
 {
     if (game->player.invuln > 0.0f || game->phase != PHASE_PLAY) return;
     AudioPlaySfx(AUDIO_SFX_HIT_PLAYER);
+    /* WP16 (DEC-042): un colpo davvero incassato, oltre l'early return sopra
+       -- esattamente il momento in cui TRIAL_BOSS_NO_DAMAGE puo' fallire.
+       Chiamata incondizionatamente (Crust compreso, DEC-159): dentro
+       TrialsOnPlayerDamaged e' un no-op fuori da un combattimento contro un
+       boss non ancora ripulito. */
+    TrialsOnPlayerDamaged(game);
     /* DEC-008 (Crust, health-and-resources.md "Ordine di consumo", scenario 1):
        il danno intacca PRIMA la salute temporanea/protettiva (Player.tempHp),
        e solo l'eccedenza -- se presente -- va alla salute base, nello STESSO
@@ -136,6 +143,11 @@ void CombatDamagePlayer(Game *game, int amount, const char *cause)
            silenziosamente -- mai enemyEncountered/bossEncountered, gia' scritti
            al momento della scoperta (vedi il commento su GameDiscardPendingDiscoveries). */
         GameDiscardPendingDiscoveries(game);
+        /* WP16 (DEC-042): la run e' finita QUI -- risolve ogni prova ancora
+           TRIAL_IN_PROGRESS (fallita, salvo le due eccezioni gestite dentro
+           la funzione) PRIMA che RunResults possa mai disegnarsi con un
+           conteggio non definitivo. */
+        TrialsFinalizeAtRunEnd(game);
     }
 }
 
@@ -1254,6 +1266,13 @@ static void CombatPickup(Game *game, Pickup *pickup)
             return;
         }
         game->player.coins -= pickup->cost;
+        /* WP16 (DEC-042): un acquisto a pagamento andato a buon fine --
+           pickup->cost > 0 accade SOLO nel negozio (mai in tesoro/premi di
+           stanza, che passano da qui con costo 0) e SOLO qui, dopo l'unico
+           early return per monete insufficienti sopra: fallisce
+           TRIAL_NO_SHOP_PURCHASE definitivamente, mai per un tentativo
+           respinto. */
+        TrialsOnShopPurchase(game);
     }
 
     pickup->active = false;
@@ -1397,6 +1416,9 @@ static void CombatPickup(Game *game, Pickup *pickup)
         {
             game->phase = PHASE_WIN;
             GameSetMessage(game, "Run completata. Premi R per ricominciare.");
+            /* WP16 (DEC-042): la run e' finita QUI, per vittoria -- stessa
+               finalizzazione della sconfitta in CombatDamagePlayer sopra. */
+            TrialsFinalizeAtRunEnd(game);
         }
         else WorldStartFloor(game, game->floor + 1);
     }

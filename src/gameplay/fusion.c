@@ -3,6 +3,7 @@
 #include "content/curated_images.h"
 #include "core/game_math.h"
 #include "core/shot_type.h"
+#include "game/trials.h"
 #include "gameplay/item_slots.h"
 #include "script/script_items.h"
 
@@ -387,6 +388,9 @@ FusionStatus FusionPerform(Game *game, int indexA, int indexB, Item *outFused)
     ScriptItemsProcessDirty(game);   /* il fuso e' gia' nelle statistiche nello stesso istante */
 
     if (outFused) *outFused = p->items[slot];
+    /* WP16 (DEC-042): una fusione riuscita, oltre questo punto -- mai per un
+       tentativo bocciato da FusionCheck sopra (return anticipato). */
+    TrialsOnFusionPerformed(game);
     /* Qui aggancerebbe lo STADIO 2 (rifinitura IA in sottofondo): vedi
        FUSION_STAGE_2_HOOK in fusion.h. Nella demo non parte nulla, per
        scelta -- non e' un TODO dimenticato. */

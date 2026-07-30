@@ -5,6 +5,7 @@
 #include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+#include "game/trials.h"
 #include "gameplay/fusion.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/synergies.h"
@@ -3199,7 +3200,15 @@ static int MenuItemCountForMode(AppMode mode)
     {
         case APP_MAIN_MENU: return 4;    /* Nuova run, Catalogo (M8, DEC-045), Opzioni, Esci */
         case APP_RUN_SETUP: return 3;    /* Seed, Avvia, Indietro ("Modalita'" non e' selezionabile: unica modalita' esistente) */
-        case APP_PAUSE_MENU: return 4;   /* Riprendi, Build e sinergie, Opzioni, Abbandona run */
+        /* WP16 (DEC-042): "Prove" si e' inserita fra "Build e sinergie" e
+           "Opzioni" (ui/pause-menu.md, tabella "Elementi interattivi"),
+           spostando le due voci successive di un indice -- vedi
+           DrawPauseMenuOverlay e il case APP_PAUSE_MENU in src/app/app.c per
+           i nuovi indici. In pratica la riga e' SEMPRE visibile: PauseMenu si
+           raggiunge solo da APP_GAMEPLAY, cioe' da run gia' iniziata, cioe'
+           da DOPO che TrialsAssignForRun ha gia' scritto game->trialCount
+           (src/game/trials.c, chiamata da GameResetRunWithSeed). */
+        case APP_PAUSE_MENU: return 5;   /* Riprendi, Build e sinergie, Prove, Opzioni, Abbandona run */
         /* W8 (chiude la parte UI del difetto noto 9): tre volumi + Indietro.
            Le tre righe sono voci di menu a pieno titolo -- stesso indice, stessa
            geometria, stesso hit-test del mouse -- perche' la parita'
@@ -3216,17 +3225,20 @@ static int MenuItemCountForMode(AppMode mode)
 /* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. */
 #define MENU_ROW_START_Y_BASE 110.0f
 #define MENU_ROW_H_BASE 52.0f
-/* DEC-159/DEC-051: RunResults ha, sopra le sue due voci, un blocco di righe
-   SEMPRE presenti (esito, piano raggiunto, tempo) piu' un numero VARIABILE di
-   righe facoltative (causa della sconfitta se game over, conteggio catalogo
-   se >0) -- una quota fissa piu' bassa di MENU_ROW_START_Y_BASE lascia sempre
-   spazio a tutte, comparissero o no le facoltative, senza dover far dipendere
-   la geometria delle voci (quindi anche il hit-test del mouse,
+/* DEC-159/DEC-051/WP16: RunResults ha, sopra le sue due voci, un blocco di
+   righe SEMPRE presenti (esito, piano raggiunto, tempo) piu' un numero
+   VARIABILE di righe facoltative (causa della sconfitta se game over,
+   conteggio catalogo se >0, prove superate se ne esiste almeno una, WP16) --
+   una quota fissa piu' bassa di MENU_ROW_START_Y_BASE lascia sempre spazio a
+   tutte, comparissero o no le facoltative, senza dover far dipendere la
+   geometria delle voci (quindi anche il hit-test del mouse,
    RendererMenuItemAt) dal contenuto della run. 172 e non piu' 150: la riga
    Tempo (WP1) e' una quinta riga SEMPRE disegnata, non una facoltativa in
    piu' -- serve lo stesso passo di 22px delle altre per non farla toccare la
-   prima voce di menu. */
-#define MENU_ROW_START_Y_RUN_RESULTS 172.0f
+   prima voce di menu. 194 e non piu' 172 (WP16): la riga "Prove superate" e'
+   una TERZA facoltativa, che si somma a causa/catalogo -- stesso passo di
+   22px, stesso motivo. */
+#define MENU_ROW_START_Y_RUN_RESULTS 194.0f
 
 /* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
    stessa garanzia (uiScale==1.0 => letterali identici a prima). */
@@ -3381,7 +3393,12 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
     const Player *p = &game->player;
     int labelFont = UiRound(15.0f*uiScale);
     int x = (int)box.x + UiRound(40.0f*uiScale);
-    int y = (int)box.y + UiRound(320.0f*uiScale);
+    /* 368 e non piu' 320: con la quinta voce "Prove" (WP16) le righe del
+       PauseMenu arrivano a box.y+358 (110 + 4*52 + 40) e la vecchia quota,
+       scelta quando le voci erano quattro, ci finiva sopra. Oggi questa
+       funzione non e' raggiungibile dal Piano 0 (domanda aperta 22), ma la
+       collisione latente resta un difetto: la quota segue le righe. */
+    int y = (int)box.y + UiRound(368.0f*uiScale);
     UiText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
     y += UiRound(22.0f*uiScale);
     DrawHearts(p, x, y, uiScale);
@@ -3389,13 +3406,56 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
               x + UiRound(140.0f*uiScale), y, labelFont, GOLD);
 }
 
+/* WP16 (DEC-042, ui/pause-menu.md "Prove"): il pannello che sostituisce le
+   righe di menu mentre 'ui->pauseTrialsOpen' e' vero -- elenco delle prove
+   della run con testo e stato, piu' il totale superate/bonus (la stessa
+   somma che DrawRunResultsOverlay/il riepilogo di BuildScreen mostrano,
+   TrialsBonusTotal e' l'unica fonte). Colore per stato: nessuna informazione
+   affidata al solo colore (DEC-058), l'etichetta testuale (TrialStateLabel)
+   resta sempre disegnata accanto. */
+static void DrawTrialsPanel(Game *game, Rectangle box, float uiScale)
+{
+    int headFont = UiRound(16.0f*uiScale);
+    int labelFont = UiRound(14.0f*uiScale);
+    int x = (int)box.x + UiRound(40.0f*uiScale);
+    int y = (int)box.y + UiRound(64.0f*uiScale);
+    UiText(TextFormat("PROVE DELLA RUN -- %d/%d superate, +%d punti",
+                       TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
+           x, y, headFont, game->theme.accent2);
+    y += UiRound(34.0f*uiScale);
+    for (int i = 0; i < game->trialCount; i++)
+    {
+        const Trial *t = &game->trials[i];
+        /* TRIAL_VOID (WP16, seconda tornata) cade nello stesso grigio neutro
+           di TRIAL_IN_PROGRESS di proposito: non e' un esito negativo (il
+           denominatore in testa gia' la esclude, TrialsCountedTotal), quindi
+           non merita il rosso di TRIAL_FAILED -- l'etichetta testuale
+           ("annullata") resta comunque la fonte che distingue i due casi. */
+        Color color = (t->state == TRIAL_PASSED) ? (Color){ 126, 232, 152, 255 }
+                    : (t->state == TRIAL_FAILED) ? (Color){ 232, 120, 120, 255 }
+                                                  : (Color){ 205, 210, 220, 255 };
+        UiText(TextFormat("- %s", t->text), x, y, labelFont, color);
+        y += UiRound(20.0f*uiScale);
+        UiText(TextFormat("  [%s, +%d]", TrialStateLabel(t->state), t->bonus), x, y, labelFont, color);
+        y += UiRound(28.0f*uiScale);
+    }
+    UiText("ESC o INVIO per tornare.", x, (int)(box.y + box.height) - UiRound(40.0f*uiScale),
+           labelFont, (Color){ 150, 158, 172, 255 });
+}
+
 static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
 {
     Rectangle box = BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
+    if (ui->pauseTrialsOpen)
+    {
+        DrawTrialsPanel(game, box, UiScaleForHeight((float)GetScreenHeight()));
+        return;
+    }
     DrawMenuRow(APP_PAUSE_MENU, 0, "Riprendi", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 1, "Build e sinergie", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 3, "Abbandona run", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 2, "Prove", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 3, "Opzioni", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 4, "Abbandona run", ui->focus, game->theme.accent2);
     if (game->floor == 0)
         DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
@@ -3864,7 +3924,19 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
         DrawStatLine(statLabels[i], statValues[i], rightX, ry + UiRound((float)(22*i)*uiScale), color, uiScale);
     }
     DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rightX, ry + UiRound(132.0f*uiScale), GOLD, uiScale);
-    ry += UiRound(162.0f*uiScale);
+    /* WP16 (DEC-042, ui/inventory-and-synergy-screen.md "Prove"): riga
+       dedicata, pattern delle righe statistiche esistenti sopra -- il
+       dettaglio per prova (testo + stato) vive nel pannello di PauseMenu
+       (DrawTrialsPanel), qui solo il riepilogo "N/M superate, +X punti"
+       (TrialsPassedCount/TrialsBonusTotal, unica fonte del conteggio: le due
+       schermate non possono mai divergere). Visibile solo da quando le prove
+       sono state presentate (game->trialCount > 0): nel Piano 0, dove questa
+       schermata e' comunque raggiungibile solo dal crogiolo di fusione
+       inesistente li', il conteggio e' zero e la riga resta silenziosa. */
+    if (game->trialCount > 0)
+        DrawStatLine("Prove", TextFormat("%d/%d, +%d", TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
+                     rightX, ry + UiRound(154.0f*uiScale), (Color){ 126, 232, 152, 255 }, uiScale);
+    ry += UiRound(184.0f*uiScale);
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
     UiText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
@@ -3927,7 +3999,29 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        AppWriteRunCatalog non e' mai stata chiamata per questa run (il caso
        "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER). */
     if (game->catalogRecordsWritten > 0)
+    {
         UiText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
+                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
+        lineY += 22.0f;
+    }
+    /* WP16 (DEC-042/DEC-027): il bonus delle prove specifiche, riga dedicata
+       come richiesto dal work package -- TrialsFinalizeAtRunEnd (chiamata da
+       CombatDamagePlayer/CombatPickup non appena game->phase diventa
+       terminale, prima che questo overlay possa mai disegnarsi) ha gia'
+       risolto ogni prova rimasta in corso, quindi qui il conteggio e' gia'
+       DEFINITIVO. Omessa (mai "0/0") quando non c'e' NULLA da contare --
+       stessa disciplina della riga del catalogo sopra. La guardia e' sul
+       DENOMINATORE stampato (TrialsCountedTotal), non su trialCount: con
+       tutte le prove assegnate finite TRIAL_VOID (raro ma possibile, es.
+       due prove fra segreta/arena/a tempo mai generate) trialCount resta
+       positivo ma il conteggio e' 0/0 -- e la riga deve tacere.
+       Limite dichiarato: questo E' "il punteggio che RunResults mostra oggi"
+       per le prove (nessun punteggio composito DEC-060 esiste ancora, vedi
+       rewards-and-economy.md); il bonus non alimenta ancora il canale punti
+       sblocco di DEC-027 (nessun sistema di punti sblocco esiste ancora nel
+       motore, gap dichiarato in save-and-meta-progression.md). */
+    if (TrialsCountedTotal(game) > 0)
+        UiText(TextFormat("Prove superate: %d/%d, +%d punti", TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
                  (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);

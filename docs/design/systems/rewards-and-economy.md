@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
 last_reviewed: 2026-07-30
-last_verified_commit: a8a85bf
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, stanza-segreta, budget-di-equita, DEC-044, DEC-025, WP5, WP6, WP7, WP8]
+last_verified_commit: d5c5f43
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, stanza-segreta, budget-di-equita, DEC-044, DEC-025, prove, DEC-042, DEC-027, WP5, WP6, WP7, WP8, WP16]
 related: []
 supersedes: []
 source_files: []
@@ -304,6 +304,106 @@ Le prove specifiche del canale bonus vengono presentate al giocatore al passaggi
 unica del comportamento di presentazione: [Floor Zero](./floor-zero.md). Questo documento non
 lo ripete, definisce solo che le prove sono la fonte del bonus punti descritto sopra.
 
+### Stato di implementazione: le prove specifiche (WP16, 2026-07-30)
+
+Il canale bonus di DEC-027 esiste ora nel motore (`src/game/trials.c`/`.h`): un **catalogo
+curato e deterministico** di otto tipi di prova (`TrialKind`), da cui **2 o 3** vengono
+assegnate a ogni run — mai testo generato, coerente col principio "verificabile col motore
+attuale" del work package. L'assegnazione usa uno **stream locale derivato dal seed di RUN**
+(`game->runSeed ^ 'TRIA'`, mai `game->rng`): stesso seed, stesse prove, sempre, indipendentemente
+da quanto `game->rng` è già stato consumato per generare il piano 1 quando la funzione gira
+(`TrialsAssignForRun`, chiamata da `GameResetRunWithSeed`). Il reset rapido R passa dalla
+stessa funzione con lo stesso `runSeed` (`src/game/game.c`, `GameUpdate`): riassegna le
+**identiche** prove con lo stato ripulito da capo, mai prove nuove — coerente con "R = nuovo
+tentativo" di [Save and Meta Progression](save-and-meta-progression.md).
+
+**Default proposti dall'implementazione (stile DEC-019)**: nessun documento fissa il catalogo,
+il numero di prove per run né i bonus — solo che il canale esiste (DEC-027). Questi restano
+da confermare col playtest (vedi `governance/open-questions.md`, voci 47-49).
+
+| Prova (`TrialKind`) | Testo in gioco | Condizione di verifica | Bonus |
+|---|---|---|---|
+| `TRIAL_BOSS_NO_DAMAGE` | "Sconfiggi il boss del piano N senza incassare un colpo." | Boss del piano N ripulito (`WorldCheckRoomClear`) e nessun colpo incassato durante quel tentativo (`CombatDamagePlayer` dentro la sua stanza, Crust compreso, DEC-159) | 25 |
+| `TRIAL_SECRET_FOUND` | "Trova una stanza segreta da qualche parte nel crogiolo." | Primo ingresso in una stanza segreta, normale o super (DEC-025) | 15 |
+| `TRIAL_ARENA_WON` | "Vinci una sfida dell'arena, se hai il fegato di accettarla." | Arena di sfida incontrata nel piano, sfida **accettata e vinta** (mai solo attraversata, DEC-167) | 20 |
+| `TRIAL_FLOOR_UNDER_TIME` | "Completa il piano N in meno di Xs, dall'ingresso nel piano." | Boss del piano N ripulito entro `90s + 25s × N` dall'ingresso nel piano (`Game.floorEntryElapsedSeconds`) | 15 |
+| `TRIAL_END_WITH_INGOTS` | "Finisci la run con almeno 30 Ingots in tasca." | `Player.coins >= 30` al termine della run (`TrialsFinalizeAtRunEnd`) | 10 |
+| `TRIAL_FUSE_ITEM` | "Fondi almeno un oggetto nel crogiolo." | Una fusione riuscita (`FusionPerform`, qualunque coppia) | 10 |
+| `TRIAL_TIMED_ROOM_WITHIN_THRESHOLD` | "Supera una stanza a tempo entro la soglia richiesta." | Una stanza a tempo (WP5) raggiunta entro soglia al primo ingresso — stessa condizione che paga la valuta di DEC-167 per questo archetipo | 15 |
+| `TRIAL_NO_SHOP_PURCHASE` | "Non comprare mai nulla al negozio, tieni le mani in tasca." | Nessun acquisto a pagamento in nessun negozio per l'intera run (fallisce SUBITO al primo acquisto, mai recuperabile) | 20 |
+
+`TRIAL_NO_SHOP_PURCHASE` vale più delle altre prove "passive" perché è la più facile da
+rovinare per distrazione (un acquisto d'impulso in uno qualunque dei cinque piani) e la più
+difficile da recuperare — nessuna seconda occasione, a differenza di trovare *una* stanza
+segreta fra molte. Il boss senza danno vale il massimo (25) perché è la prova più difficile
+da soddisfare col motore attuale (un solo colpo la chiude per sempre, senza un secondo
+tentativo sullo stesso piano).
+
+**Verifica e pagamento**: ogni prova parte `TRIAL_IN_PROGRESS` e si chiude (`TRIAL_PASSED`/
+`TRIAL_FAILED`/`TRIAL_VOID`, vedi sotto) al momento in cui la sua condizione è decisa — mai
+prima, mai due volte (le funzioni `TrialsOn*` sono no-op su una prova già chiusa). Le prove
+legate a UNA stanza specifica (boss, arena, a tempo, segreta) si chiudono all'evento —
+`TRIAL_BOSS_NO_DAMAGE`/`TRIAL_FLOOR_UNDER_TIME` solo quando il boss RIPULITO è quello del
+piano bersaglio della prova (`t->param == game->floor`: il boss di un piano diverso non le
+tocca); `TRIAL_END_WITH_INGOTS` e `TRIAL_NO_SHOP_PURCHASE` restano aperte fino alla fine
+della run (`TrialsFinalizeAtRunEnd`, chiamata da `CombatDamagePlayer`/`CombatPickup` non
+appena `game->phase` diventa terminale, vittoria o sconfitta — MAI a mano dal resto del
+motore): a quel punto ogni prova ancora in corso si chiude per sempre — in positivo per
+`TRIAL_END_WITH_INGOTS` (soglia raggiunta) e `TRIAL_NO_SHOP_PURCHASE` (mai comprato), fallita
+per ogni altra prova ancora aperta, perché la run finita esclude per costruzione qualunque
+evento futuro che potesse ancora soddisfarla. Il bonus mostrato (`TrialsBonusTotal`) è sempre
+**derivato** dallo stato corrente delle prove, mai sommato una volta per tutte in un campo a
+parte: chiamare `TrialsFinalizeAtRunEnd` più volte non fa arrivare il bonus due volte.
+
+**Aggiornamento 30/07 (seconda tornata) — prove impossibili per la run, per davvero**: il
+"Caso limite" già registrato sopra ("una prova ... risulta impossibile ... va scartata") ha
+un'istanza REALE nel motore attuale, non solo teorica. `TRIAL_SECRET_FOUND`/`TRIAL_ARENA_WON`/
+`TRIAL_TIMED_ROOM_WITHIN_THRESHOLD` dipendono da un archetipo (`ROOM_SECRET`/`ROOM_ARENA`/
+`ROOM_TIMED`) che **non è garantito per costruzione**: misure di `--rooms-test` (vedi
+`docs/engineering/known-issues.md`, voce 15) mostrano la stanza a tempo assente in circa 1
+piano su 5 fra i piani candidati, la segreta normale in circa 1 su 10, l'arena rara ma non
+nulla — quindi in una frazione non trascurabile delle run uno di questi tre archetipi non
+compare MAI in nessun piano generato. Con la generazione pigra dei piani (Step B2) questo non
+è verificabile al momento dell'ASSEGNAZIONE (`TrialsAssignForRun` gira subito dopo
+`WorldStartFloor(1)`, quando i piani 2-5 non sono ancora generati): l'esclusione si applica
+invece A POSTERIORI, alla FINALIZZAZIONE. Tre flag a livello di run
+(`Game.timedRoomEverGenerated`/`secretRoomEverGenerated`/`arenaRoomEverGenerated`, scritti da
+`WorldGenerateFloorMap` a ogni piano, mai azzerati finché la run non ricomincia) registrano se
+l'archetipo è comparso ALMENO UNA VOLTA. Se una di queste tre prove è ancora `TRIAL_IN_PROGRESS`
+a `TrialsFinalizeAtRunEnd` e il suo archetipo non è mai comparso, si **scarta**
+(`TRIAL_VOID`, nuovo stato — non conta né come superata né come fallita) invece di fallire; se
+l'archetipo È comparso ma la prova non è stata soddisfatta, fallisce per davvero
+(`TRIAL_FAILED`), come richiesto dal caso limite ("non deve mai negare i punti base già
+maturati"). Il denominatore M mostrato al giocatore ("N/M superate") è `TrialsCountedTotal`
+(`trialCount` meno le `TRIAL_VOID`), non il grezzo `trialCount`: una prova scartata non abbassa
+il rapporto visibile. Etichetta in italiano: "annullata".
+
+Il bonus totale compare in `RunResults` con una riga dedicata ("Prove superate: N/M, +X
+punti"), consultabile per l'intera run da `PauseMenu` e `BuildScreen` (vedi
+[Pause Menu](../ui/pause-menu.md) e
+[Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md)). **Limite dichiarato**:
+questo *è* "il punteggio che RunResults mostra oggi" per le prove — il punteggio composito
+completo di DEC-060 (sotto) resta un lavoro separato, e il bonus non alimenta ancora il
+canale punti sblocco di DEC-027 (nessun sistema di punti sblocco esiste ancora nel motore,
+gap dichiarato in [Save and Meta Progression](save-and-meta-progression.md)): oggi le prove
+producono solo il punteggio di run mostrato a fine partita, non ancora la meta-progressione.
+
+Verificato da `--trials-test` (`GameTrialsTest`, `src/tests/trials_tests.c`): assegnazione
+deterministica dal seed (stesso seed → stesse prove, seed diversi → di norma prove diverse,
+reset rapido → identiche prove con stato pulito), quattro tipi esercitati con simulazione vera
+sul motore (boss senza danno/con danno, stanza segreta trovata, arena vinta, stanza a tempo,
+fusione, acquisto al negozio), finalizzazione di fine run (soglia Ingots, prove mai successe
+fallite, prove già decise intatte, bonus stabile su due chiamate). **Aggiornamento 30/07
+(seconda tornata)**: isolamento da `game->rng` verificato chiamando `TrialsAssignForRun`
+direttamente con `game->rng` in stati arbitrari (bit-identico prima/dopo, stesse prove a
+parità di `runSeed` indipendentemente da quante estrazioni `game->rng` ha già consumato);
+finalizzazione automatica a fine run VERA (`CombatDamagePlayer`/`CombatUpdatePickups` guidati
+fino a `PHASE_GAME_OVER`/`PHASE_WIN`, mai chiamando `TrialsFinalizeAtRunEnd` a mano); guardia
+sul piano bersaglio (`TRIAL_BOSS_NO_DAMAGE`/`TRIAL_FLOOR_UNDER_TIME` restano `TRIAL_IN_PROGRESS`
+ripulendo il boss di un piano diverso da quello richiesto); `TRIAL_VOID` quando l'archetipo non
+è mai comparso, `TRIAL_FAILED` quando è comparso ma non è bastato, `TrialsCountedTotal` che
+esclude solo le prime.
+
 ## Punteggio composito multi-percorso (DEC-060)
 
 Il **punteggio** è una delle metriche di classifica (vedi
@@ -379,8 +479,16 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Valori esatti dei prezzi fissi per fascia di rarità nel negozio (DEC-026 fissa il
   modello "prezzi fissi", non i numeri).
 - Tasso esatto di guadagno dei punti base e dei bonus da prova specifica (DEC-027 fissa la
-  struttura a doppio canale, non i numeri).
+  struttura a doppio canale, non i numeri): il canale meta (punti sblocco) resta non
+  collegato, vedi il limite dichiarato sotto.
 - Elenco completo delle prove specifiche (fisse e generate) che danno bonus punti sblocco.
+  **Aggiornamento 30/07 (WP16):** esiste ora un catalogo curato e deterministico di otto
+  tipi (mai generato), 2-3 assegnate per run — vedi "Stato di implementazione: le prove
+  specifiche" sopra e `governance/open-questions.md`, voci 47-49. Restano default di
+  implementazione, non canone; nessuna prova GENERATA esiste ancora (fuori scope di questo
+  lavoro). **Limite dichiarato**: il bonus alimenta solo il punteggio che `RunResults`
+  mostra oggi, non ancora il canale punti sblocco di DEC-027 (nessun sistema di punti
+  sblocco esiste nel motore, vedi [Save and Meta Progression](save-and-meta-progression.md)).
 - Prezzi e range esatti degli scambi nella stanza ad alto rischio. **Aggiornamento 30/07
   (WP7):** esistono ora una tabella di valori equivalenti e una tolleranza proposte e
   implementate — vedi "Tabella di equivalenza della Pourhouse (DEC-044)" sopra e

@@ -723,8 +723,17 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        tastiera-solo DENTRO la vista (parita' tastiera comunque garantita,
        DEC-057: il mouse resta "ammesso", mai l'unica via); la voce "Catalogo"
        stessa, nel menu, resta cliccabile come ogni altra voce quando la vista
-       e' chiusa. */
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(*mode == APP_MAIN_MENU && ui->catalogOpen))
+       e' chiusa. WP16, seconda tornata: stessa esclusione per il pannello
+       "Prove" DENTRO APP_PAUSE_MENU (ui->pauseTrialsOpen) -- e' un altro
+       ramo di sola lettura senza geometria propria (DrawTrialsPanel
+       sostituisce le righe di menu, non ne disegna di nuove), quindi le 5
+       righe che RendererMenuItemAt(APP_PAUSE_MENU, ...) continua a conoscere
+       restano vive SOTTO al pannello: senza questa esclusione un click su un
+       punto qualunque del pannello colpirebbe il rettangolo invisibile della
+       riga di menu sottostante, sintetizzando un confirm che lo richiude a
+       caso. */
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(*mode == APP_MAIN_MENU && ui->catalogOpen)
+        && !(*mode == APP_PAUSE_MENU && ui->pauseTrialsOpen))
     {
         int clicked = RendererMenuItemAt(*mode, mousePos);
         if (clicked >= 0)
@@ -772,7 +781,8 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        oggetti) e FloorZero (carte/schedine/fumetto del pannello, DEC-075)
        vivono nei rispettivi case dello switch sotto, con le loro funzioni
        dedicate (RendererBuildItemRowAt/RendererFloorZeroCardAt e affini). */
-    if (mouseMoved && !(*mode == APP_MAIN_MENU && ui->catalogOpen))
+    if (mouseMoved && !(*mode == APP_MAIN_MENU && ui->catalogOpen)
+        && !(*mode == APP_PAUSE_MENU && ui->pauseTrialsOpen))
     {
         int hovered = RendererMenuItemAt(*mode, mousePos);
         if (hovered >= 0) ui->focus = hovered;
@@ -1190,7 +1200,16 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 *mode = APP_BUILD_SCREEN;
                 break;
             }
-            if (effective.pause || effective.back) { *mode = APP_PAUSE_MENU; ui->focus = 0; break; }
+            if (effective.pause || effective.back)
+            {
+                *mode = APP_PAUSE_MENU;
+                ui->focus = 0;
+                /* WP16: un PauseMenu appena aperto mostra sempre le righe di
+                   menu, mai il pannello "Prove" di una permanenza precedente
+                   (vedi il commento sul campo in core/game_types.h). */
+                ui->pauseTrialsOpen = false;
+                break;
+            }
             if (effective.tab)
             {
                 AppEnterBuildScreen(game, ui, APP_GAMEPLAY);
@@ -1237,7 +1256,23 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_PAUSE_MENU:
         {
-            if (effective.up || effective.down) { ui->focus = (ui->focus + 4 + (effective.down ? 1 : -1)) % 4; break; }
+            /* WP16 (DEC-042): il pannello "Prove" e' un ramo DENTRO questo
+               stesso AppMode (nessun nuovo stato, stessa scelta del Catalogo
+               dentro APP_MAIN_MENU) -- mentre e' aperto, back/confirm lo
+               chiudono soltanto, riportando il focus sull'indice 2 ("Prove",
+               ui/pause-menu.md: "Al ritorno, focus su questo elemento"); su/
+               giu' non fanno nulla (consultazione di sola lettura, come le
+               statistiche di BuildScreen). */
+            if (ui->pauseTrialsOpen)
+            {
+                if (effective.back || effective.pause || effective.confirm)
+                {
+                    ui->pauseTrialsOpen = false;
+                    ui->focus = 2;
+                }
+                break;
+            }
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 5 + (effective.down ? 1 : -1)) % 5; break; }
             if (effective.back || effective.pause) { *mode = APP_GAMEPLAY; break; }   /* "Riprendi" e' anche ESC/P diretto */
             if (effective.confirm)
             {
@@ -1247,7 +1282,8 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     AppEnterBuildScreen(game, ui, APP_PAUSE_MENU);
                     *mode = APP_BUILD_SCREEN;
                 }
-                else if (ui->focus == 2)   /* Opzioni */
+                else if (ui->focus == 2) ui->pauseTrialsOpen = true;   /* Prove (WP16) */
+                else if (ui->focus == 3)   /* Opzioni */
                 {
                     ui->openedFrom = APP_PAUSE_MENU;
                     ui->returnFocus = ui->focus;
@@ -1560,6 +1596,10 @@ int AppRun(int argc, char **argv)
     bool obstaclesTest = false;
     bool itemPoolTest = false;
     bool economyTest = false;
+    /* WP16 (DEC-042/DEC-027): come --economy-test, gira dopo InitWindow senza
+       bisogno vero della finestra (GameTrialsTest non disegna nulla, vedi
+       src/tests/trials_tests.c). */
+    bool trialsTest = false;
     bool fusionTest = false;
     bool fusionScreenshotTest = false;
     /* DEC-065/131/152/159/169: come --economy-test, gira dopo InitWindow
@@ -1764,6 +1804,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             economyTest = true;
+        }
+        /* WP16 (DEC-042/DEC-027): come --economy-test, gira dopo InitWindow
+           senza bisogno vero della finestra (GameTrialsTest non disegna
+           nulla, vedi src/tests/trials_tests.c). */
+        if (strcmp(argv[i], "--trials-test") == 0)
+        {
+            smokeTest = true;
+            trialsTest = true;
         }
         /* DEC-022/023/143/162/171 (la fusione): come --economy-test, gira
            dopo InitWindow senza bisogno vero della finestra (GameFusionTest
@@ -2102,6 +2150,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 29;   /* 29: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --item-pool-test=28) */
+    }
+    if (trialsTest)
+    {
+        bool ok = GameTrialsTest(&game);
+        printf("Trials test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 42;   /* 42: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --obstacles-test=41) */
     }
     if (fusionScreenshotTest)
     {

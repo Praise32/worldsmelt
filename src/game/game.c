@@ -5,6 +5,7 @@
 #include "content/curated_images.h"
 #include "content/run_content.h"
 #include "game/game_internal.h"
+#include "game/trials.h"
 #include "script/script_items.h"
 
 #include <stdio.h>
@@ -33,11 +34,13 @@ void GameQueueDiscoveryCardWithImage(Game *game, const char *name, const char *l
     snprintf(card->name, sizeof(card->name), "%s", name ? name : "");
     snprintf(card->line, sizeof(card->line), "%s", line ? line : "");
     snprintf(card->imageId, sizeof(card->imageId), "%s", imageId ? imageId : "");
-    /* "Card di scoperta mostrata" (audio-and-feedback.md): l'HUD disegna
-       SEMPRE la coda cosi' com'e' (DrawHudDiscovery, src/render/
-       game_renderer.c), quindi accodare qui E' il momento in cui la card
-       diventa visibile -- nessun evento "mostrata" separato da inseguire. */
-    AudioPlaySfx(AUDIO_SFX_DISCOVERY_CARD);
+    /* NIENTE suono qui: accodare NON e' mostrare. DrawHudDiscovery disegna
+       solo 'discoveryActive', quindi la card diventa visibile alla
+       PROMOZIONE dalla coda (GameUpdate, piu' sotto) ed e' li' che suona
+       AUDIO_SFX_DISCOVERY_CARD -- "card di scoperta MOSTRATA"
+       (audio-and-feedback.md). Suonare all'accodamento faceva partire i
+       rintocchi delle prove della run (WP16) all'avvio del gioco, a menu
+       vuoto, dal GameResetRun di boot (bocciatura del giudice, 30/07). */
 }
 
 void GameQueueDiscoveryCard(Game *game, const char *name, const char *line)
@@ -216,6 +219,16 @@ void GameResetRunWithSeed(Game *game, unsigned int runSeed)
     game->characterChosenIndex = -1;
     ScriptItemsInit(game, NULL);   /* nessun personaggio applicato per costruzione, vedi sopra */
     WorldStartFloor(game, 1);
+    /* WP16 (DEC-042): le prove specifiche della run si assegnano QUI, non in
+       app.c -- questa e' l'UNICA funzione che fa partire una run vera
+       (commento su game->inRealRun sotto), chiamata sia al vero
+       attraversamento del varco Piano 0 -> piano 1 (src/app/app.c,
+       floorZeroExitCrossed) sia dal reset rapido R (src/game/game.c,
+       GameUpdate: stesso runSeed, vedi il commento li'), quindi entrambi i
+       percorsi assegnano/riassegnano le prove con la stessa garanzia
+       "stesso seed -> stesse prove" senza bisogno di duplicare la chiamata
+       in due punti diversi. */
+    TrialsAssignForRun(game);
 }
 
 void GameResetRun(Game *game)
@@ -293,6 +306,12 @@ void GameUpdate(Game *game, float dt, Vector2 mouseGame, bool mouseInsideGame)
         game->discoveryQueueCount--;
         game->discoveryActiveValid = true;
         game->discoveryActiveTimer = 3.2f;
+        /* La card e' appena diventata VISIBILE (DrawHudDiscovery disegna solo
+           'discoveryActive'): questo e' il momento del suono, non
+           l'accodamento -- vedi il commento in GameQueueDiscoveryCardWithImage.
+           Qui siamo sempre dentro GameUpdate, mai nel boot a menu vuoto; le
+           card in coda suonano una alla volta, mai sovrapposte. */
+        AudioPlaySfx(AUDIO_SFX_DISCOVERY_CARD);
     }
 
     if (game->phase == PHASE_GAME_OVER || game->phase == PHASE_WIN)

@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047). Il contenuto curato di fallback del Piano 0 è lo stato base del gioco, precaricato e sempre disponibile, senza attesa possibile (DEC-153); l'HUD di combattimento resta nascosto nel Piano 0, consultabile dal menu di pausa, visibile durante le prove (DEC-169)."
-last_reviewed: 2026-07-28
-last_verified_commit: 1263957
-topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169]
+last_reviewed: 2026-07-30
+last_verified_commit: d5c5f43
+topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169, prove, DEC-042, WP16]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/render/game_renderer.h, src/core/game_types.h]
@@ -342,6 +342,21 @@ prove resta sempre consultabile dal menu di pausa (`ui/pause-menu.md`) e dalla s
 build (`ui/inventory-and-synergy-screen.md`); questo documento non ripete il dettaglio della
 loro generazione o del loro punteggio, definito in
 [Rewards and Economy](rewards-and-economy.md).
+
+> **Nota di implementazione (WP16, 2026-07-30):** l'assegnazione (`TrialsAssignForRun`,
+> `src/game/trials.c`) vive dentro `GameResetRunWithSeed` — l'unica funzione che fa partire
+> una run vera — chiamata esattamente al vero attraversamento del varco (`floorZeroExitCrossed`,
+> `src/app/app.c`). "Presentare" oggi riusa il componente di sistema già esistente per le
+> scoperte (DEC-065/131/152): una card di scoperta ("Prova") per ogni prova assegnata, invece
+> di un overlay dedicato nuovo — nessun contenuto nuovo, solo un titolo diverso sullo stesso
+> componente. Le prove restano consultabili per l'intera run indipendentemente da quanto la
+> card resta a schermo o viene scartata (scartare la coda di notifica non tocca mai lo STATO
+> della prova, `Game.trials[]`) — nessun campo separato traccia "presentate" (aggiornamento
+> 30/07, seconda tornata: `Game.trialsPresented` non era mai letto da nulla, rimosso insieme
+> al commento che ne descriveva un ruolo inesistente; la consultabilità dipende solo da
+> `game->trialCount > 0`). Verificato da `--trials-test`, vedi
+> [Rewards and Economy](rewards-and-economy.md), "Stato di implementazione: le prove
+> specifiche".
 
 ## Regole per contenuti generati
 
