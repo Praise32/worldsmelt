@@ -10,8 +10,8 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: 06b9b16
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida]
+last_verified_commit: a8a85bf
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
 source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c]
@@ -413,7 +413,33 @@ con `..`. `--atlas-fallback-test` esercita di proposito il gradino più basso (p
 artistico puntato su una cartella inesistente → primitive). Gli screenshot di
 `--art-screens-screenshot-test` (`logs/worldsmelt-w8-*.png`) sono la verifica visiva.
 
-## 11 — La persistenza dei distruttibili spaccati (WP3, DEC-043) non è ancora osservabile in gioco
+## 11 — ~~La persistenza dei distruttibili spaccati (WP3, DEC-043) non è ancora osservabile in gioco~~ — CHIUSA dal WP8 (30/07)
+
+**Chiusura (WP8, 30/07)**: la voce nasceva dal fatto che, nel motore di allora, non esisteva
+nessuna sequenza in cui il giocatore potesse uscire e rientrare in una stanza col suo arredo
+ancora in piedi — quindi la persistenza registrata in `Game.destroyedObstacleMask` era
+infrastruttura vera ma invisibile. La stanza segreta (`ROOM_SECRET`,
+[secrets-and-obstacles.md](../design/systems/secrets-and-obstacles.md), DEC-025) chiude
+quella lacuna in due modi, entrambi osservabili in gioco:
+
+- **la stessa esplosione ha ora un effetto persistente visibile**: lo strumento di breccia
+  che apre il varco murato di una segreta scrive `RoomState.secretOpened`, e la porta resta
+  aperta per tutto il piano — si esce dalla segreta, si gira mezzo piano e si rientra dal
+  varco che si era aperti da soli (`WorldTryBreachSecretWall`, `src/world/world.c`;
+  verificato dal punto D di `RoomsTestSecretRooms`, `src/tests/game_tests.c`, che esce e
+  rientra davvero passando da `WorldTryEnterRoom`);
+- **la stanza segreta è ri-attraversabile senza essere "ripulita"** nel senso del
+  combattimento: `cleared` è vero fin dalla generazione, le porte non si bloccano mai, e
+  ogni suo rientro passa da `WorldSpawnRoomContents` come qualunque altra stanza — è
+  esattamente il tipo di stanza che la voce originale indicava come "lavoro successivo" in
+  cui la persistenza sarebbe diventata osservabile.
+
+Resta invariato il comportamento preesistente descritto sotto (una stanza di
+**combattimento** perde tutto il suo arredo quando si ripulisce): non è stato toccato,
+perché è una scelta del motore anteriore a WP3 e cambiarla sarebbe un lavoro di portata
+diversa. Il testo originale resta qui sotto come storia della voce.
+
+### Testo originale (WP3, 30/07)
 
 **Sintomo**: `docs/design/systems/secrets-and-obstacles.md` ("Ostacoli generati a tema")
 descrive lo stato "spaccato" di un ostacolo distruttibile come qualcosa che persiste "per
@@ -519,3 +545,37 @@ prezzo sono scritte sempre, anche quando nessuno dei due prop carica. Da chiuder
 corsia arte produrrà `assets/art/props/banco-colata` (vocabolario suggerito: `acceso` /
 `spento`, coerente con `attivo`/`spento` del crogiolo): basterà cambiare la `propKey` e i
 due nomi di animazione in `DrawPickup`, nessuna altra modifica.
+
+## 14 — I rivelatori delle super-segrete (Innesti «sensore», DEC-127) non esistono: la super-segreta si trova solo per intuizione
+
+**Sintomo**: [secrets-and-obstacles.md](../design/systems/secrets-and-obstacles.md)
+("Segreti", DEC-025) dichiara due modi di trovare una stanza **super-segreta**: i
+**rivelatori** — Innesti «sensore» dedicati o oggetti rari con la rivelazione come effetto
+secondario (DEC-127) — **oppure** l'intuizione estrema del giocatore. Dal WP8 la stanza
+esiste davvero nel motore (`ROOM_SECRET` con `RoomState.secretSuper`) e la seconda via
+funziona per intero: bombardare il muro giusto alla cieca apre il varco esattamente come
+per la segreta normale. La prima via non esiste: nessun oggetto, Innesto o effetto del
+gioco rivela una super-segreta.
+
+**Evidenza**: nessuna categoria «sensore» in `ItemKind`/`ItemSlot`
+(`src/core/game_types.h`), nessun trait o effetto che legga `ROOM_SECRET` fuori da
+`src/world/world.c` e `src/render/game_renderer.c`;
+[grafts.md](../design/systems/grafts.md) elenca da sempre gli Innesti sensore fra i "non
+ancora implementati". Il gancio lato mondo è però già pronto e pubblico:
+`WorldRoomHiddenOnMap` e `WorldSecretClueVisible` (`src/world/world.h`) sono i due soli
+predicati che decidono cosa si vede di una segreta — un rivelatore dovrà agire su di loro
+(o su un flag di run che loro leggono), non sparpagliare condizioni nel renderer.
+
+**Stato**: **limite dichiarato e scelto**, non una dimenticanza. Il work package chiedeva
+esplicitamente di valutare l'impatto di aggiungere un Innesto sensore al contenuto curato
+di ripiego prima di farlo: il contenuto curato (`src/content/curated_catalog.c`) oggi non
+contiene **nessun** Innesto — è tutto stat-up e attivi, con un ledger e un test dedicati
+(`--curated-content-test`, DEC-171) che verificano composizione e rarità del pool — quindi
+introdurre la prima categoria di Innesto curata insieme a una stanza nuova avrebbe mescolato
+due lavori indipendenti e toccato garanzie che non c'entrano con i segreti. Scelta la via
+(b) del work package: super-segreta piazzata e apribile alla cieca, rivelatore rimandato.
+La conseguenza per il giocatore è dichiarata dal documento stesso ("Casi limite": una
+super-segreta senza rivelatori disponibili **resta comunque scopribile per intuizione
+estrema, e non è mai l'unico modo di completare un requisito obbligatorio della run"),
+quindi nessuna garanzia di design è violata — manca solo un aiuto. Vedi
+`docs/design/governance/open-questions.md`, voce 46.

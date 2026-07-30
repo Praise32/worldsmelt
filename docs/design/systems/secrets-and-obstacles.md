@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025)."
+summary: "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025) — implementate nel motore dal WP8 (30/07): varco murato apribile solo con lo strumento di breccia, indizio a parete per il livello normale, nessun indizio per la super-segreta."
 last_reviewed: 2026-07-30
-last_verified_commit: a2de293
-topics: [ostacoli, segreti, strumento-di-breccia, telegraph, budget-difficoltà, DEC-043, WP3, ostacoli-distruttibili, pericoli-passivi]
+last_verified_commit: a8a85bf
+topics: [ostacoli, segreti, strumento-di-breccia, telegraph, budget-difficoltà, DEC-043, WP3, ostacoli-distruttibili, pericoli-passivi, WP8, DEC-025, DEC-127, stanze-segrete, super-segrete, ROOM_SECRET]
 related: []
 supersedes: []
 source_files: [src/core/room_layout.h, src/core/room_layout.c, src/core/game_types.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -84,6 +84,54 @@ diversa, mai da tentativi puramente casuali:
 
 Questo risolve la domanda di design precedentemente aperta sul metodo di scoperta delle
 stanze segrete.
+
+### Stato di implementazione: i due livelli nel motore (WP8, 2026-07-30)
+
+Entrambi i livelli di DEC-025 esistono nel motore come un `RoomKind` dedicato
+(`ROOM_SECRET`, `src/core/game_types.h`) con un campo di livello
+(`RoomState.secretSuper`). L'archetipo come TIPO DI STANZA è descritto in
+[special-rooms.md](./special-rooms.md), "Stato di implementazione: la stanza segreta";
+qui si registra solo ciò che riguarda **i segreti e lo strumento di breccia**.
+
+- **Il varco è murato, non è una porta.** In generazione `WorldLinkRooms`
+  (`src/world/world.c`) NON apre mai la porta di una segreta ancora sigillata: la stanza
+  esiste sulla griglia ma è fuori dal grafo di adiacenza del piano, che resta quindi
+  completabile ignorandola del tutto. La porta compare **solo** quando lo strumento di
+  breccia esplode addosso alla parete condivisa (`WorldTryBreachSecretWall`), e da quel
+  momento è una porta come tutte le altre, su entrambi i lati.
+- **Deve essere la parete GIUSTA, e da vicino.** La breccia funziona solo se
+  l'esplosione tocca la fascia di parete condivisa — larga quanto una porta, profonda
+  `WORLD_SECRET_BREACH_DEPTH` dentro la cella (`WorldSecretWallRect`, `src/world/world.h`).
+  Una bomba lasciata in mezzo alla stanza non apre nulla: è ciò che rende l'indizio
+  **utile** invece che decorativo (Scenario 4).
+- **Stessa garanzia di origine dei distruttibili.** Il varco si apre solo da
+  un'esplosione di **origine giocatore**: `CombatExplodeAt` chiama la breccia sotto lo
+  stesso parametro `breach` che governa i distruttibili (vedi "Default proposti
+  dall'implementazione" sotto, "Origine delle esplosioni"). Nessuna esplosione nemica ha
+  mai aperto e mai aprirà un segreto.
+- **L'indizio (livello normale).** Sulla parete **lato stanza visibile**, esattamente dove
+  il varco si può aprire, si disegna `assets/art/props/crepa-segreta` (tag `indizio`, 2
+  fotogrammi; `aperta`, 1 fotogramma, dopo la breccia) — `DrawSecretWallHints`,
+  `src/render/game_renderer.c`. Nessuna freccia, nessun testo, nessun lampeggio: "leggibile
+  ma discreto". Se l'asset manca (checkout senza `assets/art/`, pacchetto parziale) si
+  disegna comunque una forma geometrica di riserva: un indizio che sparisce col pacchetto
+  artistico cambierebbe il **design** (renderebbe la segreta normale indistinguibile da una
+  super-segreta), non solo la veste.
+- **La super-segreta non ha MAI indizio** (Scenario 5). Il filtro è un predicato unico e
+  puro, `WorldSecretClueVisible` (`src/world/world.h`), non una condizione sparsa nel
+  renderer — così "la super-segreta non ha alcun indizio" è verificabile da un test senza
+  aprire una finestra, ed è esattamente ciò che il controllo (s) di `GameRoomsTest` fa.
+  Bombardare alla cieca il muro giusto la apre **lo stesso**: l'"intuizione estrema" di
+  DEC-025 è una via completa, non un ripiego.
+- **I rivelatori di DEC-127 non esistono ancora**: nessun oggetto o Innesto «sensore» è
+  implementato, quindi oggi la super-segreta si trova SOLO per intuizione. È il limite
+  dichiarato in `docs/engineering/known-issues.md`, voce 14 (con la motivazione della
+  scelta e il punto di innesto già pronto lato mondo); nessuna garanzia di design è violata
+  — il documento prevede esplicitamente questo caso in "Casi limite".
+- **Test**: `RoomsTestSecretRooms` e il controllo (s) di `GameRoomsTest`
+  (`src/tests/game_tests.c`, `--rooms-test`/`make test`) — bomba lontana o di origine
+  nemica: nessun varco; bomba sulla parete: varco su entrambi i lati; il varco resta aperto
+  uscendo e rientrando; indizio presente solo per il livello normale.
 
 ## Interazioni
 
@@ -188,10 +236,47 @@ playtest, vedi `governance/open-questions.md` voce 29.
   esplosione di origine giocatore" è una scelta di implementazione, non ancora una decisione
   di design.
 
+Voci aggiunte da WP8 (2026-07-30, stesso stile) per le **stanze segrete**. Il documento
+fissa i due livelli, la grammatica di scoperta e lo strumento (la bomba); non fissa nessun
+numero né la geometria della breccia — quelli sono tutti scelte dell'implementazione, da
+confermare al playtest (`governance/open-questions.md`, voci 44-46).
+
+- **Quanto deve essere vicina la bomba:** la fascia sbrecciabile è larga esattamente
+  quanto una porta (`DOOR_HALF*2`, centrata sul lato della cella — cioè dove la porta
+  comparirà davvero) e profonda **56 px** dentro la stanza
+  (`WORLD_SECRET_BREACH_DEPTH`, `src/world/world.h`). Col raggio di esplosione attuale
+  (74 px) significa: **addosso al muro giusto, non "verso quella parete"**. Alternativa
+  scartata: accettare qualunque esplosione dentro la stanza — avrebbe reso l'indizio
+  decorativo e la super-segreta banale (bastava una bomba a caso in ogni stanza).
+- **Frequenza dei due livelli:** la segreta **normale** si tenta a ogni piano dal piano 1
+  (`WORLD_SECRET_ROOM_MIN_FLOOR`); la **super-segreta** dal piano 2 e solo a estrazione
+  concessa (`WORLD_SECRET_SUPER_MIN_FLOOR`, `WORLD_SECRET_SUPER_CHANCE_PERCENT` = 50%).
+  Misura su 120 piani generati (`--rooms-test`): normale in **36 casi su 120**,
+  super-segreta in **13 su 96** candidati — la super resta il livello più raro, come
+  DEC-025 richiede, e il test lo verifica confrontando i due conteggi invece di fidarsi
+  della sola estrazione.
+- **Ricompensa "degna del segreto":** un oggetto dal pool del piano con la **rarità
+  minima alzata** — il migliore dei tre candidati, stessa tecnica dell'arena di sfida e
+  senza alcuna estrazione, così uscire e rientrare ritrova sempre lo **stesso** oggetto
+  (il "contenuto assegnato una sola volta" senza consumarlo al primo ingresso, che lo
+  farebbe perdere a chi esce senza raccoglierlo). Più la valuta di "stanza segreta
+  trovata" (DEC-167, `WORLD_ROOM_CURRENCY_SECRET` = 6 Ingots). La **super-segreta**
+  aggiunge un **catalizzatore di fusione** (`WORLD_SECRET_SUPER_FLUX` = 1), versato
+  direttamente al primo ingresso e non come pickup a terra: un pickup sarebbe stato
+  raccoglibile all'infinito rientrando, o perdibile uscendo senza prenderlo. È questa la
+  "ricompensa superiore" del livello 2, non un numero di Ingots più grande — vedi
+  [rewards-and-economy.md](./rewards-and-economy.md).
+
 (`OBSTACLE_DESTRUCTIBLE_CHANCE`, `OBSTACLE_HAZARD_CHANCE_BASE/PER_FLOOR/MAX`,
 `WORLD_OBSTACLE_ENEMY_BUDGET_COST/FLOOR` in `src/world/world.c`; `ObstacleFamily` in
 `src/core/room_layout.h`; `CombatResolveHazards`/`CombatExplodeAt` in
-`src/gameplay/combat.c`.)
+`src/gameplay/combat.c`. WP8: `WORLD_SECRET_BREACH_DEPTH`,
+`WORLD_SECRET_ROOM_MIN_FLOOR`, `WORLD_SECRET_SUPER_MIN_FLOOR`,
+`WORLD_SECRET_SUPER_CHANCE_PERCENT`, `WORLD_ROOM_CURRENCY_SECRET`,
+`WORLD_SECRET_SUPER_FLUX`, `WorldSecretWallRect`, `WorldRoomHiddenOnMap`,
+`WorldSecretClueVisible` in `src/world/world.h`; `WorldPlaceSecretRoom`,
+`WorldTryBreachSecretWall` in `src/world/world.c`; `DrawSecretWallHints` in
+`src/render/game_renderer.c`.)
 
 ## Non-obiettivi
 
@@ -203,7 +288,14 @@ playtest, vedi `governance/open-questions.md` voce 29.
 
 - ~~Come esistono i rivelatori delle super-segrete~~: risolto da DEC-127 — Innesti
   «sensore» dedicati + oggetti rari con la rivelazione come effetto secondario, con almeno
-  un'occasione realistica per run; restano da playtest solo i tassi esatti.
+  un'occasione realistica per run; restano da playtest solo i tassi esatti. **Nota di
+  implementazione (WP8, 30/07)**: la decisione resta valida e non è riaperta, ma nel motore
+  nessun rivelatore esiste ancora — la super-segreta è oggi trovabile solo per intuizione
+  estrema, l'altra via che DEC-025 ammette. Limite dichiarato in
+  `docs/engineering/known-issues.md`, voce 14.
+- Quanto deve essere vicina l'esplosione alla parete perché il varco si apra, e con quale
+  frequenza compaiono i due livelli: **default proposti dall'implementazione** (WP8,
+  sezione sopra), non canone — vedi `governance/open-questions.md` voci 44 e 45.
 - ~~Un solo tipo di bersaglio o categorie a costi diversi~~: risolto da DEC-128 — lo
   strumento di breccia è la bomba (Blast Charges), universale: un uso = un'esplosione, la
   variabilità sta solo in che cosa è breccia-bile e che cosa no.

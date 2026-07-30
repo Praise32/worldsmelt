@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07), l'arena di sfida incontrata nel piano (WP6, 30/07) e la Pourhouse (WP7, 30/07) sono i primi quattro dei cinque archetipi con un RoomKind fisico nel motore: resta fuori solo la stanza segreta."
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. Dal WP8 (30/07) TUTTI E CINQUE gli archetipi hanno un RoomKind fisico nel motore: la stanza segreta (ROOM_SECRET) è l'ultima ad arrivare, dopo fusione (WP4), stanza a tempo (WP5), arena di sfida (WP6) e Pourhouse (WP7)."
 last_reviewed: 2026-07-30
-last_verified_commit: 9b27fb6
-topics: [stanze-speciali, fusione, scambio-alto-rischio, pourhouse, arena-di-sfida, stanza-a-tempo, WP4, WP5, WP6, WP7, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, DEC-044, DEC-136]
+last_verified_commit: a8a85bf
+topics: [stanze-speciali, fusione, scambio-alto-rischio, pourhouse, arena-di-sfida, stanza-a-tempo, stanza-segreta, WP4, WP5, WP6, WP7, WP8, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, DEC-044, DEC-136, DEC-025]
 related: []
 supersedes: []
 source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -40,6 +40,11 @@ indizi visivi leggibili (crepe, anomalie del tema) apribile con lo strumento di 
 estrema. Il dettaglio dei due livelli è descritto in
 [secrets-and-obstacles.md](./secrets-and-obstacles.md); questo documento non lo ripete,
 colloca solo l'archetipo nella tassonomia.
+
+**Stato (WP8, 30/07):** ha ora un `RoomKind` fisico nel motore (`ROOM_SECRET`), ed è il
+**QUINTO e ultimo** dei cinque archetipi di questo documento ad averlo — da qui in poi
+nessun archetipo speciale resta fuori dal motore. Vedi "Stato di implementazione: la
+stanza segreta" sotto.
 
 ### Arena di sfida
 
@@ -533,6 +538,70 @@ segreta**, che dipende dai rivelatori di DEC-127 e da
 | **Tasto di conferma** | `X` a contatto col banco, lo stesso dell'arena: per il giocatore è un solo gesto — «accetto ciò che questa stanza propone». | `Game.interactQueued`, `WorldTryAcceptPourhouseWager` |
 | **Valuta di completamento** | Nessuna: uno scambio non è un completamento (DEC-167). | `WorldAwardRoomCompletionCurrency` |
 
+## Stato di implementazione: la stanza segreta (WP8, 2026-07-30)
+
+**QUINTO e ultimo** archetipo di questo documento ad avere un `RoomKind` fisico nel motore
+(`ROOM_SECRET`, `src/core/game_types.h`), a **due livelli** (`RoomState.secretSuper`,
+DEC-025). Il dettaglio dei **segreti** — indizio, strumento di breccia, geometria della
+parete, super-segreta senza indizi — vive in
+[secrets-and-obstacles.md](./secrets-and-obstacles.md), "Stato di implementazione: i due
+livelli nel motore"; qui c'è solo ciò che riguarda l'archetipo come **stanza del piano**.
+
+- **Piazzamento EXTRA, mai sostitutivo**: `WorldPlaceSecretRoom` (`src/world/world.c`) —
+  una cella 1x1 **in più** su una cella **libera** della griglia, mai al posto di una
+  stanza già piazzata. La cella deve toccare **esattamente UNA** cella esistente (un solo
+  muro condiviso, quindi un solo indizio e un solo varco) e quella cella deve appartenere
+  a una stanza **normale**: partenza o combattimento. Mai boss, mai arena — devono restare
+  foglie (DEC-182 e "Casi limite" di questo documento) — e mai un'altra speciale: un
+  segreto dietro la parete di una stanza tesoro avrebbe spostato il suo costo su una
+  chiave, che con lo strumento di breccia non c'entra nulla.
+- **La segreta è foglia per natura**: 1x1 con una sola vicina, e `WorldShapeTouchesLeafRoom`
+  impedisce a chiunque venga dopo di attaccarsi al suo secondo lato — altrimenti si
+  entrerebbe da una porta normale, senza sbrecciare niente.
+- **Fuori dalla connettività del piano**: finché il varco è murato la stanza non ha
+  **nessuna** porta (`WorldLinkRooms` non ne apre per una segreta sigillata), quindi il
+  piano resta completabile ignorando i segreti del tutto. Il controllo (j) di
+  `GameRoomsTest` misura infatti la connettività **senza contarle**.
+- **Non compare sulla minimappa** finché non è aperta — non indicata "direttamente sulla
+  mappa" come chiede questo documento, e nemmeno smorzata come una cella nota-ma-non
+  visitata (che sarebbe già un indizio, e l'indizio per DEC-025 sta sulla **parete**).
+  Il filtro è un predicato unico e puro, `WorldRoomHiddenOnMap` (`src/world/world.h`),
+  applicato da `DrawMinimap`: dopo la breccia torna falso e la stanza si comporta come
+  ogni altra, con colore dedicato in `RoomMapColor` (ottone) e icona `"S"` in
+  `DrawRoomIcon` alla prima visita. È l'unico archetipo di questo documento **senza** il
+  limite DEC-058 "prima di entrare" di `known-issues.md` voce 12 — non perché sia stato
+  risolto, ma perché qui *non far vedere niente prima* è proprio il design.
+- **Ordine di piazzamento e prezzo dichiarato**: le due segrete si piazzano dopo boss,
+  arena, tesoro e negozio, e **prima** di fusione/stanza a tempo/Pourhouse. La segreta ha
+  un vincolo di posizione molto più stretto delle 1x1 (le serve una cella con una sola
+  vicina): piazzata per ultima trovava posto in 23 piani su 120 e la **super-segreta in 0
+  su 96**, cioè un intero livello di DEC-025 non sarebbe mai esistito nel gioco vero.
+  Il prezzo, misurato su `--rooms-test`: stanza di fusione da 101/120 a **95/120**, stanza
+  a tempo da 40/72 a **30/72**, Pourhouse da 27/96 a **17/96**. Nessuna delle tre è
+  necessaria a completare un piano. Stessa forma di compromesso già dichiarata dal WP6 per
+  l'arena.
+- **Condizione di completamento propria** (DEC-167): "trovata", cioè il **primo ingresso**
+  — il varco era già stato aperto un istante prima, e aprirlo *è* il lavoro di questo
+  archetipo. Le porte non si bloccano mai (`GameRoomIsLocked` non elenca `ROOM_SECRET`).
+- **Test**: `RoomsTestSecretRooms` e il controllo (s) di `GameRoomsTest`
+  (`src/tests/game_tests.c`, `--rooms-test`/`make test`) — su 120 piani generati:
+  sempre 1x1, al più una per livello, sempre murata in generazione, sempre con una sola
+  parete condivisa verso una stanza normale, mai sulla minimappa prima della breccia; più
+  il ciclo di vita completo su una segreta vera (bomba lontana o di origine nemica →
+  nessun varco; bomba sulla parete → varco su entrambi i lati; uscita e rientro → varco
+  ancora aperto e valuta pagata una volta sola; oggetto sempre lo stesso).
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Frequenza, livello normale** | Un tentativo per piano dal piano 1, non garantito. Misurata: 36 piani su 120. | `WORLD_SECRET_ROOM_MIN_FLOOR`, `WorldGenerateFloorMap` |
+| **Frequenza, super-segreta** | Dal piano 2 e **non a ogni piano**: tentativo solo a estrazione concessa (50%). Misurata: 13 su 96 candidati — più rara della normale, come DEC-025 richiede. | `WORLD_SECRET_SUPER_MIN_FLOOR`, `WORLD_SECRET_SUPER_CHANCE_PERCENT` |
+| **Taglia della stanza** | Sempre 1x1, come tesoro/negozio/fusione/a tempo/Pourhouse: dentro c'è una ricompensa da raccogliere, non uno spazio da giocare. | `WorldPlaceSecretRoom` |
+| **Vicina ammessa** | Solo partenza o combattimento. Le altre speciali sono escluse per leggibilità del costo, boss e arena perché devono restare foglie. | `WorldPlaceSecretRoom` |
+| **Ricompensa** | L'oggetto di rarità migliore fra i tre del piano, **senza estrazione** (identico a ogni rientro), più 6 Ingots di "segreta trovata". La super-segreta aggiunge 1 catalizzatore di fusione versato subito. | `WorldSpawnRoomContents`, `WORLD_ROOM_CURRENCY_SECRET`, `WORLD_SECRET_SUPER_FLUX` |
+| **Valuta di completamento** | 6 Ingots, uguali per i due livelli: la superiorità del livello 2 è il catalizzatore, non più valuta. | `WorldAwardRoomCompletionCurrency` |
+
 ## Regola di originalità
 
 I nomi, la presentazione e la logica precisa dei quattro archetipi devono essere originali. Gli archetipi sono funzioni di design, non contenuti da copiare da giochi esistenti (vedi `09-originality-guardrails.md`).
@@ -583,9 +652,14 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   lo scambio ad alto rischio (Pourhouse) ha ora un default proposto e
   implementato — dal piano 2 e **non a ogni piano**: un tentativo solo quando
   l'estrazione del piano lo concede (70%), misurato in 27 piani su 96
-  candidati, sempre 1x1 — vedi `governance/open-questions.md` voce 41. Resta
-  aperta per l'unico archetipo non ancora nel motore (la stanza segreta) e per
-  l'accesso "best-of" dell'arena dal Piano 0.
+  candidati, sempre 1x1 — vedi `governance/open-questions.md` voce 41.
+  **Aggiornamento 30/07 (WP8):** anche la stanza segreta ha ora un default
+  proposto e implementato, diverso per i due livelli di DEC-025 — la
+  **normale** si tenta a ogni piano dal piano 1 (misurata in 36 piani su 120),
+  la **super-segreta** dal piano 2 e solo a estrazione concessa, 50% (misurata
+  in 13 su 96 candidati) — vedi `governance/open-questions.md` voce 44. La
+  domanda resta quindi aperta solo per l'accesso "best-of" dell'arena dal
+  Piano 0, l'ultima cosa di questo documento che il motore non ha.
 - Valori esatti di soglia e ricompensa della stanza a tempo. **Aggiornamento
   30/07 (WP5):** esiste ora un default proposto e implementato — soglia
   `40s + 6s × celle del piano` dall'ingresso nel piano, ricompensa 6 Ingots

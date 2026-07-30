@@ -230,6 +230,16 @@ static Color RoomMapColor(RoomKind kind)
            dipende mai dal colore: il banco la scrive PER ESTESO, offerta e
            prezzo su due righe (DrawPickup, PICKUP_POURHOUSE_BANK). */
         case ROOM_POURHOUSE: return (Color){ 232, 96, 160, 255 };
+        /* WP8: ottone/oro scuro, distinto dal giallo acceso del tesoro (che e'
+           chiaro e saturo) e dall'ambra del crogiolo del Piano 0. A differenza
+           di ogni altro archetipo qui NON esiste il problema DEC-058 "prima di
+           entrare": una segreta col varco ancora murato non compare affatto
+           sulla minimappa (DrawMinimap salta le celle per cui
+           WorldRoomHiddenOnMap e' vero, special-rooms.md), quindi questo
+           colore si vede solo DOPO che il giocatore l'ha aperta -- e a quel
+           punto l'icona "S" di DrawRoomIcon compare con lui alla prima
+           visita. */
+        case ROOM_SECRET: return (Color){ 206, 158, 74, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -500,6 +510,87 @@ static void DrawRoomHole(Game *game, const ArtSheet *tiles, Rectangle hole, Colo
     DrawRectangle((int)hole.x, (int)(hole.y + hole.height - 2.0f), (int)hole.width, 2, wallLit);
 }
 
+/* WP8 (systems/secrets-and-obstacles.md, "Segreti" + "Feedback", DEC-025):
+   l'INDIZIO della stanza segreta, sulla parete della stanza VISIBILE -- una
+   crepa sottile (assets/art/props/crepa-segreta, tag "indizio", 2 fotogrammi)
+   esattamente dove il varco si puo' sbrecciare, cioe' centrata sul segmento di
+   parete che WorldSecretWallRect dichiara. Dopo la breccia lo stesso punto
+   mostra il tag "aperta" (1 fotogramma), sopra la porta appena comparsa.
+
+   Tre regole del documento, tutte qui e tutte verificabili:
+   - "indizi leggibili ma discreti": nessuna freccia, nessun testo, nessuna
+     evidenziazione lampeggiante -- solo la crepa, con la sua animazione lenta
+     a due fotogrammi;
+   - la SUPER-SEGRETA non ha MAI indizio (DEC-025, e il documento vieta
+     esplicitamente di introdurne uno implicito): il filtro e'
+     WorldSecretClueVisible, non una condizione scritta a mano qui;
+   - l'indizio sta sulla parete della stanza da cui si vede, mai dentro la
+     segreta: si itera sulle celle della stanza CORRENTE e si guardano le
+     vicine, esattamente come fa WorldTryBreachSecretWall per decidere dove la
+     bomba apre.
+
+   Degrado quando l'asset manca (checkout senza assets/art/, pacchetto
+   parziale): forma geometrica di riserva, MAI nessun indizio -- un indizio che
+   sparisce col pacchetto artistico renderebbe la segreta normale
+   indistinguibile da una super-segreta, cioe' cambierebbe il DESIGN e non solo
+   la veste. */
+static void DrawSecretWallHints(Game *game)
+{
+    if (game->floor <= 0) return;
+    int cellX[4], cellY[4];
+    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+    const ArtSheet *crack = ArtAtlasGet("props/crepa-segreta");
+    for (int i = 0; i < cellCount; i++)
+    {
+        int cx = cellX[i], cy = cellY[i];
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = cx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+            int ny = cy + ((d == DIR_DOWN) - (d == DIR_UP));
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists) continue;
+            const RoomState *secret = WorldRoomAt(game, nx, ny);
+            if (secret->kind != ROOM_SECRET) continue;
+            bool clue = WorldSecretClueVisible(secret);
+            if (!clue && !secret->secretOpened) continue;   /* super-segreta murata: nulla, mai */
+
+            /* Il centro del SEGMENTO DI PARETE, riportato sul bordo vero della
+               cella: la crepa e' sul muro, non a mezzo metro dentro la stanza.
+               L'ancora dell'asset e' al centro del tile (manifest), quindi
+               questo punto e' anche il centro dello sprite. */
+            Rectangle wall = WorldSecretWallRect(game, cx, cy, d);
+            Vector2 at = { wall.x + wall.width*0.5f, wall.y + wall.height*0.5f };
+            Rectangle cell = WorldCellRect(game, cx, cy);
+            if (d == DIR_UP) at.y = cell.y;
+            else if (d == DIR_DOWN) at.y = cell.y + cell.height;
+            else if (d == DIR_LEFT) at.x = cell.x;
+            else if (d == DIR_RIGHT) at.x = cell.x + cell.width;
+
+            bool drew = false;
+            if (crack)
+            {
+                float scale = ArtScaleForWidth(crack->frameW, 64.0f);
+                drew = ArtDrawAnim(crack, clue ? "indizio" : "aperta",
+                                   (float)GetTime() + at.x*0.01f, at, scale, false, WHITE);
+            }
+            if (drew) continue;
+            /* Riserva geometrica: due segni scuri incrociati, discreti quanto
+               la crepa e leggibili senza colore (DEC-058). Aperto: un varco
+               scuro pieno, cosi' i due stati non si confondono mai. */
+            Color mark = GameColorLerp(game->theme.wall, BLACK, 0.65f);
+            if (clue)
+            {
+                DrawLineEx((Vector2){ at.x - 14.0f, at.y - 10.0f }, (Vector2){ at.x + 4.0f, at.y + 8.0f }, 3.0f, mark);
+                DrawLineEx((Vector2){ at.x + 2.0f, at.y - 12.0f }, (Vector2){ at.x + 15.0f, at.y + 6.0f }, 2.0f, mark);
+            }
+            else
+            {
+                DrawRectangle((int)(at.x - 22.0f), (int)(at.y - 12.0f), 44, 24, mark);
+            }
+        }
+    }
+}
+
 /* La stanza VESTITA dal tileset (W8). Sostituisce i colori piatti + griglia in
  * prospettiva di DrawRoomFlat qui sotto, che resta il ripiego integrale.
  *
@@ -583,6 +674,10 @@ static void DrawRoomTiled(Game *game, const ArtSheet *tiles)
        texture -- senza, un pavimento a tile piatto perde ogni profondita'. */
     DrawRectangleGradientV((int)rx, (int)ry, (int)rw, (int)(rh*0.35f),
                            GameColorWithAlpha(BLACK, 52), BLANK);
+    /* WP8: la crepa va SOPRA la parete e sopra la porta appena aperta (che e'
+       un buco NEL muro, disegnato poco sopra), ma sotto le entita': e' un
+       dettaglio dell'ambiente, non un'entita'. */
+    DrawSecretWallHints(game);
     if (game->floor == 0) DrawFloorZeroExitGate(game);
 }
 
@@ -684,6 +779,13 @@ static void DrawRoomFlat(Game *game)
         if (cell->doors[DIR_LEFT]) DrawRectangle((int)(c.x - WALL_SIDE_W), (int)(ccy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
         if (cell->doors[DIR_RIGHT]) DrawRectangle((int)cRight, (int)(ccy - DOOR_HALF), (int)WALL_SIDE_W, (int)(DOOR_HALF*2), doorColor);
     }
+
+    /* WP8: la crepa della stanza segreta, sopra la parete e sopra la porta --
+       stesso punto e stesso ordine del percorso col tileset (DrawRoomTiled).
+       Deve esistere su ENTRAMBI i percorsi di disegno: il ripiego piatto non
+       e' un degrado accettabile per un INDIZIO di design (senza, la segreta
+       normale sarebbe indistinguibile da una super-segreta). */
+    DrawSecretWallHints(game);
 
     /* Piano 0 (M1b): il varco verso il piano 1, nel muro di fondo. NON e' un
        room->doors[DIR_UP] (vedi FloorZeroEnter, src/world/floor_zero.c: la
@@ -2106,6 +2208,7 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_TIMED) g = "!";    /* WP5: idem, stanza a tempo (DEC-051) */
     else if (kind == ROOM_ARENA) g = "A";    /* WP6: idem, arena di sfida (special-rooms.md) */
     else if (kind == ROOM_POURHOUSE) g = "P";   /* WP7: idem, Pourhouse (DEC-136) */
+    else if (kind == ROOM_SECRET) g = "S";      /* WP8: idem, stanza segreta gia' aperta (DEC-025) */
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
     int w = UiTextW(g, fontSize);
@@ -2133,6 +2236,16 @@ static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap, flo
         {
             if (!game->rooms[y][x].exists) continue;   /* niente cornice sulle celle inesistenti: la mappa "respira" */
             const RoomState *room = WorldRoomAt(game, x, y);
+            /* WP8 (systems/special-rooms.md, "Stanza segreta"): una segreta col
+               varco ancora murato NON compare sulla mappa -- nemmeno smorzata
+               come una stanza nota-ma-non-visitata, che sarebbe gia' un
+               indizio (e l'indizio, per DEC-025, sta sulla PARETE dentro la
+               stanza vicina, non qui). Dopo la breccia il predicato torna
+               falso e la stanza si disegna come ogni altra. Il gap si riempie
+               da solo: le celle sorelle non esistono (la segreta e' sempre
+               1x1) e la cella accanto non e' della stessa stanza, quindi
+               nessun bordo/gap la tradisce. */
+            if (WorldRoomHiddenOnMap(room)) continue;
             Rectangle cell = { (float)(baseX + x*(size + gap)), (float)(baseY + y*(size + gap)), (float)size, (float)size };
             /* Visitata: colore pieno del suo tipo. Non visitata ma esistente
                (adiacente a una visitata): smorzata, cosi' si vede DOVE si puo'

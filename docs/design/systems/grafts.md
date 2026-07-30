@@ -210,8 +210,19 @@ DEC-183: vedi il punto sullo sgancio sotto e `src/tests/script_items_tests.c` (t
 - **Piega-regole (DEC-034/DEC-107/DEC-126): assenti.** Nessun campo dichiara quale regola
   un leggendario altera, nessun gancio nei quattro bersagli ammessi, nessuna validazione
   che respinga chi ne tocca più di una.
-- Innesti "sensore" per le super-segrete (DEC-127): dipendono dalle stanze segrete, che
-  non esistono.
+- Innesti "sensore" per le super-segrete (DEC-127): **assenti**. Aggiornamento WP8
+  (30/07): le stanze super-segrete ORA esistono nel motore (`ROOM_SECRET` con
+  `RoomState.secretSuper`, vedi [special-rooms.md](./special-rooms.md) e
+  [secrets-and-obstacles.md](./secrets-and-obstacles.md)), quindi la dipendenza che
+  bloccava questa voce è caduta — ma nessun Innesto sensore è stato aggiunto insieme a
+  loro, per scelta dichiarata: il contenuto curato di ripiego non contiene oggi **nessun**
+  Innesto, e introdurne la prima categoria dentro il lavoro di una stanza avrebbe toccato
+  garanzie (ledger e test del contenuto curato, DEC-171) che con i segreti non c'entrano.
+  La super-segreta resta comunque trovabile per intuizione estrema, l'altra via che
+  DEC-025 ammette. Il punto di innesto lato mondo è già pronto e pubblico:
+  `WorldRoomHiddenOnMap` / `WorldSecretClueVisible` (`src/world/world.h`) sono i due soli
+  predicati che decidono cosa si vede di una segreta. Vedi
+  `docs/engineering/known-issues.md`, voce 14.
 - Nessuna fonte di slot Innesto aggiuntivi esiste in gioco.
 
 ### Default proposti dall'implementazione

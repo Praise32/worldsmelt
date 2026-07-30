@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 40 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore.
+  Coda ufficiale e unica delle domande ancora aperte (45 voci attive su 46 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore, inclusa la stanza segreta a due livelli (WP8).
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp6-arena-di-sfida
-last_verified_commit: 06b9b16
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, WP4, WP5, WP6, WP-INT]
+last_updated_from_session: 2026-07-30-wp8-stanza-segreta
+last_verified_commit: a8a85bf
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, WP4, WP5, WP6, WP7, WP8, WP-INT]
 related: []
 supersedes: []
 source_files: []
@@ -502,3 +502,69 @@ equità (DEC-044), non i numeri né la politica di rifiuto.
     ricompone invece a ogni ingresso, così chi torna con qualcosa da versare trova il banco
     acceso. Da confermare al playtest. (`systems/special-rooms.md`, "Default proposti
     dall'implementazione" della Pourhouse.)
+
+## Stanza segreta a due livelli nel motore (WP8, 2026-07-30)
+
+Il lavoro che porta nel motore l'ultimo dei cinque archetipi speciali — la **stanza
+segreta** a due livelli (`ROOM_SECRET`, DEC-025) — apre tre domande che nessun documento
+chiude: `systems/secrets-and-obstacles.md` fissa i due livelli e la grammatica di scoperta,
+`systems/special-rooms.md` colloca l'archetipo nella tassonomia, nessuno dei due fissa
+numeri, geometria o ricompensa.
+
+44. Con quale FREQUENZA e da quale piano compaiono i due livelli? DEC-025 dice che la
+    super-segreta è più difficile da trovare, non quanto sia più rara. *Default proposto e
+    implementato*: la segreta **normale** si tenta a **ogni piano dal piano 1**
+    (`WORLD_SECRET_ROOM_MIN_FLOOR`, `src/world/world.h`) — è l'archetipo che insegna a
+    leggere il mondo, una crepa in una parete, e ha senso incontrare quella lezione subito;
+    la **super-segreta** dal **piano 2** e solo a estrazione concessa
+    (`WORLD_SECRET_SUPER_MIN_FLOOR`, `WORLD_SECRET_SUPER_CHANCE_PERCENT` = 50%). Misura su
+    120 piani generati (`--rooms-test`): normale in **36 casi su 120**, super-segreta in
+    **13 su 96** candidati. Nella stessa voce rientra l'**ordine di piazzamento** e il suo
+    prezzo, dichiarato e misurato: le segrete si piazzano dopo boss/arena/tesoro/negozio e
+    prima di fusione/stanza a tempo/Pourhouse, perché il loro vincolo di posizione è il più
+    stretto di tutte (serve una cella libera con una sola cella vicina) — piazzate per
+    ultime la normale scendeva a 23/120 e la super a **0/96**, cioè un intero livello di
+    DEC-025 non sarebbe mai esistito nel gioco vero. Il prezzo lo pagano le tre 1x1 che
+    vengono dopo: fusione da 101/120 a 95/120, stanza a tempo da 40/72 a 30/72, Pourhouse
+    da 27/96 a 17/96. Nessuna delle tre è necessaria a completare un piano. Da confermare
+    al playtest. (`systems/special-rooms.md`, "Stato di implementazione: la stanza segreta";
+    `systems/rooms-and-floor-generation.md`, "Quantità di piano".)
+
+45. Quanto deve essere VICINA l'esplosione alla parete perché il varco si apra? Il
+    documento dice che la segreta normale «si apre con lo strumento di breccia», non con
+    quale precisione. *Default proposto e implementato*: la fascia sbrecciabile è larga
+    esattamente quanto una porta (`DOOR_HALF*2`, centrata sul lato della cella — dove la
+    porta comparirà davvero) e profonda **56 px** dentro la stanza
+    (`WORLD_SECRET_BREACH_DEPTH`, `src/world/world.h`); col raggio di esplosione attuale
+    (74 px) significa **addosso al muro giusto**, non «verso quella parete». L'alternativa
+    scartata — accettare qualunque esplosione dentro la stanza — avrebbe reso l'indizio
+    decorativo (bastava una bomba a caso per stanza) e banale la super-segreta, che
+    dell'assenza di indizio fa tutta la sua definizione. Corollario della stessa scelta,
+    dalla stessa riga di codice: il varco si apre **solo** da un'esplosione di ORIGINE
+    GIOCATORE, sotto lo stesso parametro `breach` già dichiarato dal WP3 per i
+    distruttibili. Da confermare al playtest. (`systems/secrets-and-obstacles.md`,
+    "Default proposti dall'implementazione".)
+
+46. Qual è la RICOMPENSA «degna del segreto», e in che cosa la super-segreta paga di più?
+    I documenti chiedono una ricompensa proporzionata e una superiore per il livello 2,
+    senza fissarle. *Default proposto e implementato*: **entrambi** i livelli lasciano un
+    oggetto del pool del piano con la **rarità minima alzata** — il migliore dei tre
+    candidati, **senza estrazione**, quindi identico a ogni rientro (è così che il
+    contenuto risulta «assegnato una sola volta» senza consumarlo al primo ingresso, cosa
+    che lo farebbe perdere a chi esce senza raccoglierlo) — più **6 Ingots** di «stanza
+    segreta trovata» (DEC-167, `WORLD_ROOM_CURRENCY_SECRET`). La **super-segreta** aggiunge
+    **1 catalizzatore di fusione** (`WORLD_SECRET_SUPER_FLUX`), versato direttamente al
+    primo ingresso e non come pickup a terra: un pickup sarebbe stato raccoglibile
+    all'infinito rientrando in una stanza che si può riattraversare quanto si vuole, o
+    perdibile uscendo senza prenderlo. La superiorità del livello 2 è quindi un **salto di
+    categoria** (la risorsa più rara del gioco, DEC-022) e non un numero di Ingots più
+    grande. Nella stessa voce rientra la scelta di **scope** del lavoro: i rivelatori di
+    DEC-127 (Innesti «sensore») NON sono stati implementati insieme alla stanza — il
+    contenuto curato di ripiego non contiene oggi nessun Innesto, e introdurne la prima
+    categoria avrebbe toccato ledger e test del contenuto curato (DEC-171), garanzie che
+    con i segreti non c'entrano. La super-segreta resta trovabile per intuizione estrema,
+    l'altra via che DEC-025 ammette esplicitamente; limite registrato in
+    `docs/engineering/known-issues.md`, voce 14. Da confermare al playtest.
+    (`systems/rewards-and-economy.md`, "Fonti canoniche della valuta principale";
+    `systems/special-rooms.md`, "Default proposti dall'implementazione" della stanza
+    segreta.)

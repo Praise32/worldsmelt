@@ -251,6 +251,17 @@ void CombatExplodeAt(Game *game, Vector2 pos, float radius, float damage, bool b
        prossimo ingresso in stanza, senza toccare la disposizione derivata
        dal seme. */
     if (!breach) return;
+
+    /* WP8 (systems/secrets-and-obstacles.md, Scenario 4/5, DEC-025/DEC-128):
+       lo strumento di breccia apre anche il VARCO MURATO di una stanza segreta
+       adiacente, se l'esplosione tocca la parete condivisa. Sotto lo STESSO
+       gate 'breach' dei distruttibili qui sotto, e per lo stesso motivo:
+       un'esplosione di origine NEMICA non deve mai aprire un segreto.
+       La geometria (quale parete, quanto vicino) vive tutta in
+       WorldTryBreachSecretWall, src/world/world.c: il muro e' un fatto del
+       MONDO, non del combattimento. */
+    WorldTryBreachSecretWall(game, pos, radius);
+
     for (int i = game->obstacleCount - 1; i >= game->obstacleHoleCount; i--)
     {
         Obstacle *o = &game->obstacles[i];

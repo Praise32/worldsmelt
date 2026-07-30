@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
 last_reviewed: 2026-07-30
-last_verified_commit: 9b27fb6
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, budget-di-equita, DEC-044, WP5, WP6, WP7]
+last_verified_commit: a8a85bf
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, stanza-segreta, budget-di-equita, DEC-044, DEC-025, WP5, WP6, WP7, WP8]
 related: []
 supersedes: []
 source_files: []
@@ -77,10 +77,14 @@ completamento — la funzione stessa non rileva nulla, assegna solo l'importo:
   alla PRIMA volta che `room->visited` diventa vero — il negozio paga
   all'ingresso, non all'acquisto (quello resta un evento economico separato,
   DEC-026/DEC-048);
-- **stanza segreta trovata**: non ha ancora un `RoomKind` nel motore (vedi
-  [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), quindi
-  DEC-167 non ha ancora un punto di innesto per lei; la tavola dei compensi
-  (sotto) la ignora per costruzione fino a quel momento;
+- **stanza segreta trovata** (WP8, 30/07): ha ora un `RoomKind` (`ROOM_SECRET`) e un
+  punto di innesto DEC-167 in `WorldSpawnRoomContents` — al **primo ingresso**, come il
+  negozio, perché "trovata" è esattamente questo: il varco murato era già stato aperto un
+  istante prima con lo strumento di breccia, e aprirlo *è* la condizione di completamento
+  di questo archetipo. Rientrare non paga una seconda volta. Vale identica per i due
+  livelli di DEC-025: la super-segreta paga gli **stessi** Ingots, e la sua ricompensa
+  superiore è un **catalizzatore di fusione** versato in più (vedi
+  [Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza segreta");
 - **stanza a tempo** (WP5, 30/07): ha ora un `RoomKind` (`ROOM_TIMED`) e un
   punto di innesto DEC-167, ma condizionale — `WorldSpawnRoomContents`
   chiama `WorldAwardRoomCompletionCurrency(game, ROOM_TIMED)` SOLO al primo
@@ -117,6 +121,7 @@ ogni archetipo (DEC-167) — questi restano da confermare col playtest.
 | arena di sfida, vinta | 8 |
 | arena di sfida, attraversata senza accettare | 0 |
 | Pourhouse (scambio ad alto rischio) | 0 — non è un completamento |
+| stanza segreta trovata (normale o super) | 6 |
 
 Il boss vale più di un combattimento normale (è la stanza più impegnativa del
 piano); tesoro e negozio meno di un combattimento perché non richiedono di
@@ -143,6 +148,21 @@ della stanza a tempo (WP5) è invece verificato da `--rooms-test`
 volta sola se raggiunta entro soglia, mai se oltre — vedi
 [Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza a
 tempo".
+
+**Stanza segreta (WP8, 30/07).** Vale quanto la stanza a tempo entro soglia (6 Ingots),
+cioè sopra tesoro e negozio e sotto l'arena: trovarla è costato uno **strumento di
+breccia** — una risorsa vera, spesa senza garanzia — ma non richiede di sopravvivere a
+nulla, quindi non arriva al livello di una sfida vinta. **Stesso importo per i due livelli
+di DEC-025**: la ricompensa superiore che il documento chiede per la super-segreta non è
+più valuta ma un **catalizzatore di fusione** (Flux) versato al primo ingresso — la
+risorsa più rara del gioco (DEC-022), quindi un salto di categoria e non una differenza di
+grado. Oltre alla valuta, entrambi i livelli lasciano un **oggetto del pool del piano con
+la rarità minima alzata** (il migliore dei tre candidati, la stessa tecnica dell'arena e
+per lo stesso motivo di proporzione rischio/ricompensa), scelto **senza estrazione**: uscire
+e rientrare ritrova sempre lo stesso oggetto, mai uno nuovo. Verificato da `--rooms-test`
+(`RoomsTestSecretRooms`, `src/tests/game_tests.c`): valuta assegnata una volta sola,
+Flux solo sulla super-segreta, oggetto identico a ogni rientro — vedi
+[Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza segreta".
 
 L'**uso economico** della valuta principale:
 

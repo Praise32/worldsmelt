@@ -159,4 +159,79 @@ void WorldUpdateCamera(Game *game, float dt);
    premere il tasto ovunque altro non fa niente. */
 bool WorldTryStartArenaChallenge(Game *game);
 
+/* WP8 (systems/special-rooms.md, "Stanza segreta"; systems/secrets-and-obstacles.md,
+   "Segreti", DEC-025). Pubbliche per lo stesso motivo di tutte le costanti
+   sopra: il test dedicato (src/tests/game_tests.c, RoomsTestSecretRooms e il
+   controllo (s) di GameRoomsTest) verifica "mai prima di questo piano", "non
+   ad ogni piano per la super-segreta" ed "esattamente questa valuta quando la
+   segreta e' trovata", e deve confrontarsi con la fonte vera invece che con
+   numeri duplicati a mano.
+   Tutti DEFAULT PROPOSTI DALL'IMPLEMENTAZIONE (stile DEC-019): i documenti
+   fissano l'archetipo, i due livelli e la grammatica di scoperta, mai i
+   numeri -- vedi governance/open-questions.md, voce 36.
+   - SECRET_MIN_FLOOR 1: la segreta normale si tenta da SUBITO. E' l'archetipo
+     che insegna a leggere il mondo (una crepa in una parete), e ha senso che
+     il giocatore incontri quella lezione al primo piano.
+   - SUPER_MIN_FLOOR 2 + SUPER_CHANCE_PERCENT 50: la super-segreta e' piu'
+     rara della normale, come chiede DEC-025 ("solo con i rivelatori o per
+     intuizione estrema") -- il piano 1 resta il primo contatto col mondo, e
+     dal piano 2 in poi il tentativo si fa solo a estrazione concessa.
+   - CURRENCY_SECRET 6: la valuta di "stanza segreta trovata" (DEC-167,
+     rewards-and-economy.md la elenca esplicitamente fra le condizioni di
+     completamento). Sopra tesoro (3) e negozio (2) -- trovarla e' costato uno
+     strumento di breccia -- sotto l'arena (8), che chiede di combattere.
+     UGUALE per i due livelli: la ricompensa SUPERIORE della super-segreta e'
+     il catalizzatore di fusione garantito (WorldSpawnRoomReward), non un
+     numero di Ingots piu' grande. */
+#define WORLD_SECRET_ROOM_MIN_FLOOR 1
+#define WORLD_SECRET_SUPER_MIN_FLOOR 2
+#define WORLD_SECRET_SUPER_CHANCE_PERCENT 50
+#define WORLD_ROOM_CURRENCY_SECRET 6
+/* WP8: la RICOMPENSA SUPERIORE della super-segreta (DEC-025 chiede che il
+   livello 2 paghi piu' del livello 1). Non piu' Ingots -- il catalizzatore di
+   fusione, la risorsa piu' rara del gioco (DEC-022: oggi solo drop di boss al
+   35%, arena al 50%, o un acquisto costoso in negozio). Versato DIRETTAMENTE
+   sul giocatore al primo ingresso, non come pickup a terra: un pickup che
+   ricompare finche' la stanza non e' "svuotata" sarebbe raccoglibile
+   all'infinito uscendo e rientrando (la stanza segreta si puo' riattraversare
+   quanto si vuole, a differenza di una stanza di combattimento che si
+   ripulisce), e uno spawnato solo al primo ingresso andrebbe perso uscendo
+   senza raccoglierlo. Player.flux non ha alcun cap (DEC-129), quindi la somma
+   e' sempre valida. */
+#define WORLD_SECRET_SUPER_FLUX 1
+
+/* WP8: vero se la stanza della cella di STATO passata NON deve comparire sulla
+   minimappa -- oggi solo una stanza segreta col varco ancora murato
+   (special-rooms.md: "stanza non indicata direttamente sulla mappa"). Aperta
+   la breccia torna falso e la stanza si comporta come ogni altra.
+   Predicato PURO e senza raylib apposta: e' la stessa condizione che
+   DrawMinimap applica e che il test verifica senza aprire una finestra. */
+bool WorldRoomHiddenOnMap(const RoomState *room);
+
+/* WP8: vero se questa stanza segreta deve mostrare l'INDIZIO visivo (la crepa)
+   sulla parete condivisa -- segreta di livello NORMALE, varco ancora murato
+   (DEC-025). Falso per la super-segreta (nessun indizio, mai) e per una
+   segreta gia' aperta (li' si disegna la crepa "aperta", vedi il renderer).
+   Puro come sopra, e per lo stesso motivo. */
+bool WorldSecretClueVisible(const RoomState *room);
+
+/* WP8: il rettangolo della PARETE CONDIVISA fra la cella (cx,cy) e la sua
+   vicina in direzione 'dir' -- la fascia dove il varco murato di una stanza
+   segreta si puo' sbrecciare, e dove il renderer ancora la crepa. Larga quanto
+   una porta (DOOR_HALF*2) e profonda WORLD_SECRET_BREACH_DEPTH dentro la
+   cella: bombardare in mezzo alla stanza non apre nulla, bisogna essere
+   ADDOSSO alla parete giusta. Coordinate di mondo, come WorldCellRect. */
+#define WORLD_SECRET_BREACH_DEPTH 56.0f
+Rectangle WorldSecretWallRect(const Game *game, int cx, int cy, int dir);
+
+/* WP8: lo strumento di breccia (DEC-128: la bomba, e ogni altra esplosione di
+   ORIGINE GIOCATORE -- vedi il parametro 'breach' di CombatExplodeAt) tenta di
+   aprire il varco murato di una stanza segreta adiacente alla stanza CORRENTE.
+   L'esplosione (pos, radius) deve toccare la fascia di parete condivisa
+   (WorldSecretWallRect sopra): lontano dalla parete non succede nulla, ed e'
+   proprio cio' che rende l'indizio utile invece che decorativo.
+   Vero se ha aperto almeno un varco (allora la porta e' aperta sui DUE lati e
+   RoomState.secretOpened e' scritto, definitivo per tutto il piano). */
+bool WorldTryBreachSecretWall(Game *game, Vector2 pos, float radius);
+
 #endif

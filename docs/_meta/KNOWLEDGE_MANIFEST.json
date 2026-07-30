@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 40 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (45 voci attive su 46 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset e stanze speciali nel motore, inclusa la stanza segreta a due livelli (WP8).",
       "topics": [
         "open-questions",
         "governance",
@@ -1663,16 +1663,20 @@
         "DEC-043",
         "DEC-010",
         "DEC-022",
+        "DEC-025",
+        "DEC-127",
         "WP4",
         "WP5",
         "WP6",
+        "WP7",
+        "WP8",
         "WP-INT"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "06b9b16"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "gd-system-active-items",
@@ -2036,17 +2040,20 @@
         "stanza-a-tempo",
         "arena-di-sfida",
         "pourhouse",
+        "stanza-segreta",
         "budget-di-equita",
         "DEC-044",
+        "DEC-025",
         "WP5",
         "WP6",
-        "WP7"
+        "WP7",
+        "WP8"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "9b27fb6"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2079,9 +2086,12 @@
         "ROOM_TIMED",
         "ROOM_ARENA",
         "ROOM_POURHOUSE",
+        "ROOM_SECRET",
         "WP5",
         "WP6",
-        "WP7"
+        "WP7",
+        "WP8",
+        "DEC-025"
       ],
       "related": [],
       "supersedes": [],
@@ -2094,7 +2104,7 @@
         "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "9b27fb6"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2159,7 +2169,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025).",
+      "summary": "Ostacoli distruttibili/attraversabili e uso dello strumento di breccia (DEC-013, funzione che sostituisce le bombe). Ostacoli generati a tema, con croce centrale libera e telegraph leggibili, a budget di difficoltà condiviso con i nemici (DEC-043). Stanze segrete a due livelli — normali e super-segrete (DEC-025) — implementate nel motore dal WP8 (30/07): varco murato apribile solo con lo strumento di breccia, indizio a parete per il livello normale, nessun indizio per la super-segreta.",
       "topics": [
         "ostacoli",
         "segreti",
@@ -2169,7 +2179,13 @@
         "DEC-043",
         "WP3",
         "ostacoli-distruttibili",
-        "pericoli-passivi"
+        "pericoli-passivi",
+        "WP8",
+        "DEC-025",
+        "DEC-127",
+        "stanze-segrete",
+        "super-segrete",
+        "ROOM_SECRET"
       ],
       "related": [],
       "supersedes": [],
@@ -2182,7 +2198,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a2de293"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "gd-system-special-rooms",
@@ -2192,7 +2208,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07), la stanza a tempo (WP5, 30/07), l'arena di sfida incontrata nel piano (WP6, 30/07) e la Pourhouse (WP7, 30/07) sono i primi quattro dei cinque archetipi con un RoomKind fisico nel motore: resta fuori solo la stanza segreta.",
+      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. Dal WP8 (30/07) TUTTI E CINQUE gli archetipi hanno un RoomKind fisico nel motore: la stanza segreta (ROOM_SECRET) è l'ultima ad arrivare, dopo fusione (WP4), stanza a tempo (WP5), arena di sfida (WP6) e Pourhouse (WP7).",
       "topics": [
         "stanze-speciali",
         "fusione",
@@ -2200,16 +2216,20 @@
         "pourhouse",
         "arena-di-sfida",
         "stanza-a-tempo",
+        "stanza-segreta",
         "WP4",
         "WP5",
         "WP6",
         "WP7",
+        "WP8",
         "ROOM_FUSION",
         "ROOM_TIMED",
         "ROOM_ARENA",
         "ROOM_POURHOUSE",
+        "ROOM_SECRET",
         "DEC-044",
-        "DEC-136"
+        "DEC-136",
+        "DEC-025"
       ],
       "related": [],
       "supersedes": [],
@@ -2220,7 +2240,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "9b27fb6"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "gd-system-synergies",
@@ -3018,7 +3038,12 @@
         "font",
         "glyphs_ext",
         "personaggi",
-        "arena-di-sfida"
+        "arena-di-sfida",
+        "WP8",
+        "stanze-segrete",
+        "DEC-025",
+        "DEC-127",
+        "rivelatori"
       ],
       "related": [
         "eng-dependencies",
@@ -3056,7 +3081,7 @@
         "src/content/character_roster.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "06b9b16"
+      "last_verified_commit": "a8a85bf"
     },
     {
       "id": "eng-multiplayer-steam-direction",

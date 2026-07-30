@@ -45,6 +45,9 @@ const char *GameRoomKindName(RoomKind kind)
            differenza di fusione/a tempo/arena qui il nome canonico e' gia'
            quello, non un termine di lavoro italiano da tradurre. */
         case ROOM_POURHOUSE: return "pourhouse";
+        /* WP8: l'ultimo dei cinque archetipi speciali (special-rooms.md,
+           "Stanza segreta"). Nome dedicato come i quattro sopra. */
+        case ROOM_SECRET: return "segreta";
         default: return "vuota";
     }
 }
@@ -59,9 +62,9 @@ const char *GameRoomKindName(RoomKind kind)
    piano); tesoro e negozio meno di un combattimento perche' non richiedono
    di sopravvivere a nulla -- coerente con "la ricompensa deve essere
    proporzionata a rischio, costo e rarita'" (stesso documento, §Principio).
-   ROOM_SECRET non ha ancora un RoomKind nel motore (vedi
-   rooms-and-floor-generation.md): questa tavola coprira' anche lei quando
-   arrivera', il default sotto la ignora per costruzione. La stanza di
+   ROOM_SECRET ha un RoomKind dal WP8 e il suo importo sta in world.h
+   (WORLD_ROOM_CURRENCY_SECRET), pubblico come quelli di stanza a tempo/arena
+   perche' il test dedicato lo verifica contro la fonte vera. La stanza di
    fusione (ROOM_FUSION, WP4) e la stanza a tempo (ROOM_TIMED, WP5) hanno
    invece regole di completamento proprie, viste sotto in
    WorldAwardRoomCompletionCurrency. */
@@ -146,6 +149,16 @@ void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
            della stanza di fusione sopra: cade qui e non nel default, cosi' si
            legge che e' una decisione e non una dimenticanza. */
         case ROOM_POURHOUSE: return;
+        /* WP8: rewards-and-economy.md elenca esplicitamente "una stanza
+           segreta quando e' stata trovata" fra le condizioni di completamento
+           di DEC-167 -- e' l'unica riga di quella lista che fino al WP8 non
+           aveva un punto d'innesto nel motore. "Trovata" = ci si e' entrati la
+           prima volta (WorldSpawnRoomContents, firstVisit): il varco era gia'
+           stato aperto un istante prima, e aprirlo E' il completamento di
+           questo archetipo. Stesso importo per la segreta normale e per la
+           super-segreta: la ricompensa superiore della seconda e' il
+           catalizzatore di fusione, non piu' valuta. */
+        case ROOM_SECRET:   amount = WORLD_ROOM_CURRENCY_SECRET; break;
         default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
     }
     game->player.coins += amount;
@@ -507,6 +520,28 @@ bool GameRoomIsLocked(const Game *game)
     return gated && !room->cleared && !WorldNoEnemiesActive(game);
 }
 
+/* WP8 (systems/special-rooms.md, "Stanza segreta"): i due predicati PURI che
+   decidono cosa il giocatore puo' VEDERE di una stanza segreta. Vivono qui e
+   non nel renderer per un motivo preciso: sono garanzie verificabili senza
+   aprire una finestra (il test dedicato li chiama direttamente), e "non
+   compare sulla mappa" / "la super-segreta non ha alcun indizio" sono
+   affermazioni di DESIGN, non dettagli di disegno. */
+bool WorldRoomHiddenOnMap(const RoomState *room)
+{
+    if (!room) return false;
+    return room->kind == ROOM_SECRET && !room->secretOpened;
+}
+
+bool WorldSecretClueVisible(const RoomState *room)
+{
+    if (!room) return false;
+    /* DEC-025: l'indizio esiste SOLO per la segreta di livello normale e solo
+       finche' il varco e' murato. La super-segreta non ne ha mai uno -- e'
+       tutta la sua definizione, e il documento vieta esplicitamente di
+       introdurne uno implicito ("Regole per contenuti generati"). */
+    return room->kind == ROOM_SECRET && !room->secretOpened && !room->secretSuper;
+}
+
 /* ============================================================
    DEC-170 -- generazione del piano a FORME.
 
@@ -757,7 +792,12 @@ static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY,
    (special-rooms.md: mai un passaggio obbligato). Attaccarsi a una delle due
    le regalerebbe una seconda porta e romperebbe la garanzia. Il tipo vive solo
    sulla cella di stato, quindi si legge SEMPRE da WorldRoomAt, mai dal campo
-   '.kind' grezzo della cella vicina. */
+   '.kind' grezzo della cella vicina.
+   WP8: la stanza SEGRETA entra nella stessa lista, e per una ragione anche
+   piu' stretta delle due sopra -- il suo unico muro condiviso E' il varco
+   murato. Una stanza piazzata dopo di lei e attaccata al suo secondo lato le
+   darebbe una porta NORMALE, cioe' un modo di entrarci senza sbrecciare
+   niente: il segreto smetterebbe di essere un segreto. */
 static bool WorldShapeTouchesLeafRoom(const Game *game, int ox, int oy, unsigned char cells)
 {
     for (int i = 0; i < 4; i++)
@@ -770,7 +810,7 @@ static bool WorldShapeTouchesLeafRoom(const Game *game, int ox, int oy, unsigned
             if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
             if (!game->rooms[ny][nx].exists) continue;
             RoomKind k = WorldRoomAt(game, nx, ny)->kind;
-            if (k == ROOM_BOSS || k == ROOM_ARENA) return true;
+            if (k == ROOM_BOSS || k == ROOM_ARENA || k == ROOM_SECRET) return true;
         }
     }
     return false;
@@ -882,6 +922,93 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
     }
 }
 
+/* WP8 (systems/special-rooms.md "Stanza segreta" + systems/secrets-and-obstacles.md
+   "Segreti", DEC-025): la stanza segreta NON passa da WorldPlaceSpecialRoom
+   sopra. Tre differenze, tutte di sostanza:
+
+   (1) UNA SOLA CELLA VICINA, non "almeno una". WorldPlaceSpecialRoom si
+       accontenta di toccare qualcosa; qui la cella candidata deve toccare
+       ESATTAMENTE UNA cella esistente. E' cio' che rende la segreta una foglia
+       per costruzione (mai un passaggio) e le da' UN SOLO muro condiviso,
+       cioe' un solo punto dove l'indizio ha senso e un solo varco da
+       sbrecciare. Con due muri condivisi si dovrebbe decidere quale disegnare
+       e quale apre: una complicazione senza alcun guadagno di design.
+
+   (2) LA VICINA DEVE ESSERE UNA STANZA NORMALE (partenza o combattimento) --
+       "adiacente a una stanza normale del piano" del documento. Boss e arena
+       sono escluse perche' devono restare foglie (DEC-182 e special-rooms.md:
+       una seconda porta le romperebbe); le altre speciali 1x1 sono escluse per
+       leggibilita' -- un segreto dietro la parete di un negozio o, peggio, di
+       una stanza tesoro (che chiede una chiave per entrarci) sposterebbe il
+       costo del segreto su una risorsa che non c'entra nulla con lo strumento
+       di breccia. Un'altra segreta e' esclusa per lo stesso motivo di (1).
+
+   (3) STREAM DETERMINISTICO LOCALE, mai game->rng. WorldGenerateFloorMap gira
+       una volta sola per piano, quindi game->rng sarebbe stato corretto quanto
+       lo e' per la Pourhouse; lo stream locale serve a un'altra cosa --
+       lasciare INTATTO il flusso di estrazioni di tutti i piazzamenti gia'
+       misurati (boss, arena, le cinque 1x1) e delle porte di WorldLinkRooms.
+       Aggiungere estrazioni a game->rng qui avrebbe cambiato la forma di ogni
+       piano gia' generato a parita' di seed: un segreto non deve riscrivere il
+       mondo attorno a se'. Il seme e' composto da runSeed + piano + una
+       costante di dominio, esattamente come il seme per-cella degli ostacoli
+       (WorldBuildObstacles): stesso seed di run => stesso piano => stessa
+       segreta, sempre.
+
+   Un solo tentativo per livello, non garantito: come per ogni altra speciale,
+   una griglia satura lascia il piano senza segreta -- ed e' innocuo per
+   costruzione, la segreta e' fuori dalla connettivita' del piano. */
+static bool WorldPlaceSecretRoom(Game *game, unsigned int *stream, bool super)
+{
+    int tries = 240;
+    while (tries-- > 0)
+    {
+        int x = GameRngRange(stream, 0, GRID_SIZE - 1);
+        int y = GameRngRange(stream, 0, GRID_SIZE - 1);
+        if (!WorldCellFree(game, x, y)) continue;
+
+        int adjacent = 0;
+        int ax = -1, ay = -1;
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = x + DirDx(d), ny = y + DirDy(d);
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists) continue;
+            adjacent++;
+            ax = nx; ay = ny;
+        }
+        if (adjacent != 1) continue;
+
+        /* Il tipo vive SOLO sulla cella di stato: si legge sempre da
+           WorldRoomAt, mai dal campo '.kind' grezzo della cella vicina. */
+        RoomKind neighbour = WorldRoomAt(game, ax, ay)->kind;
+        if (neighbour != ROOM_START && neighbour != ROOM_COMBAT) continue;
+
+        RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), ROOM_SECRET);
+        /* 'cleared' come ogni altra speciale non-combattiva: dentro non c'e'
+           nulla da sconfiggere, e le porte non devono mai risultare bloccate
+           (GameRoomIsLocked non elenca ROOM_SECRET, ma restare coerenti con
+           tesoro/negozio/fusione costa una riga). */
+        state->cleared = true;
+        state->secretSuper = super;
+        return true;
+    }
+    return false;
+}
+
+/* WP8: vero se la coppia di celle adiacenti (ax,ay)-(bx,by) e' il VARCO MURATO
+   di una stanza segreta non ancora sbrecciata. WorldLinkRooms lo usa per NON
+   aprire mai quella porta in generazione: e' il muro che rende segreta la
+   stanza, e la porta comparira' solo dallo strumento di breccia
+   (WorldTryBreachSecretWall). Conseguenza dichiarata e voluta: la segreta non
+   entra nella connettivita' del piano, quindi il piano resta completabile
+   ignorandola del tutto. */
+static bool WorldSecretWallBetween(const Game *game, int ax, int ay, int bx, int by)
+{
+    return WorldRoomHiddenOnMap(WorldRoomAt(game, ax, ay)) ||
+           WorldRoomHiddenOnMap(WorldRoomAt(game, bx, by));
+}
+
 /* Un segmento di confine: la cella (ax,ay) e la sua vicina in direzione
    'dir', di un'ALTRA stanza. WorldLinkRooms scandisce ogni confine fisico UNA
    sola volta (solo DESTRA/BASSO, mai il verso opposto), poi raggruppa i
@@ -926,6 +1053,10 @@ static void WorldLinkRooms(Game *game)
                 if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
                 if (!game->rooms[ny][nx].exists) continue;
                 if (WorldSameRoom(game, x, y, nx, ny)) continue;
+                /* WP8: il varco murato di una stanza segreta non e' un
+                   segmento di confine come gli altri -- non genera porta qui,
+                   la generera' lo strumento di breccia. */
+                if (WorldSecretWallBetween(game, x, y, nx, ny)) continue;
                 segs[segCount].ax = x; segs[segCount].ay = y; segs[segCount].dir = d;
                 segCount++;
             }
@@ -1140,6 +1271,65 @@ static void WorldGenerateFloorMap(Game *game)
         WorldPlaceArenaRoom(game, orderX, orderY, orderCount);
     WorldPlaceSpecialRoom(game, ROOM_TREASURE);
     WorldPlaceSpecialRoom(game, ROOM_SHOP);
+    /* WP8 (systems/special-rooms.md, "Stanza segreta", DEC-025): DOPO boss,
+       arena, tesoro e negozio; PRIMA di fusione, stanza a tempo e Pourhouse.
+       Ogni pezzo di quest'ordine e' una scelta misurata su --rooms-test, non
+       estetica:
+       - MAI PRIMA DEL BOSS. Il boss si piazza dove tocca UNA sola stanza
+         esistente: se una segreta fosse gia' sulla griglia, potrebbe essere
+         proprio quella, e il boss diventerebbe raggiungibile SOLO sbrecciando
+         un muro -- il piano non sarebbe piu' completabile ignorando i segreti,
+         cioe' l'esatto contrario della garanzia che questo archetipo deve
+         rispettare.
+       - Dopo l'arena perche' anche lei deve restare foglia
+         (special-rooms.md) e la segreta non deve toccarla; dopo tesoro e
+         negozio perche' sono i due servizi di piano piu' importanti e non e'
+         giusto che paghino per primi il prezzo di questo archetipo.
+       - Prima di fusione/stanza a tempo/Pourhouse perche' la segreta ha un
+         vincolo di posizione MOLTO piu' stretto di tutte loro: le serve una
+         cella libera che tocchi ESATTAMENTE UNA cella esistente (un solo muro
+         condiviso). Su una griglia 5x5 gia' cresciuta quelle celle sono poche
+         e spariscono in fretta -- piazzata per ULTIMA trovava posto in 23
+         piani su 120 e la super-segreta in 0 su 96 (cioe' un intero livello
+         di DEC-025 non sarebbe mai esistito nel gioco vero); qui la normale
+         trova posto in 36 piani su 120 e la super in 13 su 96.
+       Il prezzo e' dichiarato e misurato, come per l'arena del WP6: la stanza
+       di fusione scende da 101/120 a 95/120, la stanza a tempo da 40/72 a
+       30/72, la Pourhouse da 27/96 a 17/96. Nessuna delle tre e' necessaria a
+       completare un piano (la fusione ha anche l'accesso globale TAB/PauseMenu
+       come rete di sicurezza dichiarata dal WP4), e la segreta non e' un
+       servizio in piu': e' il contenuto che ripaga chi esplora.
+
+       Le due segrete leggono uno STREAM DETERMINISTICO LOCALE, mai game->rng.
+       Non e' una comodita': cosi' l'aggiunta di questo archetipo non sposta di
+       un solo bit le ESTRAZIONI di nessun altro piazzamento (a parita' di seed
+       i piani cambiano solo per le celle che le segrete occupano davvero, mai
+       perche' qualcun altro ha letto numeri diversi). Il seme mescola il seed
+       di RUN e il piano con due costanti di dominio diverse per i due livelli,
+       cosi' i due non ricalcano mai lo stesso cammino; stessa tecnica del seme
+       per-cella degli ostacoli (WorldBuildObstacles).
+
+       ORDINE FRA LE DUE: prima la SUPER, poi la normale. Sembra il contrario
+       dell'intuizione (la piu' rara per prima), ed e' invece l'unico ordine
+       che le fa esistere entrambe: le celle candidate sono cosi' poche che chi
+       va per seconda quasi sempre non ne trova (con la normale per prima, la
+       super finiva a 0 su 96). La super resta comunque il livello PIU' RARO --
+       e' la sua estrazione al 50% a renderla tale, non l'ordine, e il
+       controllo (s) di GameRoomsTest confronta i due conteggi proprio per
+       questo. Nessuna delle due si attacca all'altra:
+       WorldShapeTouchesLeafRoom include ROOM_SECRET e WorldPlaceSecretRoom
+       pretende comunque una vicina di tipo partenza/combattimento. */
+    if (game->floor >= WORLD_SECRET_SUPER_MIN_FLOOR)
+    {
+        unsigned int superStream = game->runSeed ^ ((unsigned int)game->floor*40503u) ^ 0x50FE8E77u;
+        if (GameRngRange(&superStream, 0, 99) < WORLD_SECRET_SUPER_CHANCE_PERCENT)
+            WorldPlaceSecretRoom(game, &superStream, true);
+    }
+    if (game->floor >= WORLD_SECRET_ROOM_MIN_FLOOR)
+    {
+        unsigned int secretStream = game->runSeed ^ ((unsigned int)game->floor*2654435761u) ^ 0x5EC8E7A1u;
+        WorldPlaceSecretRoom(game, &secretStream, false);
+    }
     /* WP4 (systems/special-rooms.md, "Stanza di fusione"): stesso algoritmo di
        tesoro/negozio sopra -- 1x1, mai adiacente al boss (WorldPlaceSpecialRoom
        scarta le celle candidate che lo toccano), deterministica dal seed del
@@ -1568,6 +1758,20 @@ void WorldSpawnRoomContents(Game *game)
         room->rewardTaken = elapsed <= threshold;
         if (room->rewardTaken) WorldAwardRoomCompletionCurrency(game, ROOM_TIMED);
     }
+    /* WP8 (DEC-167, rewards-and-economy.md: "una stanza segreta quando e'
+       stata trovata"): la condizione di completamento di QUESTO archetipo e'
+       esserci entrati -- il varco murato era gia' stato aperto un istante
+       prima, e aprirlo E' il lavoro. Solo al primo ingresso, come il negozio:
+       rientrare non paga una seconda volta.
+       La super-segreta aggiunge qui il catalizzatore di fusione (vedi il
+       commento su WORLD_SECRET_SUPER_FLUX in world.h: versato direttamente e
+       non come pickup, cosi' non e' ne' perdibile ne' raccoglibile due
+       volte). */
+    if (firstVisit && room->kind == ROOM_SECRET)
+    {
+        WorldAwardRoomCompletionCurrency(game, ROOM_SECRET);
+        if (room->secretSuper) game->player.flux += WORLD_SECRET_SUPER_FLUX;
+    }
     /* DEC-170: le posizioni di spawno sono relative al BARICENTRO delle celle
        occupate, non al centro del riquadro -- su una forma a L quel centro
        cadrebbe nell'angolo mancante, cioe' dentro il muro. */
@@ -1776,6 +1980,41 @@ void WorldSpawnRoomContents(Game *game)
            composta per QUESTA stanza. */
         WorldPourhousePrepareRoom(game);
     }
+    else if (room->kind == ROOM_SECRET)
+    {
+        /* WP8 (systems/special-rooms.md, "Stanza segreta"): la ricompensa
+           "degna del segreto" di secrets-and-obstacles.md. Un oggetto dal pool
+           del piano ma con la RARITA' MINIMA ALZATA -- il migliore dei tre
+           candidati, esattamente la tecnica dell'arena di sfida
+           (WorldSpawnRoomReward) e per lo stesso motivo: un segreto che paga
+           una comune quando nel pool c'e' una rara non sarebbe proporzionato
+           al costo di trovarlo (uno strumento di breccia speso, per una stanza
+           che il piano non chiede mai di visitare).
+           DETERMINISTICO E SENZA ALCUNA TIRATURA di proposito. Il tesoro
+           ri-pesca a ogni ingresso finche' l'oggetto non e' preso (superficie
+           di sfruttamento nota, vedi il commento nel ramo ROOM_TREASURE
+           sopra); qui la scelta non estrae nulla, quindi uscire e rientrare
+           ritrova SEMPRE lo STESSO oggetto: "contenuto assegnato una sola
+           volta" senza bisogno di consumare il premio al primo ingresso (che
+           lo farebbe perdere a chi esce senza raccoglierlo).
+           'rewardTaken' passa a vero quando l'oggetto viene DAVVERO preso
+           (CombatPickup, stesso ramo del tesoro), e da li' in poi la stanza
+           resta attraversabile e vuota. */
+        if (!room->rewardTaken)
+        {
+            const FloorContent *sfc = &game->content.floors[game->floor - 1];
+            int best = 0;
+            for (int i = 1; i < 3; i++)
+                if ((int)sfc->items[i].rarity > (int)sfc->items[best].rarity) best = i;
+            EntitiesAddItemPickup(game, center, sfc->items[best], 0);
+            GameSetMessage(game, room->secretSuper ? "Stanza super-segreta: Flux versato, prendi la ricompensa."
+                                                    : "Stanza segreta: prendi la ricompensa.");
+        }
+        else
+        {
+            GameSetMessage(game, "Stanza segreta: gia' svuotata.");
+        }
+    }
     else
     {
         GameSetMessage(game, "Scegli una porta.");
@@ -1852,6 +2091,105 @@ bool WorldTryStartArenaChallenge(Game *game)
     AudioPlaySfx(AUDIO_SFX_UI_CONFIRM);
     GameSetMessage(game, "Sfida accettata: porte chiuse fino alla fine.");
     return true;
+}
+
+/* WP8: la fascia di PARETE CONDIVISA fra la cella (cx,cy) e la sua vicina in
+   direzione 'dir'. Larga quanto una porta (DOOR_HALF*2, centrata sul lato,
+   esattamente dove la porta comparira' se il varco si apre) e profonda
+   WORLD_SECRET_BREACH_DEPTH DENTRO la cella: e' la zona in cui la bomba deve
+   esplodere per sbrecciare, ed e' il punto in cui il renderer ancora la crepa.
+   Dentro la cella e non fuori di proposito -- il giocatore e la bomba stanno
+   sempre dentro la stanza, mai nello spessore del muro. */
+Rectangle WorldSecretWallRect(const Game *game, int cx, int cy, int dir)
+{
+    Rectangle c = WorldCellRect(game, cx, cy);
+    float ccx = c.x + c.width*0.5f, ccy = c.y + c.height*0.5f;
+    float d = WORLD_SECRET_BREACH_DEPTH;
+    switch (dir)
+    {
+        case DIR_UP:    return (Rectangle){ ccx - DOOR_HALF, c.y, DOOR_HALF*2.0f, d };
+        case DIR_DOWN:  return (Rectangle){ ccx - DOOR_HALF, c.y + c.height - d, DOOR_HALF*2.0f, d };
+        case DIR_LEFT:  return (Rectangle){ c.x, ccy - DOOR_HALF, d, DOOR_HALF*2.0f };
+        case DIR_RIGHT: return (Rectangle){ c.x + c.width - d, ccy - DOOR_HALF, d, DOOR_HALF*2.0f };
+    }
+    /* Direzione fuori dai quattro valori di Direction: rettangolo VUOTO, mai
+       la cella intera -- il default piu' innocuo e' "nessuna parete
+       sbrecciabile", non "tutta la stanza lo e'" (disciplina zero-default). */
+    return (Rectangle){ 0.0f, 0.0f, 0.0f, 0.0f };
+}
+
+/* Cerchio contro rettangolo: il punto del rettangolo piu' vicino al centro del
+   cerchio, poi una distanza al quadrato. Stessa tecnica di
+   CombatCircleTouchesObstacle (src/gameplay/combat.c), ripetuta qui invece di
+   esportare quella: e' privata al modulo combattimento e questo modulo non
+   deve dipendere da lui (la dipendenza corre nel verso opposto). */
+static bool WorldCircleTouchesRect(Vector2 c, float r, Rectangle rect)
+{
+    if (rect.width <= 0.0f || rect.height <= 0.0f) return false;
+    float nx = c.x, ny = c.y;
+    if (nx < rect.x) nx = rect.x;
+    if (nx > rect.x + rect.width) nx = rect.x + rect.width;
+    if (ny < rect.y) ny = rect.y;
+    if (ny > rect.y + rect.height) ny = rect.y + rect.height;
+    float dx = c.x - nx, dy = c.y - ny;
+    return dx*dx + dy*dy <= r*r;
+}
+
+/* WP8 (systems/secrets-and-obstacles.md, Scenario 4 e Scenario 5): lo
+   strumento di breccia apre il varco murato di una stanza segreta.
+   Si guarda SOLO dalla stanza corrente verso le sue vicine -- una segreta si
+   apre stando dalla parte visibile del muro, mai dall'interno (dove il
+   giocatore non puo' ancora essere) -- e ogni cella della stanza corrente
+   guarda le proprie quattro vicine, cosi' la cosa funziona identica in una
+   1x1 e in una 2x2.
+   La guardia vera e' geometrica: l'esplosione deve toccare la fascia di parete
+   condivisa (WorldSecretWallRect). E' questo che rende l'indizio UTILE invece
+   che decorativo -- una bomba lasciata in mezzo alla stanza non apre nulla,
+   nemmeno se il suo raggio arrivasse fin la' passando per un'altra parete.
+   Vale identica per la super-segreta: nessun indizio, ma il muro giusto
+   bombardato alla cieca si apre lo stesso (DEC-025: "oppure per intuizione
+   estrema del giocatore"). Il rivelatore aiuta, non e' un requisito. */
+bool WorldTryBreachSecretWall(Game *game, Vector2 pos, float radius)
+{
+    if (!game || game->floor <= 0) return false;
+    bool opened = false;
+    int cellX[4], cellY[4];
+    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+    for (int i = 0; i < cellCount; i++)
+    {
+        int cx = cellX[i], cy = cellY[i];
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = cx + DirDx(d), ny = cy + DirDy(d);
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists) continue;
+            RoomState *secret = WorldRoomAtMutable(game, nx, ny);
+            if (secret->kind != ROOM_SECRET || secret->secretOpened) continue;
+            if (!WorldCircleTouchesRect(pos, radius, WorldSecretWallRect(game, cx, cy, d))) continue;
+
+            secret->secretOpened = true;
+            /* La porta si apre sui DUE lati, come farebbe WorldLinkRooms: una
+               porta e' un fatto del LATO di UNA cella (vedi l'invariante su
+               RoomState), e aprirne solo uno lascerebbe una porta che si
+               attraversa in un verso solo. Resta l'UNICA porta della coppia
+               (DEC-181): il piazzamento garantisce che la segreta condivida
+               esattamente una coppia di celle con esattamente una stanza. */
+            game->rooms[cy][cx].doors[d] = true;
+            game->rooms[ny][nx].doors[(d + 2)%4] = true;
+            opened = true;
+
+            EntitiesAddParticle(game, pos, game->theme.wall, 30);
+        }
+    }
+    if (opened)
+    {
+        /* audio-and-feedback.md: nessun evento sonoro NUOVO per questo
+           archetipo -- si riusa la porta che si apre, che e' esattamente cio'
+           che e' appena successo. */
+        AudioPlaySfx(AUDIO_SFX_DOOR_OPEN);
+        GameSetMessage(game, "Il muro cede: si apre un varco.");
+    }
+    return opened;
 }
 
 void WorldStartFloor(Game *game, int floor)

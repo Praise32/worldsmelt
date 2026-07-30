@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
-last_verified_commit: 9b27fb6
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, WP5, WP6, WP7]
+last_verified_commit: a8a85bf
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, WP5, WP6, WP7, WP8, DEC-025]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -164,6 +164,18 @@ da confermare (vedi `governance/open-questions.md`).
   piazzamento e le misure del WP6 restano valide parola per parola. Il totale massimo di
   celle speciali 1x1 per piano sale quindi a **cinque** dal piano 3 in su (tesoro, negozio,
   fusione, a tempo, Pourhouse) e a **quattro** nei piani 2.
+  Dal WP8 si aggiungono fino a **due celle 1x1 EXTRA**: le stanze **segrete** `ROOM_SECRET`
+  (una normale, tentata a ogni piano dal piano 1; una super-segreta, dal piano 2 e solo a
+  estrazione concessa — DEC-025, [Special Rooms](./special-rooms.md)). Sono celle **in
+  più**, mai una sostituzione: si piazzano solo su celle libere e non tolgono mai il posto
+  a una stanza già piazzata. A differenza di ogni altra stanza del piano NON entrano nella
+  connettività — finché il varco murato non è sbrecciato non hanno alcuna porta — quindi
+  la garanzia "dalla partenza si raggiunge ogni stanza" si misura **senza contarle**, ed è
+  il modo strutturale di dire che il piano resta completabile ignorando i segreti.
+  Si piazzano **dopo** boss, arena, tesoro e negozio e **prima** di fusione, stanza a tempo
+  e Pourhouse: hanno il vincolo di posizione più stretto di tutte (serve una cella libera
+  con **una sola** cella vicina), e il costo di quell'ordine sulle tre 1x1 che vengono dopo
+  è misurato e dichiarato in [Special Rooms](./special-rooms.md).
   La superficie giocabile di un piano resta quindi quella di sempre; il
   **numero di stanze scende** (~5-10 più boss e speciali). È una conseguenza dichiarata di
   DEC-170, non un effetto collaterale.
@@ -278,6 +290,16 @@ parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
   a contatto con una stanza che deve restare foglia. L'unica differenza è a monte, nel
   chiamante e non nella funzione: il suo tentativo è condizionato all'estrazione del piano
   (vedi «Quantità di piano» sopra).
+  **WP8:** le stanze **segrete** (`ROOM_SECRET`) sono la **terza** categoria che deve
+  restare foglia, insieme a boss e arena — `WorldShapeTouchesLeafRoom` le include, così
+  nessuna stanza piazzata dopo di loro può attaccarsi al loro secondo lato e regalare una
+  porta **normale** a un segreto. Non passano da `WorldPlaceSpecialRoom`: hanno
+  `WorldPlaceSecretRoom`, che oltre al vincolo di foglia pretende **esattamente una** cella
+  vicina esistente (un solo muro condiviso) e che quella vicina sia una stanza **normale**
+  (partenza o combattimento). Sono anche l'unico piazzamento del generatore che legge uno
+  **stream deterministico locale** derivato dal seed di run invece di `game->rng`: così
+  l'aggiunta dell'archetipo non sposta di un bit le estrazioni di nessun altro
+  piazzamento.
   Test dedicati: (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra
   mai in una cella della stanza boss raggiunge comunque tutte le altre stanze del piano;
   (q, WP6) gli stessi due controlli per l'arena di sfida; (r, WP7) unicità, taglia 1x1,
@@ -302,7 +324,8 @@ Questo documento è la fonte unica della tassonomia dei tipi di stanza. Tipi can
 più quattro archetipi speciali:
 
 - stanza di fusione;
-- stanza segreta;
+- stanza segreta (`ROOM_SECRET` dal WP8, a **due livelli** — normale e super-segreta,
+  DEC-025 — ed è l'ultimo dei cinque archetipi speciali a entrare nel motore);
 - arena di sfida (`ROOM_ARENA` dal WP6 nella versione **incontrata nel piano**; l'accesso
   "best-of" dal Piano 0 resta descritto solo in [floor-zero.md](./floor-zero.md));
 - scambio ad alto rischio — in-game **Pourhouse** (DEC-136), `ROOM_POURHOUSE` dal WP7;

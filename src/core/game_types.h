@@ -191,7 +191,37 @@ typedef enum RoomKind {
            accettare. Uscire senza accettare NON e' una penalita' e non
            consuma la puntata: la stanza non blocca mai il progresso
            (special-rooms.md, Scenario 3). */
-    ROOM_POURHOUSE
+    ROOM_POURHOUSE,
+    /* WP8 (docs/design/systems/special-rooms.md, "Stanza segreta" +
+       systems/secrets-and-obstacles.md, "Segreti", DEC-025): il QUINTO e
+       ULTIMO archetipo speciale del documento ad avere un RoomKind fisico nel
+       motore. In coda come ROOM_POURHOUSE sopra, stesso motivo.
+       Quattro cose la distinguono da ogni altra stanza:
+       (1) PIAZZAMENTO EXTRA: una cella 1x1 in PIU', mai una sostituzione --
+           WorldPlaceSecretRoom (world.c) gira per ULTIMA, su una cella libera
+           che tocca ESATTAMENTE UNA cella esistente, e quella cella deve
+           appartenere a una stanza NORMALE (partenza o combattimento): mai
+           boss/arena (devono restare foglie, DEC-182), mai un'altra speciale.
+           Una sola cella vicina = un solo muro condiviso = un solo varco.
+       (2) NESSUNA PORTA NORMALE: il varco e' MURATO. WorldLinkRooms non apre
+           mai la porta di una segreta ancora sigillata, quindi la segreta NON
+           entra nella connettivita' del piano -- il piano resta completabile
+           ignorandola del tutto (e' il modo strutturale di garantire "mai un
+           passaggio obbligato"). La porta si apre SOLO sbrecciando il muro
+           condiviso con lo strumento di breccia (DEC-128: la bomba), vedi
+           WorldTryBreachSecretWall; una volta aperta resta aperta per tutto il
+           piano (RoomState.secretOpened sotto).
+       (3) DUE LIVELLI (DEC-025): 'secretSuper' falso = segreta NORMALE, con
+           l'indizio visivo leggibile sulla parete lato stanza visibile
+           (assets/art/props/crepa-segreta, tag "indizio"); vero =
+           SUPER-SEGRETA, nessun indizio di alcun tipo, apribile solo per
+           intuizione (o, quando esisteranno, con i rivelatori di DEC-127 --
+           vedi docs/engineering/known-issues.md voce 13).
+       (4) MAI SULLA MAPPA finche' non e' aperta (special-rooms.md: "stanza non
+           indicata direttamente sulla mappa"): DrawMinimap salta le celle per
+           cui WorldRoomHiddenOnMap e' vero. Dopo l'apertura si comporta come
+           una stanza visitabile qualsiasi. */
+    ROOM_SECRET
 } RoomKind;
 
 typedef enum Direction {
@@ -729,6 +759,26 @@ typedef struct RoomState {
        WorldSpawnRoomContents, GameRoomIsLocked e DrawPickup. Privo di
        significato per ogni altro RoomKind: nessuno lo scrive. */
     bool arenaActive;
+    /* WP8 (ROOM_SECRET, systems/secrets-and-obstacles.md "Segreti", DEC-025):
+       il varco murato di QUESTA stanza segreta e' stato sbrecciato.
+       Falso e' lo zero-default corretto E il piu' innocuo: una stanza azzerata
+       dal memset di WorldWriteRoom/WorldGenerateFloorMap ha il varco ancora
+       chiuso, cioe' non regala nulla -- il contrario (aperta di default)
+       svelerebbe gratis un segreto che il giocatore non ha ancora trovato.
+       Vero: la porta verso la stanza vicina e' stata aperta su ENTRAMBI i lati
+       (WorldTryBreachSecretWall) e resta aperta per tutto il piano; la stanza
+       compare da quel momento anche sulla minimappa (WorldRoomHiddenOnMap).
+       Privo di significato per ogni altro RoomKind: nessuno lo scrive.
+       Per-PIANO come ogni altro campo di RoomState (la griglia si azzera a
+       ogni WorldGenerateFloorMap): i piani di questa demo si attraversano in
+       un solo verso, stessa disciplina di Game.destroyedObstacleMask. */
+    bool secretOpened;
+    /* WP8: il LIVELLO della stanza segreta (DEC-025). Falso = segreta
+       "normale", con indizio visivo leggibile sulla parete (la crepa); vero =
+       "super-segreta", senza alcun indizio. Falso e' lo zero-default piu'
+       innocuo: una stanza azzerata e' quella PIU' scopribile, mai quella
+       nascosta senza aiuto. Privo di significato per ogni altro RoomKind. */
+    bool secretSuper;
     RoomKind kind;
     bool doors[4];
     unsigned char cells;   /* maschera 2x2 (ROOM_CELL_BIT), relativa a originX/originY */

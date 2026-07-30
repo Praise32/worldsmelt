@@ -4230,6 +4230,259 @@ static bool RoomsTestPourhouseInteraction(void)
     return true;
 }
 
+/* WP8 (systems/special-rooms.md "Stanza segreta", systems/secrets-and-obstacles.md
+   "Segreti", DEC-025): cerca nel piano (seed, floor) una stanza segreta del
+   livello richiesto. Scrive la cella della segreta, la cella VICINA da cui si
+   vede il muro, e la direzione che porta DALLA VICINA ALLA SEGRETA (la
+   direzione del varco murato). Falso se quel piano non ne ha una. */
+static bool RoomsTestFindSecret(unsigned int seed, int floor, bool wantSuper, Game *out,
+                                int *sx, int *sy, int *nx, int *ny, int *dirToSecret)
+{
+    RoomsTestGenerateFloor(seed, floor, out);
+    for (int y = 0; y < GRID_SIZE; y++)
+    {
+        for (int x = 0; x < GRID_SIZE; x++)
+        {
+            if (!out->rooms[y][x].exists) continue;
+            const RoomState *state = WorldRoomAt(out, x, y);
+            if (state != &out->rooms[y][x]) continue;
+            if (state->kind != ROOM_SECRET) continue;
+            if (state->secretSuper != wantSuper) continue;
+            for (int d = 0; d < 4; d++)
+            {
+                int cx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                int cy = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                if (cx < 0 || cx >= GRID_SIZE || cy < 0 || cy >= GRID_SIZE) continue;
+                if (!out->rooms[cy][cx].exists) continue;
+                *sx = x; *sy = y;
+                *nx = cx; *ny = cy;
+                *dirToSecret = (d + 2)%4;   /* dalla vicina verso la segreta */
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* WP8: porta il Game nella stanza VICINA alla segreta, col giocatore al centro
+   della cella da cui si vede il muro. Non serve nulla di piu': lo strumento di
+   breccia guarda solo (posizione, raggio) e la stanza corrente. */
+static void RoomsTestStandNextToSecret(Game *g, int nx, int ny)
+{
+    g->roomX = nx;
+    g->roomY = ny;
+    WorldRoomAtMutable(g, nx, ny)->cleared = true;   /* niente porte bloccate: la geometria e' il soggetto */
+    Rectangle cell = WorldCellRect(g, nx, ny);
+    g->player.pos = (Vector2){ cell.x + cell.width*0.5f, cell.y + cell.height*0.5f };
+    g->player.keys = 9;
+}
+
+/* Test (s) dedicato, WP8: il ciclo di vita completo dell'archetipo su una
+   segreta vera pescata dai semi di prova.
+     A. PRIMA della breccia: fuori dalla minimappa, zero porte, indizio visibile
+        solo per il livello NORMALE (mai per la super-segreta, DEC-025).
+     B. Esplosione LONTANA dalla parete: non apre nulla. Esplosione SULLA
+        parete ma di origine NEMICA (breach=false): non apre nulla -- la stessa
+        garanzia che il WP3 dichiara per i distruttibili.
+     C. Esplosione SULLA parete con lo strumento di breccia: apre il varco, su
+        entrambi i lati, e la stanza compare sulla mappa.
+     D. PERSISTENZA: si entra, si esce, si rientra -- il varco resta aperto e
+        la valuta di "segreta trovata" (DEC-167) si paga UNA volta sola.
+     E. CONTENUTO: l'oggetto e' quello di rarita' migliore fra i tre del piano,
+        e' lo STESSO ad ogni rientro (mai una seconda estrazione) e sparisce
+        quando la stanza e' stata svuotata. La super-segreta versa in piu' il
+        catalizzatore di fusione, una volta sola.
+     F. La super-segreta si apre lo stesso senza alcun indizio (DEC-025:
+        "intuizione estrema"). */
+static bool RoomsTestSecretRooms(void)
+{
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u,
+        11u, 137u, 2718u, 31415u, 20260727u, 424242u, 90210u, 5150u
+    };
+    const int kSeedCount = (int)(sizeof(kSeeds)/sizeof(kSeeds[0]));
+
+    for (int level = 0; level < 2; level++)
+    {
+        bool wantSuper = (level == 1);
+        Game g;
+        int sx = -1, sy = -1, nx = -1, ny = -1, dir = -1;
+        unsigned int usedSeed = 0;
+        int usedFloor = 0;
+        bool found = false;
+        for (int floor = 1; floor <= FLOOR_COUNT && !found; floor++)
+        {
+            for (int si = 0; si < kSeedCount && !found; si++)
+            {
+                if (!RoomsTestFindSecret(kSeeds[si], floor, wantSuper, &g, &sx, &sy, &nx, &ny, &dir)) continue;
+                found = true;
+                usedSeed = kSeeds[si];
+                usedFloor = floor;
+            }
+        }
+        if (!found)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) nessuna stanza segreta di livello %s nei semi di prova: verifica non eseguita\n",
+                    wantSuper ? "super" : "normale");
+            return false;
+        }
+        RoomsTestInstallArenaContent(&g, usedFloor);   /* tre oggetti con rarita' diverse: comune/rara/non comune */
+        const FloorContent *fc = &g.content.floors[usedFloor - 1];
+        const char *bestName = fc->items[1].name;      /* RARITY_RARE, la migliore delle tre */
+
+        /* A. prima della breccia. */
+        const RoomState *secret = &g.rooms[sy][sx];
+        if (!WorldRoomHiddenOnMap(secret) || secret->secretOpened)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: la segreta %s non nasce murata\n",
+                    usedSeed, usedFloor, wantSuper ? "super" : "normale");
+            return false;
+        }
+        if (WorldSecretClueVisible(secret) == wantSuper)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: indizio visibile %d su una segreta %s (DEC-025: la super non ne ha MAI uno)\n",
+                    usedSeed, usedFloor, (int)WorldSecretClueVisible(secret), wantSuper ? "super" : "normale");
+            return false;
+        }
+        if (g.rooms[sy][sx].doors[(dir + 2)%4] || g.rooms[ny][nx].doors[dir])
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: il varco murato ha gia' una porta\n", usedSeed, usedFloor);
+            return false;
+        }
+
+        /* B. due esplosioni che NON devono aprire nulla. */
+        RoomsTestStandNextToSecret(&g, nx, ny);
+        CombatExplodeAt(&g, g.player.pos, 74.0f, 0.0f, true);   /* al centro della stanza: lontano dalla parete */
+        if (g.rooms[sy][sx].secretOpened)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: una bomba in mezzo alla stanza apre il varco (deve servire la parete giusta)\n",
+                    usedSeed, usedFloor);
+            return false;
+        }
+        Rectangle wall = WorldSecretWallRect(&g, nx, ny, dir);
+        Vector2 onWall = { wall.x + wall.width*0.5f, wall.y + wall.height*0.5f };
+        CombatExplodeAt(&g, onWall, 74.0f, 0.0f, false);   /* origine NEMICA: mai un varco */
+        if (g.rooms[sy][sx].secretOpened)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: un'esplosione di origine nemica apre il varco (mai ammesso)\n",
+                    usedSeed, usedFloor);
+            return false;
+        }
+
+        /* C. lo strumento di breccia, sulla parete giusta. */
+        if (!WorldTryBreachSecretWall(&g, onWall, 74.0f))
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: lo strumento di breccia sulla parete condivisa non apre il varco\n",
+                    usedSeed, usedFloor);
+            return false;
+        }
+        if (!g.rooms[sy][sx].secretOpened || !g.rooms[sy][sx].doors[(dir + 2)%4] || !g.rooms[ny][nx].doors[dir])
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: varco aperto ma la porta manca su un lato (%d/%d)\n",
+                    usedSeed, usedFloor, (int)g.rooms[sy][sx].doors[(dir + 2)%4], (int)g.rooms[ny][nx].doors[dir]);
+            return false;
+        }
+        if (WorldRoomHiddenOnMap(&g.rooms[sy][sx]) || WorldSecretClueVisible(&g.rooms[sy][sx]))
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: aperta, la segreta resta fuori dalla mappa o mostra ancora l'indizio\n",
+                    usedSeed, usedFloor);
+            return false;
+        }
+
+        /* D+E. si entra: valuta di "segreta trovata", oggetto migliore del
+           piano, e per la super anche il catalizzatore di fusione. */
+        int coinsBefore = g.player.coins;
+        int fluxBefore = g.player.flux;
+        WorldTryEnterRoom(&g, dir);
+        if (WorldRoomAt(&g, g.roomX, g.roomY)->kind != ROOM_SECRET)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: dal varco aperto non si entra nella segreta\n", usedSeed, usedFloor);
+            return false;
+        }
+        if (g.player.coins - coinsBefore != WORLD_ROOM_CURRENCY_SECRET)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: valuta di segreta trovata attesa %d, ottenuta %d\n",
+                    usedSeed, usedFloor, WORLD_ROOM_CURRENCY_SECRET, g.player.coins - coinsBefore);
+            return false;
+        }
+        int expectedFlux = wantSuper ? WORLD_SECRET_SUPER_FLUX : 0;
+        if (g.player.flux - fluxBefore != expectedFlux)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: Flux atteso %d sulla segreta %s, ottenuto %d\n",
+                    usedSeed, usedFloor, expectedFlux, wantSuper ? "super" : "normale", g.player.flux - fluxBefore);
+            return false;
+        }
+        if (GameRoomIsLocked(&g))
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: la stanza segreta blocca le porte (mai ammesso)\n", usedSeed, usedFloor);
+            return false;
+        }
+        int itemCount = 0;
+        Pickup *prize = NULL;
+        for (int i = 0; i < MAX_PICKUPS; i++)
+            if (g.pickups[i].active && g.pickups[i].kind == PICKUP_ITEM) { itemCount++; prize = &g.pickups[i]; }
+        if (itemCount != 1 || !prize || strcmp(prize->item.name, bestName) != 0)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: %d oggetti nella segreta (atteso 1, '%s')\n",
+                    usedSeed, usedFloor, itemCount, bestName);
+            return false;
+        }
+
+        /* D. si esce e si rientra: il varco resta aperto, la valuta non si
+           ripaga, l'oggetto e' lo STESSO e resta uno solo. */
+        WorldTryEnterRoom(&g, (dir + 2)%4);
+        if (WorldRoomAt(&g, g.roomX, g.roomY)->kind == ROOM_SECRET)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: dalla segreta aperta non si esce\n", usedSeed, usedFloor);
+            return false;
+        }
+        int coinsOutside = g.player.coins;
+        int fluxOutside = g.player.flux;
+        WorldTryEnterRoom(&g, dir);
+        if (WorldRoomAt(&g, g.roomX, g.roomY)->kind != ROOM_SECRET || !g.rooms[sy][sx].secretOpened)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: rientrando, il varco si e' richiuso\n", usedSeed, usedFloor);
+            return false;
+        }
+        if (g.player.coins != coinsOutside || g.player.flux != fluxOutside)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: rientrare nella segreta ripaga (Ingots %d->%d, Flux %d->%d)\n",
+                    usedSeed, usedFloor, coinsOutside, g.player.coins, fluxOutside, g.player.flux);
+            return false;
+        }
+        itemCount = 0;
+        prize = NULL;
+        for (int i = 0; i < MAX_PICKUPS; i++)
+            if (g.pickups[i].active && g.pickups[i].kind == PICKUP_ITEM) { itemCount++; prize = &g.pickups[i]; }
+        if (itemCount != 1 || !prize || strcmp(prize->item.name, bestName) != 0)
+        {
+            fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: rientrando la segreta offre %d oggetti (atteso sempre lo stesso, uno solo)\n",
+                    usedSeed, usedFloor, itemCount);
+            return false;
+        }
+
+        /* E. una volta svuotata (l'oggetto e' stato preso: CombatPickup scrive
+           'rewardTaken', stesso campo del tesoro) la stanza resta
+           attraversabile e vuota. */
+        WorldRoomAtMutable(&g, sx, sy)->rewardTaken = true;
+        WorldTryEnterRoom(&g, (dir + 2)%4);
+        WorldTryEnterRoom(&g, dir);
+        for (int i = 0; i < MAX_PICKUPS; i++)
+            if (g.pickups[i].active && g.pickups[i].kind == PICKUP_ITEM)
+            {
+                fprintf(stderr, "GameRoomsTest: (s) seed %u piano %d: la segreta gia' svuotata offre un altro oggetto\n",
+                        usedSeed, usedFloor);
+                return false;
+            }
+
+        printf("  [rooms-s] segreta %s (seed %u piano %d): murata e fuori mappa, indizio %s; bomba lontana o di origine nemica -> nessun varco; bomba sulla parete -> varco su entrambi i lati; valuta %d una volta sola%s; oggetto di rarita' migliore, lo stesso ad ogni rientro -> ok\n",
+               wantSuper ? "super" : "normale", usedSeed, usedFloor,
+               wantSuper ? "assente" : "presente", WORLD_ROOM_CURRENCY_SECRET,
+               wantSuper ? ", piu' il catalizzatore di fusione" : "");
+    }
+    return true;
+}
+
 /* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
 typedef struct RoomsTestRoom {
     int stateX, stateY;
@@ -4317,6 +4570,14 @@ bool GameRoomsTest(Game *game)
        servizio di piano, e' un archetipo raro (WORLD_POURHOUSE_ROOM_CHANCE_PERCENT). */
     int floorsWithPourhouse = 0;
     int floorsEligibleForPourhouse = 0;
+    /* WP8 (s): quante volte ciascun livello di stanza segreta ha trovato posto,
+       sui rispettivi piani candidati. La super-segreta e' dichiarata PIU' RARA
+       della normale (DEC-025): la verifica finale confronta i due conteggi,
+       non solo "almeno una". */
+    int floorsWithSecret = 0;
+    int floorsWithSuperSecret = 0;
+    int floorsEligibleForSecret = 0;
+    int floorsEligibleForSuperSecret = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -4328,6 +4589,8 @@ bool GameRoomsTest(Game *game)
             if (floor >= WORLD_TIMED_ROOM_MIN_FLOOR) floorsEligibleForTimed++;
             if (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) floorsEligibleForArena++;
             if (floor >= WORLD_POURHOUSE_ROOM_MIN_FLOOR) floorsEligibleForPourhouse++;
+            if (floor >= WORLD_SECRET_ROOM_MIN_FLOOR) floorsEligibleForSecret++;
+            if (floor >= WORLD_SECRET_SUPER_MIN_FLOOR) floorsEligibleForSuperSecret++;
 
             RoomsTestRoom rooms[GRID_SIZE*GRID_SIZE];
             int roomCount = RoomsTestCollectRooms(&probe, rooms, GRID_SIZE*GRID_SIZE);
@@ -4348,6 +4611,11 @@ bool GameRoomsTest(Game *game)
             /* WP7: idem per la Pourhouse, controllo (r) sotto. */
             int pourhouseRooms = 0;
             int pourhouseX = -1, pourhouseY = -1;
+            /* WP8: le stanze segrete di questo piano, per il controllo (s)
+               sotto. Al piu' DUE (una normale + una super), e i due livelli si
+               contano separati perche' hanno frequenze diverse. */
+            int secretRooms = 0, superSecretRooms = 0;
+            int secretX[2], secretY[2];
 
             /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
                stanza e' una delle cinque classi di DEC-170; (b) niente
@@ -4373,6 +4641,24 @@ bool GameRoomsTest(Game *game)
                 if (rooms[r].kind == ROOM_FUSION) { fusionRooms++; fusionX = rooms[r].stateX; fusionY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_TIMED) { timedRooms++; timedX = rooms[r].stateX; timedY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_ARENA) { arenaRooms++; arenaSizeSeen[size]++; arenaX = rooms[r].stateX; arenaY = rooms[r].stateY; }
+                if (rooms[r].kind == ROOM_SECRET)
+                {
+                    if (secretRooms < 2) { secretX[secretRooms] = rooms[r].stateX; secretY[secretRooms] = rooms[r].stateY; }
+                    secretRooms++;
+                    if (state->secretSuper) superSecretRooms++;
+                    if (size != ROOM_SIZE_1X1)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta non e' 1x1 (classe %d)\n",
+                                floor, kSeeds[si], (int)size);
+                        ok = false;
+                    }
+                    if (state->secretOpened)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta nasce gia' aperta (il varco deve essere murato)\n",
+                                floor, kSeeds[si]);
+                        ok = false;
+                    }
+                }
                 if (rooms[r].kind == ROOM_POURHOUSE)
                 {
                     pourhouseRooms++;
@@ -4620,7 +4906,8 @@ bool GameRoomsTest(Game *game)
                 }
                 for (int y = 0; y < GRID_SIZE; y++)
                     for (int x = 0; x < GRID_SIZE; x++)
-                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_ARENA && !reachedNoArena[y][x])
+                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_ARENA &&
+                            !WorldRoomHiddenOnMap(WorldRoomAt(&probe, x, y)) && !reachedNoArena[y][x])
                         {
                             fprintf(stderr, "GameRoomsTest: (q) piano %d seed %u: la cella (%d,%d) non e' raggiungibile ignorando l'arena di sfida\n",
                                     floor, kSeeds[si], x, y);
@@ -4668,6 +4955,91 @@ bool GameRoomsTest(Game *game)
                 }
             }
 
+            /* (s) WP8, stanze segrete (DEC-025, special-rooms.md "Stanza
+               segreta"). Le garanzie, tutte verificate sul RISULTATO e non
+               sulla fiducia nell'implementazione:
+                 - al piu' UNA per livello, quindi al piu' due in tutto;
+                 - la super-segreta mai prima del suo piano minimo;
+                 - SEMPRE 1x1 e mai gia' aperta (verificato sopra, nel giro
+                   sulle stanze);
+                 - ZERO porte finche' il varco e' murato: e' l'invariante che
+                   la tiene fuori dalla connettivita' del piano;
+                 - ESATTAMENTE UNA cella vicina esistente -- un solo muro
+                   condiviso, cioe' un solo indizio e un solo varco;
+                 - quella vicina e' una stanza NORMALE (partenza/combattimento):
+                   mai boss ne' arena (devono restare foglie, DEC-182 e
+                   special-rooms.md), mai un'altra speciale, mai un'altra
+                   segreta. */
+            if (secretRooms > 2 || superSecretRooms > 1 || (secretRooms - superSecretRooms) > 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: %d stanze segrete di cui %d super (atteso al piu' 1 per livello)\n",
+                        floor, kSeeds[si], secretRooms, superSecretRooms);
+                ok = false;
+            }
+            if (superSecretRooms > 0 && floor < WORLD_SECRET_SUPER_MIN_FLOOR)
+            {
+                fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: super-segreta prima del piano minimo %d\n",
+                        floor, kSeeds[si], WORLD_SECRET_SUPER_MIN_FLOOR);
+                ok = false;
+            }
+            if (secretRooms > 0 && floor < WORLD_SECRET_ROOM_MIN_FLOOR)
+            {
+                fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: stanza segreta prima del piano minimo %d\n",
+                        floor, kSeeds[si], WORLD_SECRET_ROOM_MIN_FLOOR);
+                ok = false;
+            }
+            floorsWithSecret += (secretRooms - superSecretRooms) > 0 ? 1 : 0;
+            floorsWithSuperSecret += superSecretRooms > 0 ? 1 : 0;
+            for (int s = 0; s < secretRooms && s < 2; s++)
+            {
+                int sx = secretX[s], sy = secretY[s];
+                const RoomState *secretState = &probe.rooms[sy][sx];
+                int secretDoors = 0, secretNeighbours = 0;
+                for (int d = 0; d < 4; d++)
+                {
+                    if (probe.rooms[sy][sx].doors[d]) secretDoors++;
+                    int nx = sx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                    int ny = sy + ((d == DIR_DOWN) - (d == DIR_UP));
+                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                    if (!probe.rooms[ny][nx].exists) continue;
+                    secretNeighbours++;
+                    RoomKind nk = WorldRoomAt(&probe, nx, ny)->kind;
+                    if (nk != ROOM_START && nk != ROOM_COMBAT)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta confina con '%s' invece che con una stanza normale\n",
+                                floor, kSeeds[si], GameRoomKindName(nk));
+                        ok = false;
+                    }
+                }
+                if (secretDoors != 0)
+                {
+                    fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta ha %d porte aperte in generazione (il varco deve essere murato)\n",
+                            floor, kSeeds[si], secretDoors);
+                    ok = false;
+                }
+                if (secretNeighbours != 1)
+                {
+                    fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta tocca %d celle esistenti (atteso esattamente 1: un solo muro condiviso)\n",
+                            floor, kSeeds[si], secretNeighbours);
+                    ok = false;
+                }
+                if (!WorldRoomHiddenOnMap(secretState))
+                {
+                    fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: la stanza segreta compare sulla minimappa prima di essere aperta\n",
+                            floor, kSeeds[si]);
+                    ok = false;
+                }
+                /* DEC-025: la super-segreta non mostra MAI l'indizio; la
+                   normale lo mostra sempre finche' il varco e' murato. */
+                if (WorldSecretClueVisible(secretState) == secretState->secretSuper)
+                {
+                    fprintf(stderr, "GameRoomsTest: (s) piano %d seed %u: livello %s e indizio visibile %d: i due livelli di DEC-025 non si distinguono\n",
+                            floor, kSeeds[si], secretState->secretSuper ? "super" : "normale",
+                            (int)WorldSecretClueVisible(secretState));
+                    ok = false;
+                }
+            }
+
             /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
                fino a 4 celle di stanza boss e le celle speciali 1x1 (tesoro,
                negozio, fusione -- WP4 -- e, dal piano 3, anche la stanza a
@@ -4684,7 +5056,13 @@ bool GameRoomsTest(Game *game)
             int specialRoomSlots = (floor >= 3) ? 4 : 3;
             if (floor >= WORLD_POURHOUSE_ROOM_MIN_FLOOR) specialRoomSlots++;
             int arenaCells = (floor >= WORLD_ARENA_ROOM_MIN_FLOOR) ? 4 : 0;
-            int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots + arenaCells;
+            /* WP8: le stanze segrete sono celle IN PIU', mai una sostituzione
+               (spec: "extra, non sostitutiva") -- una 1x1 per la segreta
+               normale e una per la super-segreta, ciascuna solo dai rispettivi
+               piani minimi. */
+            int secretCells = (floor >= WORLD_SECRET_ROOM_MIN_FLOOR) ? 1 : 0;
+            if (floor >= WORLD_SECRET_SUPER_MIN_FLOOR) secretCells++;
+            int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots + arenaCells + secretCells;
             if (existing < lowerBound || existing > upperBound)
             {
                 fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d celle, fuori dalla banda attesa [%d,%d]\n",
@@ -4738,7 +5116,7 @@ bool GameRoomsTest(Game *game)
                di stanza. Si conta quante porte sono aperte in ciascun
                gruppo: deve essere sempre esattamente 1. */
             {
-                typedef struct { const RoomState *ra, *rb; int doorsOpen; } RoomsTestPair;
+                typedef struct { const RoomState *ra, *rb; int doorsOpen; bool sealedSecret; } RoomsTestPair;
                 RoomsTestPair pairs[GRID_SIZE*GRID_SIZE*2];
                 int pairCount = 0;
                 for (int y = 0; y < GRID_SIZE; y++)
@@ -4766,6 +5144,15 @@ bool GameRoomsTest(Game *game)
                                 pi = pairCount++;
                                 pairs[pi].ra = ra; pairs[pi].rb = rb;
                                 pairs[pi].doorsOpen = 0;
+                                /* WP8: la coppia che contiene una stanza
+                                   segreta col varco ancora MURATO e' l'unica
+                                   che deve avere ZERO porte -- e' il muro che
+                                   la rende segreta (DEC-025), non un difetto
+                                   di DEC-181. Appena il varco si apre la
+                                   coppia torna sotto la regola di sempre (una
+                                   porta e una sola), verificato dal test
+                                   dedicato RoomsTestSecretRooms. */
+                                pairs[pi].sealedSecret = WorldRoomHiddenOnMap(ra) || WorldRoomHiddenOnMap(rb);
                             }
                             if (probe.rooms[y][x].doors[d]) pairs[pi].doorsOpen++;
                         }
@@ -4773,11 +5160,13 @@ bool GameRoomsTest(Game *game)
                 }
                 for (int p = 0; p < pairCount; p++)
                 {
-                    if (pairs[p].doorsOpen != 1)
+                    int expected = pairs[p].sealedSecret ? 0 : 1;
+                    if (pairs[p].doorsOpen != expected)
                     {
-                        fprintf(stderr, "GameRoomsTest: (l) piano %d seed %u: coppia di stanze stato (%d,%d)-(%d,%d) ha %d porte (atteso 1)\n",
+                        fprintf(stderr, "GameRoomsTest: (l) piano %d seed %u: coppia di stanze stato (%d,%d)-(%d,%d) ha %d porte (atteso %d%s)\n",
                                 floor, kSeeds[si], pairs[p].ra->originX, pairs[p].ra->originY,
-                                pairs[p].rb->originX, pairs[p].rb->originY, pairs[p].doorsOpen);
+                                pairs[p].rb->originX, pairs[p].rb->originY, pairs[p].doorsOpen, expected,
+                                pairs[p].sealedSecret ? ", varco segreto murato" : "");
                         ok = false;
                     }
                 }
@@ -4837,7 +5226,8 @@ bool GameRoomsTest(Game *game)
                 }
                 for (int y = 0; y < GRID_SIZE; y++)
                     for (int x = 0; x < GRID_SIZE; x++)
-                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_BOSS && !reachedNoBoss[y][x])
+                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_BOSS &&
+                            !WorldRoomHiddenOnMap(WorldRoomAt(&probe, x, y)) && !reachedNoBoss[y][x])
                         {
                             fprintf(stderr, "GameRoomsTest: (n) piano %d seed %u: la cella (%d,%d) non e' raggiungibile senza passare dalla stanza boss\n",
                                     floor, kSeeds[si], x, y);
@@ -4847,7 +5237,13 @@ bool GameRoomsTest(Game *game)
 
             /* (j) CONNETTIVITA': dalla partenza si raggiunge ogni stanza del
                piano attraversando porte. Una stanza isolata renderebbe il piano
-               incompletabile, ed e' il rischio vero di un generatore a forme. */
+               incompletabile, ed e' il rischio vero di un generatore a forme.
+               WP8: la connettivita' si misura SENZA CONTARE LE SEGRETE ancora
+               murate -- sono per definizione fuori dal grafo finche' non si
+               sbreccia il muro, ed e' esattamente la garanzia del documento
+               ("il piano resta completabile ignorandole"). Che si aprano
+               davvero, e che aperte entrino nel grafo come una stanza
+               qualsiasi, lo verifica RoomsTestSecretRooms. */
             bool reached[GRID_SIZE][GRID_SIZE];
             memset(reached, 0, sizeof(reached));
             int queueX[GRID_SIZE*GRID_SIZE], queueY[GRID_SIZE*GRID_SIZE];
@@ -4873,7 +5269,7 @@ bool GameRoomsTest(Game *game)
             }
             for (int y = 0; y < GRID_SIZE; y++)
                 for (int x = 0; x < GRID_SIZE; x++)
-                    if (probe.rooms[y][x].exists && !reached[y][x])
+                    if (probe.rooms[y][x].exists && !WorldRoomHiddenOnMap(WorldRoomAt(&probe, x, y)) && !reached[y][x])
                     {
                         fprintf(stderr, "GameRoomsTest: (j) piano %d seed %u: la cella (%d,%d) non e' raggiungibile dalla partenza\n",
                                 floor, kSeeds[si], x, y);
@@ -4896,6 +5292,14 @@ bool GameRoomsTest(Game *game)
                     if (!a->exists) continue;
                     if (a->kind != b->kind || a->cells != b->cells ||
                         a->originX != b->originX || a->originY != b->originY) detOk = false;
+                    /* WP8: anche il LIVELLO della segreta e lo stato del suo
+                       varco fanno parte del piano -- due run con lo stesso
+                       seed devono trovare la stessa segreta, dello stesso
+                       livello, murata allo stesso modo. Senza questo confronto
+                       uno stream non deterministico nel piazzamento passerebbe
+                       inosservato ogni volta che le due segrete cadono
+                       comunque sulla stessa cella. */
+                    if (a->secretSuper != b->secretSuper || a->secretOpened != b->secretOpened) detOk = false;
                     for (int d = 0; d < 4; d++) if (a->doors[d] != b->doors[d]) detOk = false;
                 }
             }
@@ -5053,6 +5457,32 @@ bool GameRoomsTest(Game *game)
         ok = false;
     }
 
+    /* (s) WP8: entrambi i livelli devono trovare posto almeno una volta (o il
+       resto del controllo (s) non avrebbe esercitato nulla) e la super-segreta
+       deve restare PIU' RARA della normale -- e' letteralmente cio' che DEC-025
+       chiede, e questo confronto fallisce se qualcuno rendesse i due
+       piazzamenti simmetrici. */
+    if (floorsWithSecret == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (s) la stanza segreta non trova mai posto in %d piani candidati\n", floorsEligibleForSecret);
+        ok = false;
+    }
+    if (floorsWithSuperSecret == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (s) la super-segreta non trova mai posto in %d piani candidati\n", floorsEligibleForSuperSecret);
+        ok = false;
+    }
+    if (floorsWithSuperSecret >= floorsWithSecret)
+    {
+        fprintf(stderr, "GameRoomsTest: (s) la super-segreta compare %d volte contro %d della segreta normale: deve restare il livello PIU' RARO (DEC-025)\n",
+                floorsWithSuperSecret, floorsWithSecret);
+        ok = false;
+    }
+
+    printf("  [rooms-s] stanze segrete (WP8, DEC-025): normale in %d piani su %d candidati, super-segreta in %d su %d (estrazione %d%%) -- sempre 1x1, sempre murate in generazione, sempre con una sola parete condivisa verso una stanza normale, mai sulla minimappa prima della breccia\n",
+           floorsWithSecret, floorsEligibleForSecret, floorsWithSuperSecret, floorsEligibleForSuperSecret,
+           WORLD_SECRET_SUPER_CHANCE_PERCENT);
+
     printf("  [rooms-r] Pourhouse (WP7) piazzata in %d piani su %d candidati (piani >= %d, estrazione %d%%): sempre 1x1, mai piu' di una per piano, mai adiacente a boss o arena\n",
            floorsWithPourhouse, floorsEligibleForPourhouse, WORLD_POURHOUSE_ROOM_MIN_FLOOR, WORLD_POURHOUSE_ROOM_CHANCE_PERCENT);
 
@@ -5076,6 +5506,7 @@ bool GameRoomsTest(Game *game)
     if (!RoomsTestTimedRoomInteraction()) ok = false;
     if (!RoomsTestArenaInteraction()) ok = false;
     if (!RoomsTestPourhouseInteraction()) ok = false;
+    if (!RoomsTestSecretRooms()) ok = false;
 
     return ok;
 }
