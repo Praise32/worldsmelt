@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (48 voci attive su 49 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), e il catalogo delle prove specifiche della run (WP16).
-last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp16-prove-specifiche
-last_verified_commit: d5c5f43
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16]
+  Coda ufficiale e unica delle domande ancora aperte (54 voci attive su 55 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19) e il tasto rapido R del reroll nel motore (WP21).
+last_reviewed: 2026-07-31
+last_updated_from_session: 2026-07-31-wp21-reroll-pausemenu
+last_verified_commit: c5c1bc4
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21]
 related: []
 supersedes: []
 source_files: []
@@ -732,3 +732,34 @@ fissa è **come si presenta la causa** sulla schermata dei risultati.
     rivalutata come possibile incentivo a mollare la run invece di finirla. Resta un
     default d'implementazione: la scelta finale è del proprietario.
     (`systems/rewards-and-economy.md`.)
+
+## Il reroll a nuovo seed nel motore (WP21, 2026-07-31)
+
+Il lavoro che chiude il gap dichiarato da DEC-114 ("oggi il tasto `R` rigenera
+direttamente"): la voce "Rigenera la run" di `PauseMenu`, con `ExitConfirm` come conferma
+esplicita, è oggi l'UNICA via per un reroll a seed nuovo — riusa la stessa
+`AppEnterFloorZero` di `RunSetup`/Avvia e `RunResults`/"Nuova run subito", nessuna
+generazione duplicata. Il tasto `R` in `Gameplay` chiama oggi sempre e soltanto
+`game->resetQueued`, mai un seed nuovo: il gap è chiuso.
+
+55. Il tasto `R` in `Gameplay` resta, invariato da prima di questo lavoro (fuori dal
+    mandato di WP21), un reset rapido della STESSA run allo STESSO seed: butta via
+    l'intero progresso della run corrente (piani percorsi, oggetti raccolti, Innesti)
+    SENZA alcuna conferma. Nessuna decisione approvata autorizza oggi questo
+    comportamento come funzione di gioco rivolta al giocatore finale — anzi DEC-114 (che
+    parla del reroll a nuovo seed, non di questo) dice il principio opposto: "nessun
+    tasto rapido diretto: buttare una run per un tasto sbagliato è il caso peggiore". Il
+    commento che lo introduceva nel codice, rimosso da questo lavoro, lo chiamava "il
+    reset rapido dev di sempre" — un residuo dei comandi di sviluppo, non una funzione
+    di gioco mai formalizzata da una DEC. *Default proposto dall'implementazione (stile
+    DEC-019), non canone*: `R` resta un'eccezione dichiarata alla regola "nessuna azione
+    distruttiva immediata" (vedi `ui/pause-menu.md`, sezione "Regole"), documentata come
+    tale invece di rimossa o portata dietro conferma, per continuità con tutta la suite
+    di test esistente che la usa come scorciatoia sintetica (`--rng-seed-test` e il resto
+    di `src/tests/game_tests.c`) e perché WP21 ha mandato esplicito solo sul reroll a
+    nuovo seed. Il proprietario decide se: (a) formalizzare `R` come funzione di gioco
+    invariata (serve una DEC che lo autorizzi esplicitamente senza conferma, in deroga al
+    principio di DEC-114); (b) portarlo anch'esso dietro conferma; (c) rimuoverlo dalla
+    build di gioco e tenerlo solo come comando di sviluppo/debug (es. dietro un flag di
+    build, fuori da `AppInputCollect`). Nessuna delle tre è ancora scelta.
+    (`ui/pause-menu.md`, DEC-114, DEC-141, `docs/engineering/known-issues.md`.)

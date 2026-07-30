@@ -498,12 +498,17 @@ static bool VerifyWrittenRecord(const char *path, unsigned int expectedSeed, con
 /* ============================================================
    Test D/E/F: scrittura vera per i tre esiti (spec M7, punto 5: "invoca la
    scrittura con i tre esiti"). D e E passano dal PRIMO chiamante
-   (PHASE_WIN/PHASE_GAME_OVER in APP_GAMEPLAY); F dal reroll (TERZO
-   chiamante, quello che "oggi sfugge a ogni hook" -- verifica che sia
-   davvero coperto, con gen disabilitata: il ramo resetQueued NON deve
-   impedire la scrittura, che avviene PRIMA che GameUpdate consumi il
-   flag). Ognuno controlla anche l'assenza di residui .tmp (scrittura
-   atomica, spec M7 punto 5).
+   (PHASE_WIN/PHASE_GAME_OVER in APP_GAMEPLAY); F da R in APP_GAMEPLAY (il
+   reset rapido stesso seed, 'game->resetQueued' -- WP21/DEC-114: R non
+   chiama piu' AppEnterFloorZero in alcun caso, quindi 'gen->enabled' qui
+   sotto non cambia piu' il ramo preso, resta solo per somiglianza con gli
+   altri due DriveX). Verifica che la scrittura sia davvero coperta ANCHE per
+   questo chiamante: avviene PRIMA che GameUpdate consumi il flag
+   resetQueued. Il reroll a SEED NUOVO (ui->exitRerollsRun, "Rigenera la run"
+   di PauseMenu) e' un chiamante successivo, non ancora coperto da questa
+   suite -- vedi invece GameStatesTest, src/tests/game_tests.c. Ognuno
+   controlla anche l'assenza di residui .tmp (scrittura atomica, spec M7
+   punto 5).
    ============================================================ */
 static bool RunRealWriteScenario(const char *label, int expectedFloor, const char *expectedOutcome,
                                   void (*drive)(Game *game, AppGen *gen, AppUi *ui, AppMode *mode))

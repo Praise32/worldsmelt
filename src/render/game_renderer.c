@@ -3241,8 +3241,15 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh)
        riga di contenuto in piu' rispetto a quando questo riquadro e' nato, e
        comprimere le liste sopra sarebbe stato peggio. A 640 px di altezza --
        la finestra minima, SCREEN_HEIGHT -- il riquadro resta comunque dentro
-       lo schermo (40..600). */
-    float h = (mode == APP_BUILD_SCREEN ? 560.0f : 400.0f)*uiScale;
+       lo schermo (40..600).
+       PAUSE_MENU condivide lo stesso 560 da WP21 (DEC-114): con la sesta riga
+       "Rigenera la run" (MenuItemCountForMode sotto) l'ultima voce arriva a
+       110 + 5*52 + 40 = 410 (MENU_ROW_START_Y_BASE/MENU_ROW_H_BASE piu' sotto),
+       il vecchio box da 400 la avrebbe tagliata fuori -- 560 lascia margine
+       anche per il riquadro di consultazione del Piano 0 sotto le righe
+       (DrawPauseMenuFloorZeroConsult, DEC-169), che a sua volta segue questa
+       stessa quota (vedi il commento li'). */
+    float h = (mode == APP_BUILD_SCREEN || mode == APP_PAUSE_MENU ? 560.0f : 400.0f)*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
@@ -3261,11 +3268,19 @@ static int MenuItemCountForMode(AppMode mode)
            "Opzioni" (ui/pause-menu.md, tabella "Elementi interattivi"),
            spostando le due voci successive di un indice -- vedi
            DrawPauseMenuOverlay e il case APP_PAUSE_MENU in src/app/app.c per
-           i nuovi indici. In pratica la riga e' SEMPRE visibile: PauseMenu si
-           raggiunge solo da APP_GAMEPLAY, cioe' da run gia' iniziata, cioe'
-           da DOPO che TrialsAssignForRun ha gia' scritto game->trialCount
-           (src/game/trials.c, chiamata da GameResetRunWithSeed). */
-        case APP_PAUSE_MENU: return 5;   /* Riprendi, Build e sinergie, Prove, Opzioni, Abbandona run */
+           i nuovi indici. In pratica la riga e' SEMPRE visibile: chi apre
+           PauseMenu da Gameplay lo fa da una run gia' iniziata, cioe' da DOPO
+           che TrialsAssignForRun ha gia' scritto game->trialCount
+           (src/game/trials.c, chiamata da GameResetRunWithSeed) -- WP15a ha
+           poi aggiunto una SECONDA provenienza, il comando di pausa dal Piano
+           0 (ui->pauseFromFloorZero, DEC-169), dove trialCount resta a zero
+           per costruzione (nessuna run vera avviata) ma la riga non ha
+           bisogno di quel dato per disegnarsi.
+           WP21 (DEC-114): "Rigenera la run" si e' inserita fra "Opzioni" e
+           "Abbandona run" (ora ultima, indice 5) -- vedi il commento su
+           AppUi.exitRerollsRun in core/game_types.h e il case
+           APP_PAUSE_MENU/APP_EXIT_CONFIRM in src/app/app.c. */
+        case APP_PAUSE_MENU: return 6;   /* Riprendi, Build e sinergie, Prove, Opzioni, Rigenera la run, Abbandona run */
         /* W8 (chiude la parte UI del difetto noto 9): tre volumi + Indietro.
            Le tre righe sono voci di menu a pieno titolo -- stesso indice, stessa
            geometria, stesso hit-test del mouse -- perche' la parita'
@@ -3450,12 +3465,16 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
     const Player *p = &game->player;
     int labelFont = UiRound(15.0f*uiScale);
     int x = (int)box.x + UiRound(40.0f*uiScale);
-    /* 368 e non piu' 320: con la quinta voce "Prove" (WP16) le righe del
-       PauseMenu arrivano a box.y+358 (110 + 4*52 + 40) e la vecchia quota,
-       scelta quando le voci erano quattro, ci finiva sopra. Oggi questa
-       funzione non e' raggiungibile dal Piano 0 (domanda aperta 22), ma la
-       collisione latente resta un difetto: la quota segue le righe. */
-    int y = (int)box.y + UiRound(368.0f*uiScale);
+    /* 420 e non piu' 368: con la sesta voce "Rigenera la run" (WP21, DEC-114)
+       le righe del PauseMenu arrivano a box.y+410 (110 + 5*52 + 40, l'ultima
+       riga e' ora "Abbandona run" all'indice 5) e la vecchia quota (scelta
+       per cinque righe, 110 + 4*52 + 40 = 358) ci sarebbe finita sotto per
+       soli 10px, sovrapponendosi al testo della riga. Questa funzione E'
+       raggiungibile dal Piano 0 (WP15a, pauseFromFloorZero): la quota segue
+       le righe, come da nota precedente -- MenuBoxForModeFor riserva ora 560
+       (non piu' 400) di altezza per APP_PAUSE_MENU proprio per lasciare
+       spazio a questo riquadro sotto le sei righe. */
+    int y = (int)box.y + UiRound(420.0f*uiScale);
     UiText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
     y += UiRound(22.0f*uiScale);
     DrawHearts(p, x, y, uiScale);
@@ -3512,7 +3531,12 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
     DrawMenuRow(APP_PAUSE_MENU, 1, "Build e sinergie", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 2, "Prove", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, 3, "Opzioni", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 4, "Abbandona run", ui->focus, game->theme.accent2);
+    /* WP21 (DEC-114): "Rigenera la run" -- il reroll a seed nuovo, con
+       conferma esplicita via ExitConfirm (ui->exitRerollsRun). Mai un tasto
+       rapido diretto (il vecchio R e' ora SOLO il reset rapido stesso seed,
+       src/app/app.c, case APP_GAMEPLAY). */
+    DrawMenuRow(APP_PAUSE_MENU, 4, "Rigenera la run", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, 5, "Abbandona run", ui->focus, game->theme.accent2);
     if (game->floor == 0)
         DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
@@ -4102,16 +4126,24 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
-    /* Tre contesti distinti (DEC-057 + M1b), tutti derivati da 'ui' senza un
-       campo dedicato in piu': MainMenu/Esci ha exitAbandonsRun falso, gli
-       altri due lo hanno vero e si distinguono da ui->openedFrom (chi ha
-       aperto ExitConfirm, gia' scritto da UpdateApp prima del cambio di
-       stato). */
-    const char *question = !ui->exitAbandonsRun
-        ? "Uscire dal gioco?"
-        : (ui->openedFrom == APP_FLOOR_ZERO
-            ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
-            : "Abbandonare la run in corso? Il progresso non salvato si perde.");
+    /* Quattro contesti distinti (DEC-057 + M1b + WP21/DEC-114), tutti derivati
+       da 'ui' senza un campo dedicato in piu' per ciascuno: MainMenu/Esci ha
+       sia exitAbandonsRun sia exitRerollsRun falsi; i due abbandoni (Piano 0/
+       run vera) hanno exitAbandonsRun vero e si distinguono da ui->openedFrom
+       (chi ha aperto ExitConfirm, gia' scritto da UpdateApp prima del cambio
+       di stato); il reroll ("Rigenera la run" di PauseMenu) ha invece
+       exitRerollsRun vero -- controllato PER PRIMO perche' i due booleani
+       sono mutuamente esclusivi per costruzione (vedi il commento su
+       AppUi.exitRerollsRun in core/game_types.h), quindi l'ordine qui non
+       cambia il risultato ma rispecchia quello del ramo "Conferma" in
+       src/app/app.c (case APP_EXIT_CONFIRM). */
+    const char *question = ui->exitRerollsRun
+        ? "Rigenerare la run con un nuovo seed? Il progresso non salvato si perde."
+        : (!ui->exitAbandonsRun
+            ? "Uscire dal gioco?"
+            : (ui->openedFrom == APP_FLOOR_ZERO
+                ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
+                : "Abbandonare la run in corso? Il progresso non salvato si perde."));
     UiText(question, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
     DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
     DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);

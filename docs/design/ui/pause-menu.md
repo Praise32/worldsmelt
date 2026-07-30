@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
-last_reviewed: 2026-07-30
-last_verified_commit: 63753fc
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP19, WP16, WP15a, Piano-0, consultazione]
+last_reviewed: 2026-07-31
+last_verified_commit: c5c1bc4
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP21, WP19, WP16, WP15a, Piano-0, consultazione]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h]
@@ -39,7 +39,7 @@ Il focus iniziale è su "Riprendi".
 | Visualizza build e sinergie | Sempre | Sempre | Apre `BuildScreen` | Entra in `BuildScreen` | Al ritorno, focus su questo elemento |
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Apre l'elenco delle prove specifiche della run | Mostra le prove attive e il relativo stato di completamento | Al ritorno, focus su questo elemento |
 | Opzioni | Sempre | Sempre | Apre `Options` | Entra in `Options` | Al ritorno, focus sull'elemento "Opzioni" |
-| Riavvia run (reroll) | Se consentito dalla modalità | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Reroll di DEC-089: salta i risultati, accredita i punti in silenzio, riavvia con lo stesso o nuovo seed secondo modalità | Conferma esplicita richiesta; è l'UNICA via per il reroll (DEC-114) |
+| Rigenera la run | Sempre (nessuna condizione di modalità implementata oggi, WP21) | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Reroll di DEC-089: salta i risultati, accredita i punti in silenzio, riparte dal Piano 0 con un seed NUOVO (mai lo stesso) | Conferma esplicita richiesta; è l'UNICA via per il reroll a nuovo seed (DEC-114) |
 | Abbandona run | Sempre | Sempre | Chiede conferma tramite `ExitConfirm` | Entra in `RunResults`; la run si chiude come sconfitta, con punti sblocco ridotti visibili (DEC-082, DEC-089) | Conferma esplicita richiesta |
 
 ## Decisione approvata: la pausa ferma la simulazione
@@ -56,8 +56,8 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 
 ## Regole
 
-- Nessuna azione distruttiva immediata: riavvio e abbandono passano sempre da una conferma (`ExitConfirm`).
-- Il reroll non ha tasti rapidi diretti in `Gameplay` (DEC-114): l'unica collocazione è questa voce. Gap di implementazione: oggi il tasto `R` rigenera direttamente, da adeguare.
+- Nessuna azione distruttiva immediata **come funzione di gioco**: il reroll (nuovo seed, DEC-114) e l'abbandono passano sempre da una conferma esplicita (`ExitConfirm`). Il tasto rapido `R` in `Gameplay` (riga sotto) è un'eccezione dichiarata a questa regola, non una sua violazione silenziosa.
+- Il reroll (nuovo seed) non ha tasti rapidi diretti in `Gameplay` (DEC-114): l'unica collocazione è la voce "Rigenera la run" di questo menu. Il tasto `R` in `Gameplay` resta invece SOLO il **reset rapido di sviluppo** della stessa run (stesso seed, mai un seed nuovo): butta via l'intero progresso della run corrente SENZA alcuna conferma. Nessuna decisione approvata autorizza oggi questo comportamento come funzione di gioco rivolta al giocatore finale — anzi DEC-114 dice il contrario ("nessun tasto rapido diretto: buttare una run per un tasto sbagliato è il caso peggiore"). Resta invariato da prima di questo lavoro (il mandato di WP21 è solo il reroll a nuovo seed, non questo tasto): è un residuo dei comandi di sviluppo, mai formalizzato come funzione di gioco. **Default proposto dall'implementazione, non canone** (stile DEC-019): vedi `../governance/open-questions.md`, la voce aggiunta da WP21.
 - Il focus iniziale è "Riprendi".
 - Tornando da `Options`, il focus ritorna sull'elemento "Opzioni" di `PauseMenu`.
 - Tornando da `BuildScreen`, il focus ritorna sull'elemento "Visualizza build e sinergie".
@@ -80,6 +80,67 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 > (`src/tests/catalog_tests.c`, test G) e `--arena-hub-test`
 > (`src/tests/floor_zero_arena_tests.c`, blocco (m)).
 
+> **Nota di implementazione (WP21, 2026-07-31):** chiude il gap dichiarato da
+> DEC-114 ("oggi il tasto `R` rigenera direttamente"). "Rigenera la run" è ora
+> la quinta riga di `PauseMenu` (indice 4, tra "Opzioni" e "Abbandona run", che
+> scala a indice 5 — sei righe in tutto,
+> `MenuItemCountForMode`/`DrawPauseMenuOverlay` in
+> `src/render/game_renderer.c`), visibile ogni volta che questo menu è
+> raggiungibile (da `Gameplay` come da `PauseMenu` aperto dal Piano 0, WP15a —
+> nessuna condizione di modalità implementata: l'unica modalità esistente oggi
+> è quella singleplayer, DEC-038). Confermarla apre `ExitConfirm` con un nuovo
+> campo dedicato, `AppUi.exitRerollsRun` (`src/core/game_types.h`), mutuamente
+> esclusivo con `exitAbandonsRun` che governa l'abbandono: i due contesti non
+> possono mai essere veri insieme, e ogni punto che ne accende uno spegne
+> esplicitamente l'altro. Confermato in `ExitConfirm` ("Rigenerare la run con
+> un nuovo seed? Il progresso non salvato si perde."), il reroll segue
+> ESATTAMENTE la strada di DEC-089 ("il reroll salta i risultati"): scrive il
+> catalogo in silenzio con l'esito `RUN_CATALOG_OUTCOME_ABANDON` (stessa
+> funzione-hook di vittoria/sconfitta/abbandono, mai `RunResults`) e riparte
+> SUBITO con un seed nuovo (`NextGenSeed`) attraverso `AppEnterFloorZero`, la
+> stessa via canonica di `RunSetup`/Avvia e di `RunResults`/"Nuova run
+> subito" — nessuna generazione duplicata, nessuna seconda via. Annullare
+> (`ExitConfirm`/"Annulla") non tocca `Game` in alcun modo: si torna in
+> `PauseMenu` col focus sull'indice 4, esattamente come ogni altro annullamento
+> di questo menu. Il vecchio comportamento del tasto `R` **in `Gameplay`** (con
+> la generazione abilitata, chiamava direttamente `AppEnterFloorZero` con un
+> seed nuovo, senza alcuna conferma — proprio il gap che DEC-114 dichiarava) è
+> rimosso: in `Gameplay`, `R` chiama oggi sempre e soltanto
+> `game->resetQueued` (il reset rapido stesso seed, invariato — vedi "Regole"
+> sopra per il suo status di eccezione dichiarata, non ancora una DEC).
+> `MenuBoxForModeFor` riserva ora 560px di altezza per `APP_PAUSE_MENU` (non
+> più 400, come `BuildScreen`) per fare spazio alla sesta riga; il riquadro di
+> consultazione del Piano 0 (`DrawPauseMenuFloorZeroConsult`, DEC-169 sotto)
+> segue di conseguenza.
+>
+> **Correzione (secondo tentativo, bocciatura 2026-07-31):** la conferma in
+> `ExitConfirm` cancella ora ESPLICITAMENTE, PRIMA di `AppEnterFloorZero`, i
+> runner di primo piano ancora attivi (`AppCancelFloorZeroGeneration`) e la
+> ripresa in sottofondo (`AppStopLazyGeneration`) — no-op sicuri se non stanno
+> girando, come li usa già il ramo gemello dell'abbandono. Senza, confermare
+> "Rigenera la run" dal `PauseMenu` aperto DAL Piano 0 (`pauseFromFloorZero`)
+> mentre `gen->proposeRunner`/`gen->runner` sono ancora `RUNNING` (~8-12s o
+> minuti), o dal `PauseMenu` di una run vera mentre `gen->lazyRunner` riprende
+> i piani 2-5 in sottofondo, avrebbe azzerato con `memset` un runner ancora
+> vivo (`GenRunnerStartWithArgs`, `src/gen/gen_runner.c`): il pid del processo
+> figlio si sarebbe perso, senza ucciderlo né raccoglierlo, con un secondo
+> `melting-gen` in parallelo — esattamente ciò contro cui il codice si difende
+> altrove ("mai due `melting-gen` insieme").
+>
+> Verificato da `--states-test`
+> (`src/tests/game_tests.c`, blocco "PauseMenu -> Rigenera la run": conferma ->
+> nuovo `runSeed` e ritorno a `Gameplay` via Piano 0; annulla -> nessun
+> effetto — con `gen.enabled = false` per tutto `GameStatesTest`, quindi NON
+> prova il caso `R` con la generazione abilitata), `--floor-zero-test`
+> (`src/tests/game_tests.c`, `GameFloorZeroTest`, scenario 13: con
+> `gen.enabled = true` e una run vera completata via `tests/fake-gen.sh`, `R`
+> in `Gameplay` resta `APP_GAMEPLAY`/`resetQueued`, `game->runSeed` e
+> `gen.pendingGenSeed` invariati, nessun `proposeRunner` avviato — la prova
+> diretta del gap dichiarato da DEC-114, assente nel primo tentativo di questo
+> WP), `--arena-hub-test` (`src/tests/floor_zero_arena_tests.c`, blocco (m),
+> indici aggiornati) e `--layout-test` (geometria delle sei righe dentro il
+> riquadro, nessuna sovrapposizione).
+
 ## Prove (DEC-042)
 
 Le prove specifiche della run (fisse o generate, DEC-027) vengono presentate al giocatore
@@ -89,9 +150,10 @@ attendere la fine della run. Il dettaglio di quando e come vengono presentate è
 `systems/rewards-and-economy.md`. Questo documento non ripete quei dettagli, colloca solo
 la voce di menu.
 
-> **Nota di implementazione (WP16, 2026-07-30, aggiornata 30/07 seconda tornata):** "Prove" è
-> la terza riga di `PauseMenu` (indice 2, tra "Visualizza build e sinergie" e "Opzioni" —
-> cinque righe in tutto oggi, `DrawPauseMenuOverlay`/`src/render/game_renderer.c`), visibile
+> **Nota di implementazione (WP16, 2026-07-30, aggiornata 30/07 seconda tornata, indici
+> aggiornati 31/07 da WP21):** "Prove" è la terza riga di `PauseMenu` (indice 2, tra
+> "Visualizza build e sinergie" e "Opzioni" — sei righe in tutto oggi (cinque prima di WP21),
+> `DrawPauseMenuOverlay`/`src/render/game_renderer.c`), visibile
 > ogni volta che questo menu è raggiungibile (solo da `Gameplay`, cioè sempre dopo che le
 > prove sono state assegnate). Confermarla apre un pannello INTERNO a `PauseMenu` (nessun
 > nuovo `AppMode`, stessa scelta architetturale del Catalogo dentro `APP_MAIN_MENU`): elenco
@@ -169,3 +231,4 @@ provenienza da `Gameplay`. Il punto resta la domanda aperta
 5. **Given** il giocatore ha attraversato l'uscita del Piano 0 verso il piano 1 e le prove sono state presentate (DEC-042), **when** apre `PauseMenu` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento.
 6. **Given** il giocatore è nel Piano 0, dove l'HUD di combattimento è nascosto (DEC-169), **when** apre il menu di pausa, **then** può consultare salute, risorse e build senza uscire dal Piano 0, e l'HUD torna nascosto quando la pausa si chiude.
 7. **Given** il giocatore è nel Piano 0 e apre il menu di pausa con il comando di pausa (default proposto WP15a), **when** sceglie "Riprendi" o preme ESC, **then** torna nel Piano 0 e non in `Gameplay`, con la preparazione della run intatta.
+8. **Given** il giocatore è in `Gameplay` in una run vera e apre `PauseMenu`, **when** seleziona "Rigenera la run" e conferma in `ExitConfirm` (WP21, DEC-114), **then** la run corrente si chiude in silenzio (nessun `RunResults`, DEC-089) e riparte subito dal Piano 0 con un seed diverso; **when** invece annulla, **then** torna in `PauseMenu` senza alcun effetto sulla run in corso; il tasto rapido `R` in `Gameplay` resta, in entrambi i casi, il solo reset rapido della stessa run allo stesso seed (DEC-141), mai questa via.

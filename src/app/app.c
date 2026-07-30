@@ -439,8 +439,9 @@ static void AppLoadCharacterProposal(Game *game)
     }
 }
 
-/* Ingresso canonico in FloorZero (RunSetup/Avvia, Gameplay/reroll con
-   generazione, RunResults/"Nuova run subito"): SEMPRE lo stesso cammino,
+/* Ingresso canonico in FloorZero (RunSetup/Avvia, PauseMenu/"Rigenera la run"
+   confermato in ExitConfirm -- WP21, DEC-114, mai piu' un R diretto in
+   Gameplay -- RunResults/"Nuova run subito"): SEMPRE lo stesso cammino,
    "niente scorciatoie" (spec M1a/M1b). 'seed' e' gia' deciso dal chiamante
    (il seed di RunSetup, o un NextGenSeed fresco per gli altri due ingressi).
    FloorZeroEnter prepara SUBITO la sala d'attesa giocabile (M1b: mai piu' un
@@ -848,6 +849,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 ui->openedFrom = APP_MAIN_MENU;
                 ui->returnFocus = ui->focus;
                 ui->exitAbandonsRun = false;
+                ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
                 *mode = APP_EXIT_CONFIRM;
                 ui->focus = 1;   /* default: "Annulla", l'opzione non distruttiva */
                 break;
@@ -879,6 +881,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     ui->openedFrom = APP_MAIN_MENU;
                     ui->returnFocus = ui->focus;
                     ui->exitAbandonsRun = false;
+                    ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
                     *mode = APP_EXIT_CONFIRM;
                     ui->focus = 1;
                 }
@@ -1268,6 +1271,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 ui->openedFrom = APP_FLOOR_ZERO;
                 ui->returnFocus = 0;
                 ui->exitAbandonsRun = true;
+                ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
                 *mode = APP_EXIT_CONFIRM;
                 ui->focus = 1;   /* default: "Annulla" */
             }
@@ -1328,23 +1332,25 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             }
             if (effective.reroll)
             {
-                /* M7: terzo chiamante dell'hook (spec, punto 3) -- il reroll
-                   ABBANDONA la run corrente per rigenerarne una nuova, esattamente
-                   come una conferma di abbandono, quindi registra PRIMA di
-                   toccare 'game' in qualunque modo (sia AppEnterFloorZero, che
-                   azzera player/rooms via FloorZeroEnter, sia resetQueued, che lo
-                   fara' al prossimo GameUpdate): un ordine invertito perderebbe
+                /* WP21 (DEC-114): R resta SEMPRE il reset rapido della STESSA
+                   run (stesso seed, mai un seed nuovo) -- prima di questo
+                   lavoro, con la generazione abilitata, R chiamava direttamente
+                   AppEnterFloorZero con un seed nuovo (il vero reroll), senza
+                   alcuna conferma: esattamente il gap che DEC-114 dichiarava
+                   ("oggi R rigenera direttamente, da adeguare"). Il reroll a
+                   seed nuovo ora vive SOLO nella voce "Rigenera la run" di
+                   PauseMenu, con ExitConfirm come conferma esplicita (vedi
+                   case APP_PAUSE_MENU/APP_EXIT_CONFIRM sotto): questo ramo non
+                   chiama piu' AppEnterFloorZero in alcun caso.
+                   M7: terzo chiamante dell'hook (spec, punto 3) -- registra nel
+                   catalogo PRIMA di toccare 'game' (resetQueued lo azzera al
+                   prossimo GameUpdate): un ordine invertito perderebbe
                    esattamente gli oggetti/nemici incontrati che il catalogo deve
                    registrare. Se la run era fallback (source=fallback, es. gen
                    disabilitata) RunCatalogWriteRun non scrive nulla da sola,
                    nessuna guardia aggiuntiva serve qui. */
                 AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
-                /* Con generazione: nuova run con seed nuovo, stesso cammino
-                   canonico di RunSetup/Avvia (niente scorciatoie). Senza: il
-                   reset rapido dev di sempre, latchato per il passo che lo
-                   consuma (vedi il commento in game_types.h). */
-                if (gen->enabled) AppEnterFloorZero(game, gen, mode, NextGenSeed(0u));
-                else game->resetQueued = true;
+                game->resetQueued = true;
                 break;
             }
             if (effective.bomb) game->bombQueued = true;
@@ -1387,7 +1393,11 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                usata per consultare l'HUD nascosto (DEC-169). Una sola fonte,
                'ui->pauseFromFloorZero', per tutte e tre le uscite qui sotto. */
             AppMode pauseReturn = ui->pauseFromFloorZero ? APP_FLOOR_ZERO : APP_GAMEPLAY;
-            if (effective.up || effective.down) { ui->focus = (ui->focus + 5 + (effective.down ? 1 : -1)) % 5; break; }
+            /* WP21 (DEC-114): "Rigenera la run" e' la sesta riga (indice 4,
+               tra "Opzioni" e "Abbandona run", che scala a indice 5) -- vedi
+               DrawPauseMenuOverlay in src/render/game_renderer.c per i nuovi
+               indici e per MenuItemCountForMode(APP_PAUSE_MENU) == 6. */
+            if (effective.up || effective.down) { ui->focus = (ui->focus + 6 + (effective.down ? 1 : -1)) % 6; break; }
             if (effective.back || effective.pause) { *mode = pauseReturn; break; }   /* "Riprendi" e' anche ESC/P diretto */
             if (effective.confirm)
             {
@@ -1405,11 +1415,28 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     *mode = APP_OPTIONS;
                     ui->focus = 0;
                 }
-                else   /* Abbandona run */
+                else if (ui->focus == 4)   /* Rigenera la run (reroll, DEC-114) */
+                {
+                    /* Azione distruttiva quanto l'abbandono (butta la run
+                       corrente per una nuova, DEC-090): stessa strada
+                       ExitConfirm, mai una scorciatoia diretta. 'exitAbandonsRun'
+                       resta falso -- i due contesti sono mutuamente esclusivi,
+                       vedi il commento su AppUi.exitRerollsRun in
+                       core/game_types.h -- cosi' DrawExitConfirmOverlay e il
+                       ramo "Conferma" sotto sanno subito quale dei due e'. */
+                    ui->openedFrom = APP_PAUSE_MENU;
+                    ui->returnFocus = ui->focus;
+                    ui->exitAbandonsRun = false;
+                    ui->exitRerollsRun = true;
+                    *mode = APP_EXIT_CONFIRM;
+                    ui->focus = 1;   /* default: "Annulla" */
+                }
+                else   /* Abbandona run (ora indice 5) */
                 {
                     ui->openedFrom = APP_PAUSE_MENU;
                     ui->returnFocus = ui->focus;
                     ui->exitAbandonsRun = true;
+                    ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
                     *mode = APP_EXIT_CONFIRM;
                     ui->focus = 1;
                 }
@@ -1619,7 +1646,59 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             {
                 if (ui->focus == 0)   /* Conferma */
                 {
-                    if (ui->exitAbandonsRun)
+                    if (ui->exitRerollsRun)
+                    {
+                        /* WP21 (DEC-114): reroll confermato da PauseMenu --
+                           l'UNICA via oggi (R resta il reset rapido stesso
+                           seed, vedi il case APP_GAMEPLAY sopra). DEC-089:
+                           "il reroll salta i risultati": niente RunResults,
+                           niente TrialsFinalizeAtRunEnd (le prove della nuova
+                           run le riassegna TrialsAssignForRun dentro
+                           GameResetRunWithSeed, chiamata dalla generazione
+                           canonica sotto quando si attraversera' di nuovo il
+                           varco) -- i punti si accreditano in silenzio
+                           (stessa scrittura ABANDON di ogni altro chiamante
+                           dell'hook, guardia "game->floor < 1" gia' dentro
+                           AppWriteRunCatalog) e si riparte SUBITO con un seed
+                           NUOVO, lo stesso cammino canonico di RunSetup/Avvia
+                           e RunResults/"Nuova run subito" (AppEnterFloorZero):
+                           nessuna generazione duplicata, nessuna scorciatoia
+                           in piu'.
+                           SECONDO TENTATIVO (bocciatura, difetto 3): questa
+                           voce e' raggiungibile ANCHE dal PauseMenu aperto
+                           DAL Piano 0 ('ui->pauseFromFloorZero', WP15a),
+                           cioe' esattamente mentre gen->proposeRunner
+                           (~8-12s) o gen->runner (la generazione completa,
+                           minuti) possono essere RUNNING -- e dal reroll
+                           in una run vera, dove gen->lazyRunner (ripresa dei
+                           piani 2-5 in sottofondo, AppStartLazyGeneration)
+                           puo' essere RUNNING. AppEnterFloorZero ->
+                           AppStartProposeThemes chiama GenRunnerStartWithArgs
+                           su gen->proposeRunner SENZA cancellarlo prima (a
+                           differenza di AppStartGeneration, che invece apre
+                           col suo AppStopLazyGeneration): un runner ancora
+                           RUNNING verrebbe azzerato con memset (gen_runner.c)
+                           perdendo il pid del figlio -- ne' ucciso ne'
+                           raccolto, un secondo melting-gen partirebbe in
+                           parallelo, esattamente cio' che AppStopLazyGeneration
+                           e AppCancelFloorZeroGeneration esistono per evitare
+                           (vedi il commento "mai due melting-gen insieme" su
+                           AppStopLazyGeneration, e il ramo gemello
+                           dell'abbandono qui sotto che gia' lo fa). Entrambe
+                           le chiamate sono no-op sicure se il runner
+                           corrispondente non e' RUNNING (GenRunnerCancel/
+                           AppStopLazyGeneration lo garantiscono), quindi
+                           chiamarle sempre qui, incondizionatamente, copre
+                           TUTTE le provenienze di questa conferma senza dover
+                           distinguere quale dei tre runner fosse davvero
+                           attivo. */
+                        AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
+                        AppCancelFloorZeroGeneration(gen);
+                        AppStopLazyGeneration(gen);
+                        AppEnterFloorZero(game, gen, mode, NextGenSeed(0u));
+                        ui->focus = 0;
+                    }
+                    else if (ui->exitAbandonsRun)
                     {
                         /* M7: secondo chiamante dell'hook (spec, punto 3) --
                            l'abbandono confermato. Un unico punto per ENTRAMBE le

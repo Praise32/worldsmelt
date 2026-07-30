@@ -311,8 +311,12 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_PAUSE_MENU, "Options/back non torna a PauseMenu");
     STATES_CHECK(ui.focus == 3, "il ritorno da Options non ripristina il focus su Opzioni");
 
-    /* PauseMenu -> BuildScreen -> (back) -> PauseMenu */
-    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Abbandona run */
+    /* PauseMenu -> BuildScreen -> (back) -> PauseMenu. Sei righe da WP21
+       (DEC-114, "Rigenera la run" all'indice 4): un giro completo da Opzioni
+       richiede ora QUATTRO 'down' (Opzioni -> Rigenera la run -> Abbandona
+       run -> Riprendi -> Build e sinergie), non piu' tre. */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Opzioni -> Rigenera la run */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Rigenera la run -> Abbandona run */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Abbandona run -> Riprendi (giro completo) */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Riprendi -> Build e sinergie */
     STATES_CHECK(ui.focus == 1, "la navigazione circolare in PauseMenu non torna su Build e sinergie (indice 1)");
@@ -373,21 +377,84 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_GAMEPLAY, "BuildScreen/back da Gameplay non torna a Gameplay");
 
+    /* PauseMenu -> Rigenera la run -> ExitConfirm -> (annulla) -> PauseMenu
+       senza alcun effetto, poi di nuovo -> (conferma) -> nuova run con seed
+       DIVERSO, mai RunResults (WP21, DEC-114: reroll SOLO da qui, con
+       conferma esplicita; DEC-089: il reroll salta i risultati). Il vecchio
+       tasto rapido R resta invece il reset rapido STESSO seed: qui sopra
+       gen.enabled e' false per tutto GameStatesTest (vedi il commento
+       introduttivo alla riga 115), quindi R in Gameplay in questo blocco
+       esercita solo il cablaggio resetQueued, non prova nulla sul gap che
+       DEC-114 dichiarava ("oggi R rigenera direttamente" con la generazione
+       ABILITATA). GameRngSeedTest non lo prova nemmeno per contro: confronta
+       due GameResetRunWithSeed con lo stesso seed, senza mai chiamare
+       UpdateApp ne' toccare il tasto R. La prova vera che R NON rigenera piu'
+       nemmeno con gen.enabled=true e' lo scenario 13 di GameFloorZeroTest
+       (src/tests/game_tests.c, gen.command="tests/fake-gen.sh"): mode resta
+       APP_GAMEPLAY, resetQueued si accende, game->runSeed e
+       gen.pendingGenSeed restano invariati e nessun proposeRunner parte. */
+    {
+        int floorBeforeReroll = game->floor;
+        int catalogBeforeRerollCancel = CatalogFileCount();
+
+        { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PauseMenu, focus su Riprendi */
+        { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Build e sinergie */
+        { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Prove (WP16) */
+        { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Opzioni */
+        { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Rigenera la run */
+        STATES_CHECK(ui.focus == 4, "la navigazione in PauseMenu non arriva su Rigenera la run (indice 4)");
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Rigenera la run non apre ExitConfirm");
+        STATES_CHECK(ui.exitRerollsRun, "il contesto di ExitConfirm da 'Rigenera la run' non e' 'reroll'");
+        STATES_CHECK(!ui.exitAbandonsRun, "il reroll si e' marcato anche come abbandono (i due contesti devono essere esclusivi)");
+        STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm (reroll) non e' 1 (Annulla)");
+
+        /* Annulla: nessun effetto su 'game', si resta in pausa. */
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
+        STATES_CHECK(mode == APP_PAUSE_MENU, "ExitConfirm(reroll)/Annulla non torna a PauseMenu");
+        STATES_CHECK(ui.focus == 4, "il ritorno da ExitConfirm(reroll)/Annulla non ripristina il focus su Rigenera la run");
+        STATES_CHECK(game->floor == floorBeforeReroll, "Annulla il reroll ha comunque cambiato il piano corrente");
+        STATES_CHECK(CatalogFileCount() == catalogBeforeRerollCancel, "Annulla il reroll ha scritto un file di catalogo");
+
+        /* Conferma: nuova run, seed DIVERSO, dritta a FloorZero (mai
+           RunResults). */
+        unsigned int seedBeforeReroll = game->runSeed;
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* di nuovo in ExitConfirm */
+        STATES_CHECK(mode == APP_EXIT_CONFIRM, "rientro in ExitConfirm(reroll) fallito");
+        { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }      /* Annulla -> Conferma */
+        STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm(reroll) non porta a Conferma");
+        { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        STATES_CHECK(mode == APP_FLOOR_ZERO, "ExitConfirm/Conferma (reroll) non riparte da FloorZero");
+        STATES_CHECK(!game->floorZeroExitOpen, "il reroll confermato apre gia' l'uscita prima della scelta del tema");
+        STATES_CHECK(CatalogFileCount() == catalogBeforeRerollCancel, "ExitConfirm/Conferma (reroll) ha scritto un file in catalog/ (guardia test-safe non attiva)");
+        STATES_CHECK(game->catalogRecordsWritten == 0, "ExitConfirm/Conferma (reroll) ha valorizzato catalogRecordsWritten (guardia test-safe non attiva)");
+        ChooseFirstThemeCard(game, &mode, &gen, &ui);
+        STATES_CHECK(game->floorZeroExitOpen, "il reroll confermato non apre l'uscita dopo la scelta del tema");
+        game->floorZeroExitCrossed = true;
+        { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        STATES_CHECK(mode == APP_GAMEPLAY, "l'attraversamento dopo il reroll non porta a Gameplay");
+        STATES_CHECK(game->phase == PHASE_PLAY, "il reroll confermato non ha richiamato GameResetRunWithSeed (fase non tornata a PLAY)");
+        STATES_CHECK(game->runSeed != seedBeforeReroll, "il reroll confermato non ha cambiato game->runSeed (stesso seed di prima)");
+    }
+
     /* PauseMenu -> Abbandona run -> ExitConfirm -> (annulla) -> PauseMenu,
-       poi di nuovo -> (conferma) -> MainMenu */
+       poi di nuovo -> (conferma) -> MainMenu. Sei righe da WP21: "Abbandona
+       run" e' ora l'ultima, indice 5. */
     { AppInput in = InputPause(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* PauseMenu, focus su Riprendi */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Build e sinergie */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Prove (WP16) */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Opzioni */
+    { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Rigenera la run */
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }    /* Abbandona run */
-    STATES_CHECK(ui.focus == 4, "la navigazione in PauseMenu non arriva su Abbandona run (indice 4)");
+    STATES_CHECK(ui.focus == 5, "la navigazione in PauseMenu non arriva su Abbandona run (indice 5)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Abbandona run non apre ExitConfirm");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da PauseMenu non e' 'abbandono run'");
+    STATES_CHECK(!ui.exitRerollsRun, "l'abbandono si e' marcato anche come reroll (i due contesti devono essere esclusivi)");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
     STATES_CHECK(mode == APP_PAUSE_MENU, "ExitConfirm/Annulla non torna a PauseMenu");
-    STATES_CHECK(ui.focus == 4, "il ritorno da ExitConfirm/Annulla non ripristina il focus su Abbandona run");
+    STATES_CHECK(ui.focus == 5, "il ritorno da ExitConfirm/Annulla non ripristina il focus su Abbandona run");
 
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* di nuovo in ExitConfirm */
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "rientro in ExitConfirm fallito");
@@ -921,13 +988,16 @@ bool GameMouseHoverFocusTest(Game *game)
     /* (j) WP16, seconda tornata (bocciatura del giudice): il pannello "Prove"
        e' un ramo di sola lettura DENTRO APP_PAUSE_MENU (nessuna geometria
        propria, come il pannello Catalogo dentro APP_MAIN_MENU al blocco (a))
-       -- mentre e' aperto (ui.pauseTrialsOpen) i rettangoli delle 5 righe di
-       menu restano vivi SOTTO al pannello per RendererMenuItemAt: senza la
-       guardia in src/app/app.c (la stessa esclusione di 'catalogOpen') un
-       puntatore fermo su una riga qualunque riscriverebbe ui.focus dietro al
-       pannello ad ogni frame. Verificato: prima di questa correzione,
-       questo test falliva davvero (l'hover su 'Abbandona run', indice 4,
-       spostava ui.focus da 2 a 4). */
+       -- mentre e' aperto (ui.pauseTrialsOpen) i rettangoli delle righe di
+       menu (6 da WP21, 5 all'epoca di questo test) restano vivi SOTTO al
+       pannello per RendererMenuItemAt: senza la guardia in src/app/app.c (la
+       stessa esclusione di 'catalogOpen') un puntatore fermo su una riga
+       qualunque riscriverebbe ui.focus dietro al pannello ad ogni frame.
+       Verificato: prima di questa correzione, questo test falliva davvero
+       (l'hover su 'Abbandona run', allora indice 4 -- oggi "Rigenera la run",
+       WP21 -- spostava ui.focus da 2 a 4). L'indice 4 resta un punto di
+       osservazione valido: esiste ancora, solo il nome della voce li' e'
+       cambiato. */
     {
         AppGen gen = { 0 };
         AppUi ui = { 0 };
@@ -939,7 +1009,7 @@ bool GameMouseHoverFocusTest(Game *game)
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
                 if (RendererMenuItemAt(APP_PAUSE_MENU, (Vector2){ x, y }) == 4) target = (Vector2){ x, y };
-        HOVER_CHECK(target.x >= 0.0f, "(j) nessun punto dello schermo colpisce la riga 4 ('Abbandona run') di PauseMenu");
+        HOVER_CHECK(target.x >= 0.0f, "(j) nessun punto dello schermo colpisce la riga 4 ('Rigenera la run') di PauseMenu");
 
         SetMousePosition((int)target.x, (int)target.y);
         AppInput in = InputNone();
@@ -2726,6 +2796,86 @@ bool GameFloorZeroTest(Game *game)
         }
     }
     unsetenv("FAKE_GEN_CHARACTER_SHOT_MODE");
+
+    /* --- scenario 13 (WP21, DEC-114, must_fix 1 della bocciatura): il cuore
+       del gap che questo lavoro doveva chiudere -- R IN GAMEPLAY, con la
+       generazione ABILITATA (gen.command="tests/fake-gen.sh", non gen
+       azzerata come in GameStatesTest), non deve piu' rigenerare nulla. Era
+       esattamente il difetto che DEC-114 dichiarava ("oggi R rigenera
+       direttamente, da adeguare"): prima di questo WP, con gen.enabled=true,
+       il case APP_GAMEPLAY chiamava AppEnterFloorZero(game, gen, mode,
+       NextGenSeed(0u)) su R, un vero reroll senza conferma. Si arriva a
+       Gameplay con una run vera generata (fake-gen "ok", stesso schema dello
+       scenario 3), poi si preme R: deve restare il reset rapido STESSO seed
+       (resetQueued=true, game->runSeed e gen.pendingGenSeed invariati,
+       nessun proposeRunner avviato) -- il reroll a seed nuovo vive SOLO
+       nella voce "Rigenera la run" di PauseMenu (verificato sopra da
+       GameStatesTest, ma li' con gen.enabled=false: nessuno dei due test da
+       solo basterebbe).
+       Criterio di accettazione (dichiarato nel verdetto): rimettendo a
+       src/app/app.c il vecchio ramo "if (gen->enabled) AppEnterFloorZero(
+       game, gen, mode, NextGenSeed(0u)); else" dentro il case APP_GAMEPLAY,
+       questo scenario DEVE fallire sulla riga "mode != APP_GAMEPLAY" o su
+       "game->runSeed != seedBeforeR" qui sotto. */
+    memset(&ui, 0, sizeof(ui));
+    memset(&gen, 0, sizeof(gen));
+    gen.enabled = true;
+    gen.noSprites = true;
+    gen.command = "tests/fake-gen.sh";
+    mode = APP_MAIN_MENU;
+
+    setenv("FAKE_GEN_PROPOSE_MODE", "ok", 1);
+    setenv("FAKE_GEN_MODE", "ok", 1);
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputDown();    UpdateApp(game, &mode, &gen, &ui, &in); }
+    { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_FLOOR_ZERO) { fprintf(stderr, "GameFloorZeroTest: (13) Avvia non porta a FloorZero\n"); return false; }
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.proposeRunner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) il finto propose non e' mai terminato\n");
+        return false;
+    }
+    ChooseFirstThemeCard(game, &mode, &gen, &ui);
+    if (!FloorZeroRunnerSettle(&gen, &mode, &ui, game, &gen.runner.state, 5.0))
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) la generazione completa (fake) non e' mai terminata\n");
+        return false;
+    }
+    if (!game->floorZeroExitOpen) { fprintf(stderr, "GameFloorZeroTest: (13) l'uscita non si apre dopo il successo del finto generatore\n"); return false; }
+
+    game->floorZeroExitCrossed = true;
+    { AppInput in = InputNone(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_GAMEPLAY) { fprintf(stderr, "GameFloorZeroTest: (13) l'attraversamento non porta a Gameplay\n"); return false; }
+
+    unsigned int seedBeforeR = game->runSeed;
+    unsigned int pendingSeedBeforeR = gen.pendingGenSeed;
+    { AppInput in = InputReroll(); UpdateApp(game, &mode, &gen, &ui, &in); }
+    if (mode != APP_GAMEPLAY)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) R in Gameplay con gen abilitata ha cambiato stato applicativo (mode=%d)\n", (int)mode);
+        return false;
+    }
+    if (!game->resetQueued)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) R in Gameplay con gen abilitata non ha messo in coda il reset rapido\n");
+        return false;
+    }
+    if (game->runSeed != seedBeforeR)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) R in Gameplay con gen abilitata ha cambiato game->runSeed (era %u, ora %u)\n", seedBeforeR, game->runSeed);
+        return false;
+    }
+    if (gen.pendingGenSeed != pendingSeedBeforeR)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) R in Gameplay con gen abilitata ha cambiato gen.pendingGenSeed (era %u, ora %u)\n", pendingSeedBeforeR, gen.pendingGenSeed);
+        return false;
+    }
+    if (gen.proposeRunner.state == GEN_RUNNER_RUNNING)
+    {
+        fprintf(stderr, "GameFloorZeroTest: (13) R in Gameplay con gen abilitata ha avviato un nuovo proposeRunner (un reroll mascherato)\n");
+        return false;
+    }
+    game->resetQueued = false;   /* consuma la coda: questo scenario prova solo il cablaggio dell'input, non l'effetto del reset */
 
     return true;
 }

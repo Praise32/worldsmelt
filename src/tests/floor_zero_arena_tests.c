@@ -644,13 +644,16 @@ bool GameArenaHubTest(Game *game)
             fprintf(stderr, "ArenaHubTest: (m) il comando di pausa non riapre PauseMenu dal Piano 0 (mode=%d)\n", (int)mode);
             return false;
         }
-        for (int d = 0; d < 4; d++)
+        /* WP21 (DEC-114): sei righe, non piu' cinque -- "Rigenera la run" si
+           e' inserita prima di "Abbandona run" (ora indice 5), quindi servono
+           5 'down' da "Riprendi" (indice 0), non piu' 4. */
+        for (int d = 0; d < 5; d++)
         {
             AppInput in = { 0 };
             in.down = true;
             UpdateApp(game, &mode, &gen, &ui, &in);
         }
-        if (ui.focus != 4)
+        if (ui.focus != 5)
         {
             fprintf(stderr, "ArenaHubTest: (m) la navigazione in PauseMenu non arriva su Abbandona run (focus=%d)\n", ui.focus);
             return false;

@@ -1652,7 +1652,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (48 voci attive su 49 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), e il catalogo delle prove specifiche della run (WP16).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (54 voci attive su 55 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19) e il tasto rapido R del reroll nel motore (WP21).",
       "topics": [
         "open-questions",
         "governance",
@@ -1673,19 +1673,22 @@
         "DEC-127",
         "DEC-042",
         "DEC-027",
+        "DEC-114",
         "WP4",
         "WP5",
         "WP6",
         "WP7",
         "WP8",
         "WP-INT",
-        "WP16"
+        "WP16",
+        "WP19",
+        "WP21"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d5c5f43"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "c5c1bc4"
     },
     {
       "id": "gd-system-active-items",
@@ -2724,6 +2727,7 @@
         "DEC-114",
         "DEC-159",
         "DEC-169",
+        "WP21",
         "WP19",
         "WP16",
         "WP15a",
@@ -2737,8 +2741,8 @@
         "src/app/app.c",
         "src/core/game_types.h"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "63753fc"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "c5c1bc4"
     },
     {
       "id": "gd-ui-results-leaderboards",

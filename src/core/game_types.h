@@ -2134,6 +2134,18 @@ typedef struct AppUi {
     AppMode openedFrom;
     int returnFocus;
     bool exitAbandonsRun;
+    /* WP21 (DEC-114): vero mentre ExitConfirm sta chiedendo conferma del
+       REROLL ("Rigenera la run" di PauseMenu, mai il reset rapido R -- quello
+       resta stesso seed e non passa MAI da qui, vedi il commento su
+       'resetQueued' in AppUi/Game). Distinto da 'exitAbandonsRun' (i due
+       contesti sono mutuamente esclusivi: chi accende l'uno spegne sempre
+       l'altro nello stesso punto di UpdateApp) perche' il reroll confermato
+       NON abbandona verso RunResults/MainMenu (DEC-089: "il reroll salta i
+       risultati") -- riparte SUBITO con un seed nuovo, la stessa strada
+       canonica di RunSetup/Avvia (AppEnterFloorZero). Zero-default (falso):
+       ogni altro uso di ExitConfirm (uscita dal gioco, abbandono da
+       FloorZero/PauseMenu) resta esattamente come prima di questo lavoro. */
+    bool exitRerollsRun;
     /* WP16 (DEC-042): vero mentre il pannello "Prove" e' aperto DENTRO
        PauseMenu (nessun nuovo AppMode, stessa scelta architetturale del
        Catalogo dentro APP_MAIN_MENU sopra catalogOpen/APP_MAIN_MENU) --
