@@ -267,6 +267,21 @@ bool GameEconomyTest(Game *game);
    disegna nulla. Vedi src/tests/trials_tests.c. */
 bool GameTrialsTest(Game *game);
 
+/* WP15a (docs/design/systems/floor-zero.md; DEC-004/047/055/092/093/094/095;
+   ui/hud.md DEC-169; governance/open-questions.md voce 22): le ARENE DI SFIDA
+   del Piano 0. Tredici blocchi, vedi src/tests/floor_zero_arena_tests.c --
+   piazzole segnalate e conferma esplicita, ripristino INTEGRALE dello stato
+   d'ingresso (memcmp sull'intero Player, con danno e raccolte vere dentro la
+   simulazione), morte che non e' mai un game over, prove della run che non
+   avanzano dentro (guardia WP16), best-of da un catalogo sintetico e fallback
+   curato a catalogo vuoto, determinismo e stream RNG della run mai spostato,
+   varco non attraversabile durante una prova, tutorial alla PRIMA visita e
+   mai piu' (DEC-047), vittoria che annuncia senza chiudere la prova (DEC-095),
+   consultazione dal Piano 0 col comando di pausa.
+   Come GameEconomyTest, gira dopo InitWindow e usa 'game' per davvero
+   (FloorZeroEnter/UpdateApp) ma non disegna nulla. */
+bool GameArenaHubTest(Game *game);
+
 /* LA FUSIONE (docs/design/systems/item-fusion.md; DEC-022/023/101/102/143/
    162/171). Come GameEconomyTest, gira dopo InitWindow e usa 'game' per
    davvero (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla.

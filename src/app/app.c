@@ -16,6 +16,9 @@
 #include "script/script_items.h"
 #include "tests/game_tests.h"
 #include "world/floor_zero.h"
+/* WP15a: le arene del Piano 0 (DEC-004/047/055/092) -- ingresso, uscita e
+   condizione di vittoria della simulazione, vedi src/world/floor_zero_arena.h. */
+#include "world/floor_zero_arena.h"
 
 #include "raylib.h"
 
@@ -898,6 +901,104 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_FLOOR_ZERO:
         {
+            /* WP15a (DEC-004/047/055/092): LE SIMULAZIONI D'ARENA. Tre eventi,
+               controllati PRIMA di ogni input, per la stessa ragione per cui in
+               APP_GAMEPLAY 'fusionRoomTriggered' viene prima di pausa/TAB: sono
+               fatti gia' accaduti nella simulazione, e un evento del mondo
+               vince sull'input non ancora agito.
+               La generazione in sottofondo (i due blocchi piu' sotto) NON viene
+               saltata durante una simulazione: continua a correre e l'uscita
+               verso il piano 1 puo' aprirsi mentre il giocatore si allena --
+               semplicemente non si attraversa finche' la simulazione e' aperta
+               (WorldHandleTransitions, src/world/world.c). */
+            if (game->floorZeroTrialRequest > 0)
+            {
+                int requested = game->floorZeroTrialRequest - 1;
+                game->floorZeroTrialRequest = 0;
+                if (requested >= 0 && requested < FLOOR_ZERO_TRIAL_COUNT)
+                {
+                    /* DEC-047: il cartello si mostra alla PRIMISSIMA visita di
+                       QUESTA piazzola e mai piu'. La memoria vive su AppUi e
+                       non su Game apposta -- vedi il commento sul campo in
+                       core/game_types.h: e' un fatto del giocatore, non della
+                       run, e GameResetRunWithSeed azzera Game a ogni run. */
+                    bool tutorial = !ui->floorZeroTrialTutorialSeen[requested];
+                    ui->floorZeroTrialTutorialSeen[requested] = true;
+                    FloorZeroArenaEnter(game, (FloorZeroTrialTheme)requested, tutorial);
+                }
+                break;
+            }
+            if (game->floorZeroTrialDefeated)
+            {
+                /* DEC-055: sconfitto dentro la simulazione. Mai un game over
+                   -- CombatDamagePlayer ha solo latchato, la fine la decide
+                   qui: si esce con lo stato d'ingresso intatto. */
+                FloorZeroArenaExit(game, true);
+                break;
+            }
+            /* Vittoria: si ANNUNCIA, non si chiude. Le prove del Piano 0 sono
+               illimitate (DEC-095) e l'uscita resta del giocatore: chiudere
+               d'ufficio taglierebbe corta la lezione della piazzola FUSIONE,
+               dove i nemici sono il contorno e la fucina e' il punto. */
+            FloorZeroArenaNoteVictory(game);
+            if (game->floorZeroTrialActive)
+            {
+                /* Uscita SEMPRE disponibile (floor-zero.md, "Casi limite": il
+                   giocatore abbandona a meta'). ESC chiude la simulazione
+                   invece di aprire ExitConfirm: dentro una prova "indietro"
+                   significa "torna nell'hub", e lasciare ESC su ExitConfirm
+                   permetterebbe di abbandonare il Piano 0 con uno snapshot
+                   ancora da restituire. Fuori dalla prova ESC resta
+                   ExitConfirm, invariato (DEC-074). */
+                if (effective.back)
+                {
+                    FloorZeroArenaExit(game, false);
+                    break;
+                }
+                /* Durante una simulazione TAB apre la FUCINA, non il pannello
+                   mondi/personaggi: e' il gesto che il tutorial della prova
+                   FUSIONE insegna (DEC-047), ed e' lo stesso TAB di Gameplay.
+                   Fuori dalla prova TAB torna il pannello di sempre. */
+                if (effective.tab)
+                {
+                    AppEnterBuildScreen(game, ui, APP_FLOOR_ZERO);
+                    *mode = APP_BUILD_SCREEN;
+                    break;
+                }
+                /* Gli stessi tasti funzionali di Gameplay: dentro una
+                   simulazione si gioca davvero (bomba, attivo, sgancio), o la
+                   prova sulle risorse non avrebbe nulla da insegnare. */
+                if (effective.bomb) game->bombQueued = true;
+                if (effective.useActive) game->useActiveQueued = true;
+                if (effective.dropGraft) game->dropGraftQueued = true;
+                if (effective.toggleStats) ui->hudStatsHidden = !ui->hudStatsHidden;
+            }
+            else if (effective.interact)
+            {
+                /* WP15a: la conferma di ingresso in una piazzola. Come in
+                   Gameplay, il tasto si latcha per il primo passo di
+                   simulazione che lo legge (FloorZeroArenaQueueEntry, da
+                   CombatUpdatePlayer): src/app non sa dove sia il giocatore. */
+                game->interactQueued = true;
+            }
+
+            /* WP15a (DEC-169, domanda aperta 22 -- DEFAULT PROPOSTO, non
+               canone): il comando di PAUSA apre PauseMenu dal Piano 0, in
+               consultazione. ESC resta su ExitConfirm (DEC-074) e TAB resta il
+               pannello mondi/personaggi (M5): il tasto di pausa e' l'unico
+               ancora libero qui, ed e' anche l'unico che significhi gia'
+               "fermati e guarda lo stato" per chi ha giocato una run. Il
+               riquadro di consultazione lo disegna gia' DrawPauseMenuOverlay
+               da 'game->floor == 0', senza altro lavoro sul renderer. */
+            if (effective.pause)
+            {
+                *mode = APP_PAUSE_MENU;
+                ui->focus = 0;
+                ui->pauseTrialsOpen = false;
+                ui->pauseFromFloorZero = true;
+                break;
+            }
+
             /* M5 (DEC-005), requisito 1/8: finche' il tema non e' scelto E
                le carte non sono ancora pronte, si sonda proposeRunner --
                successo -> le carte del JSON (o il ripiego, se il JSON non
@@ -954,7 +1055,10 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                Su/giu' cambia sezione (con wrap fra le due, mai un terzo
                stato); sinistra/destra e conferma agiscono SOLO dentro la
                sezione col focus. */
-            if (game->themeCardCount > 0)
+            /* WP15a: durante una simulazione il pannello mondi/personaggi non
+               risponde -- TAB li' e' la fucina (sopra) e le frecce servono a
+               sparare. FloorZeroArenaEnter lo chiude anche visivamente. */
+            if (game->themeCardCount > 0 && !game->floorZeroTrialActive)
             {
                 if (effective.tab) game->themeCardsPanelOpen = !game->themeCardsPanelOpen;
                 /* W9 (playtest round 1, DEC-075): il click sul fumetto "TAB --
@@ -1208,6 +1312,11 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                    menu, mai il pannello "Prove" di una permanenza precedente
                    (vedi il commento sul campo in core/game_types.h). */
                 ui->pauseTrialsOpen = false;
+                /* WP15a: provenienza Gameplay -- "Riprendi" torna qui, come
+                   sempre. Riscritto ad ogni apertura e non lasciato al valore
+                   di una permanenza precedente: dal Piano 0 lo si accende, e
+                   un residuo rimanderebbe il giocatore nell'hub a meta' run. */
+                ui->pauseFromFloorZero = false;
                 break;
             }
             if (effective.tab)
@@ -1272,11 +1381,16 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 }
                 break;
             }
+            /* WP15a (domanda aperta 22): "Riprendi" riporta dove il menu e'
+               stato aperto -- Gameplay, o il Piano 0 quando la pausa e' stata
+               usata per consultare l'HUD nascosto (DEC-169). Una sola fonte,
+               'ui->pauseFromFloorZero', per tutte e tre le uscite qui sotto. */
+            AppMode pauseReturn = ui->pauseFromFloorZero ? APP_FLOOR_ZERO : APP_GAMEPLAY;
             if (effective.up || effective.down) { ui->focus = (ui->focus + 5 + (effective.down ? 1 : -1)) % 5; break; }
-            if (effective.back || effective.pause) { *mode = APP_GAMEPLAY; break; }   /* "Riprendi" e' anche ESC/P diretto */
+            if (effective.back || effective.pause) { *mode = pauseReturn; break; }   /* "Riprendi" e' anche ESC/P diretto */
             if (effective.confirm)
             {
-                if (ui->focus == 0) *mode = APP_GAMEPLAY;   /* Riprendi */
+                if (ui->focus == 0) *mode = pauseReturn;   /* Riprendi */
                 else if (ui->focus == 1)   /* Build e sinergie */
                 {
                     AppEnterBuildScreen(game, ui, APP_PAUSE_MENU);
@@ -1519,7 +1633,12 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                            vera -- non al semplice ESC che apre il dialogo (la
                            generazione continua in sottofondo mentre il
                            giocatore decide, vedi il case APP_FLOOR_ZERO). */
-                        if (ui->openedFrom == APP_FLOOR_ZERO) AppCancelFloorZeroGeneration(gen);
+                        /* WP15a: 'pauseFromFloorZero' copre la seconda strada
+                           per lo stesso abbandono -- PauseMenu aperto DAL Piano 0
+                           (domanda aperta 22) e poi "Abbandona run": la
+                           provenienza registrata li' e' APP_PAUSE_MENU, ma la
+                           preparazione da interrompere e' la stessa. */
+                        if (ui->openedFrom == APP_FLOOR_ZERO || ui->pauseFromFloorZero) AppCancelFloorZeroGeneration(gen);
                         *mode = APP_MAIN_MENU; ui->focus = 0;
                     }
                     else return true;   /* uscita dall'applicazione: l'UNICO modo, niente piu' scorciatoie dirette */
@@ -1600,6 +1719,10 @@ int AppRun(int argc, char **argv)
        bisogno vero della finestra (GameTrialsTest non disegna nulla, vedi
        src/tests/trials_tests.c). */
     bool trialsTest = false;
+    /* WP15a (DEC-004/047/055/092): come --trials-test, gira dopo InitWindow
+       senza bisogno vero della finestra (GameArenaHubTest non disegna nulla,
+       vedi src/tests/floor_zero_arena_tests.c). */
+    bool arenaHubTest = false;
     bool fusionTest = false;
     bool fusionScreenshotTest = false;
     /* DEC-065/131/152/159/169: come --economy-test, gira dopo InitWindow
@@ -1812,6 +1935,12 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             trialsTest = true;
+        }
+        /* WP15a (le arene del Piano 0): come --trials-test sopra. */
+        if (strcmp(argv[i], "--arena-hub-test") == 0)
+        {
+            smokeTest = true;
+            arenaHubTest = true;
         }
         /* DEC-022/023/143/162/171 (la fusione): come --economy-test, gira
            dopo InitWindow senza bisogno vero della finestra (GameFusionTest
@@ -2158,6 +2287,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 42;   /* 42: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --obstacles-test=41) */
+    }
+    if (arenaHubTest)
+    {
+        bool ok = GameArenaHubTest(&game);
+        printf("Arena hub test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 43;   /* 43: il primo codice di uscita libero (l'ultimo era --trials-test=42) */
     }
     if (fusionScreenshotTest)
     {

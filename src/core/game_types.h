@@ -322,8 +322,41 @@ typedef enum PickupKind {
        Game.pourhouse, cosi' non va troncato dentro un Pickup. Nessuna cella
        d'atlas dedicata: si ripiega su props/piedistallo quando c'e',
        altrimenti forma geometrica. */
-    PICKUP_POURHOUSE_BANK
+    PICKUP_POURHOUSE_BANK,
+    /* WP15a: la PIAZZOLA d'arena del Piano 0 (systems/floor-zero.md, DEC-004/
+       047/092/093/094/095) -- il varco segnalato da cui si entra in una
+       simulazione a rischio zero. In coda come PICKUP_POURHOUSE_BANK sopra e
+       per lo stesso motivo. Non si consuma mai e, come il segnale dell'arena e
+       il banco della Pourhouse, TOCCARLA NON FA PARTIRE NULLA: serve il tasto
+       di interazione a contatto (Game.interactQueued -> FloorZeroArenaQueueEntry,
+       src/world/floor_zero_arena.c). Qui la conferma esplicita non protegge da
+       un'azione irreversibile -- nel Piano 0 non ce ne sono -- ma da un
+       ingresso per inerzia: il giocatore gira nell'hub e non deve ritrovarsi
+       dentro una simulazione per averci camminato sopra.
+       'value' non e' una quantita' ma il TEMA della piazzola
+       (FloorZeroTrialTheme sotto): 0 = movimento e tiro, che e' anche lo
+       zero-default piu' innocuo (la prova che non chiede nulla al giocatore
+       oltre a muoversi). Nessuna cella d'atlas dedicata: si ripiega su
+       props/piedistallo quando c'e', altrimenti forma geometrica. */
+    PICKUP_TRIAL_GATE
 } PickupKind;
+
+/* WP15a (systems/floor-zero.md, "Primissima visita: tutorial integrato",
+   DEC-047): i TEMI di pratica delle arene del Piano 0. DEFAULT PROPOSTO
+   DALL'IMPLEMENTAZIONE (stile DEC-019): il documento chiede che le arene
+   insegnino "movimento, sparo, risorse e fusione" senza fissare quante siano
+   ne' come si dividano i temi -- qui sono tre piazzole, una per lezione, con
+   movimento e sparo insieme (sono lo stesso gesto continuo) e risorse/bombe
+   insieme (la bomba E' una risorsa spendibile).
+   MOVE = 0 e' lo zero-default corretto: un value azzerato in un Pickup e' la
+   prova piu' innocua, quella che non presuppone nulla. Estendere l'enum va
+   SEMPRE in coda, come ogni altro enum del motore. */
+typedef enum FloorZeroTrialTheme {
+    FLOOR_ZERO_TRIAL_MOVE = 0,   /* movimento e tiro */
+    FLOOR_ZERO_TRIAL_RESOURCES,  /* risorse e bombe */
+    FLOOR_ZERO_TRIAL_FUSION,     /* fusione */
+    FLOOR_ZERO_TRIAL_COUNT
+} FloorZeroTrialTheme;
 
 typedef enum ItemSlot {
     SLOT_HAT,
@@ -1154,6 +1187,34 @@ typedef struct Player {
     int hpCap;
 } Player;
 
+/* WP15a (systems/floor-zero.md, DEC-055/092: "uscendone il giocatore ha
+   ESATTAMENTE la salute e lo stato con cui era entrato"): lo stato d'ingresso
+   di una simulazione del Piano 0, catturato da FloorZeroArenaEnter e
+   ripristinato integralmente da FloorZeroArenaExit (src/world/floor_zero_arena.c).
+ *
+   Il 'Player' e' copiato INTERO, non campo per campo: e' l'unico modo per cui
+   aggiungere domani una statistica al giocatore non possa lasciarla fuori dal
+   ripristino per dimenticanza -- il difetto peggiore possibile qui, perche'
+   sarebbe silenzioso (una risorsa che sopravvive a una simulazione a rischio
+   zero). Gli altri campi sono tutto cio' che la simulazione puo' toccare fuori
+   dal Player: il punteggio (CombatDamageEnemy lo incrementa a ogni nemico
+   ucciso), lo stream RNG di gioco (la simulazione non deve MAI spostare gli
+   stream della run in preparazione) e il messaggio a schermo.
+   Le entita' (nemici/colpi/pickup/bombe/particelle) e l'arredo NON stanno qui:
+   si ricostruiscono da zero all'uscita (EntitiesClear + l'arredo curato del
+   crogiolo, deterministico da seme fisso), che e' piu' semplice e piu' sicuro
+   che copiarne gli array.
+   'valid' falso e' lo zero-default corretto: nessuna simulazione in corso,
+   quindi nessuno stato da ripristinare. */
+typedef struct FloorZeroTrialSnapshot {
+    bool valid;
+    Player player;
+    int score;
+    unsigned int rng;
+    char message[160];
+    float messageTimer;
+} FloorZeroTrialSnapshot;
+
 typedef struct Enemy {
     bool active;
     /* EnemyKind resta, ma ora dice UNA COSA SOLA: se e' un boss (punteggio,
@@ -1731,16 +1792,55 @@ typedef struct Game {
     DiscoveryCard discoveryActive;
     bool discoveryActiveValid;
     float discoveryActiveTimer;
-    /* DEC-169 (systems/floor-zero.md): hook pronto per le PROVE del Piano 0
-       (arene di sfida opzionali e tutorial integrato, DEC-004/047) -- non
-       ancora implementate nel motore (matrice di copertura, sezione 17):
-       nessun codice imposta mai questo flag a vero oggi, resta sempre falso
-       per costruzione (zero-default del memset di GameResetRun*). Quando le
-       arene arriveranno, l'entrata/uscita dalla prova scrivera' qui vero/falso
-       e l'HUD di combattimento ricomparira' nel Piano 0 automaticamente (vedi
-       HudCombatShouldDraw in src/render/game_renderer.c), senza dover
-       ritoccare la logica di disegno. Gap esplicito stile DEC-009/052. */
+    /* DEC-169 (systems/floor-zero.md): una PROVA del Piano 0 e' in corso --
+       arena di sfida opzionale o tutorial integrato, DEC-004/047. Scritto da
+       FloorZeroArenaEnter/FloorZeroArenaExit (src/world/floor_zero_arena.c),
+       gli UNICI due punti; letto da HudCombatShouldDraw (l'HUD di combattimento
+       torna visibile, DEC-169), da WorldHandleTransitions (dentro una
+       simulazione il varco verso il piano 1 non si attraversa), da
+       CombatDamagePlayer (dentro una simulazione la salute a zero non e' mai
+       un game over) e da src/game/trials.c (le prove della RUN, DEC-042, non
+       avanzano mai dentro una simulazione).
+       Falso e' lo zero-default corretto: nessuna simulazione in corso. */
     bool floorZeroTrialActive;
+    /* WP15a: il TEMA della simulazione in corso (privo di significato quando
+       'floorZeroTrialActive' e' falso). Zero-default FLOOR_ZERO_TRIAL_MOVE,
+       vedi il commento sull'enum. */
+    FloorZeroTrialTheme floorZeroTrialTheme;
+    /* WP15a: lo stato d'ingresso da ripristinare all'uscita (DEC-092). */
+    FloorZeroTrialSnapshot floorZeroTrialSnapshot;
+    /* WP15a: richiesta di ingresso in una simulazione, latchata dal tasto di
+       interazione a contatto con una piazzola (FloorZeroArenaQueueEntry,
+       chiamata da CombatUpdatePlayer) e consumata da UpdateApp (src/app/app.c),
+       lo stesso schema di 'fusionRoomTriggered' sotto -- src/gameplay e
+       src/world non conoscono AppMode, e il tutorial della PRIMA visita
+       (DEC-047) dipende da uno stato che vive su AppUi.
+       0 = nessuna richiesta (zero-default innocuo); N > 0 = la piazzola del
+       tema (FloorZeroTrialTheme)(N - 1). */
+    int floorZeroTrialRequest;
+    /* WP15a (DEC-055): il giocatore e' stato messo fuori combattimento DENTRO
+       una simulazione. Scritto da CombatDamagePlayer al posto di
+       PHASE_GAME_OVER, consumato da UpdateApp che chiude la simulazione con un
+       messaggio -- mai una fine run. Falso e' lo zero-default innocuo. */
+    bool floorZeroTrialDefeated;
+    /* WP15a: la simulazione in corso e' gia' stata SUPERATA -- tutti i nemici
+       abbattuti. Non chiude la prova: le prove del Piano 0 sono illimitate
+       (DEC-095) e chiuderla d'ufficio taglierebbe corta la lezione della
+       piazzola FUSIONE, dove il combattimento e' il contorno e la fucina e' il
+       punto. Serve solo a dare l'annuncio UNA volta sola e a scegliere il
+       messaggio d'uscita. Falso e' lo zero-default innocuo. */
+    bool floorZeroTrialWon;
+    /* WP15a: quanti nemici la simulazione ha spawnato all'ingresso. Serve alla
+       sola condizione di vittoria ("erano N, non ne resta nessuno"): senza
+       questo, una simulazione senza nemici si dichiarerebbe vinta al primo
+       frame. 0 quando nessuna simulazione e' in corso. */
+    int floorZeroTrialEnemyGoal;
+    /* WP15a (DEC-047): il CARTELLO della prima visita a questa piazzola --
+       una riga breve che spiega i comandi del tema, disegnata per tutta la
+       durata della simulazione. Stringa vuota (zero-default) = nessun
+       cartello, cioe' una visita successiva alla prima: le arene restano
+       giocabili ma senza guida, esattamente come chiede DEC-047. */
+    char floorZeroTrialHint[160];
     /* DEC-159 (ui/results-and-leaderboards.md): l'ultimo colpo o nemico
        letale, scritto SOLO da CombatDamagePlayer quando la salute scende a
        zero (mai a vittoria, mai ad abbandono: in quei casi resta la stringa
@@ -2029,6 +2129,24 @@ typedef struct AppUi {
        PauseMenu appena aperto mostra sempre le righe di menu, mai il
        pannello. */
     bool pauseTrialsOpen;
+    /* WP15a (DEC-169, domanda aperta 22 -- DEFAULT PROPOSTO, non canone): da
+       DOVE e' stato aperto PauseMenu. Falso = da Gameplay, l'unica provenienza
+       storica e lo zero-default che lascia invariato ogni comportamento
+       preesistente; vero = dal Piano 0 con il comando di pausa, per consultare
+       l'HUD che li' resta nascosto. Decide solo dove torna "Riprendi": il
+       riquadro di consultazione lo disegna gia' DrawPauseMenuFloorZeroConsult
+       da 'game->floor == 0', indipendentemente da questo campo. */
+    bool pauseFromFloorZero;
+    /* WP15a (DEC-047): quali piazzole d'arena del Piano 0 hanno gia' mostrato
+       il loro cartello di prima visita. Vive su AppUi e non su Game perche'
+       "la primissima visita" e' un fatto del GIOCATORE, non della run: il
+       memset di GameResetRunWithSeed lo azzererebbe a ogni run e il tutorial
+       tornerebbe ad ogni giro. LIMITE DICHIARATO: e' memoria di PROCESSO, non
+       persistita su disco -- riavviando il gioco il tutorial si ripresenta,
+       perche' nessun profilo persistente esiste ancora nel motore (vedi
+       docs/engineering/known-issues.md). Zero-default falso = "mai vista",
+       cioe' il tutorial si mostra: il caso piu' innocuo. */
+    bool floorZeroTrialTutorialSeen[FLOOR_ZERO_TRIAL_COUNT];
     unsigned int seed;
     /* M7 (substrato del catalogo persistente): guardia test-safe per
        AppWriteRunCatalog (src/app/app.c) -- vive qui, non su AppGen, perche'

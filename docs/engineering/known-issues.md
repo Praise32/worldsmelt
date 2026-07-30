@@ -10,11 +10,11 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: d5c5f43
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16]
+last_verified_commit: 63753fc
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -659,3 +659,51 @@ caso su cui attivarsi") corretta nella seconda tornata — vedi
 `docs/design/governance/open-questions.md` voce 48 e
 `docs/design/systems/rewards-and-economy.md`, "Stato di implementazione: le prove
 specifiche".
+
+## 16 — Arene di sfida del Piano 0 (WP15a): tre limiti dichiarati sopra un gap CHIUSO
+
+**Stato del gap principale: CHIUSO (30/07).** Le arene di sfida opzionali del Piano 0
+(DEC-004) esistono ora nel motore — `src/world/floor_zero_arena.{h,c}`, verificate da
+`--arena-hub-test` (`src/tests/floor_zero_arena_tests.c`, in `make test`). Con esse cadono
+tre affermazioni "non ancora implementato" che erano sparse nella documentazione: la nota M5
+di `docs/design/systems/floor-zero.md`, la metà "HUD visibile in arena" di DEC-169
+(`Game.floorZeroTrialActive` non è più un hook morto: `FloorZeroArenaEnter`/`Exit` lo
+scrivono) e lo Scenario 2 di `docs/design/systems/special-rooms.md`. Restano invece tre
+limiti, dichiarati qui perché nessuno di essi è mascherato nel codice:
+
+1. **La dote iniziale di DEC-029 non è implementata.** Completare una simulazione non lascia
+   nulla alla run in preparazione. Non è una dimenticanza: il work package applica alla
+   lettera "nulla di ciò che accade lì dentro tocca la run" (DEC-092/093) e lascia a un
+   lavoro successivo la sola eccezione prevista dal documento — la piccola dote in caso di
+   vittoria — insieme alla sua disattivazione in modalità Classificata (DEC-016/021). Finché
+   manca, il valore esatto della dote resta senza un punto di innesto: vedi
+   `docs/design/systems/floor-zero.md`, "Domande aperte residue".
+   **Evidenza**: `src/world/floor_zero_arena.c`, `FloorZeroArenaExit` — nessuna scrittura su
+   `Player.coins`/`items` fuori dal ripristino dello snapshot; `ROOM_HUB` non compare in
+   `WorldCheckRoomClear`/`WorldAwardRoomCompletionCurrency` (`src/world/world.c`), quindi
+   nessuna valuta di completamento è nemmeno raggiungibile da lì.
+
+2. **Il "tutorial già visto" della primissima visita (DEC-047) non è persistito su disco.**
+   Vive su `AppUi.floorZeroTrialTutorialSeen[]`, cioè in memoria di **processo**: sopravvive
+   a run successive nella stessa sessione — che è ciò che il documento chiede in modo
+   osservabile ("le visite successive non ripropongono la guida") — ma **non** a un riavvio
+   del gioco, dove i cartelli si ripresentano. Il motore non ha ancora alcun profilo
+   persistente (`docs/design/systems/save-and-meta-progression.md`; stesso bisogno di
+   storage degli sblocchi della rosa personaggi, DEC-100, e della sospensione della run,
+   DEC-050): quando arriverà, questo flag è il primo candidato a traslocarci.
+   **Evidenza**: `src/core/game_types.h`, `AppUi.floorZeroTrialTutorialSeen`; nessuna
+   scrittura su file in `src/app/app.c` per quel campo.
+
+3. **Il criterio "best-of" è un default di implementazione, non canone.** Nessun documento
+   dice cosa renda migliore una run passata: la formula
+   `10000 × vittoria + 100 × piano raggiunto + 50 × boss sconfitti` è una proposta
+   registrata in `docs/design/governance/open-questions.md`, voce 50, da confermare al
+   playtest. Conseguenza pratica onesta: finché il giocatore non ha vinto almeno una run, il
+   best-of è semplicemente "la run arrivata più in fondo", che può essere poco distinguibile
+   dal ripiego curato.
+   **Evidenza**: `src/content/run_catalog.c`, `RunCatalogRunQuality`.
+
+Nota su un quarto punto, **non** un limite ma una conseguenza corretta da non scambiare per
+un difetto: durante una prova del Piano 0 l'HUD mostra il **timer di run fermo a `0:00`**,
+perché `FloorZeroEnter` spegne `inRealRun` e azzera `runElapsedSeconds` — il crogiolo non è
+una run cronometrata (DEC-051, e `docs/design/governance/open-questions.md` voce 27).

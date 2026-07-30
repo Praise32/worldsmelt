@@ -129,19 +129,37 @@ void TrialsAssignForRun(Game *game)
         GameQueueDiscoveryCardWithImage(game, "Prova", game->trials[i].text, NULL);
 }
 
+/* WP15a (systems/floor-zero.md, DEC-055/092/093): LE PROVE DELLA RUN NON
+   AVANZANO MAI DENTRO UNA SIMULAZIONE DEL PIANO 0. Una prova specifica
+   (DEC-042) parla della run vera -- "sconfiggi il boss del piano N senza
+   subire un colpo", "vinci una sfida dell'arena" -- e una simulazione a
+   rischio zero non e' la run: se contasse, il giocatore potrebbe superare o
+   fallire una prova senza aver ancora attraversato il varco verso il piano 1.
+   La guardia e' ESPLICITA in ogni hook invece che affidata al fatto che nel
+   Piano 0 'trialCount' sia di solito zero: dopo una run conclusa,
+   FloorZeroEnter fa un azzeramento MIRATO e le prove della run PRECEDENTE
+   sono ancora in Game.trials finche' GameResetRunWithSeed non le riscrive. */
+static bool TrialsSuspended(const Game *game)
+{
+    return game->floorZeroTrialActive;
+}
+
 void TrialsOnBossRoomEntered(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     game->currentBossFightDamaged = false;
 }
 
 void TrialsOnPlayerDamaged(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     const RoomState *room = WorldCurrentRoomMutable(game);
     if (room->kind == ROOM_BOSS && !room->cleared) game->currentBossFightDamaged = true;
 }
 
 void TrialsOnRoomCleared(Game *game, RoomKind kind)
 {
+    if (TrialsSuspended(game)) return;
     for (int i = 0; i < game->trialCount; i++)
     {
         Trial *t = &game->trials[i];
@@ -183,6 +201,7 @@ void TrialsOnRoomCleared(Game *game, RoomKind kind)
 
 void TrialsOnSecretFound(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     for (int i = 0; i < game->trialCount; i++)
         if (game->trials[i].kind == TRIAL_SECRET_FOUND && game->trials[i].state == TRIAL_IN_PROGRESS)
             game->trials[i].state = TRIAL_PASSED;
@@ -190,6 +209,7 @@ void TrialsOnSecretFound(Game *game)
 
 void TrialsOnTimedRoomWithinThreshold(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     for (int i = 0; i < game->trialCount; i++)
         if (game->trials[i].kind == TRIAL_TIMED_ROOM_WITHIN_THRESHOLD && game->trials[i].state == TRIAL_IN_PROGRESS)
             game->trials[i].state = TRIAL_PASSED;
@@ -197,6 +217,7 @@ void TrialsOnTimedRoomWithinThreshold(Game *game)
 
 void TrialsOnFusionPerformed(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     for (int i = 0; i < game->trialCount; i++)
         if (game->trials[i].kind == TRIAL_FUSE_ITEM && game->trials[i].state == TRIAL_IN_PROGRESS)
             game->trials[i].state = TRIAL_PASSED;
@@ -204,6 +225,7 @@ void TrialsOnFusionPerformed(Game *game)
 
 void TrialsOnShopPurchase(Game *game)
 {
+    if (TrialsSuspended(game)) return;
     for (int i = 0; i < game->trialCount; i++)
         if (game->trials[i].kind == TRIAL_NO_SHOP_PURCHASE && game->trials[i].state == TRIAL_IN_PROGRESS)
             game->trials[i].state = TRIAL_FAILED;

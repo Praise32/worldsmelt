@@ -1825,17 +1825,36 @@
         "DEC-169",
         "prove",
         "DEC-042",
-        "WP16"
+        "WP16",
+        "WP15a",
+        "DEC-004",
+        "DEC-047",
+        "DEC-092",
+        "DEC-093",
+        "DEC-094",
+        "DEC-095",
+        "best-of",
+        "simulazione"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
         "src/render/game_renderer.c",
         "src/render/game_renderer.h",
-        "src/core/game_types.h"
+        "src/core/game_types.h",
+        "src/world/floor_zero.c",
+        "src/world/floor_zero.h",
+        "src/world/floor_zero_arena.c",
+        "src/world/floor_zero_arena.h",
+        "src/content/run_catalog.c",
+        "src/content/run_catalog.h",
+        "src/gameplay/combat.c",
+        "src/game/trials.c",
+        "src/app/app.c",
+        "src/tests/floor_zero_arena_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d5c5f43"
+      "last_verified_commit": "63753fc"
     },
     {
       "id": "gd-system-content-validation",
@@ -2221,6 +2240,10 @@
       "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. Dal WP8 (30/07) TUTTI E CINQUE gli archetipi hanno un RoomKind fisico nel motore: la stanza segreta (ROOM_SECRET) è l'ultima ad arrivare, dopo fusione (WP4), stanza a tempo (WP5), arena di sfida (WP6) e Pourhouse (WP7).",
       "topics": [
         "stanze-speciali",
+        "WP15a",
+        "arena-best-of",
+        "Piano-0",
+        "DEC-004",
         "fusione",
         "scambio-alto-rischio",
         "pourhouse",
@@ -2250,7 +2273,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_verified_commit": "63753fc"
     },
     {
       "id": "gd-system-synergies",
@@ -2488,6 +2511,8 @@
       "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184).",
       "topics": [
         "hud",
+        "WP15a",
+        "arene-piano-0",
         "gameplay",
         "salute",
         "risorse",
@@ -2523,7 +2548,7 @@
         "scripts/cp2_hud_mocks.lua"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "b1cc044"
+      "last_verified_commit": "63753fc"
     },
     {
       "id": "gd-ui-build-screen",
@@ -2685,15 +2710,20 @@
         "DEC-089",
         "DEC-114",
         "DEC-169",
-        "WP16"
+        "WP16",
+        "WP15a",
+        "Piano-0",
+        "consultazione"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
-        "src/render/game_renderer.c"
+        "src/render/game_renderer.c",
+        "src/app/app.c",
+        "src/core/game_types.h"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d5c5f43"
+      "last_verified_commit": "63753fc"
     },
     {
       "id": "gd-ui-results-leaderboards",
@@ -3059,7 +3089,13 @@
         "prove",
         "DEC-042",
         "DEC-027",
-        "WP16"
+        "WP16",
+        "WP15a",
+        "arene-piano-0",
+        "DEC-004",
+        "DEC-029",
+        "DEC-047",
+        "tutorial"
       ],
       "related": [
         "eng-dependencies",
@@ -3096,10 +3132,14 @@
         "src/tests/art_atlas_tests.c",
         "src/content/character_roster.c",
         "src/game/trials.c",
-        "src/game/trials.h"
+        "src/game/trials.h",
+        "src/world/floor_zero_arena.c",
+        "src/world/floor_zero_arena.h",
+        "src/content/run_catalog.c",
+        "src/tests/floor_zero_arena_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d5c5f43"
+      "last_verified_commit": "63753fc"
     },
     {
       "id": "eng-multiplayer-steam-direction",

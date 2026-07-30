@@ -103,4 +103,35 @@ void RunCatalogSetTestPath(const char *path);
  * Ritorna NULL se nessun percorso custom è stato settato. */
 const char *RunCatalogGetTestPath(void);
 
+/* WP15a (DEC-004/094, systems/floor-zero.md "Regole per contenuti generati"):
+ * i contenuti "BEST-OF" per un'arena del Piano 0 -- i tipi di nemico e di boss
+ * della MIGLIORE run passata registrata nel catalogo. "Non generano nulla di
+ * nuovo sul momento": qui si RILEGGONO definizioni gia' validate e gia' viste
+ * dal giocatore in una run vera, esattamente il contratto del documento.
+ *
+ * CRITERIO "best-of" -- DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019),
+ * registrato in `systems/floor-zero.md` e in `governance/open-questions.md`:
+ * nessun documento dice cosa renda una run "migliore", quindi si ordina per
+ *   qualita' = 10000 x (esito == vittoria) + 100 x piano raggiunto
+ *              + 50 x boss davvero sconfitti
+ * e si prende UNA sola run, la migliore -- non un miscuglio di run diverse:
+ * un'arena "best-of" deve sapere di qualcosa, non essere una macedonia. A
+ * parita' di qualita' vince il nome di file minore (strcmp): l'ordine con cui
+ * il sistema elenca la cartella non deve poter cambiare il risultato, o la
+ * composizione dell'arena smetterebbe di essere deterministica.
+ *
+ * Scrive fino a 'maxOut' EnemyTypeDef in 'out' (nemici prima, boss dopo, in
+ * ordine di piano) e ritorna quanti ne ha scritti. Ritorna 0 -- e non tocca
+ * 'out' -- quando il catalogo non esiste, e' vuoto, o nessuna run registrata
+ * contiene un nemico o un boss: e' il caso limite dichiarato di
+ * `systems/floor-zero.md` ("nessun contenuto best-of"), che il chiamante
+ * risolve col pool curato di ripiego (DEC-087/094), MAI un'arena assente.
+ * Ogni tipo letto passa da EnemyTypeClamp: un file di catalogo scritto a mano
+ * non deve poter produrre un nemico fuori banda. */
+int RunCatalogBestOfEnemiesFromPath(EnemyTypeDef *out, int maxOut, const char *path);
+
+/* Versione di RunCatalogBestOfEnemiesFromPath che usa il percorso di default
+ * "catalog", o quello impostato da RunCatalogSetTestPath. */
+int RunCatalogBestOfEnemies(EnemyTypeDef *out, int maxOut);
+
 #endif

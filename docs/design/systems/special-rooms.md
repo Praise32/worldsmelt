@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — in-game Pourhouse (DEC-136), unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. Dal WP8 (30/07) TUTTI E CINQUE gli archetipi hanno un RoomKind fisico nel motore: la stanza segreta (ROOM_SECRET) è l'ultima ad arrivare, dopo fusione (WP4), stanza a tempo (WP5), arena di sfida (WP6) e Pourhouse (WP7)."
 last_reviewed: 2026-07-30
-last_verified_commit: a8a85bf
-topics: [stanze-speciali, fusione, scambio-alto-rischio, pourhouse, arena-di-sfida, stanza-a-tempo, stanza-segreta, WP4, WP5, WP6, WP7, WP8, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, DEC-044, DEC-136, DEC-025]
+last_verified_commit: 63753fc
+topics: [stanze-speciali, WP15a, arena-best-of, Piano-0, DEC-004, fusione, scambio-alto-rischio, pourhouse, arena-di-sfida, stanza-a-tempo, stanza-segreta, WP4, WP5, WP6, WP7, WP8, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, DEC-044, DEC-136, DEC-025]
 related: []
 supersedes: []
 source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -50,11 +50,19 @@ stanza segreta" sotto.
 
 Stanza opzionale con combattimento più impegnativo in cambio di ricompensa maggiore. È anche accessibile in versione "best-of" dal Piano 0, usando contenuti già validati delle run passate (DEC-004): vedi [floor-zero.md](./floor-zero.md) per il dettaglio di questo accesso alternativo; questo documento descrive solo la versione incontrata durante il piano.
 
-**Stato (WP6, 30/07):** la versione **incontrata nel piano** ha ora un `RoomKind`
+**Stato (WP6, 30/07):** la versione **incontrata nel piano** ha un `RoomKind`
 fisico nel motore (`ROOM_ARENA`) — vedi "Stato di implementazione: l'arena di sfida
-nel piano" sotto. L'accesso "best-of" dal Piano 0 resta **non implementato** e dipende
-dal museo delle creazioni descritto in [floor-zero.md](./floor-zero.md): le due versioni
-sono distinte, e questo lavoro non ne anticipa nulla.
+nel piano" sotto.
+
+**Stato (WP15a, 30/07):** anche l'accesso **"best-of" dal Piano 0** esiste ora nel motore,
+ed è una cosa **diversa** dalla stanza del piano: non un `RoomKind`, ma una *simulazione*
+dentro l'unica cella del crogiolo, a rischio zero e senza economia (DEC-092/093), aperta da
+piazzole segnalate. Fonte unica del dettaglio:
+[floor-zero.md](./floor-zero.md), "Stato di implementazione: le arene di sfida del Piano 0";
+qui si registra solo che lo **Scenario 2** di questo documento non è più un'aspirazione.
+Resta fuori la prova dal **museo** (DEC-040, riaffrontare un boss esposto): il museo non
+esiste ancora nel motore, e un boss del catalogo entra nella simulazione come nemico
+normale.
 
 ### Scambio ad alto rischio
 
@@ -622,7 +630,7 @@ giocatore.
 - Una puntata generata (offerta/prezzo, DEC-044) risulta squilibrata rispetto al budget di equità: va respinta o rigenerata in validazione prima di essere proposta al giocatore. **Stato (WP7, 30/07):** una coppia fuori tolleranza non viene mai proposta — la composizione scarta e prova la successiva fra le 55 candidate, e il test ricalcola il budget dalle stesse costanti per accorgersi di una tolleranza allargata di nascosto.
 - Il prezzo generato richiederebbe più salute massima di quella posseduta dal giocatore: il prezzo non deve mai superare risorse che il giocatore non ha, la generazione deve restare compatibile con lo stato corrente del giocatore. **Stato (WP7, 30/07):** garantito per costruzione — la composizione valida ogni coppia contro lo stato del giocatore in quel momento, il tetto non scende mai sotto un cuore, e l'accettazione ricontrolla tutto una seconda volta (prezzo ancora pagabile *e* offerta ancora consegnabile) prima di toccare qualunque cosa: mai mezza puntata.
 - Il giocatore accetta una puntata la cui offerta non entra più nell'inventario, o il cui prezzo non possiede più: non si conclude nulla e non si paga nulla. Rifiutare — cioè uscire dalla stanza — non costa mai niente e non consuma la puntata, che resta la stessa per un ritorno successivo.
-- L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md).
+- L'arena di sfida "best-of" nel Piano 0 richiede contenuti già validati che potrebbero non esistere ancora nelle prime run: va gestita con il fallback previsto in [floor-zero.md](./floor-zero.md). **Stato (WP15a, 30/07):** garantito e verificato — senza alcuna run passata registrata l'arena si semina dal contenuto curato già caricato e, in ultima istanza, dai tipi d'esempio del motore; il test `--arena-hub-test` esercita proprio il caso "catalogo vuoto" e pretende che la simulazione abbia comunque dei nemici.
 - L'arena di sfida incontrata nel piano non deve **mai** essere un passaggio obbligato né bloccare il piano se il giocatore la ignora. **Stato (WP6, 30/07):** garantito per costruzione — l'arena è sempre una foglia del grafo di adiacenza (grado 1, come la stanza boss di DEC-182) e, finché la sfida non è accettata, è attraversabile come una stanza vuota; verificato dal controllo `(q)` di `GameRoomsTest` con una BFS che ignora l'arena e raggiunge comunque ogni altra stanza del piano.
 - Il giocatore accetta la sfida dell'arena e non riesce a vincerla: non esiste abbandono né retry — si esce solo vincendo, e morire dentro è una morte normale della run (permadeath). È la conseguenza voluta di "rischio dichiarato in cambio di un guadagno superiore" (DEC-010): il rischio deve essere reale.
 - Il giocatore raggiunge una stanza a tempo dopo la scadenza della soglia: non deve mai bloccare il progresso del piano; resta almeno accessibile come stanza ordinaria, anche senza il bonus a tempo (soglia esatta e comportamento di mancato rispetto da definire col playtest, vedi `governance/open-questions.md`).
@@ -659,7 +667,11 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   la **super-segreta** dal piano 2 e solo a estrazione concessa, 50% (misurata
   in 13 su 96 candidati) — vedi `governance/open-questions.md` voce 44. La
   domanda resta quindi aperta solo per l'accesso "best-of" dell'arena dal
-  Piano 0, l'ultima cosa di questo documento che il motore non ha.
+  Piano 0. **Aggiornamento 30/07 (WP15a):** anche quello è ora nel motore, con la
+  propria forma — tre piazzole fisse nel crogiolo, non un piazzamento
+  probabilistico su una griglia: la "frequenza per piano" non ha significato
+  per un'arena che vive nell'hub. Vedi `governance/open-questions.md`, voce 50,
+  e [floor-zero.md](./floor-zero.md).
 - Valori esatti di soglia e ricompensa della stanza a tempo. **Aggiornamento
   30/07 (WP5):** esiste ora un default proposto e implementato — soglia
   `40s + 6s × celle del piano` dall'ingresso nel piano, ricompensa 6 Ingots
@@ -693,6 +705,10 @@ Then la trova descritta come tipo standard in [rooms-and-floor-generation.md](./
 Given un giocatore nel Piano 0 con contenuti già validati disponibili dal museo delle creazioni
 When sceglie di affrontare un'arena di sfida "best-of"
 Then accede a un'arena costruita con contenuti "best-of" di run passate, distinta dall'arena di sfida incontrata durante un piano generato
+
+*(WP15a, 30/07: realizzato — le piazzole del crogiolo aprono simulazioni popolate dai tipi
+di nemico e di boss della migliore run registrata nel catalogo, con ripiego curato quando
+il catalogo è vuoto. La selezione dal **museo** resta futura: il museo non è nel motore.)*
 
 ### Scenario 3 — Scambio ad alto rischio senza nulla da cedere
 

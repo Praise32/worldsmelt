@@ -95,9 +95,14 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
   - known-issues.md #9: audio Piano 0 assente finché non arrivano due SFX dedicati
     (AppConfirmThemeChoice/AppOpenFloorZeroExit restano muti; DEC-121 non può restare
     senza hook). → attesa asset curato dal dominio audio.
-  - Prove Piano 0: il piano contiene arene opzionali (prove best-of di run passate) che
-    richiedono la logica di simulazione ad hoc (generazione senza economia, nessun danno
-    permanente). Struttura pronta (DEC-092/093), contenuti non ancora aggiunti al Piano 0.
+  - ~~Prove Piano 0: arene opzionali best-of con simulazione senza economia~~ — **CHIUSO
+    dal WP15a (30/07)**: `src/world/floor_zero_arena.{h,c}`, tre piazzole nel crogiolo,
+    snapshot/ripristino integrale del Player (DEC-092), nessuna economia (DEC-093), morte
+    che non e' mai un game over (DEC-055), contenuti best-of dal catalogo con ripiego
+    curato (DEC-087/094) e tutorial integrato alla prima visita (DEC-047). Verificato da
+    `--arena-hub-test`. Restano tre limiti DICHIARATI in known-issues.md voce 16: la dote
+    di DEC-029 non e' implementata, il "tutorial gia' visto" non e' persistito su disco, il
+    criterio best-of e' un default proposto (open question 50).
   - Slider volumi in Options: il modulo audio espone AudioSetMasterVolume/MusicVolume/SfxVolume
     (default 1.0), ma APP_OPTIONS resta minima (una voce "Indietro") — aggiungere la UI è
     blocco fuori da scope "modulo audio" della demo; vedi docs/engineering/known-issues.md voce 9.

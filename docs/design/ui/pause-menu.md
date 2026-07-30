@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
 last_reviewed: 2026-07-30
-last_verified_commit: d5c5f43
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169, WP16]
+last_verified_commit: 63753fc
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-169, WP16, WP15a, Piano-0, consultazione]
 related: []
 supersedes: []
-source_files: [src/render/game_renderer.c]
+source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h]
 ---
 
 # Pause Menu
@@ -23,7 +23,9 @@ accedere alle opzioni senza perdere progressi né subire azioni distruttive acci
 
 ## Condizioni di ingresso
 
-Da `Gameplay`, tramite il comando di pausa.
+Da `Gameplay`, tramite il comando di pausa. Dal **Piano 0** con lo stesso comando, per la
+sola consultazione dell'HUD nascosto (DEC-169, vedi sotto): è un **default proposto
+dall'implementazione**, non canone — la domanda aperta 22 resta del proprietario.
 
 ## Focus iniziale
 
@@ -103,16 +105,28 @@ dell'HUD né la regola di visibilità.
 
 DEC-169 **non fissa il comando** con cui il menu di pausa si apre dal Piano 0: ESC è già
 assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso qui sopra prevedono la sola
-provenienza da `Gameplay`. Il punto è registrato come domanda aperta
-(`../governance/open-questions.md`, punto 22) e non viene deciso qui.
+provenienza da `Gameplay`. Il punto resta la domanda aperta
+(`../governance/open-questions.md`, punto 22): il default qui sotto **non la chiude**.
 
-> **Nota di implementazione (demo W3, 2026-07-28):** il riquadro di consultazione è già
-> disegnato oggi in `DrawPauseMenuOverlay` (`src/render/game_renderer.c`), condizionato solo
-> a `game->floor == 0` — indipendente da quale comando abbia aperto `PauseMenu`, così
-> funzionerà senza altro lavoro sul renderer non appena la domanda aperta 22 verrà risolta.
-> Mostra salute (cuori) e risorse (`Ingots`/`Blast Charges`/`Cast Keys`/`Flux`), le stesse
-> informazioni della riga vitali dell'HUD di `Gameplay` — non il timer di run, che non esiste
-> ancora nel motore (gap noto, indipendente da questo lavoro, vedi `ui/hud.md`).
+> **Nota di implementazione (WP15a, 2026-07-30, supera la nota W3 del 2026-07-28):** il
+> riquadro di consultazione è disegnato in `DrawPauseMenuOverlay`
+> (`src/render/game_renderer.c`), condizionato solo a `game->floor == 0` — indipendente da
+> quale comando abbia aperto `PauseMenu`, come previsto. Mostra salute (cuori) e risorse
+> (`Ingots`/`Blast Charges`/`Cast Keys`/`Flux`), le stesse informazioni della riga vitali
+> dell'HUD di `Gameplay`.
+>
+> **DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019) per la domanda aperta 22 — non
+> canone:** dal Piano 0 il menu di pausa si apre con il **comando di pausa**, lo stesso di
+> `Gameplay`. Gli altri due candidati erano già occupati e non si potevano riusare senza una
+> perdita: ESC è `ExitConfirm` (DEC-074) e TAB è il pannello mondi/personaggi del Piano 0
+> (M5/M6a, con l'invito "TAB per le carte" scritto a schermo). Il comando di pausa era
+> l'unico tasto ancora libero nel Piano 0 ed è anche l'unico che significhi già "fermati e
+> guarda lo stato" per chi ha giocato una run. `AppUi.pauseFromFloorZero` (zero-default
+> falso = provenienza `Gameplay`, comportamento storico invariato) è l'unica cosa che
+> cambia: decide dove torna "Riprendi". Le altre righe del menu restano quelle di sempre —
+> "Abbandona run" dal Piano 0 interrompe la preparazione esattamente come l'ESC di DEC-074,
+> generazione in sottofondo annullata compresa. Verificato da `--arena-hub-test`
+> (`src/tests/floor_zero_arena_tests.c`, blocco (l)).
 
 ## Non-obiettivi
 
@@ -126,7 +140,9 @@ provenienza da `Gameplay`. Il punto è registrato come domanda aperta
 - Il comportamento della pausa è approved sia in singleplayer sia in asincrono competitivo.
 - Con quale comando il menu di pausa si apre dal Piano 0, dove DEC-169 lo indica come luogo
   di consultazione dell'HUD ma ESC è già assegnato a `ExitConfirm` (DEC-074):
-  `../governance/open-questions.md`, punto 22.
+  `../governance/open-questions.md`, punto 22. **Aggiornamento 30/07 (WP15a):** esiste ora
+  un default proposto e implementato — il comando di pausa — che **non chiude** la domanda:
+  la scelta resta del proprietario.
 
 ## Scenari verificabili
 
@@ -136,3 +152,4 @@ provenienza da `Gameplay`. Il punto è registrato come domanda aperta
 4. **Given** il giocatore seleziona "Abbandona run", **when** conferma in `ExitConfirm`, **then** entra in `RunResults`, che mostra la run chiusa come sconfitta con i punti sblocco maturati fino a quel momento in misura ridotta (DEC-082, DEC-089); da lì il ritorno al menu segue `ui/results-and-leaderboards.md`.
 5. **Given** il giocatore ha attraversato l'uscita del Piano 0 verso il piano 1 e le prove sono state presentate (DEC-042), **when** apre `PauseMenu` e seleziona "Prove", **then** vede l'elenco delle prove specifiche della run e il loro stato di completamento.
 6. **Given** il giocatore è nel Piano 0, dove l'HUD di combattimento è nascosto (DEC-169), **when** apre il menu di pausa, **then** può consultare salute, risorse e build senza uscire dal Piano 0, e l'HUD torna nascosto quando la pausa si chiude.
+7. **Given** il giocatore è nel Piano 0 e apre il menu di pausa con il comando di pausa (default proposto WP15a), **when** sceglie "Riprendi" o preme ESC, **then** torna nel Piano 0 e non in `Gameplay`, con la preparazione della run intatta.

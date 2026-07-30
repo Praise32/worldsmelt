@@ -3,6 +3,7 @@
 #include "content/character_roster.h"
 #include "game/game_internal.h"
 #include "script/script_items.h"
+#include "world/floor_zero_arena.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -18,7 +19,7 @@
    piazzata qui non ha nulla da rompere, per costruzione). La croce centrale
    (dove nasce il giocatore e da dove si vede il varco in alto) resta comunque
    sempre libera per garanzia di RoomLayoutBuild (core/room_layout.c). */
-static void FloorZeroBuildDressing(Game *game)
+void FloorZeroBuildDressing(Game *game)
 {
     RoomLayoutDef dressing;
     memset(&dressing, 0, sizeof(dressing));
@@ -60,7 +61,21 @@ void FloorZeroEnter(Game *game)
     game->resetQueued = false;
     game->useActiveQueued = false;
     game->dropGraftQueued = false;
-    game->interactQueued = false;   /* WP6: nessuna conferma in sospeso nel Piano 0 (nessuna arena li') */
+    game->interactQueued = false;   /* WP6/WP15a: nessuna conferma in sospeso all'ingresso nel Piano 0 */
+    /* WP15a: nessuna simulazione d'arena in corso all'ingresso nel crogiolo --
+       azzeramento MIRATO come tutto il resto qui sopra, perche' questa
+       funzione non fa un memset dell'intero Game. Senza queste righe, entrare
+       nel Piano 0 mentre una simulazione era aperta -- il reroll R da dentro
+       una prova, per esempio -- lascerebbe l'HUD acceso e uno snapshot
+       fantasma pronto a riversarsi sul giocatore alla prima uscita. */
+    game->floorZeroTrialActive = false;
+    game->floorZeroTrialTheme = FLOOR_ZERO_TRIAL_MOVE;
+    game->floorZeroTrialRequest = 0;
+    game->floorZeroTrialDefeated = false;
+    game->floorZeroTrialWon = false;
+    game->floorZeroTrialEnemyGoal = 0;
+    game->floorZeroTrialHint[0] = '\0';
+    memset(&game->floorZeroTrialSnapshot, 0, sizeof(game->floorZeroTrialSnapshot));
     game->message[0] = '\0';
     game->messageTimer = 0.0f;
     game->score = 0;
@@ -145,4 +160,9 @@ void FloorZeroEnter(Game *game)
     WorldSnapCamera(game);   /* DEC-170: inquadratura fissa della cella, senza scivolate all'ingresso */
 
     FloorZeroBuildDressing(game);
+    /* WP15a (DEC-004): le piazzole d'arena, l'ingresso segnalato alle
+       simulazioni opzionali. Dopo l'arredo, cosi' stanno sopra il pavimento
+       gia' apparecchiato; sulla croce centrale libera, mai dentro una
+       colonna. */
+    FloorZeroArenaPlaceGates(game);
 }

@@ -2342,6 +2342,13 @@ void WorldHandleTransitions(Game *game, Vector2 move)
        bordi della stanza (CombatUpdatePlayer) basta gia' da solo a fermarlo. */
     if (game->floor == 0)
     {
+        /* WP15a: dentro una simulazione d'arena il varco verso il piano 1 non
+           si attraversa. Non e' una comodita': l'attraversamento chiama
+           GameResetRunWithSeed, che azzera l'intero Game -- compreso lo
+           snapshot dello stato d'ingresso ancora da restituire. Uscire dalla
+           simulazione e' sempre disponibile e costa un tasto, quindi qui non
+           si perde nulla. */
+        if (game->floorZeroTrialActive) return;
         if (pressingTop && game->floorZeroExitOpen) game->floorZeroExitCrossed = true;
         return;
     }

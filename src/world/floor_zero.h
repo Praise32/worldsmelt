@@ -18,4 +18,13 @@
    per l'ingresso. */
 void FloorZeroEnter(Game *game);
 
+/* L'arredo curato e STABILE del crogiolo (seme FISSO, mai game->rng: vedi il
+   commento sulla definizione in floor_zero.c). Pubblica dal WP15a perche' la
+   ricostruisce anche l'uscita da una simulazione d'arena
+   (FloorZeroArenaExit, src/world/floor_zero_arena.c), che svuota la stanza per
+   fare spazio all'ondata e deve poi rimetterla esattamente com'era --
+   deterministica, quindi "com'era" e "ricostruita da zero" sono lo stesso
+   arredo, senza doverlo copiare in uno snapshot. */
+void FloorZeroBuildDressing(Game *game);
+
 #endif

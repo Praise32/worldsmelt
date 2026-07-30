@@ -13,6 +13,10 @@
    altre funzioni di world arrivano gia' per via indiretta da game_internal.h;
    questa vive in un modulo suo, quindi si include esplicitamente. */
 #include "world/pourhouse.h"
+/* WP15a: stessa ragione della riga sopra -- le arene del Piano 0 vivono in un
+   modulo proprio (src/world/floor_zero_arena.h) ed espongono al gameplay una
+   sola porta, la conferma di ingresso a contatto con una piazzola. */
+#include "world/floor_zero_arena.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -133,6 +137,20 @@ void CombatDamagePlayer(Game *game, int amount, const char *cause)
     EntitiesAddParticle(game, game->player.pos, RED, 22);
     if (game->player.hp <= 0)
     {
+        /* WP15a (DEC-055/092, systems/floor-zero.md "Casi limite": "il
+           giocatore viene sconfitto dentro un'arena di sfida"): dentro una
+           simulazione del Piano 0 la salute a zero NON e' mai una fine run.
+           Si latcha soltanto -- UpdateApp (src/app/app.c) consuma il flag,
+           chiude la simulazione e ripristina lo stato d'ingresso, salute
+           compresa. Uscita PRIMA di ogni altra cosa: nessun PHASE_GAME_OVER,
+           nessuna causa di morte da mostrare in RunResults, nessuna prova
+           della run da finalizzare (DEC-042) -- niente di tutto questo
+           esiste, per il giocatore, in una simulazione a rischio zero. */
+        if (game->floorZeroTrialActive)
+        {
+            game->floorZeroTrialDefeated = true;
+            return;
+        }
         game->phase = PHASE_GAME_OVER;
         GameSetMessage(game, "Run finita. Premi R.");
         /* DEC-159: la causa della sconfitta, mostrata da DrawRunResultsOverlay
@@ -801,10 +819,17 @@ void CombatUpdatePlayer(Game *game, float dt, Vector2 mouseGame, bool mouseInsid
        un solo gesto -- "accetto quello che questa stanza mi propone" -- e un
        secondo tasto sarebbe una regola in piu' da imparare senza una
        distinzione da fare. */
+    /* WP15a: nel Piano 0 lo stesso tasto serve una terza azione del mondo --
+       entrare in una simulazione d'arena da una piazzola. Non si accavalla mai
+       con le altre due (le loro stanze non esistono nel Piano 0, e la piazzola
+       non esiste altrove), quindi l'ordine resta indifferente. Anche qui la
+       conferma esplicita e' voluta: girando nell'hub non si deve finire dentro
+       una prova per averci camminato sopra. */
     if (game->interactQueued)
     {
         game->interactQueued = false;
-        if (!WorldTryStartArenaChallenge(game)) WorldTryAcceptPourhouseWager(game);
+        if (!WorldTryStartArenaChallenge(game) && !WorldTryAcceptPourhouseWager(game))
+            FloorZeroArenaQueueEntry(game);
     }
 }
 
@@ -1293,9 +1318,12 @@ static void CombatPickup(Game *game, Pickup *pickup)
     /* WP7: stessa esclusione per il banco della Pourhouse -- toccarlo non
        raccoglie nulla e non accetta nulla (serve la conferma esplicita,
        WorldTryAcceptPourhouseWager). */
+    /* WP15a: stessa esclusione per la piazzola d'arena del Piano 0 -- toccarla
+       non raccoglie nulla e non entra in nessuna simulazione, serve la conferma
+       esplicita (FloorZeroArenaQueueEntry). */
     if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR &&
         pickup->kind != PICKUP_TIMED_MARKER && pickup->kind != PICKUP_ARENA_ALTAR &&
-        pickup->kind != PICKUP_POURHOUSE_BANK)
+        pickup->kind != PICKUP_POURHOUSE_BANK && pickup->kind != PICKUP_TRIAL_GATE)
         AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
@@ -1473,6 +1501,18 @@ static void CombatPickup(Game *game, Pickup *pickup)
            camminare sul banco non e' una conferma. Chi accetta davvero e'
            WorldTryAcceptPourhouseWager, chiamata solo dal tasto di
            interazione. */
+        pickup->active = true;
+        pickup->locked = true;
+    }
+    else if (pickup->kind == PICKUP_TRIAL_GATE)
+    {
+        /* WP15a (systems/floor-zero.md, DEC-004): la piazzola d'arena del
+           Piano 0. Come i tre segnali sopra non si consuma mai e il tocco non
+           fa partire nulla: entrare in una simulazione non e' irreversibile
+           -- si esce quando si vuole, DEC-095 -- ma sarebbe comunque una
+           sorpresa trovarcisi dentro per averci camminato sopra mentre si gira
+           per l'hub. Chi entra davvero e' FloorZeroArenaQueueEntry, chiamata
+           solo dal tasto di interazione. */
         pickup->active = true;
         pickup->locked = true;
     }

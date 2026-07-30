@@ -764,3 +764,183 @@ const char *RunCatalogGetTestPath(void)
 {
     return g_testCatalogPath;
 }
+
+/* ============================================================
+   WP15a (DEC-004/094, systems/floor-zero.md): i contenuti "BEST-OF" per le
+   arene del Piano 0. Vedi il commento su RunCatalogBestOfEnemiesFromPath in
+   run_catalog.h per il contratto e per il criterio (default proposto stile
+   DEC-019) -- da qui in giu' solo l'implementazione.
+   ============================================================ */
+
+/* La "qualita'" di UNA run registrata, dal solo testo del suo file. Formula
+   chiusa e deterministica (nessuno stato, nessun RNG): e' l'unica cosa che
+   decide quale run diventa il best-of, quindi deve essere leggibile e
+   riproducibile da un test senza rileggere il disco due volte. */
+static long RunCatalogRunQuality(const char *text)
+{
+    long quality = 0;
+
+    char outcome[32] = { 0 };
+    ReadCatalogLineValue(text, "outcome=", outcome, sizeof(outcome));
+    if (strcmp(outcome, RUN_CATALOG_OUTCOME_WIN) == 0) quality += 10000;
+
+    char floorText[16] = { 0 };
+    ReadCatalogLineValue(text, "floorReached=", floorText, sizeof(floorText));
+    int floorReached = atoi(floorText);
+    if (floorReached < 0) floorReached = 0;
+    if (floorReached > FLOOR_COUNT) floorReached = FLOOR_COUNT;
+    quality += 100L*floorReached;
+
+    char floorCountText[16] = { 0 };
+    ReadCatalogLineValue(text, "floor.count=", floorCountText, sizeof(floorCountText));
+    int floorCount = atoi(floorCountText);
+    if (floorCount < 0) floorCount = 0;
+    if (floorCount > FLOOR_COUNT) floorCount = FLOOR_COUNT;
+    for (int f = 1; f <= floorCount; f++)
+    {
+        char key[48], value[32] = { 0 };
+        snprintf(key, sizeof(key), "floor%d.boss.outcome=", f);
+        ReadCatalogLineValue(text, key, value, sizeof(value));
+        if (strcmp(value, "sconfitto") == 0) quality += 50;
+    }
+    return quality;
+}
+
+/* Un solo float da una chiave del record, con un valore di ripiego quando la
+   chiave manca (record vecchio o troncato): mai 0.0f implicito su un
+   moltiplicatore, che renderebbe il nemico inerte invece che "come il
+   default". */
+static float RunCatalogFloatOr(const char *text, const char *key, float fallback)
+{
+    char value[32] = { 0 };
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    if (!value[0]) return fallback;
+    return (float)atof(value);
+}
+
+/* Legge UN tipo di nemico/boss dal record, dalle stesse chiavi che
+   RunCatalogWriteRun ha scritto (direzione opposta, stesso schema di
+   ReadEnemyType in src/content/run_content.c). Ritorna false se la chiave del
+   nome non c'e': quello slot non e' mai stato incontrato in quella run. */
+static bool RunCatalogReadEnemyType(const char *text, const char *prefix, bool boss, EnemyTypeDef *out)
+{
+    char key[64], value[64] = { 0 };
+
+    snprintf(key, sizeof(key), "%s.name=", prefix);
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    if (!value[0]) return false;
+
+    memset(out, 0, sizeof(*out));
+    out->active = true;
+    out->boss = boss;
+    snprintf(out->name, sizeof(out->name), "%s", value);
+
+    snprintf(key, sizeof(key), "%s.form=", prefix);
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    out->form = EnemyFormFromText(value);
+    snprintf(key, sizeof(key), "%s.move=", prefix);
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    out->move = EnemyMoveFromText(value);
+    snprintf(key, sizeof(key), "%s.fire=", prefix);
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    out->fire = EnemyFireFromText(value);
+
+    snprintf(key, sizeof(key), "%s.hp=", prefix);
+    out->hpMul = RunCatalogFloatOr(text, key, 1.0f);
+    snprintf(key, sizeof(key), "%s.speed=", prefix);
+    out->speedMul = RunCatalogFloatOr(text, key, 1.0f);
+    snprintf(key, sizeof(key), "%s.size=", prefix);
+    out->sizeMul = RunCatalogFloatOr(text, key, 1.0f);
+    snprintf(key, sizeof(key), "%s.rate=", prefix);
+    out->fireRate = RunCatalogFloatOr(text, key, 0.0f);
+
+    snprintf(key, sizeof(key), "%s.pellets=", prefix);
+    ReadCatalogLineValue(text, key, value, sizeof(value));
+    out->pellets = atoi(value);
+
+    /* Seconda rete di sicurezza, come ovunque si legga contenuto da disco: un
+       file di catalogo scritto/modificato a mano non deve poter mettere in
+       un'arena un nemico fuori dalle bande dichiarate (core/enemy_type.h). */
+    EnemyTypeClamp(out);
+    return true;
+}
+
+/* I tipi di nemico e boss di UN record, in ordine di piano: prima i due slot
+   nemico del piano, poi il suo boss. Ritorna quanti ne ha scritti. */
+static int RunCatalogEnemiesFromRecord(const char *text, EnemyTypeDef *out, int maxOut)
+{
+    char floorCountText[16] = { 0 };
+    ReadCatalogLineValue(text, "floor.count=", floorCountText, sizeof(floorCountText));
+    int floorCount = atoi(floorCountText);
+    if (floorCount < 0) floorCount = 0;
+    if (floorCount > FLOOR_COUNT) floorCount = FLOOR_COUNT;
+
+    int count = 0;
+    for (int f = 1; f <= floorCount && count < maxOut; f++)
+    {
+        for (int slot = 1; slot <= 2 && count < maxOut; slot++)
+        {
+            char prefix[32];
+            snprintf(prefix, sizeof(prefix), "floor%d.enemy%d", f, slot);
+            if (RunCatalogReadEnemyType(text, prefix, false, &out[count])) count++;
+        }
+        if (count < maxOut)
+        {
+            char prefix[32];
+            snprintf(prefix, sizeof(prefix), "floor%d.boss", f);
+            if (RunCatalogReadEnemyType(text, prefix, true, &out[count])) count++;
+        }
+    }
+    return count;
+}
+
+int RunCatalogBestOfEnemiesFromPath(EnemyTypeDef *out, int maxOut, const char *path)
+{
+    if (!out || maxOut <= 0) return 0;
+    if (!path || !DirectoryExists(path)) return 0;
+
+    char bestPath[512];
+    bestPath[0] = '\0';
+    long bestQuality = -1;
+
+    FilePathList files = LoadDirectoryFilesEx(path, ".txt", false);
+    for (unsigned int i = 0; i < files.count; i++)
+    {
+        char *text = LoadFileText(files.paths[i]);
+        if (!text) continue;
+
+        /* Stessa guardia di schema dell'aggregazione sopra: un file che non
+           dichiara "catalogSchema=1" non lo sappiamo interpretare, e un'arena
+           non e' il posto dove tirare a indovinare. */
+        char schema[8] = { 0 };
+        ReadManifestValue(text, "catalogSchema=", schema, sizeof(schema));
+        if (strcmp(schema, "1") != 0) { UnloadFileText(text); continue; }
+
+        long quality = RunCatalogRunQuality(text);
+        UnloadFileText(text);
+
+        /* Spareggio sul NOME del file, mai sull'ordine di enumerazione della
+           cartella (che dipende dal filesystem): due esecuzioni sulla stessa
+           cartella devono scegliere la stessa run. */
+        if (quality > bestQuality || (quality == bestQuality && strcmp(files.paths[i], bestPath) < 0))
+        {
+            bestQuality = quality;
+            snprintf(bestPath, sizeof(bestPath), "%s", files.paths[i]);
+        }
+    }
+    UnloadDirectoryFiles(files);
+
+    if (!bestPath[0]) return 0;
+
+    char *bestText = LoadFileText(bestPath);
+    if (!bestText) return 0;
+    int count = RunCatalogEnemiesFromRecord(bestText, out, maxOut);
+    UnloadFileText(bestText);
+    return count;
+}
+
+int RunCatalogBestOfEnemies(EnemyTypeDef *out, int maxOut)
+{
+    const char *path = g_testCatalogPath ? g_testCatalogPath : "catalog";
+    return RunCatalogBestOfEnemiesFromPath(out, maxOut, path);
+}

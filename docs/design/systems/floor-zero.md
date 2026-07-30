@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047). Il contenuto curato di fallback del Piano 0 è lo stato base del gioco, precaricato e sempre disponibile, senza attesa possibile (DEC-153); l'HUD di combattimento resta nascosto nel Piano 0, consultabile dal menu di pausa, visibile durante le prove (DEC-169)."
 last_reviewed: 2026-07-30
-last_verified_commit: d5c5f43
-topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169, prove, DEC-042, WP16]
+last_verified_commit: 63753fc
+topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169, prove, DEC-042, WP16, WP15a, DEC-004, DEC-047, DEC-092, DEC-093, DEC-094, DEC-095, best-of, simulazione]
 related: []
 supersedes: []
-source_files: [src/render/game_renderer.c, src/render/game_renderer.h, src/core/game_types.h]
+source_files: [src/render/game_renderer.c, src/render/game_renderer.h, src/core/game_types.h, src/world/floor_zero.c, src/world/floor_zero.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/content/run_catalog.h, src/gameplay/combat.c, src/game/trials.c, src/app/app.c, src/tests/floor_zero_arena_tests.c]
 ---
 
 # Floor Zero
@@ -254,17 +254,21 @@ giocatore non sta combattendo.
 Fuori dalle arene, nel resto del Piano 0 (scelta tema/personaggio, museo, riepilogo),
 l'HUD di combattimento resta nascosto.
 
-> **Nota di implementazione (demo W3, 2026-07-28):** la regola di visibilità dell'HUD è
-> implementata come funzione pura, `HudCombatShouldDraw(mode, floorZeroTrialActive)`
-> (`src/render/game_renderer.h`/`.c`, dettaglio in `ui/hud.md`): oggi ritorna sempre falso per
-> `FloorZero` perché `Game.floorZeroTrialActive` non viene mai impostato a vero da nessun
-> codice — le arene di sfida (sopra) non esistono ancora nel motore. Il campo è l'hook pronto
-> per quando arriveranno (gap esplicito stile DEC-009/052, non una nuova decisione di
-> design): l'entrata in un'arena scriverà `floorZeroTrialActive = true`, l'uscita lo
-> rimetterà a falso, e l'HUD tornerà visibile senza altro lavoro sul renderer. La
-> consultazione dal menu di pausa (sotto) è invece già disegnata oggi (riquadro dedicato in
-> `DrawPauseMenuOverlay`, condizionato solo a `game->floor == 0`): resta bloccata solo dal
-> comando che apre la pausa dal Piano 0, la domanda aperta 22.
+> **Nota di implementazione (WP15a, 2026-07-30, supera la nota W3 del 2026-07-28):** la
+> regola di visibilità dell'HUD è una funzione pura, `HudCombatShouldDraw(mode,
+> floorZeroTrialActive)` (`src/render/game_renderer.h`/`.c`, dettaglio in `ui/hud.md`), e
+> l'hook **è ora collegato**: `FloorZeroArenaEnter`/`FloorZeroArenaExit`
+> (`src/world/floor_zero_arena.c`) sono i due soli punti che scrivono
+> `Game.floorZeroTrialActive`, quindi l'HUD di combattimento ricompare durante una
+> simulazione e torna nascosto all'uscita, senza alcun lavoro aggiuntivo sul renderer —
+> esattamente come la nota precedente prevedeva. **Limite dichiarato:** dentro la
+> simulazione il timer di run **si disegna ma resta fermo a `0:00`**, perché il Piano 0 non
+> è una run cronometrata (`FloorZeroEnter` spegne `inRealRun` e azzera
+> `runElapsedSeconds`); non è un difetto di questo lavoro, è la conseguenza corretta di
+> DEC-051 applicata a un luogo dove il tempo della run non scorre. La consultazione dal menu
+> di pausa (sotto) era già disegnata (riquadro dedicato in `DrawPauseMenuOverlay`,
+> condizionato solo a `game->floor == 0`) e ha ora anche il comando che la apre: un
+> **default proposto** per la domanda aperta 22, vedi "Stato di implementazione" sotto.
 
 ## Interazioni
 
@@ -358,6 +362,97 @@ loro generazione o del loro punteggio, definito in
 > [Rewards and Economy](rewards-and-economy.md), "Stato di implementazione: le prove
 > specifiche".
 
+## Stato di implementazione: le arene di sfida del Piano 0 (WP15a, 2026-07-30)
+
+Le arene di sfida opzionali di DEC-004 **esistono ora nel motore**: chiude il gap dichiarato
+dalla nota M5 di questo documento e sblocca il tutorial integrato di DEC-047 e la metà
+"HUD visibile in arena" di DEC-169. Modulo dedicato: `src/world/floor_zero_arena.{h,c}`.
+
+- **Struttura**: tre **piazzole** segnalate nel crogiolo (`PICKUP_TRIAL_GATE`,
+  `FloorZeroArenaPlaceGates`, chiamata da `FloorZeroEnter`), una per tema di pratica —
+  *movimento e tiro*, *risorse e bombe*, *fusione*. Stanno sulla **croce centrale** della
+  stanza, l'unica zona che `RoomLayoutBuild` garantisce sempre libera, mai sopra il punto in
+  cui nasce il giocatore. Nessun asset nuovo: riusano `assets/art/props/piedistallo` e, se
+  manca, una forma geometrica dedicata (un arco su basamento). L'etichetta del tema è
+  **sempre scritta**, anche senza sprite (DEC-058).
+- **Ingresso a conferma esplicita**: il tasto di interazione `X` **a contatto** con la
+  piazzola, lo stesso gesto dell'arena incontrata nel piano e della Pourhouse
+  (`Game.interactQueued` → `FloorZeroArenaQueueEntry`). Il solo **tocco non fa partire
+  nulla**: entrare non è irreversibile, ma girando per l'hub non si deve finire dentro una
+  simulazione per averci camminato sopra.
+- **Simulazione senza economia (DEC-092/093), il cuore del design.** All'ingresso si cattura
+  una `FloorZeroTrialSnapshot`: il `Player` copiato **per intero** (mai campo per campo — è
+  l'unico modo per cui una statistica aggiunta domani non possa restare fuori dal
+  ripristino), più punteggio, stream RNG e messaggio a schermo. All'uscita — vittoria,
+  sconfitta o abbandono — si riapplica tutto. Conseguenze verificate dal test: niente danno
+  permanente, nessuna valuta o oggetto raccolto lì dentro sopravvive, nessun avanzamento
+  delle **prove della run** di DEC-042 (guardia esplicita in `src/game/trials.c`, non un
+  effetto collaterale del fatto che nel Piano 0 il conteggio sia di solito zero), timer di
+  run fermo (`inRealRun` resta falso: verificato).
+- **Vinta ma non finita.** Abbattere tutti i nemici **annuncia** la vittoria e nient'altro:
+  la simulazione resta aperta e la si lascia quando si vuole. È la lettura letterale di
+  DEC-095 (prove illimitate, nessun tetto di tempo) e l'unica compatibile con la piazzola
+  della fusione, dove il combattimento è il contorno.
+- **Uscita sempre disponibile, morte mai un game over (DEC-055).** ESC chiude la simulazione
+  e riporta nell'hub (fuori da una prova ESC resta `ExitConfirm`, DEC-074, invariato). La
+  salute a zero **dentro** una simulazione scrive `Game.floorZeroTrialDefeated` invece di
+  `PHASE_GAME_OVER` (`CombatDamagePlayer`): si esce con un messaggio ironico-leggero
+  (DEC-105) e lo stato d'ingresso intatto. Il varco verso il piano 1 **non si attraversa**
+  durante una simulazione: l'attraversamento azzera l'intero `Game`, snapshot compreso.
+- **Contenuti best-of (DEC-004/094)**: `RunCatalogBestOfEnemies`
+  (`src/content/run_catalog.c`) rilegge i tipi di nemico e di boss registrati nel catalogo
+  delle run passate — definizioni **già validate e già viste in una run vera**, mai
+  generate sul momento. Un boss del catalogo entra come nemico normale della simulazione:
+  riaffrontare un boss è la prova dal **museo** (DEC-040), che non esiste ancora nel motore.
+- **Fallback obbligatorio, l'arena funziona SEMPRE**: nessuna run passata (primissimo avvio,
+  catalogo cancellato) → i nemici del contenuto curato già caricato e, se mancassero anche
+  quelli, i tipi d'esempio del motore. È il caso limite dichiarato qui sopra
+  (DEC-087/094/153), verificato dal test con un catalogo vuoto.
+- **Prove illimitate (DEC-095)**: nessun tetto di tentativi, di tempo o di usi. Si rientra
+  quante volte si vuole e la composizione è **deterministica** (stream locale derivato da un
+  seme fisso per tema, mai `game->rng`, che viene salvato e rimesso: una simulazione non
+  sposta gli stream della run in preparazione).
+- **Tutorial integrato (DEC-047)**: alla **primissima visita di ciascuna piazzola** compare
+  un **cartello** — una riga breve che spiega i comandi di quel tema (WASD e frecce/mouse;
+  SPAZIO per la carica; TAB per la fucina), tono ironico-leggero, senza accentate. Resta
+  visibile per tutta la simulazione, non scade come un messaggio. Le visite successive
+  restano mute, come il documento chiede. Nella prova FUSIONE la lezione è **praticabile**:
+  la simulazione mette a terra due oggetti e un catalizzatore, il minimo esatto per fondere
+  davvero, e TAB apre `BuildScreen` come in `Gameplay` — tutto restituito all'uscita.
+- **LIMITE DICHIARATO — il "già visto" non è persistito su disco.** Vive su
+  `AppUi.floorZeroTrialTutorialSeen[]`, cioè in memoria di **processo**: sopravvive a run
+  successive nella stessa sessione, non a un riavvio del gioco. Nessun profilo persistente
+  esiste ancora nel motore (vedi `save-and-meta-progression.md` e
+  `docs/engineering/known-issues.md`): quando arriverà, questo flag è il primo candidato a
+  traslocarci.
+- **LIMITE DICHIARATO — la dote iniziale di DEC-029 non è implementata.** Completare una
+  simulazione non dà oggi alcuna dote alla run in preparazione: questo lavoro applica alla
+  lettera "nulla di ciò che accade lì dentro tocca la run" (DEC-092/093) e lascia la sola
+  eccezione prevista — la dote — a un lavoro successivo, insieme alla sua disattivazione in
+  modalità Classificata. Registrato in `docs/engineering/known-issues.md`.
+- **Test**: `GameArenaHubTest` (`src/tests/floor_zero_arena_tests.c`, `--arena-hub-test` in
+  `make test`) — dodici blocchi: piazzole e conferma esplicita, **ripristino integrale**
+  confrontato con `memcmp` sull'intero `Player` dopo aver subito danno e raccolto risorse
+  dentro la simulazione, morte che non è mai `PHASE_GAME_OVER`, prove della run ferme
+  dentro, best-of da un catalogo sintetico costruito perché **solo l'esito** possa
+  decidere quale run vince, fallback a catalogo vuoto, determinismo e stream RNG mai
+  spostato, varco non attraversabile, tutorial alla prima visita e mai più, consultazione
+  dal Piano 0 col comando di pausa.
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Quante arene e quali temi** | Tre piazzole: movimento e tiro, risorse e bombe, fusione. DEC-047 elenca "movimento, sparo, risorse e fusione" senza dire quante arene siano: movimento e sparo stanno insieme perché sono lo stesso gesto continuo, la bomba sta con le risorse perché *è* una risorsa spendibile. | `FloorZeroTrialTheme`, `src/core/game_types.h` |
+| **Criterio "best-of"** | `10000 × (esito vittoria) + 100 × piano raggiunto + 50 × boss sconfitti`, e si pesca da **una sola** run, la migliore — non da un miscuglio: un'arena best-of deve sapere di qualcosa. Spareggio sul nome del file, mai sull'ordine di enumerazione della cartella. | `RunCatalogBestOfEnemiesFromPath`, `src/content/run_catalog.c` |
+| **Taglia dell'ondata** | 3 nemici (movimento), 2 (risorse), 1 (fusione). Poche di proposito: l'arena del Piano 0 **insegna**, non mette alla prova come quella incontrata nel piano (che ha budget ×1.5 e nemici in fascia alta, WP6). | `FLOOR_ZERO_ARENA_ENEMIES_*`, `src/world/floor_zero_arena.c` |
+| **Grado dei nemici** | Quello registrato nel catalogo, senza maggiorazioni: un contenuto best-of si riaffronta com'era, non più cattivo. Un boss entra come nemico normale. | `FloorZeroArenaEnter` |
+| **Arredo della simulazione** | Nessun ostacolo: un'ondata va schivata, stesso ragionamento già fatto per `ROOM_ARENA` (WP6). L'arredo curato del crogiolo torna intatto all'uscita, ricostruito dal suo seme fisso. | `FloorZeroArenaEnter`/`FloorZeroArenaExit` |
+| **Tasto di ingresso** | `X` a contatto con la piazzola, lo stesso dell'arena del piano e della Pourhouse: per il giocatore è un solo gesto, "accetto ciò che questo posto propone". | `Game.interactQueued`, `FloorZeroArenaQueueEntry` |
+| **Uscita dalla simulazione** | ESC. Dentro una prova "indietro" significa "torna nell'hub"; fuori resta `ExitConfirm` (DEC-074). | `src/app/app.c`, case `APP_FLOOR_ZERO` |
+| **Vittoria** | Tutti i nemici abbattuti. Si **annuncia** e basta: la prova NON si chiude da sola (DEC-095, le prove sono illimitate — chiuderla d'ufficio taglierebbe corta la lezione della piazzola FUSIONE, dove i nemici sono il contorno e la fucina è il punto). Nessuna ricompensa: la dote di DEC-029 non è implementata (limite dichiarato sopra). | `FloorZeroArenaCleared`, `FloorZeroArenaNoteVictory` |
+| **Comando di pausa dal Piano 0** (domanda aperta 22) | Il **tasto di pausa** apre `PauseMenu` in consultazione; ESC resta `ExitConfirm` (DEC-074) e TAB resta il pannello mondi/personaggi (M5). Vedi `ui/pause-menu.md`. **Default proposto, la domanda resta aperta.** | `AppUi.pauseFromFloorZero`, `src/app/app.c` |
+
 ## Regole per contenuti generati
 
 - Le arene di sfida usano solo contenuti "best-of" già validati nelle run passate: non
@@ -441,7 +536,15 @@ superano la validazione, si applica la regola di fallback unica definita in
 ## Domande aperte residue
 
 - Valore esatto della dote iniziale (quali risorse, quale oggetto comune, quantità) —
-  DEC-029 fissa solo che sia "piccola", non i numeri.
+  DEC-029 fissa solo che sia "piccola", non i numeri. **Aggiornamento 30/07 (WP15a):** la
+  dote non è ancora implementata affatto — le simulazioni non lasciano oggi nulla alla run
+  in preparazione; vedi "Stato di implementazione: le arene di sfida del Piano 0" e
+  `docs/engineering/known-issues.md`.
+- Quale criterio rende una run passata "migliore" ai fini dei contenuti best-of di
+  un'arena, e quanti contenuti si pescano. **Aggiornamento 30/07 (WP15a):** esiste ora un
+  default proposto e implementato (esito, poi piano raggiunto, poi boss sconfitti; una sola
+  run, la migliore) — vedi `governance/open-questions.md`, voce 50. Resta un default di
+  implementazione, non canone.
 - Soglia esatta delle metriche (uso, sopravvivenza col giocatore, contributo alle vittorie)
   che fa scattare la promozione automatica al museo (DEC-063 fissa solo il principio misto,
   non i numeri).
@@ -673,3 +776,17 @@ superano la validazione, si applica la regola di fallback unica definita in
 - Given un giocatore entra in un'arena di sfida del Piano 0 (opzionale o dal museo)
 - When il combattimento nell'arena è in corso
 - Then l'HUD di combattimento torna visibile, come nei piani 1-5 (DEC-169)
+
+**Scenario: si entra in un'arena solo con una conferma esplicita (WP15a)**
+- Given un giocatore che gira nel crogiolo e attraversa una piazzola d'arena senza premere
+  nulla
+- When ci cammina sopra
+- Then non entra in alcuna simulazione: la piazzola resta lì e serve il tasto di
+  interazione a contatto per aprirla
+
+**Scenario: il cartello del tutorial è per piazzola, non globale (DEC-047, WP15a)**
+- Given un giocatore che ha già visitato la piazzola delle risorse e ne rivede il cartello
+  scomparso alla seconda visita
+- When entra per la prima volta nella piazzola della fusione
+- Then quella piazzola mostra il proprio cartello, perché "la primissima visita" vale per
+  ciascuna arena separatamente

@@ -17,6 +17,10 @@
    DEC-058). Il renderer non li compone: li chiede al modulo che possiede la
    puntata, cosi' non esistono due formulazioni della stessa cosa. */
 #include "world/pourhouse.h"
+/* WP15a: stessa ragione della riga sopra -- l'etichetta del tema di una
+   piazzola d'arena la possiede il modulo delle arene del Piano 0, non il
+   renderer (FloorZeroArenaThemeLabel, src/world/floor_zero_arena.h). */
+#include "world/floor_zero_arena.h"
 
 #include "rlgl.h"
 #include "raygui.h"   /* solo dichiarazioni: l'implementazione e' in src/render/raygui_impl.c */
@@ -1189,6 +1193,15 @@ static void DrawPickup(Game *game, const Pickup *p)
         propKey = "props/piedistallo";
         label = (p->value >= 2) ? "VERSATA" : ((p->value == 1) ? "PUNTATA" : "FREDDA");
     }
+    /* WP15a: la piazzola d'arena del Piano 0. Come i tre segnali sopra
+       l'etichetta si scrive SEMPRE, anche quando il prop manca: il TEMA della
+       prova e' l'unica informazione che distingue una piazzola dall'altra e non
+       puo' viaggiare sul solo colore (DEC-058). */
+    else if (p->kind == PICKUP_TRIAL_GATE)
+    {
+        propKey = "props/piedistallo";
+        label = FloorZeroArenaThemeLabel((FloorZeroTrialTheme)((p->value >= 0 && p->value < FLOOR_ZERO_TRIAL_COUNT) ? p->value : 0));
+    }
     if (propKey)
     {
         const ArtSheet *prop = ArtAtlasGet(propKey);
@@ -1232,6 +1245,12 @@ static void DrawPickup(Game *game, const Pickup *p)
         {
             animName = (p->value == 1) ? "pieno" : "vuoto";
         }
+        /* WP15a: la piazzola e' sempre disponibile -- le prove sono illimitate
+           (DEC-095), quindi non ha uno stato "consumato": sempre "pieno". */
+        else if (p->kind == PICKUP_TRIAL_GATE)
+        {
+            animName = "pieno";
+        }
         if (prop)
         {
             float scale = ArtScaleForWidth(prop->frameW, 28.0f);
@@ -1269,6 +1288,7 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_TIMED_MARKER) cell = -1;
         else if (p->kind == PICKUP_ARENA_ALTAR) cell = -1;   /* WP6: idem -- prop/forma dedicata, mai una cella d'atlas generica (e l'etichetta di stato non va sovrascritta da p->item.name) */
         else if (p->kind == PICKUP_POURHOUSE_BANK) cell = -1;   /* WP7: idem per il banco della Pourhouse */
+        else if (p->kind == PICKUP_TRIAL_GATE) cell = -1;      /* WP15a: idem per la piazzola d'arena del Piano 0 */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1387,6 +1407,19 @@ static void DrawPickup(Game *game, const Pickup *p)
             DrawTriangle(lipL, spout, lipR, c);
             DrawLineEx((Vector2){ pos.x + 2, pos.y + 3 }, (Vector2){ pos.x + 2, pos.y + 12 }, 3.0f, c);
         }
+        else if (p->kind == PICKUP_TRIAL_GATE)
+        {
+            /* WP15a: un arco su un basamento -- il "varco" della piazzola. E'
+               la silhouette che nessun'altra raccolta usa (cerchio, rombo,
+               esagono, fiamma, clessidra, lame incrociate e crogiolo colante
+               sono gia' prese). Tinta ambrata come il crogiolo del Piano 0:
+               le piazzole appartengono all'hub, non a una stanza di un piano. */
+            c = (Color){ 236, 178, 92, 255 };
+            DrawRectangle((int)pos.x - 16, (int)pos.y + 6, 32, 9, DARKGRAY);
+            DrawLineEx((Vector2){ pos.x - 12, pos.y + 6 }, (Vector2){ pos.x - 12, pos.y - 6 }, 4.0f, c);
+            DrawLineEx((Vector2){ pos.x + 12, pos.y + 6 }, (Vector2){ pos.x + 12, pos.y - 6 }, 4.0f, c);
+            DrawLineEx((Vector2){ pos.x - 12, pos.y - 6 }, (Vector2){ pos.x + 12, pos.y - 6 }, 4.0f, c);
+        }
         else
         {
             DrawItemShape(pos, p->item, 14.0f);
@@ -1409,6 +1442,11 @@ static void DrawPickup(Game *game, const Pickup *p)
        Si legge da Game.pourhouse e non da campi del Pickup apposta: dentro un
        Pickup andrebbe troncato, e un contratto troncato non e' un contratto.
        Sotto lo sprite, dove non copre il banco ne' il giocatore. */
+    /* WP15a: l'invito esplicito. La piazzola richiede il tasto di interazione
+       a contatto -- come l'arena del piano e il banco della Pourhouse -- e
+       quel tasto va scritto, non indovinato. */
+    if (p->kind == PICKUP_TRIAL_GATE)
+        UiText("X per entrare", (int)pos.x - 40, (int)pos.y + 26, 12, RAYWHITE);
     if (p->kind == PICKUP_POURHOUSE_BANK)
     {
         char offerText[96], priceText[96];
@@ -1598,6 +1636,24 @@ static void DrawTransientMessage(Game *game)
     Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 46.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
     DrawRectangleRec(box, GameColorWithAlpha(BLACK, 160));
     UiText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
+}
+
+/* WP15a (DEC-047, systems/floor-zero.md "Primissima visita: tutorial
+   integrato"): il CARTELLO della prima visita a una piazzola d'arena. A
+   differenza del messaggio transitorio qui sopra non scade: resta per tutta la
+   simulazione, perche' e' una spiegazione di comandi da consultare mentre si
+   prova, non una notifica. Si disegna SOLO quando Game.floorZeroTrialHint non
+   e' vuoto, cioe' solo alla primissima visita di QUELLA piazzola -- le visite
+   successive restano mute, come chiede il documento. Sopra il messaggio
+   transitorio e non al suo posto: i due possono convivere nello stesso
+   istante. */
+static void DrawFloorZeroTrialHint(const Game *game)
+{
+    if (!game->floorZeroTrialActive || !game->floorZeroTrialHint[0]) return;
+    Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 78.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
+    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 170));
+    DrawRectangleLinesEx(box, 1.0f, (Color){ 236, 178, 92, 190 });
+    UiText(game->floorZeroTrialHint, (int)box.x + 10, (int)box.y + 6, 15, (Color){ 246, 214, 160, 255 });
 }
 
 /* Un colpo, disegnato secondo la sua FORMA (step C, core/shot_type.h). Le forme
@@ -2082,6 +2138,7 @@ static void DrawGameplayCanvas(Game *game)
     EndMode2D();   /* da qui in giu' si torna in coordinate di canvas */
 
     DrawVignette();
+    DrawFloorZeroTrialHint(game);
     DrawTransientMessage(game);
 
     /* M1a: il vecchio overlay "RUN COMPLETATA/FALLITA, premi R" e' sparito da

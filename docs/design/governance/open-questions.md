@@ -127,7 +127,7 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 11. Qual è la risoluzione logica canonica dell'interfaccia e con quale regola di scaling? La proposta ricorrente è **640×360 con scaling intero**, presente negli appunti e nei template ma **mai approvata**: DEC-156 la apre esplicitamente come domanda aperta e fa marcare il valore come non approvato in `docs/ai-production/templates/UI-SKIN-SPEC.md`. (Provenienza: `Q-UI-002` del questionario ai-production archiviato, priorità BLOCKING per l'implementazione UI.) **Resta aperta (28/07, DEC-174):** il proprietario ha scelto di non deciderla ora; l'HUD in pixel art della demo si disegna nel frattempo per il **canvas logico attuale, 960×640** (lo stesso di DEC-170), non per fissare implicitamente questa domanda. Si decide dopo la demo.
 12. ~~Qual è la scala dei pixel del gioco — pixel nativi molto grandi, pixel medi, dettaglio alto con pixel snapping — e vale la stessa scala per il mondo e per l'interfaccia?~~ (Provenienza: `Q-UI-003`, BLOCKING per l'art bible.) **Chiusa (28/07, DEC-176; valore rettificato da DEC-177):** il proprietario ha scelto, al checkpoint CP1 della produzione pixel-art, la scala base per personaggi/nemici/oggetti — fissata a 24px da DEC-176 e **corretta lo stesso giorno a 32px** da DEC-177 per allinearsi alla pipeline SD1.5/LoRA (512/32 = 16 esatto); i boss possono superarla e le **icone HUD seguono la propria griglia**, indipendente da questa scala — nessun obbligo di scala condivisa fra mondo e interfaccia. Vedi `content/visual-language.md`, sezione «Stile pixel-art ufficiale e scala base sprite».
 13. Serve uno strumento di design come fonte dell'interfaccia (Penpot canonico, Penpot solo per mockup, un altro strumento, oppure file Markdown più PNG/SVG senza strumento), e in quale forma (cloud, self-host, nessuna integrazione)? (Provenienza: `Q-UI-001` e `Q-UI-005`.)
-22. Con quale comando il menu di pausa si apre dal Piano 0? DEC-169 indica il menu di pausa come luogo in cui l'HUD di combattimento resta consultabile durante il Piano 0, ma ESC è già assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso di `PauseMenu` prevedono oggi la sola provenienza da `Gameplay` (`ui/pause-menu.md`, `05-game-states-and-flow.md`). Manca il comando — o lo stato — che rende operativa la consultazione. (Provenienza: gap aperto da DEC-169 nella sessione del 2026-07-27; registrata anche in `ui/pause-menu.md` e `systems/floor-zero.md`.)
+22. Con quale comando il menu di pausa si apre dal Piano 0? DEC-169 indica il menu di pausa come luogo in cui l'HUD di combattimento resta consultabile durante il Piano 0, ma ESC è già assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso di `PauseMenu` prevedono oggi la sola provenienza da `Gameplay` (`ui/pause-menu.md`, `05-game-states-and-flow.md`). Manca il comando — o lo stato — che rende operativa la consultazione. (Provenienza: gap aperto da DEC-169 nella sessione del 2026-07-27; registrata anche in `ui/pause-menu.md` e `systems/floor-zero.md`.) **Aggiornamento 30/07 (WP15a) — DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE, la domanda RESTA APERTA:** dal Piano 0 il menu di pausa si apre con il **comando di pausa**, lo stesso di `Gameplay`, e "Riprendi"/ESC riportano nel Piano 0 invece che in `Gameplay` (`AppUi.pauseFromFloorZero`, zero-default falso = comportamento storico invariato). Scelto per esclusione motivata, non per gusto: ESC è `ExitConfirm` (DEC-074) e TAB è già il pannello mondi/personaggi del Piano 0 (M5/M6a, con l'invito "TAB per le carte" scritto a schermo, quindi riusarlo romperebbe un'affordance esistente); il comando di pausa era l'unico tasto libero nel Piano 0 ed è anche l'unico che significhi già "fermati e guarda lo stato" per chi ha giocato una run. Il riquadro di consultazione non è cambiato: `DrawPauseMenuFloorZeroConsult` era già disegnato, condizionato solo a `game->floor == 0`. Verificato da `--arena-hub-test`. Resta un default di implementazione: la scelta è del proprietario.
 
 ## Distribuzione
 
@@ -629,3 +629,53 @@ catalogo chiuso né i numeri.
     piani successivi non sono ancora generati. Tabella completa in
     `systems/rewards-and-economy.md`, "Stato di implementazione: le prove specifiche". Da
     confermare al playtest.
+
+## Arene di sfida del Piano 0 nel motore (WP15a, 2026-07-30)
+
+Il lavoro che porta nel motore le **arene di sfida opzionali del Piano 0** (DEC-004, con il
+tutorial integrato di DEC-047, il rischio zero di DEC-055/092, l'assenza di economia di
+DEC-093, il pool curato di DEC-087/094 e le prove illimitate di DEC-095) apre tre domande che
+nessun documento chiude: `systems/floor-zero.md` fissa l'archetipo, le garanzie e i casi
+limite, mai i numeri né gli input.
+
+50. Quale criterio rende una run passata "migliore" ai fini dei contenuti **best-of** di
+    un'arena, e quanti contenuti si pescano? Il documento dice solo "contenuti best-of già
+    validati nelle run passate" e "basta un solo contenuto valido perché un'arena si apra"
+    (DEC-094). *Default proposto e implementato*: una funzione di qualità chiusa e
+    deterministica su ciascun record del catalogo —
+    `10000 × (esito vittoria) + 100 × piano raggiunto + 50 × boss davvero sconfitti`
+    (`RunCatalogBestOfEnemiesFromPath`, `src/content/run_catalog.c`) — e si pesca da **una
+    sola** run, la migliore, non da un miscuglio: un'arena "best-of" deve sapere di
+    qualcosa, non essere una macedonia di run diverse. L'esito domina di proposito su ogni
+    altro termine: una vittoria corta è comunque un risultato migliore di una sconfitta
+    lontana. Spareggio sul nome del file, mai sull'ordine di enumerazione della cartella,
+    altrimenti la composizione dell'arena smetterebbe di essere deterministica. Un boss del
+    catalogo entra come nemico normale: riaffrontare un boss è la prova dal **museo**
+    (DEC-040), che non esiste ancora nel motore. Da confermare al playtest.
+    (`systems/floor-zero.md`, "Stato di implementazione: le arene di sfida del Piano 0".)
+
+51. QUANTE arene, con quali TEMI e con quale taglia d'ondata? DEC-047 elenca ciò che le
+    arene devono insegnare — "movimento, sparo, risorse e fusione" — senza dire quante
+    siano; DEC-004 non fissa nulla. *Default proposto e implementato*: **tre** piazzole
+    segnalate nel crogiolo (`FloorZeroTrialTheme`, `src/core/game_types.h`) — movimento e
+    tiro insieme perché sono lo stesso gesto continuo, risorse e bombe insieme perché la
+    bomba *è* una risorsa spendibile, fusione da sola con due oggetti e un catalizzatore a
+    terra perché la sua lezione si deve poter **compiere**, non solo leggere. Ondata di 3/2/1
+    nemici (`FLOOR_ZERO_ARENA_ENEMIES_*`), volutamente piccola: l'arena del Piano 0 insegna,
+    non mette alla prova come quella incontrata nel piano (budget ×1.5 e nemici in fascia
+    alta, voce 38). Nessuna maggiorazione sui tipi: un contenuto best-of si riaffronta
+    com'era. Da confermare al playtest.
+    (`systems/floor-zero.md`, "Default proposti dall'implementazione".)
+
+52. Con quali TASTI si entra e si esce da una simulazione del Piano 0? Nessun documento
+    fissa i tasti — stessa situazione già registrata per `E`/`G`/`F`/`C` e per la conferma
+    dell'arena del piano (voce 40). *Default proposto e implementato*: si **entra** con `X`
+    a contatto con la piazzola, lo stesso tasto e lo stesso gesto dell'arena del piano e
+    della Pourhouse — per il giocatore è sempre "accetto ciò che questo posto propone" — e
+    il solo TOCCO non basta: entrare non è irreversibile, ma girando per l'hub non si deve
+    finire dentro una simulazione per averci camminato sopra. Si **esce** con ESC, che
+    dentro una prova significa "torna nell'hub" invece di aprire `ExitConfirm`; fuori dalla
+    prova ESC resta `ExitConfirm` (DEC-074), invariato. Dentro una prova TAB apre la fucina
+    (`BuildScreen`) come in `Gameplay`, non il pannello mondi/personaggi. Resta aperta la
+    domanda più ampia se questi tasti debbano diventare una mappatura rivedibile dal
+    giocatore. (`systems/floor-zero.md`; `app/app_internal.h`, `AppInput`.)

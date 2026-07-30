@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
 last_reviewed: 2026-07-30
-last_verified_commit: b1cc044
-topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust]
+last_verified_commit: 63753fc
+topics: [hud, WP15a, arene-piano-0, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust]
 related: []
 supersedes: []
 source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/app/app.c, src/app/app_internal.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
@@ -38,16 +38,21 @@ Piano 0 resta uno spazio di preparazione con lo schermo pulito, senza togliere i
 chi la cerca. Dettagli delle prove e della consultazione in pausa: fonte unica
 `systems/floor-zero.md` e `ui/pause-menu.md` (rimando, non riformulato qui).
 
-> **Nota di implementazione (demo W3, 2026-07-28):** la regola di visibilità è ora una
-> funzione pura testabile, `HudCombatShouldDraw(mode, floorZeroTrialActive)`
-> (`src/render/game_renderer.h`/`.c`): vero in `Gameplay` sempre, vero in `FloorZero` solo se
-> `Game.floorZeroTrialActive`, falso altrimenti — `RendererDrawApp` la chiama al posto del
-> vecchio confronto diretto su `APP_GAMEPLAY`. `floorZeroTrialActive` è l'**hook pronto** per
-> le prove del Piano 0 (arene di sfida, DEC-004/047): nessun codice lo imposta ancora a vero,
-> perché le arene non esistono nel motore (gap esplicito stile DEC-009/052, matrice di
-> copertura §17) — non sono state inventate qui. Quando arriveranno, l'entrata/uscita
-> dall'arena scriverà quel flag e l'HUD ricomparirà senza altro lavoro sul renderer. Verificato
-> da `--discovery-test` (`src/tests/discovery_tests.c`).
+> **Nota di implementazione (WP15a, 2026-07-30, supera la nota W3 del 2026-07-28):** la
+> regola di visibilità è una funzione pura testabile,
+> `HudCombatShouldDraw(mode, floorZeroTrialActive)` (`src/render/game_renderer.h`/`.c`):
+> vero in `Gameplay` sempre, vero in `FloorZero` solo se `Game.floorZeroTrialActive`, falso
+> altrimenti — `RendererDrawApp` la chiama al posto del vecchio confronto diretto su
+> `APP_GAMEPLAY`. L'hook **è ora collegato**: `FloorZeroArenaEnter`/`FloorZeroArenaExit`
+> (`src/world/floor_zero_arena.c`) sono i due soli punti che scrivono quel flag, quindi
+> l'HUD ricompare durante una prova del Piano 0 e torna nascosto all'uscita — l'affermazione
+> "nessun codice lo imposta a vero" di questa nota non vale più. **Limite dichiarato:**
+> dentro una prova del Piano 0 il **timer di run si disegna ma resta fermo a `0:00`**,
+> perché `FloorZeroEnter` spegne `inRealRun` e azzera `runElapsedSeconds` — il crogiolo non è
+> una run cronometrata (vedi "Timer di run sempre visibile" sotto e la domanda aperta 27).
+> Verificato da `--discovery-test` (`src/tests/discovery_tests.c`, la funzione pura) e da
+> `--arena-hub-test` (`src/tests/floor_zero_arena_tests.c`, l'aggancio vero: nascosto
+> nell'hub, visibile in prova, di nuovo nascosto all'uscita).
 
 ## Elementi interattivi
 
