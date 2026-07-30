@@ -146,11 +146,13 @@ unica definita in
 - Gli Innesti raccolti **persistono per tutta la run**, come ogni altro oggetto della
   build (DEC-116): nessun legame col piano in cui li trovi.
 
-## Stato di implementazione (2026-07-27)
+## Stato di implementazione (2026-07-27, persistenza DEC-183 il 30/07)
 
 Il motore implementa la categoria, lo slot e il ciclo raccolta/sostituzione/sgancio;
 `tools/melting-gen` ora produce anche Innesti (aggiornamento dello stesso 2026-07-27,
 dopo la prima stesura di questa sezione) — i piega-regole restano assenti (vedi sotto).
+Il 30/07 (fix del primo playtest) il motore ha chiuso il gap di persistenza registrato da
+DEC-183: vedi il punto sullo sgancio sotto e `src/tests/script_items_tests.c` (test AX).
 
 **Implementato**
 
@@ -160,14 +162,40 @@ dopo la prima stesura di questa sezione) — i piega-regole restano assenti (ved
   (DEC-117): il vecchio Innesto resta a terra dove hai preso il nuovo, e riprenderlo
   riscambia — il "rifiutare la raccolta" dei casi limite si ottiene semplicemente non
   toccando l'oggetto.
-- Sgancio volontario (DEC-115) con l'Innesto lasciato **a terra nella stanza**. ~~Recuperabile
-  finché non si esce (DEC-160). "Perso uscendo" non ha codice dedicato: i pickup di una
-  stanza vengono azzerati all'ingresso in una stanza qualsiasi, quindi la simmetria col
-  piedistallo vale per costruzione.~~ — **superato da DEC-183** (30/07): il design ora vuole
-  l'Innesto recuperabile per **tutta la run**, non solo restando nella stanza; il
-  meccanismo attuale (azzeramento dei pickup di stanza all'ingresso in una stanza
-  qualsiasi) è **più aggressivo** della nuova regola e non la implementa ancora — vedi il
-  gap registrato sotto in "Non ancora implementato".
+- Sgancio volontario (DEC-115) con l'Innesto lasciato **a terra nella stanza**,
+  recuperabile **per tutta la run** (DEC-183, implementato 30/07, corretto un difetto
+  bloccante il 30/07 sera — vedi sotto): la persistenza vive in una lista GLOBALE al
+  piano, `Game.droppedGrafts` (`src/core/game_types.h`, cap `MAX_DROPPED_GRAFTS=32`),
+  non in un campo singolo per stanza — **in una stessa stanza possono coesistere PIÙ
+  Innesti a terra insieme** (uno sganciato più uno lasciato da uno scambio successivo, o
+  due sganci consecutivi prima di riprenderne nessuno), e un campo singolo li
+  sovrascriverebbe silenziosamente uno con l'altro (il difetto bloccante della prima
+  stesura di questo fix, corretto prima del commit). Ogni record porta un riferimento
+  alla cella di stato a cui appartiene; sopravvive all'azzeramento dei pickup ad ogni
+  ingresso in stanza (`EntitiesClear`): `WorldSpawnRoomContents` (`src/world/world.c`)
+  ri-materializza OGNI record della stanza corrente a ogni visita (bloccando il pickup se
+  nasce sotto/vicino ai piedi del giocatore, stessa guardia dello sgancio) finché non
+  viene ripreso davvero (`CombatPickup`, guardato dal marcatore
+  `Pickup.isPersistedGraft`/`droppedGraftSlot` per non confondere l'Innesto sganciato con
+  un Innesto qualunque offerto da tesoro/negozio, e per sapere QUALE record aggiornare
+  quando ce n'è più di uno nella stessa stanza). Uno scambio a slot pieni sullo stesso
+  Innesto persistente aggiorna il SUO record invece di azzerarlo: resta a terra, ora con
+  l'oggetto appena tolto dallo slot. Riprendere il proprio Innesto persistente (con o
+  senza scambio) non tocca mai `rewardTaken`/la valuta di completamento della stanza:
+  quel ramo resta riservato a un oggetto offerto DAVVERO da tesoro/negozio, altrimenti
+  sganciare in una stanza tesoro non ancora aperta e poi rientrare per riprenderselo
+  incasserebbe la valuta di un tesoro mai aperto (DEC-167).
+- **Asimmetria dichiarata:** un Innesto lasciato a terra da uno SCAMBIO su un piedistallo
+  di tesoro/negozio (il "vecchio Innesto resta a terra dove hai preso il nuovo" descritto
+  sopra, quando il piedistallo offre un Innesto qualunque e non un Innesto persistente
+  già a terra) **continua a svanire uscendo dalla stanza**, come da DEC-160/167: quel
+  pickup non porta il marcatore `isPersistedGraft` e nessuno stato di `Game.droppedGrafts`
+  lo tiene in vita. Solo un Innesto sganciato *volontariamente* (o un Innesto persistente
+  già a terra che viene toccato di nuovo su un piedistallo, aggiornando il SUO stesso
+  record) resta per tutta la run — a schermo i due pickup sono identici, quindi
+  l'asimmetria non è visibile al giocatore finché non esce e rientra. Lettera di DEC-183
+  rispettata (parla esplicitamente di "Innesto sganciato volontariamente"), ma resta una
+  scelta implicita non ancora aperta come domanda al proprietario.
 - Stacking dentro i clamp del motore (DEC-122): gli Innesti passano dal ricalcolo da zero
   di `ScriptItemsRecomputeStats` come ogni altro oggetto, senza contabilità nuova. Il
   budget per-oggetto scalato per rarità — finora riservato agli stat-up — si applica
@@ -185,12 +213,6 @@ dopo la prima stesura di questa sezione) — i piega-regole restano assenti (ved
 - Innesti "sensore" per le super-segrete (DEC-127): dipendono dalle stanze segrete, che
   non esistono.
 - Nessuna fonte di slot Innesto aggiuntivi esiste in gioco.
-- **Persistenza dell'Innesto sganciato per tutta la run (DEC-183): gap esplicito.** Il
-  motore azzera i pickup di una stanza all'ingresso in una stanza qualsiasi (il
-  meccanismo che finora simulava "perso uscendo" di DEC-160): con DEC-183 questo va
-  corretto perché un Innesto sganciato sopravviva a terra nella sua stanza, recuperabile
-  in qualunque visita successiva, per l'intera run. Non risolto in questo lavoro di
-  design (nessuna modifica al codice).
 
 ### Default proposti dall'implementazione
 
@@ -202,6 +224,7 @@ Stile DEC-019: scelte del codice dove il documento non decide, da confermare.
 | Quale Innesto si sgancia con più slot occupati | l'**ultimo equipaggiato** (nessuna UI di selezione degli slot) |
 | Quale Innesto viene sostituito a slot pieni | l'**ultimo equipaggiato**, stessa regola |
 | Budget dell'effetto | il tetto per-oggetto scalato per rarità già usato dagli stat-up |
+| L'Innesto persistente (DEC-183) segue il giocatore al piano successivo? | **No**: resta sul piano dov'è stato lasciato. Lo stato persistente vive nella stessa griglia di stanze del piano corrente, azzerata a ogni nuovo piano come il resto del layout — coerente col fatto che i piani di questa demo si attraversano in un solo verso (nessun modo di tornare a rivisitare la stanza) |
 
 ## Domande aperte residue
 

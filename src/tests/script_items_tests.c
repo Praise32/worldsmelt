@@ -2572,21 +2572,219 @@ static bool TestActiveSwapAndGraftDropRecover(void)
     if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 1) { printf("      FALLITO: l'Innesto sganciato non e' recuperabile nella stanza\n"); ok = false; }
     if (!(game.player.traits & TRAIT_HOMING)) { printf("      FALLITO: l'Innesto recuperato non riapplica il suo trait\n"); ok = false; }
 
-    /* "Perso uscendo dalla stanza" (DEC-160): non c'e' una riga di codice
-       dedicata -- e' EntitiesClear, che WorldSpawnRoomContents chiama ad ogni
-       ingresso in una stanza, a farlo sparire. Il test esercita proprio quel
-       meccanismo invece di riscriverne uno finto. */
+    /* DEC-183 supera la clausola "uscendo dalla stanza si perde" di DEC-160:
+       EntitiesClear (che WorldSpawnRoomContents chiama ad ogni ingresso in
+       una stanza) svuota comunque TUTTI i pickup in memoria, ma
+       WorldSpawnRoomContents ora ri-materializza l'Innesto sganciato dal suo
+       record in Game.droppedGrafts (vedi il commento li') -- niente piu'
+       sparizione. Vedi TestGraftDropPersistsAcrossRunNotFloor per il test
+       dedicato (DEC-183, sgancio/uscita/rientro/reset/cambio piano, e il
+       caso di DUE Innesti sganciati nella STESSA stanza). */
     game.player.pos = (Vector2){ spot.x, spot.y + 120.0f };
     CombatDropGraft(&game);
     ScriptItemsProcessDirty(&game);
     int droppedBefore = TestCountItemPickupsNamed(&game, "Innesto Uno");
     EntitiesClear(&game);
-    printf("  [AR/DEC-160] cambio stanza: 'Innesto Uno' a terra %d -> %d (atteso 0, non piu' recuperabile); pickup di oggetto totali %d\n",
-           droppedBefore, TestCountItemPickupsNamed(&game, "Innesto Uno"), TestCountItemPickups(&game));
+    WorldSpawnRoomContents(&game);   /* simula il rientro nella STESSA stanza (game.roomX/Y invariati) */
+    printf("  [AR/DEC-183] cambio stanza e rientro: 'Innesto Uno' a terra %d -> %d (atteso 1, ancora recuperabile)\n",
+           droppedBefore, TestCountItemPickupsNamed(&game, "Innesto Uno"));
     if (droppedBefore != 1) { printf("      FALLITO: il secondo sgancio non ha lasciato nulla a terra\n"); ok = false; }
-    if (TestCountItemPickups(&game) != 0) { printf("      FALLITO: qualche pickup di oggetto sopravvive al cambio stanza\n"); ok = false; }
+    if (TestCountItemPickupsNamed(&game, "Innesto Uno") != 1)
+    { printf("      FALLITO: DEC-183 -- l'Innesto sganciato non sopravvive a un giro fuori e dentro la stanza\n"); ok = false; }
 
     ScriptItemsShutdown(&game);
+    return ok;
+}
+
+/* Conta i record ATTIVI di Game.droppedGrafts per una stanza (cella di
+   stato) specifica -- non un semplice "c'e' o non c'e'" come il vecchio
+   RoomState.hasDroppedGraft, perche' il punto della verifica qui sotto e'
+   proprio che PIU' record possono coesistere nella STESSA stanza (DEC-183,
+   round 1: il primo sgancio non deve sparire quando se ne aggiunge un
+   secondo). */
+static int TestCountActiveDroppedGraftsInRoom(const Game *game, int rx, int ry)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_DROPPED_GRAFTS; i++)
+    {
+        const DroppedGraftRecord *rec = &game->droppedGrafts[i];
+        if (rec->active && rec->roomX == rx && rec->roomY == ry) n++;
+    }
+    return n;
+}
+
+/* Totale su TUTTO il piano: usato per i due bordi (reset di run/cambio
+   piano) dove non importa PIU' in quale stanza fosse il record, solo che
+   non ne resti nessuno attivo da nessuna parte. */
+static int TestCountActiveDroppedGraftsTotal(const Game *game)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_DROPPED_GRAFTS; i++) if (game->droppedGrafts[i].active) n++;
+    return n;
+}
+
+/* Test AX (DEC-183: l'Innesto sganciato resta a terra, nella stanza in cui e'
+   stato sganciato, per TUTTA LA RUN -- non solo restando nella visita in cui
+   e' avvenuto lo sgancio -- superando parzialmente la clausola "uscendo si
+   perde" di DEC-160). Copre lo scenario del task: sgancio, esco, ripulisco
+   ALTRE stanze, torno -> lo ritrovo e lo riprendo; il caso bloccante del
+   round 0 -- DUE Innesti sganciati nella STESSA stanza devono convivere,
+   nessuno dei due sovrascrive l'altro (CombatDropGraft cercava uno slot
+   libero in Game.droppedGrafts invece di un campo singolo, vedi il commento
+   li'); e i due bordi della persistenza -- un reset di run la azzera (e'
+   run-scoped, non eterna), un cambio di piano pure (default proposto: non
+   segue il giocatore al piano successivo, i piani si attraversano in un
+   solo verso). */
+static bool TestGraftDropPersistsAcrossRunNotFloor(void)
+{
+    bool ok = true;
+    Game game = MakeBaseGame(30831u);
+    game.floor = 1;
+    /* Il caso "due Innesti a terra nella STESSA stanza" richiede poter
+       possedere due Innesti CONTEMPORANEAMENTE (altrimenti raccogliere il
+       secondo mentre il primo e' ancora equipaggiato sarebbe uno SCAMBIO,
+       non una raccolta diretta, e il test finirebbe per esercitare
+       CombatPickup ramo swapIndex>=0 invece del ramo diretto che qui
+       interessa verificare). Il minimo di design resta 1 (test AS), qui se
+       ne concede 2 -- entro MAX_GRAFT_SLOTS -- solo per questo scenario. */
+    game.player.graftSlotCount = 2;
+    Vector2 spot = game.player.pos;
+
+    TestPickUpItemAt(&game, MakeGraft("Innesto Persistente", TRAIT_HOMING, RARITY_COMMON), spot);
+    if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 1)
+    { printf("      FALLITO: l'Innesto non si e' equipaggiato\n"); ok = false; }
+
+    /* Sgancio nella stanza di stato corrente (game.roomX/roomY di default: 0,0). */
+    game.player.pos = (Vector2){ spot.x + 40.0f, spot.y };
+    CombatDropGraft(&game);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AX/DEC-183] dopo il primo sgancio: record attivi in (0,0)=%d (atteso 1)\n",
+           TestCountActiveDroppedGraftsInRoom(&game, 0, 0));
+    if (TestCountActiveDroppedGraftsInRoom(&game, 0, 0) != 1)
+    { printf("      FALLITO: lo sgancio non ha scritto lo stato persistente della stanza\n"); ok = false; }
+
+    /* Round 0 -> round 1: un SECONDO Innesto sganciato nella STESSA stanza
+       non deve cancellare il primo (il difetto bloccante: capienza 1 per
+       stanza sovrascriveva 'droppedGraft' in silenzio). Si equipaggia un
+       secondo Innesto (lo slot del primo si e' appena liberato) e lo si
+       sgancia anche lui, sempre in (0,0). */
+    TestPickUpItemAt(&game, MakeGraft("Innesto Persistente Due", TRAIT_HOMING, RARITY_COMMON), spot);
+    game.player.pos = (Vector2){ spot.x - 40.0f, spot.y };
+    CombatDropGraft(&game);
+    ScriptItemsProcessDirty(&game);
+    printf("  [AX/DEC-183] dopo il secondo sgancio nella STESSA stanza: record attivi in (0,0)=%d (atteso 2)\n",
+           TestCountActiveDroppedGraftsInRoom(&game, 0, 0));
+    if (TestCountActiveDroppedGraftsInRoom(&game, 0, 0) != 2)
+    { printf("      FALLITO: il secondo sgancio nella stessa stanza ha cancellato il primo (o non si e' registrato)\n"); ok = false; }
+
+    /* Esco (EntitiesClear, come un vero cambio stanza) e "ripulisco" un paio
+       di ALTRE stanze -- celle di stato diverse, ognuna rigenera i suoi
+       pickup da zero via WorldSpawnRoomContents: nessuno dei due Innesti
+       sganciati deve comparire li'. */
+    EntitiesClear(&game);
+    game.roomX = 1; game.roomY = 0;
+    WorldSpawnRoomContents(&game);
+    if (TestCountItemPickupsNamed(&game, "Innesto Persistente") != 0 ||
+        TestCountItemPickupsNamed(&game, "Innesto Persistente Due") != 0)
+    { printf("      FALLITO: un Innesto sganciato compare anche in una stanza diversa (1,0)\n"); ok = false; }
+
+    game.roomX = 2; game.roomY = 1;
+    WorldSpawnRoomContents(&game);
+    if (TestCountItemPickupsNamed(&game, "Innesto Persistente") != 0 ||
+        TestCountItemPickupsNamed(&game, "Innesto Persistente Due") != 0)
+    { printf("      FALLITO: un Innesto sganciato compare anche in un'altra stanza diversa (2,1)\n"); ok = false; }
+
+    /* Torno nella stanza dello sgancio: WorldSpawnRoomContents ri-materializza
+       OGNI record di Game.droppedGrafts per questa stanza -- ENTRAMBI gli
+       Innesti devono tornare a terra, non solo uno. */
+    game.roomX = 0; game.roomY = 0;
+    WorldSpawnRoomContents(&game);
+    printf("  [AX/DEC-183] rientro nella stanza dello sgancio: 'Innesto Persistente' a terra %d, 'Innesto Persistente Due' a terra %d (attesi 1/1)\n",
+           TestCountItemPickupsNamed(&game, "Innesto Persistente"), TestCountItemPickupsNamed(&game, "Innesto Persistente Due"));
+    if (TestCountItemPickupsNamed(&game, "Innesto Persistente") != 1)
+    { printf("      FALLITO: il primo Innesto sganciato non e' tornato a terra rientrando nella stanza\n"); ok = false; }
+    if (TestCountItemPickupsNamed(&game, "Innesto Persistente Due") != 1)
+    { printf("      FALLITO: il secondo Innesto sganciato non e' tornato a terra rientrando nella stanza (era quello perso dal difetto bloccante)\n"); ok = false; }
+
+    /* Li riprendo ENTRAMBI: mi fermo su ciascuno a turno (CombatUpdatePickups
+       raccoglie solo il pickup su cui il giocatore e' fermo ORA). */
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        Pickup *pk = &game.pickups[i];
+        if (pk->active && pk->kind == PICKUP_ITEM && strcmp(pk->item.name, "Innesto Persistente") == 0)
+            game.player.pos = pk->pos;
+    }
+    CombatUpdatePickups(&game);
+    for (int i = 0; i < MAX_PICKUPS; i++)
+    {
+        Pickup *pk = &game.pickups[i];
+        if (pk->active && pk->kind == PICKUP_ITEM && strcmp(pk->item.name, "Innesto Persistente Due") == 0)
+            game.player.pos = pk->pos;
+    }
+    CombatUpdatePickups(&game);
+    printf("  [AX/DEC-183] ripresi entrambi: Innesti posseduti %d (atteso 2), record ancora attivi in (0,0)=%d (atteso 0)\n",
+           ItemCountOfKind(&game.player, ITEM_GRAFT), TestCountActiveDroppedGraftsInRoom(&game, 0, 0));
+    if (ItemCountOfKind(&game.player, ITEM_GRAFT) != 2)
+    { printf("      FALLITO: i due Innesti ritrovati non si riprendono davvero\n"); ok = false; }
+    if (TestCountActiveDroppedGraftsInRoom(&game, 0, 0) != 0)
+    { printf("      FALLITO: lo stato persistente non si azzera quando gli Innesti vengono ripresi\n"); ok = false; }
+
+    /* Bordo 1: un terzo sgancio, poi un reset di run. Non si chiama qui la
+       VERA GameResetRunWithSeed (src/game/game.c): questo binario di test
+       gira PRIMA di InitWindow per costruzione (vedi il commento sul flag
+       --script-items-test in src/app/app.c e in scripts/test-script.sh), e
+       GameResetRunWithSeed chiama AssetsLoad -> LoadTexture, che ha bisogno
+       di un contesto GL vero. Si riproduce percio' SOLO l'effetto che
+       interessa qui (l'azzeramento totale di Game), nello stesso ORDINE del
+       vero GameResetRunWithSeed: ScriptItemsShutdown (chiude le eventuali
+       sandbox Lua vive) PRIMA del memset, mai dopo -- altrimenti il memset
+       azzererebbe i puntatori senza chiuderli, esattamente il leak che
+       GameUnloadAssets (chiamata da GameResetRunWithSeed prima del suo
+       memset) esiste per evitare. Nessuna sandbox e' viva in questo test
+       (MakeGraft non imposta mai luaSource), quindi qui non ne chiude
+       nessuna per davvero: la chiamata resta per disciplina, cosi' un
+       domani in cui questo test iniziasse a usare oggetti con script non
+       lascerebbe un leak in silenzio. */
+    game.player.pos = spot;
+    CombatDropGraft(&game);
+    ScriptItemsProcessDirty(&game);
+    if (TestCountActiveDroppedGraftsTotal(&game) < 1)
+    { printf("      FALLITO: il terzo sgancio non ha scritto lo stato persistente\n"); ok = false; }
+    ScriptItemsShutdown(&game);       /* stesso ordine di GameUnloadAssets/GameResetRunWithSeed: PRIMA del memset */
+    memset(&game, 0, sizeof(game));   /* stesso memset di GameResetRun/GameResetRunWithSeed */
+    printf("  [AX/DEC-183] reset di run: record attivi sul piano=%d (atteso 0)\n",
+           TestCountActiveDroppedGraftsTotal(&game));
+    if (TestCountActiveDroppedGraftsTotal(&game) != 0)
+    { printf("      FALLITO: un reset di run non azzera gli Innesti persistenti a terra\n"); ok = false; }
+
+    /* Bordo 2: un cambio di piano -- a differenza del bordo sopra, QUI si usa
+       la vera WorldStartFloor (src/world/world.c, pubblica via game_internal.h):
+       non tocca raylib (RunContentRefreshFloorScripts fa solo LoadFileText/
+       UnloadFileText, pura lettura di testo; WorldGenerateFloorMap e
+       WorldSpawnRoomContents sono logica pura + AudioPlaySfx, MAI chiamata
+       da questo percorso), quindi gira senza problemi anche qui, PRIMA di
+       InitWindow -- esattamente come RoomsTestGenerateFloor in
+       src/tests/game_tests.c costruisce i suoi Game di prova. Si esercita
+       percio' la VERA transizione di piano (non un memset scritto a mano),
+       che azzera Game.droppedGrafts perche' WorldGenerateFloorMap lo fa
+       esplicitamente (vedi il commento li'), non per un caso di
+       adiacenza in memoria con 'rooms'. */
+    Game floorGame = MakeBaseGame(30832u);
+    WorldStartFloor(&floorGame, 1);
+    TestPickUpItemAt(&floorGame, MakeGraft("Innesto Piano 1", TRAIT_HOMING, RARITY_COMMON), floorGame.player.pos);
+    floorGame.player.pos = (Vector2){ floorGame.player.pos.x + 40.0f, floorGame.player.pos.y };
+    CombatDropGraft(&floorGame);
+    ScriptItemsProcessDirty(&floorGame);
+    if (TestCountActiveDroppedGraftsTotal(&floorGame) < 1)
+    { printf("      FALLITO: il quarto sgancio (piano 1 vero) non ha scritto lo stato persistente\n"); ok = false; }
+    WorldStartFloor(&floorGame, 2);   /* vera transizione di piano, non un memset scritto a mano */
+    printf("  [AX/DEC-183] cambio piano (WorldStartFloor vera): record attivi sul piano=%d (atteso 0, non segue il giocatore al piano successivo)\n",
+           TestCountActiveDroppedGraftsTotal(&floorGame));
+    if (TestCountActiveDroppedGraftsTotal(&floorGame) != 0)
+    { printf("      FALLITO: un cambio di piano non azzera l'Innesto lasciato sul piano precedente\n"); ok = false; }
+
+    ScriptItemsShutdown(&game);
+    ScriptItemsShutdown(&floorGame);
     return ok;
 }
 
@@ -2998,12 +3196,13 @@ bool ScriptItemsSelfTest(void)
         { "AO (M6a, DEC-033: il tetto di salute base e' per-personaggio -- roccia 16, vetro 8, nessuno 12; DEC-008 sul percorso pickup)", TestHpCapIsPerCharacter },
         { "AP (M6b-3, DEC-068: il colpo firmato del personaggio fa da base, un oggetto-colpo raccolto lo sostituisce, rimuoverlo lo ripristina)", TestSignatureShotIsBaseAndItemOverrides },
         { "AQ (attivi: cariche consumate/rifiutate a secco, cooldown che scade, i due canali di ricarica di DEC-059)", TestActiveChargesAndCooldown },
-        { "AR (DEC-117/DEC-160: scambio reversibile sul piedistallo, sgancio dell'Innesto a terra, recupero, perdita uscendo)", TestActiveSwapAndGraftDropRecover },
+        { "AR (DEC-117/DEC-160/DEC-183: scambio reversibile sul piedistallo, sgancio dell'Innesto a terra, recupero anche dopo un giro fuori e dentro la stanza)", TestActiveSwapAndGraftDropRecover },
         { "AS (tassonomia a 4 categorie: mappatura di compatibilita' del vocabolario storico, zero-default, slot iniziali)", TestItemKindTextCompat },
         { "AT (ScriptItemsRemoveItem: compattazione items[]/itemScripts[] accoppiata, nessuna deriva, trait che si spengono)", TestRemoveItemCompactsAndLeavesNoDrift },
         { "AU (DEC-161: conflitto fra candidati multipli risolto dal seed di run, stabile nella run, puo' differire fra run)", TestSynergyConflictSeedStableAcrossRunDiffersAcrossSeeds },
         { "AV (DEC-162: budget dedicato al risultato di piu' sinergie simultanee, clampa senza mai crashare)", TestSynergyDedicatedResultBudgetClampsTripleStack },
         { "AW (DEC-162: il RISULTATO di una sinergia dichiarata dal tipo di colpo resta nel budget di leggibilita')", TestSynergyResultReadabilityBudget },
+        { "AX (DEC-183: l'Innesto sganciato resta a terra per TUTTA LA RUN -- sgancio/esco/ripulisco altre stanze/torno/riprendo; reset di run e cambio piano lo azzerano)", TestGraftDropPersistsAcrossRunNotFloor },
     };
     bool allOk = true;
     for (size_t i = 0; i < sizeof(tests)/sizeof(tests[0]); i++)

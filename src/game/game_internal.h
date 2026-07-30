@@ -108,7 +108,7 @@ Shot *EntitiesAddShot(
 );
 void EntitiesAddPickup(Game *game, PickupKind kind, Vector2 position, int value, int cost);
 int EntitiesCountActivePickups(const Game *game, PickupKind kind);
-void EntitiesAddItemPickup(Game *game, Vector2 position, Item item, int cost);
+Pickup *EntitiesAddItemPickup(Game *game, Vector2 position, Item item, int cost);
 
 void AssetsLoad(Game *game);
 

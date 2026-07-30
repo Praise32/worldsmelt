@@ -586,7 +586,53 @@ typedef struct RoomState {
     unsigned char cells;   /* maschera 2x2 (ROOM_CELL_BIT), relativa a originX/originY */
     int originX;           /* cella in alto a sinistra del RIQUADRO della stanza */
     int originY;
+    /* DEC-183: gli Innesti sganciati volontariamente in QUESTA stanza (cella
+       di STATO, CombatDropGraft in src/gameplay/combat.c) NON vivono qui --
+       un campo singolo per stanza non basterebbe (in una stessa stanza
+       possono coesistere piu' Innesti a terra: uno sganciato e uno lasciato
+       da un piedistallo, o due sganci successivi prima di riprenderne
+       nessuno) e replicare un array per RoomState moltiplicherebbe il costo
+       di ogni Item (~2.6KB) per GRID_SIZE*GRID_SIZE=25 celle. Vivono invece
+       in una lista GLOBALE al piano, Game.droppedGrafts (vedi
+       DroppedGraftRecord sotto), ciascun record con un riferimento a QUALE
+       cella di stato appartiene -- stesso azzeramento (memset di
+       GameResetRun/GameResetRunWithSeed e di WorldGenerateFloorMap ad ogni
+       nuovo piano), stessa semantica "non segue il giocatore tra i piani". */
 } RoomState;
+
+/* DEC-183: un Innesto lasciato a terra -- sganciato volontariamente
+   (CombatDropGraft) o rimasto al posto di quello appena ripreso in uno
+   scambio a slot pieni (CombatPickup, grafts.md "Drop e persistenza") --
+   resta recuperabile per TUTTA LA RUN, nella stanza (cella di STATO,
+   RoomState) in cui giace, anche se il giocatore esce e ripulisce altre
+   stanze nel frattempo. WorldSpawnRoomContents ri-materializza un pickup per
+   OGNI record 'active' la cui (roomX,roomY) coincide con la stanza corrente,
+   ad OGNI ingresso (EntitiesClear la svuota comunque a ogni ingresso: senza
+   questo l'Innesto sparirebbe, il gap che DEC-183 chiude). CombatPickup
+   libera il record ('active' a falso) quando il giocatore lo riprende
+   DAVVERO (nessuno scambio), o lo aggiorna con l'Innesto che resta al suo
+   posto se lo riprende tramite scambio -- vedi Pickup.isPersistedGraft/
+   droppedGraftSlot, che legano un pickup a terra al SUO record specifico
+   (niente ambiguita' quando ce ne sono piu' di uno nella stessa stanza).
+   MAX_DROPPED_GRAFTS e' un tetto comodo, non stretto: ogni cella di stato
+   puo' concedere al massimo un oggetto come premio (ROOM_TREASURE/ROOM_SHOP,
+   WorldSpawnRoomContents), quindi il numero di Innesti che possono ESISTERE
+   su un piano (equipaggiati o a terra) non supera mai
+   GRID_SIZE*GRID_SIZE=25; il tetto resta ben sopra quella soglia per
+   lasciare margine. Se mai si esaurisse (difetto altrove, non raggiungibile
+   con il contenuto attuale) CombatDropGraft ripiega sul comportamento
+   pre-DEC-183 per QUEL sgancio soltanto (a terra solo per la visita
+   corrente, invece di rifiutare l'azione o corrompere un altro record) e lo
+   segnala con un fprintf(stderr, ...) -- stessa convenzione di
+   ArtAtlas/RunCatalog per una condizione anomala non fatale. */
+#define MAX_DROPPED_GRAFTS 32
+typedef struct DroppedGraftRecord {
+    bool active;
+    int roomX;
+    int roomY;
+    Item item;
+    Vector2 pos;
+} DroppedGraftRecord;
 
 typedef struct Player {
     Vector2 pos;
@@ -852,6 +898,25 @@ typedef struct Pickup {
        falso = raccoglibile subito, quindi ogni pickup gia' esistente e ogni
        test che ne costruisce uno a mano restano invariati. */
     bool locked;
+    /* DEC-183: vero SOLO per il pickup che rappresenta un record di
+       Game.droppedGrafts (sganciato via CombatDropGraft, o lasciato su un
+       piedistallo da uno scambio successivo dello STESSO Innesto
+       persistente) -- mai per un Innesto offerto da tesoro/negozio.
+       Distingue "questo pickup deve tenere sincronizzato il SUO record in
+       Game.droppedGrafts quando viene preso" da qualunque altro pickup di
+       categoria Innesto, cosi' CombatPickup non tocca stato persistente per
+       un Innesto che non c'entra (vedi il commento su CombatPickup,
+       src/gameplay/combat.c). Zero-default falso: ogni pickup che non passa
+       esplicitamente da qui resta un Innesto "normale", invariato. */
+    bool isPersistedGraft;
+    /* DEC-183: indice in Game.droppedGrafts del record che QUESTO pickup
+       rappresenta -- significativo SOLO quando isPersistedGraft e' vero (in
+       una stessa stanza possono coesistere piu' Innesti persistenti, uno per
+       record: senza un riferimento diretto CombatPickup non saprebbe QUALE
+       record aggiornare/liberare). -1 = nessuno (zero-default esplicito,
+       stesso schema di isPersistedGraft: mai letto quando isPersistedGraft e'
+       falso, ma esplicito per non affidarsi al caso). */
+    int droppedGraftSlot;
 } Pickup;
 
 typedef struct Bomb {
@@ -1014,6 +1079,14 @@ typedef struct Game {
        run, il limite e' l'economia del catalizzatore). */
     int fusionCount;
     RoomState rooms[GRID_SIZE][GRID_SIZE];
+    /* DEC-183: lista GLOBALE al piano degli Innesti lasciati a terra,
+       persistenti per tutta la run -- vedi il commento su DroppedGraftRecord
+       sopra. Azzerata da un memset ESPLICITO e SEPARATO in
+       WorldGenerateFloorMap (subito dopo quello di game->rooms, stesso
+       spirito ma campo diverso: non un effetto collaterale di essere vicino
+       a 'rooms' in memoria) ad ogni nuovo piano, e dal memset che
+       GameResetRun/GameResetRunWithSeed applicano a tutto Game. */
+    DroppedGraftRecord droppedGrafts[MAX_DROPPED_GRAFTS];
     Player player;
     Enemy enemies[MAX_ENEMIES];
     Shot shots[MAX_SHOTS];

@@ -200,7 +200,7 @@ int EntitiesCountActivePickups(const Game *game, PickupKind kind)
     return count;
 }
 
-void EntitiesAddItemPickup(Game *game, Vector2 pos, Item item, int cost)
+Pickup *EntitiesAddItemPickup(Game *game, Vector2 pos, Item item, int cost)
 {
     for (int i = 0; i < MAX_PICKUPS; i++)
     {
@@ -212,6 +212,8 @@ void EntitiesAddItemPickup(Game *game, Vector2 pos, Item item, int cost)
         p->item = item;
         p->cost = cost;
         p->locked = false;
+        p->isPersistedGraft = false;   /* zero-default esplicito: il chiamante lo marca dopo, se serve (DEC-183) */
+        p->droppedGraftSlot = -1;      /* idem: significativo solo insieme a isPersistedGraft vero (DEC-183) */
         p->radius = 22.0f;
         /* Un oggetto OFFERTO dal gioco arriva carico: e' qui che un attivo
            passa da "scheda di contenuto" (FloorContent, che non ha stato di
@@ -221,6 +223,12 @@ void EntitiesAddItemPickup(Game *game, Vector2 pos, Item item, int cost)
            direttamente Pickup.item, senza passare di qui, proprio perche' le
            sue cariche consumate devono restare consumate. */
         ItemActiveResetCharge(&p->item);
-        return;
+        /* DEC-183: il chiamante (CombatDropGraft, o WorldSpawnRoomContents
+           per la ri-materializzazione) ha bisogno del puntatore per marcare
+           'isPersistedGraft'/'droppedGraftSlot' -- niente altro modo di
+           risalire a QUALE slot dell'array e' finito il pickup appena
+           creato. */
+        return p;
     }
+    return NULL;
 }

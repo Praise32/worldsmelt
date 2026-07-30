@@ -498,15 +498,49 @@ void CombatDropGraft(Game *game)
     int index = ItemIndexOfKind(p, ITEM_GRAFT, owned - 1);
     if (index < 0) return;
 
-    /* DEC-115 + DEC-160: lo slot si libera e l'Innesto resta A TERRA, nella
-       stanza in cui e' stato sganciato, recuperabile finche' il giocatore non
-       esce. "Perso uscendo" non ha bisogno di codice: EntitiesClear azzera i
-       pickup ad ogni ingresso in una stanza (WorldSpawnRoomContents), quindi
-       la simmetria col piedistallo degli attivi vale per costruzione. */
+    /* DEC-115 + DEC-183: lo slot si libera e l'Innesto resta A TERRA, nella
+       stanza in cui e' stato sganciato, recuperabile in QUALSIASI momento
+       della run -- non solo restando nella visita corrente (DEC-183 supera
+       la clausola "uscendo si perde" di DEC-160). La persistenza vive in un
+       record di Game.droppedGrafts (vedi il commento li': una lista, non un
+       campo singolo per stanza, perche' in una stessa stanza possono
+       coesistere piu' Innesti a terra insieme -- il difetto bloccante che
+       questa versione chiude). WorldSpawnRoomContents ri-materializza OGNI
+       record della stanza corrente come pickup a ogni ingresso, finche' non
+       viene ripreso davvero (CombatPickup, guardato da
+       Pickup.isPersistedGraft/droppedGraftSlot). */
     Item dropped = p->items[index];
     ScriptItemsRemoveItem(game, index);
     ScriptItemsProcessDirty(game);   /* lo slot si libera SUBITO, come la raccolta si vede subito */
-    EntitiesAddItemPickup(game, p->pos, dropped, 0);
+    int slot = -1;
+    for (int i = 0; i < MAX_DROPPED_GRAFTS; i++)
+    {
+        if (!game->droppedGrafts[i].active) { slot = i; break; }
+    }
+    if (slot >= 0)
+    {
+        DroppedGraftRecord *rec = &game->droppedGrafts[slot];
+        rec->active = true;
+        rec->roomX = game->roomX;
+        rec->roomY = game->roomY;
+        rec->item = dropped;
+        rec->pos = p->pos;
+    }
+    else
+    {
+        /* Non raggiungibile con il contenuto attuale (vedi il commento su
+           MAX_DROPPED_GRAFTS): se capitasse comunque, l'Innesto resta a
+           terra solo per la visita corrente (comportamento pre-DEC-183)
+           invece di corrompere un altro record o rifiutare lo sgancio. */
+        fprintf(stderr, "CombatDropGraft: Game.droppedGrafts esaurito (%d), '%s' non sara' persistente\n",
+                MAX_DROPPED_GRAFTS, dropped.name);
+    }
+    Pickup *ground = EntitiesAddItemPickup(game, p->pos, dropped, 0);
+    if (ground && slot >= 0)
+    {
+        ground->isPersistedGraft = true;
+        ground->droppedGraftSlot = slot;
+    }
     /* Nato sotto i piedi del giocatore: senza il blocco verrebbe riraccolto
        il frame successivo e sganciare sarebbe impossibile. Si blocca ogni
        pickup di oggetto che il giocatore sta gia' toccando, non solo quello
@@ -520,7 +554,7 @@ void CombatDropGraft(Game *game)
         if (GameMathLengthSquared(GameMathSubtract(pk->pos, p->pos)) < r*r) pk->locked = true;
     }
     char msg[160];
-    snprintf(msg, sizeof(msg), "Innesto sganciato: %s. Resta qui finche' non esci.", dropped.name);
+    snprintf(msg, sizeof(msg), "Innesto sganciato: %s. Resta qui per tutta la run.", dropped.name);
     GameSetMessage(game, msg);
 }
 
@@ -1125,6 +1159,17 @@ static void CombatPickup(Game *game, Pickup *pickup)
            contarla due volte. */
         RoomState *room = WorldCurrentRoomMutable(game);
         bool firstReward = !room->rewardTaken;
+        /* DEC-183: catturati PRIMA che 'pickup' possa essere riscritto sotto
+           (lo scambio riusa la STESSA Pickup per il vecchio oggetto) -- veri
+           solo per il pickup che rappresenta un record di
+           Game.droppedGrafts (vedi il commento su Pickup.isPersistedGraft,
+           core/game_types.h), mai per un Innesto qualunque offerto da
+           tesoro/negozio. 'persistedSlot' e' -1 quando wasPersistedGraft e'
+           falso (mai letto in quel caso, ma niente indice spazzatura in
+           giro). */
+        bool wasPersistedGraft = pickup->isPersistedGraft;
+        int persistedSlot = wasPersistedGraft ? pickup->droppedGraftSlot : -1;
+        bool persistedSlotValid = persistedSlot >= 0 && persistedSlot < MAX_DROPPED_GRAFTS;
         if (swapIndex >= 0)
         {
             /* DEC-117 (attivi) e grafts.md (Innesti): a slot pieni la
@@ -1139,10 +1184,40 @@ static void CombatPickup(Game *game, Pickup *pickup)
             pickup->item = previous;
             pickup->cost = 0;         /* gia' pagato una volta: riprendersi il proprio non si paga */
             pickup->locked = true;    /* niente scambio a ripetizione restando fermi sul piedistallo */
+            /* DEC-183: se il pickup era un Innesto persistente, dopo lo
+               scambio e' 'previous' (l'Innesto appena tolto dallo slot) a
+               restare a terra al suo posto -- il record di
+               Game.droppedGrafts si aggiorna di conseguenza (stessa
+               posizione/stanza, solo l'Item cambia), invece di restare
+               agganciato all'oggetto ormai ripreso. 'isPersistedGraft'/
+               'droppedGraftSlot' restano invariati su questo stesso Pickup,
+               quindi resta comunque tracciato se il giocatore esce senza
+               riprenderselo. */
+            if (wasPersistedGraft && persistedSlotValid && previous.kind == ITEM_GRAFT)
+            {
+                game->droppedGrafts[persistedSlot].item = previous;
+            }
         }
         else CombatApplyItem(game, taken);
-        room->rewardTaken = true;
-        if (firstReward && room->kind == ROOM_TREASURE) WorldAwardRoomCompletionCurrency(game, ROOM_TREASURE);
+        /* DEC-183: riprendere un Innesto persistente NON e' un premio della
+           stanza -- e' l'oggetto del giocatore che torna al giocatore.
+           Toccare 'rewardTaken'/la valuta di completamento qui bruciava un
+           tesoro mai aperto (DEC-167) se lo si sganciava prima di toccare il
+           piedistallo: quel ramo resta riservato a un Innesto/oggetto
+           offerto DAVVERO da tesoro/negozio. */
+        if (!wasPersistedGraft)
+        {
+            room->rewardTaken = true;
+            if (firstReward && room->kind == ROOM_TREASURE) WorldAwardRoomCompletionCurrency(game, ROOM_TREASURE);
+        }
+        /* DEC-183: raccolta DIRETTA (nessuno scambio) di un Innesto
+           persistente -- niente resta a terra al suo posto, il record si
+           libera: la stanza non ha piu' nulla da ri-materializzare per
+           QUESTO Innesto al prossimo ingresso. */
+        if (wasPersistedGraft && swapIndex < 0 && persistedSlotValid)
+        {
+            game->droppedGrafts[persistedSlot].active = false;
+        }
     }
     else if (pickup->kind == PICKUP_EXIT)
     {

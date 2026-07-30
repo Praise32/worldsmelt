@@ -806,6 +806,12 @@ static void WorldLinkRooms(Game *game)
 static void WorldGenerateFloorMap(Game *game)
 {
     memset(game->rooms, 0, sizeof(game->rooms));
+    /* DEC-183: un Innesto lasciato sul piano precedente non segue il
+       giocatore -- default proposto DEC-183 (i piani si attraversano in un
+       solo verso in questa demo). Azzerato ESPLICITAMENTE qui, non per un
+       effetto collaterale del memset sopra (campo diverso, vedi il commento
+       su Game.droppedGrafts in core/game_types.h). */
+    memset(game->droppedGrafts, 0, sizeof(game->droppedGrafts));
     int sx = GRID_SIZE/2;
     int sy = GRID_SIZE/2;
     game->roomX = sx;
@@ -1206,6 +1212,40 @@ void WorldSpawnRoomContents(Game *game)
     else
     {
         GameSetMessage(game, "Scegli una porta.");
+    }
+    /* DEC-183: ogni Innesto sganciato in questa stanza (CombatDropGraft, o
+       lasciato su un piedistallo da uno scambio successivo di un Innesto
+       persistente, vedi CombatPickup) resta A TERRA e recuperabile per
+       TUTTA LA RUN -- vanno ri-materializzati TUTTI qui perche' EntitiesClear
+       (sopra, a inizio funzione) ha appena svuotato TUTTI i pickup della
+       stanza: senza questo, uscire e rientrare li farebbe sparire, esattamente
+       il gap che DEC-183 chiude (vedi la nota nel decision-log). Un ciclo su
+       Game.droppedGrafts, non un campo singolo: in questa stessa stanza
+       possono coesistere piu' record (due sganci, o uno sgancio piu' un
+       Innesto lasciato da uno scambio) e nessuno dei due deve sovrascrivere
+       l'altro. Indipendente dal 'kind' della stanza -- si puo' sganciare un
+       Innesto ovunque -- e percio' vive FUORI dalla catena if/else sopra,
+       cosi' da coesistere con qualunque altro contenuto della stanza. */
+    for (int i = 0; i < MAX_DROPPED_GRAFTS; i++)
+    {
+        DroppedGraftRecord *rec = &game->droppedGrafts[i];
+        if (!rec->active || rec->roomX != game->roomX || rec->roomY != game->roomY) continue;
+        Pickup *ground = EntitiesAddItemPickup(game, rec->pos, rec->item, 0);
+        if (!ground) continue;
+        ground->isPersistedGraft = true;
+        ground->droppedGraftSlot = i;
+        /* Ri-nato sotto (o vicino a) i piedi del giocatore: si atterra nella
+           cella di arrivo PRIMA che questa funzione giri (WorldTryEnterRoom/
+           WorldStartFloor impostano game->player.pos, poi chiamano
+           WorldSpawnRoomContents) -- se la posizione salvata allo sgancio e'
+           vicina alla porta da cui si rientra (la posizione piu' naturale in
+           cui lasciare qualcosa per ritrovarlo), senza questa guardia
+           l'Innesto si riequipaggerebbe/scambierebbe DA SOLO al primo frame:
+           esattamente il caso per cui esiste Pickup.locked, e la stessa
+           guardia che CombatDropGraft applica gia' al momento dello
+           sgancio. */
+        float r = ground->radius + game->player.radius;
+        if (GameMathLengthSquared(GameMathSubtract(ground->pos, game->player.pos)) < r*r) ground->locked = true;
     }
     /* DEC-170: entrare in una stanza NON e' un movimento di telecamera -- si
        riparte dall'inquadratura giusta, senza scivolate. */
