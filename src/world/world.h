@@ -80,4 +80,20 @@ void WorldUpdateCamera(Game *game, float dt);
 #define WORLD_ROOM_MIN_W ((int)ROOM_W)
 #define WORLD_ROOM_MIN_H ((int)ROOM_H)
 
+/* WP5 (DEC-051, "stanza a tempo"): pubbliche (invece che locali a
+   src/world/world.c) per lo stesso motivo delle due sopra -- il test dedicato
+   (src/tests/game_tests.c, RoomsTestTimedRoomInteraction) verifica proprio
+   "mai prima di questo piano" e "esattamente questa valuta se in tempo", e
+   deve farlo confrontandosi con la fonte vera, non un numero duplicato a
+   mano che potrebbe divergere in silenzio. Definite qui, usate da
+   src/world/world.c (che include gia' questo header).
+   WORLD_TIMED_ROOM_MIN_FLOOR: default proposto dall'implementazione (stile
+   DEC-019) -- stesso confine gia' scelto per l'escalation del tileset e il
+   passaggio dei boss a due fasi (ROOM_TILESET_DEGRADED_FROM_FLOOR,
+   src/render/game_renderer.c; DEC-028/106; governance/open-questions.md,
+   voce 23): allineare i tre assi su un solo confine e' l'ipotesi piu'
+   leggibile per il giocatore. */
+#define WORLD_TIMED_ROOM_MIN_FLOOR 3
+#define WORLD_ROOM_CURRENCY_TIMED 6
+
 #endif

@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
 last_reviewed: 2026-07-30
-last_verified_commit: a2de293
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli]
+last_verified_commit: 27aab4d
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, WP5]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -124,8 +124,10 @@ da confermare (vedi `governance/open-questions.md`).
   [bosses.md](./bosses.md)). Non è una garanzia: si piazza per ultima e la griglia può
   essere satura, nel qual caso scende di classe (L → 1x2/2x1 → 1x1). Misurato su 120 piani
   generati (5 piani × 24 semi): **2x2 in 110 casi su 120**.
-- **Tesoro, negozio e stanza di fusione: sempre 1x1.** Sono stanze da una funzione sola
-  (una ricompensa, una vetrina, il crogiolo), tutta visibile appena si entra.
+- **Tesoro, negozio, stanza di fusione e stanza a tempo: sempre 1x1.** Sono stanze da una
+  funzione sola (una ricompensa, una vetrina, il crogiolo, la clessidra), tutta visibile
+  appena si entra. La stanza a tempo (WP5) è anche l'unica delle quattro esclusiva dei
+  piani avanzati (dal piano 3, vedi sotto e [Special Rooms](./special-rooms.md)).
 - **Distribuzione delle taglie delle altre stanze** (estrazione dall'RNG del piano, quindi
   deterministica dal seed): **1x1 55% · 1x2 15% · 2x1 15% · 2x2 8% · L 7%** (per la L
   l'orientamento dell'angolo mancante è a sua volta estratto fra i quattro). La 1x1 resta
@@ -135,7 +137,9 @@ da confermare (vedi `governance/open-questions.md`).
   nella stessa cella (mai un turno saltato).
 - **Quantità di piano:** il budget `6 + numero_piano + estrazione(0..3)` di DEC-009 ora conta
   **celle**, non stanze (una stanza ne occupa da 1 a 4), più la stanza boss e fino a **tre**
-  stanze speciali 1x1 (tesoro, negozio e — dal WP4 — la stanza di fusione `ROOM_FUSION`).
+  stanze speciali 1x1 (tesoro, negozio e — dal WP4 — la stanza di fusione `ROOM_FUSION`), o
+  fino a **quattro** nei piani 3+, dove si aggiunge — dal WP5, solo un tentativo, non
+  garantito — la stanza a tempo `ROOM_TIMED` ([Special Rooms](./special-rooms.md), DEC-051).
   La superficie giocabile di un piano resta quindi quella di sempre; il
   **numero di stanze scende** (~5-10 più boss e speciali). È una conseguenza dichiarata di
   DEC-170, non un effetto collaterale.
@@ -233,12 +237,12 @@ parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
   forma tocca **esattamente una** stanza esistente distinta
   (`WorldShapeNeighborRoomCount`, anch'essa risolta per cella di stato, mai per origine
   grezza); il ripiego di griglia satura promuove a boss la stanza già piazzata di grado
-  minimo (preferendo la più lontana con grado ≤1). Le stanze speciali 1x1 — tesoro, negozio
-  e stanza di fusione — piazzate **dopo** il boss, non si attaccano mai ad esso
-  (`WorldPlaceSpecialRoom` scarta le celle candidate che toccano la stanza boss, per tutti
-  e tre i chiamanti) — altrimenti gli darebbero una seconda porta. Test dedicati:
-  (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra mai in una
-  cella della stanza boss raggiunge comunque tutte le altre stanze del piano.
+  minimo (preferendo la più lontana con grado ≤1). Le stanze speciali 1x1 — tesoro, negozio,
+  stanza di fusione e (dal piano 3, WP5) stanza a tempo — piazzate **dopo** il boss, non si
+  attaccano mai ad esso (`WorldPlaceSpecialRoom` scarta le celle candidate che toccano la
+  stanza boss, per tutti e quattro i chiamanti) — altrimenti gli darebbero una seconda porta.
+  Test dedicati: (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra
+  mai in una cella della stanza boss raggiunge comunque tutte le altre stanze del piano.
 - **Effetto collaterale misurato:** il vincolo di foglia riduce la frequenza della classe
   2x2 per la stanza boss (una 2x2 ha più perimetro, quindi più occasioni di toccare due
   stanze diverse): da ~110/120 piani (pre-DEC-182) a **54/120** piani misurati dopo
@@ -272,6 +276,9 @@ Il dettaglio di ciascun archetipo speciale (accesso, costo, ricompensa, frequenz
 ricompensa se raggiunta entro una soglia di tempo. Soglie e valori esatti restano da
 playtest (vedi [Rewards and Economy](./rewards-and-economy.md) per il dettaglio della
 ricompensa e [Special Rooms](./special-rooms.md) per il dettaglio dell'archetipo).
+**Stato (WP5, 30/07):** ha ora un `RoomKind` fisico nel motore (`ROOM_TIMED`), esclusivo dei
+piani 3+, con un default proposto e implementato per soglia e ricompensa — vedi "Stato di
+implementazione" in [Special Rooms](./special-rooms.md).
 
 ## Input/azioni
 
@@ -422,7 +429,10 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
   oltre al principio dei quattro assi e all'ammissibilità di modificatori di stanza
   generati nei piani avanzati fissati da DEC-024 (vedi anche [bosses.md](./bosses.md)).
 - Frequenza esatta e piani minimi in cui compare la stanza a tempo (DEC-051 fissa solo
-  "piani avanzati", non il numero esatto).
+  "piani avanzati", non il numero esatto). **Aggiornamento 30/07 (WP5):** esiste ora un
+  default proposto e implementato — un tentativo per piano, solo dal piano 3
+  (`WORLD_TIMED_ROOM_MIN_FLOOR`) — vedi "Stato di implementazione" in
+  [Special Rooms](./special-rooms.md) e `governance/open-questions.md`, voce 32.
 - Dimensioni esatte in pixel di una cella/taglia, quale taglia ricevano la stanza boss e la
   stanza di partenza, come i layout `ROOM_LAYOUT_*` si applichino alle stanze multi-cella e
   con quali percentuali si distribuiscano le classi di taglia (DEC-170 fissa le classi
@@ -479,9 +489,9 @@ Then il budget restante per i nemici della stessa stanza si riduce di conseguenz
 
 ### Scenario 7 — Stanza a tempo nei piani avanzati
 
-Given un piano avanzato generato
-When il piano include l'archetipo aggiuntivo "stanza a tempo" (DEC-051)
-Then la stanza è raggiungibile entro una soglia di tempo per ottenere una ricompensa extra, con soglia e valore esatti da definire col playtest, secondo il dettaglio in [rewards-and-economy.md](./rewards-and-economy.md) e [special-rooms.md](./special-rooms.md)
+Given un piano avanzato generato (dal piano 3 in su)
+When il piano include l'archetipo aggiuntivo "stanza a tempo" (DEC-051, `ROOM_TIMED`)
+Then la stanza è raggiungibile entro una soglia di tempo (default proposto: `40s + 6s × celle del piano` dall'ingresso nel piano) per ottenere una ricompensa extra (default proposto: 6 Ingots), con soglia e valore esatti da confermare col playtest, secondo il dettaglio in [rewards-and-economy.md](./rewards-and-economy.md) e [special-rooms.md](./special-rooms.md)
 
 ### Scenario 8 — Stanza 1x1 con camera fissa
 

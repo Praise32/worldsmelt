@@ -203,6 +203,12 @@ static Color RoomMapColor(RoomKind kind)
            senza colore chiesta da DEC-058 non e' garantita -- limite
            registrato in docs/engineering/known-issues.md voce 12. */
         case ROOM_FUSION: return (Color){ 196, 120, 224, 255 };
+        /* WP5: ciano/acqua, distinto da ogni altro colore di questa tavola --
+           coerente con la clessidra (assets/art/props/clessidra) come segnale
+           dedicato dell'archetipo. Stesso limite DEC-058 pre-ingresso della
+           nota su ROOM_FUSION sopra (known-issues.md, voce 12): l'icona di
+           DrawRoomIcon compare solo a stanza gia' visitata. */
+        case ROOM_TIMED: return (Color){ 88, 214, 224, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -1030,6 +1036,16 @@ static void DrawPickup(Game *game, const Pickup *p)
        basamento"), e se anche quello manca la forma geometrica sotto resta
        comunque disegnata. */
     else if (p->kind == PICKUP_FUSION_ALTAR) propKey = "props/crogiolo";
+    /* WP5: il segnale della stanza a tempo (DEC-051). A differenza del
+       crogiolo sopra, l'etichetta si scrive SEMPRE (anche se il prop dedicato
+       manca e si ripiega sulla forma geometrica sotto): l'esito deve restare
+       leggibile "senza solo colore" (special-rooms.md) in ogni caso, non solo
+       quando lo sprite carica. */
+    else if (p->kind == PICKUP_TIMED_MARKER)
+    {
+        propKey = "props/clessidra";
+        label = (p->value != 0) ? "IN TEMPO" : "SCADUTO";
+    }
     if (propKey)
     {
         const ArtSheet *prop = ArtAtlasGet(propKey);
@@ -1044,6 +1060,16 @@ static void DrawPickup(Game *game, const Pickup *p)
         {
             animName = "attivo";
             if (!prop) { prop = ArtAtlasGet("props/piedistallo"); animName = "pieno"; }
+        }
+        /* WP5: la clessidra usa DAVVERO il proprio vocabolario a due tag
+           (assets/art/props/clessidra.json: "attiva"/"scaduta") -- niente
+           ripiego di prop generico come il crogiolo sopra (nessun prop
+           esistente ha un vocabolario "in tempo/scaduto" compatibile): se
+           manca, si scende direttamente alla forma geometrica sotto, il
+           degrado standard di ogni altro pickup di questa funzione. */
+        else if (p->kind == PICKUP_TIMED_MARKER)
+        {
+            animName = (p->value != 0) ? "attiva" : "scaduta";
         }
         if (prop)
         {
@@ -1070,6 +1096,16 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_FLUX) cell = -1;     /* idem: il catalizzatore di fusione e' una forma geometrica */
         else if (p->kind == PICKUP_CRUST) cell = -1;    /* idem: Crust (DEC-008/WP2) e' una forma geometrica */
         else if (p->kind == PICKUP_FUSION_ALTAR) cell = -1;   /* idem: il crogiolo (WP4) e' un prop/forma, mai una cella d'atlas */
+        /* WP5: idem -- senza questo ramo, quando props/clessidra manca ma
+           l'atlas generato E' caricato, si cadrebbe nel ramo 'else' sotto:
+           l'etichetta "IN TEMPO"/"SCADUTO" gia' scritta sopra verrebbe
+           SOVRASCRITTA da p->item.name (non azzerato da EntitiesAddPickup per
+           un pickup non-oggetto: resta il nome residuo di un vecchio slot
+           riciclato) e verrebbe disegnata la cella generica SPR_ITEM, quindi
+           la clessidra geometrica di riserva (sotto) non si raggiungerebbe
+           mai. La clessidra e' una forma/prop dedicata, mai una cella
+           d'atlas generica, stessa ragione del crogiolo sopra. */
+        else if (p->kind == PICKUP_TIMED_MARKER) cell = -1;
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1143,6 +1179,22 @@ static void DrawPickup(Game *game, const Pickup *p)
             Vector2 flameL = { pos.x - 9, pos.y + 3 }, flameR = { pos.x + 9, pos.y + 3 }, flameTip = { pos.x, pos.y - 14 };
             DrawTriangle(flameL, flameR, flameTip, c);
             DrawCircleV((Vector2){ pos.x, pos.y - 2 }, 4, GameColorWithAlpha(RAYWHITE, 200));
+        }
+        else if (p->kind == PICKUP_TIMED_MARKER)
+        {
+            /* WP5: una clessidra disegnata (due triangoli contrapposti dentro
+               una cornice) -- la silhouette "tempo" che nessun'altra raccolta
+               usa. Colore acceso/spento coerente col tag reale della
+               clessidra ("attiva"/"scaduta") cosi' anche il degrado
+               geometrico porta lo stesso segnale del prop dedicato, non solo
+               l'etichetta testuale sopra. */
+            c = (p->value != 0) ? (Color){ 96, 224, 214, 255 } : (Color){ 140, 140, 148, 255 };
+            DrawRectangleLines((int)pos.x - 11, (int)pos.y - 14, 22, 28, DARKGRAY);
+            Vector2 topL = { pos.x - 9, pos.y - 12 }, topR = { pos.x + 9, pos.y - 12 };
+            Vector2 botL = { pos.x - 9, pos.y + 12 }, botR = { pos.x + 9, pos.y + 12 };
+            Vector2 mid = { pos.x, pos.y };
+            DrawTriangle(topL, topR, mid, c);
+            DrawTriangle(mid, botL, botR, c);
         }
         else
         {
@@ -1818,6 +1870,7 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_SHOP) g = "$";
     else if (kind == ROOM_BOSS) g = "B";
     else if (kind == ROOM_FUSION) g = "F";   /* WP4: distingue la stanza senza colore, DEC-058 */
+    else if (kind == ROOM_TIMED) g = "!";    /* WP5: idem, stanza a tempo (DEC-051) */
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
     int w = UiTextW(g, fontSize);

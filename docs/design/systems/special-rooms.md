@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) è il primo dei quattro archetipi speciali con un RoomKind fisico nel motore."
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) e la stanza a tempo (WP5, 30/07) sono i primi due dei cinque archetipi con un RoomKind fisico nel motore."
 last_reviewed: 2026-07-30
-last_verified_commit: 0ec60d0
-topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, ROOM_FUSION]
+last_verified_commit: 27aab4d
+topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, WP5, ROOM_FUSION, ROOM_TIMED]
 related: []
 supersedes: []
 source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
@@ -168,6 +168,97 @@ meccanica-firma stessa (già implementata, vedi [Item Fusion](item-fusion.md),
 | **Interazione** | Tocco automatico (overlap col crogiolo), non un tasto dedicato — stesso pattern dei piedistalli esistenti (DEC-117), coerente con "conferma esplicita solo per l'azione irreversibile" (la fusione vera, dentro BuildScreen), non per l'ingresso alla schermata. | `CombatPickup`, `src/gameplay/combat.c` |
 | **Valuta di completamento** | Nessuna: la stanza non ha una condizione di "ripulita" a cui agganciarla (a differenza di combattimento/tesoro/negozio/boss). | `WorldAwardRoomCompletionCurrency`, `src/world/world.c` |
 
+## Stato di implementazione: la stanza a tempo (WP5, 2026-07-30)
+
+Secondo dei cinque archetipi speciali di questo documento ad avere un
+`RoomKind` fisico nel motore (`ROOM_TIMED`, `src/core/game_types.h`), in coda
+dopo `ROOM_FUSION` (WP4).
+
+- **Esclusiva dei piani avanzati**: `WorldGenerateFloorMap` prova il
+  piazzamento SOLO quando `game->floor >= 3` — stesso confine già scelto per
+  l'escalation del tileset (DEC-024) e il passaggio dei boss a due fasi
+  (DEC-028/106, [open-questions.md](../governance/open-questions.md) voce 23).
+  Nei piani 1-2 non compare mai: non è solo un default di frequenza, è parte
+  della decisione stessa (DEC-051, "esclusiva dei piani avanzati").
+- **Piazzamento**: `WorldPlaceSpecialRoom` (`src/world/world.c`) — lo stesso
+  algoritmo di tesoro/negozio/fusione: un tentativo per piano, taglia 1x1, mai
+  adiacente alla stanza boss (DEC-182), deterministico dal seed del piano. Non
+  garantito. Il giro di prova genera 120 piani (5 piani × 24 semi,
+  `--rooms-test`), ma solo i piani 3-5 (72 = 3 × 24) sono candidati — i piani
+  1-2 (48 casi) non tentano nemmeno il piazzamento: **piazzata in 69 casi su
+  72 tentativi**.
+- **Soglia di tempo**: misurata da `Game.floorEntryElapsedSeconds` (il valore
+  di `runElapsedSeconds` catturato da `WorldStartFloor` all'ingresso nel
+  piano, MAI dall'inizio della run) — `WorldTimedRoomThresholdSeconds`
+  (`src/world/world.c`) restituisce `40s + 6s × Game.floorCellCount`, dove
+  `floorCellCount` è la taglia VERA del piano appena generato (celle totali:
+  partenza + combattimento + boss + speciali 1x1), non il bersaglio
+  pre-estrazione. Un piano più grande dà più tempo, proporzionalmente alla
+  sua taglia effettiva. DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile
+  DEC-019): i due numeri (40, 6) restano da confermare col playtest — vedi
+  `governance/open-questions.md`, voce 3.
+- **Esito deciso una sola volta**: al primo ingresso (`WorldSpawnRoomContents`,
+  `firstVisit`), si confronta il tempo trascorso dall'ingresso nel piano con
+  la soglia sopra. Il risultato si scrive su `RoomState.rewardTaken` — stesso
+  campo che tesoro/negozio usano per "il premio è già stato preso", qui
+  riletto come "il premio di questa stanza è stato assegnato" — e resta fisso
+  per il resto della run: rientrare più tardi non ricalcola né revoca
+  l'esito.
+- **Ricompensa**: `WorldAwardRoomCompletionCurrency(game, ROOM_TIMED)` — SOLO
+  se raggiunta in tempo, mai altrimenti (coerente con
+  [rewards-and-economy.md](./rewards-and-economy.md), "nessun bonus" oltre
+  soglia significa anche nessuna valuta DEC-167 per quell'ingresso). Importo
+  di default: 6 Ingots (proporzionato al rischio — deviare rotta in un piano
+  avanzato per arrivarci in tempo — più di tesoro/negozio, meno del boss).
+- **Oltre soglia: MAI bloccante**. La stanza a tempo non ha porte bloccate
+  (`GameRoomIsLocked` non la considera mai: non è né `ROOM_COMBAT` né
+  `ROOM_BOSS`) e resta attraversabile con o senza ricompensa, esattamente
+  come il caso limite del documento richiede.
+- **Segnale visivo prima di entrare (DEC-058)**: colore dedicato in
+  `RoomMapColor` (ciano/acqua, distinto da ogni altro tipo) e icona `"!"` in
+  `DrawRoomIcon` — stesso limite pre-visita di `ROOM_FUSION` (l'icona compare
+  solo a stanza `visited`, vedi `known-issues.md` voce 12: non è una garanzia
+  nuova, eredita quella già registrata per la fusione).
+- **Indicazione leggibile dell'esito dentro la stanza (senza solo colore)**:
+  un `Pickup` decorativo dedicato (`PICKUP_TIMED_MARKER`, mai consumato, mai
+  un tasto — pura segnaletica) al centro della stanza, ri-materializzato a
+  ogni ingresso come il crogiolo della fusione. Due canali NON-colore
+  insieme: (1) un'etichetta testuale sempre disegnata — "IN TEMPO" o
+  "SCADUTO" — indipendente dal caricamento dello sprite; (2) lo sprite
+  dedicato (`assets/art/props/clessidra`, tag `attiva`/`scaduta`) o, se
+  manca, una clessidra disegnata a forma geometrica nello stesso
+  colore-per-stato. Il primo ingresso mostra anche un messaggio con i secondi
+  esatti impiegati e la soglia — esempio **illustrativo** (non un caso
+  osservato, vedi la fascia reale misurata sotto):
+  `"raggiunta in tempo (38s/148s)"` / `"soglia scaduta (190s/148s)"` (148s è
+  un valore che la formula `40 + 6×celle` produce davvero, con 18 celle); un
+  rientro successivo mostra solo l'esito già fissato, senza numeri che
+  confonderebbero (il tempo trascorso nel frattempo non è più quello
+  rilevante). La soglia vera dipende dalla taglia del piano
+  (`WorldTimedRoomThresholdSeconds` sotto): sui piani 3-5 dei semi di test
+  varia in **136-172s** (celle vere 16-22; il minimo lo tocca ad esempio il
+  seme 90210 al piano 3, 16 celle → 136s), mai un valore fisso come 82s
+  dell'esempio precedente di questa sezione (corretto il 30/07 dopo verifica
+  sui semi reali).
+- **Test**: `RoomsTestTimedRoomInteraction` dentro `GameRoomsTest`
+  (`src/tests/game_tests.c`, `--rooms-test`/`make test`) — unicità, non
+  adiacenza al boss, mai prima del piano 3 su 120 piani generati, più la
+  catena intera per lo stesso piano/seme: raggiunta a `elapsed=0` → ricompensa
+  assegnata + clessidra "in tempo", e raggiunta oltre soglia (calcolata con
+  la stessa funzione del motore) → nessuna ricompensa + clessidra "scaduta" +
+  stanza mai bloccata (`GameRoomIsLocked` sempre falso in entrambi i casi).
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Piani ammessi** | Dal piano 3 in su, stesso confine dell'escalation del tileset e dei boss a due fasi. | `WORLD_TIMED_ROOM_MIN_FLOOR`, `src/world/world.h` |
+| **Frequenza per piano** | Un tentativo per piano, non garantito (stesso algoritmo di tesoro/negozio/fusione). | `WorldGenerateFloorMap`, `src/world/world.c` |
+| **Taglia della stanza** | Sempre 1x1 (stesso default degli altri tre speciali 1x1). | `WorldPlaceSpecialRoom` |
+| **Soglia di tempo** | `40s + 6s × taglia vera del piano in celle`, misurata dall'ingresso nel piano. | `WorldTimedRoomThresholdSeconds`, `src/world/world.c` |
+| **Ricompensa entro soglia** | 6 Ingots (tra tesoro/negozio e boss). | `WORLD_ROOM_CURRENCY_TIMED`, `src/world/world.h` |
+| **Ricompensa oltre soglia** | Nessuna (né il bonus né la valuta DEC-167 di base). | `WorldSpawnRoomContents`, `src/world/world.c` |
+
 ## Regola di originalità
 
 I nomi, la presentazione e la logica precisa dei quattro archetipi devono essere originali. Gli archetipi sono funzioni di design, non contenuti da copiare da giochi esistenti (vedi `09-originality-guardrails.md`).
@@ -204,11 +295,18 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - ~~Nome e presentazione definitivi dello scambio ad alto rischio~~: risolto da DEC-136 — **Pourhouse** («Casa della Colata»), presentazione canonica nel glossario.
-- Frequenza esatta di ciascun archetipo per piano. **Aggiornamento 30/07 (WP4):**
-  per la stanza di fusione esiste ora un default proposto e implementato — un
-  tentativo per piano — vedi "Stato di implementazione" sopra e
-  `governance/open-questions.md` voce 30; resta aperta per gli altri tre
+- Frequenza esatta di ciascun archetipo per piano. **Aggiornamento 30/07 (WP4/WP5):**
+  per la stanza di fusione e per la stanza a tempo esiste ora un default
+  proposto e implementato — un tentativo per piano, la stanza a tempo solo
+  dal piano 3 — vedi "Stato di implementazione" sopra e
+  `governance/open-questions.md` voci 30 e 32; resta aperta per gli altri due
   archetipi (segreta, arena, scambio), non ancora nel motore.
+- Valori esatti di soglia e ricompensa della stanza a tempo. **Aggiornamento
+  30/07 (WP5):** esiste ora un default proposto e implementato — soglia
+  `40s + 6s × celle del piano` dall'ingresso nel piano, ricompensa 6 Ingots
+  solo entro soglia — vedi "Stato di implementazione" sopra,
+  [rewards-and-economy.md](./rewards-and-economy.md) e
+  `governance/open-questions.md` voce 3.
 - Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
 - ~~Quali rivelatori esistono per le super-segrete~~: risolto da DEC-127 (Innesti sensore + oggetti rari), vedi `secrets-and-obstacles.md`.
 

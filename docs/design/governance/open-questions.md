@@ -101,7 +101,7 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 
 1. Quali sono le grandezze minime e massime delle stanze, in pixel per ciascuna taglia? (DEC-009 fissa solo la variabilità e una grandezza minima garantita, senza valori; DEC-170 aggiunge le taglie multiple in classi discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera, senza fissare le dimensioni esatte di una cella né quale taglia ricevano la stanza boss e la stanza di partenza.) **Aggiornamento 27/07:** l'implementazione di DEC-170 ha adottato dei **default proposti** (cella = 876×458 px, cioè il canvas logico; partenza 1x1; boss 2x2 quando entra nella griglia; tesoro/negozio 1x1; distribuzione 55/15/15/8/7) — vedi `systems/rooms-and-floor-generation.md`, sezione «Default proposti dall'implementazione (DEC-170)». La domanda **resta aperta**: sono default di implementazione, non una decisione di design.
 2. Qual è l'economia esatta dei punti di meta-progressione: tasso di guadagno, costo degli sblocchi, contenuto iniziale del pool sbloccabile? (DEC-015 fissa il principio, DEC-027 fissa la struttura a doppio canale — punti base più bonus da prove specifiche — non i numeri esatti.)
-3. Quali sono i valori esatti di soglia (tempo) e ricompensa delle stanze a tempo nei piani avanzati, e cosa succede se il giocatore le raggiunge dopo la soglia (nessuna ricompensa, ricompensa ridotta, o comportamento diverso)? (DEC-051 fissa solo il principio, da playtest come DEC-019.)
+3. Quali sono i valori esatti di soglia (tempo) e ricompensa delle stanze a tempo nei piani avanzati, e cosa succede se il giocatore le raggiunge dopo la soglia (nessuna ricompensa, ricompensa ridotta, o comportamento diverso)? (DEC-051 fissa solo il principio, da playtest come DEC-019.) **Aggiornamento 30/07 (WP5):** esiste ora un default proposto e implementato — soglia `40s + 6s × celle vere del piano`, misurata dall'ingresso nel piano (`Game.floorEntryElapsedSeconds`, mai dall'inizio della run); ricompensa 6 Ingots (`WORLD_ROOM_CURRENCY_TIMED`) SOLO entro soglia; oltre soglia **nessuna ricompensa** (non ridotta: zero), stanza comunque sempre percorribile — vedi `systems/special-rooms.md`, sezione "Stato di implementazione: la stanza a tempo", e la voce 32 sotto per la frequenza/i piani ammessi. La domanda resta aperta: sono default di implementazione, non una decisione di design.
 4. Qual è il bilanciamento fine del punteggio composito multi-percorso: peso relativo di tempo, prove/sfide, esplorazione, scoperte, eliminazioni e Veterani, e come si equivalgono esattamente un percorso rapido/efficiente e un percorso lento/esaustivo? (DEC-060 fissa le fonti e il vincolo di competitività tra percorsi, non i numeri; da playtest.)
 
 ## Valori numerici da playtest
@@ -295,3 +295,51 @@ qui solo per l'archetipo appena piazzabile nel motore, la stanza di fusione.
     nel `PauseMenu` — nessuna delle tre è stata rimossa. Da confermare al playtest.
     (`systems/item-fusion.md`, "Domande aperte residue"; `ui/inventory-and-synergy-screen.md`,
     nota di implementazione.)
+
+## Stanza a tempo nel motore (WP5, 2026-07-30)
+
+Due domande aperte da `systems/special-rooms.md`/`systems/rooms-and-floor-generation.md`
+(frequenza per piano, già in coda per la fusione alla voce 30) e da
+`governance/open-questions.md` voce 3 sopra (soglia/ricompensa) — qui il pezzo specifico
+del QUINTO archetipo appena piazzabile nel motore, la stanza a tempo (DEC-051).
+
+32. A quale piano MINIMO compare la stanza a tempo, e con quale frequenza? Il documento
+    fissa solo "piani avanzati" (DEC-051), non un numero. *Default proposto e implementato*:
+    **dal piano 3** (`WORLD_TIMED_ROOM_MIN_FLOOR`, `src/world/world.h`) — stesso confine già
+    scelto per l'escalation del tileset (voce 23 sopra) e il passaggio dei boss a due fasi
+    (DEC-028/106): allineare i tre assi su un solo confine è l'ipotesi più leggibile. Un solo
+    tentativo di piazzamento per piano (stesso algoritmo di tesoro/negozio/fusione,
+    `WorldPlaceSpecialRoom`), non garantito, mai adiacente alla stanza boss (DEC-182),
+    deterministico dal seed del piano. Misurato su 120 piani generati (5 piani × 24 semi,
+    `--rooms-test`; solo i piani 3-5, 72 tentativi, sono candidati): piazzata in 69 casi su
+    72. Da confermare al playtest. (`systems/special-rooms.md`, sezione "Default proposti
+    dall'implementazione".)
+
+33. La soglia si misura dall'ingresso nel piano o dall'inizio della run? DEC-051 non lo
+    fissa esplicitamente — il timer di run sempre visibile (voce 27 sopra, WP1) accumula
+    dall'inizio della run, non del piano, ed è la fonte più ovvia da cui partire senza
+    guardarci due volte. *Default proposto e implementato*: **dall'ingresso nel piano**
+    (`Game.floorEntryElapsedSeconds`, catturato da `WorldStartFloor` come istantanea di
+    `Game.runElapsedSeconds`) — l'alternativa scartata (dall'inizio della run) avrebbe reso
+    la soglia via via più facile da mancare piano dopo piano per la sola durata dei piani
+    precedenti, indipendentemente da quanto in fretta si gioca QUESTO piano: la soglia
+    misurerebbe la run intera, non la stanza. Da confermare al playtest.
+    (`systems/special-rooms.md`, sezione "Stato di implementazione: la stanza a tempo".)
+
+34. Il timer di run mostrato nell'HUD (DEC-051, sempre visibile e cumulativo
+    dall'inizio della run) NON permette di valutare la soglia PER PIANO della
+    stanza a tempo (voce 33 sopra): il tempo trascorso nel piano corrente e la
+    soglia numerica compaiono solo DENTRO la stanza a tempo, dopo che l'esito
+    è già deciso, mai prima di entrarci. `ui/hud.md` (sezione "Timer di run
+    sempre visibile") descriveva il timer di run come "il segnale con cui il
+    giocatore valuta se raggiungere in tempo" l'archetipo — un'affermazione
+    scritta prima che l'archetipo esistesse nel motore, e non più accurata
+    così com'era. Serve un indicatore leggibile PRIMA dell'ingresso (tempo
+    trascorso nel piano e/o soglia, non solo il timer cumulativo), o va
+    accettato esplicitamente che l'unico segnale pre-ingresso resti quello
+    visivo/posizionale (icona dedicata sulla minimappa, `known-issues.md`
+    voce 12) e che soglia/tempo restino leggibili solo a stanza raggiunta?
+    Non deciso qui: la nota di implementazione WP5 in `ui/hud.md` registra il
+    gap senza sceglierlo. (`ui/hud.md`, sezione "Timer di run sempre visibile
+    (DEC-051)"; `systems/special-rooms.md`, sezione "Stato di implementazione:
+    la stanza a tempo".)

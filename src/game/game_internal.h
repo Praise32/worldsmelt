@@ -76,9 +76,12 @@ void WorldCheckRoomClear(Game *game);
    completata secondo la propria condizione" (rewards-and-economy.md).
    Chiamata dal punto che rileva CIASCUNA condizione di completamento: la
    funzione stessa non rileva nulla, applica solo l'importo. Un kind non
-   ancora coperto dal motore (segreta, a tempo: non esistono ancora come
-   RoomKind) o non pertinente (hub, start, vuota) non assegna nulla. */
+   ancora coperto dal motore (segreta: non esiste ancora come RoomKind) o non
+   pertinente (hub, start, vuota, fusione) non assegna nulla. */
 void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind);
+/* WP5 (DEC-051): la soglia di tempo (in secondi dall'ingresso nel piano) della
+   stanza a tempo -- vedi il commento sulla definizione in src/world/world.c. */
+float WorldTimedRoomThresholdSeconds(const Game *game);
 
 void EntitiesClear(Game *game);
 /* M2: 'room' e' il rettangolo dentro cui pescare (di norma

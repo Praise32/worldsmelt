@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
-last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167]
+last_reviewed: 2026-07-30
+last_verified_commit: 27aab4d
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, WP5]
 related: []
 supersedes: []
 source_files: []
@@ -77,10 +77,17 @@ completamento — la funzione stessa non rileva nulla, assegna solo l'importo:
   alla PRIMA volta che `room->visited` diventa vero — il negozio paga
   all'ingresso, non all'acquisto (quello resta un evento economico separato,
   DEC-026/DEC-048);
-- **stanza segreta trovata** e **stanza a tempo**: non hanno ancora un
-  `RoomKind` nel motore (vedi [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)),
-  quindi DEC-167 non ha ancora un punto di innesto per loro; la tavola dei
-  compensi (sotto) li ignora per costruzione fino a quel momento.
+- **stanza segreta trovata**: non ha ancora un `RoomKind` nel motore (vedi
+  [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), quindi
+  DEC-167 non ha ancora un punto di innesto per lei; la tavola dei compensi
+  (sotto) la ignora per costruzione fino a quel momento;
+- **stanza a tempo** (WP5, 30/07): ha ora un `RoomKind` (`ROOM_TIMED`) e un
+  punto di innesto DEC-167, ma condizionale — `WorldSpawnRoomContents`
+  chiama `WorldAwardRoomCompletionCurrency(game, ROOM_TIMED)` SOLO al primo
+  ingresso e SOLO se raggiunta entro la soglia di tempo (vedi
+  [Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza
+  a tempo"); oltre soglia non paga, coerente col principio "nessun bonus"
+  sotto.
 
 Importi per tipo di stanza, **default proposti dall'implementazione (stile
 DEC-019)**: nessun documento fissa i numeri, solo che la fonte esiste per
@@ -92,10 +99,16 @@ ogni archetipo (DEC-167) — questi restano da confermare col playtest.
 | boss | 12 |
 | tesoro | 3 |
 | negozio | 2 |
+| a tempo, entro soglia | 6 |
+| a tempo, oltre soglia | 0 |
 
 Il boss vale più di un combattimento normale (è la stanza più impegnativa del
 piano); tesoro e negozio meno di un combattimento perché non richiedono di
-sopravvivere a nulla — coerente col §Principio sopra. Con il budget di celle
+sopravvivere a nulla. La stanza a tempo vale più di tesoro/negozio ma meno del
+boss: raggiungerla in tempo in un piano avanzato è un rischio scelto (deviare
+rotta, correre) proporzionato a un premio superiore alla media — coerente col
+§Principio sopra, e col pattern rischio/ricompensa già usato per l'arena di
+sfida (sotto). Con il budget di celle
 per piano introdotto da DEC-170 (`6 + numero_piano + estrazione(0..3)` celle,
 tipicamente ~5-9 stanze più boss/tesoro/negozio/partenza per piano, vedi
 [rooms-and-floor-generation.md](./rooms-and-floor-generation.md)), un piano
@@ -104,9 +117,14 @@ combattimenti + 1 tesoro + 1 negozio + 1 boss), sufficienti a coprire almeno
 un acquisto comune (8 Ingots, [items-pools-and-rarity.md](./items-pools-and-rarity.md))
 per piano anche senza contare le monete sparse dai nemici — coerente col caso
 limite "almeno un'occasione di spesa significativa per piano" (sopra). Verificato
-da `--economy-test` (`make test`): i quattro importi, la mancata doppia
-assegnazione rientrando/richiamando su una stanza già completata, e la
-consegna vera dell'oggetto tesoro.
+da `--economy-test` (`make test`): i quattro importi di combattimento/boss/
+tesoro/negozio, la mancata doppia assegnazione rientrando/richiamando su una
+stanza già completata, e la consegna vera dell'oggetto tesoro. L'importo
+della stanza a tempo (WP5) è invece verificato da `--rooms-test`
+(`RoomsTestTimedRoomInteraction`, `src/tests/game_tests.c`): assegnato una
+volta sola se raggiunta entro soglia, mai se oltre — vedi
+[Special Rooms](./special-rooms.md), "Stato di implementazione: la stanza a
+tempo".
 
 L'**uso economico** della valuta principale:
 
@@ -267,6 +285,11 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 - Prezzi e range esatti degli scambi nella stanza ad alto rischio.
 - Quanti "slot" di spesa significativa devono esistere per piano.
 - Valori esatti di soglia e ricompensa delle stanze a tempo (DEC-051, da playtest).
+  **Aggiornamento 30/07 (WP5):** esiste ora un default proposto e
+  implementato — soglia `40s + 6s × celle del piano` dall'ingresso nel
+  piano, 6 Ingots solo entro soglia — vedi "Stato di implementazione" in
+  [Special Rooms](./special-rooms.md) e `governance/open-questions.md`,
+  voce 3.
 - Bilanciamento fine del punteggio composito multi-percorso: peso relativo di tempo,
   prove, esplorazione, scoperte, eliminazioni e Veterani, e come si equivalgono un
   percorso rapido/efficiente e un percorso lento/esaustivo (DEC-060 fissa solo le fonti e

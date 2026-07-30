@@ -11,6 +11,7 @@
 #include "world/room_camera.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,6 +31,10 @@ const char *GameRoomKindName(RoomKind kind)
            coesistono mai sulla stessa minimappa (ROOM_HUB vive solo al piano 0,
            mai generato dentro WorldGenerateFloorMap). */
         case ROOM_FUSION: return "fusione";
+        /* WP5: stesso motivo del commento su ROOM_FUSION sopra -- nome
+           dedicato, non il "vuota" del default, per il quinto archetipo
+           speciale (special-rooms.md, "Stanza a tempo"). */
+        case ROOM_TIMED: return "a tempo";
         default: return "vuota";
     }
 }
@@ -44,13 +49,29 @@ const char *GameRoomKindName(RoomKind kind)
    piano); tesoro e negozio meno di un combattimento perche' non richiedono
    di sopravvivere a nulla -- coerente con "la ricompensa deve essere
    proporzionata a rischio, costo e rarita'" (stesso documento, §Principio).
-   ROOM_SECRET e la stanza a tempo (DEC-051) non hanno ancora un RoomKind nel
-   motore (vedi rooms-and-floor-generation.md): questa tavola coprira' anche
-   loro quando arriveranno, il default sotto le ignora per costruzione. */
+   ROOM_SECRET non ha ancora un RoomKind nel motore (vedi
+   rooms-and-floor-generation.md): questa tavola coprira' anche lei quando
+   arrivera', il default sotto la ignora per costruzione. La stanza di
+   fusione (ROOM_FUSION, WP4) e la stanza a tempo (ROOM_TIMED, WP5) hanno
+   invece regole di completamento proprie, viste sotto in
+   WorldAwardRoomCompletionCurrency. */
 #define WORLD_ROOM_CURRENCY_COMBAT   4
 #define WORLD_ROOM_CURRENCY_BOSS    12
 #define WORLD_ROOM_CURRENCY_TREASURE 3
 #define WORLD_ROOM_CURRENCY_SHOP     2
+/* WORLD_ROOM_CURRENCY_TIMED e WORLD_TIMED_ROOM_MIN_FLOOR sono definite in
+   world.h (pubbliche): il test dedicato le usa direttamente, vedi il
+   commento li'. */
+
+/* WP5: soglia di tempo (in secondi, misurata dall'INGRESSO NEL PIANO --
+   Game.floorEntryElapsedSeconds, mai dall'inizio della run) per ottenere la
+   ricompensa della stanza a tempo. BASE + un contributo PER CELLA della
+   taglia vera del piano (Game.floorCellCount): un piano piu' grande da'
+   comprensibilmente piu' tempo per raggiungerla. Default proposto
+   dall'implementazione (stile DEC-019): i numeri restano da confermare col
+   playtest (governance/open-questions.md, voce 3). */
+#define WORLD_TIMED_ROOM_THRESHOLD_BASE_SECONDS 40.0f
+#define WORLD_TIMED_ROOM_THRESHOLD_PER_CELL_SECONDS 6.0f
 
 /* Catalizzatore di fusione (Flux) -- DEC-022: "si ottiene da drop di boss o
    di arene di sfida, oppure con un acquisto costoso nel negozio", con una
@@ -96,9 +117,27 @@ void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
            cui agganciare una valuta. Nessuna DEC la richiede: cade qui sotto
            esplicitamente, non nel default, cosi' la scelta si legge. */
         case ROOM_FUSION:   return;
+        /* WP5: qui SOLO quando la stanza e' stata raggiunta in tempo --
+           WorldSpawnRoomContents non chiama questa funzione affatto quando la
+           soglia e' scaduta (nessuna doppia via per "nessun bonus"). */
+        case ROOM_TIMED:    amount = WORLD_ROOM_CURRENCY_TIMED;    break;
         default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
     }
     game->player.coins += amount;
+}
+
+/* WP5: la soglia di tempo della stanza a tempo (vedi le due costanti sopra),
+   proporzionata alla taglia VERA del piano corrente. Se chiamata prima che
+   WorldGenerateFloorMap abbia scritto Game.floorCellCount (non dovrebbe mai
+   succedere: la stanza a tempo esiste solo dentro un piano gia' generato) si
+   ripiega su una stima dal solo numero di piano, mai su zero -- zero
+   renderebbe la soglia impossibile da rispettare, l'esatto contrario del
+   default "innocuo" per una soglia (disciplina zero-default). */
+float WorldTimedRoomThresholdSeconds(const Game *game)
+{
+    int cells = game->floorCellCount > 0 ? game->floorCellCount : (6 + game->floor);
+    return WORLD_TIMED_ROOM_THRESHOLD_BASE_SECONDS
+         + WORLD_TIMED_ROOM_THRESHOLD_PER_CELL_SECONDS*(float)cells;
 }
 
 static int DirDx(int dir)
@@ -680,10 +719,10 @@ static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY,
     return false;
 }
 
-/* DEC-182: le stanze speciali 1x1 (tesoro, negozio e -- dal WP4 -- la stanza
-   di fusione) si piazzano DOPO il boss (sotto), quindi NON devono mai
-   attaccarsi alla stanza boss -- le farebbero guadagnare una
-   seconda porta, rompendo la foglia. Si scarta l'intera cella candidata se
+/* DEC-182: le stanze speciali 1x1 (tesoro, negozio, la stanza di fusione dal
+   WP4 e la stanza a tempo dal WP5, quattro chiamanti) si piazzano DOPO il
+   boss (sotto), quindi NON devono mai attaccarsi alla stanza boss -- le
+   farebbero guadagnare una seconda porta, rompendo la foglia. Si scarta l'intera cella candidata se
    anche solo UNO dei suoi vicini esistenti e' il boss (il tipo vive solo
    sulla cella di stato, WorldRoomAt lo risolve sempre); altrimenti si
    piazza appena si trova un vicino qualsiasi, come prima. */
@@ -707,10 +746,10 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
             if (WorldRoomAt(game, nx, ny)->kind == ROOM_BOSS) { touchesBoss = true; break; }
         }
         if (!touchesAny || touchesBoss) continue;
-        /* Le stanze speciali di questo cammino (tesoro, negozio, fusione)
-           restano 1x1 (default proposto): una funzione sola, tutta visibile
-           appena si entra -- e' proprio il caso in cui la telecamera fissa
-           di DEC-170 e' un pregio. */
+        /* Le stanze speciali di questo cammino (tesoro, negozio, fusione e
+           stanza a tempo) restano 1x1 (default proposto): una funzione sola,
+           tutta visibile appena si entra -- e' proprio il caso in cui la
+           telecamera fissa di DEC-170 e' un pregio. */
         RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
         state->cleared = true;
         return;
@@ -959,7 +998,25 @@ static void WorldGenerateFloorMap(Game *game)
        il documento lascia esplicitamente aperta la frequenza esatta di ciascun
        archetipo per piano (governance/open-questions.md). */
     WorldPlaceSpecialRoom(game, ROOM_FUSION);
+    /* WP5 (systems/special-rooms.md, "Stanza a tempo", DEC-051): stesso
+       algoritmo di tesoro/negozio/fusione sopra -- 1x1, mai adiacente al
+       boss, deterministica dal seed del piano, un solo tentativo, non
+       garantito. Esclusiva dei PIANI AVANZATI (default proposto: dal piano
+       3, stesso confine gia' scelto per l'escalation del tileset e i boss a
+       due fasi, governance/open-questions.md voce 23) -- nei piani 1-2 non
+       si tenta nemmeno il piazzamento, non e' solo un default di frequenza,
+       fa parte della decisione stessa (DEC-051, "esclusiva dei piani
+       avanzati"). */
+    if (game->floor >= WORLD_TIMED_ROOM_MIN_FLOOR) WorldPlaceSpecialRoom(game, ROOM_TIMED);
     WorldLinkRooms(game);
+    /* WP5: la taglia VERA del piano appena generato, in celle -- il totale
+       finale (partenza + combattimento + boss + speciali 1x1), non il
+       bersaglio pre-estrazione 'targetCells' sopra (che puo' sforare o non
+       raggiungere il budget). Scritta una sola volta qui, DOPO ogni
+       piazzamento (WorldLinkRooms non aggiunge/toglie celle, solo porte):
+       fonte di WorldTimedRoomThresholdSeconds. */
+    int cellsX[GRID_SIZE*GRID_SIZE], cellsY[GRID_SIZE*GRID_SIZE];
+    game->floorCellCount = WorldCollectCells(game, cellsX, cellsY);
 }
 
 /* Fase 3c (DEC-170: una espansione PER CELLA): ricostruisce gli ostacoli della
@@ -1246,6 +1303,22 @@ void WorldSpawnRoomContents(Game *game)
     room->visited = true;
     game->roomNumber++;
     if (firstVisit && room->kind == ROOM_SHOP) WorldAwardRoomCompletionCurrency(game, ROOM_SHOP);
+    /* WP5 (DEC-051, "stanza a tempo"): l'esito si decide UNA volta sola, al
+       primo ingresso -- "raggiunta entro soglia" e' un evento, non uno stato
+       che possa cambiare rientrando piu' tardi. Si riusa 'rewardTaken' con lo
+       stesso significato di sempre ("il premio di questa stanza e' stato
+       assegnato"): qui non c'e' un oggetto fisico da prendere, il premio si
+       assegna da solo se in tempo, quindi il campo resta true/false per
+       sempre da qui in poi -- esattamente cio' che serve per ricordare
+       l'esito ad ogni ri-materializzazione della stanza (sotto, e per il
+       marcatore visivo in DrawPickup). */
+    if (firstVisit && room->kind == ROOM_TIMED)
+    {
+        float threshold = WorldTimedRoomThresholdSeconds(game);
+        float elapsed = game->runElapsedSeconds - game->floorEntryElapsedSeconds;
+        room->rewardTaken = elapsed <= threshold;
+        if (room->rewardTaken) WorldAwardRoomCompletionCurrency(game, ROOM_TIMED);
+    }
     /* DEC-170: le posizioni di spawno sono relative al BARICENTRO delle celle
        occupate, non al centro del riquadro -- su una forma a L quel centro
        cadrebbe nell'angolo mancante, cioe' dentro il muro. */
@@ -1371,6 +1444,48 @@ void WorldSpawnRoomContents(Game *game)
         EntitiesAddPickup(game, PICKUP_FUSION_ALTAR, center, 0, 0);
         GameSetMessage(game, "Crogiolo: tocca l'altare per fondere due oggetti.");
     }
+    else if (room->kind == ROOM_TIMED)
+    {
+        /* WP5: nessun 'rewardTaken'/gate sulla RI-materializzazione -- come il
+           crogiolo di ROOM_FUSION sopra, la clessidra e' un arredo fisso della
+           stanza, ricreata ad OGNI ingresso perche' EntitiesClear (inizio
+           funzione) ha appena svuotato tutti i pickup. 'rewardTaken' qui sopra
+           e' invece l'ESITO gia' deciso (WP5, blocco sopra): 'value'=1/0
+           sceglie il tag "attiva"/"scaduta" e l'etichetta in DrawPickup, cosi'
+           l'indicazione dentro la stanza resta leggibile per tutta la
+           permanenza, non solo al primo ingresso (il messaggio sotto invece
+           sparisce dopo pochi secondi, GameSetMessage). */
+        EntitiesAddPickup(game, PICKUP_TIMED_MARKER, center, room->rewardTaken ? 1 : 0, 0);
+        /* Il dettaglio numerico (secondi impiegati/soglia) ha senso SOLO al
+           primo ingresso, il momento vero in cui l'esito si decide: su un
+           rientro successivo il tempo trascorso e' ormai un altro numero (la
+           run e' andata avanti) e mostrarlo di nuovo accanto a un esito
+           ormai fisso confonderebbe piu' che informare -- si ripiega su un
+           messaggio senza numeri, coerente con l'esito gia' scritto su
+           'rewardTaken' e mostrato in modo persistente dalla clessidra
+           stessa (sopra). */
+        if (firstVisit && room->rewardTaken)
+        {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "Stanza a tempo: raggiunta in tempo (%.0fs/%.0fs). Ricompensa!",
+                     (double)(game->runElapsedSeconds - game->floorEntryElapsedSeconds),
+                     (double)WorldTimedRoomThresholdSeconds(game));
+            GameSetMessage(game, msg);
+        }
+        else if (firstVisit)
+        {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "Stanza a tempo: soglia scaduta (%.0fs/%.0fs). Nessun bonus.",
+                     (double)(game->runElapsedSeconds - game->floorEntryElapsedSeconds),
+                     (double)WorldTimedRoomThresholdSeconds(game));
+            GameSetMessage(game, msg);
+        }
+        else
+        {
+            GameSetMessage(game, room->rewardTaken ? "Stanza a tempo: ricompensa gia' raccolta."
+                                                     : "Stanza a tempo: soglia gia' scaduta.");
+        }
+    }
     else
     {
         GameSetMessage(game, "Scegli una porta.");
@@ -1417,6 +1532,13 @@ void WorldSpawnRoomContents(Game *game)
 void WorldStartFloor(Game *game, int floor)
 {
     game->floor = floor;
+    /* WP5 (DEC-051): l'ISTANTE dell'ingresso nel piano, la base da cui si
+       misura la soglia della stanza a tempo (mai dall'inizio della run --
+       vedi il commento sul campo in core/game_types.h). Nessun tempo passa
+       durante la generazione sotto, quindi catturarlo qui o dopo
+       WorldGenerateFloorMap e' equivalente; qui e' piu' vicino alla sua
+       definizione. */
+    game->floorEntryElapsedSeconds = game->runElapsedSeconds;
     /* Step B2 (generazione pigra dei piani): con la generazione pigra il gioco
        parte quando e' pronto il solo piano 1, e un secondo processo melting-gen
        scrive gli script Lua dei piani 2-5 in sottofondo mentre si gioca,

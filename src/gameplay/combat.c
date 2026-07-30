@@ -1228,7 +1228,11 @@ static void CombatPickup(Game *game, Pickup *pickup)
        PICKUP_FUSION_ALTAR (WP4): il crogiolo apre una schermata, non
        raccoglie nulla -- coerente con TAB/PauseMenu che aprono BuildScreen
        oggi senza alcun sfx dedicato (UpdateApp, src/app/app.c). */
-    if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR) AudioPlaySfx(AUDIO_SFX_PICKUP);
+    /* WP5: stessa esclusione di PICKUP_FUSION_ALTAR sopra -- la clessidra
+       della stanza a tempo (DEC-051) e' un segnale, non una raccolta: nessun
+       suono di pickup, coerente col fatto che non aggiunge/toglie nulla. */
+    if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR && pickup->kind != PICKUP_TIMED_MARKER)
+        AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
         game->player.hp = GameMathClampInt(game->player.hp + pickup->value, 0, game->player.maxHp);
@@ -1365,6 +1369,19 @@ static void CombatPickup(Game *game, Pickup *pickup)
         pickup->active = true;
         pickup->locked = true;
         game->fusionRoomTriggered = true;
+    }
+    else if (pickup->kind == PICKUP_TIMED_MARKER)
+    {
+        /* WP5 (systems/special-rooms.md, "Stanza a tempo"): pura decorazione
+           -- l'esito (Room.rewardTaken) e' gia' deciso al primo ingresso in
+           WorldSpawnRoomContents, che sceglie anche il 'value' (1/0) di
+           QUESTO pickup per il tag attiva/scaduta. Toccarlo non fa scattare
+           nulla, a differenza del crogiolo (PICKUP_FUSION_ALTAR): nessun
+           campo di Game da scrivere, nessuna schermata da aprire. Stessa
+           disciplina 'non si consuma mai' -- resta li' per tutta la
+           permanenza nella stanza, un segnale sempre leggibile. */
+        pickup->active = true;
+        pickup->locked = true;
     }
 }
 

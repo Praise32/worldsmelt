@@ -118,8 +118,8 @@ typedef enum RoomKind {
        qualche parte in futuro. */
     ROOM_HUB,
     /* WP4 (docs/design/systems/special-rooms.md, "Stanza di fusione"): primo
-       dei quattro archetipi speciali di DEC-010 ad avere un RoomKind fisico
-       nel motore. In coda come ROOM_HUB sopra, stesso motivo. Piazzata da
+       dei cinque archetipi speciali di DEC-010/DEC-051 ad avere un RoomKind
+       fisico nel motore. In coda come ROOM_HUB sopra, stesso motivo. Piazzata da
        WorldPlaceSpecialRoom come tesoro/negozio (1x1, mai adiacente al boss,
        deterministica dal seed) -- vedi WorldGenerateFloorMap in world.c. Dentro
        la stanza un crogiolo interagibile (Pickup di kind PICKUP_FUSION_ALTAR,
@@ -127,7 +127,19 @@ typedef enum RoomKind {
        documento -- ma l'accesso globale storico (TAB da Gameplay, voce dal
        PauseMenu) RESTA come rete di sicurezza: una run non deve mai dipendere
        dal trovare questa stanza per poter fondere. */
-    ROOM_FUSION
+    ROOM_FUSION,
+    /* WP5 (docs/design/systems/special-rooms.md, "Stanza a tempo", DEC-051):
+       il QUINTO archetipo speciale, esclusivo dei PIANI AVANZATI (dal piano 3,
+       default proposto: stesso confine dell'escalation del tileset,
+       governance/open-questions.md voce 23). In coda come ROOM_FUSION sopra,
+       stesso motivo. Piazzata da WorldPlaceSpecialRoom come tesoro/negozio/
+       fusione (1x1, mai adiacente al boss, deterministica dal seed), ma SOLO
+       se game->floor >= WORLD_TIMED_ROOM_MIN_FLOOR -- vedi WorldGenerateFloorMap
+       in world.c. Raggiunta entro una soglia di tempo misurata dall'ingresso
+       nel piano (Game.floorEntryElapsedSeconds sotto): valuta principale di
+       completamento (DEC-167) SOLO se in tempo; oltre soglia resta comunque una
+       stanza percorribile, mai bloccante (special-rooms.md, "Casi limite"). */
+    ROOM_TIMED
 } RoomKind;
 
 typedef enum Direction {
@@ -184,7 +196,21 @@ typedef enum PickupKind {
        cella d'atlas dedicata: sprite da assets/art/props/crogiolo quando
        arriva dalla corsia arte, forma geometrica di riserva nel frattempo
        (vedi DrawPickup, src/render/game_renderer.c). */
-    PICKUP_FUSION_ALTAR
+    PICKUP_FUSION_ALTAR,
+    /* WP5: il segnale della stanza a tempo (ROOM_TIMED sopra) -- una
+       clessidra decorativa, MAI un pickup vero. In coda come PICKUP_FUSION_ALTAR
+       sopra e per lo stesso motivo. Non si consuma mai (CombatPickup lo
+       rimette 'active' subito, senza alcun effetto collaterale -- non scrive
+       nulla su Game, a differenza del crogiolo): l'esito della stanza si
+       decide UNA volta sola al primo ingresso (WorldSpawnRoomContents),
+       questo pickup si limita a MOSTRARLO. 'value' non e' una quantita' ma un
+       booleano travestito: 1 = in tempo (tag "attiva"/etichetta "IN TEMPO"),
+       0 = soglia scaduta (tag "scaduta"/etichetta "SCADUTO") -- vedi
+       DrawPickup. Nessuna cella d'atlas dedicata: sprite da
+       assets/art/props/clessidra quando arriva dalla corsia arte, forma
+       geometrica di riserva nel frattempo (stesso degrado standard del
+       crogiolo sopra). */
+    PICKUP_TIMED_MARKER
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -1453,6 +1479,23 @@ typedef struct Game {
        DrawHudCanvas) e ripetuto in RunResults (DrawRunResultsOverlay,
        DEC-056: tempo sempre presente, vittoria e sconfitta). */
     float runElapsedSeconds;
+    /* WP5 (DEC-051, "stanza a tempo"): il valore di runElapsedSeconds
+       catturato all'INGRESSO NEL PIANO (WorldStartFloor), non all'inizio
+       della run -- la soglia della stanza a tempo si misura da qui, mai da
+       zero (rewards-and-economy.md, "Ricompense delle stanze a tempo": la
+       soglia e' per-piano). Azzerato dal memset di GameResetRunWithSeed come
+       ogni altro campo di stato della run, poi scritto di nuovo da OGNI
+       chiamata a WorldStartFloor (piano 1 incluso). */
+    float floorEntryElapsedSeconds;
+    /* WP5: la taglia VERA del piano appena generato, in celle -- il totale
+       finale (partenza + combattimento + boss + speciali 1x1), non il
+       bersaglio pre-estrazione di WorldGenerateFloorMap (che puo' sforare o
+       non raggiungere il budget). Fonte della soglia di tempo proporzionata
+       alla taglia del piano (WorldTimedRoomThresholdSeconds, src/world/world.c):
+       un piano piu' grande da' comprensibilmente piu' tempo. Scritto una sola
+       volta da WorldGenerateFloorMap, letto da WorldSpawnRoomContents quando
+       il giocatore entra nella stanza a tempo. */
+    int floorCellCount;
     /* DEC-145 -- correzione di fortuna: estrazioni consecutive di rarita'
        comune viste da ciascun pool, indipendenti fra loro (la stessa
        sequenza sfortunata sul tesoro non deve consumare la soglia del

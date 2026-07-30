@@ -436,3 +436,11 @@ DEC. Da decidere insieme al proprietario: o si accetta che la garanzia DEC-058 v
 DOPO l'ingresso (e si aggiorna DEC-058/special-rooms.md di conseguenza), o si introduce un
 canale non-colore anche per le celle non visitate (es. un bordo o pattern distinto per
 "stanza speciale nota", senza svelarne il tipo esatto).
+
+**Aggiornamento WP5 (30/07)**: la stanza a tempo (`ROOM_TIMED`) eredita lo stesso limite
+pre-ingresso — `"!"` in `DrawRoomIcon` compare solo su `room->visited`, come `"F"` per
+`ROOM_FUSION`. A differenza del limite pre-ingresso, l'esito DENTRO la stanza (raggiunta in
+tempo o no) NON dipende solo dal colore: `DrawPickup` scrive sempre un'etichetta testuale
+("IN TEMPO"/"SCADUTO") accanto alla clessidra, indipendente dal caricamento dello sprite —
+quel canale non-colore esiste già per lo stato interno alla stanza, il gap resta solo
+sulla minimappa prima di entrarci.

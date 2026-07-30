@@ -3038,6 +3038,177 @@ static bool RoomsTestFusionInteraction(void)
     return false;
 }
 
+/* WP5 (DEC-051, "stanza a tempo"): trova la prima stanza a tempo nei semi di
+   prova e la esercita DUE volte -- una raggiunta "in tempo" (elapsed=0, che
+   e' sempre <= soglia, la soglia e' sempre positiva) e una "oltre soglia"
+   (elapsed = soglia + margine, calcolato con la STESSA funzione del motore,
+   WorldTimedRoomThresholdSeconds, cosi' il test non duplica la formula).
+   Stesso schema di RoomsTestFusionInteraction sopra: Game LOCALI, nessuna
+   dipendenza da AppRun. */
+static bool RoomsTestTimedRoomInteraction(void)
+{
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u, 90210u, 5150u
+    };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        for (int floor = WORLD_TIMED_ROOM_MIN_FLOOR; floor <= FLOOR_COUNT; floor++)
+        {
+            Game probe;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+
+            int tx = -1, ty = -1;
+            for (int y = 0; y < GRID_SIZE && tx < 0; y++)
+                for (int x = 0; x < GRID_SIZE && tx < 0; x++)
+                {
+                    if (!probe.rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(&probe, x, y);
+                    if (state != &probe.rooms[y][x]) continue;
+                    if (state->kind == ROOM_TIMED) { tx = x; ty = y; }
+                }
+            if (tx < 0) continue;   /* niente stanza a tempo su questo piano/seme: si prova il prossimo */
+
+            /* Caso A: raggiunta SUBITO (elapsed = 0, sempre <= soglia). */
+            probe.roomX = tx; probe.roomY = ty;
+            int coinsBefore = probe.player.coins;
+            WorldSpawnRoomContents(&probe);
+            const RoomState *timedRoom = WorldRoomAt(&probe, tx, ty);
+            if (!timedRoom->rewardTaken)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: raggiunta subito ma nessuna ricompensa registrata\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (probe.player.coins != coinsBefore + WORLD_ROOM_CURRENCY_TIMED)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: valuta attesa %d, ottenuta %d\n",
+                        floor, kSeeds[si], coinsBefore + WORLD_ROOM_CURRENCY_TIMED, probe.player.coins);
+                return false;
+            }
+            if (GameRoomIsLocked(&probe))
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: la stanza a tempo blocca le porte (mai ammesso)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            Pickup *marker = NULL;
+            for (int i = 0; i < MAX_PICKUPS; i++)
+            {
+                if (probe.pickups[i].active && probe.pickups[i].kind == PICKUP_TIMED_MARKER) { marker = &probe.pickups[i]; break; }
+            }
+            if (!marker || marker->value != 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: nessuna clessidra 'in tempo' nella stanza\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            /* Toccarla non deve fare NULLA: e' un segnale, non una raccolta
+               (stessa disciplina del crogiolo -- RoomsTestFusionInteraction
+               sopra -- ma senza alcun effetto, nemmeno un campo Game). */
+            probe.player.pos = marker->pos;
+            int coinsAtTouch = probe.player.coins;
+            CombatUpdatePickups(&probe);
+            if (!marker->active || probe.player.coins != coinsAtTouch)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: la clessidra si e' consumata o ha pagato al tocco (non deve mai succedere)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* Caso B: raggiunta OLTRE la soglia -- si rigenera lo STESSO piano
+               (stesso seed, deterministico) e si sposta l'orologio avanti
+               prima del primo ingresso nella stanza. */
+            Game probeLate;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probeLate);
+            float threshold = WorldTimedRoomThresholdSeconds(&probeLate);
+            probeLate.runElapsedSeconds = probeLate.floorEntryElapsedSeconds + threshold + 5.0f;
+            probeLate.roomX = tx; probeLate.roomY = ty;
+            int coinsBeforeLate = probeLate.player.coins;
+            WorldSpawnRoomContents(&probeLate);
+            const RoomState *timedRoomLate = WorldRoomAt(&probeLate, tx, ty);
+            if (timedRoomLate->rewardTaken)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: oltre soglia ma la ricompensa risulta comunque assegnata\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (probeLate.player.coins != coinsBeforeLate)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: oltre soglia ma la valuta e' comunque cambiata (%d -> %d)\n",
+                        floor, kSeeds[si], coinsBeforeLate, probeLate.player.coins);
+                return false;
+            }
+            if (GameRoomIsLocked(&probeLate))
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: oltre soglia la stanza a tempo blocca le porte (mai ammesso, special-rooms.md)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            Pickup *markerLate = NULL;
+            for (int i = 0; i < MAX_PICKUPS; i++)
+            {
+                if (probeLate.pickups[i].active && probeLate.pickups[i].kind == PICKUP_TIMED_MARKER) { markerLate = &probeLate.pickups[i]; break; }
+            }
+            if (!markerLate || markerLate->value != 0)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: nessuna clessidra 'scaduta' nella stanza oltre soglia\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+
+            /* Caso C: soglia rispettata quando 'Game.floorEntryElapsedSeconds'
+               NON e' zero -- una run che arriva a questo piano dopo avere gia'
+               speso tempo nei piani precedenti (qui simulato: 500s). Nei casi
+               A/B sopra 'RoomsTestGenerateFloor' riparte sempre da un Game
+               azzerato (memset), quindi floorEntryElapsedSeconds == 0 e "delta
+               dall'ingresso nel piano" coincide numericamente con "valore
+               assoluto del timer di run": un'implementazione che misurasse per
+               errore la soglia dal solo runElapsedSeconds (o dall'inizio della
+               run, l'alternativa esplicitamente scartata dalla voce 33 di
+               governance/open-questions.md) passerebbe comunque i casi A/B
+               senza che nessuno se ne accorga. Qui runElapsedSeconds e' gia' a
+               500s PRIMA di WorldStartFloor, cosi' le due basi si separano
+               davvero: solo il delta (pochi secondi) resta entro soglia, il
+               valore assoluto (500+) no. */
+            Game probeShifted;
+            memset(&probeShifted, 0, sizeof(probeShifted));
+            probeShifted.rng = kSeeds[si];
+            probeShifted.phase = PHASE_PLAY;
+            probeShifted.runElapsedSeconds = 500.0f;
+            WorldStartFloor(&probeShifted, floor);
+            if (probeShifted.floorEntryElapsedSeconds != 500.0f)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: WorldStartFloor non ha catturato floorEntryElapsedSeconds dal runElapsedSeconds gia' accumulato (atteso 500.000, ottenuto %.3f)\n",
+                        floor, kSeeds[si], (double)probeShifted.floorEntryElapsedSeconds);
+                return false;
+            }
+            probeShifted.roomX = tx; probeShifted.roomY = ty;
+            int coinsBeforeShifted = probeShifted.player.coins;
+            probeShifted.runElapsedSeconds = 500.0f + 3.0f;   /* pochi secondi DOPO l'ingresso nel piano: entro qualunque soglia misurata (min ~100s, vedi WorldTimedRoomThresholdSeconds) */
+            WorldSpawnRoomContents(&probeShifted);
+            const RoomState *timedRoomShifted = WorldRoomAt(&probeShifted, tx, ty);
+            if (!timedRoomShifted->rewardTaken)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: con floorEntryElapsedSeconds=500 e 3s di ritardo nel piano, nessuna ricompensa (la soglia deve misurarsi dal DELTA piano, mai dal timer di run assoluto)\n",
+                        floor, kSeeds[si]);
+                return false;
+            }
+            if (probeShifted.player.coins != coinsBeforeShifted + WORLD_ROOM_CURRENCY_TIMED)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u (floorEntryElapsedSeconds=500): valuta attesa %d, ottenuta %d\n",
+                        floor, kSeeds[si], coinsBeforeShifted + WORLD_ROOM_CURRENCY_TIMED, probeShifted.player.coins);
+                return false;
+            }
+
+            printf("  [rooms-p] stanza a tempo (seed %u piano %d): entro soglia -> ricompensa+clessidra attiva; oltre soglia -> nessuna ricompensa, clessidra scaduta, stanza sempre percorribile; soglia misurata dal delta piano anche con floorEntryElapsedSeconds!=0 -> ok\n",
+                   kSeeds[si], floor);
+            return true;
+        }
+    }
+    fprintf(stderr, "GameRoomsTest: (p) nessuna stanza a tempo nei semi di prova: verifica non eseguita\n");
+    return false;
+}
+
 /* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
 typedef struct RoomsTestRoom {
     int stateX, stateY;
@@ -3098,6 +3269,17 @@ bool GameRoomsTest(Game *game)
        (spec del work package) presuppone che il giro di prova la eserciti
        davvero almeno una volta, non solo che non si rompa quando manca. */
     int floorsWithFusion = 0;
+    /* WP5 (p): stessa idea di floorsWithFusion sopra, ma per la stanza a
+       tempo -- SOLO piani avanzati (WORLD_TIMED_ROOM_MIN_FLOOR), quindi ci si
+       aspetta zero occorrenze sui piani 1-2 e almeno una sui piani 3-5. */
+    int floorsWithTimed = 0;
+    /* WP5: denominatore corretto per il rendiconto (p) sotto -- i piani 1-2
+       non tentano NEMMENO il piazzamento (WORLD_TIMED_ROOM_MIN_FLOOR), quindi
+       contarli nel totale ("69 su 120") sarebbe fuorviante quanto dire che un
+       test "fallisce" su domande a cui non e' nemmeno stato sottoposto.
+       floorsWithFusion/floorsChecked sopra non ha lo stesso problema: la
+       fusione non ha un piano minimo. */
+    int floorsEligibleForTimed = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -3106,6 +3288,7 @@ bool GameRoomsTest(Game *game)
             Game probe;
             RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
             floorsChecked++;
+            if (floor >= WORLD_TIMED_ROOM_MIN_FLOOR) floorsEligibleForTimed++;
 
             RoomsTestRoom rooms[GRID_SIZE*GRID_SIZE];
             int roomCount = RoomsTestCollectRooms(&probe, rooms, GRID_SIZE*GRID_SIZE);
@@ -3117,6 +3300,9 @@ bool GameRoomsTest(Game *game)
                stato, per il controllo (o) sotto. */
             int fusionRooms = 0;
             int fusionX = -1, fusionY = -1;
+            /* WP5: idem per la stanza a tempo, controllo (p) sotto. */
+            int timedRooms = 0;
+            int timedX = -1, timedY = -1;
 
             /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
                stanza e' una delle cinque classi di DEC-170; (b) niente
@@ -3140,6 +3326,7 @@ bool GameRoomsTest(Game *game)
                 if (rooms[r].kind == ROOM_BOSS) { bossRooms++; bossSizeSeen[size]++; bossX = rooms[r].stateX; bossY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_START) startRooms++;
                 if (rooms[r].kind == ROOM_FUSION) { fusionRooms++; fusionX = rooms[r].stateX; fusionY = rooms[r].stateY; }
+                if (rooms[r].kind == ROOM_TIMED) { timedRooms++; timedX = rooms[r].stateX; timedY = rooms[r].stateY; }
                 cellCount += bits;
 
                 /* La forma a L e' TRE celle di un blocco 2x2 con un angolo
@@ -3247,13 +3434,54 @@ bool GameRoomsTest(Game *game)
                 }
             }
 
+            /* (p) WP5: al piu' una stanza a tempo per piano (un solo tentativo
+               di piazzamento, mai garantito), MAI prima del piano 3
+               (WORLD_TIMED_ROOM_MIN_FLOOR: e' parte della decisione DEC-051
+               stessa, "esclusiva dei piani avanzati", non solo un default di
+               frequenza) e, quando c'e', mai adiacente alla stanza boss --
+               stesso schema del controllo (o) sopra per la fusione. */
+            if (timedRooms > 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: %d stanze a tempo (atteso al piu' 1)\n",
+                        floor, kSeeds[si], timedRooms);
+                ok = false;
+            }
+            if (timedRooms > 0 && floor < 3)
+            {
+                fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: stanza a tempo fuori dai piani avanzati\n",
+                        floor, kSeeds[si]);
+                ok = false;
+            }
+            if (timedRooms == 1)
+            {
+                floorsWithTimed++;
+                const RoomState *timedState = &probe.rooms[timedY][timedX];
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(timedState->cells & (unsigned char)(1u << i))) continue;
+                    int cx = timedState->originX + (i & 1), cy = timedState->originY + (i >> 1);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = cx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = cy + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists) continue;
+                        if (WorldRoomAt(&probe, nx, ny)->kind != ROOM_BOSS) continue;
+                        fprintf(stderr, "GameRoomsTest: (p) piano %d seed %u: la stanza a tempo tocca la stanza boss\n",
+                                floor, kSeeds[si]);
+                        ok = false;
+                    }
+                }
+            }
+
             /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
-               fino a 4 celle di stanza boss e 3 celle speciali (tesoro,
-               negozio, fusione -- WP4 aggiunge la terza 1x1 al piano); una
-               forma grande puo' sforare il budget di al massimo 3 celle
-               (l'ultima piazzata). */
+               fino a 4 celle di stanza boss e le celle speciali 1x1 (tesoro,
+               negozio, fusione -- WP4 -- e, dal piano 3, anche la stanza a
+               tempo -- WP5, la QUARTA); una forma grande puo' sforare il
+               budget di al massimo 3 celle (l'ultima piazzata). */
             int lowerBound = 6 + floor;
-            int upperBound = 6 + floor + 3 + 3 + 4 + 3;
+            int specialRoomSlots = (floor >= 3) ? 4 : 3;
+            int upperBound = 6 + floor + 3 + 3 + 4 + specialRoomSlots;
             if (existing < lowerBound || existing > upperBound)
             {
                 fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d celle, fuori dalla banda attesa [%d,%d]\n",
@@ -3557,6 +3785,15 @@ bool GameRoomsTest(Game *game)
         fprintf(stderr, "GameRoomsTest: (o) la stanza di fusione non trova mai posto in %d piani generati\n", floorsChecked);
         ok = false;
     }
+    /* (p) WP5: stessa idea di (o) sopra -- il resto del controllo (p)
+       (unicita', mai adiacente al boss, mai prima del piano 3) presuppone
+       che il giro di prova piazzi davvero la stanza a tempo almeno una
+       volta, non solo che non si rompa quando manca. */
+    if (floorsWithTimed == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (p) la stanza a tempo non trova mai posto in %d piani generati\n", floorsChecked);
+        ok = false;
+    }
 
     printf("  [rooms-abcdefijlmno] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
            FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
@@ -3565,11 +3802,14 @@ bool GameRoomsTest(Game *game)
            bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
     printf("  [rooms-o] stanza di fusione (WP4) piazzata in %d piani su %d, mai adiacente al boss, mai piu' di una per piano\n",
            floorsWithFusion, floorsChecked);
+    printf("  [rooms-p] stanza a tempo (WP5) piazzata in %d piani su %d candidati (piani >= %d), mai prima del piano 3, mai adiacente al boss, mai piu' di una per piano\n",
+           floorsWithTimed, floorsEligibleForTimed, WORLD_TIMED_ROOM_MIN_FLOOR);
 
     if (!RoomsTestMinSizeStillPlayable()) ok = false;
     if (!RoomsTestCameraClamp()) ok = false;
     if (!RoomsTestHoleIsSolid()) ok = false;
     if (!RoomsTestFusionInteraction()) ok = false;
+    if (!RoomsTestTimedRoomInteraction()) ok = false;
 
     return ok;
 }

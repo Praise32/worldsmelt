@@ -2023,13 +2023,15 @@
         "valuta",
         "punti-sblocco",
         "punteggio",
-        "DEC-167"
+        "DEC-167",
+        "stanza-a-tempo",
+        "WP5"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-30",
+      "last_verified_commit": "27aab4d"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2057,7 +2059,10 @@
         "boss-isolato",
         "DEC-043",
         "WP3",
-        "ostacoli"
+        "ostacoli",
+        "ROOM_FUSION",
+        "ROOM_TIMED",
+        "WP5"
       ],
       "related": [],
       "supersedes": [],
@@ -2070,7 +2075,7 @@
         "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a2de293"
+      "last_verified_commit": "27aab4d"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2168,7 +2173,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) è il primo dei quattro archetipi speciali con un RoomKind fisico nel motore.",
+      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) e la stanza a tempo (WP5, 30/07) sono i primi due dei cinque archetipi con un RoomKind fisico nel motore.",
       "topics": [
         "stanze-speciali",
         "fusione",
@@ -2176,7 +2181,9 @@
         "arena-di-sfida",
         "stanza-a-tempo",
         "WP4",
-        "ROOM_FUSION"
+        "WP5",
+        "ROOM_FUSION",
+        "ROOM_TIMED"
       ],
       "related": [],
       "supersedes": [],
@@ -2187,7 +2194,7 @@
         "src/render/game_renderer.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "0ec60d0"
+      "last_verified_commit": "27aab4d"
     },
     {
       "id": "gd-system-synergies",
@@ -2460,7 +2467,7 @@
         "scripts/cp2_hud_mocks.lua"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "1263957"
+      "last_verified_commit": "b1cc044"
     },
     {
       "id": "gd-ui-build-screen",

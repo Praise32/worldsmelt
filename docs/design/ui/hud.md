@@ -7,7 +7,7 @@ authority: canonical
 owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
 last_reviewed: 2026-07-30
-last_verified_commit: 1263957
+last_verified_commit: b1cc044
 topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust]
 related: []
 supersedes: []
@@ -160,10 +160,27 @@ modalità, non solo nelle modalità competitive: il gioco si dichiara esplicitam
 corsa. Questo è distinto dall'indicatore minimo di stato competitivo (vedi tabella sopra),
 che resta specifico delle modalità competitive e non ripete il timer generale.
 
-Il timer di run è anche il segnale con cui il giocatore valuta se raggiungere in tempo le
+Il timer di run è anche il segnale generale con cui il giocatore percepisce l'andamento
+della propria corsa, incluso quando conviene affrettarsi per un archetipo speciale come le
 stanze a tempo dei piani avanzati (vedi [Rewards and Economy](../systems/rewards-and-economy.md)
 e [Special Rooms](../systems/special-rooms.md), DEC-051); questo documento non ripete il
 dettaglio di quell'archetipo.
+
+> **Nota di implementazione (WP5, 2026-07-30):** con la stanza a tempo ora nel motore, la
+> soglia di ciascuna stanza è **per piano** e misurata dall'**ingresso nel piano**
+> (`Game.floorEntryElapsedSeconds`, vedi `systems/special-rooms.md` e
+> `governance/open-questions.md` voce 33), non un intervallo che il timer di run qui sopra
+> — cumulativo dall'inizio dell'intera run, mai azzerato tra un piano e l'altro — permetta
+> di leggere direttamente: il timer dice "quanto tempo è passato in totale", non "quanto
+> tempo resta per QUESTA stanza a tempo su QUESTO piano". Prima di entrare, il solo segnale
+> che il gioco dà è visivo/posizionale (icona `"!"` dedicata sulla minimappa, solo a stanza
+> visitata — limite pre-ingresso condiviso con gli altri archetipi speciali,
+> `known-issues.md` voce 12); il tempo trascorso nel piano e la soglia numerica compaiono
+> SOLO dentro la stanza, nel messaggio del primo ingresso (`special-rooms.md`). Il gioco
+> **non** offre oggi una lettura pre-ingresso del tempo-nel-piano o della soglia: questa
+> affermazione (introdotta prima che l'archetipo esistesse nel motore) andrebbe corretta o
+> completata con un tale indicatore. Registrato come domanda aperta, non deciso qui — vedi
+> `governance/open-questions.md`, voce 34.
 
 ## Card di scoperta breve (DEC-065)
 
