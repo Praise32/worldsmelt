@@ -8,7 +8,7 @@ owner: design
 summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
 last_reviewed: 2026-07-30
 last_verified_commit: 1263957
-topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche]
+topics: [hud, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust]
 related: []
 supersedes: []
 source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/app/app.c, src/app/app_internal.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
@@ -78,6 +78,21 @@ sinergie e della fusione appartengono a `BuildScreen` (vedi
 La salute base e la salute temporanea/protettiva devono essere distinguibili a colpo
 d'occhio (colore, forma o strato separato); l'ordine di consumo è sempre: prima la
 temporanea, poi la base (DEC-008). Fonte di sistema: `systems/health-and-resources.md`.
+
+> **Nota di implementazione (WP2, 2026-07-30):** il contatore separato **si disegna**.
+> `DrawHudV3TempHearts` (`src/render/game_renderer.c`) mostra icone `heart_temp` accanto
+> ai cuori base (layout V3, stessa riga `HUD_V3_HEARTS_Y`, subito a destra dell'ultimo
+> slot di cuore base), visibile SOLO quando `Player.tempHp > 0` — a differenza dei cuori
+> base, sempre visibili anche vuoti. Un'icona per punto di `tempHp` (non 2 come i cuori
+> base): con il danno del motore sempre pari a 1, una granularità a 2 punti per icona
+> lasciava coppie di valori consecutivi indistinguibili a schermo. Nel ripiego senza
+> pacchetto artistico (`DrawHudVitals`, nessuna icona disponibile lì) lo stesso valore
+> compare come testo `+N` accanto ai cuori disegnati con le primitive, mai il solo colore
+> (DEC-058). I due percorsi condividono nuclei PURI testabili senza finestra
+> (`HudTempHeartsSlotCount`/`HudTempHeartsX`/`HudCrustLineFormat`,
+> `src/render/game_renderer.h`). Chiude known-issues.md voce 10.4. Verificato da
+> `--temp-health-test` (`GameTempHealthTest`, in `make test`), inclusi quei nuclei con
+> `tempHp>0`.
 
 ## Risorse per funzione
 
@@ -236,9 +251,9 @@ chi legge il codice:
   cornice a pannello (`slice [6,6,6,6]`, con rivetti), cornice a slot (`slice [4,4,4,4]`) —
   vestono l'HUD **e tutte le nove schermate**, non solo l'HUD.
 - **Cuori**: icone `heart`/`heart_half`/`heart_empty`, 12 px con passo 13, stessa semantica
-  di prima (2 punti vita per cuore). `heart_temp` esiste nell'atlas ma non è disegnato: la
-  salute temporanea di DEC-008 non ha ancora un contatore nel motore (lacuna di gameplay,
-  non d'arte — `docs/engineering/known-issues.md` voce 10).
+  di prima (2 punti vita per cuore). **RISOLTO (WP2, 2026-07-30)**: `heart_temp` si
+  disegna ora davvero, accanto ai cuori base — vedi la nota di implementazione in
+  "Salute stratificata" sopra e `docs/engineering/known-issues.md` voce 10.4.
 - **Risorse**: ordine fisso `ingot` → `charge` → `key` → `flux`, icona 11 px + numero. Il
   Flux compare solo quando se ne possiede almeno uno (regola già in vigore: una risorsa rara
   con uno "0" fisso sarebbe rumore) e porta il riquadro di evidenza quando basta per una

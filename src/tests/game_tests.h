@@ -203,6 +203,21 @@ bool GameRngSeedTest(Game *game);
    src/tests/game_tests.c. */
 bool GameRunTimerTest(Game *game);
 
+/* DEC-008 (Crust, WP2, systems/health-and-resources.md "Salute stratificata"):
+   ordine di consumo della salute stratificata (prima la temporanea/
+   protettiva, poi la base, con l'eccedenza nello STESSO evento), nessun
+   overflow oltre PLAYER_TEMP_HP_CAP (core/game_types.h) raccogliendo Crust
+   dal negozio, la cura normale (PICKUP_HEART) che non tocca mai il Crust, e
+   la morte che resta legata SOLO alla salute base a zero (DEC-159: perdere
+   tutto il Crust in un colpo non basta a finire la run). Esercita anche,
+   con tempHp>0, i nuclei PURI dietro il contatore HUD
+   (HudTempHeartsSlotCount/HudTempHeartsX/HudCrustLineFormat,
+   src/render/game_renderer.h) usati dai due percorsi di disegno del Crust
+   (layout V3 a icone, ripiego a testo). Come GameRunTimerTest, gira dopo
+   InitWindow e usa 'game' per davvero (GameResetRunWithSeed chiama
+   AssetsLoad) ma non disegna nulla. Vedi src/tests/game_tests.c. */
+bool GameTempHealthTest(Game *game);
+
 /* DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
    estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del
    pool curato minimo (DEC-144) e correzione di fortuna con soglia N ridotta

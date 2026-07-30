@@ -63,6 +63,18 @@ const char *GameRoomKindName(RoomKind kind)
 #define WORLD_SHOP_FLUX_STOCK_PERCENT 45
 #define WORLD_SHOP_FLUX_COST 30
 
+/* Crust (in-game, DEC-008): systems/health-and-resources.md fissa la
+   COMPOSIZIONE e l'ORDINE DI CONSUMO della salute temporanea/protettiva ma
+   non una fonte concreta in-run (WP2, gap G1 del dominio
+   combattimento-e-salute). DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile
+   DEC-019, registrato in health-and-resources.md e
+   governance/open-questions.md): il negozio, stessa tecnica hash-based di
+   WorldShopStocksFlux sopra (mai game->rng, cosi' uscire/rientrare non
+   fa comparire/sparire la scorta) e stesso ordine di grandezza del costo
+   Flux -- una spesa consapevole, non un pickup gratuito di stanza. */
+#define WORLD_SHOP_CRUST_STOCK_PERCENT 40
+#define WORLD_SHOP_CRUST_COST 25
+
 void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
 {
     int amount;
@@ -1093,6 +1105,19 @@ static bool WorldShopStocksFlux(const Game *game)
     return (int)(GameRngNext(&state)%100u) < WORLD_SHOP_FLUX_STOCK_PERCENT;
 }
 
+/* Vero se il negozio di questo piano tiene Crust in banco (DEC-008, WP2 --
+   vedi WORLD_SHOP_CRUST_STOCK_PERCENT sopra). Stessa disciplina di
+   WorldShopStocksFlux appena sopra: deterministico dal seed di run e dal
+   piano, MAI da game->rng, con un dominio di hash diverso ('CRST') cosi'
+   le due tirature non si correlano artificialmente (un piano che ha il
+   Flux non ha percio' ne' piu' ne' meno probabilita' di avere anche il
+   Crust). */
+static bool WorldShopStocksCrust(const Game *game)
+{
+    unsigned int state = game->runSeed ^ ((unsigned int)game->floor*2654435761u) ^ 0x43525354u;   /* 'CRST' */
+    return (int)(GameRngNext(&state)%100u) < WORLD_SHOP_CRUST_STOCK_PERCENT;
+}
+
 void WorldSpawnRoomContents(Game *game)
 {
     EntitiesClear(game);
@@ -1202,6 +1227,14 @@ void WorldSpawnRoomContents(Game *game)
            rientrando finche' il Flux compare. */
         if (WorldShopStocksFlux(game))
             EntitiesAddPickup(game, PICKUP_FLUX, (Vector2){ center.x + 260.0f, center.y }, 1, WORLD_SHOP_FLUX_COST);
+        /* DEC-008/WP2, fonte scelta per la demo: stessa tecnica di cui sopra
+           (hash del seed di run e del piano, mai game->rng), un'altra riga
+           del banco separata dal resto (y diverso) per non sovrapporsi al
+           Flux quando entrambi sono in banco lo stesso piano. 'value'=2
+           equivale a 2 icone 'heart_temp' nell'HUD (un'icona per punto di
+           tempHp, HudTempHeartsSlotCount in src/render/game_renderer.c). */
+        if (WorldShopStocksCrust(game))
+            EntitiesAddPickup(game, PICKUP_CRUST, (Vector2){ center.x + 260.0f, center.y - 70.0f }, 2, WORLD_SHOP_CRUST_COST);
         GameSetMessage(game, "Negozio: tocca un oggetto per comprarlo.");
     }
     else if (room->kind == ROOM_BOSS && room->cleared)

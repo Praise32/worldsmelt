@@ -1041,6 +1041,7 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_EXIT) { cell = SPR_EXIT; label = "EXIT"; size = 78.0f; }
         else if (p->kind == PICKUP_ENERGY) cell = -1;   /* nessuna cella d'atlas: vedi PickupKind in core/game_types.h */
         else if (p->kind == PICKUP_FLUX) cell = -1;     /* idem: il catalizzatore di fusione e' una forma geometrica */
+        else if (p->kind == PICKUP_CRUST) cell = -1;    /* idem: Crust (DEC-008/WP2) e' una forma geometrica */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1081,6 +1082,23 @@ static void DrawPickup(Game *game, const Pickup *p)
             Vector2 up = { pos.x, pos.y - 13 }, right = { pos.x + 11, pos.y }, down = { pos.x, pos.y + 13 }, left = { pos.x - 11, pos.y };
             DrawTriangle(left, down, up, c);
             DrawTriangle(up, down, right, c);
+            DrawCircleV(pos, 4, GameColorWithAlpha(RAYWHITE, 200));
+        }
+        else if (p->kind == PICKUP_CRUST)
+        {
+            /* Crust (DEC-008/WP2): un piccolo scudo esagonale, la silhouette
+               non ancora usata da un'altra raccolta (cerchio/rombo/scintilla
+               gia' presi sopra) -- si distingue a colpo d'occhio anche senza
+               leggere l'etichetta. Forma geometrica di proposito, stessa
+               ragione di energia/Flux sopra: una cella d'atlas nuova
+               invaliderebbe ogni atlas gia' generato (vedi AtlasSprite). */
+            c = (Color){ 150, 176, 214, 255 };
+            label = "C";
+            Vector2 hex[6] = {
+                { pos.x, pos.y - 13 }, { pos.x + 11, pos.y - 6 }, { pos.x + 11, pos.y + 7 },
+                { pos.x, pos.y + 14 }, { pos.x - 11, pos.y + 7 }, { pos.x - 11, pos.y - 6 },
+            };
+            for (int i = 0; i < 6; i++) DrawTriangle(pos, hex[i], hex[(i + 1) % 6], c);
             DrawCircleV(pos, 4, GameColorWithAlpha(RAYWHITE, 200));
         }
         else
@@ -2028,8 +2046,20 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
     float heartS = 15.0f*s;
     float heartsW = (float)heartSlots*heartS*1.15f + heartS;
 
+    /* Crust (DEC-008/WP2), ripiego SENZA pacchetto artistico (nessuna icona
+       'heart_temp' qui: questo cluster disegna con DrawHeart/primitive, vedi
+       il commento su DrawHudVitals piu' sopra) -- formattato da
+       HudCrustLineFormat (game_renderer.h), stesso nucleo puro testato da
+       --temp-health-test. Visibile solo quando il giocatore ne possiede,
+       come in V3. */
+    char crustLine[24];
+    bool showCrust = HudCrustLineFormat(p->tempHp, crustLine, sizeof(crustLine));
+    int crustFont = UiRound(14.0f*s);
+    float crustGap = 6.0f*s;
+    float heartsRowW = showCrust ? heartsW + crustGap + (float)UiTextW(crustLine, crustFont) : heartsW;
+
     int slotFont = UiRound(13.0f*s);
-    float contentW = fmaxf(fmaxf((float)UiTextW(nameLine, nameFont), (float)UiTextW(resLine, resFont)), heartsW);
+    float contentW = fmaxf(fmaxf((float)UiTextW(nameLine, nameFont), (float)UiTextW(resLine, resFont)), heartsRowW);
     contentW = fmaxf(contentW, (float)UiTextW(activeLine, slotFont));
     contentW = fmaxf(contentW, (float)UiTextW(graftLine, slotFont));
     float boxW = contentW + ip*2.0f;
@@ -2044,6 +2074,8 @@ static void DrawHudVitals(Game *game, Rectangle gr, float s)
     UiText(nameLine, cx, cy, nameFont, character ? character->palette : (Color){ 205, 210, 220, 255 });
     cy += UiRound(rowName);
     DrawHearts(p, cx, cy, s);
+    if (showCrust)
+        UiText(crustLine, (int)((float)cx + heartsW + crustGap), (int)((float)cy + heartS*0.35f), crustFont, (Color){ 162, 201, 255, 255 });
     cy += UiRound(rowHeart);
     UiText(resLine, cx, cy, resFont, GOLD);
     cy += UiRound(rowRes);
@@ -2243,6 +2275,9 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
 #define HUD_V3_HEARTS_Y 17
 #define HUD_V3_HEART_PX 12
 #define HUD_V3_HEART_STEP 13
+/* Margine fra l'ultimo slot di cuore BASE e il primo cuore Crust (DEC-008/WP2),
+   cosi' i due contatori non si toccano -- vedi HudTempHeartsX piu' sotto. */
+#define HUD_V3_TEMP_HEARTS_GAP 6
 #define HUD_V3_RES_Y 34
 #define HUD_V3_RES_ICON_PX 11
 #define HUD_V3_RES_ICON_ADVANCE 13
@@ -2270,10 +2305,7 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
 /* La riga dei cuori (priorita' 1 di ui/hud.md). Tre icone dal set consegnato:
    heart pieno, heart_half per il mezzo cuore, heart_empty per lo slot vuoto --
    la stessa semantica di DrawHearts (2 punti vita per cuore), disegnata con gli
-   sprite invece che con due cerchi e un triangolo.
-   GAP DICHIARATO (CP4 + DEC-008): l'icona heart_temp esiste nell'atlas ma non
-   ha ancora un contatore nel motore (la salute temporanea non e' implementata):
-   nessun cuore temporaneo viene disegnato, come prima di W8. */
+   sprite invece che con due cerchi e un triangolo. */
 static void DrawHudV3Hearts(const Player *p, int x, int y)
 {
     int full = p->hp/2;
@@ -2288,6 +2320,71 @@ static void DrawHudV3Hearts(const Player *p, int x, int y)
         if (i == full && half) ArtDrawIcon("heart_empty", ix, (float)y, scale, WHITE);
         ArtDrawIcon(icon, ix, (float)y, scale, WHITE);
     }
+}
+
+/* Salute temporanea/protettiva (Crust, DEC-008, WP2): nucleo PURO del conteggio
+   di icone heart_temp, nessuna chiamata raylib -- stesso stile di
+   HudCombatShouldDraw (game_renderer.h), testabile senza finestra aperta
+   (--temp-health-test, GameTempHealthTest, src/tests/game_tests.c).
+   UN'ICONA PER PUNTO di tempHp, non 2 come i cuori base (DrawHudV3Hearts
+   sopra): con tutto il danno del motore pari a 1 (vedi CombatDamagePlayer,
+   src/gameplay/combat.c) un passo a 2 punti per icona lasciava l'HUD
+   indistinguibile fra alcuni valori consecutivi (es. 4->3 e 2->1 identici a
+   schermo) e mostrava un solo punto residuo come icona piena. La granularita'
+   1:1 mostra ogni punto senza bisogno di una variante 'heart_temp_half'
+   nell'atlas (che non esiste, solo 'heart'/'heart_half'/'heart_empty' la
+   hanno). Con PLAYER_TEMP_HP_CAP=4 (core/game_types.h) il numero massimo di
+   icone e' 4, stesso ordine di grandezza dei cuori base tipici. */
+int HudTempHeartsSlotCount(int tempHp)
+{
+    return (tempHp > 0) ? tempHp : 0;
+}
+
+/* X di partenza del contatore Crust nel layout V3: subito a destra
+   dell'ultimo slot di cuore BASE (maxHp, non hp: lo slot dei cuori base non
+   si restringe quando il giocatore e' ferito, vedi DrawHudV3Hearts sopra),
+   con HUD_V3_TEMP_HEARTS_GAP di margine cosi' i due contatori non si
+   toccano. Nucleo PURO, stesso stile di HudTempHeartsSlotCount sopra. */
+int HudTempHeartsX(int maxHp)
+{
+    int baseHeartSlots = (maxHp + 1)/2;
+    if (baseHeartSlots < 1) baseHeartSlots = 1;
+    return HUD_V3_MARGIN + baseHeartSlots*HUD_V3_HEART_STEP + HUD_V3_TEMP_HEARTS_GAP;
+}
+
+/* Ripiego SENZA pacchetto artistico (DrawHudVitals sotto, il cluster che
+   disegna con DrawHeart/primitive invece delle icone V3): un TESTO, non un
+   colore o una forma extra, esattamente per DEC-058 ("mai solo colore") --
+   "+N" e' leggibile indipendentemente da qualunque tinta usata altrove nel
+   cluster. Nucleo PURO, stesso stile di HudTempHeartsSlotCount sopra: vero se
+   il giocatore possiede Crust (va disegnato), riempie 'buf' con "+N"
+   (stringa vuota altrimenti). */
+bool HudCrustLineFormat(int tempHp, char *buf, size_t bufSize)
+{
+    if (tempHp <= 0)
+    {
+        if (bufSize > 0) buf[0] = '\0';
+        return false;
+    }
+    snprintf(buf, bufSize, "+%d", tempHp);
+    return true;
+}
+
+/* Salute temporanea/protettiva (in-game: Crust, DEC-008, WP2): un contatore
+   SEPARATO, accanto ai cuori base (chiamato subito dopo DrawHudV3Hearts in
+   DrawHudCanvas, alla stessa quota HUD_V3_HEARTS_Y), con l'icona dedicata
+   'heart_temp' dell'atlas icone (known-issues.md #10.4: l'icona esisteva gia'
+   ma nessun contatore la usava -- chiuso qui). Visibile SOLO quando il
+   giocatore ne possiede (ui/hud.md, riga "Salute temporanea/protettiva":
+   "Visibile quando: il giocatore ne possiede"), a differenza dei cuori base
+   che restano SEMPRE visibili anche vuoti: niente slot spenti per uno strato
+   che nella maggior parte della run vale zero. */
+static void DrawHudV3TempHearts(const Player *p, int x, int y)
+{
+    int slots = HudTempHeartsSlotCount(p->tempHp);
+    float scale = (float)HUD_V3_HEART_PX/16.0f;
+    for (int i = 0; i < slots; i++)
+        ArtDrawIcon("heart_temp", (float)(x + i*HUD_V3_HEART_STEP), (float)y, scale, WHITE);
 }
 
 /* La riga delle risorse, nell'ordine fisso del layout V3: lingotti, cariche di
@@ -2505,6 +2602,10 @@ static void DrawHudCanvas(Game *game, const AppUi *ui)
     int timerW = UiTextW(timerText, 8);
     UiTextOutlined(timerText, SCREEN_WIDTH / 2 - timerW / 2, HUD_V3_NAME_Y, 8, RAYWHITE);
     DrawHudV3Hearts(p, HUD_V3_MARGIN, HUD_V3_HEARTS_Y);
+    /* DEC-008/WP2: "accanto ai cuori" -- stessa riga (HUD_V3_HEARTS_Y), X dalla
+       funzione pura HudTempHeartsX sopra (nessun numero magico qui, vedi
+       il blocco HUD_V3_* di quote piu' su). */
+    DrawHudV3TempHearts(p, HudTempHeartsX(p->maxHp), HUD_V3_HEARTS_Y);
     DrawHudV3Resources(game, HUD_V3_MARGIN, HUD_V3_RES_Y);
     /* DEC-184: priorita' visiva 4 (sotto sopravvivenza/minacce/risorse sopra,
        sopra progressione sotto) -- disegnata PRIMA delle caselle attivo/

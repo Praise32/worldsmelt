@@ -3814,6 +3814,172 @@ bool GameRunTimerTest(Game *game)
     return true;
 }
 
+/* DEC-008 (Crust, WP2, systems/health-and-resources.md "Salute stratificata"):
+   ordine di consumo (prima la temporanea, poi la base, nello STESSO evento),
+   nessun overflow oltre PLAYER_TEMP_HP_CAP, la cura normale non tocca il
+   Crust, e la morte resta legata solo alla salute base a zero -- perdere
+   tutto il Crust in un colpo NON basta a finire la run se la base resta
+   sopra zero. Copre anche i nuclei PURI dietro il contatore HUD
+   (HudTempHeartsSlotCount/HudTempHeartsX/HudCrustLineFormat, caso (f) sotto,
+   game_renderer.h) con tempHp>0, cosi' i due percorsi di disegno restano
+   davvero verificati (known-issues.md #10.4). Come GameRunTimerTest, gira
+   dopo InitWindow e usa 'game' per davvero (GameResetRunWithSeed chiama
+   AssetsLoad) ma non disegna nulla. */
+bool GameTempHealthTest(Game *game)
+{
+    const unsigned int seed = 7u;
+    bool ok = true;
+
+    /* (a) Il danno consuma PRIMA il Crust, e solo l'eccedenza va alla base,
+       nello stesso evento (scenario 1 del documento). */
+    GameResetRunWithSeed(game, seed);
+    game->phase = PHASE_PLAY;
+    game->player.maxHp = 6;
+    game->player.hp = 6;
+    game->player.tempHp = 4;
+    game->player.invuln = 0.0f;
+    CombatDamagePlayer(game, 2, "prova");
+    if (game->player.tempHp != 2 || game->player.hp != 6)
+    {
+        fprintf(stderr, "GameTempHealthTest: danno 2 su Crust=4/hp=6 atteso Crust=2/hp=6, ottenuto Crust=%d/hp=%d\n",
+                game->player.tempHp, game->player.hp);
+        ok = false;
+    }
+    /* Un secondo colpo, oltre l'i-frame appena impostato, deve poter
+       eccedere il Crust residuo e intaccare la base nello STESSO evento. */
+    game->player.invuln = 0.0f;
+    CombatDamagePlayer(game, 5, "prova");
+    if (game->player.tempHp != 0 || game->player.hp != 3)
+    {
+        fprintf(stderr, "GameTempHealthTest: danno 5 su Crust=2/hp=6 atteso Crust=0/hp=3 (eccedenza 3), ottenuto Crust=%d/hp=%d\n",
+                game->player.tempHp, game->player.hp);
+        ok = false;
+    }
+
+    /* (b) Perdere Crust resta comunque "subire un colpo" (DEC-159): i-frame
+       impostati anche quando il colpo e' assorbito INTERAMENTE dal Crust,
+       la base resta intatta e la run non finisce. tempHp parte dal tetto
+       PLAYER_TEMP_HP_CAP (4): uno stato davvero raggiungibile in gioco, non
+       un valore oltre cap che CombatPickup non lascerebbe mai passare. */
+    game->player.invuln = 0.0f;
+    game->player.tempHp = PLAYER_TEMP_HP_CAP;
+    game->player.hp = 1;
+    game->player.maxHp = 6;
+    CombatDamagePlayer(game, 3, "prova");
+    if (game->player.tempHp != 1 || game->player.hp != 1 || game->player.invuln <= 0.0f || game->phase != PHASE_PLAY)
+    {
+        fprintf(stderr, "GameTempHealthTest: colpo interamente assorbito dal Crust (%d contro 3) atteso Crust=1/hp=1/invuln>0/PHASE_PLAY, ottenuto Crust=%d/hp=%d/invuln=%.2f/phase=%d\n",
+                PLAYER_TEMP_HP_CAP, game->player.tempHp, game->player.hp, game->player.invuln, (int)game->phase);
+        ok = false;
+    }
+
+    /* (c) La morte resta legata SOLO alla salute base a zero, mai al solo
+       esaurimento del Crust (scenario 2 del documento + DEC-159). */
+    game->player.invuln = 0.0f;
+    game->player.tempHp = 0;
+    game->player.hp = 1;
+    CombatDamagePlayer(game, 1, "prova");
+    if (game->player.hp != 0 || game->phase != PHASE_GAME_OVER)
+    {
+        fprintf(stderr, "GameTempHealthTest: hp=1/Crust=0 con danno 1 doveva finire la run (PHASE_GAME_OVER, hp=0), ottenuto hp=%d/phase=%d\n",
+                game->player.hp, (int)game->phase);
+        ok = false;
+    }
+
+    /* (d) Nessun overflow: raccogliere Crust oltre PLAYER_TEMP_HP_CAP clampa,
+       non accumula all'infinito -- attraverso il percorso VERO (pickup di
+       negozio -> CombatUpdatePickups), non solo il campo a mano. */
+    GameResetRunWithSeed(game, seed);
+    game->phase = PHASE_PLAY;
+    game->player.tempHp = 0;
+    Pickup *slot = NULL;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+        if (!game->pickups[i].active) { slot = &game->pickups[i]; break; }
+    if (!slot)
+    {
+        fprintf(stderr, "GameTempHealthTest: nessuno slot pickup libero per il test overflow\n");
+        return false;
+    }
+    *slot = (Pickup){ 0 };
+    slot->active = true;
+    slot->kind = PICKUP_CRUST;
+    slot->pos = game->player.pos;
+    slot->radius = 20.0f;
+    slot->value = PLAYER_TEMP_HP_CAP + 10;   /* ben oltre il tetto, di proposito */
+    CombatUpdatePickups(game);
+    if (game->player.tempHp != PLAYER_TEMP_HP_CAP)
+    {
+        fprintf(stderr, "GameTempHealthTest: raccogliere Crust=%d (oltre il tetto %d) atteso tempHp=%d, ottenuto %d\n",
+                slot->value, PLAYER_TEMP_HP_CAP, PLAYER_TEMP_HP_CAP, game->player.tempHp);
+        ok = false;
+    }
+
+    /* (e) La cura normale (PICKUP_HEART) non ricarica MAI il Crust. */
+    game->player.tempHp = 3;
+    game->player.maxHp = 6;
+    game->player.hp = 2;
+    for (int i = 0; i < MAX_PICKUPS; i++)
+        if (!game->pickups[i].active) { slot = &game->pickups[i]; break; }
+    *slot = (Pickup){ 0 };
+    slot->active = true;
+    slot->kind = PICKUP_HEART;
+    slot->pos = game->player.pos;
+    slot->radius = 20.0f;
+    slot->value = 4;
+    CombatUpdatePickups(game);
+    if (game->player.tempHp != 3 || game->player.hp != 6)
+    {
+        fprintf(stderr, "GameTempHealthTest: la cura normale ha toccato il Crust o non ha curato la base come atteso (Crust atteso 3, hp atteso 6), ottenuto Crust=%d/hp=%d\n",
+                game->player.tempHp, game->player.hp);
+        ok = false;
+    }
+
+    /* (f) I nuclei PURI dietro il contatore HUD (game_renderer.h): finche'
+       nessun test li chiamava mai con tempHp>0, DrawHudV3TempHearts (layout
+       V3) e il ramo "+N" di DrawHudVitals (ripiego senza pacchetto
+       artistico) non venivano mai esercitati, pur essendo la parte
+       osservabile dal giocatore di questo work package (known-issues.md
+       #10.4). Sul tempHp=3/maxHp=6 gia' in gioco da (e) sopra, piu' il caso
+       limite tempHp=0 (nessuna icona, nessun testo). */
+    if (HudTempHeartsSlotCount(game->player.tempHp) != 3)
+    {
+        fprintf(stderr, "GameTempHealthTest: HudTempHeartsSlotCount(tempHp=3) atteso 3, ottenuto %d\n",
+                HudTempHeartsSlotCount(game->player.tempHp));
+        ok = false;
+    }
+    int tempHeartsX = HudTempHeartsX(game->player.maxHp);
+    if (tempHeartsX != 55)   /* HUD_V3_MARGIN 10 + baseHeartSlots(maxHp=6)=3 * HUD_V3_HEART_STEP 13 + HUD_V3_TEMP_HEARTS_GAP 6 */
+    {
+        fprintf(stderr, "GameTempHealthTest: HudTempHeartsX(maxHp=6) atteso 55, ottenuto %d\n", tempHeartsX);
+        ok = false;
+    }
+    char crustHudLine[24];
+    bool showCrustHud = HudCrustLineFormat(game->player.tempHp, crustHudLine, sizeof(crustHudLine));
+    if (!showCrustHud || strcmp(crustHudLine, "+3") != 0)
+    {
+        fprintf(stderr, "GameTempHealthTest: HudCrustLineFormat(tempHp=3) atteso mostra=vero testo=\"+3\", ottenuto mostra=%d testo=\"%s\"\n",
+                showCrustHud, crustHudLine);
+        ok = false;
+    }
+    if (HudTempHeartsSlotCount(0) != 0)
+    {
+        fprintf(stderr, "GameTempHealthTest: HudTempHeartsSlotCount(tempHp=0) atteso 0, ottenuto %d\n", HudTempHeartsSlotCount(0));
+        ok = false;
+    }
+    char emptyCrustLine[24] = "sentinella";
+    bool showEmptyCrustHud = HudCrustLineFormat(0, emptyCrustLine, sizeof(emptyCrustLine));
+    if (showEmptyCrustHud || emptyCrustLine[0] != '\0')
+    {
+        fprintf(stderr, "GameTempHealthTest: HudCrustLineFormat(tempHp=0) atteso mostra=falso testo vuoto, ottenuto mostra=%d testo=\"%s\"\n",
+                showEmptyCrustHud, emptyCrustLine);
+        ok = false;
+    }
+
+    if (ok) printf("  [temp-health] Crust (DEC-008): consumo prima della base con eccedenza nello stesso evento, colpo assorbito senza toccare la base, morte solo a base 0, cap %d senza overflow, cura normale non ricarica il Crust, nuclei HUD (icone/X/testo +N) corretti con tempHp>0: ok\n", PLAYER_TEMP_HP_CAP);
+    else fprintf(stderr, "GameTempHealthTest: FALLITO -- vedi i messaggi sopra\n");
+    return ok;
+}
+
 /* ============================================================
    DEC-144 + DEC-145 (docs/design/systems/items-pools-and-rarity.md):
    estrazione dai pool con pesi di rarita' DEC-019, garanzia di copertura del

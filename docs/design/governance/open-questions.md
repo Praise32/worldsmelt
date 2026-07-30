@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (26 voci attive su 27 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (27 voci attive su 28 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp1-run-timer
+last_updated_from_session: 2026-07-30-wp2-temp-health
 last_verified_commit: d30890b
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008]
 related: []
 supersedes: []
 source_files: []
@@ -209,3 +209,20 @@ o la politica non sono canone e vanno confermati o spostati.
     l'alternativa scartata (farlo accumulare anche nell'hub) penalizzerebbe chi si ferma a
     leggere le carte-proposta prima di scegliere. (`src/game/game.c`,
     `src/world/floor_zero.c`.)
+
+## Salute temporanea/protettiva nel motore (WP2, 2026-07-30)
+
+28. Quali sono il **tetto** e la **fonte in-run** della salute temporanea/protettiva
+    (Crust, DEC-008)? Il documento fissa composizione (salute base + Crust) e ordine di
+    consumo (prima il Crust, poi la base) ma non un valore numerico di tetto né una fonte
+    concreta — entrambi restavano "draft" prima di WP2. *Default proposto e implementato*:
+    tetto GLOBALE `PLAYER_TEMP_HP_CAP = 4` (4 icone `heart_temp` nell'HUD, un punto di
+    `tempHp` per icona, non variabile per personaggio come il tetto di salute base
+    DEC-033, perché nessuna DEC chiede quella variazione per questo strato); fonte
+    scelta per la demo il **negozio** — 40% di probabilità per piano di tenere Crust in
+    banco (stessa tecnica hash-based del Flux, DEC-022, mai `game->rng`), costo 25
+    monete per 2 punti di `tempHp` (2 icone). Da confermare al playtest o da
+    promuovere a decisione — nessuna delle altre fonti previste da DEC-008 per la salute
+    base (stanze/oggetti/eventi) è stata esclusa, solo non ancora scelta per il Crust.
+    (`src/core/game_types.h`, `src/gameplay/combat.c`, `src/world/world.c`; vedi
+    `systems/health-and-resources.md`, sezione "Default proposti dall'implementazione".)

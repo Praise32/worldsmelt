@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (26 voci attive su 27 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (27 voci attive su 28 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1658,7 +1658,8 @@
         "produzione ai",
         "DEC-174",
         "DEC-176",
-        "DEC-051"
+        "DEC-051",
+        "DEC-008"
       ],
       "related": [],
       "supersedes": [],
@@ -1884,12 +1885,18 @@
         "DEC-013",
         "Crust",
         "Ingots",
-        "tetto vita"
+        "tetto vita",
+        "WP2"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "source_files": [
+        "src/core/game_types.h",
+        "src/gameplay/combat.c",
+        "src/world/world.c",
+        "src/render/game_renderer.c"
+      ],
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "82a0232"
     },
     {
@@ -2405,7 +2412,9 @@
         "DEC-174",
         "canvas-960x640",
         "DEC-184",
-        "statistiche"
+        "statistiche",
+        "DEC-008",
+        "Crust"
       ],
       "related": [],
       "supersedes": [],
@@ -2938,7 +2947,9 @@
         "rng",
         "generazione",
         "catalogo",
-        "audio"
+        "audio",
+        "DEC-008",
+        "Crust"
       ],
       "related": [
         "eng-dependencies",
@@ -2966,7 +2977,9 @@
         "src/tests/audio_tests.c",
         "src/world/floor_zero.c",
         "src/render/game_renderer.c",
-        "src/core/game_types.h"
+        "src/core/game_types.h",
+        "src/gameplay/combat.c",
+        "src/world/world.c"
       ],
       "last_reviewed": "2026-07-30",
       "last_verified_commit": "8210480"

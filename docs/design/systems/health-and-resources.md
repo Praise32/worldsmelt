@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Salute stratificata con un tetto di salute base proprio di ciascun personaggio, parte delle sue statistiche (DEC-033), e risorse di run ri-tematizzate per funzione (DEC-013), ora affiancate dai nomi inglesi in-game fissati da DEC-072."
-last_reviewed: 2026-07-27
+last_reviewed: 2026-07-30
 last_verified_commit: 82a0232
-topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita]
+topics: [salute, risorse, DEC-033, DEC-013, Crust, Ingots, tetto vita, WP2]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/render/game_renderer.c]
 ---
 
 # Health and Resources
@@ -50,6 +50,22 @@ variazione ammessa solo in palette e dettagli (DEC-073b, fonte unica
 - **HUD:** mostra separatamente la quota di salute temporanea/protettiva e quella base (rimando concettuale; la progettazione dell'interfaccia vive fuori scope in `ui/`, non trattata qui).
 - **Fine piano:** presumibilmente persiste (nessuna DEC afferma il contrario) — draft, da confermare.
 - **Fine run:** la run termina quando la salute base arriva a zero (vedi sopra); non applicabile oltre quel punto.
+
+> **Nota di implementazione (WP2, 2026-07-30):** la salute temporanea/protettiva **è**
+> nel motore. `Player.tempHp` (`src/core/game_types.h`) è il secondo strato: `CombatDamagePlayer`
+> (`src/gameplay/combat.c`) consuma **prima** `tempHp` e solo l'eccedenza va a `hp`, nello
+> stesso evento (scenario 1 sotto); perdere Crust resta comunque "subire un colpo" — suono
+> `hit_player` e i-frame si applicano sempre, indipendentemente da quanto (o se) `hp` viene
+> toccato — ma la morte resta legata solo a `hp<=0` (DEC-159), mai al solo esaurimento del
+> Crust. La cura normale (`PICKUP_HEART`, stanze/oggetti) tocca solo `hp`, mai `tempHp`: sono
+> due percorsi di codice separati in `CombatPickup`. Nell'HUD un'icona `heart_temp` vale UN
+> punto di `tempHp` (non 2 come i cuori base): con il danno del motore sempre pari a 1, una
+> granularità a 2 punti per icona lasciava coppie di valori consecutivi indistinguibili a
+> schermo, quindi non c'è arrotondamento da dichiarare. Verificato da `--temp-health-test`
+> (`GameTempHealthTest`, in `make test`), inclusi i nuclei puri dietro il conteggio delle
+> icone e il ripiego testuale `+N` senza pacchetto artistico. Il documento non fissava un
+> tetto né una fonte concreta per questo strato: vedi "Default proposti dall'implementazione"
+> sotto per entrambi (registrati anche in `governance/open-questions.md`, voce 28).
 
 ### Valuta principale (in-game: Ingots)
 
@@ -124,6 +140,24 @@ Le quantità e i punti di distribuzione delle risorse in una stanza generata dev
 
 Vedi [generated-content-validation.md](generated-content-validation.md) — fonte unica della regola di fallback (rimando, non riformulare).
 
+## Default proposti dall'implementazione
+
+Voci aggiunte da WP2 (2026-07-30, stile DEC-019): il documento fissa composizione e
+ordine di consumo della salute temporanea/protettiva (DEC-008) ma non un tetto numerico
+né una fonte concreta in-run. Nessuna delle due è canone: entrambe restano da confermare
+al playtest o da promuovere a decisione, vedi `governance/open-questions.md` voce 28.
+
+- **Cap/limite massimo:** `PLAYER_TEMP_HP_CAP = 4` (4 icone `heart_temp` nell'HUD, un
+  punto di `tempHp` per icona), un tetto GLOBALE — a differenza del tetto di salute base
+  (DEC-033) non varia per personaggio, perché nessuna DEC chiede quella variazione per
+  questo strato.
+- **Fonte nella demo:** il negozio. Ogni piano ha una probabilità del 40% di tenere Crust
+  in banco (stessa tecnica hash-based del Flux, DEC-022, mai `game->rng`: uscire e
+  rientrare non fa comparire/sparire la scorta), al costo di 25 monete, per 2 punti di
+  `tempHp` (2 icone). Nessuna delle fonti previste da DEC-008 per la
+  salute base (stanze/oggetti/eventi) è stata scelta come fonte del Crust in questa fase:
+  il negozio è il minimo ragionevole per la demo, non un'esclusione delle altre.
+
 ## Non-obiettivi
 
 - Non definisce valori numerici finali (quantità, cap, prezzi).
@@ -137,6 +171,7 @@ Vedi [generated-content-validation.md](generated-content-validation.md) — font
 - Persistenza tra piani e a fine run per ciascuna risorsa oltre alla salute: non definita da nessuna DEC (draft, ipotesi di persistenza tra piani nella stessa run indicate sopra come non confermate).
 - Presenza di contenitori permanenti (capacità massima ampliabile) nella run.
 - Relazione esatta tra strumento di apertura e i singoli archetipi di stanza speciale (quali richiedono quale risorsa).
+- Tetto e fonte concreta della salute temporanea/protettiva (Crust, DEC-008): default proposti dall'implementazione (WP2, sezione sopra), non canone — vedi `governance/open-questions.md` voce 28.
 
 ## Scenari verificabili
 

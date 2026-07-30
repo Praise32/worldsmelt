@@ -3,6 +3,8 @@
 
 #include "core/game_types.h"
 
+#include <stddef.h>   /* size_t, per HudCrustLineFormat sotto */
+
 UiLayout UiComputeLayout(void);
 bool UiScreenToGameMouse(UiLayout layout, Vector2 *out);
 
@@ -91,6 +93,23 @@ bool RendererMouseHitTestSelfTest(Game *game);
    chiamata raylib): testabile direttamente, stesso stile di
    UiComputeLayoutFor sopra. */
 bool HudCombatShouldDraw(AppMode mode, bool floorZeroTrialActive);
+
+/* Salute temporanea/protettiva (Crust, DEC-008, WP2): tre nuclei PURI (nessuna
+   chiamata raylib) dietro il contatore Crust dell'HUD, stesso stile di
+   HudCombatShouldDraw sopra -- testabili direttamente senza finestra aperta
+   (--temp-health-test, GameTempHealthTest, src/tests/game_tests.c), cosi'
+   nessuno dei due percorsi di disegno (layout V3 con icone, ripiego a testo
+   senza pacchetto artistico) resta senza copertura. Vedi i commenti sulle
+   definizioni in game_renderer.c per il dettaglio.
+   - HudTempHeartsSlotCount: quante icone 'heart_temp' disegnare per un dato
+     tempHp (1 icona per punto, mai 2 come i cuori base).
+   - HudTempHeartsX: la X di partenza del contatore Crust nel layout V3, dato
+     maxHp (da cui deriva l'ultimo slot di cuore base).
+   - HudCrustLineFormat: vero se il ripiego a testo (senza pacchetto
+     artistico) deve disegnare "+N", con 'buf' riempito di conseguenza. */
+int HudTempHeartsSlotCount(int tempHp);
+int HudTempHeartsX(int maxHp);
+bool HudCrustLineFormat(int tempHp, char *buf, size_t bufSize);
 
 /* 'ui' e' letto per disegnare la voce col focus in evidenza e i contenuti
    propri di RunSetup (seed)/ExitConfirm (contesto): puo' essere NULL SOLO
