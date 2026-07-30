@@ -10,11 +10,11 @@ summary: >-
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
 last_reviewed: 2026-07-30
-last_verified_commit: a2de293
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza]
+last_verified_commit: bf0fde8
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, font, glyphs_ext, personaggi]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -320,23 +320,56 @@ oggetti, colpi, prop, i 5 tileset dei temi e i quattro componenti di sistema
 dell'interfaccia. Ogni buco qui sotto è un asset che **non esiste ancora**, non un
 percorso di codice mancante: il motore lo cerca, non lo trova, e degrada al percorso
 precedente (immagine curata → cella d'atlas → primitiva geometrica). Tutti da chiudere
-con un giro artistico dedicato (**CP4**), nessuno richiede altro lavoro sul motore.
+con un giro artistico dedicato (**CP4**) e un giro di aggancio motore dedicato
+(**WP-INT**, 30/07, voci 1/2/3 sotto): il pacchetto artistico da solo bastava per i
+casi a puro `propKey` (già il caso di lingotto/Flux/crogiolo/clessidra in W8/WP4/WP5,
+e ora anche di cuore/bomba/chiave), ma font esteso e selezione dello sheet di
+personaggio hanno richiesto anche codice nuovo (parser/decoder UTF-8, mappa
+indice→sheet) — non erano un semplice "punta a questa chiave", contrariamente a quanto
+la frase precedente lasciava intendere quando l'unico gap era l'asset mancante.
 
-1. **Font `font-5px`: solo maiuscole e un set chiuso di segni** (`A-Z 0-9 : / - . [ ] >
-   + ? ! , ' % =`). Mancano le **accentate italiane** (`à è é ì ò ù`) e le **parentesi
-   tonde**. `ArtDrawText` converte a maiuscolo da sola e un carattere fuori dal set
-   avanza come uno spazio: il testo resta allineato ma lascia un buco. Si vede negli
-   screenshot di W8 su stringhe come `"Scegli due oggetti da fondere (INVIO)."`.
-2. **Un solo spritesheet di personaggio** (`character/fonditrice`): i tre personaggi
-   della rosa base (DEC-030/033/049) e quello generato per-run (DEC-014) si vedono
-   identici. Della palette del personaggio si conserva solo l'**alfa** (il lampeggio di
-   invulnerabilità): tingere uno sprite disegnato con un colore ne sporcherebbe la
-   palette. Servono tre sheet.
-3. **Cuore, bomba e chiave non hanno un prop a terra** in `assets/art/props` (ci sono
-   solo `pickup-lingotto` e `pickup-flux`): quelle tre raccolte restano sulla cella
-   d'atlas o sulla primitiva. Energia (DEC-059) e uscita restano primitive **per
-   decisione**, non per mancanza di asset (aggiungere una cella d'atlas invaliderebbe
-   ogni atlas già generato).
+1. **RISOLTO (2026-07-30, WP-INT) — Font `font-5px`: mancavano le accentate italiane e
+   le parentesi tonde.** Le parentesi erano già disegnabili (estensione diretta della
+   chiave `"glyphs"`, nessun codice nuovo servito). Le sei accentate italiane (`à è é ì
+   ò ù`) vivono ora in una chiave separata del manifest, `"glyphs_ext"` (codepoint
+   decimale → `{x,w}`, mai byte UTF-8 grezzi dentro `"glyphs"`: avrebbe rotto la
+   garanzia "solo ASCII" dello scanner sequenziale, vedi `src/assets/art_atlas.h`
+   righe 9-17). `ParseGlyphsExt`/`ArtSheetGlyphExt` (`src/assets/art_atlas.{h,c}`)
+   leggono la chiave nuova; `ArtDrawText`/`ArtTextWidth` (`src/render/art_draw.c`)
+   decodificano l'UTF-8 in ingresso (sequenze 1-2 byte, Latin-1 Supplement) con
+   `ArtUtf8Decode` e piegano minuscola→maiuscola accentata con `ArtUpperCodepoint`
+   prima del lookup — fattorizzati in un solo `ArtResolveGlyph` condiviso dalle due
+   funzioni, per non duplicare due volte il percorso di risoluzione. **Resta fuori
+   dal set** qualunque carattere oltre queste sei accentate (es. Ç/Ñ/Ü): avanza come
+   uno spazio, stesso degrado di sempre per un glifo assente — margine per `ART_GLYPH_EXT_MAX`
+   (16) se un domani servissero. I testi di gioco esistenti restano scritti SENZA
+   accentate (limite storico del font, riscriverli è fuori scope: lo abilita, non lo
+   impone, un giro contenuti separato). Verificato da `--art-atlas-test`
+   (`src/tests/art_atlas_tests.c`): parsing di `glyphs_ext` da fixture e dal manifest
+   reale, larghezza/risoluzione end-to-end di una stringa con accentata via
+   `ArtTextWidth`, degrado invariato per un codepoint esteso ancora fuori set.
+2. **RISOLTO (2026-07-30, WP-INT) — Un solo spritesheet di personaggio.** I tre
+   personaggi della rosa base ora hanno ciascuno il proprio sheet pixel art
+   (`character/fonditrice`/`ashblade`/`bulwark`, strutturalmente identici — walk 4
+   direzioni, idle, hit, death, anchor `[16,28]`): il motore sceglie lo sheet
+   dall'indice del personaggio scelto (`CharacterSheetKey`, `src/render/
+   game_renderer.c`), stesso ordine di `content/character_roster.c`. Il personaggio
+   generato per-run mostra `character/fonditrice` — **default proposto**, non canone
+   (`docs/design/systems/characters.md`, "Default proposti dall'implementazione";
+   `governance/open-questions.md` punto 36), perché non esiste ancora una pipeline
+   che generi uno sheet dedicato per-run. Della palette del personaggio si conserva
+   ancora solo l'**alfa** (il lampeggio di invulnerabilità): tingere uno sprite
+   disegnato con un colore ne sporcherebbe la palette — questa parte NON è un gap,
+   è la stessa scelta intenzionale di sempre, ora esplicita per tutti e tre gli
+   sheet.
+3. **RISOLTO (2026-07-30, WP-INT) — Cuore, bomba e chiave non avevano un prop a
+   terra.** `assets/art/props` ha ora anche `pickup-cuore`/`pickup-bomba`/
+   `pickup-chiave` (idle a 2 fotogrammi, anchor al piede, stesso vocabolario di
+   `pickup-lingotto`/`pickup-flux`): tutte e cinque le raccolte disegnano ora il
+   proprio prop a priorità più alta della cella d'atlas generata per-tema
+   (`DrawPickup`, `src/render/game_renderer.c`). Energia (DEC-059) e uscita restano
+   primitive **per decisione**, non per mancanza di asset (aggiungere una cella
+   d'atlas invaliderebbe ogni atlas già generato) — invariato da questo lavoro.
 4. **RISOLTO (2026-07-30, WP2) — Salute temporanea (DEC-008)**: `Player.tempHp`
    (`src/core/game_types.h`) è il secondo strato della salute stratificata; `CombatDamagePlayer`
    (`src/gameplay/combat.c`) lo consuma PRIMA della salute base, con l'eccedenza nello stesso

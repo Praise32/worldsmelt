@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (30 voci attive su 31 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (35 voci attive su 36 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1661,13 +1661,14 @@
         "DEC-051",
         "DEC-008",
         "DEC-043",
-        "WP4"
+        "WP4",
+        "WP-INT"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a2de293"
+      "last_verified_commit": "bf0fde8"
     },
     {
       "id": "gd-system-active-items",
@@ -2986,7 +2987,11 @@
         "DEC-043",
         "WP3",
         "ostacoli",
-        "persistenza"
+        "persistenza",
+        "WP-INT",
+        "font",
+        "glyphs_ext",
+        "personaggi"
       ],
       "related": [
         "eng-dependencies",
@@ -3016,10 +3021,15 @@
         "src/render/game_renderer.c",
         "src/core/game_types.h",
         "src/gameplay/combat.c",
-        "src/world/world.c"
+        "src/world/world.c",
+        "src/assets/art_atlas.c",
+        "src/assets/art_atlas.h",
+        "src/render/art_draw.c",
+        "src/tests/art_atlas_tests.c",
+        "src/content/character_roster.c"
       ],
       "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a2de293"
+      "last_verified_commit": "bf0fde8"
     },
     {
       "id": "eng-multiplayer-steam-direction",

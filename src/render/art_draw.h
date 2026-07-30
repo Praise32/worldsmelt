@@ -44,11 +44,17 @@ bool ArtUiReady(void);
  * 'scale' e' un moltiplicatore INTERO (>=1): un font pixel art scalato di
  * 1.5 perde le proporzioni dei tratti da 1 pixel, ed e' esattamente cio' che
  * i mock del layout V3 evitano usando solo scale 1/2/3/5.
- * Il font consegnato ha SOLO maiuscole e un set chiuso di segni (A-Z 0-9 e
- * : / - . [ ] > + ? ! , ' % =): queste funzioni convertono a maiuscolo da
- * sole, e un carattere fuori dal set avanza come uno spazio senza disegnare
- * nulla -- una lettera accentata lascia un buco, mai un glifo sbagliato.
- * GAP DICHIARATO: le accentate italiane non esistono nel font (CP4). */
+ * Il font consegnato ha SOLO maiuscole e un set chiuso di segni ASCII (A-Z
+ * 0-9 e : / - . [ ] ( ) > + ? ! , ' % =), ESTESO (WP-INT, chiave "glyphs_ext"
+ * del manifest, vedi assets/art/ui/font-5px.json e ArtSheetGlyphExt in
+ * assets/art_atlas.h) alle sei maiuscole accentate italiane piu' comuni --
+ * A/E/I/O/U grave e E acuto (UTF-8 a 2 byte, decodificate da ArtUtf8Decode
+ * qui sotto). Queste funzioni convertono a maiuscolo da sole (fold sia ASCII
+ * che accentata, ArtUpper/ArtUpperCodepoint), e un carattere ancora fuori dal
+ * set (accentate diverse dalle sei sopra, sequenze a 3+ byte, ecc.) avanza
+ * come uno spazio senza disegnare nulla -- ESATTAMENTE come un glifo ASCII
+ * assente, mai un glifo sbagliato. GAP RESIDUO: known-issues.md voce 10.1
+ * elenca cosa resta fuori dal set esteso. */
 int ArtTextWidth(const ArtSheet *font, const char *text, int scale);
 int ArtTextHeight(const ArtSheet *font, int scale);
 void ArtDrawText(const ArtSheet *font, const char *text, int x, int y, int scale, Color tint);

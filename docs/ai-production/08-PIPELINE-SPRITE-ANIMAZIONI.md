@@ -99,6 +99,17 @@ committato per personaggio, nemici, colpi, oggetti, prop e UI:
 il campo `"slice":[l,t,r,b]` (bordi 9-patch in pixel); `font-5px.json` è una mappa
 glifi `{"glyph_h":5,"baseline_y":1,"space_w":3,"letter_spacing":1,"glyphs":{"A":{"x":0,"w":3},...}}`
 sul PNG a striscia; `icons.png` usa una riga-anim per icona (1 frame ciascuna).
+`font-5px.json` accetta anche la chiave opzionale `"glyphs_ext"` (WP-INT), STESSA
+profondità/struttura di `"glyphs"` ma con la chiave codepoint Unicode in base 10
+invece del carattere ASCII singolo — serve ai caratteri che non stanno in un `char`
+(oggi le sei maiuscole accentate italiane più comuni: À È É Ì Ò Ù, tutte fuori
+dall'intervallo ASCII):
+`{"glyphs_ext":{"192":{"x":200,"w":3},"200":{"x":204,"w":3},"201":{"x":208,"w":3},"204":{"x":212,"w":3},"210":{"x":216,"w":3},"217":{"x":220,"w":3}}}`.
+`x`/`w` hanno lo stesso significato di un glifo normale (ascissa nella striscia,
+larghezza in pixel); il ritaglio verticale resta `baseline_y`/`glyph_h`, condiviso
+con tutto il resto dello sheet — nessun campo nuovo oltre a `x`/`w`. Un manifest
+senza `"glyphs_ext"` resta valido (la chiave è opzionale, ricade sul set ASCII di
+sempre).
 `baseline_y` è la riga del PNG da cui i glifi cominciano (la striscia è alta
 `glyph_h+2`, con una riga di guardia sopra): era già nel file reale ma mancava da questo
 elenco — aggiunta a W8, dopo che il loader del motore ha dovuto leggerla per non disegnare

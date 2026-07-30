@@ -33,6 +33,76 @@ static char ArtUpper(char c)
     return (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
 }
 
+/* Decodifica UN codepoint UTF-8 a partire da 'p'. Scrive in '*consumed' quanti
+   byte ha letto (1 o 2 -- font-5px copre solo il Latin-1 Supplement,
+   U+0080-U+07FF, che basta per l'italiano accentato: nessuna sequenza a 3/4
+   byte prevista). Una sequenza troncata o un byte non valido: codepoint = il
+   byte cosi' com'e', consumed = 1 -- il cursore avanza SEMPRE (stessa
+   disciplina di SkipValue in assets/art_atlas.c), mai un ciclo a vuoto su
+   testo corrotto. */
+static int ArtUtf8Decode(const char *p, int *consumed)
+{
+    unsigned char c0 = (unsigned char)p[0];
+    if (c0 < 0x80) { *consumed = 1; return c0; }
+    if ((c0 & 0xE0) == 0xC0 && p[1] != '\0')
+    {
+        unsigned char c1 = (unsigned char)p[1];
+        if ((c1 & 0xC0) == 0x80) { *consumed = 2; return ((c0 & 0x1F) << 6) | (c1 & 0x3F); }
+    }
+    *consumed = 1;
+    return c0;
+}
+
+/* Equivalente di ArtUpper per le sei accentate che font-5px conosce oggi
+   (vedi assets/art/ui/font-5px.json, chiave "glyphs_ext"): fold minuscola
+   accentata -> maiuscola accentata. Qualunque altro codepoint >=128 passa
+   invariato -- resta "fuori dal set esteso", stesso trattamento di una
+   lettera ASCII senza glifo (ArtResolveGlyph sotto lo fa avanzare come uno
+   spazio). Aggiungere un'accentata nuova domani significa aggiungere UNA riga
+   qui e la sua entry in glyphs_ext, non toccare il resto della pipeline. */
+static int ArtUpperCodepoint(int cp)
+{
+    switch (cp)
+    {
+        case 0xE0: return 0xC0;   /* a grave -> A grave */
+        case 0xE8: return 0xC8;   /* e grave -> E grave */
+        case 0xE9: return 0xC9;   /* e acuto -> E acuto */
+        case 0xEC: return 0xCC;   /* i grave -> I grave */
+        case 0xF2: return 0xD2;   /* o grave -> O grave */
+        case 0xF9: return 0xD9;   /* u grave -> U grave */
+        default:   return cp;
+    }
+}
+
+/* Risolve UN "carattere logico" (un codepoint ASCII o un'accentata estesa) a
+   partire da 'p'. Scrive in '*consumed' quanti byte ha letto (SEMPRE >=1: chi
+   chiama avanza il cursore anche quando questa funzione ritorna false). Se il
+   carattere si disegna (un glifo -- ASCII o esteso -- e' stato trovato),
+   scrive la sua geometria in '*outX'/'*outW' e ritorna true. Altrimenti (uno
+   spazio esplicito, o un carattere fuori dal set anche esteso) ritorna false:
+   chi chiama avanza di spaceW+letterSpacing SENZA disegnare nulla -- ESATTAMENTE
+   il comportamento di sempre per un glifo assente, ora esteso anche ai
+   codepoint multi-byte (font-integration-notes, WP-INT). Fattorizzato UNA
+   volta sola perche' ArtTextWidth e ArtDrawText devono restare identiche nel
+   percorso di risoluzione: prima di questo helper duplicavano lo stesso
+   ramo ASCII in due posti, un rischio di divergenza silenziosa. */
+static bool ArtResolveGlyph(const ArtSheet *font, const char *p, int *consumed, int *outX, int *outW)
+{
+    if (*p == ' ') { *consumed = 1; return false; }
+    int cp = ArtUtf8Decode(p, consumed);
+    if (cp < 128)
+    {
+        const ArtGlyph *glyph = ArtSheetGlyph(font, ArtUpper((char)cp));
+        if (!glyph) return false;
+        *outX = glyph->x; *outW = glyph->w;
+        return true;
+    }
+    const ArtGlyphExt *glyph = ArtSheetGlyphExt(font, ArtUpperCodepoint(cp));
+    if (!glyph) return false;
+    *outX = glyph->x; *outW = glyph->w;
+    return true;
+}
+
 int ArtTextHeight(const ArtSheet *font, int scale)
 {
     if (!font || scale < 1) return 0;
@@ -43,19 +113,15 @@ int ArtTextWidth(const ArtSheet *font, const char *text, int scale)
 {
     if (!font || !text || scale < 1) return 0;
     int width = 0;
-    for (const char *p = text; *p; p++)
+    for (const char *p = text; *p; )
     {
-        if (*p == ' ')
-        {
-            width += (font->spaceW + font->letterSpacing)*scale;
-            continue;
-        }
-        const ArtGlyph *glyph = ArtSheetGlyph(font, ArtUpper(*p));
-        /* Glifo assente = spazio: la parola resta spaziata come se la lettera
-           ci fosse, cosi' una accentata non fa collassare il resto della riga
-           su se stesso. */
-        int w = glyph ? glyph->w : font->spaceW;
-        width += (w + font->letterSpacing)*scale;
+        int consumed, gx, gw;
+        /* Glifo assente (o spazio esplicito) = spazio: la parola resta
+           spaziata come se il carattere ci fosse, cosi' un'accentata fuori
+           dal set non fa collassare il resto della riga su se stesso. */
+        if (ArtResolveGlyph(font, p, &consumed, &gx, &gw)) width += (gw + font->letterSpacing)*scale;
+        else width += (font->spaceW + font->letterSpacing)*scale;
+        p += consumed;
     }
     /* L'ultimo carattere non porta la spaziatura di coda: senza questo, una
        stringa allineata a destra risulterebbe spostata di uno spazio. */
@@ -67,26 +133,22 @@ void ArtDrawText(const ArtSheet *font, const char *text, int x, int y, int scale
 {
     if (!font || !text || scale < 1) return;
     float cursor = (float)x;
-    for (const char *p = text; *p; p++)
+    for (const char *p = text; *p; )
     {
-        if (*p == ' ')
+        int consumed, gx, gw;
+        if (ArtResolveGlyph(font, p, &consumed, &gx, &gw))
         {
-            cursor += (float)((font->spaceW + font->letterSpacing)*scale);
-            continue;
+            /* baseline_y: la striscia del font ha una riga di guardia sopra i
+               glifi (il PNG e' alto glyph_h+2), quindi il glifo comincia a
+               baseline_y e non a 0 -- stessa geometria per un glifo ASCII o
+               esteso, vedi il commento su ArtGlyphExt in assets/art_atlas.h. */
+            Rectangle src = { (float)gx, (float)font->baselineY, (float)gw, (float)font->glyphH };
+            Rectangle dst = { cursor, (float)y, (float)(gw*scale), (float)(font->glyphH*scale) };
+            DrawTexturePro(font->texture, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, tint);
+            cursor += (float)((gw + font->letterSpacing)*scale);
         }
-        const ArtGlyph *glyph = ArtSheetGlyph(font, ArtUpper(*p));
-        if (!glyph)
-        {
-            cursor += (float)((font->spaceW + font->letterSpacing)*scale);
-            continue;
-        }
-        /* baseline_y: la striscia del font ha una riga di guardia sopra i
-           glifi (il PNG e' alto glyph_h+2), quindi il glifo comincia a
-           baseline_y e non a 0. */
-        Rectangle src = { (float)glyph->x, (float)font->baselineY, (float)glyph->w, (float)font->glyphH };
-        Rectangle dst = { cursor, (float)y, (float)(glyph->w*scale), (float)(font->glyphH*scale) };
-        DrawTexturePro(font->texture, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, tint);
-        cursor += (float)((glyph->w + font->letterSpacing)*scale);
+        else cursor += (float)((font->spaceW + font->letterSpacing)*scale);
+        p += consumed;
     }
 }
 

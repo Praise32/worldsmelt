@@ -1014,20 +1014,21 @@ static void DrawPickup(Game *game, const Pickup *p)
     const char *label = "";
     /* Come in DrawEnemy: drew dice se l'atlas ha davvero disegnato la cella
        di QUESTO pickup, non solo se l'atlas e' caricato. Una cella vuota
-       (gate di qualita' fallito) deve far ripiegare sulla forma geometrica,
-       mai lasciare il pickup invisibile (l'uscita PICKUP_EXIT non aveva
-       nemmeno un'etichetta di riserva: senza sprite era del tutto invisibile). */
+       (gate di qualita' fallito) deve far ripiegare sulla forma geometrica
+       (con la sua etichetta, es. "EXIT" per PICKUP_EXIT piu' sotto), mai
+       lasciare il pickup invisibile. */
     bool drew = false;
-    /* W8: i prop originali di assets/art/props per le raccolte che ne hanno
-       uno. Solo due oggi (lingotto e Flux, i due pickup disegnati dalla
-       sessione artistica): tutte le altre restano sulla cella d'atlas o sulla
-       forma geometrica, che e' anche l'unica resa possibile per l'energia e per
-       l'uscita (nessuna cella d'atlas, vedi il commento sotto).
-       GAP DICHIARATO (CP4): cuore, bomba e chiave non hanno ancora uno sprite
-       dedicato in assets/art/props -- restano sulle primitive. */
+    /* W8/WP-INT: i prop originali di assets/art/props per le raccolte che ne
+       hanno uno -- lingotto, Flux, e da WP-INT anche cuore/bomba/chiave
+       (known-issues.md #10.3, CHIUSO per queste tre). Energia e uscita
+       restano forme geometriche PER DECISIONE (nessuna cella d'atlas
+       prevista, vedi il commento sotto), non per mancanza di asset. */
     const char *propKey = NULL;
     if (p->kind == PICKUP_COIN) propKey = "props/pickup-lingotto";
     else if (p->kind == PICKUP_FLUX) propKey = "props/pickup-flux";
+    else if (p->kind == PICKUP_HEART) propKey = "props/pickup-cuore";
+    else if (p->kind == PICKUP_BOMB) propKey = "props/pickup-bomba";
+    else if (p->kind == PICKUP_KEY) propKey = "props/pickup-chiave";
     /* WP4: il crogiolo interagibile della stanza di fusione. L'asset dedicato
        (assets/art/props/crogiolo, tag "spento"/"attivo") e' gia' nel dataset
        curato -- ma MAI bloccarsi su asset in produzione: se dovesse mancare
@@ -1259,19 +1260,37 @@ static void DrawBaseStickman(Vector2 pos, Color tint)
  * da GameUpdatePlayer); 'hit' scatta durante l'invulnerabilita' da danno, che e'
  * il segnale che il motore ha gia'. La morte non passa da qui: e' un ArtFx.
  * false = nessuno sprite (checkout senza assets/art/): si torna allo stickman. */
-static bool DrawCharacterSprite(const Player *p, Color palette)
+/* WP-INT (known-issues.md #10.2, CHIUSO per gli sheet): la scelta dello sheet
+   segue l'indice del personaggio scelto, STESSO ordine di
+   content/character_roster.c (0=Wayfinder/fonditrice, 1=Ashblade, 2=Bulwark).
+   Il personaggio GENERATO per-run (characterIndex == CHARACTER_COUNT) e
+   qualunque indice fuori dai tre curati (-1 = nessun personaggio applicato,
+   fuori range = difesa in profondita') restano su fonditrice: DEFAULT
+   PROPOSTO dall'implementazione (stile DEC-019, non canone -- registrato in
+   docs/design/systems/characters.md, "Default proposti dall'implementazione",
+   e in governance/open-questions.md). Resta aperta solo la TINTA del
+   personaggio generato (vedi il commento sull'alfa sotto), non lo sheet. */
+static const char *CharacterSheetKey(int characterIndex)
 {
-    const ArtSheet *sheet = ArtAtlasGet("character/fonditrice");
+    switch (characterIndex)
+    {
+        case 0: return "character/fonditrice";
+        case 1: return "character/ashblade";
+        case 2: return "character/bulwark";
+        default: return "character/fonditrice";
+    }
+}
+
+static bool DrawCharacterSprite(const Player *p, Color palette, int characterIndex)
+{
+    const ArtSheet *sheet = ArtAtlasGet(CharacterSheetKey(characterIndex));
     if (!sheet) return false;
     /* Della tinta del personaggio si conserva SOLO l'alfa. Lo stickman era una
        silhouette monocroma e la palette del personaggio (M6a) era l'unico modo
        di dargli identita'; uno sprite disegnato ha la sua palette dentro, e
        moltiplicarla per un colore la sporcherebbe. L'alfa invece porta ancora
        informazione di gioco: e' il lampeggio di invulnerabilita', che deve
-       restare visibile.
-       GAP DICHIARATO (CP4): con un solo spritesheet di personaggio, i tre
-       personaggi della rosa e quello generato si vedono identici -- l'identita'
-       visiva per personaggio richiede tre sheet, giro artistico dedicato. */
+       restare visibile. */
     Color tint = (Color){ 255, 255, 255, palette.a };
     /* Lo stickman ha i piedi a +31 px dal centro (DrawBaseStickman) e il
        PLAYER_FOOT_Y di DrawGameplayCanvas ancora l'ombra la': lo sprite poggia
@@ -1300,7 +1319,7 @@ static bool DrawCharacterSprite(const Player *p, Color palette)
     return ArtDrawAnim(sheet, walk, 0.0f, ground, scale, false, tint);
 }
 
-static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
+static void DrawEquipment(const Player *p, Vector2 pos, Color tint, int characterIndex)
 {
     PlayerAnchors anchors = PlayerComputeAnchors(pos, p->radius);
     ItemLayer layers[MAX_ITEMS];
@@ -1308,7 +1327,7 @@ static void DrawEquipment(const Player *p, Vector2 pos, Color tint)
 
     int i = 0;
     for (; i < count && ItemLayerIsBehindBase(layers[i].slot); i++) DrawItemLayer(anchors, layers[i]);
-    if (!DrawCharacterSprite(p, tint)) DrawBaseStickman(pos, tint);
+    if (!DrawCharacterSprite(p, tint, characterIndex)) DrawBaseStickman(pos, tint);
     for (; i < count; i++) DrawItemLayer(anchors, layers[i]);
 }
 
@@ -1333,7 +1352,7 @@ static void DrawPlayer(Game *game)
     const CharacterDef *appliedCharacter = GameResolveCharacterDef(game, game->characterChosenIndex);
     Color base = appliedCharacter ? appliedCharacter->palette : WHITE;
     Color tint = (p->invuln > 0.0f && ((int)(GetTime()*18.0)%2 == 0)) ? GameColorWithAlpha(base, 115) : base;
-    DrawEquipment(p, p->pos, tint);
+    DrawEquipment(p, p->pos, tint, game->characterChosenIndex);
 }
 
 /* Il vecchio DrawHud (titolo, FPS, "Piano X/Y HP.. Monete.. Bombe.. Chiavi..",
@@ -1569,6 +1588,99 @@ static void DrawObstacleFamilyOverlay(ObstacleFamily family, Rectangle r)
     }
 }
 
+/* WP-INT (correzione: la prima versione disegnava UN sprite unico ancorato al
+   centro-base di 'r' e scalava SOLO dalla larghezza -- corretto per i blocchi
+   quasi quadrati di ROOM_LAYOUT_PILLARS, ma per CORRIDOR/ARENA i blocchi di
+   RoomLayoutBuild sono molto piu' larghi che alti (es. 308x79: ArtScaleForWidth
+   sceglie 9.5x su un fotogramma 32x32 quadrato, cioe' 304x304 disegnati su un
+   rettangolo alto 79 -- 196 px fuori sopra, sotto la zona che fa davvero danno/
+   blocca, la promessa esattamente opposta al telegraph "leggibile prima di
+   ogni contatto" di secrets-and-obstacles.md/DEC-058). Qui il prop non si
+   ancora piu' come uno sprite a se': RIEMPIE 'r' ripetendo il fotogramma,
+   stessa disciplina di DrawTiledArea sopra (che e' cio' che sostituisce): la
+   scala si sceglie dall'ALTEZZA del blocco (i layout di RoomLayoutBuild sono
+   sempre piu' bassi che larghi, mai il contrario, vedi ROOM_CROSS_HALF), poi
+   ogni cella viene ritagliata a filo di 'r' come i tile di pavimento/muro --
+   quindi l'ingombro disegnato non supera MAI 'r', su nessuna delle quattro
+   forme, indipendentemente dall'arrotondamento della scala. */
+static void DrawArtSheetFrameTiled(const ArtSheet *sheet, int row, int frame, Rectangle r, Color tint)
+{
+    Rectangle src = ArtSheetFrameRect(sheet, row, frame);
+    if (src.width <= 0.0f || src.height <= 0.0f) return;
+    float scale = ArtScaleForWidth(sheet->frameH, r.height);
+    float tw = src.width*scale, th = src.height*scale;
+    if (tw <= 0.0f || th <= 0.0f) return;
+    for (float y = r.y; y < r.y + r.height; y += th)
+    {
+        float cellH = fminf(th, r.y + r.height - y);
+        for (float x = r.x; x < r.x + r.width; x += tw)
+        {
+            float cellW = fminf(tw, r.x + r.width - x);
+            Rectangle s = { src.x, src.y, src.width*(cellW/tw), src.height*(cellH/th) };
+            Rectangle dst = { x, y, cellW, cellH };
+            DrawTexturePro(sheet->texture, s, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, tint);
+        }
+    }
+}
+
+/* WP-INT: la veste dedicata delle due famiglie non-solide, quando il pacchetto
+   artistico la offre -- indipendente dal tileset del piano (le due famiglie
+   sono un elemento di GAMEPLAY, non di ambientazione, quindi lo stesso prop
+   compare su qualunque tema). 'r' e' il rettangolo VISIVO gia' scelto dal
+   chiamante (con o senza LIFT, vedi il commento su DrawObstacleFamilyOverlay
+   sotto): il prop RIEMPIE 'r' (DrawArtSheetFrameTiled sopra), non si ancora
+   piu' come un prop isolato -- coerente col fatto che sostituisce l'intera
+   area del blocco (DrawTiledArea/le facce 2.5D), non solo un dettaglio sopra.
+   false quando l'asset manca (checkout senza assets/art/, o rigenerazione
+   parziale del pacchetto): chi chiama ricade sul tile/blocco 2.5D di sempre,
+   MAI un buco -- stesso contratto di ogni altro propKey in questo file. */
+static bool DrawObstacleFamilyProp(ObstacleFamily family, Rectangle r)
+{
+    const char *key = NULL;
+    const char *animName = "idle";
+    if (family == OBSTACLE_HAZARD)
+    {
+        key = "props/spuntoni";
+        /* Default proposto dall'implementazione (WP-INT, stile DEC-019):
+           SEMPRE "estesi", mai "retratti" -- il danno di contatto e' COSTANTE
+           per tutta la vita del pericolo (CombatResolveHazards non ha alcun
+           gate temporale, "nessun windup a tempo", secrets-and-obstacles.md),
+           quindi mostrare "retratti" anche solo a intermittenza avrebbe
+           promesso una finestra di sicurezza ("retratti = innocuo") che il
+           motore non offre mai: un'incoerenza fra quello che si vede e quello
+           che si subisce, la stessa cosa che il telegraph a bande sotto esiste
+           per evitare (DEC-058). Il tag "retratti" del prop resta consegnato
+           ma INUTILIZZATO in questo WP: serve a una futura variante di
+           pericolo davvero temporizzata (trappola con finestra di sicurezza
+           reale), che oggi non esiste nel motore. Registrato in
+           docs/design/systems/secrets-and-obstacles.md, "Default proposti
+           dall'implementazione". */
+        animName = "estesi";
+    }
+    else if (family == OBSTACLE_DESTRUCTIBLE)
+    {
+        /* Default proposto dall'implementazione: "cassa" invece di "vaso" come
+           veste standard -- un contenitore di legno si legge come
+           "distruttibile" in qualunque ambientazione del gioco (industriale,
+           naturale, anomala) senza bisogno del tema, mentre un vaso presuppone
+           un arredo domestico/decorativo che non tutti i temi condividono.
+           Solo "idle": lo stato distrutto non si disegna affatto (l'ostacolo
+           sparisce, comportamento invariato di WP3), quindi "break" del prop
+           non serve qui. */
+        key = "props/cassa";
+        animName = "idle";
+    }
+    else return false;
+
+    const ArtSheet *prop = ArtAtlasGet(key);
+    if (!prop) return false;
+    const ArtAnim *anim = ArtSheetAnim(prop, animName);
+    if (!anim) return false;
+    int frame = ArtAnimFrameAt(anim, (float)GetTime() + r.x*0.01f);
+    DrawArtSheetFrameTiled(prop, anim->row, frame, r, WHITE);
+    return true;
+}
+
 /* Fase 3c: gli ostacoli solidi della stanza, in 2.5D (blocchi rialzati). Ogni
    blocco ha un'ombra a terra, una FACCIA FRONTALE scura (lo spessore, verso
    l'osservatore) e una FACCIA SUPERIORE piu' chiara (la cima, dove batte la luce),
@@ -1605,8 +1717,9 @@ static void DrawObstacles(Game *game)
             /* L'ombra a terra resta: e' cio' che fa poggiare il blocco sul
                pavimento, e nessun tile puo' disegnarla (non sa cosa ha sotto). */
             DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
-            DrawTiledArea(game, tiles, (Rectangle){ o->x, o->y, o->w, o->h }, role, NULL, NULL, WHITE);
-            DrawObstacleFamilyOverlay(o->family, (Rectangle){ o->x, o->y, o->w, o->h });
+            Rectangle rr = { o->x, o->y, o->w, o->h };
+            if (!DrawObstacleFamilyProp(o->family, rr)) DrawTiledArea(game, tiles, rr, role, NULL, NULL, WHITE);
+            DrawObstacleFamilyOverlay(o->family, rr);
         }
         return;
     }
@@ -1624,12 +1737,16 @@ static void DrawObstacles(Game *game)
         Obstacle *o = &game->obstacles[i];
         /* Ombra a terra alla base del blocco. */
         DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
-        /* Faccia frontale (lo spessore): dalla base del blocco giu' di LIFT. */
-        DrawRectangle((int)o->x, (int)(o->y + o->h - LIFT), (int)o->w, (int)LIFT, side);
-        /* Faccia superiore: il rettangolo del blocco, spostato SU di LIFT. */
-        DrawRectangle((int)o->x, (int)(o->y - LIFT), (int)o->w, (int)o->h, top);
-        DrawRectangleLinesEx((Rectangle){ o->x, o->y - LIFT, o->w, o->h }, 2.0f, edge);
-        DrawObstacleFamilyOverlay(o->family, (Rectangle){ o->x, o->y - LIFT, o->w, o->h });
+        Rectangle topRect = { o->x, o->y - LIFT, o->w, o->h };
+        if (!DrawObstacleFamilyProp(o->family, topRect))
+        {
+            /* Faccia frontale (lo spessore): dalla base del blocco giu' di LIFT. */
+            DrawRectangle((int)o->x, (int)(o->y + o->h - LIFT), (int)o->w, (int)LIFT, side);
+            /* Faccia superiore: il rettangolo del blocco, spostato SU di LIFT. */
+            DrawRectangle((int)o->x, (int)(o->y - LIFT), (int)o->w, (int)o->h, top);
+            DrawRectangleLinesEx(topRect, 2.0f, edge);
+        }
+        DrawObstacleFamilyOverlay(o->family, topRect);
     }
 }
 
@@ -3549,8 +3666,12 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        raggiunto | Sempre"): il tempo finale, sia a vittoria che a sconfitta --
        stesso game->runElapsedSeconds gia' accumulato durante PHASE_PLAY in una
        run vera (game.c), mai ricalcolato qui. Stesso formato m:ss dell'HUD
-       (DrawHudCanvas). Testo senza accentate ne' parentesi: il font pixel non
-       le ha (known-issues.md voce 10 punto 1). */
+       (DrawHudCanvas). Testo senza accentate ne' parentesi PER SCELTA di
+       questo giro di lavoro, non piu' per limite tecnico: il font pixel ora
+       supporta le sei maiuscole accentate italiane piu' comuni e le
+       parentesi tonde (WP-INT, ArtSheetGlyphExt/glyphs_ext, art_draw.h),
+       known-issues.md voce 10 punto 1 chiude questa parte -- ma riscrivere i
+       testi esistenti e' un giro contenuti a parte, fuori scope qui. */
     int runMinutes = (int)game->runElapsedSeconds / 60;
     int runSeconds = (int)game->runElapsedSeconds % 60;
     UiText(TextFormat("Tempo: %d:%02d", runMinutes, runSeconds), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(102.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });

@@ -20,6 +20,7 @@
 #include "tests/game_tests.h"
 
 #include "assets/art_atlas.h"
+#include "render/art_draw.h"
 
 #include "raylib.h"
 
@@ -181,6 +182,87 @@ static bool ScenarioParseExtensions(void)
     const ArtGlyph *comma = ArtSheetGlyph(&sheet, ',');
     ART_CHECK(comma != NULL && comma->x == 182, "glifo ',' letto male (la virgola e' anche separatore JSON)");
     ART_CHECK(ArtSheetGlyph(&sheet, 'Z') == NULL, "un glifo assente non deve essere inventato");
+    /* Un font SENZA "glyphs_ext" (il caso di font.aggiornato sopra, e di ogni
+       font del pacchetto prima di WP-INT) deve restare valido con
+       glyphExtCount a 0 -- nessuna regressione sui font senza accentate. */
+    ART_CHECK(sheet.glyphExtCount == 0, "un font senza glyphs_ext non deve inventare glifi estesi");
+    ART_CHECK(ArtSheetGlyphExt(&sheet, 192) == NULL, "ArtSheetGlyphExt su un font senza glyphs_ext deve dare NULL");
+
+    /* WP-INT: la chiave "glyphs_ext" (font-integration-notes.md), un secondo
+       registro annidato dentro il font, con chiavi NUMERICHE (il codepoint in
+       base 10, non un carattere) invece che a un byte -- il caso che
+       ParseGlyphs da solo scarterebbe (name[1] != '\0'). */
+    const char *fontExt =
+        "{\"glyph_h\":5,\"baseline_y\":1,\"space_w\":3,\"letter_spacing\":1,\"glyphs\":{"
+        "\"A\":{\"x\":0,\"w\":3},\"(\":{\"x\":194,\"w\":2},\")\":{\"x\":197,\"w\":2}},"
+        "\"glyphs_ext\":{\"192\":{\"x\":200,\"w\":3},\"201\":{\"x\":208,\"w\":3}}}";
+    ArtSheet extSheet;
+    ART_CHECK(ArtAtlasParseManifest(fontExt, &extSheet), "manifest font con glyphs_ext rifiutato");
+    ART_CHECK(extSheet.glyphCount == 3, "glyphs normali persi quando glyphs_ext e' presente");
+    ART_CHECK(extSheet.glyphExtCount == 2, "numero di glifi estesi inatteso");
+    const ArtGlyphExt *agrave = ArtSheetGlyphExt(&extSheet, 192);
+    ART_CHECK(agrave != NULL && agrave->x == 200 && agrave->w == 3, "glifo esteso 192 (A grave) letto male");
+    const ArtGlyphExt *eacute = ArtSheetGlyphExt(&extSheet, 201);
+    ART_CHECK(eacute != NULL && eacute->x == 208 && eacute->w == 3, "glifo esteso 201 (E acuto) letto male");
+    ART_CHECK(ArtSheetGlyphExt(&extSheet, 200) == NULL, "un codepoint esteso assente non deve essere inventato");
+    ART_CHECK(ArtSheetGlyphExt(NULL, 192) == NULL, "ArtSheetGlyphExt(NULL, ..) non deve essere un crash");
+    /* Le difese di ParseGlyphsExt: chiave non numerica, w<=0, x/w assenti --
+       nessuna di queste deve essere accettata come glifo esteso valido. */
+    const char *fontExtBroken =
+        "{\"glyph_h\":5,\"baseline_y\":1,\"space_w\":3,\"letter_spacing\":1,\"glyphs\":{"
+        "\"A\":{\"x\":0,\"w\":3}},\"glyphs_ext\":{"
+        "\"abc\":{\"x\":10,\"w\":3},\"1\":{\"x\":20,\"w\":0},\"2\":{\"x\":30},\"3\":{\"w\":3}}}";
+    ArtSheet brokenExt;
+    ART_CHECK(ArtAtlasParseManifest(fontExtBroken, &brokenExt), "manifest font con glyphs_ext parzialmente rotto rifiutato del tutto");
+    ART_CHECK(brokenExt.glyphExtCount == 0, "una chiave non numerica o un glifo esteso incompleto e' stato accettato");
+    return true;
+}
+
+/* --- Scenario 2b: ArtTextWidth su testo UTF-8 (accentate + parentesi) ----
+   Nucleo puro (ArtTextWidth non tocca la GPU, vedi il commento in testa al
+   file): niente finestra necessaria. Verifica che il decoder UTF-8 di
+   render/art_draw.c risolva davvero le accentate estese e le parentesi ASCII
+   attraverso ArtResolveGlyph, non solo che ArtAtlasParseManifest le legga --
+   e' il test end-to-end richiesto da font-integration-notes.md §6. */
+static bool ScenarioTextWidthUtf8(void)
+{
+    /* Font minimo: due lettere ASCII, le due parentesi (gia' dentro "glyphs",
+       nessuna estensione richiesta -- si verifica solo che continuino a
+       funzionare) e UNA accentata estesa (0xC0 = 192, "A grave"). */
+    const char *text =
+        "{\"glyph_h\":5,\"baseline_y\":1,\"space_w\":3,\"letter_spacing\":1,\"glyphs\":{"
+        "\"A\":{\"x\":0,\"w\":3},\"B\":{\"x\":4,\"w\":4},"
+        "\"(\":{\"x\":8,\"w\":2},\")\":{\"x\":10,\"w\":2}},"
+        "\"glyphs_ext\":{\"192\":{\"x\":12,\"w\":5}}}";
+    ArtSheet font;
+    ART_CHECK(ArtAtlasParseManifest(text, &font), "fixture font UTF-8 rifiutata");
+
+    /* Parentesi: gia' funzionanti oggi (ASCII puro, nessun percorso nuovo) --
+       si verifica solo che il refactor di ArtTextWidth non le abbia rotte. */
+    ART_CHECK(ArtTextWidth(&font, "A(B)", 1) == 14,
+              "larghezza di \"A(B)\" (ASCII + parentesi) inattesa dopo il refactor UTF-8");
+
+    /* "\xC3\xA0" = 'a' grave minuscola (U+00E0, UTF-8 2 byte) -> fold su 'A'
+       grave (192) -> il glifo esteso sopra, w=5. Se il decoder consumasse un
+       byte alla volta invece di due, questi due byte sarebbero letti come DUE
+       caratteri fuori set (spazio, spazio) invece di uno solo (5px): la prova
+       che il conteggio "consumed" e' quello giusto, non solo che esiste un
+       glifo esteso in tabella (gia' verificato in ScenarioParseExtensions). */
+    int loneAccented = ArtTextWidth(&font, "\xC3\xA0", 1);
+    ART_CHECK(loneAccented == 5, "larghezza di una 'a grave' isolata non e' quella del glifo esteso (192)");
+
+    int mixed = ArtTextWidth(&font, "A\xC3\xA0", 1);
+    ART_CHECK(mixed == 9, "larghezza di \"A\" + 'a grave' inattesa: il decoder UTF-8 non avanza dei byte giusti");
+
+    /* Un codepoint esteso ma SCONOSCIUTO (0xC3 0x87 = 'C cediglia' maiuscola,
+       U+00C7, nessuna entry in glyphs_ext di questa fixture) deve avanzare
+       come uno spazio -- ESATTAMENTE il degrado di sempre per un carattere
+       ASCII fuori dal set, ora esteso al percorso multi-byte. */
+    int outOfExtSet = ArtTextWidth(&font, "\xC3\x87", 1);
+    int explicitSpace = ArtTextWidth(&font, " ", 1);
+    ART_CHECK(outOfExtSet == explicitSpace,
+              "un codepoint esteso fuori dal set deve degradare a spazio, come un ASCII senza glifo");
+    ART_CHECK(outOfExtSet == font.spaceW, "il degrado a spazio non usa space_w del font");
     return true;
 }
 
@@ -388,9 +470,78 @@ static bool ScenarioRealPackage(void)
         return false;
     }
 
+    /* WP-INT (known-issues.md #10.2): ashblade/bulwark sono strutturalmente
+       identici a fonditrice (stesso vocabolario, font-integration-notes non
+       riguarda questo asset ma la stessa disciplina si applica: un asset
+       consegnato deve dichiarare TUTTE le animazioni che CharacterSheetKey si
+       aspetta, o il personaggio scelto perderebbe una posa in silenzio). */
+    static const char *const REQUIRED_CHARACTER_KEYS[] = {
+        "character/ashblade", "character/bulwark", NULL
+    };
+    for (int k = 0; REQUIRED_CHARACTER_KEYS[k]; k++)
+    {
+        const ArtSheet *sheet = ArtAtlasGet(REQUIRED_CHARACTER_KEYS[k]);
+        ART_CHECK(sheet != NULL, "il pacchetto artistico c'e' ma uno sheet di personaggio della rosa manca");
+        for (int i = 0; REQUIRED_PLAYER_ANIMS[i]; i++)
+        {
+            if (ArtSheetAnim(sheet, REQUIRED_PLAYER_ANIMS[i])) continue;
+            fprintf(stderr, "GameArtAtlasTest: %s non dichiara \"%s\"\n", REQUIRED_CHARACTER_KEYS[k], REQUIRED_PLAYER_ANIMS[i]);
+            return false;
+        }
+    }
+
+    /* WP-INT (known-issues.md #10.3): i tre prop a terra di cuore/bomba/chiave,
+       stesso vocabolario "idle" a 2 fotogrammi di pickup-lingotto/pickup-flux. */
+    static const char *const REQUIRED_PICKUP_PROP_KEYS[] = {
+        "props/pickup-cuore", "props/pickup-bomba", "props/pickup-chiave", NULL
+    };
+    for (int k = 0; REQUIRED_PICKUP_PROP_KEYS[k]; k++)
+    {
+        const ArtSheet *prop = ArtAtlasGet(REQUIRED_PICKUP_PROP_KEYS[k]);
+        ART_CHECK(prop != NULL, "il pacchetto artistico c'e' ma un prop di pickup nuovo manca");
+        const ArtAnim *idle = ArtSheetAnim(prop, "idle");
+        ART_CHECK(idle != NULL && idle->frames == 2,
+                  "un prop di pickup nuovo non dichiara \"idle\" a 2 fotogrammi (contratto CP4)");
+    }
+
+    /* WP-INT: gli ostacoli non-solidi (secrets-and-obstacles.md, "Default
+       proposti dall'implementazione"). spuntoni dichiara ENTRAMBI i tag che
+       DrawObstacleFamilyProp alterna (retratti/estesi); il default scelto per
+       i distruttibili e' "cassa", non "vaso" (vedi il commento nel renderer). */
+    const ArtSheet *spikes = ArtAtlasGet("props/spuntoni");
+    ART_CHECK(spikes != NULL, "il pacchetto artistico c'e' ma props/spuntoni manca");
+    ART_CHECK(ArtSheetAnim(spikes, "retratti") != NULL, "props/spuntoni non dichiara \"retratti\"");
+    ART_CHECK(ArtSheetAnim(spikes, "estesi") != NULL, "props/spuntoni non dichiara \"estesi\"");
+    const ArtSheet *crate = ArtAtlasGet("props/cassa");
+    ART_CHECK(crate != NULL, "il pacchetto artistico c'e' ma props/cassa (default distruttibile scelto) manca");
+    ART_CHECK(ArtSheetAnim(crate, "idle") != NULL, "props/cassa non dichiara \"idle\"");
+
     const ArtSheet *font = ArtAtlasGet("ui/font-5px");
     ART_CHECK(font != NULL, "ui/font-5px non si carica");
     ART_CHECK(font->glyphH > 0 && font->glyphCount > 20, "ui/font-5px senza glifi");
+    /* WP-INT (known-issues.md #10.1): le sei accentate italiane vivono in
+       "glyphs_ext" (font-integration-notes.md), separate da "glyphs". Un
+       valore letto dal manifest VERO, non ripetuto a mano: si legge x/w di
+       una entry nota e si controlla solo la FORMA della tabella (6 entry,
+       tutte risolvibili), cosi' il test non si rompe se un domani l'artista
+       trasla la striscia del font. */
+    ART_CHECK(font->glyphExtCount == 6, "ui/font-5px non dichiara le 6 accentate italiane in glyphs_ext");
+    static const int REQUIRED_ACCENTED_CODEPOINTS[] = { 192, 200, 201, 204, 210, 217, 0 };   /* A/E/I/O/U grave + E acuto */
+    for (int i = 0; REQUIRED_ACCENTED_CODEPOINTS[i]; i++)
+    {
+        const ArtGlyphExt *glyph = ArtSheetGlyphExt(font, REQUIRED_ACCENTED_CODEPOINTS[i]);
+        if (glyph && glyph->w > 0) continue;
+        fprintf(stderr, "GameArtAtlasTest: ui/font-5px non risolve il codepoint accentato %d\n",
+                REQUIRED_ACCENTED_CODEPOINTS[i]);
+        return false;
+    }
+    /* End-to-end col font VERO: una stringa con un'accentata pesa DAVVERO
+       quanto il suo glifo esteso, non quanto lo spazio di riserva -- prova che
+       ArtTextWidth risolve il pacchetto reale, non solo una fixture. */
+    int realAccentedWidth = ArtTextWidth(font, "\xC3\x80", 1);   /* "A grave" maiuscola, gia' nel set */
+    const ArtGlyphExt *realAgrave = ArtSheetGlyphExt(font, 192);
+    ART_CHECK(realAgrave != NULL && realAccentedWidth == realAgrave->w,
+              "ArtTextWidth sul font reale non usa la larghezza del glifo esteso per un'accentata");
     const ArtSheet *panel = ArtAtlasGet("ui/panel-9patch");
     ART_CHECK(panel != NULL && panel->sliceL > 0, "ui/panel-9patch senza slice");
 
@@ -485,6 +636,7 @@ bool GameArtAtlasTest(Game *game)
     (void)game;
     if (!ScenarioParseSpriteSheet()) return false;
     if (!ScenarioParseExtensions()) return false;
+    if (!ScenarioTextWidthUtf8()) return false;
     if (!ScenarioParseBroken()) return false;
     if (!ScenarioAnimator()) return false;
 

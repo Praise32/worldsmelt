@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (30 voci attive su 31 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (35 voci attive su 36 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp4-fusion-room
-last_verified_commit: a2de293
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, WP4]
+last_updated_from_session: 2026-07-30-wp-int-art-hookup
+last_verified_commit: bf0fde8
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, WP4, WP-INT]
 related: []
 supersedes: []
 source_files: []
@@ -343,3 +343,46 @@ del QUINTO archetipo appena piazzabile nel motore, la stanza a tempo (DEC-051).
     gap senza sceglierlo. (`ui/hud.md`, sezione "Timer di run sempre visibile
     (DEC-051)"; `systems/special-rooms.md`, sezione "Stato di implementazione:
     la stanza a tempo".)
+
+## Consumo del pacchetto artistico nel motore, seconda tranche (WP-INT, 2026-07-30)
+
+Il lavoro che aggancia gli asset di CP4/CP5 (props di pickup/ostacoli, i tre sheet di
+personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 (#10.1/
+#10.2/#10.3), ma introduce due scelte visive che nessun documento di design fissa.
+
+35. Con `props/spuntoni` e `props/cassa` ora agganciati al motore, quale ALTERNANZA
+    visiva mostra il pericolo passivo (`OBSTACLE_HAZARD`) fra i tag "retratti" ed "estesi",
+    e quale prop veste il distruttibile (`OBSTACLE_DESTRUCTIBLE`) fra `props/vaso` e
+    `props/cassa`, entrambi consegnati? `secrets-and-obstacles.md` fissa solo che il danno
+    di contatto è costante ("nessun windup a tempo") e che il telegraph è sempre visibile
+    dal primo frame, non la resa dei due tag del prop. *Default proposto e implementato
+    (rivisto in seconda istanza, 30/07: la prima versione faceva alternare "estesi" e
+    "retratti" nel tempo — bocciata perché mostrava "retratti" per 1 s ogni 2.4 s mentre
+    il danno resta costante, la stessa finestra di sicurezza fasulla che la motivazione
+    originale diceva di voler evitare)*: **SEMPRE "estesi"**, mai "retratti" — il tag
+    "retratti" resta consegnato nell'asset ma inutilizzato in questo WP, riservato a una
+    futura variante di pericolo davvero temporizzata (una trappola con una finestra di
+    sicurezza reale), che oggi non esiste nel motore (`CombatResolveHazards` non ha alcun
+    gate temporale). Il vero telegraph resta SEMPRE la sovrapposizione a bande di
+    `DrawObstacleFamilyOverlay`, disegnata incondizionatamente. Per il distruttibile:
+    **`props/cassa`**, non `props/vaso` — un contenitore di legno si legge come
+    "distruttibile" in qualunque ambientazione del gioco (industriale, naturale, anomala)
+    senza dipendere dal tema, mentre un vaso presuppone un arredo domestico/decorativo che
+    non tutti i temi condividono. Da confermare al playtest. (`DrawObstacleFamilyProp`,
+    `src/render/game_renderer.c`; vedi `systems/secrets-and-obstacles.md`, sezione
+    "Default proposti dall'implementazione".)
+
+36. Con tre spritesheet di personaggio ora agganciati al motore (`character/fonditrice`/
+    `ashblade`/`bulwark`), quale sheet mostra il personaggio GENERATO per-run
+    (DEC-014/DEC-037)? Nessun documento fissa una veste dedicata per il personaggio
+    generato, e produrne una richiederebbe un quarto sheet mai realizzato. *Default
+    proposto e implementato*: il personaggio generato mostra sempre **`character/
+    fonditrice`** (`CharacterSheetKey`, `src/render/game_renderer.c`) — la stessa veste
+    del personaggio 0 curato (Wayfinder). Solo l'alfa della tinta resta distintiva (il
+    lampeggio di invulnerabilità): la palette del personaggio generato non colora lo
+    sprite, stessa limitazione già vera per la rosa curata prima di WP-INT (uno sprite
+    disegnato ha la sua palette dentro, moltiplicarla per un colore la sporcherebbe).
+    Resta aperta la domanda più ampia se il personaggio generato debba avere in futuro
+    una veste propria — richiederebbe generazione procedurale dello sprite, fuori scope
+    di questo lavoro. Da confermare al playtest o da promuovere a decisione.
+    (`systems/characters.md`, sezione "Default proposti dall'implementazione".)

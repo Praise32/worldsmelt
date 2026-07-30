@@ -36,7 +36,9 @@
  *                    (+ slice[4] opzionale: e' un 9-patch, vedi ArtSheet.slice*)
  *   2. TILESET       tile_w, tile_h, grid[2], tiles{ruolo:[col,row]}
  *   3. FONT BITMAP   glyph_h, baseline_y, space_w, letter_spacing,
- *                    glyphs{carattere:{x,w}}
+ *                    glyphs{carattere:{x,w}} (+ glyphs_ext{codepoint:{x,w}}
+ *                    opzionale, WP-INT: caratteri UTF-8 multi-byte che un
+ *                    "char" singolo non rappresenta, vedi ArtGlyphExt)
  *
  * FALLBACK: ogni funzione qui torna NULL/false quando l'asset manca, il
  * manifest e' illeggibile o la texture non si carica. Non e' un errore: chi
@@ -51,6 +53,7 @@
 #define ART_ROLE_NAME_LEN 20
 #define ART_ROLE_MAX 48           /* il tileset consegnato ne dichiara 38 */
 #define ART_GLYPH_MAX 80          /* font-5px ne dichiara 51 */
+#define ART_GLYPH_EXT_MAX 16      /* font-5px ne dichiara 6 (accentate italiane), margine per Ç/Ñ/Ü future */
 /* Il registro deve contenere DUE cose, non una: gli sheet veri (73 coppie
    consegnate) E le voci NEGATIVE che la scansione a priorita' lascia dietro di
    se'. ArtAtlasFindByImageId prova "<categoria>/<id>" su sei categorie, e le
@@ -89,6 +92,20 @@ typedef struct ArtGlyph {
     short x;
     short w;
 } ArtGlyph;
+
+/* Un glifo ESTESO del font bitmap (font-integration-notes, WP-INT): il
+   codepoint Unicode/Latin-1 di un carattere che non entra in un 'char' singolo
+   (es. 192 per 'A grave', vedi ArtUpperCodepoint in render/art_draw.c) --
+   tenuto SEPARATO da ArtGlyph invece di allargarne il campo 'ch', per non
+   toccare la dimensione dei 52 glifi ASCII esistenti. 'x'/'w' hanno lo STESSO
+   significato di un glifo normale: ascissa nella riga unica del PNG, larghezza
+   in pixel -- nessun campo nuovo, nessuna geometria diversa (baseline_y/
+   glyph_h del font restano gli stessi per OGNI glifo, esteso o no). */
+typedef struct ArtGlyphExt {
+    int   codepoint;
+    short x;
+    short w;
+} ArtGlyphExt;
 
 typedef struct ArtSheet {
     char key[ART_KEY_LEN];
@@ -129,6 +146,12 @@ typedef struct ArtSheet {
     int glyphH, baselineY, spaceW, letterSpacing;
     ArtGlyph glyphs[ART_GLYPH_MAX];
     int glyphCount;
+    /* Chiave "glyphs_ext" del manifest (WP-INT): opzionale per definizione --
+       un font senza questa chiave (tutti gli altri sheet del pacchetto, che
+       non sono font) continua a funzionare esattamente come prima, con
+       glyphExtCount a 0. */
+    ArtGlyphExt glyphsExt[ART_GLYPH_EXT_MAX];
+    int glyphExtCount;
 
     Texture2D texture;
 } ArtSheet;
@@ -195,6 +218,13 @@ bool ArtSheetTileRect(const ArtSheet *sheet, const char *role, Rectangle *outSrc
  * disegna converte a maiuscolo PRIMA (ArtDrawText lo fa), qui il confronto e'
  * esatto. */
 const ArtGlyph *ArtSheetGlyph(const ArtSheet *sheet, char ch);
+
+/* Il glifo ESTESO di 'codepoint' (Unicode/Latin-1, es. 192 per 'A grave'), o
+ * NULL se il font non lo dichiara (chiave "glyphs_ext" assente o senza
+ * quell'entry) -- stesso contratto di ArtSheetGlyph, un fallimento qui NON e'
+ * un errore: chi disegna ricade sullo spazio, esattamente come un carattere
+ * ASCII fuori dal set. */
+const ArtGlyphExt *ArtSheetGlyphExt(const ArtSheet *sheet, int codepoint);
 
 /* Il fotogramma da mostrare dopo 'elapsed' secondi dall'inizio
  * dell'animazione. Funzioni PURE e DETERMINISTICHE (nessun GetTime dentro):

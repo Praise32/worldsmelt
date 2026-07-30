@@ -146,6 +146,25 @@ playtest, vedi `governance/open-questions.md` voce 29.
 - **Telegraph dei pericoli:** nessun windup a tempo — il pericolo è disegnato con un segnale
   distinto (forma a bande, leggibile senza colore, DEC-058) fin dal primo frame in cui esiste
   nella stanza, quindi sempre prima di qualunque contatto possibile.
+- **Veste visiva delle due famiglie non-solide (WP-INT, 30/07):** con `props/spuntoni` e
+  `props/cassa` agganciati al motore, il pericolo passivo si disegna **SEMPRE** col tag
+  "estesi", mai "retratti" — il danno di contatto è costante per tutta la vita del pericolo
+  (`CombatResolveHazards` non ha alcun gate temporale), quindi mostrare "retratti" anche solo
+  a intermittenza avrebbe promesso una finestra di sicurezza che il motore non offre mai (una
+  prima versione alternava i due tag nel tempo ed è stata bocciata proprio per questo). Il
+  tag "retratti" resta consegnato nell'asset ma inutilizzato, riservato a una futura variante
+  di pericolo davvero temporizzata (oggi assente). Il vero telegraph resta SEMPRE la
+  sovrapposizione a bande sopra, disegnata incondizionatamente. Il distruttibile usa
+  `props/cassa` (non `props/vaso`, anch'esso consegnato): un contenitore di legno si legge
+  come "distruttibile" in ogni ambientazione del gioco senza dipendere dal tema. I due prop
+  RIEMPIONO il rettangolo dell'ostacolo ripetendo il fotogramma (stessa disciplina di
+  `DrawTiledArea`, che è cosa sostituiscono), non si ancorano più come uno sprite isolato: i
+  blocchi di `RoomLayoutBuild` sono spesso molto più larghi che alti (forme CORRIDOR/ARENA),
+  e un singolo sprite scalato dalla sola larghezza sforerebbe il rettangolo sull'asse
+  verticale. Degrado invariato quando l'asset manca: si ricade sul tile del piano o sul
+  blocco 2.5D di sempre, con la stessa sovrapposizione a bande/crepa sopra. Da confermare al
+  playtest (`DrawObstacleFamilyProp`, `src/render/game_renderer.c`; `governance/open-questions.md`
+  punto 35).
 - **Persistenza dei distruttibili (infrastruttura, non ancora osservabile in gioco):** il
   motore registra per cella/piano quali distruttibili sono stati spaccati e non li
   ricostruisce a un ingresso successivo nella stessa cella; si azzera al piano successivo (i

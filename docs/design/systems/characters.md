@@ -85,24 +85,45 @@ modificabilità generale di tema e personaggio nel Piano 0, DEC-091).
 
 ## Sprite dei personaggi (DEC-049)
 
-Nota implementativa (M6a): finché il modello immagini resta provvisorio (vedi
-`../06-ai-content-generation-model.md`), lo stickman a palette già in uso per il
-personaggio base (uno stesso disegno, tinto col colore proprio di ciascun personaggio della
-rosa) **È** lo sprite curato placeholder di cui parla questo paragrafo — non un sostituto
-temporaneo fuori standard. Il gap verso pixel art dedicata per personaggio resta esplicito e
-noto, non risolto da questo default.
+Nota implementativa storica (M6a, superata da CP4/WP-INT sotto): finché il pacchetto
+artistico pixel art non esisteva, lo stickman a palette (uno stesso disegno, tinto col
+colore proprio di ciascun personaggio della rosa) era lo sprite curato placeholder di cui
+parlava questo paragrafo. Non è più lo stato del motore: da CP4/WP-INT ogni personaggio
+della rosa ha il proprio spritesheet pixel art disegnato a mano (vedi sotto); lo stickman a
+palette resta comunque il ripiego finale quando il pacchetto artistico manca del tutto
+(checkout senza `assets/art/`), stesso contratto di degrado di ogni altro asset del gioco.
 
-I 3 personaggi della rosa base (DEC-030, DEC-080) hanno sprite pixel art **curati a mano**: sono
-contenuto `curato`, non generato, come il resto della rosa. Il personaggio alternativo
-generato per la run ha invece uno sprite **generato dalla pipeline di generazione sprite già
-esistente**, la stessa usata per i nemici (vedi
-[AI Content Generation Model](../06-ai-content-generation-model.md)); questo documento non
-ripete il dettaglio tecnico di quella pipeline.
+I 3 personaggi della rosa base (DEC-030, DEC-080) hanno sprite pixel art **curati a mano**:
+sono contenuto `curato`, non generato, come il resto della rosa. Da CP4/WP-INT ciascuno ha il
+**proprio** spritesheet (`character/fonditrice`, `character/ashblade`, `character/bulwark`
+— walk nelle 4 direzioni, idle, hit, death, stesso vocabolario di animazioni), non più un
+disegno condiviso tinto per personaggio: il motore sceglie lo sheet dall'indice del
+personaggio scelto (`CharacterSheetKey`, `src/render/game_renderer.c`), stesso ordine della
+rosa in `content/character_roster.c`. Il personaggio alternativo generato per la run ha
+invece uno sprite **generato dalla pipeline di generazione sprite già esistente**, la stessa
+usata per i nemici (vedi
+[AI Content Generation Model](../06-ai-content-generation-model.md)) — ma finché quella
+pipeline non produce davvero uno sheet per-run (backlog, non ancora implementato), il
+motore mostra `character/fonditrice` anche per il personaggio generato: vedi "Default
+proposti dall'implementazione" sotto.
 
 Indipendentemente dall'origine dello sprite — curato per la rosa base, generato per
 l'alternativa — i 6 slot visivi degli oggetti equipaggiati si sovrappongono allo stesso modo
 a **tutti** i personaggi: fonte unica del dettaglio di quegli strati è
 [Visual Language](../content/visual-language.md), non riformulato qui.
+
+### Default proposti dall'implementazione (stile DEC-019, WP-INT)
+
+Nessun documento fissa quale sheet mostra il personaggio GENERATO per-run, perché la
+pipeline che dovrebbe generarne uno dedicato (paragrafo sopra) non è ancora implementata.
+*Default proposto e implementato*: il personaggio generato mostra sempre lo sheet di
+**Wayfinder** (`character/fonditrice`, il personaggio 0 della rosa) — solo l'alfa della
+tinta resta distintiva (il lampeggio di invulnerabilità); moltiplicare uno sprite disegnato
+per un colore ne sporcherebbe la palette, quindi la palette del personaggio (curato o
+generato) non tinge più lo sprite come faceva lo stickman placeholder. Da confermare al
+playtest o da promuovere a decisione: l'alternativa (uno sheet dedicato al personaggio
+generato) richiede la pipeline di generazione sprite per-run, fuori scope di questo lavoro.
+(`src/render/game_renderer.c`; vedi `governance/open-questions.md` punto 36.)
 
 ## Colpo firmato (DEC-068)
 

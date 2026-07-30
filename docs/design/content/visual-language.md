@@ -242,10 +242,30 @@ e dettagli, sempre dentro il budget di leggibilità (fonte unica
 regola è coerente con la garanzia che nessuna informazione di gioco dipenda dal solo colore
 (DEC-058).
 
-**Gap noto rispetto al codice:** il codice attuale genera le icone di valuta, chiave, bomba e
-cuore per-run seguendo il tema, senza silhouette stabile. È un requisito di design non ancora
-implementato — il codice dovrà adeguarsi a questa regola, non viceversa (stesso trattamento
-dei gap già registrati per DEC-009 e DEC-052).
+**Aggiornato (WP-INT, 30/07):** i prop A TERRA di valuta (`props/pickup-lingotto`, W8), Flux
+(`props/pickup-flux`, W8), cuore, bomba e chiave (`props/pickup-cuore`/`pickup-bomba`/
+`pickup-chiave`, WP-INT) hanno ora TUTTI una silhouette curata stabile in
+`assets/art/props`, disegnata a priorità PIÙ ALTA della cella d'atlas generata per-tema
+(`DrawPickup`, `src/render/game_renderer.c`): il gap descritto sotto (icone generate per-run
+senza silhouette stabile) è chiuso per la resa a terra di queste cinque raccolte quando il
+pacchetto artistico è presente; ricade sulla cella d'atlas generata per-tema **solo** quando
+il prop dedicato manca (checkout senza `assets/art/`, degrado standard). Il cluster risorse
+dell'HUD ha un'icona dedicata quando il pacchetto artistico è presente: `DrawHudV3Resources`
+(`src/render/game_renderer.c`, chiamata da `DrawHudCanvas` sotto il gate `ArtUiReady`) disegna
+`ui/icons` (`ingot`/`charge`/`key`/`flux`, 11 px, `ui/hud.md` §"Cifra del layout V3") oltre a
+`heart_full`/`heart_empty`/`heart_temp`; solo il RIPIEGO senza pacchetto artistico
+(`DrawHudVitals`, disegnato da `DrawOuterUi` quando `ArtUiReady()` è falso) resta testo puro,
+nessun'icona disponibile lì. Energia (DEC-059) e Crust (DEC-008) restano forme geometriche
+**per decisione**, non per questo gap: vedi i commenti su `PICKUP_ENERGY`/`PICKUP_CRUST` in
+`DrawPickup`.
+
+**Gap noto residuo:** nessuno, per le cinque raccolte sopra, quando il pacchetto artistico è
+presente. Resta il caso generale (già coperto da `known-issues.md`, voce 10) di un checkout
+parziale o di una rigenerazione incompleta del pacchetto: in quel caso specifico si ricade
+sulla cella d'atlas generata per-tema (per i prop a terra) e sul testo puro di `DrawHudVitals`
+(per il cluster risorse dell'HUD), nessuno dei due con silhouette/icona stabile per
+costruzione (stesso trattamento dei gap già registrati per DEC-009 e DEC-052, applicabile
+finché quel percorso di riserva esiste).
 
 ## Accessibilità
 

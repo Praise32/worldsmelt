@@ -235,6 +235,53 @@ static void ParseGlyphs(const char **cursor, ArtSheet *out)
     }
 }
 
+/* La chiave "glyphs_ext" (WP-INT, vedi ArtGlyphExt in art_atlas.h): stampo di
+   ParseGlyphs sopra, ma la chiave del glifo e' un CODEPOINT scritto in base 10
+   ("192", non un byte solo) invece di un carattere singolo -- quindi niente
+   controllo "un byte solo" (ParseGlyphs riga sopra), e la conversione a intero
+   e' A MANO cifra per cifra, stesso stile di ReadNumberOrBool: niente
+   atoi/strtol, per restare coerenti con "il binario non linka librerie esterne
+   per questo genere di parsing" (vedi il commento in testa al file). */
+static void ParseGlyphsExt(const char **cursor, ArtSheet *out)
+{
+    if (!EnterObject(cursor)) { SkipValue(cursor); return; }
+    while (!LeaveObjectIfClosed(cursor))
+    {
+        char name[8];
+        if (!ReadString(cursor, name, (int)sizeof(name))) { SkipValue(cursor); continue; }
+        if (!ReadColon(cursor)) { SkipValue(cursor); continue; }
+        int x = 0, w = 0;
+        bool haveX = false, haveW = false;
+        if (!EnterObject(cursor)) { SkipValue(cursor); continue; }
+        while (!LeaveObjectIfClosed(cursor))
+        {
+            char key[8];
+            if (!ReadString(cursor, key, (int)sizeof(key))) { SkipValue(cursor); continue; }
+            if (!ReadColon(cursor)) { SkipValue(cursor); continue; }
+            int value = 0;
+            if (strcmp(key, "x") == 0 && ReadNumberOrBool(cursor, &value)) { x = value; haveX = true; }
+            else if (strcmp(key, "w") == 0 && ReadNumberOrBool(cursor, &value)) { w = value; haveW = true; }
+            else SkipValue(cursor);
+        }
+        if (name[0] == '\0' || !haveX || !haveW || w <= 0) continue;
+        int codepoint = 0;
+        bool digitsOnly = true;
+        for (const char *d = name; *d; d++)
+        {
+            if (*d < '0' || *d > '9') { digitsOnly = false; break; }
+            codepoint = codepoint*10 + (*d - '0');
+        }
+        /* Una chiave non numerica o un codepoint <= 0 non e' un codepoint
+           valido: si scarta, stesso spirito del controllo "un byte solo" di
+           ParseGlyphs -- meglio ignorare l'entry che mapparla su un glifo
+           sbagliato. */
+        if (!digitsOnly || codepoint <= 0) continue;
+        if (out->glyphExtCount >= ART_GLYPH_EXT_MAX) continue;
+        ArtGlyphExt glyph = { codepoint, (short)x, (short)w };
+        out->glyphsExt[out->glyphExtCount++] = glyph;
+    }
+}
+
 bool ArtAtlasParseManifest(const char *text, ArtSheet *out)
 {
     if (!out) return false;
@@ -281,6 +328,7 @@ bool ArtAtlasParseManifest(const char *text, ArtSheet *out)
         else if (strcmp(key, "anims") == 0) ParseAnims(&cursor, out);
         else if (strcmp(key, "tiles") == 0) ParseTiles(&cursor, out);
         else if (strcmp(key, "glyphs") == 0) ParseGlyphs(&cursor, out);
+        else if (strcmp(key, "glyphs_ext") == 0) ParseGlyphsExt(&cursor, out);
         else SkipValue(&cursor);
     }
 
@@ -534,6 +582,16 @@ const ArtGlyph *ArtSheetGlyph(const ArtSheet *sheet, char ch)
     for (int i = 0; i < sheet->glyphCount && i < ART_GLYPH_MAX; i++)
     {
         if (sheet->glyphs[i].ch == ch) return &sheet->glyphs[i];
+    }
+    return NULL;
+}
+
+const ArtGlyphExt *ArtSheetGlyphExt(const ArtSheet *sheet, int codepoint)
+{
+    if (!sheet) return NULL;
+    for (int i = 0; i < sheet->glyphExtCount && i < ART_GLYPH_EXT_MAX; i++)
+    {
+        if (sheet->glyphsExt[i].codepoint == codepoint) return &sheet->glyphsExt[i];
     }
     return NULL;
 }
