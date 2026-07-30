@@ -2630,9 +2630,13 @@ bool GameRoomsTest(Game *game)
             for (int i = 0; i < seenCountsN; i++) if (seenCounts[i] == existing) { alreadySeen = true; break; }
             if (!alreadySeen && seenCountsN < 64) seenCounts[seenCountsN++] = existing;
 
-            /* (i) le porte: doors[d] di una cella e' vero ESATTAMENTE quando il
-               vicino esiste ed e' di un'ALTRA stanza. Due celle sorelle non
-               hanno porta fra loro (sono lo stesso spazio continuo, DEC-170). */
+            /* (i) le porte: doors[d] vero implica SEMPRE che il vicino esista
+               e sia di un'ALTRA stanza (mai attraverso il bordo della
+               griglia, mai fra due celle sorelle della stessa stanza -- sono
+               lo stesso spazio continuo, DEC-170). Non e' piu' vero il
+               contrario da DEC-181: due stanze adiacenti possono condividere
+               una coppia di celle SENZA porta, se quella coppia non e' il
+               segmento scelto -- verificato sotto dal test (l). */
             for (int y = 0; y < GRID_SIZE; y++)
             {
                 for (int x = 0; x < GRID_SIZE; x++)
@@ -2640,11 +2644,12 @@ bool GameRoomsTest(Game *game)
                     if (!probe.rooms[y][x].exists) continue;
                     for (int d = 0; d < 4; d++)
                     {
+                        if (!probe.rooms[y][x].doors[d]) continue;
                         int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
                         int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
                         bool inGrid = (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE);
-                        bool expected = inGrid && probe.rooms[ny][nx].exists && !WorldSameRoom(&probe, x, y, nx, ny);
-                        if (probe.rooms[y][x].doors[d] != expected)
+                        bool validDoor = inGrid && probe.rooms[ny][nx].exists && !WorldSameRoom(&probe, x, y, nx, ny);
+                        if (!validDoor)
                         {
                             fprintf(stderr, "GameRoomsTest: (i) piano %d seed %u: porta incoerente in (%d,%d) dir %d\n",
                                     floor, kSeeds[si], x, y, d);
@@ -2652,6 +2657,127 @@ bool GameRoomsTest(Game *game)
                         }
                     }
                 }
+            }
+
+            /* (l) DEC-181: al massimo (e almeno, o la coppia non sarebbe
+               connessa) UNA porta per coppia di stanze adiacenti, anche
+               quando il confine condiviso copre piu' di una coppia di
+               celle. Si raggruppano i segmenti di confine per coppia di
+               stanze, identificata dal PUNTATORE alla cella di stato
+               risolto da WorldRoomAt -- MAI dall'origine grezza
+               (originX/originY): due stanze diverse possono avere lo
+               stesso valore numerico di origine quando la maschera di una
+               di esse non include il bit (0,0) (l'origine e' allora solo
+               un ancoraggio geometrico, non la cella di stato), quindi
+               originX/originY da soli non sono un identificativo univoco
+               di stanza. Si conta quante porte sono aperte in ciascun
+               gruppo: deve essere sempre esattamente 1. */
+            {
+                typedef struct { const RoomState *ra, *rb; int doorsOpen; } RoomsTestPair;
+                RoomsTestPair pairs[GRID_SIZE*GRID_SIZE*2];
+                int pairCount = 0;
+                for (int y = 0; y < GRID_SIZE; y++)
+                {
+                    for (int x = 0; x < GRID_SIZE; x++)
+                    {
+                        if (!probe.rooms[y][x].exists) continue;
+                        static const int kFwdDirs[2] = { DIR_RIGHT, DIR_DOWN };
+                        for (int k = 0; k < 2; k++)
+                        {
+                            int d = kFwdDirs[k];
+                            int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                            int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                            if (!probe.rooms[ny][nx].exists) continue;
+                            if (WorldSameRoom(&probe, x, y, nx, ny)) continue;
+                            const RoomState *ra = WorldRoomAt(&probe, x, y);
+                            const RoomState *rb = WorldRoomAt(&probe, nx, ny);
+                            if (ra > rb) { const RoomState *t = ra; ra = rb; rb = t; }
+                            int pi = -1;
+                            for (int p = 0; p < pairCount; p++)
+                                if (pairs[p].ra == ra && pairs[p].rb == rb) { pi = p; break; }
+                            if (pi < 0)
+                            {
+                                pi = pairCount++;
+                                pairs[pi].ra = ra; pairs[pi].rb = rb;
+                                pairs[pi].doorsOpen = 0;
+                            }
+                            if (probe.rooms[y][x].doors[d]) pairs[pi].doorsOpen++;
+                        }
+                    }
+                }
+                for (int p = 0; p < pairCount; p++)
+                {
+                    if (pairs[p].doorsOpen != 1)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (l) piano %d seed %u: coppia di stanze stato (%d,%d)-(%d,%d) ha %d porte (atteso 1)\n",
+                                floor, kSeeds[si], pairs[p].ra->originX, pairs[p].ra->originY,
+                                pairs[p].rb->originX, pairs[p].rb->originY, pairs[p].doorsOpen);
+                        ok = false;
+                    }
+                }
+            }
+
+            /* (m) DEC-182: la stanza boss ha grado 1 -- esattamente una porta
+               aperta su tutto il perimetro delle sue celle (mai zero, mai
+               piu' di una: e' sempre una foglia del grafo di adiacenza). */
+            if (bossX >= 0)
+            {
+                const RoomState *bossState = &probe.rooms[bossY][bossX];
+                int bossDoorCount = 0;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(bossState->cells & (unsigned char)(1u << i))) continue;
+                    int cx = bossState->originX + (i & 1), cy = bossState->originY + (i >> 1);
+                    for (int d = 0; d < 4; d++) if (probe.rooms[cy][cx].doors[d]) bossDoorCount++;
+                }
+                if (bossDoorCount != 1)
+                {
+                    fprintf(stderr, "GameRoomsTest: (m) piano %d seed %u: la stanza boss ha grado %d nel grafo (atteso 1, DEC-182)\n",
+                            floor, kSeeds[si], bossDoorCount);
+                    ok = false;
+                }
+
+                /* (n) DEC-182: rimuovendo la stanza boss (e la sua unica
+                   porta) dal grafo, tutte le ALTRE stanze del piano restano
+                   raggiungibili fra loro -- BFS dalla partenza che non entra
+                   MAI in una cella della stanza boss. Il tipo di una stanza
+                   e' scritto SOLO sulla sua cella di stato (WorldWriteRoom):
+                   le altre celle di una stanza boss multi-cella leggono
+                   '.kind' col valore di default (ROOM_START, l'enum a zero
+                   di un memset), quindi il confronto va fatto sul tipo della
+                   cella di stato risolta da WorldRoomAt, mai sul campo
+                   '.kind' grezzo della cella visitata. */
+                bool reachedNoBoss[GRID_SIZE][GRID_SIZE];
+                memset(reachedNoBoss, 0, sizeof(reachedNoBoss));
+                int nqx[GRID_SIZE*GRID_SIZE], nqy[GRID_SIZE*GRID_SIZE];
+                int nHead = 0, nTail = 0;
+                nqx[nTail] = probe.roomX; nqy[nTail] = probe.roomY; nTail++;
+                reachedNoBoss[probe.roomY][probe.roomX] = true;
+                while (nHead < nTail)
+                {
+                    int x = nqx[nHead], y = nqy[nHead];
+                    nHead++;
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = x + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = y + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists || reachedNoBoss[ny][nx]) continue;
+                        if (WorldRoomAt(&probe, nx, ny)->kind == ROOM_BOSS) continue;  /* nodo rimosso dal grafo */
+                        if (!probe.rooms[y][x].doors[d] && !WorldSameRoom(&probe, x, y, nx, ny)) continue;
+                        reachedNoBoss[ny][nx] = true;
+                        nqx[nTail] = nx; nqy[nTail] = ny; nTail++;
+                    }
+                }
+                for (int y = 0; y < GRID_SIZE; y++)
+                    for (int x = 0; x < GRID_SIZE; x++)
+                        if (probe.rooms[y][x].exists && WorldRoomAt(&probe, x, y)->kind != ROOM_BOSS && !reachedNoBoss[y][x])
+                        {
+                            fprintf(stderr, "GameRoomsTest: (n) piano %d seed %u: la cella (%d,%d) non e' raggiungibile senza passare dalla stanza boss\n",
+                                    floor, kSeeds[si], x, y);
+                            ok = false;
+                        }
             }
 
             /* (j) CONNETTIVITA': dalla partenza si raggiunge ogni stanza del
@@ -2774,20 +2900,25 @@ bool GameRoomsTest(Game *game)
         fprintf(stderr, "GameRoomsTest: (b) la classe di taglia %d non compare mai in %d piani generati\n", i, floorsChecked);
         ok = false;
     }
-    /* Default proposto: la stanza boss e' un'arena, e la 2x2 e' la classe
-       preferita -- non garantita (puo' non entrare nella griglia), ma deve
-       essere di gran lunga la piu' frequente. */
-    if (bossSizeSeen[ROOM_SIZE_2X2] < floorsChecked/2)
+    /* Default proposto: la stanza boss e' un'arena, e la 2x2 resta la classe
+       PREFERITA -- non garantita (puo' non entrare nella griglia), e da
+       DEC-182 (30/07) deve anche toccare una sola stanza esistente (grado 1,
+       foglia del grafo): una 2x2 ha piu' perimetro di una 1x1, quindi piu'
+       occasioni di toccare due stanze diverse, e la soglia di frequenza
+       scende di conseguenza rispetto al default pre-DEC-182 (era "quasi
+       sempre", ~110/120: misurato ora ~54/120). La soglia resta comunque un
+       margine di sicurezza sotto il valore misurato, non il valore esatto. */
+    if (bossSizeSeen[ROOM_SIZE_2X2] < floorsChecked/4)
     {
-        fprintf(stderr, "GameRoomsTest: (f) la stanza boss e' 2x2 solo %d volte su %d piani (default proposto: quasi sempre)\n",
+        fprintf(stderr, "GameRoomsTest: (f) la stanza boss e' 2x2 solo %d volte su %d piani (default proposto: la piu' frequente fra le classi grandi anche dopo DEC-182)\n",
                 bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
         ok = false;
     }
 
-    printf("  [rooms-abcdefij] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti, connettivita', determinismo, transizioni -> %s\n",
+    printf("  [rooms-abcdefijlmn] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
            FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
            sizeSeen[ROOM_SIZE_2X2], sizeSeen[ROOM_SIZE_L], seenCountsN, ok ? "ok" : "FALLITO");
-    printf("  [rooms-f] stanza boss 2x2 in %d piani su %d (il resto ripiega su una classe piu' piccola quando la griglia e' satura)\n",
+    printf("  [rooms-f] stanza boss 2x2 in %d piani su %d (il resto ripiega su una classe piu' piccola quando la griglia e' satura o quando la 2x2 non troverebbe una sola stanza vicina, DEC-182)\n",
            bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
 
     if (!RoomsTestMinSizeStillPlayable()) ok = false;

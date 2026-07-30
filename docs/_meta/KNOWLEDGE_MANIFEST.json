@@ -2049,7 +2049,9 @@
         "src/render/game_renderer.c",
         "src/assets/art_atlas.h",
         "src/render/art_draw.h",
-        "src/core/room_layout.h"
+        "src/core/room_layout.h",
+        "src/world/world.c",
+        "src/tests/game_tests.c"
       ],
       "last_reviewed": "2026-07-30",
       "last_verified_commit": "17204df"

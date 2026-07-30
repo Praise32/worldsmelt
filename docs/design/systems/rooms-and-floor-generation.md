@@ -11,7 +11,7 @@ last_verified_commit: 17204df
 topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato]
 related: []
 supersedes: []
-source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h]
+source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
 ---
 
 # Rooms and Floor Generation
@@ -206,9 +206,34 @@ stanza il cui unico accesso passi per forza dalla stanza boss. Questa è una pro
 generazione (connettività del grafo meno il nodo boss), non solo una regola dichiarata a
 parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
 
-**Stato:** entrambe regole di design **approved** (DEC-181, DEC-182). **Non ancora
-implementato/verificato**: il test dedicato di connettività del grafo meno il nodo boss
-non esiste ancora nel motore — gap esplicito, stile DEC-009/DEC-052.
+**Stato (30/07, implementato):** entrambe le regole sono implementate in
+`src/world/world.c` e verificate da `--rooms-test`
+(`src/tests/game_tests.c`, `GameRoomsTest`) su 120 piani generati (5 piani × 24 semi).
+
+- **DEC-181** — `WorldLinkRooms` raggruppa i segmenti di confine per **coppia di stanze**
+  (identificata dalla cella di stato risolta da `WorldRoomAt`, mai dall'origine grezza
+  della stanza: due stanze diverse possono avere lo stesso valore numerico di origine
+  quando la maschera di una di esse non include il bit (0,0), quindi l'origine da sola
+  non è un identificativo univoco). Le stanze restano al massimo un blocco 2x2, quindi un
+  confine condiviso copre al più due coppie di celle: con una sola coppia si apre quella,
+  con due nessuna è "più centrale" dell'altra (confine di lunghezza pari) e la scelta fra
+  le due usa un'estrazione dall'RNG del piano — deterministica dal seed. Test dedicato:
+  (l) in `GameRoomsTest`, conta le porte aperte per ogni coppia di stanze adiacenti e
+  pretende sempre esattamente 1.
+- **DEC-182** — `WorldPlaceBossRoom` prova ogni taglia/posizione/orientamento solo se la
+  forma tocca **esattamente una** stanza esistente distinta
+  (`WorldShapeNeighborRoomCount`, anch'essa risolta per cella di stato, mai per origine
+  grezza); il ripiego di griglia satura promuove a boss la stanza già piazzata di grado
+  minimo (preferendo la più lontana con grado ≤1). Tesoro e negozio, piazzati **dopo** il
+  boss, non si attaccano mai ad esso (`WorldPlaceSpecialRoom` scarta le celle candidate
+  che toccano la stanza boss) — altrimenti le darebbero una seconda porta. Test dedicati:
+  (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra mai in una
+  cella della stanza boss raggiunge comunque tutte le altre stanze del piano.
+- **Effetto collaterale misurato:** il vincolo di foglia riduce la frequenza della classe
+  2x2 per la stanza boss (una 2x2 ha più perimetro, quindi più occasioni di toccare due
+  stanze diverse): da ~110/120 piani (pre-DEC-182) a **54/120** piani misurati dopo
+  l'implementazione — resta comunque la classe più frequente fra quelle grandi, non più
+  "quasi sempre".
 
 ## Tipi di stanza (tassonomia completa, DEC-010)
 

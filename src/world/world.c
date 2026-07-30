@@ -552,6 +552,69 @@ static void WorldCellDistances(const Game *game, int sx, int sy, int dist[GRID_S
     }
 }
 
+/* DEC-182: quante stanze ESISTENTI distinte toccano il perimetro della forma
+   'cells' ancorata a (ox,oy) -- e' il grado che quella forma avrebbe nel
+   grafo di adiacenza del piano una volta aperte le porte (WorldLinkRooms
+   apre sempre esattamente una porta per coppia di stanze adiacenti, DEC-181,
+   quindi il grado nel grafo coincide col numero di stanze vicine distinte,
+   non col numero di coppie di celle adiacenti). Le celle della stessa forma
+   non contano come "vicine": sono lo stesso spazio continuo. Le stanze
+   distinte si contano tramite la CELLA DI STATO risolta da WorldRoomAt, MAI
+   confrontando originX/originY grezzi: due stanze diverse possono avere lo
+   stesso valore numerico di origine quando la maschera di una di esse non
+   include il bit (0,0) (l'origine e' allora solo un ancoraggio geometrico,
+   non la cella di stato) -- originX/originY da soli non sono un identificativo
+   univoco di stanza, la cella di stato risolta lo e' sempre. */
+static int WorldShapeNeighborRoomCount(const Game *game, int ox, int oy, unsigned char cells)
+{
+    const RoomState *seenRooms[8];
+    int n = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        int cx = ox + CellBitDx(i), cy = oy + CellBitDy(i);
+        for (int d = 0; d < 4; d++)
+        {
+            int nx = cx + DirDx(d), ny = cy + DirDy(d);
+            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+            if (!game->rooms[ny][nx].exists) continue;
+            bool ownCell = false;
+            for (int j = 0; j < 4; j++)
+            {
+                if (!(cells & (unsigned char)(1u << j))) continue;
+                if (ox + CellBitDx(j) == nx && oy + CellBitDy(j) == ny) { ownCell = true; break; }
+            }
+            if (ownCell) continue;
+            const RoomState *nb = WorldRoomAt(game, nx, ny);
+            bool seen = false;
+            for (int k = 0; k < n; k++)
+                if (seenRooms[k] == nb) { seen = true; break; }
+            if (!seen && n < 8) { seenRooms[n] = nb; n++; }
+        }
+    }
+    return n;
+}
+
+/* Come WorldPlaceShapeAt, ma piazza solo se la forma tocca ESATTAMENTE una
+   stanza esistente distinta (DEC-182: la stanza boss e' sempre foglia del
+   grafo). Provare piu' orientamenti (il ciclo 'rot' gia' presente) da' piu'
+   occasioni di trovare un incastro che tocchi una sola stanza, prima di
+   scartare la posizione. */
+static RoomState *WorldPlaceShapeAtLeaf(Game *game, int nx, int ny, unsigned char cells, RoomKind kind, int rot)
+{
+    for (int k = 0; k < 4; k++)
+    {
+        int i = (rot + k)%4;
+        if (!(cells & (unsigned char)(1u << i))) continue;
+        int ox = nx - CellBitDx(i);
+        int oy = ny - CellBitDy(i);
+        if (!WorldShapeFits(game, ox, oy, cells)) continue;
+        if (WorldShapeNeighborRoomCount(game, ox, oy, cells) != 1) continue;
+        return WorldWriteRoom(game, ox, oy, cells, kind);
+    }
+    return NULL;
+}
+
 /* La stanza boss si piazza NUOVA, attaccata al piano gia' cresciuto, e si
    prova prima la classe piu' GRANDE: DEC-170 non fissa la taglia del boss, e
    un'arena 2x2 e' il default proposto qui (bosses.md chiede spazio, e la 2x2 e'
@@ -561,7 +624,13 @@ static void WorldCellDistances(const Game *game, int sx, int sy, int dist[GRID_S
    fondo al piano -- l'arena e' cio' che rende leggibile lo scontro, e la
    frontiera libera di un piano cresciuto dal centro e' comunque periferia.
    Se non entra nulla di grande si scende di classe fino alla 1x1, che nella
-   prima cella libera entra sempre. */
+   prima cella libera entra sempre. DEC-182: ogni tentativo di incastro deve
+   anche toccare una sola stanza esistente (WorldPlaceShapeAtLeaf) -- il boss
+   e' sempre una foglia del grafo di adiacenza, mai un nodo di passaggio;
+   questo puo' far scendere di classe piu' spesso di prima (una 2x2 ha piu'
+   perimetro, quindi piu' occasioni di toccare due stanze diverse), ma la
+   ricerca esaurisce comunque tutte le celle candidate e i quattro
+   orientamenti prima di rinunciare a una taglia. */
 static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY, int orderCount)
 {
     static const unsigned char kBossShapes[] = {
@@ -586,13 +655,19 @@ static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY,
                 int d = (dirStart + k)%4;
                 int nx = orderX[c] + DirDx(d), ny = orderY[c] + DirDy(d);
                 if (!WorldCellFree(game, nx, ny)) continue;
-                if (WorldPlaceShapeAt(game, nx, ny, kBossShapes[s], ROOM_BOSS, rot)) return true;
+                if (WorldPlaceShapeAtLeaf(game, nx, ny, kBossShapes[s], ROOM_BOSS, rot)) return true;
             }
         }
     }
     return false;
 }
 
+/* DEC-182: tesoro e negozio si piazzano DOPO il boss (sotto), quindi NON
+   devono mai attaccarsi alla stanza boss -- le farebbero guadagnare una
+   seconda porta, rompendo la foglia. Si scarta l'intera cella candidata se
+   anche solo UNO dei suoi vicini esistenti e' il boss (il tipo vive solo
+   sulla cella di stato, WorldRoomAt lo risolve sempre); altrimenti si
+   piazza appena si trova un vicino qualsiasi, come prima. */
 static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
 {
     int tries = 120;
@@ -601,41 +676,136 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
         int x = GameRngRange(&game->rng, 0, GRID_SIZE - 1);
         int y = GameRngRange(&game->rng, 0, GRID_SIZE - 1);
         if (!WorldCellFree(game, x, y)) continue;
+        bool touchesAny = false;
+        bool touchesBoss = false;
         for (int d = 0; d < 4; d++)
         {
             int nx = x + DirDx(d);
             int ny = y + DirDy(d);
             if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
             if (!game->rooms[ny][nx].exists) continue;
-            /* Tesoro e negozio restano 1x1 (default proposto): sono stanze da
-               una ricompensa, tutta visibile appena si entra -- e' proprio il
-               caso in cui la telecamera fissa di DEC-170 e' un pregio. */
-            RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
-            state->cleared = true;
-            return;
+            touchesAny = true;
+            if (WorldRoomAt(game, nx, ny)->kind == ROOM_BOSS) { touchesBoss = true; break; }
         }
+        if (!touchesAny || touchesBoss) continue;
+        /* Tesoro e negozio restano 1x1 (default proposto): sono stanze da
+           una ricompensa, tutta visibile appena si entra -- e' proprio il
+           caso in cui la telecamera fissa di DEC-170 e' un pregio. */
+        RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
+        state->cleared = true;
+        return;
     }
 }
 
+/* Un segmento di confine: la cella (ax,ay) e la sua vicina in direzione
+   'dir', di un'ALTRA stanza. WorldLinkRooms scandisce ogni confine fisico UNA
+   sola volta (solo DESTRA/BASSO, mai il verso opposto), poi raggruppa i
+   segmenti per coppia di stanze per applicare DEC-181. */
+typedef struct WorldDoorSeg
+{
+    int ax, ay;
+    int dir;
+} WorldDoorSeg;
+
 /* Una porta collega due celle ADIACENTI di stanze DIVERSE. Due celle della
    stessa stanza non hanno porta fra loro: sono lo stesso spazio continuo, il
-   giocatore ci passa camminando (DEC-170). */
+   giocatore ci passa camminando (DEC-170). DEC-181: quando due stanze
+   condividono piu' di una coppia di celle adiacenti sul confine, si apre
+   UNA sola porta per la coppia, nel segmento piu' centrale -- mai una porta
+   per ogni coppia di celle, mai porte multiple affiancate. Le stanze restano
+   al massimo un blocco 2x2 (o una L nello stesso riquadro), quindi due
+   stanze non condividono mai piu' di due coppie di celle adiacenti sullo
+   stesso confine: con una sola coppia si apre quella (e' gia' il centro);
+   con due, nessuna e' piu' centrale dell'altra (confine di lunghezza pari,
+   nessun centro esatto), e la scelta fra le due e' deterministica dal seed
+   del piano (stessa run, stesso seed, stessa porta). */
 static void WorldLinkRooms(Game *game)
 {
+    for (int y = 0; y < GRID_SIZE; y++)
+        for (int x = 0; x < GRID_SIZE; x++)
+            for (int d = 0; d < 4; d++)
+                game->rooms[y][x].doors[d] = false;
+
+    WorldDoorSeg segs[GRID_SIZE*GRID_SIZE*2];
+    int segCount = 0;
     for (int y = 0; y < GRID_SIZE; y++)
     {
         for (int x = 0; x < GRID_SIZE; x++)
         {
-            RoomState *r = &game->rooms[y][x];
-            if (!r->exists) continue;
-            for (int d = 0; d < 4; d++)
+            if (!game->rooms[y][x].exists) continue;
+            static const int kFwdDirs[2] = { DIR_RIGHT, DIR_DOWN };
+            for (int k = 0; k < 2; k++)
             {
-                int nx = x + DirDx(d);
-                int ny = y + DirDy(d);
-                bool inGrid = (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE);
-                r->doors[d] = inGrid && game->rooms[ny][nx].exists && !WorldSameRoom(game, x, y, nx, ny);
+                int d = kFwdDirs[k];
+                int nx = x + DirDx(d), ny = y + DirDy(d);
+                if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                if (!game->rooms[ny][nx].exists) continue;
+                if (WorldSameRoom(game, x, y, nx, ny)) continue;
+                segs[segCount].ax = x; segs[segCount].ay = y; segs[segCount].dir = d;
+                segCount++;
             }
         }
+    }
+
+    bool used[GRID_SIZE*GRID_SIZE*2];
+    for (int i = 0; i < segCount; i++) used[i] = false;
+
+    for (int i = 0; i < segCount; i++)
+    {
+        if (used[i]) continue;
+        const RoomState *ra = WorldRoomAt(game, segs[i].ax, segs[i].ay);
+        int nx0 = segs[i].ax + DirDx(segs[i].dir), ny0 = segs[i].ay + DirDy(segs[i].dir);
+        const RoomState *rb = WorldRoomAt(game, nx0, ny0);
+
+        int group[GRID_SIZE*GRID_SIZE*2];
+        int groupCount = 0;
+        group[groupCount++] = i;
+        used[i] = true;
+        for (int j = i + 1; j < segCount; j++)
+        {
+            if (used[j]) continue;
+            const RoomState *ra2 = WorldRoomAt(game, segs[j].ax, segs[j].ay);
+            int nx1 = segs[j].ax + DirDx(segs[j].dir), ny1 = segs[j].ay + DirDy(segs[j].dir);
+            const RoomState *rb2 = WorldRoomAt(game, nx1, ny1);
+            bool samePair = (ra2 == ra && rb2 == rb) || (ra2 == rb && rb2 == ra);
+            if (!samePair) continue;
+            group[groupCount++] = j;
+            used[j] = true;
+        }
+
+        /* Ordine stabile lungo il confine (somma delle coordinate della
+           cella sorgente: per un confine dritto e' monotona), cosi' la
+           scelta fra i due segmenti centrali e' sempre nello stesso ordine a
+           parita' di seed. */
+        for (int a = 1; a < groupCount; a++)
+        {
+            int key = segs[group[a]].ax + segs[group[a]].ay;
+            int b = a - 1;
+            int val = group[a];
+            while (b >= 0 && (segs[group[b]].ax + segs[group[b]].ay) > key)
+            {
+                group[b + 1] = group[b];
+                b--;
+            }
+            group[b + 1] = val;
+        }
+
+        int chosen;
+        if (groupCount == 1)
+        {
+            chosen = group[0];
+        }
+        else
+        {
+            int lo = (groupCount - 1)/2;
+            int hi = groupCount/2;
+            chosen = (lo == hi) ? group[lo] : group[lo + GameRngRange(&game->rng, 0, 1)];
+        }
+
+        int cx = segs[chosen].ax, cy = segs[chosen].ay, cd = segs[chosen].dir;
+        int cnx = cx + DirDx(cd), cny = cy + DirDy(cd);
+        game->rooms[cy][cx].doors[cd] = true;
+        game->rooms[cny][cnx].doors[(cd + 2)%4] = true;
     }
 }
 
@@ -713,16 +883,34 @@ static void WorldGenerateFloorMap(Game *game)
 
     if (!WorldPlaceBossRoom(game, orderX, orderY, orderCount))
     {
-        /* Griglia satura: come ultima rete si promuove a boss la stanza piu'
-           lontana gia' esistente. Un piano SENZA stanza boss non e'
-           completabile, quindi qui non si esce mai a mani vuote se esiste
-           almeno una stanza oltre la partenza. */
-        RoomState *far = WorldRoomAtMutable(game, orderX[0], orderY[0]);
-        if (far->kind != ROOM_START)
+        /* Griglia satura: come ultima rete si promuove a boss una stanza gia'
+           esistente. Un piano SENZA stanza boss non e' completabile, quindi
+           qui non si esce mai a mani vuote se esiste almeno una stanza oltre
+           la partenza. DEC-182 vale anche qui: si preferisce, fra le stanze
+           gia' piazzate (in ordine di distanza DECRESCENTE dalla partenza,
+           come sopra), la piu' lontana che sia gia' una foglia del grafo
+           (grado <=1); se nessuna lo e' (griglia davvero satura), si ripiega
+           deterministicamente sulla stanza di grado minimo disponibile -- il
+           meglio che la geometria del piano permetta. */
+        RoomState *chosen = NULL;
+        int bestDeg = 1000;
+        for (int c = 0; c < orderCount; c++)
         {
-            far->kind = ROOM_BOSS;
-            far->cleared = false;
-            far->visited = false;
+            RoomState *cand = WorldRoomAtMutable(game, orderX[c], orderY[c]);
+            if (cand->kind == ROOM_START) continue;
+            int deg = WorldShapeNeighborRoomCount(game, cand->originX, cand->originY, cand->cells);
+            if (deg < bestDeg)
+            {
+                bestDeg = deg;
+                chosen = cand;
+                if (deg <= 1) break;
+            }
+        }
+        if (chosen)
+        {
+            chosen->kind = ROOM_BOSS;
+            chosen->cleared = false;
+            chosen->visited = false;
         }
     }
 
