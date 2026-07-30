@@ -58,11 +58,11 @@ void WorldPlayerCell(const Game *game, int *cx, int *cy);
    (CombatResolveObstacles), non un caso a parte di questo clamp. */
 void WorldClampToRoom(const Game *game, Vector2 *pos, float radius);
 
-/* DEC-170, telecamera. 'WorldCameraFocusRect' e' il rettangolo che la
-   telecamera non deve mai sforare: il riquadro della stanza per le taglie
-   rettangolari, la CELLA CORRENTE per le forme a L (l'unico modo di non
-   mostrare mai l'angolo mancante senza inventare uno zoom dinamico, che
-   DEC-170 vieta). */
+/* DEC-170/DEC-180, telecamera. 'WorldCameraFocusRect' e' il rettangolo che la
+   telecamera non deve mai sforare: sempre il riquadro dell'INTERA stanza,
+   incluse le forme a L (DEC-180, 30/07: superato il default per-cella; il
+   tileset veste l'angolo mancante da W8, quindi puo' entrare in inquadratura
+   senza violare "mai area fuori dalla stanza"). */
 Rectangle WorldCameraFocusRect(const Game *game);
 Camera2D WorldGameCamera(const Game *game);
 /* Il rettangolo di MONDO inquadrato adesso (utile a chi disegna in coordinate

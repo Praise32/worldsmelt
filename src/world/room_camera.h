@@ -27,7 +27,8 @@
  * (i muri, la fascia dell'HUD in alto). Senza quell'allargamento una stanza
  * 1x1 non mostrerebbe piu' i propri muri ne' le proprie porte. */
 
-/* Allarga il rettangolo di gioco (una stanza, o UNA cella per le forme a L)
+/* Allarga il rettangolo di gioco (l'INTERA stanza, DEC-180: anche per le forme
+   a L e' sempre il riquadro dell'intero blocco 2x2, mai una singola cella)
    della cornice fissa del canvas: a sinistra/destra ROOM_X, in alto ROOM_Y, in
    basso quel che resta. Per una cella singola il risultato e' esattamente il
    canvas (0,0,960,640). */
@@ -40,8 +41,9 @@ Rectangle WorldCameraBoundsFromRoom(Rectangle roomRect);
 Vector2 WorldCameraClampTarget(Rectangle bounds, Vector2 focus, float viewW, float viewH);
 
 /* Avvicinamento esponenziale, indipendente dal passo: e' cio' che rende
-   "morbido" sia l'inseguimento nelle taglie maggiori sia il passaggio da una
-   cella all'altra in una forma a L (dove il bersaglio salta di netto). */
+   "morbido" l'inseguimento del giocatore in tutte le taglie maggiori (DEC-180:
+   L compresa, che ora segue in continuo sul riquadro intero, senza piu' salti
+   di cella). */
 Vector2 WorldCameraApproach(Vector2 current, Vector2 desired, float dt, float rate);
 
 /* Velocita' di avvicinamento (1/s). 12 = ~0.25s per coprire il 95% di uno

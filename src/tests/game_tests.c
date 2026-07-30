@@ -2431,16 +2431,19 @@ static bool RoomsTestHoleIsSolid(void)
                                 probe.player.pos.x, probe.player.pos.y);
                         return false;
                     }
-                    /* E la telecamera lo segue senza mai inquadrare il buco: il
-                       clamp di una L usa la cella corrente. */
+                    /* DEC-180: la telecamera in una L clampa al riquadro
+                       dell'INTERA stanza (il blocco 2x2), esattamente come le
+                       altre taglie maggiori -- l'angolo mancante puo' entrare
+                       in inquadratura, e' compito del tileset (W8) vestirlo da
+                       muro/sfondo, non piu' del clamp evitarlo. */
                     Rectangle focus = WorldCameraFocusRect(&probe);
-                    if (focus.width > ROOM_W + 0.5f || focus.height > ROOM_H + 0.5f)
+                    if (fabsf(focus.width - ROOM_W*2.0f) > 0.5f || fabsf(focus.height - ROOM_H*2.0f) > 0.5f)
                     {
-                        fprintf(stderr, "GameRoomsTest: (k) in una forma a L il clamp della telecamera non e' la cella corrente (%.0fx%.0f)\n",
+                        fprintf(stderr, "GameRoomsTest: (k) in una forma a L il clamp della telecamera non e' il riquadro 2x2 intero (%.0fx%.0f)\n",
                                 focus.width, focus.height);
                         return false;
                     }
-                    printf("  [rooms-k] forma a L (seed %u piano %d): angolo mancante solido (giocatore respinto), clamp telecamera = cella corrente -> ok\n",
+                    printf("  [rooms-k] forma a L (seed %u piano %d): angolo mancante solido (giocatore respinto), clamp telecamera = riquadro 2x2 intero (DEC-180) -> ok\n",
                            kSeeds[si], floor);
                     return true;
                 }
@@ -2980,6 +2983,73 @@ static bool RoomShapesShoot(Game *game, RoomSize wanted, int cellIndex, float ux
     return false;
 }
 
+/* DEC-180, SOLO manuale (mai in make test): la forma a L col giocatore
+   piazzato NON al centro cella ma vicino al confine con l'angolo mancante --
+   il caso che il clamp per-cella di prima (DEC-170 default) non poteva mai
+   mostrare, e che il clamp continuo sul riquadro 2x2 (DEC-180) invece lascia
+   entrare in inquadratura. Trova la cella occupata piu' vicina al centro del
+   buco (quella che ci confina, mai quella diagonale) e ci si piazza spostati
+   verso il buco: e' lo scatto giusto per controllare a vista che il tileset
+   (W8) vesta l'angolo da muro/sfondo, senza buchi neri non renderizzati. */
+static bool RoomShapesShootLCorner(Game *game, const char *path)
+{
+    static const unsigned int kSeeds[] = { 1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        game->rng = kSeeds[si];
+        for (int floor = 1; floor <= FLOOR_COUNT; floor++)
+        {
+            WorldStartFloor(game, floor);
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!game->rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(game, x, y);
+                    if (state != &game->rooms[y][x]) continue;
+                    if (WorldRoomSizeFromCells(state->cells) != ROOM_SIZE_L) continue;
+                    game->roomX = x;
+                    game->roomY = y;
+
+                    Rectangle hole = WorldRoomHoleRect(game, 0);
+                    float holeCx = hole.x + hole.width*0.5f;
+                    float holeCy = hole.y + hole.height*0.5f;
+
+                    int cellX[4], cellY[4];
+                    int cellCount = WorldRoomCells(game, cellX, cellY, 4);
+                    int best = 0;
+                    float bestDist = -1.0f;
+                    for (int i = 0; i < cellCount; i++)
+                    {
+                        Rectangle r = WorldCellRect(game, cellX[i], cellY[i]);
+                        float rcx = r.x + r.width*0.5f, rcy = r.y + r.height*0.5f;
+                        float d = (rcx - holeCx)*(rcx - holeCx) + (rcy - holeCy)*(rcy - holeCy);
+                        if (bestDist < 0.0f || d < bestDist) { bestDist = d; best = i; }
+                    }
+                    Rectangle rect = WorldCellRect(game, cellX[best], cellY[best]);
+                    float rcx = rect.x + rect.width*0.5f, rcy = rect.y + rect.height*0.5f;
+                    /* Dal centro cella verso il lato che confina col buco, ma
+                       resta dentro la cella (mai sopra il buco: e' un
+                       ostacolo solido). */
+                    float ux = 0.5f + ((holeCx < rcx) ? -0.44f : (holeCx > rcx) ? 0.44f : 0.0f);
+                    float uy = 0.5f + ((holeCy < rcy) ? -0.44f : (holeCy > rcy) ? 0.44f : 0.0f);
+                    game->player.pos = (Vector2){ rect.x + rect.width*ux, rect.y + rect.height*uy };
+                    WorldSpawnRoomContents(game);
+                    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+                    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, path);
+                    bool valid = canvas.texture.id != 0;
+                    UnloadRenderTexture(canvas);
+                    printf("  [room-shot] taglia L (angolo, DEC-180): seed %u piano %d cella (%d,%d) -> %s\n",
+                           kSeeds[si], floor, x, y, path);
+                    return valid;
+                }
+            }
+        }
+    }
+    fprintf(stderr, "GameRoomShapesScreenshotTest: nessun piano coi semi di prova contiene una forma a L (angolo)\n");
+    return false;
+}
+
 bool GameRoomShapesScreenshotTest(Game *game)
 {
     bool ok = true;
@@ -2989,11 +3059,17 @@ bool GameRoomShapesScreenshotTest(Game *game)
     if (!RoomShapesShoot(game, ROOM_SIZE_2X2, 0, 0.98f, 0.98f, "logs/worldsmelt-room-2x2-centro.png")) ok = false;
     if (!RoomShapesShoot(game, ROOM_SIZE_2X2, 3, 0.92f, 0.92f, "logs/worldsmelt-room-2x2-angolo.png")) ok = false;
     if (!RoomShapesShoot(game, ROOM_SIZE_1X2, 0, 0.10f, 0.50f, "logs/worldsmelt-room-1x2.png")) ok = false;
-    /* Forma a L: due scatti in due celle diverse -- e' il caso in cui la
-       telecamera si aggancia alla CELLA corrente, e i due fotogrammi mostrano
-       le due inquadrature fra cui interpola. */
+    /* Forma a L (DEC-180, 30/07): la telecamera clampa al riquadro 2x2
+       INTERO, in continuo, esattamente come le altre taglie maggiori -- non
+       piu' un salto discreto fra due inquadrature di cella. I due scatti nelle
+       due celle centrali mostrano lo scorrimento fra due posizioni diverse
+       (non piu' un aggancio rigido alla cella corrente); il terzo scatto
+       (RoomShapesShootLCorner) e' quello dedicato a verificare l'angolo
+       mancante: il giocatore vicino al confine col buco, cosi' l'angolo entra
+       davvero in inquadratura e si vede se il tileset lo veste bene. */
     if (!RoomShapesShoot(game, ROOM_SIZE_L, 0, 0.50f, 0.50f, "logs/worldsmelt-room-l-cella1.png")) ok = false;
     if (!RoomShapesShoot(game, ROOM_SIZE_L, 1, 0.50f, 0.50f, "logs/worldsmelt-room-l-cella2.png")) ok = false;
+    if (!RoomShapesShootLCorner(game, "logs/worldsmelt-room-l-angolo.png")) ok = false;
     return ok;
 }
 

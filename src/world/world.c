@@ -346,20 +346,14 @@ void WorldClampToRoom(const Game *game, Vector2 *pos, float radius)
 
 Rectangle WorldCameraFocusRect(const Game *game)
 {
-    const RoomState *room = GameCurrentRoom(game);
-    if (WorldRoomSizeFromCells(room->cells) == ROOM_SIZE_L)
-    {
-        /* Forma a L: il clamp usa la CELLA CORRENTE, non il riquadro. E' la
-           sola scelta che rispetta DEC-170 alla lettera ("non mostra mai area
-           fuori dal rettangolo occupato") senza inventare uno zoom dinamico o
-           una maschera: il riquadro di una L contiene l'angolo mancante, e una
-           telecamera libera dentro il riquadro lo mostrerebbe. Il prezzo e' un
-           salto del bersaglio quando si cambia cella, assorbito
-           dall'interpolazione di WorldCameraApproach. */
-        int cx, cy;
-        WorldPlayerCell(game, &cx, &cy);
-        return WorldCellRect(game, cx, cy);
-    }
+    /* DEC-180 (30/07): superato il default per-cella delle forme a L. Ora
+       TUTTE le taglie maggiori -- L compresa -- clampano al riquadro
+       dell'INTERA stanza (il blocco 2x2 che la contiene): la telecamera segue
+       in continuo, senza salti al cambio di cella. L'angolo mancante di una L
+       puo' quindi entrare in inquadratura: da W8 il tileset lo rende come
+       muro/sfondo, quindi il vincolo di DEC-170 ("mai area fuori dalla
+       stanza") resta soddisfatto dal rendering del vuoto, non piu' dal
+       clamp per cella. */
     return WorldCurrentRoomRect(game);
 }
 
