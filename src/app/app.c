@@ -464,17 +464,20 @@ static void AppEnterFloorZero(Game *game, AppGen *gen, AppMode *mode, unsigned i
    contratto (AGENTS.md). Nessuna regola di fusione e' scritta in questo file.
 
    DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019), da far confermare al
-   proprietario: item-fusion.md pone la fusione nella STANZA DI FUSIONE
-   (systems/special-rooms.md), che nel motore non esiste ancora -- non c'e'
-   un ROOM_FUSION, e piazzarlo e' lavoro di un altro blocco (vedi la matrice
-   di copertura, sezione "Stanze speciali"). Finche' quella stanza non c'e',
-   l'innesco vive nell'unico posto che il design gia' assegna alla fusione:
-   la sezione "Fusioni possibili" di BuildScreen. Quando ROOM_FUSION
-   arrivera' bastera' aggiungere UNA condizione qui sotto (la stanza corrente
-   e' di fusione) -- il resto del flusso non cambia. La deviazione e'
+   proprietario: BuildScreen resta il luogo dove la fusione si CONFERMA ed
+   ESEGUE, con TRE porte d'ingresso equivalenti (WP4, systems/special-rooms.md,
+   "Stanza di fusione"):
+     1) il crogiolo della stanza di fusione (ROOM_FUSION), che scrive
+        game->fusionRoomTriggered in CombatPickup (src/gameplay/combat.c) e
+        viene consumato in UpdateApp, case APP_GAMEPLAY, qualche riga sotto;
+     2) TAB da Gameplay;
+     3) la voce dedicata nel PauseMenu.
+   Le tre porte convergono tutte su AppEnterBuildScreen: nessuna duplica le
+   regole di fusione (che restano solo in src/gameplay/fusion.h). La
+   deviazione dal modello canonico (fusione eseguita nella stanza stessa) e'
    dichiarata in ui/inventory-and-synergy-screen.md (nota di implementazione)
-   e la domanda per il proprietario e' registrata insieme alle altre della
-   sessione.
+   e la domanda per il proprietario resta aperta in
+   docs/design/governance/open-questions.md.
    ============================================================ */
 
 static void AppFusionClearSelection(AppUi *ui)
@@ -1166,6 +1169,24 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 AppWriteRunCatalog(game, ui, game->phase == PHASE_WIN ? RUN_CATALOG_OUTCOME_WIN : RUN_CATALOG_OUTCOME_LOSS);
                 *mode = APP_RUN_RESULTS;
                 ui->focus = 0;
+                break;
+            }
+            /* WP4 (systems/special-rooms.md, "Stanza di fusione"): il crogiolo
+               della stanza di fusione ha appena scritto questo segnale
+               (CombatPickup, src/gameplay/combat.c) -- consumato QUI, come
+               floorZeroExitCrossed (vedi il commento sul campo in
+               core/game_types.h): stesso ingresso di BuildScreen del TAB
+               qualche riga sotto, cosi' il resto del flusso (incluso il caso
+               limite "senza due oggetti idonei o senza Flux", Scenario 4) non
+               cambia di una riga. Controllato PRIMA di pausa/tab: un tocco sul
+               crogiolo e un input dello stesso frame non devono competere in
+               modo indeterministico, e l'evento del mondo (gia' accaduto nella
+               simulazione) vince sull'input dell'utente non ancora agito. */
+            if (game->fusionRoomTriggered)
+            {
+                game->fusionRoomTriggered = false;
+                AppEnterBuildScreen(game, ui, APP_GAMEPLAY);
+                *mode = APP_BUILD_SCREEN;
                 break;
             }
             if (effective.pause || effective.back) { *mode = APP_PAUSE_MENU; ui->focus = 0; break; }

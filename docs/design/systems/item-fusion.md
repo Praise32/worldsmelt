@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171); questa pesca è un caso del layer generale di indirezione contenuto→image-id (DEC-175)."
-last_reviewed: 2026-07-28
+last_reviewed: 2026-07-30
 last_verified_commit: 82a0232
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0, DEC-175, indirezione-image-id]
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0, DEC-175, indirezione-image-id, WP4, ROOM_FUSION]
 related: []
 supersedes: []
-source_files: [src/gameplay/fusion.c, src/content/curated_images.c]
+source_files: [src/gameplay/fusion.c, src/content/curated_images.c, src/world/world.c]
 ---
 
 # Item Fusion
@@ -110,6 +110,10 @@ deterministica, DEC-023): modulo `src/gameplay/fusion.c` (composizione, budget, 
 inventario), `src/content/curated_images.c` (pesca dello sprite dal pacchetto curato,
 DEC-171), interfaccia dentro `BuildScreen` (`src/app/app.c`, `src/render/game_renderer.c`).
 Test: `--fusion-test` (in `make test`), più lo scatto manuale `--fusion-screenshot-test`.
+**Aggiornamento 30/07 (WP4):** la stanza di fusione (`ROOM_FUSION`) ora esiste come tipo
+fisico di stanza (`src/world/world.c`, `src/core/game_types.h`) — il suo crogiolo apre la
+stessa `BuildScreen` al tocco, senza cambiare nulla dello stadio 1 sopra; vedi
+[Special Rooms](special-rooms.md), "Stato di implementazione", per il dettaglio.
 
 Lo **stadio 2** (rifinitura IA in sottofondo) **non esiste nella demo**, per scelta: DEC-171
 fissa che nessun modello immagine gira a runtime e dà priorità alla copertura dei sistemi. Il
@@ -126,7 +130,7 @@ dell'implementazione, marcate come tali nel codice e da confermare al playtest.
 
 | Cosa | Default proposto | Dove |
 |---|---|---|
-| **Dove si innesca** | Sezione «Fusioni possibili» di `BuildScreen`, **non** una stanza dedicata: `ROOM_FUSION` non esiste ancora nel motore (vedi [Special Rooms](special-rooms.md)). Quando la stanza di fusione arriverà, l'innesco si sposta lì aggiungendo una sola condizione — il resto del flusso non cambia. | `src/app/app.c` |
+| **Dove si innesca** | Sezione «Fusioni possibili» di `BuildScreen`, sempre la stessa schermata. **Aggiornamento 30/07 (WP4):** `ROOM_FUSION` ora esiste nel motore (vedi [Special Rooms](special-rooms.md)) — il crogiolo interagibile della stanza apre `BuildScreen` al tocco, **in aggiunta** a TAB (Gameplay) e alla voce «Build e sinergie» (PauseMenu), che restano entrambe come rete di sicurezza: nessuna run deve dipendere dal trovare fisicamente la stanza per poter fondere. Tre porte, un solo schermo — il resto del flusso non cambia di una riga. | `src/app/app.c`, `src/world/world.c` |
 | **Comandi** | Su/giù scorrono gli oggetti, INVIO seleziona/deseleziona una sorgente, **F** conferma la fusione, ESC/TAB escono. F è un tasto dedicato perché l'operazione è irreversibile e non deve partire per inerzia scorrendo la lista. | `src/app/app_internal.h` |
 | **Oggetti idonei** | Qualunque oggetto posseduto, di qualunque categoria (DEC-101), compreso un oggetto già fuso (DEC-102). L'unica coppia rifiutata è «lo stesso oggetto due volte». | `FusionItemEligible` |
 | **Conflitti fra tratti** | I 9 tratti del motore sono raggruppati per proprietà contesa (traiettoria, impatto, corpo del colpo, effetto sul bersaglio): dentro un gruppo vince il tratto della sorgente dominante, fra gruppi diversi si eredita da entrambe. Il risultato porta al massimo **3** tratti (uno più di un oggetto generato, mai la somma). | `FusionComposeTraits` |
@@ -236,8 +240,15 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
   solo che esiste ed è più alto del budget del singolo oggetto sorgente, non il numero).
   L'implementazione propone rarità +1 e banda di colpo `[1.25, 1.60]` (vedi
   «Default proposti dall'implementazione» sopra), da confermare al playtest.
-- Se l'innesco debba restare in `BuildScreen` anche dopo che la stanza di fusione esisterà,
-  o spostarsi lì integralmente (oggi vive in `BuildScreen` perché `ROOM_FUSION` non esiste).
+- Se l'innesco debba restare in `BuildScreen` anche dopo che la stanza di fusione esiste,
+  o spostarsi lì integralmente (il modello canonico in
+  [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md) vuole la fusione
+  *eseguita* nella stanza, con `BuildScreen` sola consultazione). *Default proposto e
+  implementato (WP4, 30/07)*: la conferma resta in `BuildScreen` (unica schermata dove si
+  esegue), con TRE porte d'ingresso equivalenti — il crogiolo della stanza di fusione, TAB
+  da `Gameplay`, la voce dedicata nel `PauseMenu` — nessuna rimossa. Da confermare al
+  playtest; vedi [Special Rooms](special-rooms.md), "Stato di implementazione", e
+  `governance/open-questions.md`.
 - Quali categorie siano davvero «idonee»: l'implementazione le ammette tutte (nessuna DEC le
   restringe), quindi anche due stat-up possono fondersi.
 

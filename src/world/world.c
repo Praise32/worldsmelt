@@ -24,6 +24,12 @@ const char *GameRoomKindName(RoomKind kind)
         case ROOM_SHOP: return "negozio";
         case ROOM_BOSS: return "boss";
         case ROOM_HUB: return "crogiolo";
+        /* WP4: nome distinto da "crogiolo" sopra -- quel nome resta il tema del
+           Piano 0 (ROOM_HUB, DEC-067), questo e' l'archetipo speciale di
+           special-rooms.md. Nessuna ambiguita' in-game: le due stanze non
+           coesistono mai sulla stessa minimappa (ROOM_HUB vive solo al piano 0,
+           mai generato dentro WorldGenerateFloorMap). */
+        case ROOM_FUSION: return "fusione";
         default: return "vuota";
     }
 }
@@ -84,6 +90,12 @@ void WorldAwardRoomCompletionCurrency(Game *game, RoomKind kind)
         case ROOM_BOSS:     amount = WORLD_ROOM_CURRENCY_BOSS;     break;
         case ROOM_TREASURE: amount = WORLD_ROOM_CURRENCY_TREASURE; break;
         case ROOM_SHOP:     amount = WORLD_ROOM_CURRENCY_SHOP;     break;
+        /* WP4: la stanza di fusione non ha una condizione di "ripulita" come
+           combattimento/tesoro/negozio -- resta sempre visitabile (Scenario 4
+           di special-rooms.md), quindi non ha un momento di completamento a
+           cui agganciare una valuta. Nessuna DEC la richiede: cade qui sotto
+           esplicitamente, non nel default, cosi' la scelta si legge. */
+        case ROOM_FUSION:   return;
         default: return;   /* hub/start/vuota/non ancora implementato: nessuna valuta */
     }
     game->player.coins += amount;
@@ -668,8 +680,9 @@ static bool WorldPlaceBossRoom(Game *game, const int *orderX, const int *orderY,
     return false;
 }
 
-/* DEC-182: tesoro e negozio si piazzano DOPO il boss (sotto), quindi NON
-   devono mai attaccarsi alla stanza boss -- le farebbero guadagnare una
+/* DEC-182: le stanze speciali 1x1 (tesoro, negozio e -- dal WP4 -- la stanza
+   di fusione) si piazzano DOPO il boss (sotto), quindi NON devono mai
+   attaccarsi alla stanza boss -- le farebbero guadagnare una
    seconda porta, rompendo la foglia. Si scarta l'intera cella candidata se
    anche solo UNO dei suoi vicini esistenti e' il boss (il tipo vive solo
    sulla cella di stato, WorldRoomAt lo risolve sempre); altrimenti si
@@ -694,9 +707,10 @@ static void WorldPlaceSpecialRoom(Game *game, RoomKind kind)
             if (WorldRoomAt(game, nx, ny)->kind == ROOM_BOSS) { touchesBoss = true; break; }
         }
         if (!touchesAny || touchesBoss) continue;
-        /* Tesoro e negozio restano 1x1 (default proposto): sono stanze da
-           una ricompensa, tutta visibile appena si entra -- e' proprio il
-           caso in cui la telecamera fissa di DEC-170 e' un pregio. */
+        /* Le stanze speciali di questo cammino (tesoro, negozio, fusione)
+           restano 1x1 (default proposto): una funzione sola, tutta visibile
+           appena si entra -- e' proprio il caso in cui la telecamera fissa
+           di DEC-170 e' un pregio. */
         RoomState *state = WorldWriteRoom(game, x, y, ROOM_CELL_BIT(0, 0), kind);
         state->cleared = true;
         return;
@@ -934,6 +948,17 @@ static void WorldGenerateFloorMap(Game *game)
 
     WorldPlaceSpecialRoom(game, ROOM_TREASURE);
     WorldPlaceSpecialRoom(game, ROOM_SHOP);
+    /* WP4 (systems/special-rooms.md, "Stanza di fusione"): stesso algoritmo di
+       tesoro/negozio sopra -- 1x1, mai adiacente al boss (WorldPlaceSpecialRoom
+       scarta le celle candidate che lo toccano), deterministica dal seed del
+       piano. Un solo tentativo per piano, non garantito: se la griglia e' satura
+       o ogni cella libera tocca solo il boss, il piano resta senza stanza di
+       fusione per quel giro -- l'accesso globale (TAB/PauseMenu) resta comunque
+       sempre disponibile (rete di sicurezza, vedi il commento su ROOM_FUSION in
+       core/game_types.h). DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019):
+       il documento lascia esplicitamente aperta la frequenza esatta di ciascun
+       archetipo per piano (governance/open-questions.md). */
+    WorldPlaceSpecialRoom(game, ROOM_FUSION);
     WorldLinkRooms(game);
 }
 
@@ -1331,6 +1356,20 @@ void WorldSpawnRoomContents(Game *game)
     {
         EntitiesAddPickup(game, PICKUP_EXIT, (Vector2){ center.x + 70.0f, center.y }, 0, 0);
         GameSetMessage(game, game->floor == FLOOR_COUNT ? "Portale finale riaperto." : "Portale per il prossimo piano riaperto.");
+    }
+    else if (room->kind == ROOM_FUSION)
+    {
+        /* WP4: nessun 'rewardTaken'/gate -- il crogiolo non e' una ricompensa
+           estratta una volta sola, e' un arredo fisso della stanza. Va
+           ri-materializzato a OGNI ingresso perche' EntitiesClear (sopra, a
+           inizio funzione) ha appena svuotato tutti i pickup della stanza,
+           esattamente come i piedistalli degli attivi/i piedistalli-Innesto
+           persistenti qui sotto. Scenario 4 di special-rooms.md (senza due
+           oggetti idonei o senza Flux la stanza resta visitabile): il crogiolo
+           apre comunque BuildScreen, che mostra FusionStatusText -- questa
+           funzione non sa nulla dei requisiti di fusione, ne' deve saperlo. */
+        EntitiesAddPickup(game, PICKUP_FUSION_ALTAR, center, 0, 0);
+        GameSetMessage(game, "Crogiolo: tocca l'altare per fondere due oggetti.");
     }
     else
     {

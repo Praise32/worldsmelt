@@ -116,7 +116,18 @@ typedef enum RoomKind {
        non c'e' un vincolo di posizione, ma restare in coda evita comunque di
        spostare per errore il significato implicito di un valore salvato da
        qualche parte in futuro. */
-    ROOM_HUB
+    ROOM_HUB,
+    /* WP4 (docs/design/systems/special-rooms.md, "Stanza di fusione"): primo
+       dei quattro archetipi speciali di DEC-010 ad avere un RoomKind fisico
+       nel motore. In coda come ROOM_HUB sopra, stesso motivo. Piazzata da
+       WorldPlaceSpecialRoom come tesoro/negozio (1x1, mai adiacente al boss,
+       deterministica dal seed) -- vedi WorldGenerateFloorMap in world.c. Dentro
+       la stanza un crogiolo interagibile (Pickup di kind PICKUP_FUSION_ALTAR,
+       vedi sotto) apre BuildScreen -- gia' pronto alla fusione, Scenario 4 del
+       documento -- ma l'accesso globale storico (TAB da Gameplay, voce dal
+       PauseMenu) RESTA come rete di sicurezza: una run non deve mai dipendere
+       dal trovare questa stanza per poter fondere. */
+    ROOM_FUSION
 } RoomKind;
 
 typedef enum Direction {
@@ -161,7 +172,19 @@ typedef enum PickupKind {
        PROPOSTO DALL'IMPLEMENTAZIONE, il documento non fissa una fonte
        concreta), forma geometrica in DrawPickup. Raccoglierlo somma
        'value' punti a Player.tempHp, clampati a PLAYER_TEMP_HP_CAP. */
-    PICKUP_CRUST
+    PICKUP_CRUST,
+    /* WP4: il crogiolo interagibile della stanza di fusione (ROOM_FUSION
+       sopra). In coda come PICKUP_CRUST sopra e per lo stesso motivo. A
+       differenza di OGNI altro Pickup, questo non si consuma MAI (CombatPickup
+       lo rimette 'active' subito, stesso schema del piedistallo degli attivi
+       che si scambia invece di sparire, DEC-117) -- resta li' per tutta la
+       permanenza nella stanza. Toccarlo non aggiunge nulla all'inventario: fa
+       scattare Game.fusionRoomTriggered, il segnale che UpdateApp (src/app/
+       app.c) consuma per aprire BuildScreen, pronto alla fusione. Nessuna
+       cella d'atlas dedicata: sprite da assets/art/props/crogiolo quando
+       arriva dalla corsia arte, forma geometrica di riserva nel frattempo
+       (vedi DrawPickup, src/render/game_renderer.c). */
+    PICKUP_FUSION_ALTAR
 } PickupKind;
 
 typedef enum ItemSlot {
@@ -1224,6 +1247,16 @@ typedef struct Game {
        carica, anche su un frame che contiene due passi. */
     bool useActiveQueued;   /* E: usare l'oggetto attivo selezionato */
     bool dropGraftQueued;   /* G: sganciare l'Innesto equipaggiato (DEC-115/DEC-160) */
+    /* WP4 (systems/special-rooms.md, "Stanza di fusione"): scritto SOLO da
+       gameplay (CombatPickup, quando il giocatore tocca il crogiolo -- Pickup
+       di kind PICKUP_FUSION_ALTAR -- della stanza ROOM_FUSION) e consumato
+       SOLO da UpdateApp (src/app/app.c), stessa disciplina di
+       floorZeroExitCrossed poco sotto: scritto vero in un frame di
+       simulazione, letto e rimesso a falso nel primo frame applicativo che lo
+       trova vero, mai altrove. Nessun altro effetto sul crogiolo stesso: resta
+       'active' (non si consuma mai, vedi PickupKind sopra), quindi si puo'
+       toccare di nuovo dopo essere usciti da BuildScreen. */
+    bool fusionRoomTriggered;
     /* Piano 0 sala d'attesa (M1b, systems/floor-zero.md + ui/generation-status.md):
        scritto SOLO da src/app (che possiede lo stato della generazione), letto
        da world/render. 'floorZeroExitOpen' diventa vero quando la pipeline di

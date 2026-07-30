@@ -5,13 +5,13 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md."
-last_reviewed: 2026-07-22
+summary: "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) è il primo dei quattro archetipi speciali con un RoomKind fisico nel motore."
+last_reviewed: 2026-07-30
 last_verified_commit: 0ec60d0
-topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo]
+topics: [stanze-speciali, fusione, scambio-alto-rischio, arena-di-sfida, stanza-a-tempo, WP4, ROOM_FUSION]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/world/world.c, src/core/game_types.h, src/gameplay/combat.c, src/render/game_renderer.c]
 ---
 
 # Special Rooms
@@ -102,6 +102,72 @@ Ogni stanza speciale produce un esito dichiarato (oggetto fuso, accesso a una ri
 - con la regola di validazione generale per la coppia offerta/prezzo generata ([generated-content-validation.md](./generated-content-validation.md), DEC-044);
 - con la ricompensa della stanza a tempo ([rewards-and-economy.md](./rewards-and-economy.md), DEC-051) e con il timer sempre visibile ([hud.md](../ui/hud.md)).
 
+## Stato di implementazione: la stanza di fusione (WP4, 2026-07-30)
+
+Primo dei quattro archetipi speciali di questo documento ad avere un `RoomKind`
+fisico nel motore (`ROOM_FUSION`, `src/core/game_types.h`), oltre alla
+meccanica-firma stessa (già implementata, vedi [Item Fusion](item-fusion.md),
+"Stato di implementazione").
+
+- **Piazzamento**: `WorldPlaceSpecialRoom` (`src/world/world.c`) — lo stesso
+  algoritmo di tesoro/negozio: un tentativo per piano, taglia 1x1, mai
+  adiacente alla stanza boss (DEC-182), deterministico dal seed del piano. Non
+  garantito: su una griglia satura il piano resta senza stanza di fusione per
+  quel giro. Misurato su 120 piani generati (5 piani × 24 semi, `--rooms-test`):
+  piazzata in 119 casi su 120.
+- **Crogiolo interagibile**: un `Pickup` di kind dedicato (`PICKUP_FUSION_ALTAR`)
+  al centro della stanza, ri-materializzato a ogni ingresso come l'arredo di
+  ogni altra stanza. A differenza di ogni altro pickup non si consuma mai
+  (`CombatPickup`, `src/gameplay/combat.c`): toccarlo scrive
+  `Game.fusionRoomTriggered`, consumato da `UpdateApp` (`src/app/app.c`) che
+  apre `BuildScreen` — lo stesso schermo, già pronto alla fusione, che TAB e la
+  voce "Build e sinergie" del PauseMenu aprono da sempre. Stesso schema di
+  "blocco che si scioglie allontanandosi" del piedistallo degli attivi
+  (DEC-117), così il crogiolo resta ritoccabile per tutta la permanenza nella
+  stanza invece che un varco a uso singolo.
+- **Scenario 4 rispettato senza codice dedicato**: la stanza non sa nulla dei
+  requisiti di fusione (due oggetti idonei, un catalizzatore) — apre sempre
+  `BuildScreen`, che mostra `FusionStatusText` quando l'azione non è ancora
+  disponibile. Nessun ramo speciale nella stanza stessa.
+- **L'accesso globale RESTA** (TAB da Gameplay, voce dal PauseMenu): rete di
+  sicurezza esplicita di questa demo — una run non deve mai dipendere dal
+  trovare fisicamente questa stanza per poter fondere, coerente col non
+  piazzamento garantito sopra. `item-fusion.md` aggiorna la sua riga "Dove si
+  innesca" di conseguenza: entrambi i percorsi convivono, non si è sostituito
+  l'uno con l'altro.
+- **Segnale visivo (DEC-058)**: colore dedicato in `RoomMapColor` (violetto,
+  distinto dall'ambra del crogiolo del Piano 0) e icona `"F"` in `DrawRoomIcon`
+  (`src/render/game_renderer.c`) — DOPO essere entrati, la stanza si distingue
+  anche senza colore (icona sulla sua cella di stato sulla minimappa). PRIMA
+  di entrare no: `DrawMinimap` disegna `DrawRoomIcon` solo per `room->visited`
+  (stesso pattern preesistente di tesoro/negozio/boss, "un pizzico di
+  scoperta, come in Isaac"), quindi una cella nota-ma-non-visitata si
+  distingue oggi solo dalla tinta smorzata del suo colore — un limite reale
+  rispetto a DEC-058, non solo di questa stanza. Registrato come gap esplicito
+  in `docs/engineering/known-issues.md`, voce 12.
+- **Sprite del crogiolo**: `assets/art/props/crogiolo` (corsia arte, prodotto
+  30/07) è nel dataset curato con vocabolario di tag dedicato — `"spento"` /
+  `"attivo"` — e `DrawPickup` seleziona sempre `"attivo"` (il crogiolo è
+  sempre utilizzabile, Scenario 4). Se dovesse mancare (rigenerazione,
+  dataset parziale) si ripiega su `assets/art/props/piedistallo`, che usa un
+  vocabolario diverso — `"vuoto"` / `"pieno"` — e sceglie sempre `"pieno"`; se
+  anche quello manca, forma geometrica di riserva (basamento + fiamma). Mai
+  un pickup invisibile.
+- **Test**: `RoomsTestFusionInteraction` dentro `GameRoomsTest`
+  (`src/tests/game_tests.c`, `--rooms-test`/`make test`) — unicità e non
+  adiacenza al boss su 120 piani generati, più la catena intera
+  tocco-crogiolo → `fusionRoomTriggered` → `UpdateApp` apre `APP_BUILD_SCREEN`
+  → si sblocca allontanandosi.
+
+### Default proposti dall'implementazione (stile DEC-019)
+
+| Cosa | Default proposto | Dove |
+|---|---|---|
+| **Frequenza per piano** | Un tentativo per piano, non garantito (stesso algoritmo di tesoro/negozio). La domanda "Frequenza esatta di ciascun archetipo per piano" (sotto, "Domande aperte residue") resta aperta per gli ALTRI tre archetipi (segreta, arena, scambio), che non esistono ancora nel motore. | `WorldGenerateFloorMap`, `src/world/world.c` |
+| **Taglia della stanza** | Sempre 1x1 (stesso default di tesoro/negozio, DEC-170): una fusione è una decisione, non serve spazio di combattimento. | `WorldPlaceSpecialRoom` |
+| **Interazione** | Tocco automatico (overlap col crogiolo), non un tasto dedicato — stesso pattern dei piedistalli esistenti (DEC-117), coerente con "conferma esplicita solo per l'azione irreversibile" (la fusione vera, dentro BuildScreen), non per l'ingresso alla schermata. | `CombatPickup`, `src/gameplay/combat.c` |
+| **Valuta di completamento** | Nessuna: la stanza non ha una condizione di "ripulita" a cui agganciarla (a differenza di combattimento/tesoro/negozio/boss). | `WorldAwardRoomCompletionCurrency`, `src/world/world.c` |
+
 ## Regola di originalità
 
 I nomi, la presentazione e la logica precisa dei quattro archetipi devono essere originali. Gli archetipi sono funzioni di design, non contenuti da copiare da giochi esistenti (vedi `09-originality-guardrails.md`).
@@ -138,7 +204,11 @@ Vale la regola unica di [generated-content-validation.md](./generated-content-va
 ## Domande aperte residue
 
 - ~~Nome e presentazione definitivi dello scambio ad alto rischio~~: risolto da DEC-136 — **Pourhouse** («Casa della Colata»), presentazione canonica nel glossario.
-- Frequenza esatta di ciascun archetipo per piano.
+- Frequenza esatta di ciascun archetipo per piano. **Aggiornamento 30/07 (WP4):**
+  per la stanza di fusione esiste ora un default proposto e implementato — un
+  tentativo per piano — vedi "Stato di implementazione" sopra e
+  `governance/open-questions.md` voce 30; resta aperta per gli altri tre
+  archetipi (segreta, arena, scambio), non ancora nel motore.
 - Valori numerici esatti del budget di equità della puntata generata (DEC-044 fissa il principio, non i numeri).
 - ~~Quali rivelatori esistono per le super-segrete~~: risolto da DEC-127 (Innesti sensore + oggetti rari), vedi `secrets-and-obstacles.md`.
 

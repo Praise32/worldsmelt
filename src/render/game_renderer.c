@@ -196,6 +196,13 @@ static Color RoomMapColor(RoomKind kind)
            crogiolo (DEC-067), anche sulla minimappa (che qui mostra una
            sola cella). */
         case ROOM_HUB: return (Color){ 224, 140, 62, 255 };
+        /* WP4: violetto, distinto dall'ambra del crogiolo del Piano 0 sopra e
+           da ogni altro colore di questa tavola. L'icona dedicata di
+           DrawRoomIcon compare pero' solo a stanza GIA' visitata (DrawMinimap
+           filtra su room->visited): PRIMA dell'ingresso la distinguibilita'
+           senza colore chiesta da DEC-058 non e' garantita -- limite
+           registrato in docs/engineering/known-issues.md voce 12. */
+        case ROOM_FUSION: return (Color){ 196, 120, 224, 255 };
         default: return (Color){ 40, 44, 50, 255 };
     }
 }
@@ -1015,13 +1022,33 @@ static void DrawPickup(Game *game, const Pickup *p)
     const char *propKey = NULL;
     if (p->kind == PICKUP_COIN) propKey = "props/pickup-lingotto";
     else if (p->kind == PICKUP_FLUX) propKey = "props/pickup-flux";
+    /* WP4: il crogiolo interagibile della stanza di fusione. L'asset dedicato
+       (assets/art/props/crogiolo, tag "spento"/"attivo") e' gia' nel dataset
+       curato -- ma MAI bloccarsi su asset in produzione: se dovesse mancare
+       (rigenerazione, dataset parziale) si ripiega sul piedistallo generico
+       (tag "vuoto"/"pieno", stesso ruolo visivo "oggetto interagibile su un
+       basamento"), e se anche quello manca la forma geometrica sotto resta
+       comunque disegnata. */
+    else if (p->kind == PICKUP_FUSION_ALTAR) propKey = "props/crogiolo";
     if (propKey)
     {
         const ArtSheet *prop = ArtAtlasGet(propKey);
+        /* WP4: il crogiolo dedicato ("attivo"/"spento") e il suo ripiego
+           generico ("pieno"/"vuoto") non condividono il vocabolario di
+           animazione di pickup-flux/pickup-lingotto ("idle") -- il crogiolo
+           e' SEMPRE utilizzabile (apre BuildScreen a prescindere dai requisiti
+           di fusione, Scenario 4 di special-rooms.md), quindi si sceglie
+           sempre lo stato "acceso"/"pieno" del prop, mai quello spento. */
+        const char *animName = "idle";
+        if (p->kind == PICKUP_FUSION_ALTAR)
+        {
+            animName = "attivo";
+            if (!prop) { prop = ArtAtlasGet("props/piedistallo"); animName = "pieno"; }
+        }
         if (prop)
         {
             float scale = ArtScaleForWidth(prop->frameW, 28.0f);
-            drew = ArtDrawAnim(prop, "idle", (float)GetTime() + p->pos.x*0.01f,
+            drew = ArtDrawAnim(prop, animName, (float)GetTime() + p->pos.x*0.01f,
                                SpriteGroundPos(pos, p->radius, 0.7f), scale, false, WHITE);
         }
     }
@@ -1042,6 +1069,7 @@ static void DrawPickup(Game *game, const Pickup *p)
         else if (p->kind == PICKUP_ENERGY) cell = -1;   /* nessuna cella d'atlas: vedi PickupKind in core/game_types.h */
         else if (p->kind == PICKUP_FLUX) cell = -1;     /* idem: il catalizzatore di fusione e' una forma geometrica */
         else if (p->kind == PICKUP_CRUST) cell = -1;    /* idem: Crust (DEC-008/WP2) e' una forma geometrica */
+        else if (p->kind == PICKUP_FUSION_ALTAR) cell = -1;   /* idem: il crogiolo (WP4) e' un prop/forma, mai una cella d'atlas */
         else label = p->item.name;
         if (cell >= 0) drew = DrawAtlasCell(game, cell, pos, size, WHITE);
     }
@@ -1100,6 +1128,21 @@ static void DrawPickup(Game *game, const Pickup *p)
             };
             for (int i = 0; i < 6; i++) DrawTriangle(pos, hex[i], hex[(i + 1) % 6], c);
             DrawCircleV(pos, 4, GameColorWithAlpha(RAYWHITE, 200));
+        }
+        else if (p->kind == PICKUP_FUSION_ALTAR)
+        {
+            /* WP4: un basamento (rettangolo) con una fiamma (triangolo) sopra
+               -- la silhouette "crogiolo/altare" che nessun'altra raccolta usa,
+               distinguibile a colpo d'occhio anche senza etichetta. Colore
+               ambrato/braci, coerente col tema del crogiolo del Piano 0
+               (ROOM_HUB) senza riusarne l'esatta tinta (gia' presa da
+               RoomMapColor per non confondere le due stanze). */
+            c = (Color){ 255, 148, 61, 255 };
+            label = "CR";
+            DrawRectangle((int)pos.x - 13, (int)pos.y + 2, 26, 12, DARKGRAY);
+            Vector2 flameL = { pos.x - 9, pos.y + 3 }, flameR = { pos.x + 9, pos.y + 3 }, flameTip = { pos.x, pos.y - 14 };
+            DrawTriangle(flameL, flameR, flameTip, c);
+            DrawCircleV((Vector2){ pos.x, pos.y - 2 }, 4, GameColorWithAlpha(RAYWHITE, 200));
         }
         else
         {
@@ -1774,6 +1817,7 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     if (kind == ROOM_TREASURE) g = "T";
     else if (kind == ROOM_SHOP) g = "$";
     else if (kind == ROOM_BOSS) g = "B";
+    else if (kind == ROOM_FUSION) g = "F";   /* WP4: distingue la stanza senza colore, DEC-058 */
     if (!g) return;
     int fontSize = UiRound(14.0f*uiScale);
     int w = UiTextW(g, fontSize);

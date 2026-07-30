@@ -1224,8 +1224,11 @@ static void CombatPickup(Game *game, Pickup *pickup)
     /* "Oggetto/valuta/Flux raccolti" (audio-and-feedback.md): un solo evento
        sonoro condiviso da ogni pickup con un effetto reale, tranne
        PICKUP_EXIT -- quello apre il piano successivo (o vince la run), non
-       e' "una raccolta" nel senso dell'evento sonoro. */
-    if (pickup->kind != PICKUP_EXIT) AudioPlaySfx(AUDIO_SFX_PICKUP);
+       e' "una raccolta" nel senso dell'evento sonoro. Stessa esclusione per
+       PICKUP_FUSION_ALTAR (WP4): il crogiolo apre una schermata, non
+       raccoglie nulla -- coerente con TAB/PauseMenu che aprono BuildScreen
+       oggi senza alcun sfx dedicato (UpdateApp, src/app/app.c). */
+    if (pickup->kind != PICKUP_EXIT && pickup->kind != PICKUP_FUSION_ALTAR) AudioPlaySfx(AUDIO_SFX_PICKUP);
     if (pickup->kind == PICKUP_HEART)
     {
         game->player.hp = GameMathClampInt(game->player.hp + pickup->value, 0, game->player.maxHp);
@@ -1347,6 +1350,21 @@ static void CombatPickup(Game *game, Pickup *pickup)
             GameSetMessage(game, "Run completata. Premi R per ricominciare.");
         }
         else WorldStartFloor(game, game->floor + 1);
+    }
+    else if (pickup->kind == PICKUP_FUSION_ALTAR)
+    {
+        /* WP4 (systems/special-rooms.md, "Stanza di fusione"): il crogiolo non
+           si consuma MAI -- si rimette 'active' subito, stesso schema del
+           piedistallo degli attivi che si scambia invece di sparire (DEC-117),
+           ma qui non c'e' nulla da scambiare. 'locked' impedisce di riaprire
+           BuildScreen a ogni frame restando fermi sopra (si scioglie quando il
+           giocatore si allontana, vedi CombatUpdatePickups sotto -- stessa
+           disciplina del piedistallo). game->fusionRoomTriggered e' il solo
+           effetto: UpdateApp (src/app/app.c) lo consuma per aprire BuildScreen,
+           mai codice qui dentro (src/gameplay non conosce AppMode). */
+        pickup->active = true;
+        pickup->locked = true;
+        game->fusionRoomTriggered = true;
     }
 }
 

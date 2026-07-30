@@ -70,15 +70,18 @@ Questa schermata mostra entrambi i binari (DEC-012):
 - **Sinergie implicite/automatiche**: attive quando due o più oggetti compatibili convivono nella build, senza consumo di oggetti.
 - **Possibilità di fusione esplicita**: combinazioni di due oggetti posseduti che, con catalizzatore sufficiente, producono un oggetto nuovo. Fonte di sistema: `systems/item-fusion.md`.
 
-> **Nota di implementazione (demo, 2026-07-27) — default proposto dall'implementazione
-> (stile DEC-019).** Il modello canonico vuole la fusione *eseguita* nella stanza di fusione
-> (`systems/special-rooms.md`) e questa schermata come sola consultazione. Nel motore la
-> stanza di fusione **non esiste ancora** (nessun `ROOM_FUSION`), quindi nella demo la
-> conferma vive qui, nella sezione «Fusioni possibili» — l'unico posto che il design assegna
-> già alla fusione. Comandi: su/giù scorrono gli oggetti, **INVIO** seleziona/deseleziona una
-> sorgente, **F** conferma (tasto dedicato: l'operazione è irreversibile), **ESC/TAB**
-> escono. Quando la stanza di fusione arriverà, la conferma si sposta lì e questa sezione
-> torna consultiva. Domanda aperta registrata per il proprietario.
+> **Nota di implementazione (demo, 2026-07-27; aggiornata 30/07 con WP4) — default
+> proposto dall'implementazione (stile DEC-019).** Il modello canonico vuole la fusione
+> *eseguita* nella stanza di fusione (`systems/special-rooms.md`) e questa schermata come
+> sola consultazione. Dal WP4 `ROOM_FUSION` **esiste** nel motore e il crogiolo della stanza
+> apre questa schermata già pronta alla fusione (le due sorgenti restano comunque da
+> scegliere qui), ma la conferma resta un'azione di `BuildScreen`, raggiungibile da **tre
+> porte equivalenti**: il crogiolo della stanza di fusione, **TAB** da `Gameplay`, e la voce
+> dedicata nel `PauseMenu`. Comandi: su/giù scorrono gli oggetti, **INVIO**
+> seleziona/deseleziona una sorgente, **F** conferma (tasto dedicato: l'operazione è
+> irreversibile), **ESC/TAB** escono. Se la conferma debba spostarsi integralmente nella
+> stanza di fusione (con questa schermata tornata sola consultazione) resta una domanda
+> aperta per il proprietario: vedi `governance/open-questions.md`.
 
 ## Regola di comprensione
 
@@ -109,9 +112,11 @@ colloca solo la sezione qui.
 
 ## Non-obiettivi
 
-- Non esegue la fusione: la fusione richiede la stanza di fusione durante `Gameplay`
-  (**temporaneamente disatteso nella demo**, vedi la nota di implementazione sopra: finché
-  `ROOM_FUSION` non esiste, la conferma vive in questa schermata).
+- Non esegue la fusione come atto isolato di stanza: il modello canonico vuole la
+  conferma spostata integralmente nella stanza di fusione, con questa schermata come sola
+  consultazione. Dal WP4 la conferma resta in `BuildScreen` anche dopo l'ingresso dal
+  crogiolo (**default proposto, vedi la nota di implementazione sopra e la domanda aperta
+  in `governance/open-questions.md`**).
 - Non sostituisce l'HUD per le decisioni immediate in combattimento.
 
 ## Domande aperte residue

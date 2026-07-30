@@ -410,3 +410,29 @@ sopravvivere l'arredo di una stanza di combattimento alla sua ripulitura (cambio
 comportamento più ampio del solo WP3), oppure la si tratta come infrastruttura in attesa
 del task delle stanze segrete. `docs/design/systems/secrets-and-obstacles.md` registra lo
 stesso limite nella sua sezione "Default proposti dall'implementazione".
+
+## 12 — Le celle note-ma-non-visitate della minimappa distinguono il tipo di stanza SOLO col colore (DEC-058)
+
+**Sintomo**: `docs/design/systems/special-rooms.md` (WP4, "Stanza di fusione") chiede un
+segnale visivo "prima di entrare" nella stanza, distinguibile senza colore (DEC-058, che
+vieta di affidare un'informazione al solo colore). Nel motore l'icona di `DrawRoomIcon`
+(`"T"` tesoro, `"$"` negozio, `"B"` boss, `"F"` fusione) compare SOLO sulla cella di stato
+di una stanza già `visited`; una cella nota (adiacente a una visitata, quindi disegnata
+sulla minimappa) ma non ancora visitata si distingue dalle altre unicamente per la tinta
+smorzata del suo `RoomMapColor` — nessun canale non-colore.
+
+**Evidenza**: `src/render/game_renderer.c`, `DrawMinimap` — `if (room->visited && room ==
+&game->rooms[y][x]) DrawRoomIcon(...)`; il colore di base (`base = room->visited ?
+RoomMapColor(...) : GameColorLerp(RoomMapColor(...), ..., 0.7f)`) è l'UNICO segnale sulle
+celle non visitate.
+
+**Stato**: preesistente a WP4 per tesoro/negozio/boss (il commento sopra `DrawMinimap`
+dichiara la scelta come intenzionale: "un pizzico di scoperta, come in Isaac" — le icone
+si sbloccano visitando, non prima). WP4 eredita lo stesso limite per la stanza di fusione
+invece di introdurne uno nuovo: non è stato corretto perché la correzione naturale (mostrare
+l'icona anche sulle celle note-ma-non-visitate) toglierebbe la stessa scoperta anche a
+tesoro/negozio/boss, una scelta di design più ampia del solo WP4 e non richiesta da nessuna
+DEC. Da decidere insieme al proprietario: o si accetta che la garanzia DEC-058 valga solo
+DOPO l'ingresso (e si aggiorna DEC-058/special-rooms.md di conseguenza), o si introduce un
+canale non-colore anche per le celle non visitate (es. un bordo o pattern distinto per
+"stanza speciale nota", senza svelarne il tipo esatto).

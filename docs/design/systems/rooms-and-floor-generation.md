@@ -124,8 +124,8 @@ da confermare (vedi `governance/open-questions.md`).
   [bosses.md](./bosses.md)). Non è una garanzia: si piazza per ultima e la griglia può
   essere satura, nel qual caso scende di classe (L → 1x2/2x1 → 1x1). Misurato su 120 piani
   generati (5 piani × 24 semi): **2x2 in 110 casi su 120**.
-- **Tesoro e negozio: sempre 1x1.** Sono stanze da una ricompensa sola, tutta visibile
-  appena si entra.
+- **Tesoro, negozio e stanza di fusione: sempre 1x1.** Sono stanze da una funzione sola
+  (una ricompensa, una vetrina, il crogiolo), tutta visibile appena si entra.
 - **Distribuzione delle taglie delle altre stanze** (estrazione dall'RNG del piano, quindi
   deterministica dal seed): **1x1 55% · 1x2 15% · 2x1 15% · 2x2 8% · L 7%** (per la L
   l'orientamento dell'angolo mancante è a sua volta estratto fra i quattro). La 1x1 resta
@@ -134,9 +134,10 @@ da confermare (vedi `governance/open-questions.md`).
   l'eccezione. Se la forma estratta non entra nello spazio libero, si ripiega su una 1x1
   nella stessa cella (mai un turno saltato).
 - **Quantità di piano:** il budget `6 + numero_piano + estrazione(0..3)` di DEC-009 ora conta
-  **celle**, non stanze (una stanza ne occupa da 1 a 4), più la stanza boss e fino a due
-  stanze speciali. La superficie giocabile di un piano resta quindi quella di sempre; il
-  **numero di stanze scende** (~5-9 più boss e speciali). È una conseguenza dichiarata di
+  **celle**, non stanze (una stanza ne occupa da 1 a 4), più la stanza boss e fino a **tre**
+  stanze speciali 1x1 (tesoro, negozio e — dal WP4 — la stanza di fusione `ROOM_FUSION`).
+  La superficie giocabile di un piano resta quindi quella di sempre; il
+  **numero di stanze scende** (~5-10 più boss e speciali). È una conseguenza dichiarata di
   DEC-170, non un effetto collaterale.
 - **Budget di difficoltà di una stanza multi-cella:** il budget nemici della stanza
   (`3 + numero_piano + estrazione(0..2)`, vedi [enemies.md](./enemies.md)) viene moltiplicato
@@ -232,9 +233,10 @@ parole. Rimando da [Bosses](./bosses.md), che non ripete questa regola.
   forma tocca **esattamente una** stanza esistente distinta
   (`WorldShapeNeighborRoomCount`, anch'essa risolta per cella di stato, mai per origine
   grezza); il ripiego di griglia satura promuove a boss la stanza già piazzata di grado
-  minimo (preferendo la più lontana con grado ≤1). Tesoro e negozio, piazzati **dopo** il
-  boss, non si attaccano mai ad esso (`WorldPlaceSpecialRoom` scarta le celle candidate
-  che toccano la stanza boss) — altrimenti le darebbero una seconda porta. Test dedicati:
+  minimo (preferendo la più lontana con grado ≤1). Le stanze speciali 1x1 — tesoro, negozio
+  e stanza di fusione — piazzate **dopo** il boss, non si attaccano mai ad esso
+  (`WorldPlaceSpecialRoom` scarta le celle candidate che toccano la stanza boss, per tutti
+  e tre i chiamanti) — altrimenti gli darebbero una seconda porta. Test dedicati:
   (m) grado della stanza boss sempre 1; (n) BFS dalla partenza che non entra mai in una
   cella della stanza boss raggiunge comunque tutte le altre stanze del piano.
 - **Effetto collaterale misurato:** il vincolo di foglia riduce la frequenza della classe

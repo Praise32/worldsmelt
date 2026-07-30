@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (28 voci attive su 29 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
+  Coda ufficiale e unica delle domande ancora aperte (30 voci attive su 31 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.
 last_reviewed: 2026-07-30
-last_updated_from_session: 2026-07-30-wp3-obstacles
+last_updated_from_session: 2026-07-30-wp4-fusion-room
 last_verified_commit: a2de293
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, WP4]
 related: []
 supersedes: []
 source_files: []
@@ -265,3 +265,33 @@ non sono canone.
     per qualunque esplosione di origine GIOCATORE (bomba, colpo/attivo con trait Esplosivo),
     non solo per la bomba in senso stretto — un parametro `breach` esplicito impedisce
     comunque che un'ipotetica esplosione di origine nemica apra un varco.
+
+## Stanza di fusione nel motore (WP4, 2026-07-30)
+
+Una domanda aperta da `systems/special-rooms.md`, che lascia esplicitamente in coda
+("Domande aperte residue") la frequenza esatta di ciascun archetipo speciale per piano —
+qui solo per l'archetipo appena piazzabile nel motore, la stanza di fusione.
+
+30. Qual è la **frequenza esatta** con cui la stanza di fusione (e gli altri archetipi
+    speciali) compare per piano? Il documento fissa solo che l'archetipo esiste, non quante
+    volte per piano o con quale probabilità. *Default proposto e implementato*: un solo
+    tentativo di piazzamento per piano, stesso algoritmo di tesoro/negozio
+    (`WorldPlaceSpecialRoom`, `src/world/world.c`) — non garantito (nessun piazzamento se la
+    griglia è satura o se ogni cella libera tocca solo la stanza boss), mai adiacente alla
+    stanza boss (DEC-182), deterministico dal seed del piano. Misurato su 120 piani generati
+    (5 piani × 24 semi, `--rooms-test`): piazzata in 119 casi su 120. L'accesso globale
+    storico (TAB da Gameplay, voce dal PauseMenu) resta comunque sempre disponibile come rete
+    di sicurezza, indipendentemente da questa frequenza. Da confermare al playtest.
+    (`systems/special-rooms.md`, sezione "Default proposti dall'implementazione".)
+
+31. Con `ROOM_FUSION` ora presente nel motore, dove deve vivere la CONFERMA della fusione:
+    resta un'azione di `BuildScreen` (come oggi), o si sposta integralmente nella stanza di
+    fusione, coerente col modello canonico descritto in
+    [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md) ("la fusione
+    *eseguita* nella stanza di fusione... questa schermata come sola consultazione")?
+    *Default proposto e implementato (WP4, 30/07)*: la conferma resta in `BuildScreen`,
+    raggiungibile da TRE porte d'ingresso equivalenti — il crogiolo della stanza di fusione
+    (che apre `BuildScreen` già pronta alla fusione), TAB da `Gameplay`, e la voce dedicata
+    nel `PauseMenu` — nessuna delle tre è stata rimossa. Da confermare al playtest.
+    (`systems/item-fusion.md`, "Domande aperte residue"; `ui/inventory-and-synergy-screen.md`,
+    nota di implementazione.)

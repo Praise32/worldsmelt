@@ -2931,6 +2931,113 @@ static bool RoomsTestHoleIsSolid(void)
     return false;
 }
 
+/* Test (o), WP4 (systems/special-rooms.md, "Stanza di fusione"): interazione
+   col crogiolo. Cerca fra i semi un piano che abbia trovato posto per
+   ROOM_FUSION, ci entra, e verifica l'intera catena: il crogiolo esiste come
+   Pickup di kind PICKUP_FUSION_ALTAR; toccarlo (stessa geometria di overlap di
+   ogni altro pickup, CombatUpdatePickups) scrive Game.fusionRoomTriggered
+   SENZA consumare il pickup (resta 'active'); UpdateApp lo legge e apre
+   APP_BUILD_SCREEN esattamente come farebbe TAB da Gameplay (la rete di
+   sicurezza che RESTA, vedi il commento su ROOM_FUSION in core/game_types.h),
+   consumando il segnale (torna falso); allontanandosi il blocco si scioglie,
+   cosi' il crogiolo resta ritoccabile per tutta la permanenza nella stanza. */
+static bool RoomsTestFusionInteraction(void)
+{
+    static const unsigned int kSeeds[] = {
+        1001u, 2002u, 3003u, 4004u, 5005u, 6006u, 7007u, 8008u, 20260727u, 424242u, 90210u, 5150u
+    };
+    for (int si = 0; si < (int)(sizeof(kSeeds)/sizeof(kSeeds[0])); si++)
+    {
+        for (int floor = 1; floor <= FLOOR_COUNT; floor++)
+        {
+            Game probe;
+            RoomsTestGenerateFloor(kSeeds[si], floor, &probe);
+            for (int y = 0; y < GRID_SIZE; y++)
+            {
+                for (int x = 0; x < GRID_SIZE; x++)
+                {
+                    if (!probe.rooms[y][x].exists) continue;
+                    const RoomState *state = WorldRoomAt(&probe, x, y);
+                    if (state != &probe.rooms[y][x]) continue;
+                    if (state->kind != ROOM_FUSION) continue;
+
+                    probe.roomX = x;
+                    probe.roomY = y;
+                    WorldSpawnRoomContents(&probe);
+
+                    Pickup *altar = NULL;
+                    for (int i = 0; i < MAX_PICKUPS; i++)
+                    {
+                        if (probe.pickups[i].active && probe.pickups[i].kind == PICKUP_FUSION_ALTAR)
+                        {
+                            altar = &probe.pickups[i];
+                            break;
+                        }
+                    }
+                    if (!altar)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: nessun crogiolo nella stanza di fusione\n",
+                                floor, kSeeds[si]);
+                        return false;
+                    }
+
+                    probe.player.pos = altar->pos;
+                    CombatUpdatePickups(&probe);
+                    if (!probe.fusionRoomTriggered)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: toccare il crogiolo non scrive fusionRoomTriggered\n",
+                                floor, kSeeds[si]);
+                        return false;
+                    }
+                    if (!altar->active)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: il crogiolo si e' consumato al tocco (non deve mai succedere)\n",
+                                floor, kSeeds[si]);
+                        return false;
+                    }
+
+                    AppGen gen; memset(&gen, 0, sizeof(gen));
+                    AppUi ui; memset(&ui, 0, sizeof(ui));
+                    AppMode mode = APP_GAMEPLAY;
+                    AppInput in; memset(&in, 0, sizeof(in));
+                    UpdateApp(&probe, &mode, &gen, &ui, &in);
+                    if (mode != APP_BUILD_SCREEN)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: il tocco del crogiolo non apre BuildScreen (mode=%d)\n",
+                                floor, kSeeds[si], (int)mode);
+                        return false;
+                    }
+                    if (probe.fusionRoomTriggered)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: UpdateApp non ha consumato fusionRoomTriggered\n",
+                                floor, kSeeds[si]);
+                        return false;
+                    }
+
+                    /* Allontanandosi il blocco si scioglie (CombatUpdatePickups,
+                       stessa disciplina del piedistallo degli attivi, DEC-117):
+                       il crogiolo resta ritoccabile per tutta la permanenza
+                       nella stanza, non un varco a uso singolo. */
+                    probe.player.pos = (Vector2){ altar->pos.x + 500.0f, altar->pos.y + 500.0f };
+                    CombatUpdatePickups(&probe);
+                    if (altar->locked)
+                    {
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: il crogiolo resta bloccato dopo che il giocatore si e' allontanato\n",
+                                floor, kSeeds[si]);
+                        return false;
+                    }
+
+                    printf("  [rooms-o] crogiolo (seed %u piano %d): pickup persistente, tocco -> fusionRoomTriggered -> UpdateApp apre BuildScreen, si sblocca allontanandosi -> ok\n",
+                           kSeeds[si], floor);
+                    return true;
+                }
+            }
+        }
+    }
+    fprintf(stderr, "GameRoomsTest: (o) nessuna stanza di fusione nei semi di prova: verifica non eseguita\n");
+    return false;
+}
+
 /* Le stanze del piano, una riga per stanza (la sua cella di STATO). */
 typedef struct RoomsTestRoom {
     int stateX, stateY;
@@ -2986,6 +3093,11 @@ bool GameRoomsTest(Game *game)
     int bossSizeSeen[ROOM_SIZE_COUNT];
     for (int i = 0; i < (int)ROOM_SIZE_COUNT; i++) bossSizeSeen[i] = 0;
     int floorsChecked = 0;
+    /* WP4 (o): quanti dei piani/semi sotto hanno trovato posto per la stanza di
+       fusione -- "quando la fusione trova posto le garanzie esistenti reggono"
+       (spec del work package) presuppone che il giro di prova la eserciti
+       davvero almeno una volta, non solo che non si rompa quando manca. */
+    int floorsWithFusion = 0;
 
     for (int floor = 1; floor <= FLOOR_COUNT; floor++)
     {
@@ -3000,6 +3112,11 @@ bool GameRoomsTest(Game *game)
             int cellCount = 0;
             int bossRooms = 0, startRooms = 0;
             int bossX = -1, bossY = -1;
+            /* WP4: quante stanze di fusione compaiono in QUESTO piano (al piu'
+               una, WorldPlaceSpecialRoom fa un solo tentativo) e la sua cella di
+               stato, per il controllo (o) sotto. */
+            int fusionRooms = 0;
+            int fusionX = -1, fusionY = -1;
 
             /* (a) ogni CELLA esistente appartiene a una stanza sola, e la
                stanza e' una delle cinque classi di DEC-170; (b) niente
@@ -3022,6 +3139,7 @@ bool GameRoomsTest(Game *game)
                 sizeSeen[size]++;
                 if (rooms[r].kind == ROOM_BOSS) { bossRooms++; bossSizeSeen[size]++; bossX = rooms[r].stateX; bossY = rooms[r].stateY; }
                 if (rooms[r].kind == ROOM_START) startRooms++;
+                if (rooms[r].kind == ROOM_FUSION) { fusionRooms++; fusionX = rooms[r].stateX; fusionY = rooms[r].stateY; }
                 cellCount += bits;
 
                 /* La forma a L e' TRE celle di un blocco 2x2 con un angolo
@@ -3094,12 +3212,48 @@ bool GameRoomsTest(Game *game)
                 ok = false;
             }
 
+            /* (o) WP4: al piu' una stanza di fusione per piano (un solo
+               tentativo di piazzamento, mai garantito -- puo' anche essere
+               zero) e, quando c'e', mai adiacente alla stanza boss --
+               WorldPlaceSpecialRoom scarta gia' le celle candidate che la
+               toccano (stessa regola di tesoro/negozio, DEC-182), ma questo
+               test lo verifica sul risultato invece di fidarsi soltanto
+               dell'implementazione. */
+            if (fusionRooms > 1)
+            {
+                fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: %d stanze di fusione (atteso al piu' 1)\n",
+                        floor, kSeeds[si], fusionRooms);
+                ok = false;
+            }
+            if (fusionRooms == 1)
+            {
+                floorsWithFusion++;
+                const RoomState *fusionState = &probe.rooms[fusionY][fusionX];
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!(fusionState->cells & (unsigned char)(1u << i))) continue;
+                    int cx = fusionState->originX + (i & 1), cy = fusionState->originY + (i >> 1);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = cx + ((d == DIR_RIGHT) - (d == DIR_LEFT));
+                        int ny = cy + ((d == DIR_DOWN) - (d == DIR_UP));
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                        if (!probe.rooms[ny][nx].exists) continue;
+                        if (WorldRoomAt(&probe, nx, ny)->kind != ROOM_BOSS) continue;
+                        fprintf(stderr, "GameRoomsTest: (o) piano %d seed %u: la stanza di fusione tocca la stanza boss\n",
+                                floor, kSeeds[si]);
+                        ok = false;
+                    }
+                }
+            }
+
             /* (c) banda attesa delle CELLE: il budget e' 6+piano+(0..3), piu'
-               fino a 4 celle di stanza boss e 2 celle speciali; una forma
-               grande puo' sforare il budget di al massimo 3 celle (l'ultima
-               piazzata). */
+               fino a 4 celle di stanza boss e 3 celle speciali (tesoro,
+               negozio, fusione -- WP4 aggiunge la terza 1x1 al piano); una
+               forma grande puo' sforare il budget di al massimo 3 celle
+               (l'ultima piazzata). */
             int lowerBound = 6 + floor;
-            int upperBound = 6 + floor + 3 + 3 + 4 + 2;
+            int upperBound = 6 + floor + 3 + 3 + 4 + 3;
             if (existing < lowerBound || existing > upperBound)
             {
                 fprintf(stderr, "GameRoomsTest: (c) piano %d seed %u ha %d celle, fuori dalla banda attesa [%d,%d]\n",
@@ -3394,16 +3548,28 @@ bool GameRoomsTest(Game *game)
                 bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
         ok = false;
     }
+    /* (o) WP4: la stanza di fusione deve trovare posto ALMENO una volta nel
+       giro di prova, o il resto del controllo (o) sopra (unicita', mai
+       adiacente al boss) non avrebbe mai esercitato nulla di davvero
+       piazzato. */
+    if (floorsWithFusion == 0)
+    {
+        fprintf(stderr, "GameRoomsTest: (o) la stanza di fusione non trova mai posto in %d piani generati\n", floorsChecked);
+        ok = false;
+    }
 
-    printf("  [rooms-abcdefijlmn] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
+    printf("  [rooms-abcdefijlmno] %d piani x %d semi: minimo garantito, forme valide senza sovrapposizioni (1x1 %d, 1x2 %d, 2x1 %d, 2x2 %d, L %d), celle %d valori diversi, porte coerenti (una per coppia, DEC-181), boss foglia+connettivita' senza boss (DEC-182), connettivita', determinismo, transizioni -> %s\n",
            FLOOR_COUNT, kSeedCount, sizeSeen[ROOM_SIZE_1X1], sizeSeen[ROOM_SIZE_1X2], sizeSeen[ROOM_SIZE_2X1],
            sizeSeen[ROOM_SIZE_2X2], sizeSeen[ROOM_SIZE_L], seenCountsN, ok ? "ok" : "FALLITO");
     printf("  [rooms-f] stanza boss 2x2 in %d piani su %d (il resto ripiega su una classe piu' piccola quando la griglia e' satura o quando la 2x2 non troverebbe una sola stanza vicina, DEC-182)\n",
            bossSizeSeen[ROOM_SIZE_2X2], floorsChecked);
+    printf("  [rooms-o] stanza di fusione (WP4) piazzata in %d piani su %d, mai adiacente al boss, mai piu' di una per piano\n",
+           floorsWithFusion, floorsChecked);
 
     if (!RoomsTestMinSizeStillPlayable()) ok = false;
     if (!RoomsTestCameraClamp()) ok = false;
     if (!RoomsTestHoleIsSolid()) ok = false;
+    if (!RoomsTestFusionInteraction()) ok = false;
 
     return ok;
 }

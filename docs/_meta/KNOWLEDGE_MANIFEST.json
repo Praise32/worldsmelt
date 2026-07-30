@@ -1646,7 +1646,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (28 voci attive su 29 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (30 voci attive su 31 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione e produzione AI/asset.",
       "topics": [
         "open-questions",
         "governance",
@@ -1660,7 +1660,8 @@
         "DEC-176",
         "DEC-051",
         "DEC-008",
-        "DEC-043"
+        "DEC-043",
+        "WP4"
       ],
       "related": [],
       "supersedes": [],
@@ -1923,15 +1924,18 @@
         "demo",
         "dataset-cc0",
         "DEC-175",
-        "indirezione-image-id"
+        "indirezione-image-id",
+        "WP4",
+        "ROOM_FUSION"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
         "src/gameplay/fusion.c",
-        "src/content/curated_images.c"
+        "src/content/curated_images.c",
+        "src/world/world.c"
       ],
-      "last_reviewed": "2026-07-28",
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "82a0232"
     },
     {
@@ -2164,18 +2168,25 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md.",
+      "summary": "Dettaglio dei cinque archetipi speciali (DEC-010, esteso da DEC-051): fusione, segreta a due livelli (DEC-025), arena di sfida, scambio ad alto rischio — unico luogo per patti a costo salute (DEC-026), con offerta e prezzo generati dentro un budget di equità (DEC-044) — e stanza a tempo nei piani avanzati (DEC-051) — sottoinsieme dichiarato della tassonomia di rooms-and-floor-generation.md. La stanza di fusione (WP4, 30/07) è il primo dei quattro archetipi speciali con un RoomKind fisico nel motore.",
       "topics": [
         "stanze-speciali",
         "fusione",
         "scambio-alto-rischio",
         "arena-di-sfida",
-        "stanza-a-tempo"
+        "stanza-a-tempo",
+        "WP4",
+        "ROOM_FUSION"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
-      "last_reviewed": "2026-07-22",
+      "source_files": [
+        "src/world/world.c",
+        "src/core/game_types.h",
+        "src/gameplay/combat.c",
+        "src/render/game_renderer.c"
+      ],
+      "last_reviewed": "2026-07-30",
       "last_verified_commit": "0ec60d0"
     },
     {
