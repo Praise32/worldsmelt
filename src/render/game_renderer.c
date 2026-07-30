@@ -18,6 +18,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Fase 4 (GUI completa con raygui): applica al tema globale di raygui i colori
@@ -2655,10 +2656,14 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse)
     return -1;
 }
 
-/* Una voce di menu: riquadro pieno + bordo se ha il focus da tastiera
-   ('focus'), un riempimento piu' tenue al solo passaggio del mouse (DEC-057:
-   il mouse e' ammesso, ma non "ruba" il focus da tastiera solo passandoci
-   sopra -- quello lo fa un click vero, gestito in UpdateApp). uiScale si
+/* Una voce di menu: riquadro pieno + bordo se ha il focus ('focus').
+   W9 (playtest round 1, copertura mouse totale): il passaggio del mouse
+   SPOSTA il focus (UpdateApp lo fa PRIMA di questa chiamata, stesso frame --
+   vedi il commento sul passo "hover" in UpdateApp), quindi 'hover' qui sotto
+   coincide quasi sempre con 'hasFocus' per costruzione; resta calcolato a
+   parte (invece di essere tolto) perche' e' innocuo e protegge il caso limite
+   in cui la geometria letta qui (a disegno) e quella letta da UpdateApp (un
+   frame "fa", nello stesso game loop) potessero mai divergere. 'uiScale' si
    ricalcola qui dalla finestra VERA (non e' un parametro): stessa fonte di
    MenuItemRect, che questa funzione chiama per la propria geometria -- cosi'
    il font della riga scala sempre in accordo col riquadro che lo contiene,
@@ -2788,13 +2793,67 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
         DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
 
+/* Geometria della barra di una riga-slider (indice 0..2: generale/musica/
+   effetti), separata dal disegno (W9, playtest round 1: le barre diventano
+   TRASCINABILI col mouse) -- stessa ragione di MenuItemRect/ThemeCardRectFor:
+   una sola fonte, sia per disegnare la barra sia per il hit-test/trascinamento
+   che UpdateApp (src/app/app.c) le applica in RendererOptionsSliderValueAt
+   sotto. 'sw'/'sh' espliciti (mai GetScreenWidth/Height qui dentro) cosi'
+   resta nello stile "For" del resto del file, testabile su risoluzioni
+   sintetiche. */
+static Rectangle OptionsSliderBarRectFor(int index, float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    Rectangle row = MenuItemRectFor(APP_OPTIONS, index, sw, sh);
+    float barW = row.width*0.42f;
+    float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
+    return (Rectangle){ barX, row.y, barW, row.height };
+}
+
+/* Il valore 0..1 che corrisponde a una posizione orizzontale del mouse dentro
+   la barra della riga-slider 'index' (schermo VERO, come RendererMenuItemAt):
+   clampato ai due estremi, cosi' trascinare oltre il bordo della barra non fa
+   'perdere' il valore 0%/100%, il comportamento atteso di uno slider.
+   W9 correzione round 0 (MINORE): il risultato viene poi AGGANCIATO al passo
+   di OPTIONS_VOLUME_STEP (arrotondamento alla casella piu' vicina delle
+   OPTIONS_VOLUME_CELLS) -- senza questo, il trascinamento produceva un valore
+   CONTINUO (es. 47.6%) che nessun input da tastiera puo' mai produrre
+   (sinistra/destra si muovono solo a passi del 10%, docs/design/ui/
+   options-and-accessibility.md) e che la barra a caselle non puo'
+   rappresentare fedelmente. Il clamp resta comunque valido dopo lo snap
+   (0.0 e 1.0 sono gia' multipli esatti del passo). */
+float RendererOptionsSliderValueAt(int index, float mouseX)
+{
+    Rectangle bar = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    if (bar.width <= 0.0f) return 0.0f;
+    float raw = GameMathClampFloat((mouseX - bar.x)/bar.width, 0.0f, 1.0f);
+    float snapped = roundf(raw/OPTIONS_VOLUME_STEP)*OPTIONS_VOLUME_STEP;
+    return GameMathClampFloat(snapped, 0.0f, 1.0f);
+}
+
+/* W9, correzione dopo tripla bocciatura del passo mouse: il cancello del
+   PRESS. Senza questo, il click su QUALUNQUE punto della riga (etichetta e
+   frecce comprese) veniva mappato sulla barra da ValueAt, e il clamp lo
+   trasformava in 0%/100%: un click di navigazione non deve mai cambiare un
+   volume. Il margine di presa rende comoda la barra senza inghiottire la
+   riga; una volta aperto il trascinamento, conta solo la X (comportamento
+   da slider gia' esistente in UpdateApp). Stessa geometria di ValueAt. */
+bool RendererOptionsSliderHit(int index, Vector2 mouse)
+{
+    Rectangle bar = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    float slack = 6.0f*UiScaleForHeight((float)GetScreenHeight());
+    Rectangle grab = { bar.x - slack, bar.y, bar.width + 2.0f*slack, bar.height };
+    return CheckCollisionPointRec(mouse, grab);
+}
+
 /* Una riga-slider del menu Opzioni (W8): etichetta, barra a passi discreti,
    valore in percentuale. La barra e' fatta di CASELLE e non di un cursore
    continuo -- il volume si muove a passi del 10% (OPTIONS_VOLUME_STEP), e dieci
    caselle dicono a colpo d'occhio quante ce ne sono e quante sono accese, cosa
    che un cursore su una guida liscia non dice. Le frecce ai due lati
-   dell'etichetta sono il promemoria del comando (DEC-057: la tastiera e' la via
-   primaria, il mouse e' ammesso ma non obbligatorio).
+   dell'etichetta sono il promemoria del comando da tastiera; W9: la barra e'
+   anche trascinabile col mouse (RendererOptionsSliderValueAt, applicata da
+   UpdateApp), DEC-057, il mouse e' ammesso nei menu.
    Il valore si legge SIA dalla barra SIA dalla percentuale scritta: nessuna
    informazione affidata al solo colore o alla sola lunghezza (DEC-058). */
 static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const char *label, float value)
@@ -2809,10 +2868,13 @@ static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const c
     snprintf(percent, sizeof(percent), "%d%%", (int)(GameMathClampFloat(value, 0.0f, 1.0f)*100.0f + 0.5f));
 
     /* La barra occupa la meta' destra della riga, il testo la sinistra: cosi'
-       un'etichetta piu' lunga non spinge mai la barra fuori dal riquadro. */
+       un'etichetta piu' lunga non spinge mai la barra fuori dal riquadro.
+       barX/barW vengono da OptionsSliderBarRectFor sopra -- stessa geometria
+       del trascinamento, mai due formule a rischio di disallinearsi. */
     float cellGap = 2.0f*uiScale;
-    float barW = row.width*0.42f;
-    float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
+    Rectangle barRect = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    float barW = barRect.width;
+    float barX = barRect.x;
     float cellW = (barW - cellGap*(float)(OPTIONS_VOLUME_CELLS - 1))/(float)OPTIONS_VOLUME_CELLS;
     float cellH = UiRound(12.0f*uiScale);
     float barY = row.y + (row.height - cellH)*0.5f;
@@ -2941,6 +3003,24 @@ static void DrawFusionSourceSlot(const Game *game, int field, int ordinal, int x
                     filled ? RAYWHITE : (Color){ 140, 148, 162, 255 }, width - (textX - x) - UiRound(10.0f*uiScale));
 }
 
+/* W9 correzione round 1 (MINORE, "nessun percorso col solo mouse porta a
+   termine una fusione"): geometria della riga di stato/azione della fascia
+   FUSIONE -- quella che dice "fondi" quando si puo' fondere e il PERCHE' no
+   altrimenti. Fattorizzata perche' e' l'unica fonte sia del disegno (sotto) sia
+   del hit-test del mouse (RendererFusionConfirmAt): un click qui vale [F],
+   stessa funzione (AppFusionConfirm), stesso messaggio di esito anche quando la
+   fusione non si puo' fare. La riga e' un po' piu' alta del testo (22 contro 14
+   punti di font) perche' un bersaglio di click sotto i ~20 px e' scomodo; resta
+   ben separata sia dalle righe oggetto sopra (che finiscono prima di 'bandY',
+   vedi BuildScreenItemListLayoutFor) sia dalla riga "Indietro" sotto
+   (MenuItemRectFor: box.y + box.height - 46*uiScale), verificato da
+   RendererMouseHitTestSelfTest. */
+static Rectangle FusionConfirmRowRectFor(int x, int y, int width, float uiScale)
+{
+    int hy = y + UiRound(10.0f*uiScale) + UiRound(24.0f*uiScale) + UiRound(40.0f*uiScale);
+    return (Rectangle){ (float)x, (float)hy - 2.0f*uiScale, (float)width, 22.0f*uiScale };
+}
+
 static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width, float uiScale)
 {
     const Player *p = &game->player;
@@ -2968,8 +3048,20 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
        -- e' lo stesso testo che comparirebbe premendo F, mostrato prima di
        premerlo. */
     FusionStatus status = FusionCheck(p, FUSION_UI_SLOT(ui->fusionSourceA), FUSION_UI_SLOT(ui->fusionSourceB));
-    int hy = sy + UiRound(40.0f*uiScale);
-    DrawTextClipped(status == FUSION_OK ? "[F] fondi -- i due oggetti e un Flux si consumano" : FusionStatusText(status),
+    /* La quota della riga viene dalla SUA geometria (FusionConfirmRowRectFor
+       sopra), non da un secondo calcolo: e' anche il bersaglio del click. */
+    Rectangle confirmRow = FusionConfirmRowRectFor(x, y, width, uiScale);
+    /* Hover del mouse sulla riga (AppUi.fusionConfirmHover): velo leggero
+       dello stesso verde della conferma, cosi' il bersaglio cliccabile si
+       vede PRIMA del click, come per ogni voce di menu. */
+    if (ui->fusionConfirmHover)
+        DrawRectangleRec(confirmRow, (Color){ 126, 232, 152, 30 });
+    int hy = (int)(confirmRow.y + 2.0f*uiScale);
+    /* W9 correzione round 1: l'etichetta nomina ENTRAMBE le vie, perche' adesso
+       la riga e' anche cliccabile (DEC-057: il mouse e' ammesso in tutto cio'
+       che e' menu, e senza questo un giocatore col solo mouse non poteva
+       portare a termine nessuna fusione). */
+    DrawTextClipped(status == FUSION_OK ? "[F] o click: fondi -- consuma 2 oggetti + 1 Flux" : FusionStatusText(status),
                     x, hy, UiRound(14.0f*uiScale),
                     status == FUSION_OK ? (Color){ 126, 232, 152, 255 } : (Color){ 205, 160, 160, 255 }, width);
 
@@ -2998,6 +3090,110 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
     DrawTextClipped(ui->fusionMessage, textX, ry + UiRound(22.0f*uiScale), UiRound(13.0f*uiScale), (Color){ 176, 184, 198, 255 }, textW);
 }
 
+/* W9 (playtest round 1, copertura mouse totale): geometria della colonna
+   sinistra di BuildScreen -- la parte che conta per il hit-test del mouse
+   sulla lista OGGETTI PRESI (RendererBuildItemRowAt sotto). Fattorizzata fuori
+   da DrawBuildScreenOverlay perche' e' l'UNICA fonte di questa geometria, sia
+   per disegnare le righe sia per sapere quale riga c'e' sotto il puntatore --
+   stesso principio di MenuBoxForMode/MenuItemRect (vedi il commento li'
+   sopra): duplicarla avrebbe fatto disallineare "cosa si vede" da "cosa si
+   clicca" al primo ritocco di uno dei due lati. Chiama DrawBuildBlock in
+   modalita' SOLA MISURA (measureOnly=true): l'altezza del blocco BUILD dipende
+   dal numero di sinergie attive, quindi anche il punto in cui comincia la
+   lista OGGETTI PRESI e' dinamico -- non si puo' indovinarlo senza rifare
+   la stessa misura che fa il disegno vero.
+   W9 correzione round 1 (BOCCIATO): la finestra visibile ('first') dipende SOLO
+   da 'ui->buildItemScroll', MAI da 'ui->buildItemFocus' -- vedi il commento su
+   quel campo in game_types.h. Con la vecchia formula "first = focus - maxShow +
+   1" lo slot inferiore era l'unico punto fisso della mappatura punto->riga, e
+   l'hover del mouse (che scrive il focus) faceva scorrere la lista da sola di
+   uno step per ogni frame di movimento. Chi muove il focus tiene l'ancora
+   allineata da src/app/app.c (AppBuildScrollFollowFocus), che per sapere
+   quante righe stanno nella finestra chiama RendererBuildItemRowsVisible qui
+   sotto: STESSA misura, mai una copia. */
+static void BuildScreenItemListLayoutFor(Game *game, const AppUi *ui, float sw, float sh,
+                                          int *outInnerX, int *outLeftW, int *outLy, int *outBandY,
+                                          int *outRowStep, int *outFirst, int *outMaxShow, int *outCount)
+{
+    float uiScale = UiScaleForHeight(sh);
+    Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, sw, sh);
+    int innerX = (int)box.x + UiRound(40.0f*uiScale);
+    int innerY = (int)box.y + UiRound(52.0f*uiScale);
+    int innerW = (int)box.width - UiRound(80.0f*uiScale);
+    int leftW = (int)(innerW*0.56f);
+    int rowStep = UiRound(64.0f*uiScale);
+    int bandY = (int)(box.y + box.height) - UiRound(FUSION_BAND_H_BASE*uiScale) - UiRound(14.0f*uiScale);
+
+    int ly = innerY;
+    int buildH = DrawBuildBlock(game, innerX, ly, leftW, uiScale, true);   /* measureOnly: nessun disegno */
+    ly += buildH + UiRound(12.0f*uiScale);
+    ly += UiRound(28.0f*uiScale);   /* l'etichetta "OGGETTI PRESI" */
+
+    int count = GameMathClampInt(game->player.itemCount, 0, MAX_ITEMS);
+    int maxShow = (bandY - ly)/rowStep;
+    if (maxShow < 1) maxShow = 1;
+    int first = ui->buildItemScroll;
+    if (first > count - maxShow) first = count - maxShow;
+    if (first < 0) first = 0;
+
+    *outInnerX = innerX; *outLeftW = leftW; *outLy = ly; *outBandY = bandY;
+    *outRowStep = rowStep; *outFirst = first; *outMaxShow = maxShow; *outCount = count;
+}
+
+/* Zona cliccabile della riga di un oggetto posseduto nella lista OGGETTI PRESI
+   di BuildScreen (DEC-057/DEC-143: selezionare le due sorgenti della fusione
+   e' gia' un'azione di menu ammessa al mouse) -- indice dentro Player.items[],
+   o -1 se il punto non cade su nessuna riga visibile (finestra scorrevole:
+   solo le righe DAVVERO disegnate in questo momento sono cliccabili, esattamente
+   quelle che il giocatore vede). */
+/* Quante righe della lista OGGETTI PRESI stanno DAVVERO nella finestra
+   visibile, con la geometria corrente (dipende dall'altezza della finestra e
+   dal numero di sinergie attive, che spingono giu' l'inizio della lista) --
+   l'unico dato di questa geometria che src/app/app.c deve conoscere per tenere
+   l'ancora di scorrimento ('AppUi.buildItemScroll') allineata al focus.
+   Sempre >= 1. Non dipende dall'ancora ne' dal focus, quindi 'ui' non serve. */
+int RendererBuildItemRowsVisible(Game *game)
+{
+    AppUi probe = { 0 };   /* solo per la firma: la misura non legge nessun campo di scorrimento */
+    int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
+    BuildScreenItemListLayoutFor(game, &probe, (float)GetScreenWidth(), (float)GetScreenHeight(),
+                                  &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
+    (void)innerX; (void)leftW; (void)ly; (void)bandY; (void)rowStep; (void)first; (void)count;
+    return maxShow > 0 ? maxShow : 1;
+}
+
+int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse)
+{
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    float uiScale = UiScaleForHeight(sh);
+    int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
+    BuildScreenItemListLayoutFor(game, ui, sw, sh, &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
+    (void)bandY;
+    for (int i = first; i < count && i - first < maxShow; i++)
+    {
+        int rowY = ly + (i - first)*rowStep;
+        Rectangle row = { (float)innerX, (float)rowY, (float)leftW, 58.0f*uiScale };
+        if (CheckCollisionPointRec(mouse, row)) return i;
+    }
+    return -1;
+}
+
+/* Zona cliccabile della riga di conferma della fascia FUSIONE: un click qui
+   equivale a [F] (W9 correzione round 1 -- vedi FusionConfirmRowRectFor sopra).
+   Geometricamente indipendente dallo scorrimento della lista: la fascia sta
+   sempre in fondo al riquadro, quindi 'ui' non serve al chiamante. */
+bool RendererFusionConfirmAt(Game *game, Vector2 mouse)
+{
+    AppUi probe = { 0 };   /* la posizione della fascia non dipende da nessun campo di 'ui' */
+    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
+    BuildScreenItemListLayoutFor(game, &probe, (float)GetScreenWidth(), (float)GetScreenHeight(),
+                                  &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
+    (void)ly; (void)rowStep; (void)first; (void)maxShow; (void)count;
+    return CheckCollisionPointRec(mouse, FusionConfirmRowRectFor(innerX, bandY, leftW, uiScale));
+}
+
 static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
@@ -3011,41 +3207,29 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
        gioco rimanda con la sua riga compatta. Due colonne: a sinistra la build
        vera (colpo + sinergie + oggetti presi), a destra le statistiche e cosa
        offre il piano corrente. Stesse fonti dati del vecchio pannello GIOCATORE. */
-    int innerX = (int)box.x + UiRound(40.0f*uiScale);
+    int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
+    BuildScreenItemListLayoutFor(game, ui, (float)GetScreenWidth(), (float)GetScreenHeight(),
+                                  &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     int innerY = (int)box.y + UiRound(52.0f*uiScale);
     int innerW = (int)box.width - UiRound(80.0f*uiScale);
     int gap = UiRound(28.0f*uiScale);
-    int leftW = (int)(innerW*0.56f);
     int rightX = innerX + leftW + gap;
     int rightW = innerW - leftW - gap;
-    int rowStep = UiRound(64.0f*uiScale);
-    /* La fascia della FUSIONE sta in fondo alla colonna SINISTRA, sotto la
-       lista degli oggetti su cui opera: e' li' che il giocatore sta gia'
-       guardando quando sceglie le due sorgenti. La colonna destra
-       (statistiche e oggetti del piano) le scorre accanto, intatta. */
-    int bandY = (int)(box.y + box.height) - UiRound(FUSION_BAND_H_BASE*uiScale) - UiRound(14.0f*uiScale);
 
-    /* Colonna sinistra: colpo + sinergie, poi gli oggetti presi. */
-    int ly = innerY;
-    int buildH = DrawBuildBlock(game, innerX, ly, leftW, uiScale, false);
-    ly += buildH + UiRound(12.0f*uiScale);
-    UiText("OGGETTI PRESI", innerX, ly, UiRound(16.0f*uiScale), game->theme.accent2);
-    ly += UiRound(28.0f*uiScale);
+    /* Colonna sinistra: colpo + sinergie, poi gli oggetti presi (disegnate SUL
+       SERIO stavolta, measureOnly=false -- BuildScreenItemListLayoutFor sopra
+       ha gia' fatto la stessa chiamata solo per misurare). */
+    DrawBuildBlock(game, innerX, innerY, leftW, uiScale, false);
+    UiText("OGGETTI PRESI", innerX, ly - UiRound(28.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
     if (p->itemCount == 0) UiText("Nessun oggetto ancora.", innerX, ly, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
     else
     {
         /* Finestra scorrevole: la riga a fuoco resta sempre visibile anche
            con piu' oggetti di quanti ne stiano nel riquadro (l'inventario
            arriva a MAX_ITEMS, la finestra ne mostra 3-4). Senza, selezionare
-           il decimo oggetto sarebbe impossibile a occhio. */
-        int maxShow = (bandY - ly)/rowStep;
-        if (maxShow < 1) maxShow = 1;
-        int count = GameMathClampInt(p->itemCount, 0, MAX_ITEMS);
+           il decimo oggetto sarebbe impossibile a occhio. 'first'/'maxShow'
+           vengono gia' calcolati da BuildScreenItemListLayoutFor sopra. */
         int focus = GameMathClampInt(ui->buildItemFocus, 0, count - 1);
-        int first = focus - maxShow + 1;
-        if (first < 0) first = 0;
-        if (first > count - maxShow) first = count - maxShow;
-        if (first < 0) first = 0;
         for (int i = first; i < count && i - first < maxShow; i++)
         {
             int rowY = ly + (i - first)*rowStep;
@@ -3444,26 +3628,34 @@ static Rectangle ThemeCardRectFor(Rectangle box, int index, int count, float uiS
     return (Rectangle){ box.x + pad + (float)index*(cardW + gap), box.y + pad + titleH, cardW, cardH };
 }
 
-/* M6a, requisito 3: le due schedine "MONDI"/"PERSONAGGI" in cima al pannello
- * combinato -- dicono quale sezione ha il focus da tastiera (su/giu' la
- * cambia). Come il focus di una carta (DEC-058), MAI il solo colore: la
- * sezione attiva ha un bordo piu' spesso, e' leggermente sollevata (stesso
- * trucco di "scala" delle carte, qui verticale) e porta lo stesso piccolo
- * triangolo puntato verso il basso, sopra le carte della sua sezione. */
-static void DrawFloorZeroSectionTabs(Rectangle box, int section, float uiScale, Color accent)
+/* Geometria di UNA delle due schedine MONDI/PERSONAGGI (indice 0/1), PRIMA del
+ * sollevamento visivo che la sezione attiva riceve in DrawFloorZeroSectionTabs
+ * -- fattorizzata (W9, playtest round 1) perche' RendererFloorZeroSectionTabAt
+ * (hit-test del mouse) deve interrogare la STESSA area cliccabile che si vede,
+ * mai una copia a parte. */
+static Rectangle FloorZeroSectionTabRectFor(Rectangle box, int s, float uiScale)
 {
     float pad = 22.0f*uiScale;
     float tabY = box.y + 8.0f*uiScale;
     float tabH = 22.0f*uiScale;
-    Rectangle tabs[2] = {
-        { box.x + pad, tabY, 150.0f*uiScale, tabH },
-        { box.x + pad + 158.0f*uiScale, tabY, 170.0f*uiScale, tabH },
-    };
+    if (s == 0) return (Rectangle){ box.x + pad, tabY, 150.0f*uiScale, tabH };
+    return (Rectangle){ box.x + pad + 158.0f*uiScale, tabY, 170.0f*uiScale, tabH };
+}
+
+/* M6a, requisito 3: le due schedine "MONDI"/"PERSONAGGI" in cima al pannello
+ * combinato -- dicono quale sezione ha il focus (su/giu' da tastiera, click
+ * diretto col mouse da W9, RendererFloorZeroSectionTabAt). Come il focus di
+ * una carta (DEC-058), MAI il solo colore: la sezione attiva ha un bordo piu'
+ * spesso, e' leggermente sollevata (stesso trucco di "scala" delle carte, qui
+ * verticale) e porta lo stesso piccolo triangolo puntato verso il basso, sopra
+ * le carte della sua sezione. */
+static void DrawFloorZeroSectionTabs(Rectangle box, int section, float uiScale, Color accent)
+{
     const char *labels[2] = { "MONDI", "PERSONAGGI" };
     for (int s = 0; s < 2; s++)
     {
         bool active = (s == section);
-        Rectangle tab = tabs[s];
+        Rectangle tab = FloorZeroSectionTabRectFor(box, s, uiScale);
         if (active) { tab.y -= 3.0f*uiScale; tab.height += 3.0f*uiScale; }
         DrawRectangleRec(tab, active ? GameColorWithAlpha(accent, 50) : GameColorWithAlpha(BLACK, 120));
         DrawRectangleLinesEx(tab, active ? 2.5f : 1.0f, active ? accent : GameColorWithAlpha(accent, 130));
@@ -3628,13 +3820,27 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
 
 /* Il pannello COMBINATO MONDI/PERSONAGGI (M5 requisito 9 + M6a requisito 3):
  * TAB lo apre/chiude (src/app/app.c), su/giu' cambia sezione, sinistra/
- * destra sposta il focus, conferma sceglie -- MAI il click (l'ambiguita'
- * DEC-057 sul mouse in FloorZero resta una domanda aperta della KB). A
+ * destra sposta il focus, conferma sceglie. W9 (playtest round 1, DEC-075):
+ * il mouse ora ci entra anche lui -- hover sposta il focus, click sceglie,
+ * esattamente come una voce di menu (RendererFloorZeroCardAt/
+ * RendererFloorZeroSectionTabAt/RendererFloorZeroHintChipAt, sotto). A
  * differenza di M5, questo pannello NON smette di disegnare nulla dopo la
  * scelta del mondo: la sezione PERSONAGGI resta viva per tutta la
  * permanenza nel Piano 0 (requisito 1). Il riepilogo persistente lo fa
  * comunque DrawFloorZeroSummary sotto, per chi vuole lo stato SENZA aprire
  * il pannello. */
+/* Il fumetto "TAB o click -- mondo e personaggio" mostrato quando il pannello e'
+ * chiuso -- fattorizzato (W9) perche' RendererFloorZeroHintChipAt deve poterlo
+ * aprire anche con un click, sulla STESSA area che si vede. */
+static Rectangle FloorZeroHintChipRectFor(float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    const char *hint = "TAB o click -- mondo e personaggio";
+    int font = UiRound(14.0f*uiScale);
+    int tw = UiTextW(hint, font);
+    return (Rectangle){ sw*0.5f - ((float)tw*0.5f + 14.0f*uiScale), 80.0f*uiScale, (float)tw + 28.0f*uiScale, 26.0f*uiScale };
+}
+
 static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
 {
     if (game->themeCardCount <= 0) return;
@@ -3646,11 +3852,12 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
            il messaggio stabile "in attesa della scelta del mondo" (vedi
            AppFloorZeroStatusText) gia' dice CHE COSA manca prima della
            scelta; dopo, questo resta comunque l'invito a riaprire per
-           cambiare personaggio (requisito 1: sempre modificabile). */
-        const char *hint = "TAB -- mondo e personaggio";
+           cambiare personaggio (requisito 1: sempre modificabile). Cliccabile
+           da W9 (RendererFloorZeroHintChipAt): un click qui apre il pannello
+           esattamente come TAB. */
+        const char *hint = "TAB o click -- mondo e personaggio";
         int font = UiRound(14.0f*uiScale);
-        int tw = UiTextW(hint, font);
-        Rectangle box = { sw*0.5f - ((float)tw*0.5f + 14.0f*uiScale), 80.0f*uiScale, (float)tw + 28.0f*uiScale, 26.0f*uiScale };
+        Rectangle box = FloorZeroHintChipRectFor(sw, sh);
         DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
         DrawRectangleLinesEx(box, 1.5f, (Color){ 150, 158, 172, 180 });
         UiText(hint, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, (Color){ 205, 210, 220, 255 });
@@ -3664,7 +3871,7 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
     DrawFloorZeroSectionTabs(box, game->floorZeroPanelSection, uiScale, game->theme.accent2);
 
     const char *title = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
-                         ? "Scegli il mondo -- sinistra/destra, conferma (su/giu': personaggio)"
+                         ? "Scegli il mondo -- click o sinistra/destra, conferma (su/giu': personaggio)"
                          : "Scegli il personaggio -- sinistra/destra, conferma (su/giu': mondo)";
     UiText(title, (int)box.x + UiRound(20.0f*uiScale), (int)box.y + UiRound(42.0f*uiScale),
              UiRound(13.0f*uiScale), (Color){ 205, 210, 220, 255 });
@@ -3676,6 +3883,55 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
        quale. */
     if (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS) DrawWorldCards(game, box, uiScale);
     else DrawCharacterCards(game, box, uiScale);
+}
+
+/* Zona cliccabile di una carta della SEZIONE ATTIVA del pannello combinato
+ * (DEC-075: il Piano 0 conta come menu ai fini del mouse) -- stessa geometria
+ * di ThemeCardRectFor/DrawWorldCards/DrawCharacterCards, mai duplicata: il
+ * chiamante (UpdateApp) non conosce il layout, sa solo "quale carta sotto il
+ * mouse" e decide da solo, con game->floorZeroPanelSection, se e' una carta-
+ * mondo o una carta-personaggio. Ritorna -1 se il pannello e' chiuso, se il
+ * punto non cade su nessuna carta, o se la sezione attiva non ha ancora
+ * carte da mostrare. */
+int RendererFloorZeroCardAt(const Game *game, Vector2 mouse)
+{
+    if (!game->themeCardsPanelOpen) return -1;
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    float uiScale = UiScaleForHeight(sh);
+    Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
+    int count = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
+                ? game->themeCardCount : GameCharacterCardCount(game);
+    if (count <= 0) return -1;
+    for (int i = 0; i < count; i++)
+        if (CheckCollisionPointRec(mouse, ThemeCardRectFor(box, i, count, uiScale))) return i;
+    return -1;
+}
+
+/* Zona cliccabile delle due schedine MONDI/PERSONAGGI: click = cambia
+ * sezione, la stessa azione di su/giu' da tastiera. -1 se il pannello e'
+ * chiuso o il punto non cade su nessuna delle due. */
+int RendererFloorZeroSectionTabAt(const Game *game, Vector2 mouse)
+{
+    if (!game->themeCardsPanelOpen) return -1;
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    float uiScale = UiScaleForHeight(sh);
+    Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
+    for (int s = 0; s < 2; s++)
+        if (CheckCollisionPointRec(mouse, FloorZeroSectionTabRectFor(box, s, uiScale))) return s;
+    return -1;
+}
+
+/* Zona cliccabile del fumetto "TAB o click -- mondo e personaggio" mostrato quando il
+ * pannello e' chiuso: un click qui lo apre, come TAB. Falso se il pannello e'
+ * gia' aperto o se le carte non sono ancora pronte (il fumetto stesso non si
+ * disegna in quel caso, vedi DrawFloorZeroPanel). */
+bool RendererFloorZeroHintChipAt(const Game *game, Vector2 mouse)
+{
+    if (game->themeCardCount <= 0 || game->themeCardsPanelOpen) return false;
+    Rectangle box = FloorZeroHintChipRectFor((float)GetScreenWidth(), (float)GetScreenHeight());
+    return CheckCollisionPointRec(mouse, box);
 }
 
 /* Riepilogo persistente di mondo + personaggio (M5 requisito 9 + M6a
@@ -3930,6 +4186,282 @@ bool UiLayoutSelfTest(void)
             fprintf(stderr, "UiLayoutSelfTest: (c) layout a 1600x900 diverge dalla formula DEC-137 (scale %.3f, atteso %.3f)\n", L.gameScale, expScale);
             return false;
         }
+    }
+
+    return true;
+}
+
+/* W9 (playtest round 1, "mouse ovunque"): hit-test delle geometrie che
+ * RendererMenuItemAt/UiLayoutSelfTest sopra NON coprono -- righe oggetti di
+ * BuildScreen, carte/schedine/fumetto del pannello combinato del Piano 0
+ * (DEC-075), barre trascinabili di Opzioni. A differenza di UiLayoutSelfTest,
+ * gira DOPO InitWindow (--mouse-hit-test, come --rooms-test/--fusion-test):
+ * BuildScreenItemListLayoutFor misura il blocco BUILD con DrawBuildBlock
+ * (measureOnly), che chiama UiTextW/MeasureText -- serve il font di default
+ * gia' caricato da raylib, quindi non puo' girare PRIMA della finestra come
+ * il self-test puramente matematico sopra.
+ * Stile "scansione a griglia" invece di ricalcolare a mano le formule di
+ * game_renderer.c: verifica che OGNI indice atteso sia raggiungibile da
+ * qualche punto dello schermo e che un punto lontano da tutto ritorni -1/false
+ * -- cosi' il test resta valido anche se le costanti di layout cambiano,
+ * l'importante e' che "cosa si vede" e "cosa si clicca" restino la stessa
+ * cosa (la garanzia che tutta questa fetta di file esiste per dare). 'game'
+ * e' quello gia' pronto passato da AppRun (GameResetRun gia' chiamata), stesso
+ * schema di GameRoomsTest/GameFusionTest. */
+bool RendererMouseHitTestSelfTest(Game *game)
+{
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+
+    /* (a) Opzioni: il valore lungo la barra e' clampato a [0,1] oltre i due
+       estremi, e monotono (mai decrescente) muovendo il mouse da sinistra a
+       destra -- il comportamento atteso di una barra trascinabile. */
+    for (int idx = 0; idx < 3; idx++)
+    {
+        float lo = RendererOptionsSliderValueAt(idx, -100000.0f);
+        float hi = RendererOptionsSliderValueAt(idx, 100000.0f);
+        if (lo != 0.0f || hi != 1.0f)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (a) slider %d non clampa a [0,1] (lo=%.3f hi=%.3f)\n", idx, lo, hi);
+            return false;
+        }
+        /* (a2) Il cancello del press (correzione di Fable): dentro la barra
+           si aggancia, sull'etichetta della riga no -- il difetto originale
+           era proprio un click sull'etichetta che azzerava il volume. */
+        {
+            Rectangle bar = OptionsSliderBarRectFor(idx, sw, sh);
+            Vector2 inside = { bar.x + bar.width*0.5f, bar.y + bar.height*0.5f };
+            Vector2 label = { bar.x - bar.width*0.5f, bar.y + bar.height*0.5f };
+            if (!RendererOptionsSliderHit(idx, inside) || RendererOptionsSliderHit(idx, label))
+            {
+                fprintf(stderr, "RendererMouseHitTestSelfTest: (a2) slider %d: il cancello del press non separa barra ed etichetta\n", idx);
+                return false;
+            }
+        }
+        float prev = -1.0f;
+        bool sawZero = false, sawOne = false;
+        for (int step = 0; step <= 40; step++)
+        {
+            float x = -50.0f + ((float)step/40.0f)*(sw + 100.0f);
+            float v = RendererOptionsSliderValueAt(idx, x);
+            if (v < -0.0001f || v > 1.0001f)
+            {
+                fprintf(stderr, "RendererMouseHitTestSelfTest: (a) slider %d fuori [0,1] a x=%.1f (v=%.3f)\n", idx, x, v);
+                return false;
+            }
+            if (v < prev - 0.0001f)
+            {
+                fprintf(stderr, "RendererMouseHitTestSelfTest: (a) slider %d non monotono a x=%.1f\n", idx, x);
+                return false;
+            }
+            if (v <= 0.0001f) sawZero = true;
+            if (v >= 0.9999f) sawOne = true;
+            prev = v;
+        }
+        if (!sawZero || !sawOne)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (a) slider %d non raggiunge sia 0%% sia 100%%\n", idx);
+            return false;
+        }
+    }
+
+    /* (b) BuildScreen: ogni riga dell'inventario (0..count-1) e' raggiungibile
+       da qualche punto dello schermo QUANDO l'ANCORA di scorrimento e' gia' li'
+       vicino -- la lista e' una finestra SCORREVOLE (BuildScreenItemListLayoutFor:
+       'first' viene da 'ui->buildItemScroll', esattamente come la barra di
+       scorrimento di un inventario piu' lungo della finestra), quindi non tutte
+       le righe sono disegnate INSIEME con un'ancora fissa -- si verifica riga
+       per riga, ciascuna con la propria ancora (equivalente a "ci si e' gia'
+       scorsi fin li'", che sia con su/giu' da tastiera o con la rotellina del
+       mouse in UpdateApp). Il CONTENUTO degli oggetti non conta per questa
+       geometria (BuildScreenItemListLayoutFor legge solo 'itemCount'), quindi
+       non serve popolare Player.items[] davvero.
+       W9 correzione round 1: si verifica ANCHE che la mappatura punto->riga sia
+       INDIPENDENTE da 'buildItemFocus' -- e' la garanzia strutturale che rompe
+       l'anello di retroazione dell'hover del mouse (l'hover scrive il focus; se
+       la finestra dipendesse dal focus, la lista scorrerebbe da sola ad ogni
+       frame di movimento del puntatore). */
+    {
+        int savedCount = game->player.itemCount;
+        game->player.itemCount = 5;
+
+        bool outOfRange = false;
+        bool seen[5] = { false };
+        for (int anchor = 0; anchor < 5; anchor++)
+        {
+            AppUi ui = { 0 };
+            ui.buildItemScroll = anchor;
+            for (float y = 0.0f; y < sh && !seen[anchor]; y += 4.0f)
+            {
+                for (float x = 0.0f; x < sw && !seen[anchor]; x += 8.0f)
+                {
+                    int row = RendererBuildItemRowAt(game, &ui, (Vector2){ x, y });
+                    if (row < -1 || row >= 5) { outOfRange = true; continue; }
+                    if (row == anchor) seen[anchor] = true;
+                }
+            }
+        }
+        AppUi farUi = { 0 };
+        bool farOutside = (RendererBuildItemRowAt(game, &farUi, (Vector2){ -500.0f, -500.0f }) != -1);
+
+        /* Indipendenza dal focus: stessa ancora, focus a ogni valore possibile
+           -- la riga sotto un punto qualunque non deve cambiare mai. */
+        bool focusLeaks = false;
+        {
+            AppUi refUi = { 0 };
+            refUi.buildItemScroll = 1;
+            for (int focusRow = 0; focusRow < 5 && !focusLeaks; focusRow++)
+            {
+                AppUi probe = refUi;
+                probe.buildItemFocus = focusRow;
+                for (float y = 0.0f; y < sh && !focusLeaks; y += 4.0f)
+                    for (float x = 0.0f; x < sw && !focusLeaks; x += 8.0f)
+                        if (RendererBuildItemRowAt(game, &probe, (Vector2){ x, y }) !=
+                            RendererBuildItemRowAt(game, &refUi, (Vector2){ x, y })) focusLeaks = true;
+            }
+        }
+        game->player.itemCount = savedCount;
+
+        if (outOfRange)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b) RendererBuildItemRowAt fuori range\n");
+            return false;
+        }
+        for (int i = 0; i < 5; i++)
+        {
+            if (!seen[i])
+            {
+                fprintf(stderr, "RendererMouseHitTestSelfTest: (b) riga oggetto %d mai raggiunta dalla scansione (con l'ancora su di essa)\n", i);
+                return false;
+            }
+        }
+        if (farOutside)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b) un punto fuori schermo colpisce comunque una riga\n");
+            return false;
+        }
+        if (focusLeaks)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b) la mappatura punto->riga dipende da buildItemFocus (anello di retroazione dell'hover, regressione W9)\n");
+            return false;
+        }
+    }
+
+    /* (b2) W9 correzione round 1: la riga di conferma della fascia FUSIONE e'
+       raggiungibile col mouse (il solo percorso mouse per portare a termine una
+       fusione) e NON si sovrappone ne' alle righe oggetto ne' alla riga
+       "Indietro" -- un click li' non deve mai fare due cose insieme (fondere e
+       uscire dalla schermata, o fondere e cambiare sorgente). Con la lista
+       PIENA (MAX_ITEMS), il caso peggiore per la sovrapposizione. */
+    {
+        int savedCount = game->player.itemCount;
+        game->player.itemCount = MAX_ITEMS;
+        AppUi ui = { 0 };
+
+        bool reachable = false, overlapRow = false, overlapBack = false;
+        for (float y = 0.0f; y < sh; y += 2.0f)
+            for (float x = 0.0f; x < sw; x += 4.0f)
+            {
+                Vector2 pt = { x, y };
+                if (!RendererFusionConfirmAt(game, pt)) continue;
+                reachable = true;
+                if (RendererBuildItemRowAt(game, &ui, pt) >= 0) overlapRow = true;
+                if (RendererMenuItemAt(APP_BUILD_SCREEN, pt) >= 0) overlapBack = true;
+            }
+        game->player.itemCount = savedCount;
+
+        if (!reachable)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione non e' raggiungibile\n");
+            return false;
+        }
+        if (overlapRow || overlapBack)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione si sovrappone a %s\n",
+                    overlapRow ? "una riga oggetto" : "la riga Indietro");
+            return false;
+        }
+    }
+
+    /* (c) Pannello del Piano 0 (DEC-075): fumetto cliccabile SOLO a pannello
+       chiuso, carte/schedine cliccabili SOLO a pannello aperto, ogni carta
+       delle due sezioni (MONDI e PERSONAGGI) e le due schedine raggiungibili,
+       e -1/falso ovunque quando il pannello e' chiuso o non ci sono carte. */
+    {
+        int savedCount = game->themeCardCount;
+        bool savedOpen = game->themeCardsPanelOpen;
+        int savedSection = game->floorZeroPanelSection;
+
+        game->themeCardCount = 3;
+        game->themeCardsPanelOpen = false;
+
+        bool hintHit = false;
+        for (float y = 0.0f; y < sh && !hintHit; y += 4.0f)
+            for (float x = 0.0f; x < sw && !hintHit; x += 8.0f)
+                if (RendererFloorZeroHintChipAt(game, (Vector2){ x, y })) hintHit = true;
+        if (!hintHit)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (c) il fumetto TAB non e' raggiungibile a pannello chiuso\n");
+            game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen; game->floorZeroPanelSection = savedSection;
+            return false;
+        }
+        if (RendererFloorZeroCardAt(game, (Vector2){ sw*0.5f, sh*0.5f }) != -1 ||
+            RendererFloorZeroSectionTabAt(game, (Vector2){ sw*0.5f, sh*0.5f }) != -1)
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (c) carte/schedine rispondono a pannello CHIUSO\n");
+            game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen; game->floorZeroPanelSection = savedSection;
+            return false;
+        }
+
+        game->themeCardsPanelOpen = true;
+        if (RendererFloorZeroHintChipAt(game, (Vector2){ sw*0.5f, 90.0f }))
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (c) il fumetto TAB risponde a pannello APERTO\n");
+            game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen; game->floorZeroPanelSection = savedSection;
+            return false;
+        }
+
+        bool seenTab[2] = { false, false };
+        for (float y = 0.0f; y < sh; y += 4.0f)
+            for (float x = 0.0f; x < sw; x += 8.0f)
+            {
+                int tab = RendererFloorZeroSectionTabAt(game, (Vector2){ x, y });
+                if (tab >= 0 && tab < 2) seenTab[tab] = true;
+            }
+        if (!seenTab[0] || !seenTab[1])
+        {
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (c) una delle due schedine MONDI/PERSONAGGI non e' raggiungibile\n");
+            game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen; game->floorZeroPanelSection = savedSection;
+            return false;
+        }
+
+        static const int kSections[2] = { FLOOR_ZERO_PANEL_WORLDS, FLOOR_ZERO_PANEL_CHARACTERS };
+        for (int s = 0; s < 2; s++)
+        {
+            game->floorZeroPanelSection = kSections[s];
+            int count = (kSections[s] == FLOOR_ZERO_PANEL_WORLDS) ? game->themeCardCount : GameCharacterCardCount(game);
+            if (count <= 0) continue;   /* la rosa dinamica puo' davvero essere vuota, niente da verificare */
+            bool *seenCard = (bool *)calloc((size_t)count, sizeof(bool));
+            for (float y = 0.0f; y < sh; y += 4.0f)
+                for (float x = 0.0f; x < sw; x += 8.0f)
+                {
+                    int card = RendererFloorZeroCardAt(game, (Vector2){ x, y });
+                    if (card >= 0 && card < count) seenCard[card] = true;
+                }
+            bool allSeen = true;
+            for (int i = 0; i < count; i++) if (!seenCard[i]) allSeen = false;
+            free(seenCard);
+            if (!allSeen)
+            {
+                fprintf(stderr, "RendererMouseHitTestSelfTest: (c) una carta della sezione %d non e' raggiungibile\n", kSections[s]);
+                game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen; game->floorZeroPanelSection = savedSection;
+                return false;
+            }
+        }
+
+        game->themeCardCount = savedCount;
+        game->themeCardsPanelOpen = savedOpen;
+        game->floorZeroPanelSection = savedSection;
     }
 
     return true;

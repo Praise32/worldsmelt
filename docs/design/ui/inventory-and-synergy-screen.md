@@ -48,6 +48,15 @@ L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota 
 | Effetti temporanei | Almeno un effetto temporaneo è attivo | — (sola lettura) | Nessuna | — | Durata residua indicata |
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Seleziona la sezione prove | Mostra le prove specifiche della run e il loro stato di completamento | Evidenzia le prove già completate |
 
+> **Nota (30/07, W9 playtest round 1 — copertura mouse):** le righe della lista oggetti e la
+> riga "Conferma fusione" della fascia «Fusione» sono raggiungibili **sia da tastiera/pad sia
+> col mouse** (click sulle righe per scegliere le due sorgenti, rotellina per scorrere la
+> lista oltre la finestra visibile, click sulla riga di conferma come il tasto `[F]`): la
+> parità di input di DEC-057 vale in questa schermata come in ogni altro menu, e senza il
+> click sulla conferma nessun percorso col solo mouse avrebbe portato a termine una fusione.
+> Fonte unica della regola e stato di implementazione:
+> [Options and Accessibility](options-and-accessibility.md).
+>
 > **Nota (30/07, DEC-184):** le stesse statistiche della riga "Statistiche principali" —
 > danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna — sono ora
 > consultabili anche in un blocco compatto dell'HUD durante `Gameplay`, visibile di

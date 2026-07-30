@@ -3,6 +3,7 @@
 #include "assets/art_atlas.h"
 #include "app/app.h"
 #include "app/app_internal.h"
+#include "audio/audio.h"
 #include "content/character_roster.h"
 #include "content/run_catalog.h"
 #include "content/run_content.h"
@@ -169,6 +170,18 @@ bool GameStatesTest(Game *game)
     AppUi ui = { 0 };
     AppMode mode = APP_MAIN_MENU;
     bool test_success = true;
+
+    /* W9 correzione round 1 (MINORE): il cursore VIRTUALE va portato in un
+       angolo PRIMA del primo UpdateApp -- da W9 il primo sguardo sul mouse
+       applica l'hover in base alla posizione reale del puntatore (vedi il
+       commento su AppUi.mouseTracked in game_types.h), e questo test naviga i
+       menu da tastiera dando per scontato il focus che scrive lui. (2,2) e'
+       fuori da ogni geometria di menu per costruzione (i riquadri sono
+       CENTRATI, vedi MenuBoxForModeFor), quindi l'esito di questo test non
+       dipende piu' da dove Xvfb o il window manager lasciano il puntatore ne'
+       dalle dimensioni della finestra. Stessa apertura di
+       GameMouseHoverFocusTest. */
+    SetMousePosition(2, 2);
 
     /* Macro locale di STATES_CHECK che usa goto per cleanup in caso di errore */
 #undef STATES_CHECK
@@ -474,6 +487,403 @@ cleanup_test_catalog:
     }
 
     return test_success;
+}
+
+/* W9 (playtest round 1, "mouse ovunque"): il PASSAGGIO del mouse (nessun
+ * click, mai un vero evento hardware, quindi non simulabile sotto Xvfb) sposta
+ * gia' il fuoco -- verificato posizionando il cursore VIRTUALE con
+ * SetMousePosition (che GetMousePosition riflette subito, a differenza dei
+ * pulsanti: nessun equivalente sintetico esiste per quelli) su un punto
+ * trovato per scansione con le stesse funzioni di hit-test del renderer
+ * (RendererMenuItemAt/RendererBuildItemRowAt/RendererFloorZeroCardAt), poi
+ * chiamando UpdateApp con un AppInput VUOTO (nessun tasto, nessun click) e
+ * controllando che il campo di focus giusto sia cambiato lo stesso. Tre
+ * superfici rappresentative: una voce di MainMenu, una riga di BuildScreen,
+ * una carta del pannello del Piano 0 (DEC-075). Il mouse viene riportato
+ * nell'angolo (2,2) -- fuori da ogni geometria di menu per costruzione, box
+ * centrati -- alla fine di ogni blocco, cosi' non influenza lo scenario
+ * successivo. Come GameStatesTest, gira dopo InitWindow e chiama UpdateApp
+ * direttamente. */
+bool GameMouseHoverFocusTest(Game *game)
+{
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+
+#define HOVER_CHECK(cond, msg) \
+    do { if (!(cond)) { fprintf(stderr, "GameMouseHoverFocusTest: %s\n", (msg)); SetMousePosition(2, 2); return false; } } while (0)
+
+    /* (a) MainMenu: hover su "Opzioni" (indice 2) sposta ui.focus, senza
+       cambiare stato (nessun click, nessun tasto). */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_MAIN_MENU;
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }) == 2) target = (Vector2){ x, y };
+        HOVER_CHECK(target.x >= 0.0f, "(a) nessun punto dello schermo colpisce la voce 'Opzioni' di MainMenu");
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        HOVER_CHECK(mode == APP_MAIN_MENU, "(a) il solo hover ha cambiato lo stato applicativo");
+        HOVER_CHECK(ui.focus == 2, "(a) l'hover su 'Opzioni' non ha spostato ui.focus");
+    }
+    SetMousePosition(2, 2);
+
+    /* (b) BuildScreen: hover su una riga dell'inventario sposta
+       ui.buildItemFocus. Si entra nello stato col TAB da Gameplay (DEC-139),
+       la via piu' corta -- il contenuto degli oggetti non conta (vedi il
+       commento su BuildScreenItemListLayoutFor in game_renderer.c), basta
+       'itemCount'. */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_GAMEPLAY;
+        int savedCount = game->player.itemCount;
+        game->player.itemCount = 3;
+
+        AppInput tabIn = InputTab();
+        UpdateApp(game, &mode, &gen, &ui, &tabIn);
+        if (mode != APP_BUILD_SCREEN)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(b) TAB da Gameplay non porta a BuildScreen");
+        }
+
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererBuildItemRowAt(game, &ui, (Vector2){ x, y }) == 1) target = (Vector2){ x, y };
+        if (target.x < 0.0f)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(b) nessun punto dello schermo colpisce la riga oggetto 1");
+        }
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        game->player.itemCount = savedCount;
+        HOVER_CHECK(ui.buildItemFocus == 1, "(b) l'hover sulla riga 1 non ha spostato ui.buildItemFocus");
+    }
+    SetMousePosition(2, 2);
+
+    /* (c) Pannello del Piano 0 (DEC-075): hover su una carta MONDI sposta
+       game->themeCardFocus. Si entra in FloorZero senza passare da
+       AppEnterFloorZero (che avvierebbe una generazione vera): lo stato
+       minimo che il ramo del pannello legge -- 'themeCardCount'/
+       'themeCardsPanelOpen'/'floorZeroPanelSection' -- basta e avanza. */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_FLOOR_ZERO;
+        int savedCount = game->themeCardCount;
+        bool savedOpen = game->themeCardsPanelOpen;
+        int savedSection = game->floorZeroPanelSection;
+        int savedFocus = game->themeCardFocus;
+        game->themeCardCount = 3;
+        game->themeCardsPanelOpen = true;
+        game->floorZeroPanelSection = FLOOR_ZERO_PANEL_WORLDS;
+        game->themeCardFocus = 0;
+
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererFloorZeroCardAt(game, (Vector2){ x, y }) == 1) target = (Vector2){ x, y };
+        if (target.x < 0.0f)
+        {
+            game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen;
+            game->floorZeroPanelSection = savedSection; game->themeCardFocus = savedFocus;
+            HOVER_CHECK(false, "(c) nessun punto dello schermo colpisce la carta-mondo 1");
+        }
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput in = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &in);
+        int gotFocus = game->themeCardFocus;
+        game->themeCardCount = savedCount; game->themeCardsPanelOpen = savedOpen;
+        game->floorZeroPanelSection = savedSection; game->themeCardFocus = savedFocus;
+        HOVER_CHECK(gotFocus == 1, "(c) l'hover sulla carta-mondo 1 non ha spostato game->themeCardFocus");
+    }
+    SetMousePosition(2, 2);
+
+    /* (d)-(g) W9 correzione round 0 (BOCCIATO): il vero difetto non era che
+       l'hover sposti il focus (verificato sopra), ma che lo riscriva ad OGNI
+       frame anche quando il puntatore resta FERMO -- la situazione normale
+       dopo un click, o quando il giocatore torna a tastiera/pad -- cancellando
+       cosi' la navigazione da tastiera/pad (DEC-057) e persino i default non
+       distruttivi scelti dal codice. Ogni blocco fa prima un frame di
+       "assestamento" (il primo sguardo sul mouse ancora fa hover, per
+       costruzione: vedi il commento su AppUi.mouseTracked in game_types.h),
+       poi verifica che un frame SUCCESSIVO col mouse ancora li' non
+       ricancelli tastiera/pad. */
+
+    /* (d) MainMenu: puntatore fermo su "Nuova run" (indice 0) -- GIU' da
+       tastiera deve spostare il focus a 1, e deve RESTARCI su un frame
+       successivo senza alcun input (prima della correzione l'hover lo
+       riportava a 0 ad ogni frame). */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_MAIN_MENU;
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }) == 0) target = (Vector2){ x, y };
+        HOVER_CHECK(target.x >= 0.0f, "(d) nessun punto dello schermo colpisce la voce 'Nuova run' di MainMenu");
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput settle = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &settle);   /* primo sguardo: hover fisiologico */
+        HOVER_CHECK(ui.focus == 0, "(d) l'hover al primo sguardo non ha allineato ui.focus a 'Nuova run'");
+
+        AppInput down = InputDown();
+        UpdateApp(game, &mode, &gen, &ui, &down);
+        HOVER_CHECK(ui.focus == 1, "(d) GIU' da tastiera non ha spostato ui.focus col mouse fermo su 'Nuova run'");
+
+        AppInput none = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &none);
+        HOVER_CHECK(ui.focus == 1,
+            "(d) il focus scelto da tastiera e' tornato alla voce sotto il puntatore fermo (regressione W9)");
+    }
+    SetMousePosition(2, 2);
+
+    /* (e) ExitConfirm (la conseguenza piu' distruttiva): il default non
+       distruttivo "Annulla" (ui.focus = 1, come lo scrive il codice reale
+       alla transizione) deve SOPRAVVIVERE a un frame senza input col
+       puntatore fermo sulla riga "Conferma" (indice 0) -- prima della
+       correzione, un solo frame di hover ribaltava il default su
+       "Conferma", e il primo INVIO/pad-A successivo abbandonava la run (o
+       usciva dal gioco) invece di annullare. */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_EXIT_CONFIRM;
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ x, y }) == 0) target = (Vector2){ x, y };
+        HOVER_CHECK(target.x >= 0.0f, "(e) nessun punto dello schermo colpisce la riga 'Conferma' di ExitConfirm");
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput settle = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &settle);   /* primo sguardo: hover fisiologico, irrilevante qui */
+        ui.focus = 1;   /* il default che il codice reale scrive alla transizione in ExitConfirm */
+
+        AppInput none = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &none);
+        HOVER_CHECK(ui.focus == 1,
+            "(e) il default 'Annulla' di ExitConfirm non sopravvive a un frame di hover col mouse fermo (regressione W9)");
+    }
+    SetMousePosition(2, 2);
+
+    /* (f) BuildScreen: con il puntatore FERMO su una riga dell'inventario,
+       ui.buildItemFocus deve restare STABILE per piu' frame senza alcun
+       input -- prima della correzione del round 0, l'hover riscriveva il focus
+       ad ogni frame anche a mouse fermo. 12 oggetti (finestra scorrevole vera,
+       come nella prova del giudice), focus iniziale sull'ultimo.
+       Il caso col mouse IN MOVIMENTO -- quello che il round 0 non copriva, e
+       che e' proprio la situazione in cui il giocatore usa il mouse -- e' il
+       blocco (h) qui sotto. */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_GAMEPLAY;
+        int savedCount = game->player.itemCount;
+        game->player.itemCount = 12;
+
+        AppInput tabIn = InputTab();
+        UpdateApp(game, &mode, &gen, &ui, &tabIn);
+        if (mode != APP_BUILD_SCREEN)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(f) TAB da Gameplay non porta a BuildScreen");
+        }
+        ui.buildItemFocus = 11;   /* l'ultimo oggetto: la finestra scorrevole si sposta in fondo */
+
+        int targetRow = -1;
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+            {
+                int row = RendererBuildItemRowAt(game, &ui, (Vector2){ x, y });
+                if (row >= 0) { target = (Vector2){ x, y }; targetRow = row; }
+            }
+        if (target.x < 0.0f)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(f) nessun punto dello schermo colpisce una riga oggetto con la finestra scorrevole a focus=11");
+        }
+        (void)targetRow;
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput settle = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &settle);   /* primo sguardo: hover fisiologico */
+        int afterSettle = ui.buildItemFocus;
+
+        bool stable = true;
+        for (int i = 0; i < 10 && stable; i++)
+        {
+            AppInput none = InputNone();
+            UpdateApp(game, &mode, &gen, &ui, &none);
+            if (ui.buildItemFocus != afterSettle) stable = false;
+        }
+        game->player.itemCount = savedCount;
+        HOVER_CHECK(stable, "(f) ui.buildItemFocus deriva da solo nei frame successivi col mouse fermo (regressione W9)");
+    }
+    SetMousePosition(2, 2);
+
+    /* (g) Options: con il puntatore FERMO sulla riga "Indietro" (indice 3),
+       DESTRA da tastiera deve ancora alzare il volume generale, e INVIO non
+       deve chiudere la schermata -- prima della correzione l'hover forzava
+       ui.focus a 3 ad ogni frame, quindi "sinistra/destra sotto
+       OPTIONS_ROW_BACK" non scattava mai col mouse fermo li' sopra, e
+       effective.confirm chiudeva la schermata (contraddice
+       docs/design/ui/options-and-accessibility.md, "ENTER esce solo dalla
+       riga Indietro"). */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_OPTIONS;
+        ui.openedFrom = APP_MAIN_MENU;
+        ui.returnFocus = 2;
+        float savedVolume = AudioGetMasterVolume();
+        AudioSetMasterVolume(0.5f);
+
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+                if (RendererMenuItemAt(APP_OPTIONS, (Vector2){ x, y }) == 3) target = (Vector2){ x, y };
+        if (target.x < 0.0f)
+        {
+            AudioSetMasterVolume(savedVolume);
+            HOVER_CHECK(false, "(g) nessun punto dello schermo colpisce la riga 'Indietro' di Options");
+        }
+
+        SetMousePosition((int)target.x, (int)target.y);
+        AppInput settle = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &settle);   /* primo sguardo: hover fisiologico, focus->3 */
+        if (mode != APP_OPTIONS || ui.focus != 3)
+        {
+            AudioSetMasterVolume(savedVolume);
+            HOVER_CHECK(false, "(g) l'assestamento non ha portato ui.focus a 'Indietro' (precondizione del test non soddisfatta)");
+        }
+        ui.focus = 0;   /* il giocatore naviga da tastiera sulla riga 'Volume generale' */
+
+        AppInput right = InputRight();
+        UpdateApp(game, &mode, &gen, &ui, &right);
+        if (mode != APP_OPTIONS || AudioGetMasterVolume() <= 0.5f)
+        {
+            AudioSetMasterVolume(savedVolume);
+            HOVER_CHECK(false,
+                "(g) DESTRA col mouse fermo su 'Indietro' non ha alzato il volume generale (regressione W9)");
+        }
+
+        AppInput enter = InputConfirm();
+        UpdateApp(game, &mode, &gen, &ui, &enter);
+        AudioSetMasterVolume(savedVolume);
+        HOVER_CHECK(mode == APP_OPTIONS,
+            "(g) INVIO su una riga-slider (mouse fermo su 'Indietro') ha chiuso Options (regressione W9)");
+    }
+    SetMousePosition(2, 2);
+
+    /* (h) W9 correzione round 1 (BOCCIATO, "l'anello di retroazione della lista
+       scorrevole"): BuildScreen con il mouse IN MOVIMENTO sopra la lista -- il
+       caso che (f) non poteva rilevare, e l'unico che conta davvero (il mouse
+       si muove proprio quando il giocatore lo sta usando). Prima della
+       correzione la finestra visibile era DERIVATA dal focus ("first = focus -
+       maxShow + 1"), quindi lo slot inferiore era l'unico punto fisso della
+       mappatura punto->riga e l'hover -- che scrive il focus -- faceva scorrere
+       la lista di uno step per ogni frame di MOVIMENTO: con 12 oggetti e una
+       finestra da 3, il puntatore appoggiato sullo slot in cima portava la
+       lista in cima in ~5 frame, annullando la rotellina appena usata.
+       Il puntatore si mette esattamente sullo slot peggiore (la scansione si
+       ferma al primo colpo, cioe' la riga in CIMA alla finestra) e poi si
+       "tremola" di un pixel ad ogni frame: il movimento e' vero (mouseMoved
+       scatta), la riga sotto il puntatore no. Il focus deve restare quello di
+       quella riga per tutti i frame. */
+    {
+        AppGen gen = { 0 };
+        AppUi ui = { 0 };
+        AppMode mode = APP_GAMEPLAY;
+        int savedCount = game->player.itemCount;
+        game->player.itemCount = 12;
+
+        AppInput tabIn = InputTab();
+        UpdateApp(game, &mode, &gen, &ui, &tabIn);
+        if (mode != APP_BUILD_SCREEN)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(h) TAB da Gameplay non porta a BuildScreen");
+        }
+
+        /* Lista scorsa in fondo (come dopo qualche giro di rotellina): il focus
+           sull'ultimo oggetto, e un frame a vuoto perche' l'ancora lo segua
+           (AppBuildScrollFollowFocus in src/app/app.c). Il mouse e' ancora
+           nell'angolo, quindi questo frame non fa nessun hover. */
+        ui.buildItemFocus = 11;
+        AppInput settle = InputNone();
+        UpdateApp(game, &mode, &gen, &ui, &settle);
+
+        int targetRow = -1;
+        Vector2 target = { -1.0f, -1.0f };
+        for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
+            for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
+            {
+                int row = RendererBuildItemRowAt(game, &ui, (Vector2){ x, y });
+                if (row >= 0) { target = (Vector2){ x, y }; targetRow = row; }
+            }
+        if (target.x < 0.0f || targetRow < 0)
+        {
+            game->player.itemCount = savedCount;
+            HOVER_CHECK(false, "(h) nessun punto dello schermo colpisce una riga oggetto con la lista scorsa in fondo");
+        }
+
+        bool stable = true;
+        int drifted = targetRow;
+        for (int i = 0; i < 12 && stable; i++)
+        {
+            /* Un pixel avanti e uno indietro: movimento VERO, stessa riga. */
+            SetMousePosition((int)target.x + (i%2), (int)target.y);
+            AppInput none = InputNone();
+            UpdateApp(game, &mode, &gen, &ui, &none);
+            if (ui.buildItemFocus != targetRow) { stable = false; drifted = ui.buildItemFocus; }
+        }
+        game->player.itemCount = savedCount;
+        if (!stable)
+            fprintf(stderr, "GameMouseHoverFocusTest: (h) la lista e' scorsa da sola col mouse in movimento (riga sotto il puntatore %d, focus finito a %d) -- anello di retroazione, regressione W9\n",
+                    targetRow, drifted);
+        HOVER_CHECK(stable, "(h) ui.buildItemFocus deriva col mouse in MOVIMENTO sulla stessa riga (regressione W9)");
+    }
+    SetMousePosition(2, 2);
+
+    /* (i) W9 correzione round 1 (BLOCCANTE): quale carta conferma un click nel
+       pannello del Piano 0. I pulsanti del mouse non sono simulabili sotto Xvfb
+       (nessun equivalente di SetMousePosition per loro), quindi si verifica il
+       nucleo PURO che il case APP_FLOOR_ZERO usa (AppFloorZeroCardToConfirm):
+       un click su una carta conferma QUELLA carta anche quando il focus e'
+       altrove -- il caso del difetto, riproducibile senza input esotici
+       (puntatore fermo sull'area del pannello, TAB da tastiera per aprirlo,
+       click: 'mouseMoved' falso, nessun hover girato, focus ancora 0). La
+       scelta del mondo e' irreversibile (avvia la generazione), quindi
+       "conferma la carta sbagliata" non e' un difetto recuperabile. */
+    {
+        HOVER_CHECK(AppFloorZeroCardToConfirm(2, true, false, 0) == 2,
+            "(i) il click su una carta con il focus altrove non conferma la carta cliccata (regressione W9)");
+        HOVER_CHECK(AppFloorZeroCardToConfirm(2, true, true, 0) == 2,
+            "(i) click e conferma nello stesso frame: deve vincere la carta cliccata");
+        HOVER_CHECK(AppFloorZeroCardToConfirm(-1, false, true, 1) == 1,
+            "(i) la conferma da tastiera non usa piu' la carta a fuoco");
+        HOVER_CHECK(AppFloorZeroCardToConfirm(-1, false, false, 1) == -1,
+            "(i) senza click ne' conferma non si deve confermare nulla");
+        HOVER_CHECK(AppFloorZeroCardToConfirm(-1, true, false, 1) == -1,
+            "(i) un click FUORI dalle carte non deve confermare la carta a fuoco");
+    }
+
+#undef HOVER_CHECK
+    return true;
 }
 
 static int CountActiveShots(const Game *game)

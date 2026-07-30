@@ -144,4 +144,20 @@ typedef struct AppGen {
    Xvfb) non interferisce mai con gli scenari sintetici. */
 bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput *input);
 
+/* W9 correzione round 1 (BOCCIATO): quale carta del pannello del Piano 0
+   (DEC-075) va confermata in questo frame -- nucleo PURO, estratto dai due rami
+   (MONDI e PERSONAGGI) del case APP_FLOOR_ZERO perche' il click del mouse non e'
+   simulabile sotto Xvfb (nessun equivalente di SetMousePosition per i pulsanti)
+   e questa e' l'unica scelta IRREVERSIBILE del gioco raggiungibile col mouse:
+   confermare un mondo avvia la generazione. Regola, in ordine:
+   - un CLICK su una carta ('cardHit' >= 0) conferma QUELLA carta, non il focus
+     corrente -- il puntatore puo' essere fermo su una carta con il focus
+     altrove (pannello aperto con TAB, o focus spostato da tastiera nello stesso
+     frame: nessun hover e' girato) e confermare il focus sceglierebbe il mondo
+     SBAGLIATO;
+   - altrimenti la conferma da tastiera/pad vale per la carta a fuoco;
+   - -1 = niente da confermare in questo frame.
+   Verificata da GameMouseHoverFocusTest, blocco (i). */
+int AppFloorZeroCardToConfirm(int cardHit, bool clicked, bool confirmKey, int focus);
+
 #endif

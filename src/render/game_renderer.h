@@ -30,6 +30,57 @@ bool UiLayoutSelfTest(void);
    (FloorZero, Gameplay). */
 int RendererMenuItemAt(AppMode mode, Vector2 mouse);
 
+/* W9 (playtest round 1, "mouse ovunque"): il resto delle geometrie che
+   RendererMenuItemAt sopra non copre, stesso principio -- fonte UNICA sia per
+   disegnare sia per il hit-test, mai duplicata in src/app.
+   - RendererBuildItemRowAt: indice in Player.items[] sotto 'mouse' dentro la
+     lista OGGETTI PRESI di BuildScreen (finestra scorrevole: solo le righe
+     DAVVERO disegnate in questo momento, con l'ancora 'ui->buildItemScroll'
+     corrente, sono cliccabili), o -1. W9 correzione round 1: la finestra
+     dipende dall'ANCORA, non dal focus -- cosi' questa mappatura non dipende
+     dal campo che l'hover del mouse scrive (niente anello di retroazione, vedi
+     il commento su AppUi.buildItemScroll in game_types.h).
+   - RendererBuildItemRowsVisible: quante righe stanno nella finestra visibile
+     con la geometria corrente (>= 1) -- il solo dato che src/app/app.c deve
+     sapere per tenere l'ancora allineata al focus.
+   - RendererFusionConfirmAt: vero se 'mouse' e' sulla riga di stato/azione
+     della fascia FUSIONE ("fondi ...", o il motivo per cui non si puo'): un
+     click qui vale [F].
+   - RendererFloorZeroCardAt: indice di carta sotto 'mouse' nella sezione
+     ATTIVA (game->floorZeroPanelSection) del pannello combinato del Piano 0
+     (DEC-075), o -1 se il pannello e' chiuso o il punto non cade su nessuna
+     carta.
+   - RendererFloorZeroSectionTabAt: 0 (MONDI) o 1 (PERSONAGGI) sotto 'mouse',
+     o -1 (pannello chiuso o punto fuori dalle due schedine).
+   - RendererFloorZeroHintChipAt: vero se 'mouse' e' sul fumetto "TAB -- mondo
+     e personaggio" mostrato a pannello chiuso (un click qui lo apre, come
+     TAB); sempre falso a pannello gia' aperto.
+   - RendererOptionsSliderValueAt: valore 0..1 corrispondente alla posizione
+     orizzontale 'mouseX' dentro la barra della riga-slider 'index' (0..2:
+     generale/musica/effetti) di Options, clampato ai due estremi -- usata da
+     UpdateApp per il trascinamento col mouse.
+   - RendererOptionsSliderHit: vero se 'mouse' cade sulla barra della
+     riga-slider 'index' (piu' un piccolo margine di presa). E' il cancello
+     del PRESS: il trascinamento si apre SOLO da qui, mai da un click
+     sull'etichetta o sulle frecce-promemoria della riga (che valgono solo
+     come navigazione). */
+int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse);
+int RendererBuildItemRowsVisible(Game *game);
+bool RendererFusionConfirmAt(Game *game, Vector2 mouse);
+int RendererFloorZeroCardAt(const Game *game, Vector2 mouse);
+int RendererFloorZeroSectionTabAt(const Game *game, Vector2 mouse);
+bool RendererFloorZeroHintChipAt(const Game *game, Vector2 mouse);
+float RendererOptionsSliderValueAt(int index, float mouseX);
+bool RendererOptionsSliderHit(int index, Vector2 mouse);
+
+/* Self-test delle geometrie sopra, dopo InitWindow (--mouse-hit-test in
+   src/app/app.c): a differenza di UiLayoutSelfTest (puramente matematico,
+   PRIMA della finestra) queste funzioni hanno bisogno del font di default di
+   raylib gia' caricato (BuildScreenItemListLayoutFor misura con DrawBuildBlock,
+   che chiama UiTextW/MeasureText). 'game' e' quello gia' pronto passato da
+   AppRun (GameResetRun gia' chiamata), stesso schema di GameRoomsTest. */
+bool RendererMouseHitTestSelfTest(Game *game);
+
 /* DEC-169 (ui/hud.md, systems/floor-zero.md): l'HUD di combattimento si
    disegna in Gameplay SEMPRE, e nel Piano 0 SOLO durante una prova (arena di
    sfida/tutorial integrato, DEC-004/047) -- 'floorZeroTrialActive' e' il gap

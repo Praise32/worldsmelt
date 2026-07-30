@@ -171,6 +171,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --states-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --floor-zero-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --rooms-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --mouse-hit-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --rng-seed-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --item-pool-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --economy-test

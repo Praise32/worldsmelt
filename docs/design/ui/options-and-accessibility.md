@@ -81,9 +81,98 @@ interfaccia selezionabili del Piano 0 — carte tema, schede personaggio, pannel
 cliccabili col mouse esattamente come le voci di menu degli altri stati. Il movimento del
 personaggio nel Piano 0 e ogni meccanica giocata restano invece su tastiera/controller con
 parità rigorosa: il mouse non muove mai il personaggio e non è mai richiesto. Dettagli di
-input/azioni del Piano 0: `systems/floor-zero.md` (rimando, non riformulato qui). Gap di
-implementazione esplicito: le carte tema e le schede personaggio di M5/M6a vanno ancora
-rese cliccabili.
+input/azioni del Piano 0: `systems/floor-zero.md` (rimando, non riformulato qui).
+
+### Stato di implementazione: copertura mouse totale (W9, playtest round 1, 2026-07-30)
+
+Il primo playtest del proprietario ha trovato menu non navigabili col mouse. Chiuso: ogni
+schermata ha ora hover che sposta il fuoco e click che attiva, con la stessa geometria usata
+per disegnare (`RendererMenuItemAt`/`RendererBuildItemRowAt`/`RendererFloorZeroCardAt` e
+affini, `src/render/game_renderer.c`) — mai una copia duplicata del layout. In particolare:
+
+- le carte tema e le schede personaggio del pannello combinato del Piano 0 (M5/M6a) sono
+  ora cliccabili, chiudendo il gap dichiarato sopra fin da M5/M6a; anche le due schedine
+  MONDI/PERSONAGGI e il fumetto "TAB -- mondo e personaggio" (che apre il pannello) sono
+  cliccabili;
+- `BuildScreen`: le righe della lista OGGETTI PRESI sono cliccabili per scegliere le
+  sorgenti della fusione (DEC-143), con la rotellina del mouse che scorre la lista scorrevole
+  oltre la finestra visibile (senza, un giocatore SOLO mouse non avrebbe potuto raggiungere
+  un oggetto oltre i primi visibili) — "Indietro" era già cliccabile, ora lo sono anche le
+  righe. Anche la **riga di conferma della fascia «Fusione»** è cliccabile e vale come il
+  tasto `[F]` (aggiunta nella correzione del round 1 qui sotto): senza di essa nessun
+  percorso col solo mouse portava a termine una fusione, cioè la riga "Conferma fusione" di
+  [Inventory and Synergy Screen](inventory-and-synergy-screen.md) restava fuori dalla
+  copertura. Il documento non fissa il tasto, quindi le due vie convivono e l'etichetta le
+  nomina entrambe;
+- `Options`: le tre barre del volume sono trascinabili col mouse (click-e-trascina applica
+  il valore sotto il puntatore in continuo), non solo regolabili a passi con sinistra/destra
+  da tastiera;
+- `RunSetup`: il reroll del seed (riga "Seed") era già raggiungibile col click (che equivale
+  a un ENTER sintetico sulla voce), nessun gap qui.
+
+Il **GAMEPLAY resta senza mouse** (DEC-057 non tocco nel suo nucleo): il movimento del
+personaggio e ogni meccanica giocata restano tastiera/controller, il mouse non è mai
+richiesto. La vista Catalogo (dentro `MainMenu`) resta tastiera-sola DENTRO la vista (v1,
+`ui/results-and-leaderboards.md`/M8): una scelta di scope invariata da questo lavoro, non un
+gap.
+
+### Correzione (round 0 del playtest, stesso lavoro W9): il fuoco segue il mouse SOLO se il mouse si muove
+
+La prima versione della copertura totale sopra riscriveva il fuoco ad ogni singolo frame
+con la voce sotto il puntatore, senza controllare che il puntatore si fosse davvero
+spostato. Un puntatore lasciato fermo su una voce — la situazione normale subito dopo un
+click, o quando il giocatore torna a tastiera/pad senza aver mai toccato il mouse — uccideva
+così la navigazione da tastiera/pad ad ogni frame successivo: violava DEC-057 (parità
+rigorosa) invece di realizzarla, e rompeva anche il ritorno del fuoco previsto da
+[Navigation Map](navigation-map.md). Il caso più visibile: il default non distruttivo
+"Annulla" di `ExitConfirm` veniva ribaltato su "Conferma" dal solo hover, e in `Options` un
+puntatore fermo sulla riga "Indietro" rendeva lettera morta sinistra/destra sui volumi.
+
+Fissato spostando il fuoco per hover solo quando la posizione del mouse è cambiata
+**rispetto al frame precedente** (non rispetto al click più recente): un click resta un
+evento discreto e continua a funzionare a prescindere, l'hover no. Stesso gate per il passo
+generico, per le righe di `BuildScreen` e per le carte/schedine del pannello del Piano 0 —
+un solo confronto per frame in cima a `UpdateApp`. Questo gate **non bastava**: chiudeva i
+casi col puntatore fermo, non quelli col puntatore in movimento, che sono proprio quelli in
+cui il giocatore usa il mouse — vedi la correzione del round 1 qui sotto.
+
+Nello stesso passaggio: il trascinamento del mouse sulle barre di `Options` ora si aggancia
+al passo del **10%** su dieci caselle (sopra, "Default proposti") invece di produrre un
+valore continuo — un valore che nessun input da tastiera potrebbe mai produrre e che la
+barra a caselle non potrebbe rappresentare fedelmente; e il click che avvia il trascinamento
+non sintetizza più un "confirm" (niente sfx di conferma ad ogni inizio di regolazione,
+coerente con "su una riga-slider un ENTER non ha significato" sopra).
+
+### Correzione (round 1 del playtest, stesso lavoro W9): il click agisce sull'elemento cliccato, e la lista non scorre da sola
+
+Due difetti funzionali restavano dentro la copertura appena descritta, entrambi invisibili al
+gate "solo se il mouse si muove".
+
+**1. Il click sulle carte del Piano 0 confermava il fuoco, non la carta cliccata.** Con il
+puntatore fermo sull'area del pannello e il pannello aperto da tastiera (TAB: il mouse non si
+muove, quindi nessun hover gira), un click sulla carta sotto il puntatore confermava la carta
+a fuoco — un'altra. La scelta del mondo è **irreversibile** (avvia la generazione della run),
+quindi non era un difetto recuperabile. Fissato facendo agire il click sulla carta
+**davvero cliccata**: il click sposta anche il fuoco lì (come già faceva il blocco generico
+dei menu), e la conferma usa l'indice della carta colpita, non il fuoco — che le frecce da
+tastiera potrebbero aver spostato nello stesso frame. Vale per entrambe le sezioni, MONDI e
+PERSONAGGI.
+
+**2. La lista OGGETTI PRESI di `BuildScreen` scorreva da sola sotto il puntatore.** La
+finestra visibile della lista scorrevole era **derivata dalla riga a fuoco** (la riga a fuoco
+sempre in fondo alla finestra), quindi l'hover — che scrive il fuoco — alimentava se stesso:
+ogni frame di *movimento* del mouse faceva scorrere la lista di uno step, e con l'inventario
+pieno la lista schizzava in cima sotto il puntatore, annullando la rotellina appena usata. Il
+gate del round 0 non lo toccava, perché il difetto scatta proprio quando il mouse si muove.
+Fissato **separando l'ancora di scorrimento dal fuoco**: la finestra visibile dipende ora
+solo dall'ancora (un campo di interfaccia a sé), che si sposta del minimo indispensabile
+quando il fuoco esce dalla finestra — e mai per un hover, che per definizione cade su una
+riga già visibile. La garanzia visibile al giocatore resta la stessa di prima ("la riga a
+fuoco è sempre visibile"), senza la retroazione.
+
+Regola generale che questi due difetti hanno reso esplicita, valida per tutte le schermate:
+**l'hover è continuo e va filtrato, il click è discreto e agisce sull'elemento sotto il
+puntatore** — mai sul fuoco, che l'hover può non aver aggiornato.
 
 ## Garanzie di accessibilità canoniche (DEC-058)
 

@@ -1179,9 +1179,12 @@ typedef struct Game {
        RunContentMakeFallbackThemeCards scrivono sempre un conteggio
        completo o niente). 'themeCardFocus' e' l'indice con la selezione da
        tastiera/pad DENTRO il pannello di scelta (requisito 9: sinistra/
-       destra + conferma, mai il mouse); 'themeCardsPanelOpen' e' quel
-       pannello, apribile con TAB SOLO finche' il tema non e' scelto -- non
-       ruba i controlli di movimento (WASD) del Piano 0 giocabile (M1b).
+       destra + conferma; DEC-075/W9: il mouse ci entra allo stesso modo,
+       hover sposta questo indice e click conferma, RendererFloorZeroCardAt in
+       src/render/game_renderer.c); 'themeCardsPanelOpen' e' quel pannello,
+       apribile con TAB (o un click sul fumetto quando e' chiuso) SOLO finche'
+       il tema non e' scelto -- non ruba i controlli di movimento (WASD) del
+       Piano 0 giocabile (M1b).
        'themeChosenIndex' -1 = nessun tema scelto: la generazione completa
        (AppStartGeneration) parte SOLO alla scelta, mai prima (a differenza
        di prima di M5), e l'uscita del Piano 0 resta chiusa finche' non e'
@@ -1554,6 +1557,23 @@ typedef struct AppUi {
        DEC-171). Tutti azzerati da "{0}", che e' anche lo stato giusto
        all'ingresso: nessuna sorgente scelta, nessun messaggio. */
     int buildItemFocus;
+    /* W9 correzione round 1 (BOCCIATO, "l'anello di retroazione della lista
+       scorrevole"): l'ANCORA di scorrimento della lista OGGETTI PRESI --
+       l'indice del PRIMO oggetto mostrato nella finestra visibile -- vive qui,
+       SEPARATA da 'buildItemFocus'. Prima era DERIVATA dal focus ("first =
+       focus - maxShow + 1"): con l'hover del mouse che scrive il focus, la
+       mappatura punto->riga dipendeva dal proprio risultato e la lista
+       scorreva da sola di uno step per frame di movimento (12 oggetti,
+       finestra da 3: schizzava in cima in ~5 frame, annullando la rotellina).
+       Adesso la finestra dipende SOLO da questo campo, quindi la mappatura
+       "punto dello schermo -> indice di oggetto" e' indipendente dal focus e
+       l'anello e' rotto per costruzione. Chi muove il focus (su/giu',
+       rotellina, esito di una fusione) lo tiene visibile chiamando
+       AppBuildScrollFollowFocus in src/app/app.c: l'ancora si sposta SOLO
+       quando il focus e' uscito dalla finestra, mai per un hover (che per
+       definizione cade su una riga gia' visibile). Zero-default (0) = finestra
+       in cima, lo stato giusto all'ingresso come per i campi qui accanto. */
+    int buildItemScroll;
     int fusionSourceA;
     int fusionSourceB;
     char fusionMessage[96];
@@ -1577,6 +1597,45 @@ typedef struct AppUi {
        tanti "AppUi ui = { 0 }" dei test. Tasto di toggle: C (default proposto
        dall'implementazione, stile DEC-019 -- vedi AppInput.toggleStats). */
     bool hudStatsHidden;
+    /* W9 (playtest round 1, "mouse ovunque"): stato del trascinamento di una
+       barra di Opzioni -- vive qui come 'buildItemFocus'/'hudStatsHidden'
+       sopra, campo di INTERFACCIA, mai di run. 'optionsDragging' zero-default
+       (falso) = nessun trascinamento in corso, cosi' ogni "AppUi ui = {0}" dei
+       test resta innocuo per costruzione, come sempre. 'optionsDraggingIndex'
+       (0..2: generale/musica/effetti) si legge SOLO quando 'optionsDragging'
+       e' vero -- UpdateApp lo scrive al MOUSE_BUTTON_LEFT premuto su una
+       barra e lo rilascia quando il tasto torna su, in APP_OPTIONS. */
+    bool optionsDragging;
+    int optionsDraggingIndex;
+    /* W9, correzione di Fable: la riga di conferma della fascia FUSIONE e'
+       cliccabile ma non aveva alcun feedback al passaggio del mouse (unica
+       superficie cliccabile senza: le voci di menu e le righe oggetto lo
+       hanno tramite il focus spostato dall'hover). UpdateApp lo scrive ogni
+       frame in APP_BUILD_SCREEN, il renderer lo legge per evidenziare la
+       riga. Zero-default falso: nessun hover. */
+    bool fusionConfirmHover;
+    /* W9 correzione round 0 (BOCCIATO, "il puntatore fermo uccide tastiera/
+       pad"): l'hover generico e le due geometrie aggiuntive (righe di
+       BuildScreen, carte/schedine del Piano 0) devono spostare il focus SOLO
+       quando il puntatore si e' spostato DAVVERO da un frame all'altro --
+       altrimenti un puntatore semplicemente lasciato fermo su una voce (la
+       situazione normale dopo un click, o quando il giocatore torna a
+       tastiera/pad) lo riscriverebbe ad ogni frame, cancellando ogni
+       navigazione da tastiera/pad (rompe DEC-057) e persino il default
+       "Annulla" di ExitConfirm. 'mouseTracked' zero-default (falso) = "mai
+       osservato ancora": il PRIMO frame in cui UpdateApp legge il mouse
+       applica comunque l'hover una volta (stesso comportamento di sempre,
+       richiesto da GameMouseHoverFocusTest: ogni scenario costruisce una
+       "AppUi ui = {0}" fresca e si aspetta l'hover al primissimo sguardo) --
+       da li' in poi l'hover si applica SOLO se 'lastMousePos' e' cambiata.
+       Un solo confronto in cima a UpdateApp copre tutti e tre i punti che
+       leggono il mouse in modo continuo (il passo generico, BuildScreen,
+       Piano 0): scrivono tutti nella stessa 'lastMousePos', letta una volta
+       sola per frame. I CLICK restano eventi discreti e non passano da
+       questo gate (IsMouseButtonPressed va sempre onorato, si muova o no il
+       mouse in quel frame). */
+    bool mouseTracked;
+    Vector2 lastMousePos;
 } AppUi;
 
 #endif

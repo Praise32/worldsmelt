@@ -264,4 +264,16 @@ bool GameAudioTest(Game *game);
    ogni altro --xxx-test. Vedi src/tests/curated_content_tests.c. */
 bool GameCuratedContentTest(Game *game);
 
+/* W9 (playtest round 1, "mouse ovunque"): il PASSAGGIO del mouse (senza
+   click, mai simulabile per davvero sotto Xvfb) sposta gia' il fuoco su tre
+   superfici rappresentative -- una voce di MainMenu, una riga di BuildScreen,
+   una carta del pannello del Piano 0 (DEC-075) -- posizionando il cursore
+   VIRTUALE con SetMousePosition su un punto trovato per scansione con le
+   stesse funzioni di hit-test del renderer, poi chiamando UpdateApp con un
+   AppInput vuoto. Come GameStatesTest, gira dopo InitWindow e chiama UpdateApp
+   direttamente; complementare a RendererMouseHitTestSelfTest
+   (src/render/game_renderer.h), che verifica le GEOMETRIE da sole, non la loro
+   integrazione dentro UpdateApp. Vedi src/tests/game_tests.c. */
+bool GameMouseHoverFocusTest(Game *game);
+
 #endif

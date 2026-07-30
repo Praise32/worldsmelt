@@ -7,6 +7,7 @@
 #include "content/character_roster.h"
 #include "content/run_catalog.h"
 #include "content/run_content.h"
+#include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
 #include "gameplay/fusion.h"
@@ -220,6 +221,13 @@ static void AppCancelFloorZeroGeneration(AppGen *gen)
 #define APP_SIM_DT (1.0f / 60.0f)
 #define APP_SIM_MAX_STEPS 5
 
+/* Indice della riga "Indietro" in APP_OPTIONS (MenuItemCountForMode(APP_OPTIONS)
+   in game_renderer.c ritorna 4: le tre barre 0..2, "Indietro" alla 3). Un solo
+   simbolo condiviso fra il blocco click generico qui sopra e il case
+   APP_OPTIONS sotto, cosi' il confine "riga-slider vs Indietro" non puo'
+   disallinearsi fra i due punti che lo controllano (W9 correzione round 0). */
+#define APP_OPTIONS_ROW_BACK 3
+
 /* L'unico punto che chiama IsKeyPressed per queste chiavi (vedi AppInput in
    app_internal.h): riempito UNA volta per frame di finestra, prima di
    UpdateApp. F11 resta fuori (gestito a parte, subito sotto in UpdateApp):
@@ -353,6 +361,15 @@ static void AppWriteChosenThemeFile(const ThemeCard *card)
  * AppStartGeneration all'ingresso). Idempotente: un secondo confirm mentre
  * il tema e' gia' scelto (es. tasto tenuto premuto) non deve riavviare
  * un'altra generazione sopra quella in corso. */
+/* Vedi il commento sulla dichiarazione in app_internal.h (la regola sta la',
+   accanto alla firma che i test usano). */
+int AppFloorZeroCardToConfirm(int cardHit, bool clicked, bool confirmKey, int focus)
+{
+    if (clicked && cardHit >= 0) return cardHit;
+    if (confirmKey) return focus;
+    return -1;
+}
+
 static void AppConfirmThemeChoice(Game *game, AppGen *gen, int index)
 {
     if (game->themeChosenIndex >= 0) return;
@@ -481,6 +498,16 @@ static void AppEnterBuildScreen(Game *game, AppUi *ui, AppMode from)
     if (count > MAX_ITEMS) count = MAX_ITEMS;
     if (ui->buildItemFocus >= count) ui->buildItemFocus = count > 0 ? count - 1 : 0;
     if (ui->buildItemFocus < 0) ui->buildItemFocus = 0;
+    /* W9 correzione round 1: l'ancora di scorrimento della lista riparte dalla
+       riga a fuoco (AppUi.buildItemScroll -- la finestra visibile dipende da
+       lei, non piu' dal focus). Senza questa riga il primo frame della
+       schermata userebbe l'ancora della visita precedente, che l'inventario
+       cambiato nel frattempo puo' aver reso insensata. Il valore esatto (quante
+       righe stanno nella finestra, quindi quanto l'ancora va tirata indietro)
+       lo sistema AppBuildScrollFollowFocus, che gira all'inizio di ogni frame
+       di BuildScreen: qui non si puo' chiedere al renderer, questa funzione la
+       chiamano anche cammini senza finestra. */
+    ui->buildItemScroll = ui->buildItemFocus;
 }
 
 /* Seleziona/deseleziona l'oggetto a fuoco. L'ORDINE conta (e' il tie-break di
@@ -560,6 +587,39 @@ static void AppUpdateBuildScreen(Game *game, AppUi *ui, const AppInput *input)
     if (input->fuse) AppFusionConfirm(game, ui);
 }
 
+/* W9 correzione round 1 (BOCCIATO, "l'anello di retroazione della lista
+   scorrevole"): tiene l'ANCORA di scorrimento della lista OGGETTI PRESI
+   ('ui->buildItemScroll', l'indice del primo oggetto mostrato) allineata al
+   focus, scorrendo del MINIMO indispensabile -- e SOLO quando il focus e'
+   uscito dalla finestra. Sostituisce la vecchia derivazione "first = focus -
+   maxShow + 1" che stava dentro la geometria del renderer: la' rendeva la
+   mappatura "punto dello schermo -> indice di oggetto" dipendente dal focus,
+   quindi l'hover del mouse (che scrive il focus) alimentava se stesso e faceva
+   scorrere la lista di uno step per ogni frame di MOVIMENTO, annullando la
+   rotellina. Adesso l'hover, che per definizione cade su una riga GIA' dentro
+   la finestra, non muove mai l'ancora: l'anello e' rotto per costruzione.
+   Quante righe stanno nella finestra lo dice il renderer
+   (RendererBuildItemRowsVisible: STESSA misura del disegno, mai una copia --
+   dipende dall'altezza della finestra e dalle sinergie attive, cose che questo
+   file non conosce). Chiamata all'INIZIO del frame di BuildScreen (cosi' il
+   hit-test lavora sulla finestra che il giocatore ha DAVVERO davanti) e alla
+   FINE (cosi' il disegno di questo stesso frame mostra il focus appena
+   spostato da tastiera/rotellina): idempotente, senza cambi di focus la seconda
+   chiamata non fa nulla. */
+static void AppBuildScrollFollowFocus(Game *game, AppUi *ui)
+{
+    int count = GameMathClampInt(game->player.itemCount, 0, MAX_ITEMS);
+    if (count <= 0) { ui->buildItemScroll = 0; return; }
+    int maxShow = RendererBuildItemRowsVisible(game);
+    if (maxShow < 1) maxShow = 1;
+    int lastAnchor = (count > maxShow) ? count - maxShow : 0;
+    int focus = GameMathClampInt(ui->buildItemFocus, 0, count - 1);
+    int scroll = GameMathClampInt(ui->buildItemScroll, 0, lastAnchor);
+    if (focus < scroll) scroll = focus;
+    else if (focus > scroll + maxShow - 1) scroll = focus - maxShow + 1;
+    ui->buildItemScroll = GameMathClampInt(scroll, 0, lastAnchor);
+}
+
 /* M7 (DEC-015/041/045/069, substrato del catalogo persistente): l'hook di
    scrittura, UNA funzione sola per i TRE chiamanti che possono chiudere una
    run (spec, punto 3) -- vittoria/sconfitta in APP_GAMEPLAY, abbandono
@@ -607,6 +667,21 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 {
     if (IsKeyPressed(KEY_F11)) ToggleFullscreen();
 
+    /* W9 correzione round 0 (BOCCIATO): 'mouseMoved' e' l'unico gate che i tre
+       punti di questo file che leggono il mouse in modo CONTINUO (il passo
+       hover generico qui sotto, le righe di BuildScreen, le carte/schedine del
+       Piano 0) devono rispettare prima di scrivere un focus -- vedi il
+       commento su AppUi.mouseTracked in game_types.h per il perche'. I CLICK
+       (IsMouseButtonPressed) restano eventi discreti e NON passano da questo
+       gate: un click va sempre onorato, si sia mosso o no il mouse in quel
+       frame. 'lastMousePos'/'mouseTracked' si aggiornano qui, una volta sola
+       per frame, PRIMA di ogni ramo che li legge. */
+    Vector2 mousePos = GetMousePosition();
+    bool mouseMoved = !ui->mouseTracked ||
+                       mousePos.x != ui->lastMousePos.x || mousePos.y != ui->lastMousePos.y;
+    ui->lastMousePos = mousePos;
+    ui->mouseTracked = true;
+
     /* Step B2: sondato SEMPRE, non solo durante Gameplay (diverso da
        pre-M1a) -- cosi' il processo di ripresa in sottofondo viene raccolto
        (niente zombie, vedi GenRunnerUpdate) anche se il giocatore resta a
@@ -647,13 +722,56 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        e' chiusa. */
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(*mode == APP_MAIN_MENU && ui->catalogOpen))
     {
-        int clicked = RendererMenuItemAt(*mode, GetMousePosition());
+        int clicked = RendererMenuItemAt(*mode, mousePos);
         if (clicked >= 0)
         {
             ui->focus = clicked;
-            effective.confirm = true;
-            menuClick = true;
+            /* W9 correzione round 0 (MINORE): in Options un click su una
+               riga-slider (indice < APP_OPTIONS_ROW_BACK) sposta il focus e
+               apre il trascinamento (vedi APP_OPTIONS sotto), ma NON e' un
+               "confirm" -- ENTER su una riga-slider non ha significato
+               (docs/design/ui/options-and-accessibility.md), quindi il click
+               non deve sintetizzarne uno: niente sfx UI_CONFIRM ad ogni
+               inizio di trascinamento, e nessun rischio di attraversare per
+               sbaglio il ramo "back" del case sotto. La riga "Indietro"
+               (indice APP_OPTIONS_ROW_BACK) e ogni voce di menu negli altri
+               stati restano un confirm pieno, come sempre. */
+            bool isOptionsSliderClick = (*mode == APP_OPTIONS && clicked < APP_OPTIONS_ROW_BACK);
+            if (!isOptionsSliderClick)
+            {
+                effective.confirm = true;
+                menuClick = true;
+            }
         }
+    }
+
+    /* W9 (playtest round 1, "mouse ovunque"): il solo PASSAGGIO del mouse
+       (nessun click) sposta gia' il focus su qualunque voce di menu STANDARD
+       sotto il puntatore -- stessa geometria del click appena sopra
+       (RendererMenuItemAt e' la fonte unica), cosi' "in evidenza" e
+       "cliccabile per attivarla" restano sempre la stessa voce. SOLO quando
+       'mouseMoved' (W9 correzione round 0, BOCCIATO): un puntatore lasciato
+       fermo su una voce -- la situazione normale dopo un click, o quando il
+       giocatore e' tornato a navigare da tastiera/pad -- non deve piu'
+       riscrivere il focus ad ogni frame (rompeva DEC-057: tastiera/pad
+       smettevano di funzionare per la sola presenza del mouse, vedi il
+       commento su AppUi.mouseTracked). Non tocca 'effective': un hover da
+       solo non e' mai un confirm sintetico. Sotto test resta un no-op non per
+       caso ma per costruzione: le suite che pilotano UpdateApp con eventi
+       sintetici parcheggiano il cursore virtuale in (2,2) prima del primo
+       frame (GameStatesTest/GameMouseHoverFocusTest, src/tests/game_tests.c),
+       punto fuori da ogni riquadro di menu -- che sono CENTRATI -- quindi
+       nessuna geometria risponde e nessun focus viene riscritto, qualunque
+       dimensione abbia la finestra di Xvfb. Stessa esclusione della vista Catalogo del blocco sopra
+       (altra geometria, RendererMenuItemAt risponderebbe con gli indici del
+       menu sottostante). Le geometrie AGGIUNTIVE di BuildScreen (righe
+       oggetti) e FloorZero (carte/schedine/fumetto del pannello, DEC-075)
+       vivono nei rispettivi case dello switch sotto, con le loro funzioni
+       dedicate (RendererBuildItemRowAt/RendererFloorZeroCardAt e affini). */
+    if (mouseMoved && !(*mode == APP_MAIN_MENU && ui->catalogOpen))
+    {
+        int hovered = RendererMenuItemAt(*mode, mousePos);
+        if (hovered >= 0) ui->focus = hovered;
     }
 
     /* Feedback sonoro generico di navigazione/conferma/annulla nei menu
@@ -825,11 +943,54 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             if (game->themeCardCount > 0)
             {
                 if (effective.tab) game->themeCardsPanelOpen = !game->themeCardsPanelOpen;
+                /* W9 (playtest round 1, DEC-075): il click sul fumetto "TAB --
+                   mondo e personaggio" apre il pannello esattamente come TAB
+                   -- il Piano 0 conta come menu ai fini del mouse, e questo
+                   fumetto e' l'unico invito visibile a pannello chiuso. */
+                if (!game->themeCardsPanelOpen && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+                    RendererFloorZeroHintChipAt(game, mousePos))
+                    game->themeCardsPanelOpen = true;
+
                 if (game->themeCardsPanelOpen)
                 {
                     if (effective.up || effective.down)
                         game->floorZeroPanelSection = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
                                                        ? FLOOR_ZERO_PANEL_CHARACTERS : FLOOR_ZERO_PANEL_WORLDS;
+
+                    /* W9: le due schedine MONDI/PERSONAGGI sono cliccabili,
+                       stessa azione di su/giu' da tastiera. */
+                    int tabHit = RendererFloorZeroSectionTabAt(game, mousePos);
+                    if (tabHit >= 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                        game->floorZeroPanelSection = (tabHit == 0) ? FLOOR_ZERO_PANEL_WORLDS : FLOOR_ZERO_PANEL_CHARACTERS;
+
+                    /* W9: hover su una carta della sezione ATTIVA sposta il
+                       focus (come una voce di menu), un click sopra la
+                       conferma -- stesso effetto di sinistra/destra + conferma
+                       da tastiera (DEC-075: il Piano 0 conta come menu).
+                       W9 correzione round 0 (BLOCCANTE): l'assegnazione del
+                       focus e' gated da 'mouseMoved' -- altrimenti un mouse
+                       lasciato fermo su una carta ruba per sempre la
+                       selezione a sinistra/destra da tastiera/pad, rendendo
+                       la scelta del mondo (irreversibile: avvia la
+                       generazione) quella sotto il puntatore invece di quella
+                       scelta col pad. Il click resta un evento discreto, non
+                       passa dal gate. */
+                    int cardHit = RendererFloorZeroCardAt(game, mousePos);
+                    bool cardClicked = (cardHit >= 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
+                    /* W9 correzione round 1 (BLOCCANTE): il click sposta il
+                       focus ANCHE se il mouse non si e' mosso in questo frame
+                       -- come fa da sempre il blocco generico dei menu qui
+                       sopra ("ui->focus = clicked", non condizionato). Senza
+                       questo, un puntatore lasciato fermo su una carta con il
+                       focus altrove (pannello aperto con TAB, o focus spostato
+                       da tastiera: 'mouseMoved' falso, nessun hover) faceva
+                       confermare la carta SBAGLIATA -- e la scelta del mondo e'
+                       IRREVERSIBILE (avvia la generazione). */
+                    if (cardHit >= 0 && (mouseMoved || cardClicked))
+                    {
+                        if (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS) game->themeCardFocus = cardHit;
+                        else game->characterCardFocus = cardHit;
+                    }
 
                     if (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
                     {
@@ -837,7 +998,17 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                             game->themeCardFocus = (game->themeCardFocus + game->themeCardCount - 1)%game->themeCardCount;
                         if (effective.right)
                             game->themeCardFocus = (game->themeCardFocus + 1)%game->themeCardCount;
-                        if (effective.confirm) AppConfirmThemeChoice(game, gen, game->themeCardFocus);
+                        /* W9 correzione round 1 (BLOCCANTE): il click conferma
+                           la carta DAVVERO cliccata ('cardHit'), non il focus
+                           corrente -- che le due frecce qui sopra possono
+                           persino aver spostato in questo stesso frame. La
+                           scelta del mondo avvia la generazione e non si torna
+                           indietro: qui non ci sono margini per un'indirezione
+                           in piu'. La regola vive in
+                           AppFloorZeroCardToConfirm (nucleo puro, testabile
+                           senza click veri: vedi app_internal.h). */
+                        int themeChoice = AppFloorZeroCardToConfirm(cardHit, cardClicked, effective.confirm, game->themeCardFocus);
+                        if (themeChoice >= 0) AppConfirmThemeChoice(game, gen, themeChoice);
                     }
                     else
                     {
@@ -854,7 +1025,15 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                             game->characterCardFocus = (game->characterCardFocus + cardCount - 1)%cardCount;
                         if (effective.right)
                             game->characterCardFocus = (game->characterCardFocus + 1)%cardCount;
-                        if (effective.confirm) AppConfirmCharacterChoice(game, game->characterCardFocus);
+                        /* Stessa regola per le carte-personaggio (W9 correzione
+                           round 1), stessa funzione: conferma quella cliccata.
+                           'cardHit' viene da RendererFloorZeroCardAt, che nella
+                           sezione PERSONAGGI conta esattamente le carte
+                           disegnate (GameCharacterCardCount, la stessa rosa
+                           dinamica di 'cardCount' qui sopra), quindi e' sempre
+                           un indice valido per AppConfirmCharacterChoice. */
+                        int characterChoice = AppFloorZeroCardToConfirm(cardHit, cardClicked, effective.confirm, game->characterCardFocus);
+                        if (characterChoice >= 0) AppConfirmCharacterChoice(game, characterChoice);
                     }
                 }
             }
@@ -1073,7 +1252,44 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                confermare, il valore e' gia' applicato) e chiudere la schermata
                sarebbe una sorpresa mentre si sta regolando. */
             const int OPTIONS_ROWS = 4;
-            const int OPTIONS_ROW_BACK = 3;
+            const int OPTIONS_ROW_BACK = APP_OPTIONS_ROW_BACK;
+            /* W9 (playtest round 1, "mouse ovunque"): le tre barre diventano
+               TRASCINABILI col mouse -- il click iniziale su una barra applica
+               subito il valore sotto il puntatore e apre il trascinamento
+               ('ui->optionsDragging'), che prosegue finche' il tasto resta
+               premuto (anche se il mouse esce dalla riga in verticale: solo la
+               X conta durante il trascinamento, come ci si aspetta da uno
+               slider), e si chiude al rilascio. RendererMenuItemAt(APP_OPTIONS,
+               ...) e' la STESSA query del blocco generico sopra (gia' chiamata
+               per il click/hover della riga): qui si aggiunge solo cosa fare
+               quando la riga colpita e' una delle tre barre (indice <
+               OPTIONS_ROW_BACK), non "Indietro". */
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
+                int hitRow = RendererMenuItemAt(APP_OPTIONS, mousePos);
+                /* Il trascinamento si apre SOLO dalla barra (RendererOptions-
+                   SliderHit): un click sull'etichetta o sulle frecce della
+                   riga e' navigazione (l'hover generico sopra ha gia' spostato
+                   il focus) e non deve toccare il volume -- senza il cancello,
+                   il clamp di ValueAt trasformava quei click in 0%/100%. */
+                if (hitRow >= 0 && hitRow < OPTIONS_ROW_BACK &&
+                    RendererOptionsSliderHit(hitRow, mousePos))
+                {
+                    ui->optionsDragging = true;
+                    ui->optionsDraggingIndex = hitRow;
+                }
+            }
+            if (ui->optionsDragging)
+            {
+                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+                {
+                    float v = RendererOptionsSliderValueAt(ui->optionsDraggingIndex, mousePos.x);
+                    if (ui->optionsDraggingIndex == 0) AudioSetMasterVolume(v);
+                    else if (ui->optionsDraggingIndex == 1) AudioSetMusicVolume(v);
+                    else AudioSetSfxVolume(v);
+                }
+                else ui->optionsDragging = false;   /* rilasciato: fine del trascinamento */
+            }
             if (effective.up || effective.down)
             {
                 ui->focus = (ui->focus + OPTIONS_ROWS + (effective.down ? 1 : -1))%OPTIONS_ROWS;
@@ -1096,6 +1312,13 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             }
             if (effective.back || (effective.confirm && ui->focus == OPTIONS_ROW_BACK))
             {
+                /* W9 correzione round 0 (MINORE): 'optionsDragging' si chiude
+                   anche qui, non solo al rilascio del tasto sopra -- altrimenti
+                   un'uscita (ESC, o back sintetico da click su "Indietro")
+                   mentre il tasto e' ancora premuto lascerebbe il flag vero, e
+                   riprenderebbe da solo alla visita successiva di Options se
+                   il tasto risultasse ancora premuto in quel momento. */
+                ui->optionsDragging = false;
                 *mode = ui->openedFrom;
                 ui->focus = ui->returnFocus;
             }
@@ -1104,6 +1327,77 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
 
         case APP_BUILD_SCREEN:
         {
+            /* W9 (playtest round 1, "mouse ovunque"): le righe della lista
+               OGGETTI PRESI sono cliccabili per scegliere le sorgenti della
+               fusione (DEC-057/DEC-143) -- hover sposta 'buildItemFocus'
+               come una voce di menu qualunque, click seleziona/deseleziona
+               esattamente come ENTER da tastiera (AppFusionToggle, la stessa
+               funzione che AppUpdateBuildScreen sotto usa per il tasto).
+               Geometria SEPARATA dal 'menuClick' generico calcolato sopra
+               (che per questo stato significa SOLO "Indietro", l'unica voce
+               che RendererMenuItemAt conosce qui): un click su una riga
+               oggetto non deve mai essere scambiato per un'uscita dalla
+               schermata. RendererBuildItemRowAt ritorna -1 se il punto non
+               cade su nessuna riga DAVVERO disegnata in questo momento
+               (finestra scorrevole), quindi fuori dalla lista non fa nulla.
+               W9 correzione round 1: la finestra visibile dipende ORA
+               dall'ancora 'ui->buildItemScroll', non piu' dal focus -- il
+               hit-test qui sotto e' quindi indipendente dal campo che l'hover
+               scrive (nessun anello di retroazione, vedi
+               AppBuildScrollFollowFocus). Prima riga di questo case: allineare
+               l'ancora, cosi' la geometria interrogata dal mouse e' quella che
+               il giocatore ha davvero davanti anche se l'inventario o la
+               finestra sono cambiati mentre la schermata era chiusa. */
+            AppBuildScrollFollowFocus(game, ui);
+            int hoveredBuildRow = RendererBuildItemRowAt(game, ui, mousePos);
+            if (hoveredBuildRow >= 0)
+            {
+                /* W9 correzione round 0 (BLOCCANTE): il focus si sposta SOLO
+                   quando il mouse si e' mosso davvero -- un puntatore lasciato
+                   fermo su una riga non deve rubare la selezione a
+                   tastiera/pad (DEC-057, vedi il commento su
+                   AppUi.mouseTracked in game_types.h). Il CLICK resta un
+                   evento discreto e non passa da questo gate: agisce sulla
+                   riga DAVVERO sotto il puntatore ('hoveredBuildRow'), non sul
+                   focus, quindi non dipende dall'hover che potrebbe non essere
+                   girato. */
+                if (mouseMoved) ui->buildItemFocus = hoveredBuildRow;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) AppFusionToggle(ui, hoveredBuildRow);
+            }
+            /* W9 correzione round 1 (MINORE): la riga di stato della fascia
+               FUSIONE e' cliccabile e vale [F] -- senza questa, nessun
+               percorso col SOLO mouse portava a termine una fusione (le
+               sorgenti si scelgono col click, ma la conferma era solo da
+               tastiera). Stessa funzione del tasto (AppFusionConfirm), quindi
+               anche lo stesso messaggio di esito quando la fusione non si puo'
+               fare. */
+            /* Feedback di hover della riga di conferma (correzione di Fable):
+               la riga e' un bersaglio di click, quindi deve dirlo anche al
+               passaggio del mouse, come ogni altra superficie cliccabile. */
+            ui->fusionConfirmHover = (hoveredBuildRow < 0) &&
+                                     RendererFusionConfirmAt(game, mousePos);
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && ui->fusionConfirmHover)
+                AppFusionConfirm(game, ui);
+            /* W9: la lista e' una finestra SCORREVOLE (RendererBuildItemRowAt/
+               BuildScreenItemListLayoutFor in game_renderer.c: solo le righe
+               DAVVERO disegnate in questo momento sono cliccabili) -- senza la
+               rotellina, un giocatore SOLO mouse non potrebbe mai raggiungere
+               un oggetto oltre la finestra iniziale (l'hover da solo non
+               sposta mai 'buildItemFocus' fuori da quello che gia' vede).
+               La rotellina muove il focus come su/giu' da tastiera e l'ancora
+               lo segue (AppBuildScrollFollowFocus in fondo al case): verso
+               l'alto (valore positivo di GetMouseWheelMove) avvicina la cima
+               della lista, esattamente come il tasto SU. */
+            {
+                float wheel = GetMouseWheelMove();
+                if (wheel != 0.0f)
+                {
+                    int count = GameMathClampInt(game->player.itemCount, 0, MAX_ITEMS);
+                    if (count > 0)
+                        ui->buildItemFocus = GameMathClampInt(ui->buildItemFocus - (int)wheel, 0, count - 1);
+                }
+            }
+
             /* Uscita: ESC, TAB (DEC-139, arco diretto verso Gameplay) o il
                click sulla riga "Indietro". Il confirm da TASTIERA non chiude
                piu' la schermata: qui dentro significa "seleziona questo
@@ -1118,6 +1412,13 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 break;
             }
             AppUpdateBuildScreen(game, ui, &effective);
+            /* W9 correzione round 1: su/giu' da tastiera, la rotellina o
+               l'esito di una fusione possono aver portato il focus FUORI dalla
+               finestra visibile -- l'ancora lo segue subito, prima che il
+               renderer disegni questo stesso frame, cosi' la riga a fuoco e'
+               sempre visibile (la garanzia della vecchia derivazione, senza il
+               suo anello di retroazione). */
+            AppBuildScrollFollowFocus(game, ui);
             break;
         }
 
@@ -1209,6 +1510,13 @@ int AppRun(int argc, char **argv)
     bool floorZeroTest = false;
     bool floorZeroScreenshotTest = false;
     bool roomsTest = false;
+    /* W9 (playtest round 1, "mouse ovunque"): come --rooms-test, gira DOPO
+       InitWindow senza bisogno di una finestra VISIBILE, ma serve il font di
+       default di raylib gia' caricato (RendererMouseHitTestSelfTest misura
+       BuildScreen con DrawBuildBlock, che chiama MeasureText) -- non puo'
+       girare prima di InitWindow come --layout-test. Vedi
+       RendererMouseHitTestSelfTest in src/render/game_renderer.c. */
+    bool mouseHitTest = false;
     bool rngSeedTest = false;
     bool itemPoolTest = false;
     bool economyTest = false;
@@ -1362,6 +1670,12 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             roomsTest = true;
+        }
+        /* W9: vedi il commento sul flag qui sopra. */
+        if (strcmp(argv[i], "--mouse-hit-test") == 0)
+        {
+            smokeTest = true;
+            mouseHitTest = true;
         }
         /* DEC-141: come --rooms-test, gira dopo InitWindow ma senza bisogno
            vero della finestra (GameRngSeedTest non disegna nulla, vedi
@@ -1660,6 +1974,14 @@ int AppRun(int argc, char **argv)
         ArtAtlasShutdown();
         CloseWindow();
         return ok ? 0 : 36;   /* 36: il primo codice libero dopo --art-atlas-test=35 */
+    }
+    if (mouseHitTest)
+    {
+        bool ok = RendererMouseHitTestSelfTest(&game) && GameMouseHoverFocusTest(&game);
+        printf("Mouse hit-test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 38;   /* 38: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --art-screens-screenshot-test=36) */
     }
     if (roomsTest)
     {
