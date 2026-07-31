@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
-last_reviewed: 2026-07-30
-last_verified_commit: 775314e
-topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-082, DEC-089, DEC-137, DEC-139, DEC-156, WP19]
+last_reviewed: 2026-07-31
+last_verified_commit: 50911c9
+topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-082, DEC-089, DEC-090, DEC-137, DEC-139, DEC-156, WP19, WP22]
 related: []
 supersedes: []
 source_files: [src/app/app.c, src/core/game_types.h]
@@ -135,6 +135,50 @@ flowchart TD
   (abbandono di una run in corso, abbandono della preparazione nel Piano 0) mantengono la
   presentazione già documentata nei rispettivi contratti (DEC-090).
 
+> **Nota di implementazione (WP22, 2026-07-31, gap G9 di `ui-cornice`; corretta in una
+> seconda e in una terza passata lo stesso giorno):** prima di questo lavoro
+> `RendererDrawApp`/`DrawExitConfirmOverlay` (`src/render/game_renderer.c`) disegnavano
+> `ExitConfirm` esattamente come ogni altro overlay canonico — schermo oscurato a 190/255 e
+> **nessuna chiamata a `DrawMainMenuOverlay`** — in tutti i contesti indistintamente,
+> quindi il menu non era mai "ancora disegnato dietro". Ora, quando
+> `ui->openedFrom == APP_MAIN_MENU` (il solo contesto "chiusura del gioco"), il case
+> `APP_EXIT_CONFIRM` ridisegna prima `MainMenu` (col focus reale salvato in
+> `ui->returnFocus`, passato come parametro — non più una copia dell'intera `AppUi`, 337KB
+> inutilmente duplicati nella prima passata di questo stesso lavoro, bocciata dal giudice)
+> e poi il dialogo di conferma con un velo di fondo più chiaro (90/255 invece di 190/255) —
+> nucleo puro condiviso fra disegno e test,
+> `ExitConfirmIsLightModalFor(AppMode openedFrom)` (`src/render/game_renderer.h`). Il velo
+> di `MainMenu` ridisegnato sotto è disattivato (`DrawMainMenuOverlay` prende un parametro
+> `dimBackground`, `false` in questo caso) così l'UNICO velo applicato sull'intero schermo
+> resta quello, più chiaro, di `ExitConfirm` sopra (nella prima passata i due veli si
+> sommavano, risultando in uno schermo PIÙ scuro del comportamento pre-WP22, l'opposto
+> dell'intento).
+>
+> **I contesti di `ExitConfirm` sono QUATTRO, non due**: `MainMenu`/Esci (chiusura del
+> gioco, l'unico leggero), abbandono della preparazione nel Piano 0, abbandono di una run
+> in corso da `PauseMenu`, e rigenerazione della run (WP21, DEC-114, anch'essa da
+> `PauseMenu`). La **geometria stretta** del dialogo (`MenuBoxForModeFor`: 460 di larghezza
+> invece dei 600 di `MainMenu`/`RunSetup`/`Options`/`RunResults`) vale **solo per il
+> contesto leggero** — è ciò che lascia un margine di ciascuna riga di `MainMenu` visibile
+> ai due lati del riquadro di conferma. La seconda passata l'aveva applicata a tutti e
+> quattro: negli altri tre, che DEC-090 vuole invariati, la domanda (765/849/864 px col
+> font reale, contro 520 px di spazio utile in un pannello da 600 e 380 in uno da 460)
+> sconfinava dal riquadro molto più di prima. **La loro larghezza è quindi tornata a 600**,
+> e in tutti e quattro i contesti la domanda va ora **a capo** dentro il pannello
+> (`WrapTextLines`, fino a tre righe sopra le due voci): il testo non esce più dal riquadro
+> in nessun contesto, difetto che era presente anche prima di WP22. Il valore esatto
+> dell'opacità, la larghezza del box leggero e l'impaginazione della domanda sono un
+> **default proposto dall'implementazione** (non fissati da questo documento): vedi
+> `governance/open-questions.md`, voce 56.
+>
+> Verificato non solo da `--layout-test` (nucleo puro: geometria delle voci in ENTRAMBE le
+> larghezze, box leggero davvero più stretto e box a schermo pieno davvero uguale a quello
+> di `MainMenu`) e `--states-test` (i contesti restano distinti nel routing reale) ma anche
+> da `--exit-confirm-light-modal-test` (`GameExitConfirmLightModalTest`,
+> `src/tests/game_tests.c`), che campiona pixel di un frame VERO — velo più chiaro,
+> `MainMenu` davvero disegnato dietro, e domanda che resta dentro il bordo destro del
+> pannello nel contesto a schermo pieno.
+
 > **Nota di implementazione (WP19, 2026-07-30):** il case `APP_EXIT_CONFIRM`
 > (`src/app/app.c`) sceglie fra i due archi `ExitConfirm --> RunResults` e
 > `ExitConfirm --> MainMenu` del diagramma sopra con un'unica guardia,
@@ -216,6 +260,13 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
 - **Dato** che il giocatore è in `MainMenu` e richiede di chiudere il gioco, **quando** entra
   in `ExitConfirm`, **allora** vede un dialogo modale leggero sopra il menu, non una
   schermata dedicata (DEC-090).
+- **Dato** che il giocatore apre `ExitConfirm` da uno qualunque dei suoi contesti (chiusura
+  del gioco, abbandono della preparazione, abbandono di una run in corso, rigenerazione
+  della run), **quando** legge la domanda di conferma, **allora** la trova interamente
+  dentro il riquadro del dialogo, mandata a capo se non ci sta su una riga sola; e i tre
+  contesti a schermo pieno conservano il riquadro delle altre schermate, mentre solo la
+  chiusura del gioco usa il riquadro più stretto che lascia il menu leggibile ai lati
+  (DEC-090).
 - **Dato** che il giocatore è in `Gameplay`, **quando** preme TAB, **allora** entra
   direttamente in `BuildScreen` senza passare da `PauseMenu`, e uscendo torna a `Gameplay`
   (DEC-139); la via da `PauseMenu` → «Build e sinergie» resta comunque disponibile.

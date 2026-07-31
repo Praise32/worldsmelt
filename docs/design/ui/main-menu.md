@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile (sette categorie canoniche: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi — DEC-083) più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069). Il Catalogo è una vista interna dello stato `MainMenu`, non un decimo stato applicativo: la mappa canonica resta a 9 stati (DEC-084)."
-last_reviewed: 2026-07-27
-last_verified_commit: 0ec60d0
-topics: [main-menu, catalogo, focus, run-sospesa, lettore-di-schermo, DEC-045, DEC-083, DEC-084, DEC-166]
+last_reviewed: 2026-07-31
+last_verified_commit: 50911c9
+topics: [main-menu, catalogo, focus, run-sospesa, lettore-di-schermo, exitconfirm, DEC-045, DEC-083, DEC-084, DEC-090, DEC-166, WP22]
 related: []
 supersedes: []
 source_files: []
@@ -103,7 +103,11 @@ multiplayer resta `experimental`.
 ## Comando Indietro
 
 Da `MainMenu` il comando Indietro apre `ExitConfirm` sulle piattaforme dove è applicabile;
-altrove non ha effetto.
+altrove non ha effetto. La presentazione di `ExitConfirm` in questo contesto (chiusura del
+gioco) è un **dialogo modale leggero**, non una schermata dedicata: fonte unica della
+regola e dello stato di implementazione (WP22, 2026-07-31) è
+[Game States and Flow](../05-game-states-and-flow.md#risultato-e-feedback-per-transizione)
+(DEC-090), non ripetuta qui.
 
 ## Stato di caricamento
 

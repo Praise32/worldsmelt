@@ -22,6 +22,16 @@ UiLayout UiComputeLayoutFor(float sw, float sh);
    menu dentro il box e non sovrapposte. Vedi --layout-test in src/app/app.c. */
 bool UiLayoutSelfTest(void);
 
+/* WP22 (DEC-090, gap G9 ui-cornice): nucleo PURO (nessuna chiamata raylib) che
+   decide se il dialogo ExitConfirm aperto da 'openedFrom' resta un dialogo
+   modale LEGGERO (MainMenu ridisegnato sotto, velo di fondo attenuato) o a
+   schermo pieno come sempre -- vero SOLO per APP_MAIN_MENU (chiusura del
+   gioco); FloorZero e PauseMenu restano a schermo pieno, presentazione gia'
+   documentata (DEC-090). Esposta cosi' DrawExitConfirmOverlay/RendererDrawApp
+   (game_renderer.c) e --layout-test (src/app/app.c) condividono la STESSA
+   regola, mai due copie che potrebbero divergere. */
+bool ExitConfirmIsLightModalFor(AppMode openedFrom);
+
 /* Zona cliccabile della voce di menu all'indice restituito, per lo stato
    'mode', nella STESSA geometria che RendererDrawApp usa per disegnarla
    (game_renderer.c: un'unica sorgente per le due cose, mai duplicata in
@@ -29,8 +39,25 @@ bool UiLayoutSelfTest(void);
    primaria): src/app/app.c la interroga dentro UpdateApp per tradurre un
    click in un confirm sintetico sulla voce sotto il puntatore. Ritorna -1 se
    il punto non e' su nessuna voce, o se 'mode' non ha un overlay di menu
-   (FloorZero, Gameplay). */
-int RendererMenuItemAt(AppMode mode, Vector2 mouse);
+   (FloorZero, Gameplay).
+   'exitConfirmLight' (WP22, terza passata) e' il contesto che serve alla sola
+   geometria di APP_EXIT_CONFIRM: il dialogo leggero "MainMenu -> Esci" ha un
+   riquadro piu' stretto degli altri tre contesti (vedi MenuBoxForModeFor in
+   game_renderer.c), quindi anche voci piu' strette. Chi chiama passa
+   ExitConfirmIsLightModalFor(ui->openedFrom); 'false' -- il valore piu'
+   innocuo, cioe' la geometria a schermo pieno di sempre -- va bene per ogni
+   altro 'mode', che lo ignora. */
+int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight);
+
+/* WP22 (terza passata, ui/run-setup.md): etichetta e fascia occupata dalla
+   riga informativa "Modalita': Standard" di RunSetup -- fonte UNICA condivisa
+   fra DrawRunSetupOverlay (che ci disegna il testo) e i test
+   (GameRunSetupModeLineTest a pixel su un frame vero, UiLayoutSelfTest voce
+   'h' come nucleo puro). La riga NON e' una voce di menu: non ha indice,
+   RendererMenuItemAt non deve mai rispondere per un punto dentro questa
+   fascia, e la fascia non tocca nessuna delle tre voci selezionabili. */
+const char *RendererRunSetupModeLabel(void);
+Rectangle RendererRunSetupModeLabelBandFor(float sw, float sh);
 
 /* W9 (playtest round 1, "mouse ovunque"): il resto delle geometrie che
    RendererMenuItemAt sopra non copre, stesso principio -- fonte UNICA sia per

@@ -3229,14 +3229,67 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    sempre in mezzo qualunque sia la scala -- esattamente il requisito M4
    "restando centrati". A uiScale==1.0 il centro-larghezza/2 e' aritmeticamente
    identico ai vecchi letterali fissi (sw*0.5-380 == sw*0.5-760*1.0*0.5). */
-static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh)
+/* 'exitConfirmLight' e' il SOLO contesto che questa geometria deve conoscere
+   oltre a 'mode' (WP22, terza passata): falso = presentazione a schermo pieno
+   di sempre, il valore piu' innocuo (nessun restringimento, nessun cambiamento
+   rispetto a prima di WP22) -- cosi' un chiamante che non sa nulla di
+   ExitConfirm, o una struct azzerata, ottiene il comportamento invariato.
+   Vero SOLO dove ExitConfirmIsLightModalFor(ui->openedFrom) lo e'. Viaggia
+   insieme a 'mode' per tutta la catena della geometria (MenuBoxForMode/
+   MenuItemRectFor/MenuItemRect/RendererMenuItemAt) perche' disegno e hit-test
+   del mouse devono restare la STESSA geometria: se il dialogo leggero si
+   disegnasse stretto ma il hit-test rispondesse largo, i 70px di margine per
+   lato risponderebbero a click su voci che li' non sono disegnate. */
+static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitConfirmLight)
 {
     float uiScale = UiScaleForHeight(sh);
     /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
        intera a schermo pieno, non solo poche voci): riusa le stesse fonti
        dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
        di piu' spazio delle 1-4 voci di un menu qualunque. */
-    float w = (mode == APP_BUILD_SCREEN ? 760.0f : 600.0f)*uiScale;
+    /* WP22 (DEC-090, gap G9 ui-cornice, TERZA passata): il riquadro piu'
+       stretto (460 invece dei 600 di MainMenu/RunSetup/Options/RunResults)
+       vale SOLO per il dialogo leggero "MainMenu -> Esci", cioe' quando
+       'exitConfirmLight' e' vero (ExitConfirmIsLightModalFor(ui->openedFrom),
+       vedi RendererDrawApp/DrawExitConfirmOverlay). Serve li' e solo li':
+       il dialogo si disegna SOPRA il MainMenu ridisegnato sotto, e con la
+       stessa larghezza di 600 i due riquadri combaciavano esattamente,
+       coprendo il menu per intero -- nessun punto dello schermo restava
+       "leggibile dietro" come richiede DEC-090. Il margine risparmiato
+       (600-460=140, 70 per lato) e' maggiore del margine orizzontale delle
+       righe di menu (60, vedi l'offset "60.0f*uiScale" in MenuItemRectFor
+       sotto): un bordo di 10px di ciascuna riga del MainMenu (il suo
+       riquadro pieno/la sua cornice, non solo il testo) ricade quindi FUORI
+       dal riquadro piu' stretto di ExitConfirm, su entrambi i lati -- e
+       resta visibile perche' RendererDrawApp non ridisegna piu' un secondo
+       velo scuro sopra il MainMenu gia' disegnato (vedi
+       DrawMainMenuOverlay/BeginMenuOverlayDim sotto).
+       Gli altri TRE contesti di ExitConfirm (abbandono della preparazione nel
+       Piano 0, abbandono di una run in corso da PauseMenu, rigenerazione
+       della run di WP21/DEC-114) restano a schermo pieno e conservano i 600
+       di sempre: DEC-090 li vuole invariati, e la seconda passata di questo
+       lavoro li aveva stretti anche loro senza motivo. La misura che l'ha
+       smentita (font reale assets/art/ui/font-5px.json, UiFontScale(16)=3,
+       uiScale 1.0): le tre domande a schermo pieno sono larghe 765, 849 e 864
+       px -- a 460 di box restavano 380 px di spazio utile fra i due margini
+       da 40, meno della meta' del necessario. Da questa passata la domanda
+       non e' piu' una riga sola: DrawExitConfirmOverlay la manda a capo con
+       WrapTextLines dentro box.width-80, cosi' STA nel pannello in tutti e
+       quattro i contesti (a 600: due righe da 501+249 / 378+456 / 480+369 px;
+       a 460 l'unica domanda del contesto leggero, "Uscire dal gioco?", e'
+       larga 201 px e resta su una riga sola).
+       L'altezza resta 400 in tutti i contesti: le due righe di ExitConfirm
+       ("Conferma"/"Annulla") cominciano a 110 (MENU_ROW_START_Y_BASE) e la
+       domanda mandata a capo occupa al massimo 52..107 (tre righe da 20,
+       glifi alti 15), quindi non le tocca mai.
+       Verificato da UiLayoutSelfTest (voce 'e': le voci restano dentro il box
+       a ogni risoluzione sintetica, in ENTRAMBE le geometrie; voce 'f': la
+       geometria leggera e' davvero piu' stretta e quella a schermo pieno e'
+       davvero uguale a MainMenu) e da GameExitConfirmLightModalTest
+       (game_tests.c, --exit-confirm-light-modal-test) che campiona i pixel
+       del frame vero. */
+    float w = (mode == APP_BUILD_SCREEN ? 760.0f
+             : ((mode == APP_EXIT_CONFIRM && exitConfirmLight) ? 460.0f : 600.0f))*uiScale;
     /* 560 e non piu' 520: la fascia FUSIONE in fondo (DrawFusionBand) e' una
        riga di contenuto in piu' rispetto a quando questo riquadro e' nato, e
        comprimere le liste sopra sarebbe stato peggio. A 640 px di altezza --
@@ -3253,9 +3306,9 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh)
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
-static Rectangle MenuBoxForMode(AppMode mode)
+static Rectangle MenuBoxForMode(AppMode mode, bool exitConfirmLight)
 {
-    return MenuBoxForModeFor(mode, (float)GetScreenWidth(), (float)GetScreenHeight());
+    return MenuBoxForModeFor(mode, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
 }
 
 static int MenuItemCountForMode(AppMode mode)
@@ -3314,9 +3367,9 @@ static int MenuItemCountForMode(AppMode mode)
 
 /* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
    stessa garanzia (uiScale==1.0 => letterali identici a prima). */
-static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh)
+static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh, bool exitConfirmLight)
 {
-    Rectangle box = MenuBoxForModeFor(mode, sw, sh);
+    Rectangle box = MenuBoxForModeFor(mode, sw, sh, exitConfirmLight);
     float uiScale = UiScaleForHeight(sh);
     /* BuildScreen non e' un menu di voci: e' una schermata piena con UNA sola
        riga d'azione ("Indietro"). Alla quota comune (MENU_ROW_START_Y_BASE)
@@ -3332,17 +3385,17 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh)
     return (Rectangle){ box.x + 60.0f*uiScale, top, box.width - 120.0f*uiScale, 40.0f*uiScale };
 }
 
-static Rectangle MenuItemRect(AppMode mode, int index)
+static Rectangle MenuItemRect(AppMode mode, int index, bool exitConfirmLight)
 {
-    return MenuItemRectFor(mode, index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    return MenuItemRectFor(mode, index, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
 }
 
-int RendererMenuItemAt(AppMode mode, Vector2 mouse)
+int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight)
 {
     int count = MenuItemCountForMode(mode);
     for (int i = 0; i < count; i++)
     {
-        if (CheckCollisionPointRec(mouse, MenuItemRect(mode, i))) return i;
+        if (CheckCollisionPointRec(mouse, MenuItemRect(mode, i, exitConfirmLight))) return i;
     }
     return -1;
 }
@@ -3359,10 +3412,10 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse)
    MenuItemRect, che questa funzione chiama per la propria geometria -- cosi'
    il font della riga scala sempre in accordo col riquadro che lo contiene,
    senza dover far transitare uiScale per ogni DrawXOverlay che la chiama. */
-static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, Color accent)
+static void DrawMenuRowCtx(AppMode mode, int index, const char *label, int focus, Color accent, bool exitConfirmLight)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle row = MenuItemRect(mode, index);
+    Rectangle row = MenuItemRect(mode, index, exitConfirmLight);
     bool hasFocus = (index == focus);
     bool hover = CheckCollisionPointRec(GetMousePosition(), row);
     DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
@@ -3375,19 +3428,37 @@ static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, C
     UiText(label, (int)row.x + UiRound(16.0f*uiScale), (int)row.y + UiRound(10.0f*uiScale), UiRound(18.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
 }
 
+/* La forma comune: nessuno degli altri overlay ha un contesto da propagare
+   (il riquadro stretto esiste SOLO per il dialogo leggero di ExitConfirm,
+   vedi MenuBoxForModeFor), quindi passano 'false' una volta sola qui invece
+   di portarsi dietro un parametro che per loro non significherebbe nulla.
+   L'unico chiamante di DrawMenuRowCtx con un valore vero e'
+   DrawExitConfirmOverlay. */
+static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, Color accent)
+{
+    DrawMenuRowCtx(mode, index, label, focus, accent, false);
+}
+
 /* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
    schermo (mette in pausa visiva la scena sotto) + pannello raygui col
    titolo. Estratta da BeginMenuOverlay (M8) perche' il Catalogo (vedi
    BeginCatalogOverlay sotto) ha bisogno della STESSA cornice ma di un box di
    dimensioni proprie -- MenuBoxForMode e' agganciato a un AppMode dei 7
    overlay canonici, e il Catalogo vive dentro APP_MAIN_MENU (nessun nuovo
-   AppMode, spec M8), quindi non puo' fornirne uno adatto da solo. */
-static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, Color accent)
+   AppMode, spec M8), quindi non puo' fornirne uno adatto da solo.
+   'dimAlpha' e' il SOLO parametro che varia fra i due usi (WP22, DEC-090,
+   gap G9): schermo pieno quasi opaco (190) per ogni overlay canonico, o un
+   velo leggero (vedi EXIT_CONFIRM_LIGHT_DIM_ALPHA sotto) per il solo dialogo
+   "MainMenu -> ExitConfirm" che deve restare un dialogo leggero SOPRA il
+   menu ancora leggibile dietro -- il pannello stesso (9-patch/titolo) resta
+   identico in entrambi i casi, cambia solo quanto si scurisce quello che sta
+   SOTTO il box. */
+static void DrawMenuOverlayChromeDim(Rectangle box, Game *game, const char *title, Color accent, int dimAlpha)
 {
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
     float uiScale = UiScaleForHeight((float)sh);
-    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, 190));
+    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, dimAlpha));
     /* W8: la cornice di OGNI schermata e' il pannello 9-patch di
        assets/art/ui, non piu' GuiPanel. Non e' solo estetica: raygui disegnava
        col proprio font vettoriale e col proprio tema, cioe' con una tipografia
@@ -3416,36 +3487,138 @@ static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, 
                   (int)box.width - UiRound(16.0f*uiScale), UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
 }
 
+/* Schermo pieno quasi opaco (190): il comportamento di sempre, per i sei
+   overlay canonici che restano a schermo pieno (nessuna scena sotto deve
+   restare leggibile). */
+static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, Color accent)
+{
+    DrawMenuOverlayChromeDim(box, game, title, accent, 190);
+}
+
+/* WP22 (DEC-090, gap G9 ui-cornice): quanto si scurisce lo schermo dietro il
+   SOLO dialogo "MainMenu -> ExitConfirm" (chiusura del gioco) -- abbastanza
+   leggero da lasciare il menu sotto ancora leggibile (non solo intuibile),
+   a differenza del 190 usato ovunque altrove (Piano 0/PauseMenu, che restano
+   a schermo pieno per DEC-090 stesso, "gli altri usi di ExitConfirm
+   mantengono la presentazione gia' documentata"). */
+#define EXIT_CONFIRM_LIGHT_DIM_ALPHA 90
+
+/* Vedi la dichiarazione in game_renderer.h: nucleo puro, nessuna chiamata
+   raylib, condiviso da disegno e test (--layout-test). */
+bool ExitConfirmIsLightModalFor(AppMode openedFrom)
+{
+    return openedFrom == APP_MAIN_MENU;
+}
+
+/* Nucleo comune a BeginMenuOverlay/BeginMenuOverlayLight sotto: il box e il
+   pannello sono sempre gli stessi per un dato 'mode', cambia solo 'dimAlpha'
+   (vedi il commento su DrawMenuOverlayChromeDim). WP22 (seconda passata,
+   correzione del "doppio velo" contestato dal giudice): questa e' anche la
+   via con cui DrawMainMenuOverlay disegna se stesso SENZA alcun
+   oscuramento a schermo pieno (dimAlpha 0) quando serve come sfondo di
+   ExitConfirm -- prima quel caso richiamava BeginMenuOverlay (dimAlpha fisso
+   190), e l'oscuramento leggero di BeginMenuOverlayLight sopra ci si
+   sommava (190+90 compositi, PIU' scuro del solo 190 di prima di WP22): con
+   dimAlpha 0 qui il MainMenu sotto non disegna alcun velo proprio, e resta
+   un SOLO velo leggero (quello di BeginMenuOverlayLight) sull'intero
+   schermo. */
+static Rectangle BeginMenuOverlayDim(AppMode mode, Game *game, const char *title, Color accent, int dimAlpha, bool exitConfirmLight)
+{
+    Rectangle box = MenuBoxForMode(mode, exitConfirmLight);
+    DrawMenuOverlayChromeDim(box, game, title, accent, dimAlpha);
+    return box;
+}
+
 /* Ritorna il box, cosi' il chiamante posiziona il resto del proprio
    contenuto senza ricalcolarlo. */
 static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, Color accent)
 {
-    Rectangle box = MenuBoxForMode(mode);
-    DrawMenuOverlayChrome(box, game, title, accent);
-    return box;
+    return BeginMenuOverlayDim(mode, game, title, accent, 190, false);
 }
 
-static void DrawMainMenuOverlay(Game *game, const AppUi *ui)
+/* WP22: gemella leggera di BeginMenuOverlay, stesso box/pannello ma velo di
+   fondo attenuato (EXIT_CONFIRM_LIGHT_DIM_ALPHA) -- solo per il dialogo
+   "MainMenu -> ExitConfirm" (vedi DrawExitConfirmOverlay e il case
+   APP_EXIT_CONFIRM in RendererDrawApp, che ridisegna il MainMenu SOTTO
+   prima di chiamare questa). */
+static Rectangle BeginMenuOverlayLight(AppMode mode, Game *game, const char *title, Color accent)
+{
+    return BeginMenuOverlayDim(mode, game, title, accent, EXIT_CONFIRM_LIGHT_DIM_ALPHA, true);
+}
+
+/* 'focus' arriva come intero, non piu' come 'const AppUi *ui' (WP22, seconda
+   passata): la sola cosa che questa funzione legge da 'ui' era ui->focus, e
+   il chiamante "sfondo di ExitConfirm" (RendererDrawApp, case
+   APP_EXIT_CONFIRM) doveva altrimenti copiare l'INTERA AppUi (337280 byte
+   misurati, sizeof(AppUi)) solo per sostituire quel campo -- 330KB di
+   memcpy/stack per ogni frame col dialogo aperto, per cambiare un int. Con
+   'focus' diretto il chiamante normale passa ui->focus, quello "sfondo"
+   passa ui->returnFocus (la riga su cui il giocatore stava davvero prima di
+   aprire ExitConfirm), senza copie.
+   'dimBackground' sceglie fra BeginMenuOverlay (schermo pieno quasi opaco,
+   il MainMenu disegnato da solo, comportamento di sempre) e la variante
+   senza velo (vedi BeginMenuOverlayDim sopra), usata SOLO quando questa
+   funzione disegna il MainMenu come sfondo di ExitConfirm: il velo
+   dell'intero schermo lo applica in quel caso SOLO ExitConfirm sopra (un
+   velo solo, mai due sommati). */
+static void DrawMainMenuOverlay(Game *game, int focus, bool dimBackground)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle box = BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2);
+    Rectangle box = dimBackground
+        ? BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2)
+        : BeginMenuOverlayDim(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2, 0, false);
     UiText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 1, "Catalogo", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 2, "Opzioni", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 3, "Esci", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 1, "Catalogo", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 2, "Opzioni", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, 3, "Esci", focus, game->theme.accent2);
+}
+
+/* WP22 (terza passata, ui/run-setup.md): etichetta e fascia della riga
+   informativa "Modalita'" di RunSetup, condivise fra il disegno
+   (DrawRunSetupOverlay qui sotto) e il test (GameRunSetupModeLineTest,
+   src/tests/game_tests.c) -- fonte UNICA, stesso principio di
+   MenuBoxForMode/MenuItemRect: senza questo il test avrebbe dovuto indovinare
+   la quota, e cancellare la riga sarebbe rimasto invisibile a make test
+   (difetto contestato dal giudice).
+   La quota 78 non e' cosmesi: fino alla seconda passata la riga si disegnava a
+   MENU_ROW_START_Y_BASE + MENU_ROW_H_BASE*0.62 = 142, cioe' DENTRO la fascia
+   della voce "Seed" (110..150, vedi MenuItemRectFor) -- si sovrapponeva al
+   bordo inferiore di una riga selezionabile. Fra il filetto del titolo (che
+   finisce a 30) e la prima voce (110) c'e' invece una fascia libera larga 80:
+   78..93 (glifi alti 10 a UiFontScale(14)=2) la usa lasciando 48px sopra e
+   17px sotto, senza toccare nessuna delle tre voci di menu. */
+#define RUN_SETUP_MODE_LABEL_X_BASE 76.0f
+#define RUN_SETUP_MODE_LABEL_Y_BASE 78.0f
+#define RUN_SETUP_MODE_LABEL_H_BASE 20.0f
+
+const char *RendererRunSetupModeLabel(void)
+{
+    return "Modalita': Standard";
+}
+
+Rectangle RendererRunSetupModeLabelBandFor(float sw, float sh)
+{
+    float uiScale = UiScaleForHeight(sh);
+    Rectangle box = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
+    float x = box.x + RUN_SETUP_MODE_LABEL_X_BASE*uiScale;
+    return (Rectangle){ x, box.y + RUN_SETUP_MODE_LABEL_Y_BASE*uiScale,
+                        box.x + box.width - 40.0f*uiScale - x, RUN_SETUP_MODE_LABEL_H_BASE*uiScale };
 }
 
 static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle box = BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);
-    DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
+    BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);   /* il box torna da RendererRunSetupModeLabelBandFor/MenuItemRect, non serve qui */
     /* "Modalita'" e' un'etichetta fissa (unica modalita' esistente, DEC-038:
        niente selettore di difficolta'), non una voce selezionabile: disegnata
-       fra le righe 0 e 1 senza passare da DrawMenuRow/MenuItemRect, cosi' non
-       occupa un indice ne' e' cliccabile. */
-    UiText("Modalita': Standard", (int)box.x + UiRound(76.0f*uiScale), (int)(box.y + (MENU_ROW_START_Y_BASE + MENU_ROW_H_BASE*0.62f)*uiScale), UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
+       SOPRA le tre voci, nella fascia libera fra il filetto del titolo e la
+       riga "Seed", senza passare da DrawMenuRow/MenuItemRect -- cosi' non
+       occupa un indice, non e' cliccabile e non si sovrappone piu' a nessuna
+       riga (vedi RendererRunSetupModeLabelBandFor sopra). */
+    Rectangle band = RendererRunSetupModeLabelBandFor((float)GetScreenWidth(), (float)GetScreenHeight());
+    UiText(RendererRunSetupModeLabel(), (int)band.x, (int)band.y, UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
+    DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
 }
@@ -3552,7 +3725,7 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
 static Rectangle OptionsSliderBarRectFor(int index, float sw, float sh)
 {
     float uiScale = UiScaleForHeight(sh);
-    Rectangle row = MenuItemRectFor(APP_OPTIONS, index, sw, sh);
+    Rectangle row = MenuItemRectFor(APP_OPTIONS, index, sw, sh, false);
     float barW = row.width*0.42f;
     float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
     return (Rectangle){ barX, row.y, barW, row.height };
@@ -3607,7 +3780,7 @@ bool RendererOptionsSliderHit(int index, Vector2 mouse)
 static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const char *label, float value)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle row = MenuItemRect(APP_OPTIONS, index);
+    Rectangle row = MenuItemRect(APP_OPTIONS, index, false);
     DrawMenuRow(APP_OPTIONS, index, label, ui->focus, game->theme.accent2);
 
     bool hasFocus = (index == ui->focus);
@@ -3864,7 +4037,7 @@ static void BuildScreenItemListLayoutFor(Game *game, const AppUi *ui, float sw, 
                                           int *outRowStep, int *outFirst, int *outMaxShow, int *outCount)
 {
     float uiScale = UiScaleForHeight(sh);
-    Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, sw, sh);
+    Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, sw, sh, false);
     int innerX = (int)box.x + UiRound(40.0f*uiScale);
     int innerY = (int)box.y + UiRound(52.0f*uiScale);
     int innerW = (int)box.width - UiRound(80.0f*uiScale);
@@ -4122,10 +4295,41 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
     DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
 }
 
+/* Dichiarata qui perche' DrawExitConfirmOverlay (subito sotto) la usa e la
+   definizione sta piu' in basso, insieme al resto del Catalogo che l'ha
+   introdotta (M5/DEC-005): spostarla avrebbe mosso decine di righe senza
+   guadagno. */
+static int WrapTextLines(const char *text, int fontSize, float maxWidth, char out[][160], int maxLines);
+
+/* Quante righe al massimo puo' occupare la domanda di ExitConfirm, e con che
+   passo verticale (WP22, terza passata). Le due voci ("Conferma"/"Annulla")
+   cominciano a MENU_ROW_START_Y_BASE = 110: partendo da 52, tre righe da 20
+   con glifi alti 15 (font-5px a UiFontScale(16)=3) finiscono a 107, sotto la
+   soglia. Le domande vere ne occupano al massimo due (misure nel commento di
+   MenuBoxForModeFor); la terza e' il margine di sicurezza per un testo futuro
+   piu' lungo -- oltre, WrapTextLines tronca con "..." invece di sconfinare
+   sulle voci. */
+#define EXIT_CONFIRM_QUESTION_Y_BASE 52.0f
+#define EXIT_CONFIRM_QUESTION_STEP_BASE 20.0f
+#define EXIT_CONFIRM_QUESTION_MAX_LINES 3
+
 static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle box = BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
+    /* WP22 (DEC-090, gap G9): il contesto "MainMenu -> Esci" (chiusura del
+       gioco) e' l'unico dei QUATTRO (vedi 'question' sotto) in cui openedFrom
+       vale APP_MAIN_MENU -- exitAbandonsRun resta sempre falso li' (vedi il
+       case APP_MAIN_MENU in src/app/app.c, righe 864/896), quindi
+       ExitConfirmIsLightModalFor basta da sola a riconoscerlo, senza bisogno
+       di un campo dedicato in piu'. Il case APP_EXIT_CONFIRM in
+       RendererDrawApp ha gia' ridisegnato il MainMenu SOTTO in questo stesso
+       frame quando la condizione e' vera: qui serve solo il velo di fondo piu'
+       leggero (non un altro schermo pieno che lo cancellerebbe), e il riquadro
+       piu' stretto che 'lightModal' seleziona in MenuBoxForModeFor. */
+    bool lightModal = ExitConfirmIsLightModalFor(ui->openedFrom);
+    Rectangle box = lightModal
+        ? BeginMenuOverlayLight(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2)
+        : BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
     /* Quattro contesti distinti (DEC-057 + M1b + WP21/DEC-114), tutti derivati
        da 'ui' senza un campo dedicato in piu' per ciascuno: MainMenu/Esci ha
        sia exitAbandonsRun sia exitRerollsRun falsi; i due abbandoni (Piano 0/
@@ -4144,9 +4348,28 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
             : (ui->openedFrom == APP_FLOOR_ZERO
                 ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
                 : "Abbandonare la run in corso? Il progresso non salvato si perde."));
-    UiText(question, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
-    DrawMenuRow(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED);
-    DrawMenuRow(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2);
+    /* WP22, terza passata: la domanda va A CAPO dentro il pannello invece di
+       essere disegnata come una riga sola. Prima sconfinava SEMPRE, in tutti i
+       contesti a schermo pieno (765/849/864 px di testo contro i 520 di spazio
+       utile di un box da 600, misurati col font reale): il testo usciva dal
+       riquadro e, su finestre strette, veniva pure tagliato dal bordo dello
+       schermo. Stesso WrapTextLines gia' usato dal Catalogo e dai blurb del
+       Piano 0, stesso margine di 40 per lato del testo di prima. */
+    int questionFont = UiRound(16.0f*uiScale);
+    char lines[EXIT_CONFIRM_QUESTION_MAX_LINES][160];
+    int lineCount = WrapTextLines(question, questionFont, box.width - 80.0f*uiScale, lines, EXIT_CONFIRM_QUESTION_MAX_LINES);
+    for (int i = 0; i < lineCount; i++)
+    {
+        UiText(lines[i], (int)box.x + UiRound(40.0f*uiScale),
+               (int)box.y + UiRound((EXIT_CONFIRM_QUESTION_Y_BASE + (float)i*EXIT_CONFIRM_QUESTION_STEP_BASE)*uiScale),
+               questionFont, (Color){ 205, 210, 220, 255 });
+    }
+    /* Le due voci seguono la STESSA geometria del pannello appena disegnato
+       (stretta nel dialogo leggero, larga negli altri tre contesti): e' la
+       stessa che RendererMenuItemAt riceve da src/app/app.c per il hit-test
+       del mouse, mai una seconda copia. */
+    DrawMenuRowCtx(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED, lightModal);
+    DrawMenuRowCtx(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2, lightModal);
 }
 
 /* Indicatore di generazione DENTRO il Piano 0 (M1b, ui/generation-status.md):
@@ -4835,7 +5058,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
     {
         /* M8 (DEC-045): la vista Catalogo sostituisce il disegno del menu
            quando aperta -- nessun nuovo AppMode, il case resta uno solo. */
-        case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui); break;
+        case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui->focus, true); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
         case APP_FLOOR_ZERO:
             DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);
@@ -4853,7 +5076,27 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
         case APP_OPTIONS: DrawOptionsOverlay(game, ui); break;
         case APP_BUILD_SCREEN: DrawBuildScreenOverlay(game, ui); break;
         case APP_RUN_RESULTS: DrawRunResultsOverlay(game, ui); break;
-        case APP_EXIT_CONFIRM: DrawExitConfirmOverlay(game, ui); break;
+        case APP_EXIT_CONFIRM:
+            /* WP22 (DEC-090, gap G9 ui-cornice, seconda passata): il dialogo
+               "MainMenu -> Esci" e' un dialogo modale LEGGERO -- il menu resta
+               visibile/leggibile dietro, non sostituito come gli altri TRE
+               contesti di ExitConfirm (abbandono dal Piano 0, abbandono di
+               una run da PauseMenu, reroll di WP21/DEC-114: tutti e tre
+               restano a schermo pieno). Si passa 'ui->returnFocus' (la riga del
+               MainMenu su cui il giocatore stava davvero, salvata da
+               UpdateApp prima del cambio di stato -- src/app/app.c, righe
+               864/896) invece di 'ui->focus' (che apparterrebbe alla
+               schermata sbagliata, 0/1 "Conferma"/"Annulla"): NESSUNA copia
+               di AppUi (correzione della revisione precedente, che duplicava
+               l'intera struct -- 337280 byte misurati -- solo per questo
+               campo). 'dimBackground=false': il MainMenu qui sotto non
+               disegna il proprio velo scuro a schermo pieno, cosi' il velo
+               unico applicato resta quello (piu' leggero) di
+               DrawExitConfirmOverlay subito sotto -- mai due veli sommati. */
+            if (ExitConfirmIsLightModalFor(ui->openedFrom))
+                DrawMainMenuOverlay(game, ui->returnFocus, false);
+            DrawExitConfirmOverlay(game, ui);
+            break;
     }
 
     /* screenshotPath e' del chiamante (mai NULL quando takeScreenshot e'
@@ -4956,28 +5199,64 @@ bool UiLayoutSelfTest(void)
         /* (e) geometria dei menu: ogni voce dentro il proprio box, nessuna
            sovrapposizione fra voci consecutive dello stesso menu. Invariata da
            DEC-137: gli overlay dei menu erano gia' box centrati, indipendenti
-           dai pannelli spariti. */
+           dai pannelli spariti.
+           WP22 (terza passata): il giro interno 'lite' ripete la verifica sulla
+           geometria RISTRETTA del dialogo leggero (ExitConfirm da MainMenu),
+           che dalla terza passata e' un box diverso -- senza, meta' della
+           geometria di ExitConfirm resterebbe fuori da --layout-test. Gli altri
+           overlay non hanno una seconda geometria: per loro il secondo giro
+           sarebbe una copia identica, quindi si salta. */
         for (int m = 0; m < (int)(sizeof(kMenuModes)/sizeof(kMenuModes[0])); m++)
         {
             AppMode mode = kMenuModes[m];
-            Rectangle box = MenuBoxForModeFor(mode, sw, sh);
-            int count = MenuItemCountForMode(mode);
-            Rectangle prevItem = { 0 };
-            for (int idx = 0; idx < count; idx++)
+            for (int lite = 0; lite < 2; lite++)
             {
-                Rectangle item = MenuItemRectFor(mode, idx, sw, sh);
-                if (!UiRectInside(box, item))
+                if (lite == 1 && mode != APP_EXIT_CONFIRM) continue;
+                bool light = (lite == 1);
+                Rectangle box = MenuBoxForModeFor(mode, sw, sh, light);
+                int count = MenuItemCountForMode(mode);
+                Rectangle prevItem = { 0 };
+                for (int idx = 0; idx < count; idx++)
                 {
-                    fprintf(stderr, "UiLayoutSelfTest: (e) voce %d del menu %d fuori dal box a %.0fx%.0f\n", idx, (int)mode, sw, sh);
-                    return false;
+                    Rectangle item = MenuItemRectFor(mode, idx, sw, sh, light);
+                    if (!UiRectInside(box, item))
+                    {
+                        fprintf(stderr, "UiLayoutSelfTest: (e) voce %d del menu %d (leggero=%d) fuori dal box a %.0fx%.0f\n", idx, (int)mode, lite, sw, sh);
+                        return false;
+                    }
+                    if (idx > 0 && UiRectOverlap(prevItem, item))
+                    {
+                        fprintf(stderr, "UiLayoutSelfTest: (e) voci %d/%d del menu %d (leggero=%d) sovrapposte a %.0fx%.0f\n", idx - 1, idx, (int)mode, lite, sw, sh);
+                        return false;
+                    }
+                    prevItem = item;
                 }
-                if (idx > 0 && UiRectOverlap(prevItem, item))
-                {
-                    fprintf(stderr, "UiLayoutSelfTest: (e) voci %d/%d del menu %d sovrapposte a %.0fx%.0f\n", idx - 1, idx, (int)mode, sw, sh);
-                    return false;
-                }
-                prevItem = item;
             }
+        }
+
+        /* (g) WP22 (terza passata): le DUE geometrie di ExitConfirm restano
+           quelle che devono essere, a ogni risoluzione.
+           - a schermo pieno (i tre contesti che DEC-090 vuole invariati:
+             abbandono dal Piano 0, abbandono di una run in corso, reroll di
+             DEC-114) il box e' ESATTAMENTE quello di MainMenu, come prima di
+             WP22: la seconda passata lo aveva stretto anche li' e la domanda
+             sconfinava dal pannello;
+           - nel dialogo leggero e' strettamente piu' stretto, ed e' quello a
+             rendere possibile la "leggibilita' dietro" di DEC-090. */
+        Rectangle mainBox = MenuBoxForModeFor(APP_MAIN_MENU, sw, sh, false);
+        Rectangle exitFull = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, false);
+        Rectangle exitLight = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, true);
+        if (fabsf(exitFull.width - mainBox.width) > UI_LAYOUT_TEST_EPS)
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box di ExitConfirm a schermo pieno (%.1f) non e' piu' quello di MainMenu (%.1f) a %.0fx%.0f -- i tre contesti a schermo pieno devono restare invariati (DEC-090)\n",
+                    exitFull.width, mainBox.width, sw, sh);
+            return false;
+        }
+        if (!(exitLight.width < mainBox.width - UI_LAYOUT_TEST_EPS))
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box del dialogo leggero ExitConfirm (%.1f) non e' piu' stretto di quello di MainMenu (%.1f) a %.0fx%.0f (WP22, DEC-090)\n",
+                    exitLight.width, mainBox.width, sw, sh);
+            return false;
         }
     }
 
@@ -5003,6 +5282,54 @@ bool UiLayoutSelfTest(void)
         {
             fprintf(stderr, "UiLayoutSelfTest: (c) layout a 1600x900 diverge dalla formula DEC-137 (scale %.3f, atteso %.3f)\n", L.gameScale, expScale);
             return false;
+        }
+    }
+
+    /* (f) WP22 (DEC-090, gap G9 ui-cornice): ExitConfirmIsLightModalFor resta
+       vera SOLO per APP_MAIN_MENU (chiusura del gioco) -- gli altri TRE
+       contesti che possono aprire ExitConfirm (abbandono della preparazione
+       nel Piano 0, abbandono di una run in corso da PauseMenu, rigenerazione
+       della run di WP21/DEC-114, che parte anch'essa da PauseMenu) restano a
+       schermo pieno, presentazione gia' documentata da DEC-090 stesso. */
+    if (!ExitConfirmIsLightModalFor(APP_MAIN_MENU))
+    {
+        fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da MainMenu non e' riconosciuto come dialogo leggero (DEC-090)\n");
+        return false;
+    }
+    if (ExitConfirmIsLightModalFor(APP_FLOOR_ZERO))
+    {
+        fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da FloorZero e' stato marcato leggero (deve restare a schermo pieno)\n");
+        return false;
+    }
+    if (ExitConfirmIsLightModalFor(APP_PAUSE_MENU))
+    {
+        fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da PauseMenu e' stato marcato leggero (deve restare a schermo pieno)\n");
+        return false;
+    }
+
+    /* (h) WP22 (terza passata, ui/run-setup.md): la riga informativa
+       "Modalita'" di RunSetup non deve toccare NESSUNA delle tre voci
+       selezionabili -- fino alla seconda passata cadeva a 142, dentro la
+       fascia della voce "Seed" (110..150). Nucleo puro, stessa geometria che
+       DrawRunSetupOverlay usa per disegnarla
+       (RendererRunSetupModeLabelBandFor). */
+    for (int i = 0; i < n; i++)
+    {
+        float sw = kW[i], sh = kH[i];
+        Rectangle band = RendererRunSetupModeLabelBandFor(sw, sh);
+        Rectangle box = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
+        if (!UiRectInside(box, band))
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup esce dal box a %.0fx%.0f\n", sw, sh);
+            return false;
+        }
+        for (int idx = 0; idx < MenuItemCountForMode(APP_RUN_SETUP); idx++)
+        {
+            if (UiRectOverlap(band, MenuItemRectFor(APP_RUN_SETUP, idx, sw, sh, false)))
+            {
+                fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup si sovrappone alla voce %d a %.0fx%.0f\n", idx, sw, sh);
+                return false;
+            }
         }
     }
 
@@ -5184,7 +5511,7 @@ bool RendererMouseHitTestSelfTest(Game *game)
                 if (!RendererFusionConfirmAt(game, pt)) continue;
                 reachable = true;
                 if (RendererBuildItemRowAt(game, &ui, pt) >= 0) overlapRow = true;
-                if (RendererMenuItemAt(APP_BUILD_SCREEN, pt) >= 0) overlapBack = true;
+                if (RendererMenuItemAt(APP_BUILD_SCREEN, pt, false) >= 0) overlapBack = true;
             }
         game->player.itemCount = savedCount;
 

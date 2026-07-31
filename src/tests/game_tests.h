@@ -94,6 +94,23 @@ bool GameAtlasFallbackTest(Game *game);
    Vedi src/tests/game_tests.c per i dettagli. */
 bool GameLayerTest(Game *game);
 
+/* WP22 (DEC-090, gap G9 ui-cornice, seconda passata): ExitConfirm da
+   MainMenu resta un dialogo modale leggero DAVVERO -- non solo nel nucleo
+   puro ExitConfirmIsLightModalFor, ma nel frame vero disegnato da
+   RendererDrawApp (velo piu' chiaro, MainMenu ridisegnato sotto e ancora
+   leggibile). Campiona pixel reali su una RenderTexture2D, come GameLayerTest
+   sopra. Vedi src/tests/game_tests.c per i dettagli. */
+bool GameExitConfirmLightModalTest(Game *game);
+
+/* WP22 (terza passata, ui/run-setup.md): la riga informativa "Modalita':
+   Standard" di RunSetup esiste DAVVERO nel frame disegnato ed e' non
+   selezionabile. Fino a questa passata cancellare quella UiText lasciava
+   make test interamente verde. Campiona pixel reali come
+   GameExitConfirmLightModalTest sopra, piu' il nucleo puro
+   (RendererRunSetupModeLabelBandFor/RendererMenuItemAt). Vedi
+   src/tests/game_tests.c per i dettagli. */
+bool GameRunSetupModeLineTest(Game *game);
+
 /* Fase 3b VISIVA (src/render/rarity_style.h): screenshot di verifica con un
    oggetto per ciascuna delle quattro rarita', sia equipaggiato (pannello
    "OGGETTI PRESI") sia a terra (pickup col suo anello colorato). Vedi

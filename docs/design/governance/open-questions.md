@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (54 voci attive su 55 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19) e il tasto rapido R del reroll nel motore (WP21).
+  Coda ufficiale e unica delle domande ancora aperte (55 voci attive su 56 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).
 last_reviewed: 2026-07-31
-last_updated_from_session: 2026-07-31-wp21-reroll-pausemenu
-last_verified_commit: c5c1bc4
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21]
+last_updated_from_session: 2026-07-31-wp22-ui-rifiniture
+last_verified_commit: 50911c9
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22]
 related: []
 supersedes: []
 source_files: []
@@ -763,3 +763,129 @@ generazione duplicata. Il tasto `R` in `Gameplay` chiama oggi sempre e soltanto
     build di gioco e tenerlo solo come comando di sviluppo/debug (es. dietro un flag di
     build, fuori da `AppInputCollect`). Nessuna delle tre è ancora scelta.
     (`ui/pause-menu.md`, DEC-114, DEC-141, `docs/engineering/known-issues.md`.)
+
+## Tre rifiniture UI nel motore (WP22, 2026-07-31)
+
+ExitConfirm è stato corretto in una seconda e in una terza passata lo stesso giorno, dopo
+due bocciature del giudice (dettagli sotto).
+
+Lavoro che chiude tre gap piccoli e circoscritti, uno per dominio (`ui-cornice` G9/G10,
+`ui-gioco` G8): il dialogo `ExitConfirm` aperto da `MainMenu` (chiusura del gioco) è ora un
+overlay leggero DAVVERO — `MainMenu` resta disegnato sotto (con l'ultimo focus reale, non
+quello di `ExitConfirm`, passato come parametro diretto e non più come copia dell'intera
+`AppUi`, 337KB misurati inutilmente duplicati/copiati a ogni frame nella prima passata) —
+mentre gli **altri tre** contesti (abbandono della preparazione nel Piano 0, abbandono di
+una run in corso da `PauseMenu`, rigenerazione della run di WP21/DEC-114) restano a schermo
+pieno e con la larghezza di pannello di sempre, come DEC-090 richiede esplicitamente; la
+riga "Modalità: Standard" di `RunSetup` risultava già disegnata (non selezionabile, dalla
+M1a del 18/07) ma **si sovrapponeva alla riga "Seed"** ed era **priva di qualunque test** —
+la terza passata l'ha spostata in una quota libera e coperta con
+`--run-setup-mode-line-test`; il focus iniziale di `BuildScreen` va ora davvero sull'ultimo
+oggetto acquisito (`AppEnterBuildScreen` impostava solo un clamp, non un vero "vai
+all'ultimo"), verificato con un pickup reale (`CombatUpdatePickups`), coerente col testo
+già canonico di `ui/inventory-and-synergy-screen.md` — nessuna nuova domanda lì, solo un
+bug corretto.
+
+La **prima** passata di ExitConfirm era stata bocciata (due difetti misurati): (a) il
+MainMenu ridisegnato sotto usava comunque il proprio velo a schermo pieno (190/255) SOPRA
+cui si sommava il velo leggero di ExitConfirm (90/255), risultando in un composito
+(213/255) **più scuro** del 190/255 di prima di WP22, l'opposto dell'intento; (b) il box
+di ExitConfirm riusava la STESSA geometria di MainMenu (`MenuBoxForModeFor` restituiva 600
+di larghezza per entrambi), quindi il riquadro di conferma copriva il menu per intero e
+nessun punto dello schermo restava leggibile. La seconda passata corregge entrambi:
+`DrawMainMenuOverlay` accetta ora un parametro `dimBackground` e, quando disegna se stesso
+come sfondo di ExitConfirm, lo passa `false` (nessun velo proprio: l'unico velo applicato
+sull'intero schermo resta quello, più chiaro, di ExitConfirm sopra); `MenuBoxForModeFor`
+restituisce 460 di larghezza invece di 600 — il margine risparmiato (140, 70 per lato)
+supera il margine orizzontale delle righe di menu (60), quindi un bordo di ciascuna riga
+del MainMenu resta visibile ai due lati del dialogo di conferma più stretto. Verificato non
+più solo dal nucleo puro `ExitConfirmIsLightModalFor` (`--layout-test`/`--states-test`, che
+non dicono nulla sul frame vero) ma anche da `--exit-confirm-light-modal-test`
+(`GameExitConfirmLightModalTest`, `src/tests/game_tests.c`): campiona pixel di
+`RendererDrawApp` REALI per verificare che il velo fuori dal box sia più chiaro nel
+contesto leggero che in quello a schermo pieno sulla stessa scena, che il colore dentro il
+box di MainMenu ma fuori da quello di ExitConfirm sia nettamente diverso da quanto ci
+sarebbe senza pannello dietro (croma soppressa dal pannello quasi neutro, non solo dal
+velo), e — nucleo puro via `RendererMenuItemAt` — che una riga di MainMenu resti
+geometricamente fuori da ogni voce di ExitConfirm.
+
+Anche la **seconda** passata è stata bocciata, per tre residui, chiusi dalla **terza**:
+
+1. **Geometria fuori scopo.** I 460 si applicavano ad `APP_EXIT_CONFIRM` in tutti e
+   **quattro** i contesti, non solo al dialogo leggero. Nei tre a schermo pieno — che
+   DEC-090 vuole invariati — la domanda, disegnata da una sola `UiText` senza andare a
+   capo, sconfinava dal pannello molto più di prima: misure col font reale
+   (`assets/art/ui/font-5px.json`, `UiFontScale(16)=3`, `uiScale` 1) 765 px ("Abbandonare
+   la run in corso?…"), 849 px ("Abbandonare la preparazione?…") e 864 px ("Rigenerare la
+   run con un nuovo seed?…") contro 380 px di spazio utile in un box da 460 (erano 520 in
+   uno da 600). Corretto così: `MenuBoxForModeFor` prende un parametro `exitConfirmLight`
+   (falso = geometria di sempre, il valore più innocuo) che viaggia insieme a `mode` per
+   tutta la catena della geometria fino a `RendererMenuItemAt`, così **disegno e hit-test
+   del mouse restano la stessa geometria**; i tre contesti a schermo pieno tornano a 600 e
+   solo il dialogo leggero resta a 460. In più la domanda va ora **a capo** con
+   `WrapTextLines` (fino a tre righe, quota 52, passo 20, tutte sopra la prima voce a 110):
+   a 1920x1080 il testo del contesto a schermo pieno arriva a 519 px dal bordo sinistro del
+   pannello e finisce **dentro** il riquadro, contro i ~304 px di sbordo che aveva anche
+   prima di WP22.
+2. **Affermazioni false.** Il commento di `MenuBoxForModeFor` sosteneva che il testo più
+   lungo degli altri contesti "non ha bisogno di più larghezza": falso e misurabile come
+   falso, riscritto con i numeri veri. Le note in `05-game-states-and-flow.md` e la voce 56
+   qui sotto dicevano che gli "altri due" contesti restavano invariati: i contesti sono
+   quattro e la loro geometria era cambiata — entrambe corrette.
+3. **Test mancante.** La riga "Modalità: Standard" di `RunSetup`, richiesta dalla specifica
+   del work package, non aveva alcuna copertura (`grep -rn 'Modalit' src/tests/` = 0
+   riscontri): cancellare quella `UiText` lasciava `make test` interamente verde. Ora
+   `--run-setup-mode-line-test` (`GameRunSetupModeLineTest`) fallisce sia se la riga
+   sparisce (conta i pixel chiari della sua fascia in un frame vero, contro una fascia
+   vuota di controllo) sia se diventa selezionabile o torna a sovrapporsi a una voce
+   (`RendererMenuItemAt` su tutta la fascia), e `--layout-test` (voce `h`) ripete la
+   verifica geometrica come nucleo puro su sette risoluzioni.
+
+56. Quanto deve scurirsi lo sfondo dietro il dialogo leggero `ExitConfirm`/`MainMenu`
+    perché il menu sotto resti "visibile/leggibile" (DEC-090) e non solo "intuibile"? Il
+    documento (`05-game-states-and-flow.md`) non fissa alcun numero, solo l'intento
+    descrittivo. *Default proposto dall'implementazione (stile DEC-019), non canone*: un
+    velo a 90/255 di opacità (contro il 190/255 usato da ogni altro overlay di menu a
+    schermo pieno, incluse le altre TRE presentazioni di `ExitConfirm`), applicato UNA SOLA
+    VOLTA sull'intero schermo (il MainMenu ridisegnato sotto non aggiunge un proprio velo,
+    vedi sopra) — e, **solo per questo contesto**, una geometria del box DEDICATA e più
+    stretta (460 contro i 600 di MainMenu, `MenuBoxForModeFor`): la "leggibilità dietro"
+    che questo offre è quindi reale sia nel contorno dello schermo attorno al box (dove
+    prima c'era un nero quasi pieno, ora un velo più chiaro) sia in un margine di ciascuna
+    riga di MainMenu ai due lati del riquadro di conferma più stretto, non solo nel grado
+    di trasparenza del riquadro stesso. Gli altri tre contesti (abbandono dal Piano 0,
+    abbandono di una run in corso, rigenerazione della run di DEC-114) **conservano i 600
+    di sempre**: DEC-090 li vuole invariati, e la seconda passata di questo lavoro li aveva
+    stretti anche loro, facendo sconfinare la domanda dal pannello. *Secondo default
+    proposto (stessa natura, aggiunto dalla terza passata)*: la domanda di `ExitConfirm` va
+    **a capo** dentro il pannello (`WrapTextLines`, larghezza utile `box.width - 80`, fino
+    a tre righe a partire da 52 con passo 20, tutte sopra la prima voce a 110) invece di
+    restare una riga sola che usciva dal riquadro in tutti e quattro i contesti — difetto
+    presente anche prima di WP22, non introdotto da esso. Il documento non fissa requisiti
+    pixel-per-pixel più precisi (es. quante righe intere di MainMenu debbano restare
+    visibili, non solo un margine; né se la domanda debba essere centrata invece che
+    allineata a sinistra): un layout "a finestra" con più righe intere visibili attorno al
+    dialogo resterebbe un affinamento ulteriore, non richiesto qui. Verificato da
+    `--layout-test` (nucleo puro: `ExitConfirmIsLightModalFor`, geometria delle voci in
+    entrambe le larghezze, box leggero più stretto di quello di MainMenu e box a schermo
+    pieno uguale ad esso), `--states-test` (i contesti restano distinti nel routing reale)
+    e `--exit-confirm-light-modal-test` (frame vero campionato a pixel,
+    `GameExitConfirmLightModalTest`, `src/tests/game_tests.c`) — quest'ultimo è quello che
+    verifica davvero il valore di opacità, la geometria e il fatto che la domanda resti
+    dentro il bordo destro del pannello, non solo il nucleo puro.
+    (`05-game-states-and-flow.md`, DEC-090, `src/render/game_renderer.c`.)
+
+57. Dove va la riga informativa "Modalità: Standard" di `RunSetup`? `ui/run-setup.md` la
+    elenca fra gli elementi visibili ("Sempre", non selezionabile) ma non ne fissa la
+    posizione. Fino alla seconda passata di WP22 era disegnata a `box.y + 142`, cioè
+    **dentro** la fascia della voce "Seed" (110..150): si sovrapponeva al bordo inferiore
+    di una riga selezionabile, e nessun documento lo autorizzava. *Default proposto
+    dall'implementazione (stile DEC-019), non canone*: la riga sta a `box.y + 78`, nella
+    fascia libera fra il filetto del titolo (che finisce a 30) e la prima voce (110) —
+    sopra le tre voci, non in mezzo — con 48px di margine sopra e 17px sotto a ogni
+    risoluzione. Il proprietario resta libero di volerla altrove (per esempio subito sotto
+    la riga "Seed", che però richiederebbe di allontanare le voci fra loro: oggi il passo
+    fra due righe è 52 e lascia solo 12px liberi). Verificato da `--run-setup-mode-line-test`
+    (frame vero campionato a pixel più `RendererMenuItemAt` su tutta la fascia) e da
+    `--layout-test` (voce `h`, nucleo puro su sette risoluzioni).
+    (`ui/run-setup.md`, DEC-038, `src/render/game_renderer.c`.)

@@ -255,6 +255,8 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "ESC in FloorZero non apre ExitConfirm");
     STATES_CHECK(ui.openedFrom == APP_FLOOR_ZERO, "ExitConfirm da FloorZero non ricorda openedFrom");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da FloorZero non e' 'abbandono'");
+    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom),
+        "ExitConfirm da FloorZero e' stato marcato come dialogo leggero (WP22, deve restare a schermo pieno, DEC-090)");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm da FloorZero non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
     STATES_CHECK(mode == APP_FLOOR_ZERO, "ExitConfirm/Annulla da FloorZero non torna a FloorZero");
@@ -284,6 +286,70 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_GAMEPLAY, "l'attraversamento del varco non porta a Gameplay");
     STATES_CHECK(!game->floorZeroExitCrossed, "floorZeroExitCrossed non e' stato consumato");
     STATES_CHECK(game->phase == PHASE_PLAY, "l'ingresso in Gameplay via FloorZero non ha richiamato GameResetRun");
+
+    /* WP22 (ui/inventory-and-synergy-screen.md, "Focus iniziale", gap G8
+       ui-gioco): l'ingresso in BuildScreen mette il fuoco sull'ULTIMO oggetto
+       acquisito, non sul primo -- verificato con un pickup VERO (CombatUpdatePickups,
+       lo stesso consumo che il giocatore innesca camminando su un oggetto),
+       non solo con itemCount scritto a mano come nei blocchi di fusione. */
+    {
+        /* Inventario noto: un solo oggetto "gia' posseduto" prima del pickup
+           vero, cosi' l'indice dell'ultimo acquisito e' prevedibile. */
+        game->player.itemCount = 0;
+        Item alreadyOwned = { 0 };
+        alreadyOwned.active = true;
+        snprintf(alreadyOwned.name, sizeof(alreadyOwned.name), "%s", "Oggetto Precedente");
+        alreadyOwned.kind = ITEM_PASSIVE;
+        alreadyOwned.rarity = RARITY_COMMON;
+        alreadyOwned.slot = SLOT_HAND;
+        alreadyOwned.color = (Color){ 120, 160, 220, 255 };
+        alreadyOwned.shape = 2;
+        game->player.items[game->player.itemCount++] = alreadyOwned;
+
+        /* Il pickup vero: un Pickup PICKUP_ITEM esattamente sulla posizione
+           del giocatore, consumato da CombatUpdatePickups -- lo stesso
+           percorso di CombatApplyItem che AppEnterBuildScreen deve
+           rincorrere, non una scrittura diretta di itemCount.
+           EntitiesAddItemPickup ritorna il puntatore al pickup appena creato:
+           nessuna scansione ambigua fra eventuali pickup gia' presenti nella
+           stanza (loot della generazione). */
+        Item freshlyAcquired = { 0 };
+        freshlyAcquired.active = true;
+        snprintf(freshlyAcquired.name, sizeof(freshlyAcquired.name), "%s", "Oggetto Appena Preso");
+        freshlyAcquired.kind = ITEM_PASSIVE;
+        freshlyAcquired.rarity = RARITY_COMMON;
+        freshlyAcquired.slot = SLOT_EYES;
+        freshlyAcquired.color = (Color){ 220, 160, 120, 255 };
+        freshlyAcquired.shape = 3;
+        Pickup *seeded = EntitiesAddItemPickup(game, game->player.pos, freshlyAcquired, 0);
+        STATES_CHECK(seeded != NULL, "EntitiesAddItemPickup non ha piazzato il pickup vero (precondizione del controllo del focus)");
+
+        int countBeforePickup = game->player.itemCount;
+        CombatUpdatePickups(game);
+        STATES_CHECK(game->player.itemCount == countBeforePickup + 1,
+            "CombatUpdatePickups non ha raccolto il pickup vero (precondizione del controllo del focus)");
+        STATES_CHECK(strcmp(game->player.items[game->player.itemCount - 1].name, "Oggetto Appena Preso") == 0,
+            "il pickup vero non e' finito nell'ultimo slot (precondizione del controllo del focus)");
+
+        { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Gameplay -> BuildScreen */
+        STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen (precondizione del controllo del focus)");
+        STATES_CHECK(ui.buildItemFocus == game->player.itemCount - 1,
+            "l'ingresso in BuildScreen non ha messo il fuoco sull'ULTIMO oggetto acquisito (WP22, gap G8 ui-gioco)");
+        STATES_CHECK(strcmp(game->player.items[ui.buildItemFocus].name, "Oggetto Appena Preso") == 0,
+            "il fuoco d'ingresso in BuildScreen non punta all'oggetto appena raccolto (WP22, gap G8 ui-gioco)");
+        { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* torna a Gameplay */
+        STATES_CHECK(mode == APP_GAMEPLAY, "BuildScreen/back non torna a Gameplay (dopo il controllo del focus sull'ultimo acquisito)");
+
+        /* Fallback a 0 con la build vuota (comportamento invariato): svuotare
+           l'inventario e rientrare deve dare focus 0, mai un indice negativo
+           ne' un residuo del giro precedente. */
+        game->player.itemCount = 0;
+        { AppInput in = InputTab(); UpdateApp(game, &mode, &gen, &ui, &in); }
+        STATES_CHECK(mode == APP_BUILD_SCREEN, "TAB in Gameplay non apre BuildScreen a build vuota");
+        STATES_CHECK(ui.buildItemFocus == 0, "il fallback a build vuota non porta il fuoco a 0 (WP22, gap G8 ui-gioco)");
+        { AppInput in = InputBack(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* torna a Gameplay */
+        STATES_CHECK(mode == APP_GAMEPLAY, "BuildScreen/back non torna a Gameplay (dopo il controllo del fallback a build vuota)");
+    }
 
     /* Gameplay -> PauseMenu -> Prove -> (back) -> PauseMenu, focus su "Prove"
        (WP16, DEC-042): il pannello e' un ramo DENTRO APP_PAUSE_MENU (nessun
@@ -451,6 +517,8 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Abbandona run non apre ExitConfirm");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da PauseMenu non e' 'abbandono run'");
     STATES_CHECK(!ui.exitRerollsRun, "l'abbandono si e' marcato anche come reroll (i due contesti devono essere esclusivi)");
+    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom),
+        "ExitConfirm da PauseMenu e' stato marcato come dialogo leggero (WP22, deve restare a schermo pieno, DEC-090)");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
     STATES_CHECK(mode == APP_PAUSE_MENU, "ExitConfirm/Annulla non torna a PauseMenu");
@@ -524,6 +592,8 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Esci non apre ExitConfirm");
     STATES_CHECK(!ui.exitAbandonsRun, "il contesto di ExitConfirm da MainMenu non e' 'uscita dal gioco'");
+    STATES_CHECK(ExitConfirmIsLightModalFor(ui.openedFrom),
+        "ExitConfirm da MainMenu (chiusura del gioco) non e' riconosciuto come dialogo leggero (WP22, DEC-090, gap G9)");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla -> Conferma */
     STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm (quit) non porta a Conferma");
     {
@@ -624,7 +694,7 @@ bool GameMouseHoverFocusTest(Game *game)
         Vector2 target = { -1.0f, -1.0f };
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
-                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }) == 2) target = (Vector2){ x, y };
+                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }, false) == 2) target = (Vector2){ x, y };
         HOVER_CHECK(target.x >= 0.0f, "(a) nessun punto dello schermo colpisce la voce 'Opzioni' di MainMenu");
 
         SetMousePosition((int)target.x, (int)target.y);
@@ -734,7 +804,7 @@ bool GameMouseHoverFocusTest(Game *game)
         Vector2 target = { -1.0f, -1.0f };
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
-                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }) == 0) target = (Vector2){ x, y };
+                if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ x, y }, false) == 0) target = (Vector2){ x, y };
         HOVER_CHECK(target.x >= 0.0f, "(d) nessun punto dello schermo colpisce la voce 'Nuova run' di MainMenu");
 
         SetMousePosition((int)target.x, (int)target.y);
@@ -765,9 +835,14 @@ bool GameMouseHoverFocusTest(Game *game)
         AppUi ui = { 0 };
         AppMode mode = APP_EXIT_CONFIRM;
         Vector2 target = { -1.0f, -1.0f };
+        /* 'true': 'ui' e' azzerata, quindi ui.openedFrom vale APP_MAIN_MENU
+           (primo valore dell'enum) e UpdateApp interroga la geometria del
+           dialogo LEGGERO -- la ricerca del punto deve usare la stessa, o
+           colpirebbe una riga che in quel contesto non e' disegnata li'
+           (WP22, terza passata). */
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
-                if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ x, y }) == 0) target = (Vector2){ x, y };
+                if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ x, y }, true) == 0) target = (Vector2){ x, y };
         HOVER_CHECK(target.x >= 0.0f, "(e) nessun punto dello schermo colpisce la riga 'Conferma' di ExitConfirm");
 
         SetMousePosition((int)target.x, (int)target.y);
@@ -858,7 +933,7 @@ bool GameMouseHoverFocusTest(Game *game)
         Vector2 target = { -1.0f, -1.0f };
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
-                if (RendererMenuItemAt(APP_OPTIONS, (Vector2){ x, y }) == 3) target = (Vector2){ x, y };
+                if (RendererMenuItemAt(APP_OPTIONS, (Vector2){ x, y }, false) == 3) target = (Vector2){ x, y };
         if (target.x < 0.0f)
         {
             AudioSetMasterVolume(savedVolume);
@@ -1008,7 +1083,7 @@ bool GameMouseHoverFocusTest(Game *game)
         Vector2 target = { -1.0f, -1.0f };
         for (float y = 0.0f; y < sh && target.x < 0.0f; y += 2.0f)
             for (float x = 0.0f; x < sw && target.x < 0.0f; x += 2.0f)
-                if (RendererMenuItemAt(APP_PAUSE_MENU, (Vector2){ x, y }) == 4) target = (Vector2){ x, y };
+                if (RendererMenuItemAt(APP_PAUSE_MENU, (Vector2){ x, y }, false) == 4) target = (Vector2){ x, y };
         HOVER_CHECK(target.x >= 0.0f, "(j) nessun punto dello schermo colpisce la riga 4 ('Rigenera la run') di PauseMenu");
 
         SetMousePosition((int)target.x, (int)target.y);
@@ -1375,6 +1450,376 @@ bool GameLayerTest(Game *game)
     UnloadRenderTexture(canvas);
 
     return textureValid;
+}
+
+/* WP22 (DEC-090, gap G9 ui-cornice, seconda e TERZA passata): il dialogo
+   "MainMenu -> Esci" deve restare un dialogo modale LEGGERO -- MainMenu ancora
+   disegnato e leggibile dietro, un SOLO velo di oscuramento (mai due sommati)
+   -- a differenza degli altri TRE contesti di ExitConfirm (abbandono dal Piano
+   0, abbandono di una run da PauseMenu, reroll di WP21/DEC-114), che restano a
+   schermo pieno come sempre (DEC-090). La prima passata di questo
+   lavoro si limitava ad asserire 'ExitConfirmIsLightModalFor(openedFrom)'
+   (--states-test): tautologico, perche' quel nucleo puro non dice nulla sul
+   FRAME VERO (ne' sul velo, ne' sul fatto che MainMenu sia davvero
+   ridisegnato). Questo test campiona invece i pixel di RendererDrawApp
+   REALE, tre catture su una RenderTexture2D (stesso schema di
+   GameAtlasFallbackTest/GameLayerTest sopra):
+
+   (1) 'raw'   -- APP_GAMEPLAY, nessun overlay: la scena nuda, per conoscere
+                  il colore di sfondo VERO nei due punti campionati (nessun
+                  letterale di colore indovinato).
+   (2) 'light' -- APP_EXIT_CONFIRM aperto da APP_MAIN_MENU (il SOLO contesto
+                  leggero, DEC-090).
+   (3) 'full'  -- APP_EXIT_CONFIRM aperto da APP_FLOOR_ZERO (contesto a
+                  schermo pieno, invariato): serve solo da riferimento per la
+                  verifica (1) sotto, sulla STESSA scena di 'game' (nessuna
+                  mutazione fra le tre catture).
+
+   Due coordinate, derivate dalla stessa geometria di MenuBoxForModeFor/
+   MenuItemRectFor (game_renderer.c), non da letterali indovinati:
+   - 'corner' (2,2): fuori da QUALUNQUE box, in entrambi i contesti.
+   - 'gutter': dentro il box di MainMenu (600 di larghezza) ma FUORI dal box
+     -- piu' stretto -- del dialogo LEGGERO di ExitConfirm (460, la geometria
+     che 'exitConfirmLight = true' seleziona): il margine risparmiato (140,
+     70 per lato) supera il margine orizzontale delle righe di menu (60), e
+     la Y scelta (offset relativo 95 dalla cima del box) cade nello spazio
+     libero fra la didascalia ("Roguelite con contenuti...", che finisce
+     verso 76) e la riga 0 (che comincia a 110, MENU_ROW_START_Y_BASE) --
+     margine di oltre 15px su entrambi i lati, il doppio dei 12px di
+     margine fra due righe consecutive. Il pixel e' quindi il SOLO
+     riempimento del pannello (14,16,22,240, fisso, indipendente dal tema),
+     senza il colore-accento di una riga a fuoco ne' testo: il segnale piu'
+     affidabile per distinguere "pannello disegnato" da "pannello assente"
+     qualunque sia il tema/la scena sotto.
+
+   Verifiche:
+   (0) Nucleo puro, nessun rendering (RendererMenuItemAt, gia' esposta da
+       game_renderer.h): il box del dialogo LEGGERO di ExitConfirm deve essere
+       DAVVERO piu' stretto di quello di MainMenu, non solo sulla carta -- una
+       coordinata che cade sulla riga 0 di MainMenu ("Nuova run") deve restare
+       FUORI da qualunque voce di ExitConfirm interrogata con la STESSA
+       geometria che il frame disegna ('exitConfirmLight = true'). Fallisce se
+       i due box tornassero alla stessa larghezza (600 per entrambi, il secondo
+       difetto principale contestato dal giudice: "dare al dialogo di conferma
+       una geometria propria piu' piccola del box di MainMenu").
+   (1) La luminanza media di 'corner' deve risultare PIU' CHIARA in 'light'
+       che in 'full', sulla stessa scena: un rapporto teorico di 165/65 =
+       2.54x fra i due veli (90 e 190 su 255). Fallisce SUBITO se l'alfa del
+       velo leggero tornasse a 190 (il difetto principale contestato dal
+       giudice: 190+90 compositi erano PIU' scuri del 190 di prima di WP22)
+       -- in quel caso la luminanza sarebbe IDENTICA, non piu' chiara.
+   (2) La CROMA (max canale - min canale, una misura di "quanto e' colorato"
+       un pixel, indipendente dalla sua luminosita' assoluta) del pixel
+       'gutter' in 'light' deve risultare NETTAMENTE SOPPRESSA rispetto a
+       quella prevista se in quel punto non ci fosse alcun pannello -- cioe'
+       la scena nuda ('raw') attenuata dallo STESSO fattore di velo misurato
+       davvero al 'corner' (mai un alfa costante indovinato: si ricava da
+       'light'/'raw' al corner, cosi' il test resta valido anche se
+       EXIT_CONFIRM_LIGHT_DIM_ALPHA cambiasse in futuro). Un velo nero e'
+       una moltiplicazione UNIFORME dei tre canali: preserva il RAPPORTO fra
+       loro (la croma scala proporzionalmente all'alfa, non sparisce), mentre
+       il pannello (14,16,22, quasi neutro, sopra ArtDrawPanel se disponibile)
+       collassa la croma verso zero indipendentemente dalla scena sotto --
+       misurato in sviluppo: croma scena 22, croma prevista SOLO velo ~13.5
+       (22*0.615), croma REALMENTE osservata col pannello 4, ben sotto
+       entrambe. Fallisce se DrawMainMenuOverlay smettesse di essere
+       richiamata come sfondo di ExitConfirm (la croma del pixel 'gutter'
+       tornerebbe quella di un velo semplice, non piu' soppressa) ne' se
+       EXIT_CONFIRM_LIGHT_DIM_ALPHA cambiasse (la soglia e' un RAPPORTO,
+       0.7, non un valore assoluto). Precondizione (non un fallimento di
+       WP22): la scena al 'gutter' deve avere una croma di partenza
+       riconoscibile (>= 8), altrimenti il confronto non direbbe nulla --
+       vero per costruzione con la generazione procedurale del tema (mai un
+       pavimento uniformemente neutro), verificato comunque a runtime.
+   (3) (terza passata) Nel contesto a schermo pieno la DOMANDA deve stare
+       dentro il pannello: nessun pixel chiaro, nella fascia in cui e'
+       disegnata, oltre il bordo destro del box. Vedi il commento sul posto
+       (l'unica cosa che li' puo' essere chiara e' il testo: fuori dal box il
+       velo a 190/255 non lascia passare abbastanza luce). Fallisce se si
+       togliesse WrapTextLines da DrawExitConfirmOverlay, o se il box tornasse
+       stretto anche in questo contesto -- i due modi in cui il testo era
+       finito fuori dal riquadro (rispettivamente da sempre e nella seconda
+       passata di WP22). */
+bool GameExitConfirmLightModalTest(Game *game)
+{
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    UiLayout layout = UiComputeLayoutFor(sw, sh);
+    float uiScale = layout.uiScale;
+    float cx = sw*0.5f;
+    float cy = sh*0.5f;
+
+    int cornerX = 2, cornerY = 2;
+    /* -235: a meta' fra il bordo della riga 0 di MainMenu (-240 dal centro,
+       cioe' box.x+60 con box.width 600) e il bordo del box di ExitConfirm
+       (-230 dal centro, box.width 460) -- dentro il primo, fuori dal
+       secondo, per costruzione qualunque sia 'uiScale' (vedi il commento
+       sopra la funzione). */
+    int gutterX = (int)(cx - 235.0f*uiScale);
+    /* Offset relativo 95 dalla cima del box di MainMenu (box.height 400):
+       fra la didascalia (finisce verso 76) e la riga 0 (comincia a 110,
+       MENU_ROW_START_Y_BASE in game_renderer.c) -- solo pannello. */
+    int gutterY = (int)(cy - 200.0f*uiScale + 95.0f*uiScale);
+    /* Riga 0 di MainMenu ("Nuova run"), offset relativo 130 (dentro
+       110..150, MENU_ROW_START_Y_BASE..+40): stessa formula di riga usata
+       da ExitConfirm per la sua PRIMA voce ("Conferma", stesso indice 0,
+       stesso MENU_ROW_START_Y_BASE) -- una coordinata dove i due box, se
+       avessero la STESSA larghezza (il difetto contestato dal giudice,
+       MenuBoxForModeFor restituiva 600 per entrambi), si sovrapporrebbero
+       davvero. */
+    int row0Y = (int)(cy - 200.0f*uiScale + 130.0f*uiScale);
+
+    /* (0) Nucleo puro, nessun rendering: la riga 0 di MainMenu a 'gutterX'
+       deve restare FUORI da qualunque voce di ExitConfirm -- vero SOLO se il
+       box di ExitConfirm e' davvero piu' stretto di quello di MainMenu
+       (MenuBoxForModeFor, game_renderer.c). Fallisce se i due box tornassero
+       alla stessa larghezza (600 per entrambi, il difetto contestato dal
+       giudice: 'dare al dialogo di conferma una geometria propria piu'
+       piccola del box di MainMenu'), perche' in quel caso l'indice 0 di
+       ExitConfirm ("Conferma") condivide la STESSA riga (stesso
+       MENU_ROW_START_Y_BASE) e coprirebbe anche 'gutterX'. */
+    if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ (float)gutterX, (float)row0Y }, false) != 0)
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: (gutterX,row0Y)=(%d,%d) non cade sulla riga 0 di MainMenu (precondizione geometrica)\n", gutterX, row0Y);
+        return false;
+    }
+    if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ (float)gutterX, (float)row0Y }, true) != -1)
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: (gutterX,row0Y)=(%d,%d) cade DENTRO una voce di ExitConfirm -- il suo box non e' piu' stretto di quello di MainMenu (WP22, DEC-090, gap G9)\n", gutterX, row0Y);
+        return false;
+    }
+
+    /* Gli overlay di menu (DrawMainMenuOverlay/DrawExitConfirmOverlay) si
+       disegnano DIRETTAMENTE sul framebuffer di finestra (fra BeginDrawing/
+       EndDrawing di RendererDrawApp), non dentro 'canvas' (la RenderTexture2D
+       960x640 e' solo la scena di gioco scalata poi come TEXTURE nel
+       framebuffer, DrawTexturePro): leggerla con LoadImageFromTexture, come
+       fa GameLayerTest sopra per APP_GAMEPLAY (nessun overlay, tutto cio'
+       che serve e' gia' nel canvas), qui darebbe sempre la scena nuda,
+       IDENTICA in ogni contesto -- un falso positivo preso davvero durante
+       lo sviluppo di questo test (misurato: pixel identici in raw/light/
+       full). Serve invece leggere lo SCREEN vero con LoadImageFromScreen
+       (rlReadScreenPixels, gia' orientato dall'alto: nessun ribaltamento
+       verticale da fare qui, a differenza di LoadImageFromTexture su una
+       RenderTexture2D). 'canvas' resta comunque necessaria: e' il primo
+       parametro di RendererDrawApp, dove la scena di gioco si disegna PRIMA
+       di essere ricomposta sullo schermo. */
+    RenderTexture2D canvas = LoadRenderTexture((int)sw, (int)sh);
+
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
+    Image raw = LoadImageFromScreen();
+    Color sceneCorner = GetImageColor(raw, cornerX, cornerY);
+    Color sceneGutter = GetImageColor(raw, gutterX, gutterY);
+    UnloadImage(raw);
+
+    AppUi uiLight = { 0 };
+    uiLight.openedFrom = APP_MAIN_MENU;
+    uiLight.returnFocus = 0;   /* riga 0 "Nuova run" a fuoco: 'gutter' e' comunque fuori da qualunque riga (vedi sopra), l'evidenziazione non lo contamina */
+    uiLight.focus = 1;
+    if (!ExitConfirmIsLightModalFor(uiLight.openedFrom))
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: ExitConfirmIsLightModalFor(APP_MAIN_MENU) non e' vero (precondizione)\n");
+        UnloadRenderTexture(canvas);
+        return false;
+    }
+    RendererDrawApp(game, canvas, APP_EXIT_CONFIRM, &uiLight, false, NULL, NULL);
+    Image light = LoadImageFromScreen();
+    Color cornerLight = GetImageColor(light, cornerX, cornerY);
+    Color gutterLight = GetImageColor(light, gutterX, gutterY);
+    UnloadImage(light);
+
+    AppUi uiFull = { 0 };
+    uiFull.openedFrom = APP_FLOOR_ZERO;   /* contesto a schermo pieno, invariato (DEC-090) */
+    uiFull.exitAbandonsRun = true;
+    uiFull.returnFocus = 0;
+    uiFull.focus = 1;
+    if (ExitConfirmIsLightModalFor(uiFull.openedFrom))
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: ExitConfirmIsLightModalFor(APP_FLOOR_ZERO) e' vero (precondizione, deve restare a schermo pieno)\n");
+        UnloadRenderTexture(canvas);
+        return false;
+    }
+    RendererDrawApp(game, canvas, APP_EXIT_CONFIRM, &uiFull, false, NULL, NULL);
+    Image full = LoadImageFromScreen();
+    Color cornerFull = GetImageColor(full, cornerX, cornerY);
+    /* (3) La domanda deve STARE dentro il pannello. Si cerca il pixel chiaro
+       (luminanza >= 100) piu' a destra nella fascia della domanda, su TUTTA la
+       larghezza dello schermo: fuori dal box, in questo contesto, non ci puo'
+       essere nulla di cosi' chiaro (il velo a 190/255 lascia passare al
+       massimo il 25,5% della scena, cioe' meno di 65 di luminanza anche su un
+       bianco pieno), quindi un pixel chiaro oltre il bordo destro del box e'
+       per forza testo sconfinato. Fascia: 45..112 sotto la cima del box (la
+       domanda comincia a EXIT_CONFIRM_QUESTION_Y_BASE=52 e occupa al massimo
+       tre righe da 20 con glifi alti 15, vedi game_renderer.c).
+       Prima di questa passata il testo usciva SEMPRE: 849 px di domanda
+       ("Abbandonare la preparazione?...", il contesto campionato qui) contro i
+       520 px di spazio utile del pannello. Ora WrapTextLines lo manda a capo. */
+    int boxTopFull = (int)(cy - 200.0f*uiScale);
+    int boxRightFull = (int)(cx + 300.0f*uiScale);   /* 600 di larghezza, come MainMenu: i contesti a schermo pieno restano invariati (DEC-090) */
+    int questionMaxX = -1;
+    for (int y = boxTopFull + (int)(45.0f*uiScale); y < boxTopFull + (int)(112.0f*uiScale); y++)
+    {
+        for (int x = (int)sw - 1; x > questionMaxX; x--)
+        {
+            Color c = GetImageColor(full, x, y);
+            if (((int)c.r + (int)c.g + (int)c.b)/3 >= 100) { questionMaxX = x; break; }
+        }
+    }
+    UnloadImage(full);
+
+    UnloadRenderTexture(canvas);
+
+    if (questionMaxX > boxRightFull)
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: la domanda a schermo pieno arriva a x=%d, oltre il bordo destro del pannello (x=%d) -- il testo sconfina dal riquadro (WP22, terza passata: deve andare a capo con WrapTextLines)\n",
+                questionMaxX, boxRightFull);
+        return false;
+    }
+
+    /* (1) vedi il commento sopra la funzione. */
+    float lumLight = ((float)cornerLight.r + (float)cornerLight.g + (float)cornerLight.b)/3.0f;
+    float lumFull = ((float)cornerFull.r + (float)cornerFull.g + (float)cornerFull.b)/3.0f;
+    if (!(lumLight > lumFull + 3.0f))
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: luminanza fuori dal box (%.1f contesto leggero, %.1f contesto a schermo pieno) non e' piu' chiara nel contesto leggero (WP22, DEC-090)\n", lumLight, lumFull);
+        return false;
+    }
+
+    /* (2) vedi il commento sopra la funzione. */
+    float sceneCornerLum = ((float)sceneCorner.r + (float)sceneCorner.g + (float)sceneCorner.b)/3.0f;
+    float keep = (sceneCornerLum > 1.0f) ? (lumLight/sceneCornerLum) : (165.0f/255.0f);
+    if (keep < 0.0f) keep = 0.0f;
+    if (keep > 1.0f) keep = 1.0f;
+
+    int sceneGutterMax = sceneGutter.r; if (sceneGutter.g > sceneGutterMax) sceneGutterMax = sceneGutter.g; if (sceneGutter.b > sceneGutterMax) sceneGutterMax = sceneGutter.b;
+    int sceneGutterMin = sceneGutter.r; if (sceneGutter.g < sceneGutterMin) sceneGutterMin = sceneGutter.g; if (sceneGutter.b < sceneGutterMin) sceneGutterMin = sceneGutter.b;
+    float chromaScene = (float)(sceneGutterMax - sceneGutterMin);
+    if (chromaScene < 8.0f)
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: precondizione non soddisfatta -- la scena al punto 'gutter' (%d,%d,%d) e' troppo neutra (croma %.1f) per verificare la soppressione del pannello\n",
+            sceneGutter.r, sceneGutter.g, sceneGutter.b, chromaScene);
+        return false;
+    }
+    float chromaExpectedNoMenu = chromaScene*keep;
+
+    int gutterLightMax = gutterLight.r; if (gutterLight.g > gutterLightMax) gutterLightMax = gutterLight.g; if (gutterLight.b > gutterLightMax) gutterLightMax = gutterLight.b;
+    int gutterLightMin = gutterLight.r; if (gutterLight.g < gutterLightMin) gutterLightMin = gutterLight.g; if (gutterLight.b < gutterLightMin) gutterLightMin = gutterLight.b;
+    float chromaActual = (float)(gutterLightMax - gutterLightMin);
+
+    if (!(chromaActual <= chromaExpectedNoMenu*0.7f))
+    {
+        fprintf(stderr, "GameExitConfirmLightModalTest: la croma del pixel dentro il box di MainMenu ma fuori da quello di ExitConfirm (%d,%d,%d) e' %.1f, non abbastanza soppressa rispetto ai %.1f previsti dal solo velo sopra la scena -- MainMenu forse non e' piu' disegnato come sfondo (WP22, DEC-090, gap G9)\n",
+            gutterLight.r, gutterLight.g, gutterLight.b, chromaActual, chromaExpectedNoMenu);
+        return false;
+    }
+
+    return true;
+}
+
+/* WP22 (terza passata, ui/run-setup.md, "Elementi interattivi"): la riga
+   informativa "Modalita': Standard" di RunSetup.
+   Perche' esiste questo test: la specifica del work package chiedeva quella
+   riga, la seconda passata l'aveva dichiarata "gia' presente e verificata", ma
+   NESSUNA suite la copriva -- cancellando la UiText in DrawRunSetupOverlay
+   make test restava interamente verde (difetto contestato dal giudice). Due
+   verifiche, come per GameExitConfirmLightModalTest sopra:
+
+   (0) Nucleo puro, nessun rendering: la fascia occupata dalla riga
+       (RendererRunSetupModeLabelBandFor, la STESSA che il disegno usa) non
+       deve contenere NESSUNA voce di menu -- RendererMenuItemAt deve
+       rispondere -1 su tutta la fascia. Fallisce se la riga diventasse
+       selezionabile (una DrawMenuRow al posto della UiText: la fascia
+       coinciderebbe con una voce), e fallisce anche se la riga tornasse alla
+       vecchia quota +142, dentro la fascia della voce "Seed" (110..150) --
+       che era il difetto di posizione contestato dal giudice.
+       La contro-prova che il metodo sia sensibile ("una voce esiste e viene
+       riconosciuta") sta nella riga sotto: il centro della voce 0 DEVE
+       rispondere 0.
+   (1) Pixel di un frame VERO di RendererDrawApp in APP_RUN_SETUP: si contano
+       i pixel CHIARI (luminanza >= 100 -- il testo e' 176,184,198 su un
+       pannello quasi nero, 14,16,22) dentro la fascia della riga e dentro una
+       fascia di CONTROLLO identica per dimensioni subito sopra, dove non si
+       disegna nulla. La riga e' presente solo se la prima ne ha molti e la
+       seconda quasi nessuno: cancellando la UiText il conteggio della fascia
+       crolla a zero e il test fallisce. La fascia di controllo non e' un
+       ornamento -- e' cio' che rende la soglia una MISURA e non un numero
+       indovinato: se un giorno il pannello diventasse chiaro, fallirebbero
+       entrambe le fasce e il test lo direbbe invece di passare per caso. */
+bool GameRunSetupModeLineTest(Game *game)
+{
+    float sw = (float)GetScreenWidth();
+    float sh = (float)GetScreenHeight();
+    Rectangle band = RendererRunSetupModeLabelBandFor(sw, sh);
+
+    const char *label = RendererRunSetupModeLabel();
+    if (!label || label[0] == '\0')
+    {
+        fprintf(stderr, "GameRunSetupModeLineTest: l'etichetta della riga Modalita' e' vuota\n");
+        return false;
+    }
+
+    /* (0) nucleo puro. */
+    for (float y = band.y + 1.0f; y < band.y + band.height; y += 2.0f)
+    {
+        for (float x = band.x + 1.0f; x < band.x + band.width; x += 4.0f)
+        {
+            int hit = RendererMenuItemAt(APP_RUN_SETUP, (Vector2){ x, y }, false);
+            if (hit >= 0)
+            {
+                fprintf(stderr, "GameRunSetupModeLineTest: il punto (%.0f,%.0f) della fascia 'Modalita' cade sulla voce di menu %d -- la riga deve restare NON selezionabile e non sovrapporsi ad alcuna voce (ui/run-setup.md)\n", x, y, hit);
+                return false;
+            }
+        }
+    }
+    /* Contro-prova: il metodo sa riconoscere una voce quando c'e' davvero. */
+    {
+        bool sawRow0 = false;
+        for (float y = 0.0f; y < sh && !sawRow0; y += 2.0f)
+            for (float x = 0.0f; x < sw && !sawRow0; x += 2.0f)
+                if (RendererMenuItemAt(APP_RUN_SETUP, (Vector2){ x, y }, false) == 0) sawRow0 = true;
+        if (!sawRow0)
+        {
+            fprintf(stderr, "GameRunSetupModeLineTest: nessun punto dello schermo colpisce la voce 0 di RunSetup (precondizione: il test non saprebbe distinguere 'non selezionabile' da 'geometria assente')\n");
+            return false;
+        }
+    }
+
+    /* (1) pixel del frame vero. */
+    RenderTexture2D canvas = LoadRenderTexture((int)sw, (int)sh);
+    AppUi ui = { 0 };
+    ui.seed = 12345u;
+    ui.focus = 1;   /* "Avvia": il fuoco NON sta sulla riga sopra la fascia, cosi' l'evidenziazione di una voce non puo' contaminare il conteggio */
+    RendererDrawApp(game, canvas, APP_RUN_SETUP, &ui, false, NULL, NULL);
+    Image frame = LoadImageFromScreen();
+    UnloadRenderTexture(canvas);
+
+    int bright = 0, brightControl = 0;
+    for (int y = 0; y < (int)band.height; y++)
+    {
+        for (int x = 0; x < (int)band.width; x++)
+        {
+            Color c = GetImageColor(frame, (int)band.x + x, (int)band.y + y);
+            if (((int)c.r + (int)c.g + (int)c.b)/3 >= 100) bright++;
+            Color k = GetImageColor(frame, (int)band.x + x, (int)band.y - (int)band.height + y);
+            if (((int)k.r + (int)k.g + (int)k.b)/3 >= 100) brightControl++;
+        }
+    }
+    UnloadImage(frame);
+
+    if (bright < 40)
+    {
+        fprintf(stderr, "GameRunSetupModeLineTest: solo %d pixel chiari nella fascia della riga 'Modalita' (%.0f,%.0f %.0fx%.0f) -- la riga non risulta disegnata nel frame (ui/run-setup.md, tabella 'Elementi interattivi')\n",
+                bright, band.x, band.y, band.width, band.height);
+        return false;
+    }
+    if (bright < brightControl*4 + 20)
+    {
+        fprintf(stderr, "GameRunSetupModeLineTest: la fascia della riga 'Modalita' (%d pixel chiari) non si distingue dalla fascia vuota di controllo (%d) -- soglia non discriminante\n",
+                bright, brightControl);
+        return false;
+    }
+
+    return true;
 }
 
 /* Fase 3b VISIVA (docs/engineering/specs/2026-07-13-pools-rarity-design.md,
@@ -7583,13 +8028,17 @@ static bool FusionTestBuildScreenFlow(Game *game)
     FUSION_CHECK(mode == APP_BUILD_SCREEN, "TAB non ha aperto BuildScreen");
     FUSION_CHECK(ui.fusionSourceA == FUSION_UI_NONE && ui.fusionSourceB == FUSION_UI_NONE,
                  "entrando in BuildScreen la selezione di fusione non e' vuota");
+    /* WP22 (ui/inventory-and-synergy-screen.md, "Focus iniziale"): con due
+       oggetti in inventario, l'ingresso mette il fuoco sull'ULTIMO acquisito
+       (indice 1, "Lente Rotta"), non sul primo -- vedi AppEnterBuildScreen. */
+    FUSION_CHECK(ui.buildItemFocus == 1, "l'ingresso in BuildScreen non ha messo il fuoco sull'ultimo oggetto acquisito");
 
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     FUSION_CHECK(mode == APP_BUILD_SCREEN, "la conferma in BuildScreen ha chiuso la schermata invece di selezionare");
-    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceA) == 0, "la conferma non ha selezionato l'oggetto a fuoco");
+    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceA) == 1, "la conferma non ha selezionato l'oggetto a fuoco (l'ultimo acquisito)");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
-    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceB) == 1, "la seconda conferma non ha selezionato il secondo oggetto");
+    FUSION_CHECK(FUSION_UI_SLOT(ui.fusionSourceB) == 0, "la seconda conferma non ha selezionato il secondo oggetto");
 
     { AppInput in = { 0 }; in.fuse = true; UpdateApp(game, &mode, &gen, &ui, &in); }
     FUSION_CHECK(mode == APP_BUILD_SCREEN, "F ha cambiato stato applicativo");

@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "BuildScreen: sinergie implicite attive e possibilità di fusione, senza dettagli tecnici. Espone anche la sezione Prove, sempre consultabile (DEC-042)."
-last_reviewed: 2026-07-30
-last_verified_commit: d5c5f43
-topics: [build-screen, sinergie, fusione, prove, pause-menu, DEC-012, DEC-042, DEC-184, WP16]
+last_reviewed: 2026-07-31
+last_verified_commit: 50911c9
+topics: [build-screen, sinergie, fusione, prove, pause-menu, focus-iniziale, DEC-012, DEC-042, DEC-184, WP16, WP22]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c]
@@ -33,6 +33,18 @@ Da `PauseMenu` ("Visualizza build e sinergie").
 ## Focus iniziale
 
 L'ultimo oggetto acquisito, o il primo oggetto della lista se la build è vuota di oggetti recenti.
+
+> **Nota di implementazione (WP22, 2026-07-31, gap G8 di `ui-gioco`):** prima di questo
+> lavoro `AppEnterBuildScreen` (`src/app/app.c`) si limitava a **clampare**
+> `ui->buildItemFocus` dentro i limiti correnti dell'inventario, senza mai puntarlo
+> esplicitamente all'ultimo indice: un focus già valido da una visita precedente (es. lo
+> slot 0) restava fermo lì anche dopo un pickup che avesse allungato la build, quindi il
+> nuovo oggetto non riceveva mai il focus d'ingresso richiesto qui sopra. Ora l'ingresso
+> imposta sempre `count > 0 ? count - 1 : 0` (stessa regola già usata da
+> `AppFusionConfirm` per il risultato di una fusione, mai duplicata: un'unica funzione
+> nuova non serviva). Verificato con un pickup reale (`CombatUpdatePickups`, non solo
+> `itemCount` scritto a mano) da `--states-test`; la fusione più sotto usava già questo
+> comportamento per l'esito, invariata.
 
 ## Elementi interattivi
 

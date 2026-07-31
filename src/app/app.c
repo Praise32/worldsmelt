@@ -492,11 +492,19 @@ static void AppFusionClearSelection(AppUi *ui)
     ui->fusionSourceB = FUSION_UI_NONE;
 }
 
-/* Entrare in BuildScreen: la selezione riparte SEMPRE vuota, perche' i due
-   campi sono indici dentro items[] e l'inventario puo' essere cambiato
-   mentre la schermata era chiusa (un oggetto raccolto, un Innesto sganciato,
-   un attivo scambiato sul piedistallo). Messaggio ed esito dell'ultima
-   fusione restano invece visibili: sono un RISULTATO, non una selezione. */
+/* Entrare in BuildScreen: la selezione della RIGA di menu (ui->focus, 0 =
+   Indietro, l'unica voce di menu di questa schermata) riparte SEMPRE vuota;
+   il fusionSourceA/B riparte vuoto per lo stesso motivo del commento sotto.
+   Messaggio ed esito dell'ultima fusione restano invece visibili: sono un
+   RISULTATO, non una selezione.
+   WP22 (ui/inventory-and-synergy-screen.md, "Focus iniziale", gap G8
+   ui-gioco): il focus sulla LISTA OGGETTI (ui->buildItemFocus) va invece
+   SEMPRE sull'ULTIMO oggetto acquisito (count-1), non semplicemente
+   clampato dentro i limiti correnti -- prima di questo WP un vecchio focus
+   gia' valido (es. 0, il primo oggetto) restava fermo li' anche dopo un
+   pickup che avesse allungato l'inventario, cosi' il nuovo oggetto non
+   riceveva mai il focus d'ingresso. Con la build vuota (count == 0) il
+   fallback resta 0, comportamento invariato. */
 static void AppEnterBuildScreen(Game *game, AppUi *ui, AppMode from)
 {
     ui->openedFrom = from;
@@ -505,8 +513,7 @@ static void AppEnterBuildScreen(Game *game, AppUi *ui, AppMode from)
     AppFusionClearSelection(ui);
     int count = game->player.itemCount;
     if (count > MAX_ITEMS) count = MAX_ITEMS;
-    if (ui->buildItemFocus >= count) ui->buildItemFocus = count > 0 ? count - 1 : 0;
-    if (ui->buildItemFocus < 0) ui->buildItemFocus = 0;
+    ui->buildItemFocus = count > 0 ? count - 1 : 0;
     /* W9 correzione round 1: l'ancora di scorrimento della lista riparte dalla
        riga a fuoco (AppUi.buildItemScroll -- la finestra visibile dipende da
        lei, non piu' dal focus). Senza questa riga il primo frame della
@@ -740,7 +747,14 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !(*mode == APP_MAIN_MENU && ui->catalogOpen)
         && !(*mode == APP_PAUSE_MENU && ui->pauseTrialsOpen))
     {
-        int clicked = RendererMenuItemAt(*mode, mousePos);
+        /* WP22 (terza passata): la geometria di ExitConfirm dipende dal
+           contesto che l'ha aperto (dialogo leggero da MainMenu = riquadro
+           piu' stretto, vedi MenuBoxForModeFor in src/render/game_renderer.c).
+           Il hit-test deve interrogare la STESSA geometria che il frame ha
+           disegnato, altrimenti i 70px di margine per lato risponderebbero a
+           voci che li' non ci sono. Per ogni altro 'mode' il parametro e'
+           ignorato. */
+        int clicked = RendererMenuItemAt(*mode, mousePos, ExitConfirmIsLightModalFor(ui->openedFrom));
         if (clicked >= 0)
         {
             ui->focus = clicked;
@@ -789,7 +803,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
     if (mouseMoved && !(*mode == APP_MAIN_MENU && ui->catalogOpen)
         && !(*mode == APP_PAUSE_MENU && ui->pauseTrialsOpen))
     {
-        int hovered = RendererMenuItemAt(*mode, mousePos);
+        int hovered = RendererMenuItemAt(*mode, mousePos, ExitConfirmIsLightModalFor(ui->openedFrom));
         if (hovered >= 0) ui->focus = hovered;
     }
 
@@ -1471,7 +1485,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                OPTIONS_ROW_BACK), non "Indietro". */
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
             {
-                int hitRow = RendererMenuItemAt(APP_OPTIONS, mousePos);
+                int hitRow = RendererMenuItemAt(APP_OPTIONS, mousePos, false);   /* Options non ha una geometria alternativa: solo ExitConfirm ce l'ha */
                 /* Il trascinamento si apre SOLO dalla barra (RendererOptions-
                    SliderHit): un click sull'etichetta o sulle frecce della
                    riga e' navigazione (l'hover generico sopra ha gia' spostato
@@ -1787,6 +1801,8 @@ int AppRun(int argc, char **argv)
     bool genTest = false;
     bool atlasFallbackTest = false;
     bool layerTest = false;
+    bool exitConfirmLightModalTest = false;
+    bool runSetupModeLineTest = false;
     bool rarityScreenshotTest = false;
     bool roomShapesScreenshotTest = false;
     bool shotFormsScreenshotTest = false;
@@ -1901,6 +1917,22 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             layerTest = true;
+        }
+        /* WP22 (DEC-090, gap G9 ui-cornice, seconda passata): come
+           --layer-test, ma per ExitConfirm/MainMenu -- vedi
+           GameExitConfirmLightModalTest in src/tests/game_tests.c. */
+        if (strcmp(argv[i], "--exit-confirm-light-modal-test") == 0)
+        {
+            smokeTest = true;
+            exitConfirmLightModalTest = true;
+        }
+        /* WP22 (terza passata, ui/run-setup.md): come sopra, ma per la riga
+           informativa "Modalita': Standard" di RunSetup -- vedi
+           GameRunSetupModeLineTest in src/tests/game_tests.c. */
+        if (strcmp(argv[i], "--run-setup-mode-line-test") == 0)
+        {
+            smokeTest = true;
+            runSetupModeLineTest = true;
         }
         /* Fase 3b VISIVA: come --layer-test, ma equipaggia/piazza un oggetto
            per ciascuna delle quattro rarita' invece di un mix di slot, per
@@ -2516,6 +2548,22 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 11;
+    }
+    if (exitConfirmLightModalTest)
+    {
+        bool ok = GameExitConfirmLightModalTest(&game);
+        printf("ExitConfirm light modal test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 44;   /* 44: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --trials-test=43) */
+    }
+    if (runSetupModeLineTest)
+    {
+        bool ok = GameRunSetupModeLineTest(&game);
+        printf("RunSetup mode line test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 45;   /* 45: il primo codice di uscita libero (vedi --exit-confirm-light-modal-test=44 sopra) */
     }
     /* DEC-170, SOLO manuale (mai in make test): scatti delle taglie
        multi-cella per il giudizio di gusto sulla telecamera. 27: il primo
