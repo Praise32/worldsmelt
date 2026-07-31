@@ -55,6 +55,18 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
   gen-progress UI. Asset-gated: famiglia audio Piano 0 (DEC-121). Il **bilanciamento**
   fine resta legato al feedback del playtest round 2 (mai arrivato): valori attuali =
   default proposti DEC-019 + tabelle di equità/ricompensa nuove, tutti in open-questions.
+- **Prove pipeline sprite (31/07 sera)**: la ricerca esterna del proprietario su pixel
+  art/LoRA/sinergie è stata confrontata col canone (esito: ~70% già coincide; 32px di
+  DEC-177 confermato contro il 64x64 proposto; zip di sprite commerciali = solo studio,
+  mai nel repo né nel training). Prodotti su sua richiesta ("facciamo delle prove"):
+  protocollo **silhouette-first dimostrato** end-to-end (torretta-di-crogiolo: 3 candidate
+  → scelta B "colonna con crogiolo" → materiali 11 colori Fucina → floor test
+  chiaro/scuro), template a livelli `assets/art-src/templates/enemy_32_template.aseprite`,
+  mockup **overlay sinergie** sulla Fonditrice (corona su slot testa + mutazione crepe
+  emissive + combinata, DEC-049) in `assets/art-src/experiments/`. Candidati DEC per il
+  facilitator: protocollo+template come standard di produzione; mappatura 6 slot visivi ↔
+  slot funzionali; riconciliazione celle atlas SD 128px ↔ scala nativa 32px alla Style
+  LoRA. Provvisori: fuori dal dataset LoRA (DEC-201).
 - **Storia W8** (asset art consumati dal motore: art_atlas/art_draw, priorità immagini
   DEC-175, nove schermate rivestite): committata il 30/07 prima di questa sessione; i
   "buchi dichiarati" di allora (font, sheet personaggi, prop cuore/bomba/chiave, salute
