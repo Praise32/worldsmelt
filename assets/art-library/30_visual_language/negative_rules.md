@@ -12,7 +12,9 @@ Dalla Fase A/B della reference distillation + regole del proprietario.
 6. **Mai colori fuori palette Fucina** (31, non-neon). Il ciano acceso e le
    palette Material Design delle reference si rimappano sempre.
 7. **Mai pixel isolati accidentali** (solo scintille deliberate).
-8. **Mai outline nero sul mondo/tile/UI** (in entrambe le opzioni di stile).
+8. **Mai outline nero perimetrale, da nessuna parte** (deciso 31/07: opzione B).
+   Bordo implicito = tono più scuro del materiale. Obbligo di floor test
+   chiaro/scuro per ogni asset.
 9. **Mai frame duplicati come cel separati**: usare cel linkati.
 10. **Mai guide visibili negli export** (guida su livello nascosto).
 11. **Mai più di ~8 colori per entità** (budget 3–8).

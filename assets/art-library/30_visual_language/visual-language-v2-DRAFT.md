@@ -1,10 +1,11 @@
-# Visual language Worldsmelt v2 — BOZZA da votare
+# Visual language Worldsmelt v2
 
-> Stato: **DRAFT**, 31/07/2026. Sintesi della Fase B di reference distillation
-> (card in `20_reference_cards/`) più le regole già fissate dal proprietario
-> nella sessione di prove. NON è canone: diventa canone solo dopo il giro di
-> voti del proprietario e la registrazione delle DEC (supererebbe DEC-176/177
-> in parte). La fonte canonica attuale resta docs/design/content/visual-language.md.
+> Stato: **DECISA nelle scelte chiave** il 31/07/2026 sera (sessione remota del
+> proprietario): outline = OPZIONE B (nessun outline, stile masse RoR pura),
+> voti card accettati, onda 1 = personaggi + nemici. Batch DEC in registrazione
+> nel decision-log (supera DEC-176(a); conferma scala DEC-177). Dopo la
+> registrazione questo documento va riversato in
+> docs/design/content/visual-language.md (fonte canonica).
 
 ## Regole fissate dal proprietario (31/07, non negoziabili)
 
@@ -46,16 +47,16 @@
 - Pieghe dei tessuti: tratti corti scuri (2–4px) con crinale chiaro adiacente;
   bordi mai in linea retta lunga (gradini irregolari).
 
-## Outline — LA decisione di stile da votare
+## Outline — DECISO: Opzione B (31/07, proprietario)
 
-Due candidati coerenti con le card (il pack G&E applica già la regola split):
+**Nessun outline nero, da nessuna parte.** Silhouette per contrasto di valore
++ bordo implicito scuro dove serve (il tono più scuro del materiale, mai nero
+puro perimetrale). È il look del trio mini approvato.
 
-- **Opzione A (split, raccomandata)**: outline slag-nero SOLO su personaggi,
-  nemici e entità interattive; mondo, tile e UI **senza outline nero** (bordi
-  a toni del materiale). Gli esseri viventi staccano dal fondo per contratto.
-- **Opzione B (RoR pura)**: nessun outline nero da nessuna parte; silhouette
-  per contrasto di valore + bordo implicito scuro (il trio mini della prova è
-  così). Più atmosferica, più esigente su ogni sfondo.
+Obbligo conseguente: **ogni asset passa il test su pavimento chiaro E scuro**
+prima dell'approvazione — senza outline il contrasto va garantito caso per
+caso (masse scure → accento emissivo che stacca sul buio; masse chiare →
+ancoraggio d'ombra alla base).
 
 ## Animazione (evidenza: supernova + intellikat + debts, convergenti)
 
