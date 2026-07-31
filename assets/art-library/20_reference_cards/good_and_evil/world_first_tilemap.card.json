@@ -1,0 +1,34 @@
+{
+  "id": "good_and_evil/world_first_tilemap",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/good_and_evil/extracted/sources/aseprite_projects/world/first_tilemap.aseprite",
+  "native_size": "600x436 (sheet di blocchi terreno, non celle singole)",
+  "canvas": "600x436, un solo frame; blocchi platform da ~40-120px disposti come catalogo",
+  "camera": "side",
+  "body_plan": "Catalogo terreno da platformer: piattaforme con crosta rocciosa chiara sul bordo e riempimento interno quasi nero punteggiato di pixel luminosi (stelle/minerali), varianti angolo/canale/anello, massi tondi a 3 toni, funghetti blu, nuvole rosa piatte, colonne-piedistallo e colonne di sfondo a 3 fasce di rosa.",
+  "outline": "nessun outline nero: bordi definiti da un tono piu scuro dello stesso materiale (outline selettivo colorato); il terreno stacca dal fondo per contrasto di valore",
+  "shading": "crosta chiara in alto -> toni medi -> riempimento scuro: luce zenitale; rampa malva/rosa polverosa desaturata; niente dithering, la texture interna e fatta a puntini luminosi radi",
+  "frames": 1,
+  "layers": ["Layer 1"],
+  "palette_size": 71,
+  "metrics": {
+    "occupancy_pct": 27.1,
+    "unique_colors": 71,
+    "isolated_px": 0
+  },
+  "animation_notes": "Statico. E un mockup di assemblaggio su livello unico, non una tilemap layer vera: le tile sono gia composte in blocchi campione.",
+  "rating_proposal": 4,
+  "liked_features": [
+    "principio crosta chiara + riempimento scuro + puntini luminosi radi: da riusare per pavimenti/pareti della Fucina, da luce zenitale che sposa la camera top-down",
+    "rampa malva/rosa polverosa non-neon, vicinissima allo spirito della palette Fucina",
+    "niente outline nero sul terreno: outline selettivo a tono scuro dello stesso materiale, cosi i personaggi (outlinati di nero) staccano subito dal fondo",
+    "props a pochissimi toni (massi a 3 toni, nuvole piatte a 2): gerarchia chiara tra terreno ricco e oggetti semplici",
+    "colonne di sfondo a fasce piatte di valore per dare profondita senza dettaglio"
+  ],
+  "avoid_features": [
+    "geometria da platformer laterale (piattaforme sospese, profili a V): la Fucina e top-down, riusare solo il trattamento delle superfici",
+    "71 colori nel foglio: molte varianti intermedie ridondanti, con la Fucina a 31 colori la rampa va compressa",
+    "tutto appiattito su un livello unico: per Worldsmelt terreno, props e sfondo vanno su livelli o tilemap separati"
+  ],
+  "worldsmelt_fit": "Il riferimento migliore del pack per l'ambiente: coppia outline-nero-solo-sui-personaggi / terreno-senza-outline che garantisce leggibilita, riempimenti scuri punteggiati per le zone buie della Fucina, e la disciplina dei props a 2-3 toni.",
+  "tags": ["world", "terrain", "selective-outline", "dusty-palette", "mockup-sheet"]
+}

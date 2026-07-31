@@ -1,0 +1,34 @@
+{
+  "id": "good_and_evil/knight_without_weapon_IDLE",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/good_and_evil/extracted/sources/aseprite_projects/characters/knight/without_weapon/IDLE.aseprite",
+  "native_size": "35x35",
+  "canvas": "35x35, corpo utile 16x21 (bbox)",
+  "camera": "side",
+  "body_plan": "Chibi a 2 masse: elmo enorme (~50% dell'altezza) con visiera rossa a T su fondo scuro, torso avvolto dal mantello cremisi che copre le braccia, due gambette tozze. Niente collo, niente mani visibili nel set without_weapon.",
+  "outline": "nero esterno 1px continuo; interni separati per cambio tono, non per linea",
+  "shading": "2 toni per materiale (base + ombra) piu un lume raro; luce dall'alto-sinistra appena accennata; niente dithering; il nero dell'outline fa anche da ombra portata sotto il mantello",
+  "frames": 2,
+  "layers": ["Layer 1"],
+  "palette_size": 8,
+  "metrics": {
+    "occupancy_pct": 73.5,
+    "unique_colors": 8,
+    "isolated_px": 0
+  },
+  "animation_notes": "Idle a 2 frame da 500ms: respiro con shift verticale di 1px di elmo e mantello, gambe ferme. Economia estrema ma leggibile grazie alle masse grandi. Nessun tag definito; il timing sta nelle durations.",
+  "rating_proposal": 4,
+  "liked_features": [
+    "testa senza volto: visiera a T su vuoto scuro, identita senza occhi ne bocca — compatibile con la regola Worldsmelt del volto assente",
+    "outline nero esterno 1px pulito con occupancy alta (73%) e zero pixel isolati",
+    "8 colori totali, 2 toni per materiale, niente dithering: esattamente lo stile a masse cercato",
+    "la cartella without_weapon/ prova che il set e stato disegnato gia separando personaggio e arma",
+    "idle a 2 frame con bob da 1px: costo minimo, vita percepita"
+  ],
+  "avoid_features": [
+    "vista side-scroller: Worldsmelt e top-down three-quarter, non copiare la costruzione di profilo",
+    "il nero puro #000000 usato come tono interno oltre che come outline: con la palette Fucina l'ombra interna va fatta con un tono scuro dedicato",
+    "canvas 35px con corpo 16x21: proporzioni piu piccole del target Worldsmelt (~26px di corpo su 32)"
+  ],
+  "worldsmelt_fit": "Prendere il principio visiera-su-vuoto per le teste senza volto, il rapporto 2-toni-per-materiale con outline nero esterno, e il respiro di idle a 1px su 2 frame lenti. Ricostruire tutto in camera top-down three-quarter a scala 32px.",
+  "tags": ["character", "faceless", "no-weapon", "idle", "flat-masses"]
+}

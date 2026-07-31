@@ -1,0 +1,38 @@
+{
+  "id": "items-medieval-fantasy-sheet",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/medieval_fantasy_items/items_medieval.aseprite",
+  "pack": "items",
+  "canvas": "176x112",
+  "native_size": "16x16",
+  "frames": 1,
+  "layers": ["Items"],
+  "camera": "flat_icon",
+  "outline": "selettivo colorato: contorno unico prugna scurissimo #2D1E2F (mai nero puro) su tutti gli oggetti; quasi nessuna linea interna, i materiali si separano per valore",
+  "shading": "2-3 toni per materiale, luce da alto-sinistra, nessun dithering; metalli in mauve-grigio, legni in marrone caldo, accenti saturi (teal, arancio, blu) riservati a gemme, pozioni e decori degli scudi",
+  "palette_size": 27,
+  "animation_notes": "statico, nessun tag; sheet-catalogo di ~70 icone su griglia 16x16 (11x7 celle)",
+  "body_plan": "armi bianche disegnate in diagonale a 45 gradi da basso-sinistra ad alto-destra, manico 2px pieno + testa/lama come massa unica; scudi frontali pieni; armature come pezzi indossabili flottanti (busto, gambali, cappuccio, stivali) senza corpo; contenitori (secchi, vasi) in three-quarter con ellisse dell'apertura visibile; oggetti grandi (arco lungo, lancia) sconfinano su 2 celle",
+  "metrics": {
+    "occupancy_pct": 30.9,
+    "unique_colors": 27,
+    "isolated_px": 15
+  },
+  "tags": ["icone", "armi", "armature", "consumabili", "sheet", "16px", "cc0"],
+  "rating_proposal": 5,
+  "liked_features": [
+    "diagonale a 45 gradi come orientamento standard di tutte le armi-oggetto: silhouette immediatamente leggibile a 16px",
+    "manici sempre spessi 2px: mai aste da 1px che sfarfallano",
+    "outline unico scuro condiviso da tutto il pack: coesione istantanea tra 70 icone",
+    "solo 27 colori per 70 oggetti: i materiali si distinguono per rampa di valore, non per tinta nuova",
+    "accento saturo puntuale (gemma, liquido della pozione, quarti dello scudo) come unico elemento che differenzia varianti dello stesso oggetto",
+    "armature mostrate come pezzi indossabili senza corpo: perfetto per item equipaggiati che non stanno mai in mano",
+    "niente dithering, niente dettaglio interno superfluo: ogni icona e' 2-4 cluster"
+  ],
+  "avoid_features": [
+    "outline prugna caldo: da noi lo standard S1 e' outline nero esterno, adattare non copiare",
+    "palette rosa-malva complessiva lontana dalla palette Fucina (31 colori non-neon): prendere le rampe, non le tinte",
+    "frecce e oggetti sotto ~8px di massa: sotto la soglia di leggibilita' alla nostra scala",
+    "scudi con quarti bicolore molto salienti: rischiano di leggersi come UI piu' che come oggetti nel mondo"
+  ],
+  "worldsmelt_fit": "modello quasi diretto per ItemVisualBundle: arma = oggetto diagonale a 45 gradi con manico 2px e testa a massa unica, differenziato dalla rampa del materiale e da un solo accento saturo; armature = pezzi flottanti leggibili senza personaggio; contenitori in three-quarter con ellisse coerente con la nostra camera. Principi da tenere: un outline condiviso da tutto il set, budget di 2-4 cluster per icona, palette unica per l'intero pack."
+}

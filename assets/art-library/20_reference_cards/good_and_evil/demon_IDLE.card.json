@@ -1,0 +1,34 @@
+{
+  "id": "good_and_evil/demon_IDLE",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/good_and_evil/extracted/sources/aseprite_projects/monsters/demon/IDLE.aseprite",
+  "native_size": "35x35",
+  "canvas": "35x35, corpo utile 23x24 (bbox)",
+  "camera": "side",
+  "body_plan": "Umanoide magro con silhouette 'a stella': corna larghe in alto, coda a frusta che esce a sinistra, tridente in diagonale a destra. Torso a campana rosso scuro, gambe stecco nere. La silhouette allargata compensa il corpo piccolo (occupancy 39%).",
+  "outline": "nero esterno 1px; corna, gambe e coda sono nero pieno che si fonde con l'outline",
+  "shading": "monocromia rossa: 6 colori totali, base #83211A + ombra + 2 accenti caldi; il tridente ha punte #E01E00 con scintille staccate; niente dithering",
+  "frames": 2,
+  "layers": ["HEAD", "B", "ARMS-LEGS", "WEAPON"],
+  "palette_size": 6,
+  "metrics": {
+    "occupancy_pct": 39.5,
+    "unique_colors": 6,
+    "isolated_px": 6
+  },
+  "animation_notes": "Idle a 2 frame da 250ms: oscilla la coda e slitta di 1px il blocco corpo; i 6 pixel isolati sono scintille volute attorno alle punte del tridente, che lampeggiano tra i frame — emissione fatta a pixel staccati, non a glow.",
+  "rating_proposal": 4,
+  "liked_features": [
+    "organizzazione livelli HEAD / B / ARMS-LEGS / WEAPON: arma su livello separato dal corpo, esattamente il principio Worldsmelt armi-come-oggetti; anche testa e arti staccati per riuso tra animazioni",
+    "6 colori per l'intero mostro: monocromia di fazione (rosso = evil) con lettura immediata",
+    "silhouette a stella (corna+coda+appendici) per dare presenza a un corpo piccolo",
+    "scintille a pixel isolati sulle punte per suggerire energia senza effetti glow"
+  ],
+  "avoid_features": [
+    "arma in mano nel disegno composito: in Worldsmelt le armi non stanno in mano, il livello WEAPON va semmai reso oggetto a parte",
+    "vista laterale da platformer",
+    "occupancy bassa (39%): a 32px Worldsmelt il corpo va tenuto piu denso, le appendici sottili si sgranano in top-down",
+    "gambe a stecco 1px: sotto la camera three-quarter sparirebbero"
+  ],
+  "worldsmelt_fit": "La lezione principale del pack: separare i livelli per parte anatomica e mettere l'arma su un livello proprio anche nelle reference. Prendere anche la monocromia di fazione a 6 toni e le scintille a pixel isolati per i mostri 'energetici'; ricostruire con corpo piu massiccio.",
+  "tags": ["monster", "layered-anatomy", "weapon-layer", "monochrome-faction", "idle"]
+}

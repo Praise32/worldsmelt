@@ -1,0 +1,36 @@
+{
+  "id": "materials/industrial_punk_tileset",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/industrial_punk/extracted/IndustrialPunk_Tileset.aseprite",
+  "pack": "materials",
+  "author": "GoncaloMCOliveira (CC0, licenza in industrial_punk/license.txt)",
+  "native_size": "16x16",
+  "canvas": "480x256 (griglia 30x16 = 480 tile da 16x16)",
+  "frames": 1,
+  "layers": ["Tileset"],
+  "camera": "side",
+  "body_plan": "tileset side-view industriale: famiglie di materiali per muri (mattone rosso, intonaco chiaro puntinato, pannelli metallici verdi, lamiera ondulata blu scurissima, pannelli ruggine gialli), piastre borchiate, travature/impalcature con X, tubi ruggine con flange e valvole, finestre vetrate ciano, serrande e griglie, props 2x3 tile (distributori automatici, porte, armadi, parabole), cavi come linea singola",
+  "outline": "scuro colorato: esterno 1px in blu-plum quasi nero (#0E071B), MAI nero puro; separazioni interne nel tono ombra del materiale stesso",
+  "shading": "2-3 toni per materiale, luce dall'alto (bordo superiore in luce, base in ombra); zero dithering; texture come accenti sparsi (~10% dei pixel) su base piatta; nelle masse scure il dettaglio sfuma verso il basso (fade-out delle borchie nel quasi-nero)",
+  "palette_size": 39,
+  "metrics": { "occupancy_pct": 79.8, "unique_colors": 39, "isolated_px": 0 },
+  "animation_notes": "statico, nessun tag; le varianti (es. lamiera pulita/danneggiata, tubo pulito/ossidato) sono tile separati, non frame",
+  "tags": ["tileset", "industriale", "metallo", "mattone", "tubi", "materiali", "side-view", "tile-16"],
+  "rating_proposal": 5,
+  "liked_features": [
+    "mattone SUGGERITO, non disegnato: base rossa piatta con soli giunti a T e trattini scuri sparsi in semi-regolarita', niente griglia completa di malta - texture senza rumore",
+    "ogni materiale = 1 hue + 1 micro-pattern proprietario (mattone=trattini, lamiera=coste verticali 2 toni, borchie=griglia sfalsata, intonaco=puntini radi): riconoscibile anche in miniatura",
+    "budget di dettaglio gerarchico: massimo sul bordo superiore illuminato (cornice chiara + fila di staffe), corpo quasi piatto, base che sfuma in ombra",
+    "vetro = 3 toni ciano + strisce diagonali nette a 45 gradi come riflesso, zero dithering",
+    "ruggine/ossido verdigris (#134C4C) come accento RARO: macchie di 2-4 px solo sui tubi, mai sparso ovunque",
+    "tubi a 3 toni con flange scure e outline coeso: volume cilindrico perfettamente leggibile a 16px",
+    "props (distributori) = grande piano di colore saturo + merce come tacche colorate + ombra alla base: leggibilita' Risk-of-Rain-like",
+    "39 colori totali per un intero tileset con 8+ materiali: disciplina di palette vicina alla nostra Fucina (31)"
+  ],
+  "avoid_features": [
+    "vista SIDE (platformer): prospettiva dei tile da ripensare per la nostra top-down three-quarter (i muri qui sono facciate, da noi sono fasce alte + pavimenti)",
+    "ciano #00CDF9 quasi neon delle vetrate: fuori dalla regola non-neon della palette Fucina",
+    "outline blu-plum (#0E071B): il nostro stile S1 usa outline nero puro sui personaggi - per i tile decidere una regola coerente, non copiare questa",
+    "griglia 16px: la demo lavora a scala maggiore, i micro-pattern vanno riprogettati, non upscalati"
+  ],
+  "worldsmelt_fit": "Riferimento principale per RIFARE i tileset della demo. Principi da portare (mai i design): (1) base piatta + accenti di giunto <=10-15% dei pixel, niente noise fill; (2) 2-3 toni per materiale con luce dall'alto; (3) un micro-pattern esclusivo per materiale cosi' metallo/pietra/mattone si distinguono per ritmo oltre che per hue; (4) dettaglio concentrato dove guarda l'occhio (bordi illuminati, cornici), campi grandi quasi piatti; (5) ossidi e danni come accento raro e localizzato; (6) props con piano di colore saturo unico su ambiente desaturato. Tradurre tutto nella palette Fucina e in top-down three-quarter."
+}

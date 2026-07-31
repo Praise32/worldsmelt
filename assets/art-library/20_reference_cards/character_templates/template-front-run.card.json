@@ -1,0 +1,39 @@
+{
+  "id": "character_templates/template-front-run",
+  "file": "assets/art-library/10_references/_downloads/isometric_character_template_intellikat/extracted/isometric_character_template_2023_06_16/cycles/template-front-run.ase",
+  "canvas": "32x32",
+  "native_size": "32x32",
+  "frames": 4,
+  "layers": ["Guide", "Leg Left", "Leg Right", "Arm Left", "Body", "Arm Right", "Head"],
+  "tags": ["Loop (1-4, forward)"],
+  "camera": "isometric",
+  "outline": "nero esterno 1px (con linee interne nere a separare gli arti)",
+  "shading": "flat: solo bianco pieno, nessun tono d'ombra, niente dithering",
+  "palette_size": 2,
+  "metrics": {
+    "occupancy_pct": 63.6,
+    "unique_colors": 2,
+    "isolated_px": 0
+  },
+  "body_plan": "Stesso chibi 13x30 dello stand, costruito SOPRA la posa-base: i frame di passaggio riusano quasi identica la silhouette dello stand (stesso bbox 13x30).",
+  "animation_notes": "4 frame @100ms, tag 'Loop'. Schema passaggio-estremo-passaggio-estremo: frame 1 e 3 sono IDENTICI (stessa silhouette, 248 px opachi), frame 2 e 4 sono i due estremi di falcata (bbox largo 17-18px). Bob verticale 2px (bottom 30 -> 28 sul frame 2), centro-bbox stabile entro 1px. Nota: l'ordine dei livelli cambia rispetto allo stand (Arm Right sopra Body) per il layering della corsa 3/4.",
+  "rating_proposal": 4,
+  "liked_features": [
+    "economia esemplare: run credibile in 4 frame con il frame di passaggio riusato due volte",
+    "costruzione incrementale dal file stand: stessa base, si muovono solo i livelli-arto",
+    "bob di 2px e pivot stabile entro 1px: il budget di movimento giusto per la nostra scala",
+    "tag 'Loop' esplicito sul ciclo (buona igiene di export)",
+    "riordino dei livelli per frame-set per gestire le sovrapposizioni degli arti"
+  ],
+  "avoid_features": [
+    "occhi a trattino sul volto (Worldsmelt: volto vuoto)",
+    "livello Guide magenta visibile nell'export",
+    "flat senza tono d'ombra: manca il piano di luce che vogliamo",
+    "frame 1 e 3 duplicati come cel separati: meglio linkare i cel per non desincronizzarli"
+  ],
+  "worldsmelt_fit": "La lezione chiave del pack per le animazioni: ciclo a 4 frame passaggio/estremo con riuso del passaggio, bob 2px, arti che fanno tutto il movimento mentre testa+busto restano fermi. E' esattamente il budget di frame e di escursione per i nostri personaggi ~26px; da replicare con cel linkati e guida nascosta.",
+  "previews": [
+    "previews/template-front-run_f1_x8.png",
+    "previews/template-front-run_f3_x8.png"
+  ]
+}

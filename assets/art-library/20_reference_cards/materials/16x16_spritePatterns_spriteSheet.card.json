@@ -1,0 +1,29 @@
+{
+  "id": "materials/pixel_patterns_16",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/pixel_patterns/extracted/16x16/Sprite Sheet/16x16_spritePatterns_spriteSheet.aseprite",
+  "pack": "materials",
+  "author": "GoncaloMCOliveira (CC0, licenza in pixel_patterns/license.txt)",
+  "native_size": "16x16",
+  "canvas": "96x80 (griglia 6x5 = 30 pattern, stessi motivi del foglio 32x32 dimezzati)",
+  "frames": 1,
+  "layers": ["Layer 1"],
+  "camera": "flat_icon",
+  "body_plan": "stessi 30 motivi del foglio 32x32 ridisegnati a meta' risoluzione: mattoni con malta 1px, onde ridotte a 1-2 step per curva, greche compresse",
+  "outline": "nessuno",
+  "shading": "nessuno: binario bianco/nero, zero dithering",
+  "palette_size": 2,
+  "metrics": { "occupancy_pct": 100.0, "unique_colors": 2, "isolated_px": 0 },
+  "animation_notes": "statico, nessun tag",
+  "tags": ["pattern", "seamless", "texture", "bianco-nero", "tile-16"],
+  "rating_proposal": 3,
+  "liked_features": [
+    "lezione diretta di SEMPLIFICAZIONE: come lo stesso motivo sopravvive al dimezzamento (malta 2px->1px, curve a step piu' lunghi, dettagli interni sacrificati prima della silhouette)",
+    "coppia 16/32 dello stesso autore = riferimento perfetto per coerenza tra scale diverse nello stesso schermo",
+    "anche a 16px nessun pixel isolato ne' rumore: la disciplina regge alla risoluzione minima"
+  ],
+  "avoid_features": [
+    "a 16px molti motivi (esagoni, sparkle, greca small) diventano quasi-rumore: da evitare come texture di superfici grandi",
+    "checkerboard e tratteggi 1px ad alta frequenza: shimmering garantito in movimento"
+  ],
+  "worldsmelt_fit": "Da usare come tabella di conversione quando un dettaglio va reso a scala piccola (mini-tile, icone materiale, dettaglio dentro un tile 32): confrontare la cella 16 con la gemella 32 per capire cosa l'autore taglia per primo. Regola estratta: sotto i 16px si tiene il ritmo del motivo e si butta il dettaglio interno."
+}

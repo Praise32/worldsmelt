@@ -1,0 +1,41 @@
+{
+  "id": "character_templates/isometric_character_idle",
+  "file": "assets/art-library/10_references/_downloads/isometric_character_supernova/extracted/isometric_character_idle.aseprite",
+  "canvas": "64x512",
+  "native_size": "64x64",
+  "frames": 8,
+  "layers": ["Cube (nascosto, guida)", "E", "NE", "N", "NW", "W", "SW", "SE", "S"],
+  "tags": [],
+  "camera": "top_down_three_quarter",
+  "outline": "nero esterno 1px, chiuso e continuo",
+  "shading": "2 toni (bianco piano di luce + 1 grigio #A5A5A5 sul lato in ombra), luce alta frontale-destra, niente dithering",
+  "palette_size": 3,
+  "metrics": {
+    "occupancy_pct": 67.4,
+    "unique_colors": 3,
+    "isolated_px": 0
+  },
+  "body_plan": "Manichino ~58px in cella 64x64: circa 4 teste di altezza, spalle larghe, torace a massa unica, arti tubolari chunky, mani a guanto; testa ovale COMPLETAMENTE senza volto.",
+  "animation_notes": "8 frame @100ms per 8 direzioni nello stesso file (una direzione per livello, celle 64px impilate in verticale). Idle di respiro: l'altezza varia di 1px, il pivot e' roccioso (drift del centro bbox 0-0.5px, bottom drift 0 in tutte le direzioni). Le 8 direzioni sono sincronizzate frame per frame.",
+  "rating_proposal": 5,
+  "liked_features": [
+    "testa senza volto: bianco pieno, zero feature facciali — esattamente la regola Worldsmelt",
+    "nessuna arma in mano",
+    "shading a masse: un solo grigio d'ombra su grande piano di luce bianco, alla Risk of Rain",
+    "pivot perfettamente stabile tra i frame (bottom fisso, centro fisso)",
+    "outline nero esterno continuo (coincide con lo stile S1 scelto)",
+    "organizzazione a 8 direzioni sincronizzate in un unico file (1 livello = 1 direzione)",
+    "livello guida (Cube) tenuto nascosto cosi' non inquina l'export",
+    "niente dithering, zero pixel isolati"
+  ],
+  "avoid_features": [
+    "scala doppia rispetto a Worldsmelt (corpo ~58px vs i nostri ~26px): prendere i principi, non i pixel",
+    "proporzioni realistiche a 4 teste: a 26px servono masse piu' compresse",
+    "12x8 celle in un canvas 64x512 rende scomodo il preview in-editor rispetto a tag per direzione"
+  ],
+  "worldsmelt_fit": "Il template piu' allineato del pack: manichino senza volto ne' armi, 3 colori, un solo tono d'ombra per materiale, pivot inchiodato. Da prendere: la disciplina del pivot (bottom e centro fissi nell'idle), l'idle di respiro da 1px di escursione, il livello-guida nascosto, la sincronia delle 8 direzioni. Da riscalare: tutte le proporzioni (noi lavoriamo a meta' scala).",
+  "previews": [
+    "previews/isometric_character_idle_f1_x2.png",
+    "previews/isometric_character_idle_f5_x2.png"
+  ]
+}

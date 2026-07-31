@@ -1,0 +1,34 @@
+{
+  "id": "debts_in_the_depths/sprLizardMonk1",
+  "file": "10_references/_downloads/debts_in_the_depths/extracted/DebtsInTheDepthsAssets/Characters/sprLizardMonk1.aseprite",
+  "canvas": "21x20",
+  "native_size": "21x20 (corpo utile 14x14)",
+  "camera": "side",
+  "outline": "nessuno: il viola scuro interno fa da bordo implicito tra le pieghe",
+  "shading": "5 colori: 2 viola per la tonaca (piano di luce esterno + interno in ombra), verde del muso, blu del cappuccio interno, rosso lingua; masse triangolari, zero dithering",
+  "palette_size": 5,
+  "frames": 4,
+  "layers": ["Layer 1"],
+  "tags": ["nemico", "incappucciato", "tonaca", "monaco", "caster"],
+  "metrics": {
+    "occupancy_pct": 63.8,
+    "unique_colors": 5,
+    "isolated_px": 0
+  },
+  "animation_notes": "4 frame a 100ms: respiro della tonaca (spalla su/giu' di 1px), guizzo della lingua su 2 frame. Idle da caster fermo, niente gambe da animare.",
+  "body_plan": "tenda triangolare: tonaca a cono che tocca terra (niente piedi), cappuccio che ingloba la testa, solo il muso sporge dal cavo scuro del cappuccio",
+  "rating_proposal": 4,
+  "liked_features": [
+    "il pattern cappuccio: cavo interno scuro da cui sporge solo cio' che serve — con muso rimosso e' esattamente il canone Worldsmelt",
+    "tonaca-cono che elimina gambe e piedi: silhouette stabile, animazione ridotta a 1px di respiro",
+    "grande piano di luce unico sul lato esterno della tonaca, ombra interna in un solo tono: stile a masse alla Risk of Rain",
+    "nessuna arma in mano: il ruolo (monaco/caster) e' detto dalla sola silhouette",
+    "accento rosso minuscolo (lingua) come punto vita su palette spenta"
+  ],
+  "avoid_features": [
+    "il muso verde e' un volto: in Worldsmelt sotto il cappuccio resta il vuoto nero",
+    "vista side: da tradurre in three-quarter con il cappuccio visto leggermente dall'alto",
+    "corpo 14px: meta' scala target"
+  ],
+  "worldsmelt_fit": "Modello diretto per i cultisti/monaci di Worldsmelt: tonaca triangolare 2 toni + cavo del cappuccio scuro. Basta togliere il muso (nero pieno) e ruotare la camera. Il respiro 1px come idle e' un pattern da adottare ovunque."
+}

@@ -1,0 +1,32 @@
+{
+  "id": "materials/pixel_patterns_32",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/pixel_patterns/extracted/32x32/Sprite Sheet/32x32_spritePatterns_spriteSheet.aseprite",
+  "pack": "materials",
+  "author": "GoncaloMCOliveira (CC0, licenza in pixel_patterns/license.txt)",
+  "native_size": "32x32",
+  "canvas": "192x160 (griglia 6x5 = 30 pattern seamless)",
+  "frames": 1,
+  "layers": ["Layer 1"],
+  "camera": "flat_icon",
+  "body_plan": "30 pattern binari B/N: diagonali (3 spessori), zigzag/chevron, mattoni small/large, checkerboard small/large, griglie di quadrati, onde organiche (5 varianti), metaball, rombi, labirinto/greca small/large, croci, esagoni-pois, tratteggio incrociato, frecce, sparkle",
+  "outline": "nessuno (pattern binari pieni, nessun contorno)",
+  "shading": "nessuno: 2 colori puri bianco/nero, zero anti-alias, zero dithering; la texture nasce solo dalla forma e dalla frequenza del motivo",
+  "palette_size": 2,
+  "metrics": { "occupancy_pct": 100.0, "unique_colors": 2, "isolated_px": 0 },
+  "animation_notes": "statico, nessun tag",
+  "tags": ["pattern", "seamless", "texture", "bianco-nero", "tile-32"],
+  "rating_proposal": 4,
+  "liked_features": [
+    "seamless verificato (tiling 2x2 senza cuciture: onde e mattoni continuano perfettamente)",
+    "curve organiche disegnate a gradini di lunghezza regolare (2-3 px per step): aliasing controllato, mai rumore",
+    "stesso motivo declinato in 3 frequenze (small/medium/large): grammatica pronta per gerarchia di dettaglio",
+    "mattoni con malta da 2px e sfalsamento a mezzo modulo: leggibili anche riempiti con toni vicini",
+    "texture ottenuta al 100% dalla forma: nessun pixel casuale, nessun dithering"
+  ],
+  "avoid_features": [
+    "checkerboard 1px e pattern ad alta frequenza: con camera in movimento sfarfallano (evitarli sui pavimenti)",
+    "nessuna informazione di colore o luce: i pattern vanno sempre tradotti in 2 toni adiacenti della palette Fucina, mai usati B/N puri",
+    "greche e labirinti troppo caratterizzanti se usati identici: variare il motivo, tenerne solo il principio"
+  ],
+  "worldsmelt_fit": "Libreria di GRAMMATICA per texture controllata dei tile della demo: usare i motivi come maschere binarie riempite con coppia di toni adiacenti (delta di valore basso) della palette Fucina; preferire frequenze medio-basse (mattoni large, onde large, diagonali larghe) per pavimenti e pareti visti in top-down; le 3 frequenze dello stesso motivo servono per la gerarchia pavimento (basso contrasto, bassa frequenza) vs elemento focale (alta frequenza)."
+}

@@ -1,0 +1,35 @@
+{
+  "id": "items-kaenine-sword",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/weaponry_tools_kaenine/extracted/Sword.aseprite",
+  "pack": "items",
+  "canvas": "16x16",
+  "native_size": "16x16",
+  "frames": 1,
+  "layers": ["Layer 1"],
+  "camera": "flat_icon",
+  "outline": "nessuno: sprite senza contorno, i bordi sono il tono piu' scuro della rampa del materiale",
+  "shading": "3 bande di tono parallele lungo la lama (chiaro sul filo alto-sinistra, scuro sotto), 3 toni sul manico in legno; luce alto-sinistra, nessun dithering",
+  "palette_size": 9,
+  "animation_notes": "statico, nessun tag",
+  "body_plan": "spada in diagonale a 45 gradi punta in alto-destra; tre cluster netti: lama (blue-grey, ~60% della massa), guardia a T scura, impugnatura marrone corta; 55 px opachi su 16x16",
+  "metrics": {
+    "occupancy_pct": 21.5,
+    "unique_colors": 9,
+    "isolated_px": 0
+  },
+  "tags": ["arma", "spada", "icona", "16px", "senza-outline", "cc0"],
+  "rating_proposal": 4,
+  "liked_features": [
+    "lama resa con 3 bande longitudinali di tono: volume convincente senza una sola linea interna",
+    "guardia scura che fa da separatore visivo tra i due materiali: il cluster-break e' un colore, non un contorno",
+    "rampa per materiale rigorosa: 6 toni per il metallo, 3 per il legno, zero colori vaganti",
+    "zero pixel isolati: ogni pixel appartiene a una massa",
+    "diagonale piena a 45 gradi: silhouette che resta leggibile anche a scala 1x"
+  ],
+  "avoid_features": [
+    "assenza totale di outline: su pavimenti chiari del dungeon l'oggetto si dissolve, il nostro S1 richiede outline nero esterno",
+    "toni presi dalla palette Material Design (blue-grey/brown): sostituire con le rampe Fucina",
+    "6 toni per un solo materiale a 16px e' sopra il nostro budget: bastano 3"
+  ],
+  "worldsmelt_fit": "arma come OGGETTO puro, mai in mano: e' il caso d'uso esatto del futuro ItemVisualBundle. Principio da prendere: bande di tono lungo l'asse dell'arma per dare volume alla lama con pochi cluster, e la giunzione tra materiali (guardia) usata come confine di cluster. Da adattare: aggiungere il nostro outline nero e comprimere la rampa a 3 toni Fucina."
+}

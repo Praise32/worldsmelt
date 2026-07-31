@@ -1,0 +1,32 @@
+{
+  "id": "debts_in_the_depths/sprLava",
+  "file": "10_references/_downloads/debts_in_the_depths/extracted/DebtsInTheDepthsAssets/Environment/sprLava.aseprite",
+  "canvas": "20x20",
+  "native_size": "20x20 (tile)",
+  "camera": "top_down_three_quarter",
+  "outline": "bordo del tile nel tono piu' scuro (livello 'Borders' dedicato), nessun nero",
+  "shading": "3 colori: rosso vivo di base, croste bordeaux scure a blob, giunture rosso-magenta; forme organiche grosse, zero dithering",
+  "palette_size": 3,
+  "frames": 3,
+  "layers": ["Base", "Dark", "Light", "Borders"],
+  "tags": ["ambiente", "tile", "liquido", "hazard", "loop-lento"],
+  "metrics": {
+    "occupancy_pct": 88.3,
+    "unique_colors": 3,
+    "isolated_px": 0
+  },
+  "animation_notes": "3 frame a 400ms (loop 1.2s): le croste scure si deformano e si riaggregano lentamente. Clock volutamente piu' lento dei personaggi (400 vs 100ms): il fluido vive a un altro tempo.",
+  "body_plan": "non applicabile: texture a blob chiusi, croste scure su fondo caldo con giunture luminose",
+  "rating_proposal": 4,
+  "liked_features": [
+    "3 colori per un liquido animato credibile: croste scure su base calda, niente gradienti ne' dithering",
+    "clock ambientale separato (400ms) da quello dei personaggi (100ms): gerarchia di tempi da copiare per il metallo fuso",
+    "file organizzato a livelli semantici (Base/Dark/Light/Borders): pipeline pulita, facile da parametrizzare",
+    "blob grossi e chiusi che restano leggibili anche affiancando piu' tile"
+  ],
+  "avoid_features": [
+    "hue rosso-magenta da rimappare sui caldi della palette Fucina",
+    "il tile e' 20px: la griglia Worldsmelt va rispettata alla sua scala nativa"
+  ],
+  "worldsmelt_fit": "Riferimento chiave per le pozze di metallo fuso e le hazard del crogiolo: croste scure che migrano su base calda, 3 colori, loop lento a 3 frame. La struttura a livelli Base/Dark/Light/Borders e' un buon standard anche per i nostri tile."
+}

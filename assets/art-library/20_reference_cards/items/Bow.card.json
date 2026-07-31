@@ -1,0 +1,33 @@
+{
+  "id": "items-kaenine-bow",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/weaponry_tools_kaenine/extracted/Bow.aseprite",
+  "pack": "items",
+  "canvas": "16x16",
+  "native_size": "16x16",
+  "frames": 1,
+  "layers": ["Layer 1"],
+  "camera": "flat_icon",
+  "outline": "nessuno: bordi resi dal tono piu' scuro della rampa legno",
+  "shading": "rampa legno a 4 toni lungo l'arco (chiaro sul dorso esterno, scuro verso l'impugnatura), impugnatura centrale in grigio-ardesia scuro; corda 1px color avorio; luce alto-sinistra, nessun dithering",
+  "palette_size": 8,
+  "animation_notes": "statico, nessun tag",
+  "body_plan": "arco ricurvo disposto in diagonale, corpo 2px che occupa il bordo alto-destro del canvas, corda tesa 1px sulla diagonale opposta; impugnatura come blocco scuro centrale; 56 px opachi",
+  "metrics": {
+    "occupancy_pct": 21.9,
+    "unique_colors": 8,
+    "isolated_px": 11
+  },
+  "tags": ["arma", "arco", "icona", "16px", "senza-outline", "cc0"],
+  "rating_proposal": 3,
+  "liked_features": [
+    "due soli materiali, due sole rampe: legno per il corpo, un tono unico per la corda",
+    "impugnatura resa come blocco di tono diverso al centro: chiarisce dove si tiene l'oggetto senza disegnare una mano",
+    "corpo dell'arco sempre 2px di spessore: la curva resta piena e leggibile"
+  ],
+  "avoid_features": [
+    "corda 1px in diagonale: 11 pixel isolati (4-connessi), a scala di gioco appare tratteggiata e sporca",
+    "nessun outline: perso su fondali chiari",
+    "silhouette che tocca i bordi del canvas: nessun margine per l'outline nero ne' per un drop-shadow"
+  ],
+  "worldsmelt_fit": "buon promemoria dei limiti a 16px: gli elementi da 1px in diagonale (corde, catene, fili) non reggono e da noi vanno o ingrossati a 2px o suggeriti come tratto dritto. L'idea dell'impugnatura come blocco di colore diverso e' ottima per armi-oggetto che non mostrano mai una mano."
+}

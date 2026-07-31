@@ -1,0 +1,34 @@
+{
+  "id": "good_and_evil/wizard_without_WALK",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/good_and_evil/extracted/sources/aseprite_projects/characters/wizard/without/WALK.aseprite",
+  "native_size": "35x35",
+  "canvas": "35x35, corpo utile 15x20 (bbox)",
+  "camera": "side",
+  "body_plan": "Monomateriale: cappuccio squadrato + tonaca gialla in un'unica silhouette a L, apertura facciale scura con due occhi puntino, un braccio-manica avanti, orlo della veste al posto delle gambe. Il personaggio e leggibile dal solo colore dominante (giallo = wizard, come rosso = demon).",
+  "outline": "nero esterno 1px continuo; qualche linea interna nera per separare cappuccio e veste",
+  "shading": "base + ombra + lume per il tessuto, con troppi passaggi intermedi; luce da destra-alto; niente dithering",
+  "frames": 4,
+  "layers": ["Layer 1"],
+  "palette_size": 13,
+  "metrics": {
+    "occupancy_pct": 73.3,
+    "unique_colors": 13,
+    "isolated_px": 0
+  },
+  "animation_notes": "Walk a 4 frame da 100ms: il ciclo vive tutto nell'orlo della veste e nel piede che spunta, il blocco testa-cappuccio resta quasi fermo. Ciclo compatto e a costo minimo, ottimo riferimento di timing per camminate su veste lunga.",
+  "rating_proposal": 3,
+  "liked_features": [
+    "identita di fazione affidata a un solo colore dominante per personaggio (giallo vs rosso vs verdone): principio utile per gli archetipi Worldsmelt",
+    "walk di 4 frame a 100ms dove si anima solo la meta bassa: economia di frame da imitare",
+    "silhouette monomateriale a masse grandi, occupancy 73% e zero pixel isolati",
+    "apertura del cappuccio come vuoto scuro: il principio giusto, rovinato solo dagli occhi"
+  ],
+  "avoid_features": [
+    "due occhi puntino dentro il cappuccio: Worldsmelt vuole il vuoto nero puro, senza volto",
+    "13 colori con gialli quasi duplicati (#FFD541/#FBCB1E/#FFE136): indisciplina di palette, con la Fucina servono 3-4 toni netti",
+    "vista laterale da platformer, da non copiare",
+    "singolo livello con ridisegno completo per frame: per Worldsmelt meglio livelli separati per riuso"
+  ],
+  "worldsmelt_fit": "Prendere il cappuccio-a-vuoto (togliendo gli occhi), il colore dominante unico come identita di archetipo e il walk a 4 frame che anima solo l'orlo. Scartare la rampa gialla ridondante: quantizzare a 3-4 toni Fucina.",
+  "tags": ["character", "hooded", "walk-cycle", "single-color-identity"]
+}

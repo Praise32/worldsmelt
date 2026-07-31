@@ -1,0 +1,33 @@
+{
+  "id": "debts_in_the_depths/sprGhost1",
+  "file": "10_references/_downloads/debts_in_the_depths/extracted/DebtsInTheDepthsAssets/Characters/sprGhost1.aseprite",
+  "canvas": "19x28",
+  "native_size": "19x28 (corpo utile 10x14)",
+  "camera": "side",
+  "outline": "nessuno: massa grigio-ardesia letta per valore, nessun bordo dedicato",
+  "shading": "3 colori totali: tono medio del sudario, piastra chiara del viso, fessura scura degli occhi; zero dithering, luce frontale piatta",
+  "palette_size": 3,
+  "frames": 4,
+  "layers": ["Layer 1"],
+  "tags": ["nemico", "fantasma", "fluttuante", "senza-arti", "minimale"],
+  "metrics": {
+    "occupancy_pct": 68.6,
+    "unique_colors": 3,
+    "isolated_px": 0
+  },
+  "animation_notes": "4 frame a 100ms: bob verticale di 1px, i lembi inferiori del sudario si alternano (2 code / 3 code), blink degli occhi sull'ultimo frame. Idle vivissimo con budget minimo.",
+  "body_plan": "goccia incappucciata: unica massa ovale, faccia come campitura chiara interna (non lineamenti), frangia inferiore irregolare che sostituisce i piedi",
+  "rating_proposal": 5,
+  "liked_features": [
+    "3 colori bastano per un nemico completo e leggibile: il caso limite dello stile a masse",
+    "il 'viso' e' solo una campitura chiara + fessura scura: quasi la formula Worldsmelt del vuoto sotto il cappuccio",
+    "frangia inferiore animata al posto delle gambe: ottimo pattern per entita' fluttuanti/fuse",
+    "blink su un solo frame del ciclo: personalita' gratis senza frame dedicati",
+    "niente outline: silhouette per contrasto di valore, funziona su fondo scuro"
+  ],
+  "avoid_features": [
+    "la fessura-occhi e' comunque un tratto facciale: in Worldsmelt il sotto-cappuccio resta nero pieno",
+    "corpo utile 10x14: meta' della scala target, da riprogettare a 26px non da upscalare"
+  ],
+  "worldsmelt_fit": "Il riferimento migliore del pack per i nemici-massa di Worldsmelt: goccia monomateriale, faccia come area di valore (da sostituire con nero pieno), bob 1px + frangia alternata come idle standard delle entita' fuse/fluttuanti."
+}

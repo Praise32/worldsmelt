@@ -1,0 +1,33 @@
+{
+  "id": "debts_in_the_depths/sprExplosion",
+  "file": "10_references/_downloads/debts_in_the_depths/extracted/DebtsInTheDepthsAssets/Effects/sprExplosion.aseprite",
+  "canvas": "51x51",
+  "native_size": "51x51",
+  "camera": "flat_icon",
+  "outline": "nessuno: forme piene o anelli puri, nessun bordo",
+  "shading": "1 solo colore per frame, nessuna sfumatura: il raffreddamento e' dato dal cambio colore tra i frame (bianco -> oro -> rosso -> bordeaux -> viola scuro)",
+  "palette_size": 1,
+  "frames": 5,
+  "layers": ["Layer 1"],
+  "tags": ["fx", "esplosione", "flash-ring", "monocromo-per-frame"],
+  "metrics": {
+    "occupancy_pct": 79.3,
+    "unique_colors": 1,
+    "isolated_px": 0,
+    "note": "misurato sul frame 2 (disco oro pieno)"
+  },
+  "animation_notes": "5 frame a 100ms: disco pieno bianco (flash) -> disco pieno oro -> anello rosso spesso -> anello bordeaux sottile -> anello tratteggiato viola che si dissolve. Espansione + raffreddamento cromatico + dissoluzione in 500ms.",
+  "body_plan": "non applicabile: cerchio concentrico che passa da pieno a cavo a tratteggiato",
+  "rating_proposal": 5,
+  "liked_features": [
+    "un colore per frame: leggibilita' massima e costo palette nullo, perfetto per fx procedurali",
+    "grammatica flash->anello->dissolvenza: il picco luminoso dura 1 frame, poi solo contorno",
+    "raffreddamento cromatico (chiaro caldo -> scuro freddo) che racconta l'energia senza gradienti",
+    "l'ultimo frame tratteggiato (anello rotto) chiude la dissolvenza senza alpha fade",
+    "scala grande (51px) ottenuta comunque con forme elementari: si parametrizza in codice"
+  ],
+  "avoid_features": [
+    "i colori specifici vanno rimappati sulla palette Fucina (niente bianco puro pieno schermo se confligge col flash di hit)"
+  ],
+  "worldsmelt_fit": "Ricetta direttamente implementabile per le esplosioni dei colpi generati: 5 step (flash pieno, pieno caldo, anello spesso, anello sottile, anello rotto) con soli colori di palette. Ideale da generare a runtime in C senza sprite dedicati."
+}

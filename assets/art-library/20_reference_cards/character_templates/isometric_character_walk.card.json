@@ -1,0 +1,38 @@
+{
+  "id": "character_templates/isometric_character_walk",
+  "file": "assets/art-library/10_references/_downloads/isometric_character_supernova/extracted/isometric_character_walk.aseprite",
+  "canvas": "64x512",
+  "native_size": "64x64",
+  "frames": 12,
+  "layers": ["Cube (nascosto, guida)", "E", "NE", "N", "NW", "W", "SW", "SE", "S"],
+  "tags": [],
+  "camera": "top_down_three_quarter",
+  "outline": "nero esterno 1px, chiuso e continuo",
+  "shading": "3 toni (bianco + grigio ombra #A5A5A5 + tocco #8C8888 sui piedi in appoggio), niente dithering",
+  "palette_size": 4,
+  "metrics": {
+    "occupancy_pct": 60.6,
+    "unique_colors": 4,
+    "isolated_px": 0
+  },
+  "body_plan": "Stesso manichino dell'idle (~58px, 4 teste, senza volto, senza armi); nelle pose di falcata il bbox si allarga da 18 a 26px.",
+  "animation_notes": "12 frame @100ms = ciclo di 1.2s, 8 direzioni sincronizzate. Bob verticale ~3px sul bottom; nelle direzioni laterali (W/SE) il piede in volo alza il bbox fino a 8px. Il drift del centro-bbox (fino a 6px) e' estensione della falcata, non instabilita': il torso resta centrato nella cella. E/SW hanno drift orizzontale 0 (profilo puro).",
+  "rating_proposal": 4,
+  "liked_features": [
+    "costruzione incrementale: stesso manichino dell'idle, cambia solo la posa (idle e walk sono file gemelli con identica struttura a livelli)",
+    "bob verticale di ~3px leggibile ma sobrio",
+    "torso ancorato al centro cella mentre gli arti si estendono: e' cosi' che si tiene stabile il pivot in un walk",
+    "un tono extra solo dove serve (piede in appoggio), palette ancora sotto i 5 colori",
+    "outline nero e testa senza volto anche in movimento"
+  ],
+  "avoid_features": [
+    "12 frame per ciclo: sopra il budget Worldsmelt (4-6 frame a 24-32px bastano)",
+    "scala doppia rispetto ai nostri personaggi",
+    "nessun tag di animazione: i cicli andrebbero taggati per l'export automatico"
+  ],
+  "worldsmelt_fit": "Reference di timing: ciclo 1.2s con bob 3px, contatti a terra col bottom fisso e sollevamenti solo sul piede in volo. Per noi: comprimere lo stesso arco in 4-6 frame, tenere il torso inchiodato al centro e lasciare che siano SOLO gli arti a spostare il bbox. La coppia idle/walk come file gemelli con struttura identica e' il modello di pipeline da copiare.",
+  "previews": [
+    "previews/isometric_character_walk_f1_x2.png",
+    "previews/isometric_character_walk_f7_x2.png"
+  ]
+}

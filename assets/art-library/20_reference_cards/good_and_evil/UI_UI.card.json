@@ -1,0 +1,33 @@
+{
+  "id": "good_and_evil/UI_UI",
+  "file": "/home/meri/progetti/melting-run-gpu/assets/art-library/10_references/_downloads/good_and_evil/extracted/sources/aseprite_projects/UI/UI.aseprite",
+  "native_size": "20x20",
+  "canvas": "20x20, bottone quadrato quasi pieno (bbox 18x18, occupancy 96%)",
+  "camera": "flat_icon",
+  "body_plan": "Bottone: cornice esterna marrone scuro, bevel intermedio, pannello interno scuro, icona-freccia nera centrata con un accento arancio sulla punta. Tutto in 5 toni della stessa famiglia marrone.",
+  "outline": "nessun outline nero perimetrale: la cornice e fatta a toni di materiale (scuro fuori, chiaro dentro); il nero e riservato all'icona",
+  "shading": "bevel a 4 toni marroni della stessa rampa (scuro -> medio -> chiaro -> pannello); nessuna luce direzionale forte, leggero rialzo in alto; niente dithering",
+  "frames": 1,
+  "layers": ["Layer 1", "Layer 2", "Layer 3", "Layer 4", "Layer 5"],
+  "palette_size": 5,
+  "metrics": {
+    "occupancy_pct": 96.3,
+    "unique_colors": 5,
+    "isolated_px": 0
+  },
+  "animation_notes": "Statico. I 5 livelli separano cornice, bevel, pannello, icona e accento: struttura pronta per gli stati del bottone (hover/premuto) cambiando solo i livelli di bevel o icona.",
+  "rating_proposal": 3,
+  "liked_features": [
+    "un livello per componente del bottone (cornice/bevel/pannello/icona/accento): permette stati UI ricolorando o spostando un solo livello",
+    "5 colori totali, tutti dalla stessa rampa di materiale: disciplina perfetta per la UI Fucina",
+    "il nero usato solo per il glifo: l'icona stacca dal pannello senza bisogno di outline",
+    "singolo accento caldo (arancio) come punto focale del glifo"
+  ],
+  "avoid_features": [
+    "livelli senza nome (Layer 1..5): la struttura e giusta ma va nominata (frame/bevel/panel/icon/accent) per essere manutenibile",
+    "20x20 non multiplo della cella 24px di Worldsmelt: rifare le misure sul modulo proprio",
+    "bevel a 4 passaggi: con la palette Fucina bastano 3 toni per lo stesso effetto"
+  ],
+  "worldsmelt_fit": "Prendere la struttura a livelli-per-componente per i bottoni HUD (stati hover/premuti cambiando solo bevel e icona) e la regola nero-solo-per-il-glifo. E il punto dove il pack rinuncia coerentemente all'outline nero dei personaggi: la UI vive di toni, non di linee.",
+  "tags": ["ui", "button", "component-layers", "tonal-bevel"]
+}

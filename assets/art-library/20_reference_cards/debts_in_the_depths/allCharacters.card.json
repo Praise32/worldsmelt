@@ -1,0 +1,35 @@
+{
+  "id": "debts_in_the_depths/allCharacters",
+  "file": "10_references/_downloads/debts_in_the_depths/extracted/DebtsInTheDepthsAssets/allCharacters.aseprite",
+  "canvas": "320x180",
+  "native_size": "creature ~16-24px, boss drago ~72px, tile 20x20",
+  "camera": "side",
+  "outline": "nessuno: bordi selettivi col tono piu' scuro del materiale, silhouette rette dal valore sul fondo scuro",
+  "shading": "2-3 toni per materiale a masse piatte, luce dall'alto, nessun dithering; accenti caldi (arancio/oro) su palette fredda viola-blu",
+  "palette_size": 47,
+  "frames": 12,
+  "layers": ["Background", "Orc1", "Skeleton1", "Lizard1", "Minotaur1", "Batilisk1", "Bogslime1", "Ghost1", "Dragon", "FireExplosion", "MagicBolt", "Shockwave", "Wizard", "Lava", "Water", "Title"],
+  "tags": ["master-sheet", "bestiario", "fx", "tiles", "palette-globale"],
+  "metrics": {
+    "occupancy_pct": 100.0,
+    "unique_colors": 47,
+    "isolated_px": 0
+  },
+  "animation_notes": "12 frame globali a 100ms: tutte le creature ciclano insieme (idle/walk a 4 frame ripetuti 3 volte), i proiettili avanzano sul canvas per mostrare il moto. Un solo clock per l'intero bestiario.",
+  "body_plan": "24 creature declinate da 3-4 body plan: umanoide piccolo (orco/goblin/scheletro), incappucciato triangolare (lizard monk/wizard), quadrupede tozzo (minotauro/batilisk), blob (slime/ghost). Le varianti 1-2-3 cambiano solo colore e 2-3 pixel di dettaglio.",
+  "rating_proposal": 5,
+  "liked_features": [
+    "intero bestiario + fx + tile tenuti su una sola micro-palette (~46 colori + fondo): coerenza totale, molto vicina al budget Fucina 31",
+    "varianti di nemico per recolor + micro-dettaglio: 3 tier dallo stesso sprite, costo quasi zero",
+    "silhouette leggibili a 16-24px senza outline nero, rette solo dal contrasto di valore",
+    "clock di animazione unico (100ms) per tutto il cast: coesione di feeling immediata",
+    "gerarchia di scala netta: pedina 16-24px vs boss 72px sullo stesso foglio"
+  ],
+  "avoid_features": [
+    "vista side puro: Worldsmelt e' top-down three-quarter",
+    "molte creature hanno occhi/volti disegnati e armi in mano (lance, archi, ascia)",
+    "scala creature 16-20px sotto il target Worldsmelt (~26px corpo su 32)",
+    "fondo scuro incorporato nel file (il 100% di occupancy e' del Background, non degli sprite)"
+  ],
+  "worldsmelt_fit": "Prendere il metodo, non i design: palette unica condivisa da creature+fx+tile, tier di nemici come recolor+micro-variazione, un solo body plan riusato per famiglia, clock di animazione comune. Da tradurre in camera three-quarter e corpi 26px senza volto."
+}

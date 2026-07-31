@@ -67,6 +67,20 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
   facilitator: protocollo+template come standard di produzione; mappatura 6 slot visivi ↔
   slot funzionali; riconciliazione celle atlas SD 128px ↔ scala nativa 32px alla Style
   LoRA. Provvisori: fuori dal dataset LoRA (DEC-201).
+- **Art library + Fase A distillation (31/07 sera, sessione art)**: mandato del
+  proprietario "definiamo lo stile e rifacciamo tutta la grafica della demo".
+  Costruita `assets/art-library/` (struttura della sua ricerca reference):
+  9 pack CC0 con sorgenti .aseprite scaricati da itch.io (licenze snapshot
+  accanto a ogni pack), **22 reference card** prodotte da 5 agenti Fase A
+  (`20_reference_cards/` + INDEX.md per il giro di voti), bozza
+  `30_visual_language/visual-language-v2-DRAFT.md` + `negative_rules.md`.
+  Regole fissate dal proprietario: personaggi **senza volto** e **senza armi**
+  (armi = oggetti/overlay), formato piccolo (~26px in cella 32, stile masse
+  alla RoR Returns — misurati 22-34px dai suoi sheet), coerente con 640×360 di
+  DEC-200. Prove in `assets/art-src/experiments/` (trio mini 32 approvato dal
+  gusto, craft pass, A/B 32/64/128). ATTENDE il proprietario: voto card,
+  scelta outline (opzione A split / B RoR pura), poi batch DEC (supererà in
+  parte DEC-176/177) e onde di produzione del nuovo pacchetto grafico.
 - **Storia W8** (asset art consumati dal motore: art_atlas/art_draw, priorità immagini
   DEC-175, nove schermate rivestite): committata il 30/07 prima di questa sessione; i
   "buchi dichiarati" di allora (font, sheet personaggi, prop cuore/bomba/chiave, salute
