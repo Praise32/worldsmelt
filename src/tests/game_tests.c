@@ -255,7 +255,7 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "ESC in FloorZero non apre ExitConfirm");
     STATES_CHECK(ui.openedFrom == APP_FLOOR_ZERO, "ExitConfirm da FloorZero non ricorda openedFrom");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da FloorZero non e' 'abbandono'");
-    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom),
+    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom, ui.exitDropsSuspendedRun),
         "ExitConfirm da FloorZero e' stato marcato come dialogo leggero (WP22, deve restare a schermo pieno, DEC-090)");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm da FloorZero non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
@@ -517,7 +517,7 @@ bool GameStatesTest(Game *game)
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Abbandona run non apre ExitConfirm");
     STATES_CHECK(ui.exitAbandonsRun, "il contesto di ExitConfirm da PauseMenu non e' 'abbandono run'");
     STATES_CHECK(!ui.exitRerollsRun, "l'abbandono si e' marcato anche come reroll (i due contesti devono essere esclusivi)");
-    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom),
+    STATES_CHECK(!ExitConfirmIsLightModalFor(ui.openedFrom, ui.exitDropsSuspendedRun),
         "ExitConfirm da PauseMenu e' stato marcato come dialogo leggero (WP22, deve restare a schermo pieno, DEC-090)");
     STATES_CHECK(ui.focus == 1, "il focus iniziale di ExitConfirm non e' 1 (Annulla)");
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla */
@@ -592,7 +592,7 @@ bool GameStatesTest(Game *game)
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     STATES_CHECK(mode == APP_EXIT_CONFIRM, "confirm su Esci non apre ExitConfirm");
     STATES_CHECK(!ui.exitAbandonsRun, "il contesto di ExitConfirm da MainMenu non e' 'uscita dal gioco'");
-    STATES_CHECK(ExitConfirmIsLightModalFor(ui.openedFrom),
+    STATES_CHECK(ExitConfirmIsLightModalFor(ui.openedFrom, ui.exitDropsSuspendedRun),
         "ExitConfirm da MainMenu (chiusura del gioco) non e' riconosciuto come dialogo leggero (WP22, DEC-090, gap G9)");
     { AppInput in = InputDown(); UpdateApp(game, &mode, &gen, &ui, &in); }   /* Annulla -> Conferma */
     STATES_CHECK(ui.focus == 0, "down da Annulla in ExitConfirm (quit) non porta a Conferma");
@@ -1616,7 +1616,7 @@ bool GameExitConfirmLightModalTest(Game *game)
     uiLight.openedFrom = APP_MAIN_MENU;
     uiLight.returnFocus = 0;   /* riga 0 "Nuova run" a fuoco: 'gutter' e' comunque fuori da qualunque riga (vedi sopra), l'evidenziazione non lo contamina */
     uiLight.focus = 1;
-    if (!ExitConfirmIsLightModalFor(uiLight.openedFrom))
+    if (!ExitConfirmIsLightModalFor(uiLight.openedFrom, uiLight.exitDropsSuspendedRun))
     {
         fprintf(stderr, "GameExitConfirmLightModalTest: ExitConfirmIsLightModalFor(APP_MAIN_MENU) non e' vero (precondizione)\n");
         UnloadRenderTexture(canvas);
@@ -1633,7 +1633,7 @@ bool GameExitConfirmLightModalTest(Game *game)
     uiFull.exitAbandonsRun = true;
     uiFull.returnFocus = 0;
     uiFull.focus = 1;
-    if (ExitConfirmIsLightModalFor(uiFull.openedFrom))
+    if (ExitConfirmIsLightModalFor(uiFull.openedFrom, uiFull.exitDropsSuspendedRun))
     {
         fprintf(stderr, "GameExitConfirmLightModalTest: ExitConfirmIsLightModalFor(APP_FLOOR_ZERO) e' vero (precondizione, deve restare a schermo pieno)\n");
         UnloadRenderTexture(canvas);

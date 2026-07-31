@@ -889,3 +889,48 @@ Anche la **seconda** passata è stata bocciata, per tre residui, chiusi dalla **
     (frame vero campionato a pixel più `RendererMenuItemAt` su tutta la fascia) e da
     `--layout-test` (voce `h`, nucleo puro su sette risoluzioni).
     (`ui/run-setup.md`, DEC-038, `src/render/game_renderer.c`.)
+
+58. **La sospensione della run (DEC-050): percorso del file, stato dell'RNG salvato, che
+    cosa significa "l'ingresso" della stanza, e nessun salvataggio automatico.** DEC-050 e
+    `systems/save-and-meta-progression.md` fissano il COMPORTAMENTO (si sospende in
+    qualunque momento; al rientro la stanza corrente riparte dall'ingresso coi nemici
+    ripristinati, il resto della run riprende com'era) ma nessun dettaglio tecnico. WP17
+    (2026-07-31) ne implementa cinque come *default proposti dall'implementazione (stile
+    DEC-019), NON canone*:
+    - **Percorso e molteplicità**: un solo file, `suspend/current.txt`, accanto a
+      `catalog/` e con le stesse regole (dati del giocatore, mai versionato, tmp+rename
+      atomico, formato chiave=valore con `suspendSchema=1` come campo versione). Una sola
+      sospensione per profilo, che è esattamente quello che la voce "Continua" sa
+      esprimere: una voce, non una lista di salvataggi. **Nota**: questo è un SALVATAGGIO
+      DI RUN, dominio di `systems/save-and-meta-progression.md` — la domanda aperta 24 sul
+      file di PREFERENZE resta aperta e distinta, e questo lavoro non la tocca.
+    - **Si salva lo stato dell'RNG di gioco**: `game->rng` al momento della sospensione,
+      più `Game.floorEntryRng` (il valore d'ingresso nel piano, nuovo campo scritto da
+      `WorldStartFloor`). Senza il secondo la mappa del piano corrente non si rigenera
+      identica; senza il primo la sequenza di gioco divergerebbe alla ripresa.
+      L'alternativa — accettare la divergenza e dichiararla — era più semplice ma avrebbe
+      reso una run ripresa non più confrontabile con la stessa run giocata di fila
+      (`systems/run-manifest-and-reproducibility.md`, DEC-141).
+    - **"L'ingresso" della stanza è il suo baricentro** (`WorldRoomCenter`), lo stesso
+      punto in cui il giocatore compare entrando in un piano. La porta da cui era entrato
+      non è salvata, ed è l'unica cosa che permetterebbe di scegliere uno dei quattro punti
+      d'ingresso laterali di `WorldTryEnterRoom`.
+    - **Collocazione e conferma della voce**: "Sospendi e esci" è la sesta riga di
+      `PauseMenu` (fra "Rigenera la run" e "Abbandona run"), **senza** passare da
+      `ExitConfirm` — è l'unica uscita del menu che non perde nulla, e chiederne conferma
+      la metterebbe sullo stesso piano delle due distruttive che le stanno accanto.
+    - **Nessun salvataggio automatico** alla chiusura della finestra: il documento non lo
+      chiede esplicitamente, il ciclo applicativo non ha un gancio di terminazione, e uno
+      che scrivesse a ogni chiusura (compresa quella dopo una morte) è una decisione di
+      comportamento, non un dettaglio tecnico. Limite dichiarato in
+      `docs/engineering/known-issues.md`.
+
+    Due **limiti dichiarati** accompagnano i default, entrambi in `known-issues.md`: il
+    **Piano 0 non è sospendibile** in questa fetta (il documento lo prevede come stato
+    salvato, ma quello stato comprende la generazione in corso e le carte-proposta) e i
+    **semi delle sandbox Lua dei singoli oggetti non si salvano** (si ri-estraggono dallo
+    stream di ricostruzione: deterministico dal file, non identico alla run originale).
+    Verificato da `--suspend-test` (`GameSuspendTest`, `src/tests/suspend_tests.c`) e da
+    `--layout-test` (le voci condizionali di `MainMenu`/`PauseMenu` restano dentro il
+    riquadro). (`systems/save-and-meta-progression.md`, `ui/main-menu.md`,
+    `ui/pause-menu.md`, `05-game-states-and-flow.md`, DEC-050, `src/game/run_suspend.c`.)

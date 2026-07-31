@@ -30,7 +30,44 @@ bool UiLayoutSelfTest(void);
    documentata (DEC-090). Esposta cosi' DrawExitConfirmOverlay/RendererDrawApp
    (game_renderer.c) e --layout-test (src/app/app.c) condividono la STESSA
    regola, mai due copie che potrebbero divergere. */
-bool ExitConfirmIsLightModalFor(AppMode openedFrom);
+/* WP17 (DEC-050) aggiunge il secondo parametro: "Nuova run" con una run
+   sospesa apre ExitConfirm da APP_MAIN_MENU come la chiusura del gioco, ma
+   NON e' la chiusura del gioco -- DEC-090 vuole leggero SOLO quel contesto,
+   quindi 'dropsSuspendedRun' vero riporta la presentazione a schermo pieno.
+   Chi chiama passa ui->exitDropsSuspendedRun; 'false' e' il valore piu'
+   innocuo (comportamento invariato da prima di WP17). */
+bool ExitConfirmIsLightModalFor(AppMode openedFrom, bool dropsSuspendedRun);
+
+/* WP17 (DEC-050): le due righe CONDIZIONALI introdotte dalla sospensione --
+   fonte UNICA condivisa fra il disegno (DrawMainMenuOverlay/
+   DrawPauseMenuOverlay), il conteggio delle voci per il hit-test del mouse
+   (RendererMenuItemAtCtx sotto) e src/app/app.c, che sulle stesse due
+   risposte costruisce la mappatura indice -> azione. Due copie di queste
+   condizioni avrebbero potuto divergere in silenzio, e una divergenza qui
+   significa "clicco Opzioni e abbandono la run".
+   - "Continua" esiste in MainMenu SOLO con una sospensione valida sul disco
+     (ui/main-menu.md, "Focus iniziale": in quel caso e' anche la voce col
+     focus iniziale, cioe' l'indice 0).
+   - "Sospendi e esci" esiste in PauseMenu SOLO dentro una run VERA
+     (game->floor >= 1): il Piano 0 non e' sospendibile in questa fetta, vedi
+     RunSuspendWrite in src/game/run_suspend.h. */
+bool RendererMainMenuHasContinueRow(const AppUi *ui);
+bool RendererPauseMenuHasSuspendRow(const Game *game, const AppUi *ui);
+
+/* WP17: il contesto che la geometria delle voci deve conoscere, in un solo
+   posto invece di una lista di booleani che cresce a ogni schermata
+   condizionale. Zero-default (tutti falsi) = la geometria di sempre: nessuna
+   voce condizionale, ExitConfirm a schermo pieno. */
+typedef struct RendererMenuCtx {
+    bool exitConfirmLight;   /* WP22/DEC-090: riquadro stretto di "MainMenu -> Esci" */
+    bool mainMenuContinue;   /* WP17: MainMenu ha la voce "Continua" */
+    bool pauseSuspend;       /* WP17: PauseMenu ha la voce "Sospendi e esci" */
+} RendererMenuCtx;
+
+/* Compone il contesto sopra dallo stato corrente -- l'unico punto in cui le
+   tre condizioni si leggono insieme, cosi' src/app/app.c non le ricompone a
+   mano a ogni chiamata di hit-test/hover. */
+RendererMenuCtx RendererMenuCtxFor(const Game *game, const AppUi *ui);
 
 /* Zona cliccabile della voce di menu all'indice restituito, per lo stato
    'mode', nella STESSA geometria che RendererDrawApp usa per disegnarla
@@ -48,6 +85,13 @@ bool ExitConfirmIsLightModalFor(AppMode openedFrom);
    innocuo, cioe' la geometria a schermo pieno di sempre -- va bene per ogni
    altro 'mode', che lo ignora. */
 int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight);
+
+/* WP17: la stessa cosa, ma col contesto completo -- e' questa che src/app/app.c
+   chiama, perche' il numero di voci di MainMenu/PauseMenu ora dipende dalla
+   sospensione. RendererMenuItemAt sopra resta la forma storica (contesto con
+   le due voci condizionali assenti): la usano i test che non hanno nulla a
+   che fare con la sospensione, senza doversi portare dietro una struct. */
+int RendererMenuItemAtCtx(AppMode mode, Vector2 mouse, RendererMenuCtx ctx);
 
 /* WP22 (terza passata, ui/run-setup.md): etichetta e fascia occupata dalla
    riga informativa "Modalita': Standard" di RunSetup -- fonte UNICA condivisa

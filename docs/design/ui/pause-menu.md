@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
 last_reviewed: 2026-07-31
-last_verified_commit: c5c1bc4
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, DEC-042, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP21, WP19, WP16, WP15a, Piano-0, consultazione]
+last_verified_commit: a5cc3a3
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, sospensione-run, DEC-042, DEC-050, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP21, WP19, WP17, WP16, WP15a, Piano-0, consultazione]
 related: []
 supersedes: []
-source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h]
+source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h, src/game/run_suspend.c]
 ---
 
 # Pause Menu
@@ -40,6 +40,7 @@ Il focus iniziale è su "Riprendi".
 | Prove | Da quando le prove sono state presentate all'ingresso nel piano 1 (DEC-042) | Sempre, se visibile | Apre l'elenco delle prove specifiche della run | Mostra le prove attive e il relativo stato di completamento | Al ritorno, focus su questo elemento |
 | Opzioni | Sempre | Sempre | Apre `Options` | Entra in `Options` | Al ritorno, focus sull'elemento "Opzioni" |
 | Rigenera la run | Sempre (nessuna condizione di modalità implementata oggi, WP21) | Sempre, se visibile | Chiede conferma tramite `ExitConfirm` | Reroll di DEC-089: salta i risultati, accredita i punti in silenzio, riparte dal Piano 0 con un seed NUOVO (mai lo stesso) | Conferma esplicita richiesta; è l'UNICA via per il reroll a nuovo seed (DEC-114) |
+| Sospendi e esci | In una run vera (dal Piano 0 la voce non compare, WP17) | Sempre, se visibile | Scrive la sospensione della run e torna a `MainMenu` | La run resta ripristinabile con "Continua"; nessun punto sblocco, nessun record di catalogo: la run non è finita (DEC-050) | Nessuna conferma: è l'unica uscita del menu che non perde nulla |
 | Abbandona run | Sempre | Sempre | Chiede conferma tramite `ExitConfirm` | Entra in `RunResults`; la run si chiude come sconfitta, con punti sblocco ridotti visibili (DEC-082, DEC-089) | Conferma esplicita richiesta |
 
 ## Decisione approvata: la pausa ferma la simulazione
@@ -141,6 +142,45 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 > indici aggiornati) e `--layout-test` (geometria delle sei righe dentro il
 > riquadro, nessuna sovrapposizione).
 
+## Sospendere la run (DEC-050)
+
+La run può essere sospesa in qualunque momento: la voce "Sospendi e esci" scrive lo stato
+della run e riporta al menu principale, dove "Continua" la riprende. È l'unica uscita di
+questo menu che **non è distruttiva**, e per questo è l'unica che non passa da `ExitConfirm`:
+non c'è nulla da confermare, non si perde nulla e non si chiude alcuna run. Va tenuta
+distinta dalle due che le stanno attorno — "Rigenera la run" (DEC-114) e "Abbandona run"
+(DEC-089), che chiudono entrambe la run corrente e cancellano una eventuale sospensione.
+La regola di ripristino (la stanza corrente riparte dall'ingresso, il resto riprende com'era)
+e il dettaglio di cosa si salva sono fonte unica in
+[Save and Meta Progression](../systems/save-and-meta-progression.md); questo documento
+colloca solo la voce di menu.
+
+> **Nota di implementazione (WP17, 2026-07-31, gap G6 di `piano-zero-e-meta`):** "Sospendi e
+> esci" è la sesta riga di `PauseMenu` (indice 5, fra "Rigenera la run" e "Abbandona run",
+> che scala a indice 6 — sette righe in tutto,
+> `MenuItemCountForMode`/`DrawPauseMenuOverlay` in `src/render/game_renderer.c`). Sta
+> **sopra** "Abbandona run" di proposito: fra le due uscite, quella che non perde nulla si
+> incontra per prima.
+>
+> La riga esiste **solo in una run vera** (`game->floor >= 1`, la stessa soglia con cui WP19
+> distingue l'abbandono di una run da quello della sola preparazione): dal Piano 0 il menu
+> resta a sei righe e gli indici sono quelli di WP21. È anche ciò che tiene il riquadro di
+> consultazione di DEC-169 (`DrawPauseMenuFloorZeroConsult`, quota 420) sotto l'ultima riga
+> senza sovrapporsi — con sette righe l'ultima arriverebbe a 462. Il Piano 0 non è quindi
+> sospendibile in questa fetta: **limite dichiarato**
+> (`docs/engineering/known-issues.md`), non un requisito scartato. La condizione è un nucleo
+> puro condiviso, `RendererPauseMenuHasSuspendRow` (`src/render/game_renderer.h`), usato dal
+> disegno, dal conteggio delle voci per il mouse e dalla mappatura indice → azione in
+> `src/app/app.c`.
+>
+> Confermarla scrive il file e va a `MainMenu` col focus su "Continua"; se la scrittura
+> fallisce (disco pieno, permessi) si resta in `PauseMenu` con un messaggio — mai un'uscita
+> che butta via la run credendo di averla salvata. Nessuna scrittura di catalogo e nessuna
+> finalizzazione delle prove: la run non è finita, riprenderà da qui (a differenza di
+> abbandono e reroll, DEC-082/DEC-089). Verificato da `--suspend-test`
+> (`src/tests/suspend_tests.c`) e `--layout-test` (le sette righe restano dentro il
+> riquadro).
+
 ## Prove (DEC-042)
 
 Le prove specifiche della run (fisse o generate, DEC-027) vengono presentate al giocatore
@@ -232,3 +272,5 @@ provenienza da `Gameplay`. Il punto resta la domanda aperta
 6. **Given** il giocatore è nel Piano 0, dove l'HUD di combattimento è nascosto (DEC-169), **when** apre il menu di pausa, **then** può consultare salute, risorse e build senza uscire dal Piano 0, e l'HUD torna nascosto quando la pausa si chiude.
 7. **Given** il giocatore è nel Piano 0 e apre il menu di pausa con il comando di pausa (default proposto WP15a), **when** sceglie "Riprendi" o preme ESC, **then** torna nel Piano 0 e non in `Gameplay`, con la preparazione della run intatta.
 8. **Given** il giocatore è in `Gameplay` in una run vera e apre `PauseMenu`, **when** seleziona "Rigenera la run" e conferma in `ExitConfirm` (WP21, DEC-114), **then** la run corrente si chiude in silenzio (nessun `RunResults`, DEC-089) e riparte subito dal Piano 0 con un seed diverso; **when** invece annulla, **then** torna in `PauseMenu` senza alcun effetto sulla run in corso; il tasto rapido `R` in `Gameplay` resta, in entrambi i casi, il solo reset rapido della stessa run allo stesso seed (DEC-141), mai questa via.
+9. **Given** il giocatore è in `Gameplay` in una run vera e apre `PauseMenu`, **when** seleziona "Sospendi e esci" (WP17, DEC-050), **then** torna al menu principale senza alcuna conferma e senza perdere nulla, e lì trova "Continua" col focus iniziale; nessun punto sblocco viene conteggiato e nessun record di catalogo viene scritto, perché la run non è finita.
+10. **Given** il giocatore è nel Piano 0 e apre il menu di pausa (WP15a), **when** ne legge le voci, **then** "Sospendi e esci" non compare: in questa fetta la sospensione esiste solo per una run vera (limite dichiarato in `docs/engineering/known-issues.md`).

@@ -1280,12 +1280,15 @@
         "exitconfirm",
         "overlay",
         "build-screen",
+        "sospensione-run",
+        "DEC-050",
         "DEC-082",
         "DEC-089",
         "DEC-090",
         "DEC-137",
         "DEC-139",
         "DEC-156",
+        "WP17",
         "WP19",
         "WP22"
       ],
@@ -1293,10 +1296,11 @@
       "supersedes": [],
       "source_files": [
         "src/app/app.c",
-        "src/core/game_types.h"
+        "src/core/game_types.h",
+        "src/game/run_suspend.c"
       ],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "50911c9"
+      "last_verified_commit": "a5cc3a3"
     },
     {
       "id": "gd-ai-content-model",
@@ -2200,15 +2204,20 @@
         "catalogo",
         "museo",
         "reliquie",
-        "sospensione-run"
+        "sospensione-run",
+        "DEC-050",
+        "WP17"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [
-        "src/content/run_catalog.c"
+        "src/content/run_catalog.c",
+        "src/game/run_suspend.c",
+        "src/game/run_suspend.h",
+        "src/tests/suspend_tests.c"
       ],
-      "last_reviewed": "2026-07-19",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "a5cc3a3"
     },
     {
       "id": "gd-system-secrets-obstacles",
@@ -2618,17 +2627,23 @@
         "lettore-di-schermo",
         "exitconfirm",
         "DEC-045",
+        "DEC-050",
         "DEC-083",
         "DEC-084",
         "DEC-090",
         "DEC-166",
+        "WP17",
         "WP22"
       ],
       "related": [],
       "supersedes": [],
-      "source_files": [],
+      "source_files": [
+        "src/app/app.c",
+        "src/render/game_renderer.c",
+        "src/game/run_suspend.c"
+      ],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "50911c9"
+      "last_verified_commit": "a5cc3a3"
     },
     {
       "id": "gd-ui-multiplayer-lobby",
@@ -2730,7 +2745,9 @@
         "prove",
         "abbandono-run",
         "reroll",
+        "sospensione-run",
         "DEC-042",
+        "DEC-050",
         "DEC-082",
         "DEC-089",
         "DEC-114",
@@ -2738,6 +2755,7 @@
         "DEC-169",
         "WP21",
         "WP19",
+        "WP17",
         "WP16",
         "WP15a",
         "Piano-0",
@@ -2748,10 +2766,11 @@
       "source_files": [
         "src/render/game_renderer.c",
         "src/app/app.c",
-        "src/core/game_types.h"
+        "src/core/game_types.h",
+        "src/game/run_suspend.c"
       ],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "c5c1bc4"
+      "last_verified_commit": "a5cc3a3"
     },
     {
       "id": "gd-ui-results-leaderboards",
@@ -3131,7 +3150,10 @@
         "DEC-004",
         "DEC-029",
         "DEC-047",
-        "tutorial"
+        "tutorial",
+        "WP17",
+        "DEC-050",
+        "sospensione-run"
       ],
       "related": [
         "eng-dependencies",
@@ -3172,10 +3194,13 @@
         "src/world/floor_zero_arena.c",
         "src/world/floor_zero_arena.h",
         "src/content/run_catalog.c",
-        "src/tests/floor_zero_arena_tests.c"
+        "src/tests/floor_zero_arena_tests.c",
+        "src/game/run_suspend.c",
+        "src/game/run_suspend.h",
+        "src/tests/suspend_tests.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "63753fc"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "a5cc3a3"
     },
     {
       "id": "eng-multiplayer-steam-direction",

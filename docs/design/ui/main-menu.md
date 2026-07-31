@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "Azioni e stati del menu principale, incluso il focus con run sospesa. Il Catalogo è enciclopedia consultabile (sette categorie canoniche: Oggetti, Nemici, Boss, Personaggi, Mondi, Layout, Colpi — DEC-083) più preferiti più spesa dei punti sblocco (DEC-045), con una sezione Reliquie per i contenuti non più giocabili dopo una riconvalida di versione (DEC-069). Il Catalogo è una vista interna dello stato `MainMenu`, non un decimo stato applicativo: la mappa canonica resta a 9 stati (DEC-084)."
 last_reviewed: 2026-07-31
-last_verified_commit: 50911c9
-topics: [main-menu, catalogo, focus, run-sospesa, lettore-di-schermo, exitconfirm, DEC-045, DEC-083, DEC-084, DEC-090, DEC-166, WP22]
+last_verified_commit: a5cc3a3
+topics: [main-menu, catalogo, focus, run-sospesa, lettore-di-schermo, exitconfirm, DEC-045, DEC-050, DEC-083, DEC-084, DEC-090, DEC-166, WP17, WP22]
 related: []
 supersedes: []
-source_files: []
+source_files: [src/app/app.c, src/render/game_renderer.c, src/game/run_suspend.c]
 ---
 
 # Main Menu
@@ -49,6 +49,38 @@ meta-progressione e alle opzioni, senza mai bloccare l'accesso al singleplayer.
 Se esiste una run sospesa, "Continua" ha il focus iniziale invece di "Nuova run"; scegliere
 "Nuova run" con una run sospesa attiva richiede una conferma esplicita di abbandono prima
 di aprire `RunSetup`. La voce Catalogo è sempre presente (DEC-015).
+
+> **Nota di implementazione (WP17, 2026-07-31, gap G2 di `ui-cornice`):** prima di questo
+> lavoro `MainMenu` aveva esattamente quattro voci fisse e nessuna infrastruttura di
+> salvataggio: "Continua" non poteva esistere. Ora la voce è la **prima** del menu
+> (indice 0, quindi anche quella col focus iniziale che questo documento chiede — nessun
+> codice dedicato al focus: `ui->focus` vale già 0 all'ingresso) ed è **visibile soltanto**
+> quando esiste una sospensione valida sul disco. La condizione è un nucleo puro
+> condiviso, `RendererMainMenuHasContinueRow` (`src/render/game_renderer.h`): la usano il
+> disegno delle righe, il conteggio delle voci per il hit-test del mouse e la mappatura
+> indice → azione in `src/app/app.c` — tre copie della stessa condizione avrebbero potuto
+> divergere, e una divergenza qui significa "clicco Opzioni e abbandono la run". Senza
+> sospensione il menu resta identico a prima (quattro voci, "Nuova run" a fuoco).
+>
+> La validità della sospensione la decide `RunSuspendIsAvailable` (`src/game/run_suspend.h`,
+> fonte unica del formato e del campo versione): file assente, di schema diverso, troncato
+> o con piano/stanza fuori banda ⇒ **voce assente, file ignorato, mai un crash**. Il disco
+> viene letto solo nei punti in cui la sospensione può essere cambiata (avvio del gioco,
+> scrittura, consumo, cancellazione), **mai per-frame** — stessa disciplina del Catalogo.
+>
+> "Continua" **consuma** la sospensione: ricostruisce la run e cancella il file, così
+> morire dopo il rientro non riporta al punto di salvataggio. "Nuova run" con una
+> sospensione attiva apre `ExitConfirm` in un contesto dedicato
+> (`AppUi.exitDropsSuspendedRun`) con la domanda "Iniziare una nuova run? La run sospesa
+> verra' cancellata."; annullare non tocca il file. Quel dialogo nasce da `MainMenu` come
+> la chiusura del gioco ma **non è** la chiusura del gioco: resta quindi a schermo pieno,
+> non il dialogo modale leggero riservato da DEC-090 al solo "Esci"
+> (`ExitConfirmIsLightModalFor` riceve il contesto come secondo parametro).
+>
+> Il dettaglio del formato, di cosa si salva e dei default proposti è in
+> `systems/save-and-meta-progression.md` (fonte unica, rimando, non riformulato qui).
+> Verificato da `--suspend-test` (`src/tests/suspend_tests.c`) e `--layout-test` (la
+> geometria del menu a cinque voci resta dentro il riquadro).
 
 ## Catalogo (DEC-045, DEC-083, DEC-084)
 

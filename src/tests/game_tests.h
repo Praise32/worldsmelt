@@ -360,4 +360,19 @@ bool GameCuratedContentTest(Game *game);
    integrazione dentro UpdateApp. Vedi src/tests/game_tests.c. */
 bool GameMouseHoverFocusTest(Game *game);
 
+/* WP17 (DEC-050, docs/design/systems/save-and-meta-progression.md
+   "Sospensione della run e ripresa"; ui/main-menu.md "Continua";
+   ui/pause-menu.md "Sospendi e esci"): la sospensione della run. Sette
+   blocchi -- andata/ritorno su una run ricca al piano 3 con confronto campo
+   per campo, stanza corrente che riparte dall'ingresso coi nemici
+   ripristinati, determinismo di due riprese dallo stesso file, file
+   corrotto/di versione diversa che non produce mai una voce "Continua" ne'
+   un crash, sospensione consumata alla ripresa, flusso vero attraverso
+   UpdateApp, e le tre vie che cancellano la sospensione (abbandono, reroll,
+   "Nuova run"). Come GameEconomyTest, gira dopo InitWindow e usa 'game' per
+   davvero (GameResetRunWithSeed chiama AssetsLoad) ma non disegna nulla; il
+   file di sospensione vive in una cartella temporanea, mai in suspend/.
+   Vedi src/tests/suspend_tests.c. */
+bool GameSuspendTest(Game *game);
+
 #endif

@@ -3311,11 +3311,15 @@ static Rectangle MenuBoxForMode(AppMode mode, bool exitConfirmLight)
     return MenuBoxForModeFor(mode, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
 }
 
-static int MenuItemCountForMode(AppMode mode)
+static int MenuItemCountForMode(AppMode mode, RendererMenuCtx ctx)
 {
     switch (mode)
     {
-        case APP_MAIN_MENU: return 4;    /* Nuova run, Catalogo (M8, DEC-045), Opzioni, Esci */
+        /* WP17 (DEC-050): "Continua" e' la PRIMA voce quando una sospensione
+           valida esiste (ui/main-menu.md: in quel caso ha anche il focus
+           iniziale), e sposta le altre quattro di un indice. Senza sospensione
+           il menu resta esattamente quello di prima. */
+        case APP_MAIN_MENU: return ctx.mainMenuContinue ? 5 : 4;   /* [Continua,] Nuova run, Catalogo (M8, DEC-045), Opzioni, Esci */
         case APP_RUN_SETUP: return 3;    /* Seed, Avvia, Indietro ("Modalita'" non e' selezionabile: unica modalita' esistente) */
         /* WP16 (DEC-042): "Prove" si e' inserita fra "Build e sinergie" e
            "Opzioni" (ui/pause-menu.md, tabella "Elementi interattivi"),
@@ -3333,7 +3337,13 @@ static int MenuItemCountForMode(AppMode mode)
            "Abbandona run" (ora ultima, indice 5) -- vedi il commento su
            AppUi.exitRerollsRun in core/game_types.h e il case
            APP_PAUSE_MENU/APP_EXIT_CONFIRM in src/app/app.c. */
-        case APP_PAUSE_MENU: return 6;   /* Riprendi, Build e sinergie, Prove, Opzioni, Rigenera la run, Abbandona run */
+        /* WP17 (DEC-050): "Sospendi e esci" si inserisce fra "Rigenera la run"
+           e "Abbandona run" (che scala a indice 6) SOLO dentro una run vera --
+           dal Piano 0 il menu resta a sei righe, ed e' anche cio' che tiene il
+           riquadro di consultazione di DEC-169 (DrawPauseMenuFloorZeroConsult,
+           quota 420) sotto l'ultima riga senza sovrapporsi: con sette righe
+           l'ultima arriverebbe a 462. */
+        case APP_PAUSE_MENU: return ctx.pauseSuspend ? 7 : 6;   /* Riprendi, Build e sinergie, Prove, Opzioni, Rigenera la run, [Sospendi e esci,] Abbandona run */
         /* W8 (chiude la parte UI del difetto noto 9): tre volumi + Indietro.
            Le tre righe sono voci di menu a pieno titolo -- stesso indice, stessa
            geometria, stesso hit-test del mouse -- perche' la parita'
@@ -3390,14 +3400,21 @@ static Rectangle MenuItemRect(AppMode mode, int index, bool exitConfirmLight)
     return MenuItemRectFor(mode, index, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
 }
 
-int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight)
+int RendererMenuItemAtCtx(AppMode mode, Vector2 mouse, RendererMenuCtx ctx)
 {
-    int count = MenuItemCountForMode(mode);
+    int count = MenuItemCountForMode(mode, ctx);
     for (int i = 0; i < count; i++)
     {
-        if (CheckCollisionPointRec(mouse, MenuItemRect(mode, i, exitConfirmLight))) return i;
+        if (CheckCollisionPointRec(mouse, MenuItemRect(mode, i, ctx.exitConfirmLight))) return i;
     }
     return -1;
+}
+
+int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight)
+{
+    RendererMenuCtx ctx = { 0 };
+    ctx.exitConfirmLight = exitConfirmLight;
+    return RendererMenuItemAtCtx(mode, mouse, ctx);
 }
 
 /* Una voce di menu: riquadro pieno + bordo se ha il focus ('focus').
@@ -3505,9 +3522,36 @@ static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, 
 
 /* Vedi la dichiarazione in game_renderer.h: nucleo puro, nessuna chiamata
    raylib, condiviso da disegno e test (--layout-test). */
-bool ExitConfirmIsLightModalFor(AppMode openedFrom)
+bool ExitConfirmIsLightModalFor(AppMode openedFrom, bool dropsSuspendedRun)
 {
-    return openedFrom == APP_MAIN_MENU;
+    /* WP17: la conferma di buttare via una run sospesa nasce anch'essa da
+       APP_MAIN_MENU ("Nuova run" con una sospensione attiva), ma non e' la
+       chiusura del gioco -- DEC-090 riserva il dialogo leggero a quel solo
+       contesto, quindi qui la presentazione resta a schermo pieno come per
+       l'abbandono della preparazione e l'abbandono della run. */
+    return openedFrom == APP_MAIN_MENU && !dropsSuspendedRun;
+}
+
+/* Vedi le dichiarazioni in game_renderer.h: le due righe condizionali della
+   sospensione, nucleo puro condiviso da disegno, hit-test e src/app. */
+bool RendererMainMenuHasContinueRow(const AppUi *ui)
+{
+    return ui != NULL && ui->suspendEnabled && ui->suspendAvailable;
+}
+
+bool RendererPauseMenuHasSuspendRow(const Game *game, const AppUi *ui)
+{
+    return game != NULL && ui != NULL && ui->suspendEnabled && game->floor >= 1;
+}
+
+RendererMenuCtx RendererMenuCtxFor(const Game *game, const AppUi *ui)
+{
+    RendererMenuCtx ctx = { 0 };
+    if (!ui) return ctx;
+    ctx.exitConfirmLight = ExitConfirmIsLightModalFor(ui->openedFrom, ui->exitDropsSuspendedRun);
+    ctx.mainMenuContinue = RendererMainMenuHasContinueRow(ui);
+    ctx.pauseSuspend = RendererPauseMenuHasSuspendRow(game, ui);
+    return ctx;
 }
 
 /* Nucleo comune a BeginMenuOverlay/BeginMenuOverlayLight sotto: il box e il
@@ -3561,17 +3605,25 @@ static Rectangle BeginMenuOverlayLight(AppMode mode, Game *game, const char *tit
    funzione disegna il MainMenu come sfondo di ExitConfirm: il velo
    dell'intero schermo lo applica in quel caso SOLO ExitConfirm sopra (un
    velo solo, mai due sommati). */
-static void DrawMainMenuOverlay(Game *game, int focus, bool dimBackground)
+/* WP17 (DEC-050): 'hasContinue' arriva dal chiamante (RendererMainMenuHasContinueRow,
+   fonte unica) e non viene ricalcolato qui, perche' questa funzione riceve
+   'focus' come intero e non l'AppUi -- vedi il commento sopra. */
+static void DrawMainMenuOverlay(Game *game, int focus, bool dimBackground, bool hasContinue)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
     Rectangle box = dimBackground
         ? BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2)
         : BeginMenuOverlayDim(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2, 0, false);
     UiText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 0, "Nuova run", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 1, "Catalogo", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 2, "Opzioni", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, 3, "Esci", focus, game->theme.accent2);
+    /* Le quattro voci storiche scalano di uno quando "Continua" c'e': la
+       mappatura indice -> azione del case APP_MAIN_MENU (src/app/app.c) usa lo
+       STESSO scarto, calcolato dalla stessa condizione. */
+    int base = hasContinue ? 1 : 0;
+    if (hasContinue) DrawMenuRow(APP_MAIN_MENU, 0, "Continua", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, base + 0, "Nuova run", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, base + 1, "Catalogo", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, base + 2, "Opzioni", focus, game->theme.accent2);
+    DrawMenuRow(APP_MAIN_MENU, base + 3, "Esci", focus, game->theme.accent2);
 }
 
 /* WP22 (terza passata, ui/run-setup.md): etichetta e fascia della riga
@@ -3709,7 +3761,15 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
        rapido diretto (il vecchio R e' ora SOLO il reset rapido stesso seed,
        src/app/app.c, case APP_GAMEPLAY). */
     DrawMenuRow(APP_PAUSE_MENU, 4, "Rigenera la run", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 5, "Abbandona run", ui->focus, game->theme.accent2);
+    /* WP17 (DEC-050): l'uscita NON distruttiva -- scrive la sospensione e
+       torna al menu principale, dove "Continua" riportera' qui. Sta subito
+       sopra "Abbandona run" apposta: fra le due uscite, quella che non perde
+       nulla si incontra per prima. Presente solo in una run vera
+       (RendererPauseMenuHasSuspendRow, fonte unica anche per il conteggio
+       delle voci e per src/app/app.c). */
+    bool hasSuspend = RendererPauseMenuHasSuspendRow(game, ui);
+    if (hasSuspend) DrawMenuRow(APP_PAUSE_MENU, 5, "Sospendi e esci", ui->focus, game->theme.accent2);
+    DrawMenuRow(APP_PAUSE_MENU, hasSuspend ? 6 : 5, "Abbandona run", ui->focus, game->theme.accent2);
     if (game->floor == 0)
         DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
 }
@@ -4317,22 +4377,23 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UiScaleForHeight((float)GetScreenHeight());
     /* WP22 (DEC-090, gap G9): il contesto "MainMenu -> Esci" (chiusura del
-       gioco) e' l'unico dei QUATTRO (vedi 'question' sotto) in cui openedFrom
-       vale APP_MAIN_MENU -- exitAbandonsRun resta sempre falso li' (vedi il
-       case APP_MAIN_MENU in src/app/app.c, righe 864/896), quindi
-       ExitConfirmIsLightModalFor basta da sola a riconoscerlo, senza bisogno
-       di un campo dedicato in piu'. Il case APP_EXIT_CONFIRM in
+       gioco) e' uno dei DUE (dei CINQUE, vedi 'question' sotto) in cui
+       openedFrom vale APP_MAIN_MENU -- exitAbandonsRun resta sempre falso li'
+       (vedi il case APP_MAIN_MENU in src/app/app.c), e WP17 aggiunge l'altro
+       ("Nuova run" con una run sospesa), che ExitConfirmIsLightModalFor
+       distingue dal secondo parametro 'exitDropsSuspendedRun': DEC-090
+       riserva il dialogo leggero alla sola chiusura del gioco. Il case APP_EXIT_CONFIRM in
        RendererDrawApp ha gia' ridisegnato il MainMenu SOTTO in questo stesso
        frame quando la condizione e' vera: qui serve solo il velo di fondo piu'
        leggero (non un altro schermo pieno che lo cancellerebbe), e il riquadro
        piu' stretto che 'lightModal' seleziona in MenuBoxForModeFor. */
-    bool lightModal = ExitConfirmIsLightModalFor(ui->openedFrom);
+    bool lightModal = ExitConfirmIsLightModalFor(ui->openedFrom, ui->exitDropsSuspendedRun);
     Rectangle box = lightModal
         ? BeginMenuOverlayLight(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2)
         : BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
-    /* Quattro contesti distinti (DEC-057 + M1b + WP21/DEC-114), tutti derivati
-       da 'ui' senza un campo dedicato in piu' per ciascuno: MainMenu/Esci ha
-       sia exitAbandonsRun sia exitRerollsRun falsi; i due abbandoni (Piano 0/
+    /* Contesti distinti (DEC-057 + M1b + WP21/DEC-114 + WP17/DEC-050), tutti
+       derivati da 'ui': MainMenu/Esci ha tutti e tre i booleani di contesto
+       falsi; i due abbandoni (Piano 0/
        run vera) hanno exitAbandonsRun vero e si distinguono da ui->openedFrom
        (chi ha aperto ExitConfirm, gia' scritto da UpdateApp prima del cambio
        di stato); il reroll ("Rigenera la run" di PauseMenu) ha invece
@@ -4341,13 +4402,19 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
        AppUi.exitRerollsRun in core/game_types.h), quindi l'ordine qui non
        cambia il risultato ma rispecchia quello del ramo "Conferma" in
        src/app/app.c (case APP_EXIT_CONFIRM). */
-    const char *question = ui->exitRerollsRun
-        ? "Rigenerare la run con un nuovo seed? Il progresso non salvato si perde."
-        : (!ui->exitAbandonsRun
-            ? "Uscire dal gioco?"
-            : (ui->openedFrom == APP_FLOOR_ZERO
-                ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
-                : "Abbandonare la run in corso? Il progresso non salvato si perde."));
+    /* WP17 (DEC-050) porta i contesti a CINQUE: si aggiunge "Nuova run con una
+       run sospesa" (ui/main-menu.md, riga "Nuova run"), controllato per primo
+       come il reroll -- i tre booleani restano mutuamente esclusivi per
+       costruzione, quindi l'ordine non cambia il risultato. */
+    const char *question = ui->exitDropsSuspendedRun
+        ? "Iniziare una nuova run? La run sospesa verra' cancellata."
+        : (ui->exitRerollsRun
+            ? "Rigenerare la run con un nuovo seed? Il progresso non salvato si perde."
+            : (!ui->exitAbandonsRun
+                ? "Uscire dal gioco?"
+                : (ui->openedFrom == APP_FLOOR_ZERO
+                    ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
+                    : "Abbandonare la run in corso? Il progresso non salvato si perde.")));
     /* WP22, terza passata: la domanda va A CAPO dentro il pannello invece di
        essere disegnata come una riga sola. Prima sconfinava SEMPRE, in tutti i
        contesti a schermo pieno (765/849/864 px di testo contro i 520 di spazio
@@ -5058,7 +5125,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
     {
         /* M8 (DEC-045): la vista Catalogo sostituisce il disegno del menu
            quando aperta -- nessun nuovo AppMode, il case resta uno solo. */
-        case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui->focus, true); break;
+        case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui->focus, true, RendererMainMenuHasContinueRow(ui)); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
         case APP_FLOOR_ZERO:
             DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);
@@ -5093,8 +5160,8 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
                disegna il proprio velo scuro a schermo pieno, cosi' il velo
                unico applicato resta quello (piu' leggero) di
                DrawExitConfirmOverlay subito sotto -- mai due veli sommati. */
-            if (ExitConfirmIsLightModalFor(ui->openedFrom))
-                DrawMainMenuOverlay(game, ui->returnFocus, false);
+            if (ExitConfirmIsLightModalFor(ui->openedFrom, ui->exitDropsSuspendedRun))
+                DrawMainMenuOverlay(game, ui->returnFocus, false, RendererMainMenuHasContinueRow(ui));
             DrawExitConfirmOverlay(game, ui);
             break;
     }
@@ -5214,22 +5281,35 @@ bool UiLayoutSelfTest(void)
                 if (lite == 1 && mode != APP_EXIT_CONFIRM) continue;
                 bool light = (lite == 1);
                 Rectangle box = MenuBoxForModeFor(mode, sw, sh, light);
-                int count = MenuItemCountForMode(mode);
-                Rectangle prevItem = { 0 };
-                for (int idx = 0; idx < count; idx++)
+                /* WP17 (DEC-050): il giro 'cond' ripete la verifica col menu
+                   nella sua forma PIU' LUNGA -- MainMenu con "Continua" (5
+                   voci) e PauseMenu con "Sospendi e esci" (7) -- perche' e' la
+                   forma che rischia di sfondare il box, non quella corta.
+                   Senza questo giro una voce condizionale fuori dal riquadro
+                   resterebbe invisibile a make test. */
+                for (int cond = 0; cond < 2; cond++)
                 {
-                    Rectangle item = MenuItemRectFor(mode, idx, sw, sh, light);
-                    if (!UiRectInside(box, item))
+                    RendererMenuCtx ctx = { 0 };
+                    ctx.exitConfirmLight = light;
+                    ctx.mainMenuContinue = (cond == 1);
+                    ctx.pauseSuspend = (cond == 1);
+                    int count = MenuItemCountForMode(mode, ctx);
+                    Rectangle prevItem = { 0 };
+                    for (int idx = 0; idx < count; idx++)
                     {
-                        fprintf(stderr, "UiLayoutSelfTest: (e) voce %d del menu %d (leggero=%d) fuori dal box a %.0fx%.0f\n", idx, (int)mode, lite, sw, sh);
-                        return false;
+                        Rectangle item = MenuItemRectFor(mode, idx, sw, sh, light);
+                        if (!UiRectInside(box, item))
+                        {
+                            fprintf(stderr, "UiLayoutSelfTest: (e) voce %d del menu %d (leggero=%d, condizionali=%d) fuori dal box a %.0fx%.0f\n", idx, (int)mode, lite, cond, sw, sh);
+                            return false;
+                        }
+                        if (idx > 0 && UiRectOverlap(prevItem, item))
+                        {
+                            fprintf(stderr, "UiLayoutSelfTest: (e) voci %d/%d del menu %d (leggero=%d, condizionali=%d) sovrapposte a %.0fx%.0f\n", idx - 1, idx, (int)mode, lite, cond, sw, sh);
+                            return false;
+                        }
+                        prevItem = item;
                     }
-                    if (idx > 0 && UiRectOverlap(prevItem, item))
-                    {
-                        fprintf(stderr, "UiLayoutSelfTest: (e) voci %d/%d del menu %d (leggero=%d) sovrapposte a %.0fx%.0f\n", idx - 1, idx, (int)mode, lite, sw, sh);
-                        return false;
-                    }
-                    prevItem = item;
                 }
             }
         }
@@ -5290,18 +5370,26 @@ bool UiLayoutSelfTest(void)
        contesti che possono aprire ExitConfirm (abbandono della preparazione
        nel Piano 0, abbandono di una run in corso da PauseMenu, rigenerazione
        della run di WP21/DEC-114, che parte anch'essa da PauseMenu) restano a
-       schermo pieno, presentazione gia' documentata da DEC-090 stesso. */
-    if (!ExitConfirmIsLightModalFor(APP_MAIN_MENU))
+       schermo pieno, presentazione gia' documentata da DEC-090 stesso.
+       WP17 (DEC-050) aggiunge il QUINTO contesto, "Nuova run con una run
+       sospesa": nasce da APP_MAIN_MENU come la chiusura del gioco, ma non e'
+       la chiusura del gioco -- deve restare a schermo pieno anche lui. */
+    if (!ExitConfirmIsLightModalFor(APP_MAIN_MENU, false))
     {
         fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da MainMenu non e' riconosciuto come dialogo leggero (DEC-090)\n");
         return false;
     }
-    if (ExitConfirmIsLightModalFor(APP_FLOOR_ZERO))
+    if (ExitConfirmIsLightModalFor(APP_MAIN_MENU, true))
+    {
+        fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da MainMenu per la rinuncia a una run sospesa e' stato marcato leggero (WP17: deve restare a schermo pieno)\n");
+        return false;
+    }
+    if (ExitConfirmIsLightModalFor(APP_FLOOR_ZERO, false))
     {
         fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da FloorZero e' stato marcato leggero (deve restare a schermo pieno)\n");
         return false;
     }
-    if (ExitConfirmIsLightModalFor(APP_PAUSE_MENU))
+    if (ExitConfirmIsLightModalFor(APP_PAUSE_MENU, false))
     {
         fprintf(stderr, "UiLayoutSelfTest: (f) ExitConfirm da PauseMenu e' stato marcato leggero (deve restare a schermo pieno)\n");
         return false;
@@ -5323,7 +5411,8 @@ bool UiLayoutSelfTest(void)
             fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup esce dal box a %.0fx%.0f\n", sw, sh);
             return false;
         }
-        for (int idx = 0; idx < MenuItemCountForMode(APP_RUN_SETUP); idx++)
+        RendererMenuCtx runSetupCtx = { 0 };   /* RunSetup non ha voci condizionali: il contesto azzerato e' il suo */
+        for (int idx = 0; idx < MenuItemCountForMode(APP_RUN_SETUP, runSetupCtx); idx++)
         {
             if (UiRectOverlap(band, MenuItemRectFor(APP_RUN_SETUP, idx, sw, sh, false)))
             {

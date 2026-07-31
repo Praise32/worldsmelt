@@ -10,6 +10,9 @@
 #include "core/game_math.h"
 #include "game/game.h"
 #include "game/game_internal.h"
+/* WP17 (DEC-050): la sospensione della run -- scrittura, disponibilita',
+   ripresa e cancellazione. Vedi src/game/run_suspend.h. */
+#include "game/run_suspend.h"
 #include "game/trials.h"
 #include "gameplay/fusion.h"
 #include "gen/gen_runner.h"
@@ -672,6 +675,39 @@ static void AppWriteRunCatalog(Game *game, AppUi *ui, const char *outcome)
     game->catalogRecordsWritten = RunCatalogWriteRun(game, ui->seed, outcome);
 }
 
+/* ============================================================
+   WP17 (DEC-050, systems/save-and-meta-progression.md "Sospensione della run e
+   ripresa"): i TRE soli punti in cui la sospensione cambia stato sul disco
+   passano da queste tre funzioni, e ciascuna aggiorna anche la copia in
+   memoria (AppUi.suspendAvailable) nello stesso gesto -- e' cio' che permette
+   a "Continua" di non rileggere il disco per-frame senza mai mostrare una voce
+   che non ha piu' un file dietro.
+   Tutte e tre sono un no-op quando la guardia test-safe 'suspendEnabled' e'
+   spenta (ogni "AppUi ui = {0}" dei test): nessun file letto o scritto.
+   ============================================================ */
+
+/* Sospende: scrive il file e riporta se ci e' riuscita. NON scrive il catalogo
+   e non tocca le prove -- una sospensione NON e' una fine run (a differenza di
+   abbandono e reroll, DEC-082/DEC-089): la run riprendera' esattamente da
+   dove era, quindi conteggiarla come sconfitta sarebbe doppio. */
+static bool AppSuspendRunNow(const Game *game, AppUi *ui)
+{
+    if (!ui->suspendEnabled) return false;
+    bool ok = RunSuspendWrite(game);
+    ui->suspendAvailable = ok;
+    return ok;
+}
+
+/* Butta via la sospensione: l'abbandono (DEC-089, WP19), il reroll (DEC-114,
+   WP21) e "Nuova run" con una sospensione attiva la cancellano, cosi' non
+   resta mai un file che riporterebbe a una run che il giocatore ha gia'
+   chiuso. */
+static void AppSuspendDrop(AppUi *ui)
+{
+    if (ui->suspendEnabled) RunSuspendClear();
+    ui->suspendAvailable = false;
+}
+
 /* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
    il contratto). Regola generale di focus condivisa da Options/BuildScreen/
    ExitConfirm (ui/navigation-map.md, "il focus torna sull'elemento che ha
@@ -754,7 +790,12 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
            disegnato, altrimenti i 70px di margine per lato risponderebbero a
            voci che li' non ci sono. Per ogni altro 'mode' il parametro e'
            ignorato. */
-        int clicked = RendererMenuItemAt(*mode, mousePos, ExitConfirmIsLightModalFor(ui->openedFrom));
+        /* WP17: il contesto porta anche le due voci CONDIZIONALI della
+           sospensione ("Continua" in MainMenu, "Sospendi e esci" in
+           PauseMenu) -- il hit-test deve conoscere il numero VERO di voci
+           disegnate in questo frame, altrimenti l'ultima resterebbe muta al
+           mouse. RendererMenuCtxFor e' la fonte unica delle tre condizioni. */
+        int clicked = RendererMenuItemAtCtx(*mode, mousePos, RendererMenuCtxFor(game, ui));
         if (clicked >= 0)
         {
             ui->focus = clicked;
@@ -803,7 +844,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
     if (mouseMoved && !(*mode == APP_MAIN_MENU && ui->catalogOpen)
         && !(*mode == APP_PAUSE_MENU && ui->pauseTrialsOpen))
     {
-        int hovered = RendererMenuItemAt(*mode, mousePos, ExitConfirmIsLightModalFor(ui->openedFrom));
+        int hovered = RendererMenuItemAtCtx(*mode, mousePos, RendererMenuCtxFor(game, ui));
         if (hovered >= 0) ui->focus = hovered;
     }
 
@@ -855,7 +896,17 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 break;
             }
 
-            if (effective.up || effective.down) { ui->focus = (ui->focus + 4 + (effective.down ? 1 : -1)) % 4; break; }
+            /* WP17 (DEC-050, ui/main-menu.md): con una sospensione valida il
+               menu ha CINQUE voci e "Continua" e' la prima (indice 0, quindi
+               anche quella col focus iniziale che il documento chiede, senza
+               alcun codice dedicato: ui->focus vale gia' 0 all'ingresso).
+               Senza sospensione lo scarto e' zero e tutti gli indici storici
+               restano quelli di prima. La condizione la decide
+               RendererMainMenuHasContinueRow, la STESSA che il renderer usa
+               per disegnare le righe e il hit-test per contarle. */
+            int continueRow = RendererMainMenuHasContinueRow(ui) ? 1 : 0;
+            int mainMenuRows = 4 + continueRow;
+            if (effective.up || effective.down) { ui->focus = (ui->focus + mainMenuRows + (effective.down ? 1 : -1)) % mainMenuRows; break; }
             if (effective.quit || effective.back)
             {
                 /* Azione distruttiva: passa SEMPRE da ExitConfirm, mai un'uscita
@@ -864,26 +915,67 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 ui->returnFocus = ui->focus;
                 ui->exitAbandonsRun = false;
                 ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
+                ui->exitDropsSuspendedRun = false;   /* WP17: questa e' la chiusura del gioco, non la rinuncia a una sospensione */
                 *mode = APP_EXIT_CONFIRM;
                 ui->focus = 1;   /* default: "Annulla", l'opzione non distruttiva */
                 break;
             }
             if (effective.confirm)
             {
-                if (ui->focus == 0)   /* Nuova run */
+                if (continueRow && ui->focus == 0)   /* Continua (WP17, DEC-050) */
                 {
-                    ui->seed = NextGenSeed(0u);   /* seed PROPOSTO all'ingresso in RunSetup: il giocatore puo' solo rerollarlo o accettarlo */
-                    *mode = APP_RUN_SETUP;
-                    ui->focus = 0;
+                    /* La ripresa CONSUMA la sospensione (RunSuspendResume
+                       cancella il file da sola): morire subito dopo non deve
+                       poter riportare qui. Se il file e' sparito o si e'
+                       corrotto fra l'ultimo controllo e questo istante, la
+                       voce semplicemente smette di esistere -- mai un crash,
+                       mai una run a meta'. */
+                    if (RunSuspendResume(game))
+                    {
+                        ui->suspendAvailable = false;
+                        ui->seed = game->runSeed;        /* la run ripresa E' quella del seed salvato, anche per RunSetup/catalogo */
+                        gen->pendingGenSeed = game->runSeed;
+                        ui->pauseTrialsOpen = false;
+                        ui->pauseFromFloorZero = false;   /* si rientra in Gameplay: "Riprendi" della pausa deve tornare li' */
+                        *mode = APP_GAMEPLAY;
+                        ui->focus = 0;
+                    }
+                    else ui->suspendAvailable = false;
+                    break;
                 }
-                else if (ui->focus == 1)   /* Catalogo (M8, DEC-045): aggregazione ON-DEMAND, mai per-frame */
+                int row = ui->focus - continueRow;
+                if (row == 0)   /* Nuova run */
+                {
+                    if (continueRow)
+                    {
+                        /* ui/main-menu.md, riga "Nuova run": con una run
+                           sospesa la si abbandona solo dopo una conferma
+                           esplicita -- altrimenti il file resterebbe li' a
+                           promettere un rientro in una run che il giocatore
+                           ha gia' sostituito. */
+                        ui->openedFrom = APP_MAIN_MENU;
+                        ui->returnFocus = ui->focus;
+                        ui->exitAbandonsRun = false;
+                        ui->exitRerollsRun = false;
+                        ui->exitDropsSuspendedRun = true;
+                        *mode = APP_EXIT_CONFIRM;
+                        ui->focus = 1;   /* default: "Annulla" */
+                    }
+                    else
+                    {
+                        ui->seed = NextGenSeed(0u);   /* seed PROPOSTO all'ingresso in RunSetup: il giocatore puo' solo rerollarlo o accettarlo */
+                        *mode = APP_RUN_SETUP;
+                        ui->focus = 0;
+                    }
+                }
+                else if (row == 1)   /* Catalogo (M8, DEC-045): aggregazione ON-DEMAND, mai per-frame */
                 {
                     RunCatalogAggregate(&ui->catalog);
                     ui->catalogOpen = true;
                     ui->catalogCategory = 0;
                     ui->catalogItemFocus = 0;
                 }
-                else if (ui->focus == 2)   /* Opzioni */
+                else if (row == 2)   /* Opzioni */
                 {
                     ui->openedFrom = APP_MAIN_MENU;
                     ui->returnFocus = ui->focus;
@@ -896,6 +988,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     ui->returnFocus = ui->focus;
                     ui->exitAbandonsRun = false;
                     ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
+                    ui->exitDropsSuspendedRun = false;   /* WP17: idem, questa e' la chiusura del gioco */
                     *mode = APP_EXIT_CONFIRM;
                     ui->focus = 1;
                 }
@@ -1286,6 +1379,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 ui->returnFocus = 0;
                 ui->exitAbandonsRun = true;
                 ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
+                ui->exitDropsSuspendedRun = false;   /* WP17: idem per il contesto "sospensione" */
                 *mode = APP_EXIT_CONFIRM;
                 ui->focus = 1;   /* default: "Annulla" */
             }
@@ -1407,11 +1501,18 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                usata per consultare l'HUD nascosto (DEC-169). Una sola fonte,
                'ui->pauseFromFloorZero', per tutte e tre le uscite qui sotto. */
             AppMode pauseReturn = ui->pauseFromFloorZero ? APP_FLOOR_ZERO : APP_GAMEPLAY;
-            /* WP21 (DEC-114): "Rigenera la run" e' la sesta riga (indice 4,
-               tra "Opzioni" e "Abbandona run", che scala a indice 5) -- vedi
-               DrawPauseMenuOverlay in src/render/game_renderer.c per i nuovi
-               indici e per MenuItemCountForMode(APP_PAUSE_MENU) == 6. */
-            if (effective.up || effective.down) { ui->focus = (ui->focus + 6 + (effective.down ? 1 : -1)) % 6; break; }
+            /* WP21 (DEC-114): "Rigenera la run" e' la quinta riga (indice 4,
+               tra "Opzioni" e "Abbandona run") -- vedi DrawPauseMenuOverlay in
+               src/render/game_renderer.c.
+               WP17 (DEC-050): dentro una run VERA si inserisce fra le due
+               "Sospendi e esci" (indice 5) e "Abbandona run" scala a 6; dal
+               Piano 0 (floor 0) la riga non esiste e gli indici restano quelli
+               di WP21. La condizione la decide RendererPauseMenuHasSuspendRow,
+               la STESSA che il renderer usa per disegnare e contare le voci. */
+            bool pauseHasSuspend = RendererPauseMenuHasSuspendRow(game, ui);
+            int pauseRows = pauseHasSuspend ? 7 : 6;
+            int abandonRow = pauseHasSuspend ? 6 : 5;
+            if (effective.up || effective.down) { ui->focus = (ui->focus + pauseRows + (effective.down ? 1 : -1)) % pauseRows; break; }
             if (effective.back || effective.pause) { *mode = pauseReturn; break; }   /* "Riprendi" e' anche ESC/P diretto */
             if (effective.confirm)
             {
@@ -1442,15 +1543,35 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                     ui->returnFocus = ui->focus;
                     ui->exitAbandonsRun = false;
                     ui->exitRerollsRun = true;
+                    ui->exitDropsSuspendedRun = false;   /* WP17: mai un residuo del contesto "sospensione" qui */
                     *mode = APP_EXIT_CONFIRM;
                     ui->focus = 1;   /* default: "Annulla" */
                 }
-                else   /* Abbandona run (ora indice 5) */
+                else if (pauseHasSuspend && ui->focus == 5)   /* Sospendi e esci (WP17, DEC-050) */
+                {
+                    /* NESSUNA conferma: non si perde nulla -- e' l'unica uscita
+                       non distruttiva di questo menu, il contrario esatto delle
+                       due che le stanno attorno. E nessuna scrittura di
+                       catalogo/prove: la run non e' finita, riprendera' da qui
+                       (vedi AppSuspendRunNow sopra).
+                       Se la scrittura fallisce (disco pieno, permessi) si resta
+                       in PauseMenu con un messaggio: mai un'uscita che butta via
+                       la run credendo di averla salvata. */
+                    if (AppSuspendRunNow(game, ui))
+                    {
+                        ui->pauseTrialsOpen = false;
+                        *mode = APP_MAIN_MENU;
+                        ui->focus = 0;   /* "Continua" e' ora la prima voce del menu, e prende il focus */
+                    }
+                    else GameSetMessage(game, "Impossibile sospendere la run: la run continua.");
+                }
+                else if (ui->focus == abandonRow)   /* Abbandona run (indice 5, o 6 con "Sospendi e esci") */
                 {
                     ui->openedFrom = APP_PAUSE_MENU;
                     ui->returnFocus = ui->focus;
                     ui->exitAbandonsRun = true;
                     ui->exitRerollsRun = false;   /* WP21: mai un residuo del contesto reroll qui */
+                    ui->exitDropsSuspendedRun = false;   /* WP17: idem per il contesto "sospensione" */
                     *mode = APP_EXIT_CONFIRM;
                     ui->focus = 1;
                 }
@@ -1660,7 +1781,22 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
             {
                 if (ui->focus == 0)   /* Conferma */
                 {
-                    if (ui->exitRerollsRun)
+                    if (ui->exitDropsSuspendedRun)
+                    {
+                        /* WP17 (DEC-050, ui/main-menu.md riga "Nuova run"):
+                           il giocatore ha scelto di iniziare una run nuova
+                           avendone una sospesa. La sospensione si cancella
+                           QUI, prima di aprire RunSetup: dopo questo punto
+                           "Continua" non deve piu' comparire. Nessun catalogo
+                           e nessuna prova da chiudere -- la run sospesa non e'
+                           in corso in questo processo, e' solo un file. */
+                        AppSuspendDrop(ui);
+                        ui->exitDropsSuspendedRun = false;
+                        ui->seed = NextGenSeed(0u);
+                        *mode = APP_RUN_SETUP;
+                        ui->focus = 0;
+                    }
+                    else if (ui->exitRerollsRun)
                     {
                         /* WP21 (DEC-114): reroll confermato da PauseMenu --
                            l'UNICA via oggi (R resta il reset rapido stesso
@@ -1707,6 +1843,11 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                            distinguere quale dei tre runner fosse davvero
                            attivo. */
                         AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
+                        /* WP17 (DEC-050): il reroll chiude la run corrente, quindi
+                           qualunque sospensione resterebbe a promettere il rientro
+                           in una run che non esiste piu'. Si butta via qui, come
+                           per l'abbandono. */
+                        AppSuspendDrop(ui);
                         AppCancelFloorZeroGeneration(gen);
                         AppStopLazyGeneration(gen);
                         AppEnterFloorZero(game, gen, mode, NextGenSeed(0u));
@@ -1747,6 +1888,13 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                            da leggere -- la si evita con la stessa guardia. */
                         if (realRunAbandon) TrialsFinalizeAtRunEnd(game);
                         AppWriteRunCatalog(game, ui, RUN_CATALOG_OUTCOME_ABANDON);
+                        /* WP17 (DEC-050): "l'abbandono resta DISTINTO dalla
+                           sospensione: abbandonare CANCELLA la sospensione e
+                           chiude la run con sconfitta". Cancellata anche per
+                           l'abbandono della sola preparazione nel Piano 0: una
+                           sospensione di una run precedente non deve
+                           sopravvivere a una scelta di chiudere tutto. */
+                        AppSuspendDrop(ui);
                         /* Abbandono dalla preparazione (M1b): i runner di primo
                            piano attivi vanno cancellati SOLO qui, alla conferma
                            vera -- non al semplice ESC che apre il dialogo (la
@@ -1846,6 +1994,10 @@ int AppRun(int argc, char **argv)
        senza bisogno vero della finestra (GameArenaHubTest non disegna nulla,
        vedi src/tests/floor_zero_arena_tests.c). */
     bool arenaHubTest = false;
+    /* WP17 (DEC-050): come --arena-hub-test, gira dopo InitWindow senza
+       bisogno vero della finestra (GameSuspendTest non disegna nulla, vedi
+       src/tests/suspend_tests.c). */
+    bool suspendTest = false;
     bool fusionTest = false;
     bool fusionScreenshotTest = false;
     /* DEC-065/131/152/159/169: come --economy-test, gira dopo InitWindow
@@ -2080,6 +2232,12 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             arenaHubTest = true;
+        }
+        /* WP17 (DEC-050, la sospensione della run): come --arena-hub-test sopra. */
+        if (strcmp(argv[i], "--suspend-test") == 0)
+        {
+            smokeTest = true;
+            suspendTest = true;
         }
         /* DEC-022/023/143/162/171 (la fusione): come --economy-test, gira
            dopo InitWindow senza bisogno vero della finestra (GameFusionTest
@@ -2435,6 +2593,14 @@ int AppRun(int argc, char **argv)
         CloseWindow();
         return ok ? 0 : 43;   /* 43: il primo codice di uscita libero (l'ultimo era --trials-test=42) */
     }
+    if (suspendTest)
+    {
+        bool ok = GameSuspendTest(&game);
+        printf("Suspend test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 46;   /* 46: il primo codice di uscita libero (l'ultimo era 45) */
+    }
     if (fusionScreenshotTest)
     {
         bool ok = GameFusionScreenshotTest(&game);
@@ -2624,6 +2790,14 @@ int AppRun(int argc, char **argv)
        sono entrambi un caso di smokeTest vero (vedi il parsing di argv
        sopra). */
     appUi.catalogWritesEnabled = !smokeTest;
+    /* WP17 (DEC-050): stessa guardia, stesso perimetro -- la sospensione legge
+       e scrive un file del giocatore, quindi resta spenta in ogni *Test che
+       arriva a questo main loop, esattamente come il catalogo. Accesa qui, la
+       disponibilita' va letta UNA volta all'avvio: da li' in poi la aggiornano
+       solo i tre punti che la cambiano (scrittura da PauseMenu, consumo da
+       "Continua", cancellazione da abbandono/reroll/"Nuova run"). */
+    appUi.suspendEnabled = !smokeTest;
+    appUi.suspendAvailable = appUi.suspendEnabled && RunSuspendIsAvailable();
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;
     float simAccum = 0.0f;

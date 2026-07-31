@@ -6,12 +6,12 @@ status: approved
 authority: canonical
 owner: design
 summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia — sette categorie canoniche, Oggetti/Nemici/Boss/Personaggi/Mondi/Layout/Colpi (DEC-083), con anche i contenuti curati incontrati marcati origine `curato` (DEC-103) —, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile; nel museo una Reliquia resta esposta solo se era lì come preferito, altrimenti ne esce automaticamente (DEC-069, DEC-085)."
-last_reviewed: 2026-07-19
-last_verified_commit: 0ec60d0
-topics: [save, meta-progressione, catalogo, museo, reliquie, sospensione-run]
+last_reviewed: 2026-07-31
+last_verified_commit: a5cc3a3
+topics: [save, meta-progressione, catalogo, museo, reliquie, sospensione-run, DEC-050, WP17]
 related: []
 supersedes: []
-source_files: [src/content/run_catalog.c]
+source_files: [src/content/run_catalog.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c]
 ---
 
 # Save and Meta Progression
@@ -157,6 +157,93 @@ Piano 0): fonte unica dei nomi di stato e della transizione è
 [Game States and Flow](../05-game-states-and-flow.md) e
 [Navigation Map](../ui/navigation-map.md); questo documento non li ripete, registra solo la
 regola di ripristino della stanza corrente.
+
+> **Nota di implementazione (WP17, 2026-07-31, gap G6 di `piano-zero-e-meta` e G2 di
+> `ui-cornice`):** la sospensione esiste ora nel motore (`src/game/run_suspend.c`,
+> prefisso `RunSuspend*`). Fino a questo lavoro il documento descriveva DEC-050 come
+> comportamento attuale mentre nel codice non esisteva alcuna forma di salvataggio dello
+> stato di una run: chiudere il gioco perdeva sempre la run in corso.
+>
+> **Quando.** La sospensione è **esplicita**: la voce "Sospendi e esci" di `PauseMenu`
+> (vedi [Pause Menu](../ui/pause-menu.md)) scrive il file e torna a `MainMenu`, dove
+> "Continua" prende il focus. Nessuna conferma: è l'unica uscita di quel menu che non
+> perde nulla. **Non esiste un salvataggio automatico** alla chiusura della finestra:
+> limite dichiarato in `docs/engineering/known-issues.md`, non un requisito scartato — il
+> ciclo applicativo esce da `WindowShouldClose`/`ExitConfirm` senza un gancio di
+> terminazione, e aggiungerne uno che scriva a ogni chiusura (compresa quella dopo una
+> morte) è una decisione di comportamento che questo documento non fissa.
+>
+> **Formato** (`suspend/current.txt`, accanto a `catalog/`, mai versionato, dati del
+> giocatore): file di testo chiave=valore nello stile di `run_catalog.c`, scritto con
+> tmp+rename atomico e con la stessa **disciplina zero-default** (una chiave assente vale
+> sempre il significato più innocuo). La prima riga è `suspendSchema=1`, il campo
+> **versione**: un file senza quella riga, con un numero diverso, troncato o con piano e
+> stanza fuori banda viene **ignorato per intero** — voce "Continua" assente, nessun
+> crash, stesso pattern con cui il Catalogo salta un record corrotto.
+>
+> **Cosa si salva**: seed di run; personaggio scelto (indice, più la definizione completa
+> quando è quello generato per la run, che vive in `generated/` e potrebbe non esserci più
+> al rientro); piano e stanza correnti; stato del giocatore (salute, Crust, risorse,
+> statistiche di base, slot funzionali) e **inventario intero, sorgente Lua compresa** —
+> non "per nome dal manifest": un oggetto **fuso** (DEC-023) non esiste in nessun manifest,
+> e ricostruirlo per nome lo perderebbe in silenzio; stanze visitate/ripulite/premiate,
+> arene accettate, segrete aperte, distruttibili distrutti; Innesti lasciati a terra
+> (DEC-183); la puntata della Pourhouse per intero, offerta compresa, più la firma di run
+> che impedisce due puntate identiche (DEC-044); le prove della run con il loro stato
+> (DEC-042); il numero di fusioni; il tempo di run; i contatori di correzione di fortuna;
+> i tipi di nemico/boss già incontrati.
+>
+> **Cosa NON si salva**, per la regola stessa di DEC-050: la posizione del giocatore
+> dentro la stanza, i nemici vivi, colpi e particelle. E nessuno stato del Piano 0.
+>
+> **Come si ricostruisce.** Il mondo non è serializzato: si rigenera dal seed di run
+> (`GameResetRunWithSeed` → `WorldStartFloor`) e lo stato salvato si applica **sopra**
+> (visitate/ripulite/aperte/distrutte). Perché la mappa del piano corrente torni identica
+> servono due stati di RNG, non uno: `Game.floorEntryRng` (il valore di `game->rng`
+> catturato da `WorldStartFloor` prima di generare la mappa) e `game->rng` al momento della
+> sospensione — vedi i default proposti qui sotto.
+>
+> Alla ripresa la **sospensione si consuma**: il file viene cancellato appena la
+> ricostruzione riesce, così morire dopo il rientro non riporta al punto di salvataggio
+> (coerente con il permadeath descritto sopra). Anche l'**abbandono** (DEC-082/DEC-089), il
+> **reroll** (DEC-114) e "Nuova run" con una sospensione attiva la cancellano.
+>
+> **Limite dichiarato:** il **Piano 0 non è sospendibile** in questa fetta — la voce
+> "Sospendi e esci" esiste solo in una run vera (`game->floor >= 1`, la stessa soglia di
+> WP19). Il documento prevede anche `FloorZero` come stato salvato: quello stato comprende
+> la generazione in corso e le carte-proposta, che un file di run non ricostruisce da solo.
+> Registrato in `docs/engineering/known-issues.md`, non requisito scartato.
+>
+> Verificato da `--suspend-test` (`GameSuspendTest`, `src/tests/suspend_tests.c`, in
+> `make test`): andata e ritorno su una run ricca al piano 3 con confronto **campo per
+> campo**, mappa del piano rigenerata identica, stanza che riparte dall'ingresso coi
+> nemici ripristinati, determinismo di due riprese dallo stesso file, file corrotto o di
+> versione diversa che non produce mai una voce "Continua" né un crash, sospensione
+> consumata, e le tre vie che la cancellano.
+
+### Default proposti dall'implementazione (WP17, non canone)
+
+Registrati anche in [open-questions.md](../governance/open-questions.md), voce 58; il
+proprietario resta libero di deciderli diversamente. Nessuno di questi è promosso a canone.
+
+- **Percorso e forma del file**: `suspend/current.txt`, **una sola** sospensione per
+  profilo (è quello che "Continua" sa esprimere: una voce, non una lista di salvataggi).
+  Il documento non fissa né percorso né molteplicità. Nota: questo è un **salvataggio di
+  run**, dominio di questo documento, non il file di preferenze della domanda aperta 24,
+  che resta aperta e distinta.
+- **Si salva lo stato dell'RNG di gioco** (`game->rng` al momento della sospensione, più
+  `Game.floorEntryRng`, il valore d'ingresso nel piano): la sequenza di gioco riprende
+  identica invece di divergere. L'alternativa — accettare la divergenza e non salvare
+  nulla — sarebbe stata più semplice ma avrebbe reso una run ripresa non più confrontabile
+  con la stessa run giocata di fila.
+- **"L'ingresso" della stanza è il suo baricentro** (`WorldRoomCenter`), lo stesso punto in
+  cui il giocatore compare entrando in un piano. La porta da cui era entrato non è salvata,
+  ed è l'unica cosa che permetterebbe di scegliere uno dei quattro punti d'ingresso laterali.
+- **Nessun salvataggio automatico** alla chiusura della finestra (vedi la nota sopra).
+- **I semi delle sandbox Lua dei singoli oggetti non si salvano**: si ri-estraggono dallo
+  stream di ricostruzione, quindi una funzione Lua che chiami `rng()` riparte da un punto
+  diverso della propria sequenza. Resta deterministico dal file — due riprese dello stesso
+  file danno gli stessi semi — ma non identico alla run originale.
 
 ## Ricompense cosmetiche della Classificata giornaliera (DEC-064)
 
@@ -402,7 +489,29 @@ Sezione dedicata a idee parcheggiate, non requisiti attuali.
 - Given un giocatore nel Piano 0 che ha già scelto tema e personaggio,
 - When sospende la run e poi la riprende,
 - Then rientra direttamente nel Piano 0 con le stesse scelte già fatte, coerente con lo
-  stato salvato `FloorZero` (DEC-050).
+  stato salvato `FloorZero` (DEC-050). *(Gap di implementazione esplicito, WP17: oggi la
+  sospensione è disponibile solo in una run vera; vedi la nota sopra e
+  `docs/engineering/known-issues.md`.)*
+
+**Scenario: la sospensione si consuma alla ripresa (WP17, DEC-050)**
+- Given un giocatore ha sospeso una run e la riprende con "Continua",
+- When muore poco dopo il rientro,
+- Then la run si chiude come qualunque altra sconfitta: il menu principale non offre più
+  "Continua", perché la sospensione è stata consumata al momento della ripresa e non esiste
+  più alcun punto di salvataggio a cui tornare.
+
+**Scenario: una sospensione incompatibile viene ignorata (WP17)**
+- Given sul disco esiste un file di sospensione scritto da una versione diversa del gioco,
+  o troncato,
+- When il giocatore apre il menu principale,
+- Then la voce "Continua" non compare, il file viene ignorato e il menu resta interamente
+  utilizzabile, senza alcun errore tecnico mostrato.
+
+**Scenario: abbandonare cancella la sospensione (WP17, DEC-089)**
+- Given un giocatore ha una run sospesa,
+- When abbandona una run in corso, effettua un reroll, o sceglie "Nuova run" e conferma,
+- Then la sospensione viene cancellata: nessuna delle tre lascia in piedi un rientro in una
+  run che il giocatore ha già chiuso.
 
 **Scenario: un preferito ha precedenza nel museo**
 - Given un giocatore ha segnato un contenuto come preferito nel Catalogo (DEC-045),

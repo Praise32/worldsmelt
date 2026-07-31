@@ -9,12 +9,12 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-30
-last_verified_commit: 63753fc
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial]
+last_reviewed: 2026-07-31
+last_verified_commit: a5cc3a3
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial, WP17, DEC-050, sospensione-run]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -707,3 +707,59 @@ Nota su un quarto punto, **non** un limite ma una conseguenza corretta da non sc
 un difetto: durante una prova del Piano 0 l'HUD mostra il **timer di run fermo a `0:00`**,
 perché `FloorZeroEnter` spegne `inRealRun` e azzera `runElapsedSeconds` — il crogiolo non è
 una run cronometrata (DEC-051, e `docs/design/governance/open-questions.md` voce 27).
+
+## 17 — Sospensione della run (WP17, DEC-050): tre limiti dichiarati sopra un gap CHIUSO
+
+**Stato del gap principale: CHIUSO (31/07).** La sospensione della run esiste ora nel
+motore — `src/game/run_suspend.{h,c}` (`suspend/current.txt`, formato chiave=valore con
+`suspendSchema=1`, tmp+rename atomico), la voce "Sospendi e esci" di `PauseMenu` e la voce
+"Continua" di `MainMenu`, verificate da `--suspend-test`
+(`src/tests/suspend_tests.c`, in `make test`). Fino a questo lavoro
+`docs/design/systems/save-and-meta-progression.md` descriveva DEC-050 come comportamento
+attuale mentre in `src/` non esisteva alcuna forma di salvataggio dello stato di una run:
+chiudere il gioco perdeva sempre la run in corso, e il gap non era dichiarato da nessuna
+parte. Restano tre limiti, nessuno mascherato nel codice:
+
+1. **Il Piano 0 non è sospendibile.** La voce "Sospendi e esci" esiste solo in una run vera
+   (`game->floor >= 1`, la stessa soglia con cui WP19 distingue l'abbandono di una run da
+   quello della sola preparazione), e `RunSuspendWrite` rifiuta comunque `floor < 1`.
+   `docs/design/systems/save-and-meta-progression.md` prevede anche `FloorZero` come stato
+   salvato ("Scenario: sospensione nel Piano 0"): quello stato comprende però la
+   generazione in corso (`AppGen`, un processo figlio `melting-gen`) e le carte-proposta,
+   che un file di run non ricostruisce da solo — ripristinarle vorrebbe dire decidere se
+   una generazione interrotta va rilanciata, ripresa o abbandonata, decisione che nessun
+   documento fissa.
+   **Evidenza**: `src/game/run_suspend.c`, `RunSuspendWrite` (guardia `game->floor < 1`);
+   `src/render/game_renderer.c`, `RendererPauseMenuHasSuspendRow`.
+
+2. **Nessun salvataggio automatico alla chiusura della finestra.** La sospensione è solo
+   esplicita: chiudere la finestra, o uscire dal gioco da `MainMenu`/`Esci` durante una run,
+   perde comunque la run in corso. Il ciclo applicativo non ha un gancio di terminazione
+   (`AppRun` esce da `WindowShouldClose()` o dal `return true` di `UpdateApp`), e
+   aggiungerne uno che scriva a ogni chiusura — compresa quella dopo una morte — è una
+   decisione di comportamento, non un dettaglio tecnico: registrata come default proposto
+   in `docs/design/governance/open-questions.md`, voce 58.
+   **Evidenza**: `src/app/app.c`, `AppRun` (nessuna chiamata a `RunSuspendWrite` fuori dal
+   ramo "Sospendi e esci" del case `APP_PAUSE_MENU`).
+
+3. **I semi delle sandbox Lua dei singoli oggetti non sono salvati.** L'inventario si
+   ricostruisce per intero, sorgente Lua compresa, ma il seme che `ScriptItemsOnAcquire`
+   pesca da `game->rng` per la sandbox di ciascun oggetto viene ri-estratto dallo stream di
+   ricostruzione: una funzione Lua che chiami `rng()` riparte quindi da un punto diverso
+   della **propria** sequenza. Resta deterministico dal file (due riprese dello stesso file
+   danno gli stessi semi, verificato dal blocco (c) di `--suspend-test`), ma non identico
+   alla run originale. Lo stream di gioco vero e proprio (`game->rng`) è invece salvato e
+   ripristinato esattamente, per costruzione: `RunSuspendResume` lo rimette al valore della
+   sospensione **dopo** aver ricostruito l'inventario e immediatamente prima di
+   ri-materializzare la stanza.
+   **Evidenza**: `src/script/script_items.c`, riga `unsigned int seed = GameRngNext(&game->rng);`
+   in `ScriptItemsOnAcquire`; `src/game/run_suspend.c`, passi (4) e (9) di `RunSuspendResume`.
+
+Nota su un quarto punto, **non** un limite ma una conseguenza corretta da non scambiare per
+un difetto: la ripresa rilegge il manifest di `generated/` con lo stesso seed di run
+(`RunContentLoad` dentro `GameResetRunWithSeed`), esattamente come una run normale. Se nel
+frattempo una generazione diversa ha sovrascritto `generated/current_run.txt`, la run
+ripresa userà quel contenuto — è la stessa regola di riproducibilità già descritta in
+`docs/design/systems/run-manifest-and-reproducibility.md`, non una perdita introdotta dalla
+sospensione. In pratica il caso è raro: "Nuova run" con una sospensione attiva chiede
+conferma e cancella la sospensione prima di generare (`ui/main-menu.md`).

@@ -7,11 +7,11 @@ authority: canonical
 owner: design
 summary: "Fonte unica dei nomi di stato e delle transizioni principali del gioco."
 last_reviewed: 2026-07-31
-last_verified_commit: 50911c9
-topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, DEC-082, DEC-089, DEC-090, DEC-137, DEC-139, DEC-156, WP19, WP22]
+last_verified_commit: a5cc3a3
+topics: [stati-di-gioco, flusso, transizioni, pausa, exitconfirm, overlay, build-screen, sospensione-run, DEC-050, DEC-082, DEC-089, DEC-090, DEC-137, DEC-139, DEC-156, WP17, WP19, WP22]
 related: []
 supersedes: []
-source_files: [src/app/app.c, src/core/game_types.h]
+source_files: [src/app/app.c, src/core/game_types.h, src/game/run_suspend.c]
 ---
 
 # Game States and Flow
@@ -75,6 +75,7 @@ flowchart TD
     FloorZero --> Gameplay
     Gameplay --> PauseMenu
     PauseMenu --> Gameplay
+    PauseMenu -->|Sospendi e esci: la run resta ripristinabile| MainMenu
     PauseMenu --> Options
     Options --> PauseMenu
     Gameplay --> BuildScreen
@@ -97,15 +98,15 @@ flowchart TD
 
 | Stato | Condizione di ingresso | Input consentiti principali |
 |---|---|---|
-| `MainMenu` | Avvio del gioco, ritorno da `RunResults`, `ExitConfirm` annullato (chiusura del gioco) o confermato per l'abbandono della preparazione nel Piano 0 (DEC-074) | Naviga, conferma, esci |
+| `MainMenu` | Avvio del gioco, ritorno da `RunResults`, `ExitConfirm` annullato (chiusura del gioco) o confermato per l'abbandono della preparazione nel Piano 0 (DEC-074), sospensione della run da `PauseMenu` (DEC-050) | Naviga, conferma, esci |
 | `RunSetup` | Selezione "Nuova run" da `MainMenu` | Conferma, indietro |
 | `FloorZero` | Run avviata, ritorno da `RunResults` per preparare la prossima run, o ripresa di una run sospesa nel Piano 0 | Movimento libero, scelta tema, scelta personaggio, ingresso arena, uscita verso piano 1 quando pronto, abbandona (con `ExitConfirm`) |
 | `Gameplay` | Uscita da `FloorZero` verso il piano 1, ripresa da `PauseMenu`/`BuildScreen`, o "Continua" da `MainMenu` su una run sospesa | Movimento, combattimento, apertura pausa, apertura build |
-| `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, abbandona (con `ExitConfirm`) |
+| `PauseMenu` | Comando di pausa durante `Gameplay` | Riprendi, apri Options, sospendi ed esci (DEC-050), abbandona (con `ExitConfirm`) |
 | `Options` | Da `MainMenu` o da `PauseMenu` | Modifica opzioni, torna indietro |
 | `BuildScreen` | TAB direttamente da `Gameplay` (arco diretto, DEC-139), oppure «Build e sinergie» da `PauseMenu` | Consulta oggetti, sinergie, fusioni disponibili, torna allo stato da cui è stata aperta |
 | `RunResults` | Fine run (vittoria ufficiale al boss del piano 5, sconfitta, o abbandono confermato di una run in corso da `PauseMenu`/`ExitConfirm`, DEC-089) | Torna al Piano 0, torna al menu principale |
-| `ExitConfirm` | Azione distruttiva richiesta (abbandono run, abbandono della preparazione nel Piano 0, uscita dal gioco) | Conferma, annulla |
+| `ExitConfirm` | Azione distruttiva richiesta (abbandono run, abbandono della preparazione nel Piano 0, rigenerazione della run, rinuncia a una run sospesa scegliendo "Nuova run", uscita dal gioco) | Conferma, annulla |
 
 ## Risultato e feedback per transizione
 
@@ -119,6 +120,18 @@ flowchart TD
 - `MainMenu → Gameplay` ("Continua"): la ripresa di una run sospesa rientra direttamente
   nello stato salvato — `Gameplay` nel caso tipico, `FloorZero` se la sospensione è
   avvenuta nel Piano 0.
+- `PauseMenu → MainMenu` ("Sospendi e esci", DEC-050): l'unica uscita **non distruttiva**
+  di `PauseMenu`, e per questo l'unica che **non passa da `ExitConfirm`** — la run non si
+  chiude, si mette da parte: nessun `RunResults`, nessun punto sblocco conteggiato. Al
+  ritorno in `MainMenu` la voce "Continua" esiste e ha il focus. Dalla sola preparazione
+  nel Piano 0 la voce non compare (gap di implementazione esplicito WP17, vedi
+  [Pause Menu](ui/pause-menu.md#sospendere-la-run-dec-050)).
+- `MainMenu → ExitConfirm → RunSetup` ("Nuova run" con una run sospesa): il quinto
+  contesto di `ExitConfirm` (DEC-050 + [Main Menu](ui/main-menu.md)). Nasce da `MainMenu`
+  come la chiusura del gioco ma **non è** la chiusura del gioco: mantiene quindi la
+  presentazione a **schermo pieno**, non il dialogo modale leggero che DEC-090 riserva al
+  solo "Esci". Confermato, cancella la sospensione e apre `RunSetup`; annullato, non tocca
+  nulla.
 - `FloorZero → ExitConfirm`: ESC nel Piano 0 apre la conferma di abbandono della
   preparazione (tema e personaggio scelti, generazione in corso). Confermato, l'abbandono
   interrompe la preparazione e riporta a `MainMenu`; annullato, il giocatore resta nel Piano
@@ -267,6 +280,15 @@ interni al `FloorZero`/`Gameplay` e si risolvono con il fallback invisibile (ved
   contesti a schermo pieno conservano il riquadro delle altre schermate, mentre solo la
   chiusura del gioco usa il riquadro più stretto che lascia il menu leggibile ai lati
   (DEC-090).
+- **Dato** che il giocatore è in `Gameplay` in una run vera e apre `PauseMenu`, **quando**
+  sceglie "Sospendi e esci", **allora** torna a `MainMenu` senza passare da `ExitConfirm` e
+  senza che la run si chiuda, e lì trova la voce "Continua" con il focus iniziale; **quando**
+  poi la sceglie, **allora** rientra in `Gameplay` nella stanza salvata, che riparte
+  dall'ingresso (DEC-050).
+- **Dato** che il giocatore è in `MainMenu` con una run sospesa, **quando** sceglie "Nuova
+  run", **allora** vede una conferma di abbandono a schermo pieno — non il dialogo modale
+  leggero di DEC-090, riservato alla sola chiusura del gioco — e solo confermando la
+  sospensione viene cancellata e si apre `RunSetup`.
 - **Dato** che il giocatore è in `Gameplay`, **quando** preme TAB, **allora** entra
   direttamente in `BuildScreen` senza passare da `PauseMenu`, e uscendo torna a `Gameplay`
   (DEC-139); la via da `PauseMenu` → «Build e sinergie» resta comunque disponibile.

@@ -1882,6 +1882,22 @@ typedef struct Game {
        GameUpdate), cosi' la stessa run riparte con la stessa sequenza. */
     unsigned int runSeed;
     unsigned int rng;
+    /* WP17 (DEC-050, sospensione della run): il valore di 'rng' catturato
+       all'INGRESSO NEL PIANO -- scritto da WorldStartFloor PRIMA di
+       WorldGenerateFloorMap, cioe' prima che qualunque estrazione della mappa
+       lo faccia avanzare. E' l'unico modo per rigenerare la STESSA mappa del
+       piano corrente alla ripresa di una run sospesa: la mappa non viene
+       serializzata (si ricostruisce dal seed), ma WorldGenerateFloorMap pesca
+       da 'rng', che il combattimento ha fatto avanzare da allora -- senza
+       questo valore il piano ripreso sarebbe un piano diverso. Vedi
+       RunSuspendResume in src/game/run_suspend.c.
+       Zero-default: nessun piano ancora iniziato. Il valore vero non e' mai
+       zero (GameRngNext non produce mai zero, vedi src/core/game_math.c),
+       quindi uno zero qui e' anche il segnale che un file di sospensione e'
+       stato troncato o forgiato. Azzerato dal memset di GameResetRunWithSeed
+       come ogni altro campo di stato della run, e riscritto da OGNI chiamata a
+       WorldStartFloor (piano 1 incluso). */
+    unsigned int floorEntryRng;
     /* WP1 (DEC-051): distingue una run VERA (piani 1-5, dopo l'attraversamento
        del varco del Piano 0) dalla sola permanenza nel crogiolo -- impostato a
        vero da GameResetRunWithSeed (l'unico punto che fa poi partire
@@ -2146,6 +2162,35 @@ typedef struct AppUi {
        ogni altro uso di ExitConfirm (uscita dal gioco, abbandono da
        FloorZero/PauseMenu) resta esattamente come prima di questo lavoro. */
     bool exitRerollsRun;
+    /* WP17 (DEC-050, ui/main-menu.md riga "Nuova run"): vero mentre
+       ExitConfirm sta chiedendo conferma di BUTTARE VIA una run sospesa --
+       l'unico contesto che nasce da "Nuova run" quando una sospensione valida
+       esiste. Mutuamente esclusivo con exitAbandonsRun/exitRerollsRun come
+       quelli lo sono fra loro: ogni punto che ne accende uno spegne
+       esplicitamente gli altri due. Zero-default (falso): senza sospensione
+       "Nuova run" apre RunSetup direttamente, comportamento invariato.
+       Serve anche a DEC-090: questo contesto nasce da MainMenu come la
+       chiusura del gioco, ma NON e' la chiusura del gioco, quindi
+       ExitConfirmIsLightModalFor lo riceve come secondo parametro per non
+       trattarlo come il dialogo modale leggero (che resta solo "MainMenu ->
+       Esci"). */
+    bool exitDropsSuspendedRun;
+    /* WP17 (DEC-050): guardia test-safe della SOSPENSIONE, gemella di
+       'catalogWritesEnabled' piu' sotto e per lo stesso identico motivo --
+       ogni test C che chiama UpdateApp costruisce la propria "AppUi ui = {0}",
+       quindi per tutta quella suite la sospensione resta spenta per
+       costruzione: nessun file letto o scritto, la voce "Continua" di
+       MainMenu e la voce "Sospendi e esci" di PauseMenu non esistono, e gli
+       indici delle due schermate restano quelli di prima di WP17. I due soli
+       punti che l'accendono: AppRun (il gioco vero) e --suspend-test.
+       'suspendAvailable' e' la risposta di RunSuspendIsAvailable
+       (src/game/run_suspend.h) all'ultimo momento in cui la sospensione puo'
+       essere cambiata -- MAI riletta per-frame (il file sta su disco, come
+       catalog/): la aggiorna solo chi la scrive, la consuma o la cancella.
+       Zero-default falso = nessuna sospensione, cioe' nessuna voce
+       "Continua": il caso piu' innocuo. */
+    bool suspendEnabled;
+    bool suspendAvailable;
     /* WP16 (DEC-042): vero mentre il pannello "Prove" e' aperto DENTRO
        PauseMenu (nessun nuovo AppMode, stessa scelta architetturale del
        Catalogo dentro APP_MAIN_MENU sopra catalogOpen/APP_MAIN_MENU) --

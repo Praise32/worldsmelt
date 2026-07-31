@@ -25,6 +25,11 @@ logs/
 # stessa regola di generated/ sopra.
 catalog/
 
+# Sospensione della run (WP17, DEC-050): il salvataggio della run in corso
+# scritto da src/game/run_suspend.c -- dati del giocatore, un file solo
+# (suspend/current.txt), mai versionato come catalog/ sopra.
+suspend/
+
 # RunBundle v1 (scripts/bundle-export.sh/-import.sh): tar.gz esportati e la
 # cartella di lavoro temporanea usata durante l'import (.import-tmp.*).
 bundles/

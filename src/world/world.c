@@ -2237,6 +2237,13 @@ void WorldStartFloor(Game *game, int floor)
        WorldGenerateFloorMap e' equivalente; qui e' piu' vicino alla sua
        definizione. */
     game->floorEntryElapsedSeconds = game->runElapsedSeconds;
+    /* WP17 (DEC-050): lo stato dell'RNG di gioco PRIMA che WorldGenerateFloorMap
+       qui sotto cominci a estrarre -- l'unico valore che permette a una ripresa
+       da sospensione di rigenerare ESATTAMENTE questa mappa (vedi il commento
+       su Game.floorEntryRng in core/game_types.h e RunSuspendResume in
+       src/game/run_suspend.c). Catturato qui e non altrove: da questa riga in
+       giu' ogni chiamata a GameRngRange lo fa avanzare. */
+    game->floorEntryRng = game->rng;
     /* Step B2 (generazione pigra dei piani): con la generazione pigra il gioco
        parte quando e' pronto il solo piano 1, e un secondo processo melting-gen
        scrive gli script Lua dei piani 2-5 in sottofondo mentre si gioca,
