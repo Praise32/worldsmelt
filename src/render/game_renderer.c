@@ -1835,8 +1835,19 @@ static void DepthSort(DepthEntry *list, int count)
    scala di grigi; una crepa a X per il distruttibile). 'r' e' il rettangolo
    VISIVO gia' trasformato dal chiamante (nel fallback senza tileset la
    faccia superiore e' sollevata di LIFT, nel tileset no): questa funzione
-   non sa nulla di quella differenza, disegna solo dentro 'r'. */
-static void DrawObstacleFamilyOverlay(ObstacleFamily family, Rectangle r)
+   non sa nulla di quella differenza, disegna solo dentro 'r'.
+   WP-SPIKE (DEC-198): 'hazardExtended' arriva GIA' RISOLTO dal chiamante
+   tramite WorldHazardSpikesExtendedAt (src/world/world.c) -- questa funzione
+   non ricalcola mai la fase, disegna solo la veste che quella fase implica.
+   Ignorato per OBSTACLE_DESTRUCTIBLE (il default del parametro per quella
+   famiglia e' 'true', vedi i chiamanti). Fase ESTESA: le bande diagonali di
+   sempre (il pericolo sta colpendo ORA). Fase RETRATTA: telegraph DEC-058
+   "la piastra resta visibile e leggibile come pericolo" -- niente bande
+   piene (prometterebbero un contatto che oggi non c'e'), solo una fila di
+   punte accennate e piatte alla base del riquadro, stesso spaziamento delle
+   bande cosi' la grammatica visiva resta la stessa fra le due fasi, cambia
+   solo l'intensita'. */
+static void DrawObstacleFamilyOverlay(ObstacleFamily family, Rectangle r, bool hazardExtended)
 {
     if (family == OBSTACLE_DESTRUCTIBLE)
     {
@@ -1848,16 +1859,28 @@ static void DrawObstacleFamilyOverlay(ObstacleFamily family, Rectangle r)
     else if (family == OBSTACLE_HAZARD)
     {
         Color hazard = (Color){ 224, 168, 42, 255 };
-        for (float sx = r.x - r.height; sx < r.x + r.width; sx += 14.0f)
+        if (hazardExtended)
         {
-            Vector2 p1 = { sx, r.y + r.height };
-            Vector2 p2 = { sx + r.height, r.y };
-            /* Clamp orizzontale, stesso spirito di DrawFloorZeroExitGate: le
-               strisce nascono/muoiono fuori da 'r' per coprirlo fino ai
-               bordi, ma disegnate intere sforerebbero fuori dal blocco. */
-            if (p1.x < r.x) p1.x = r.x;
-            if (p2.x > r.x + r.width) p2.x = r.x + r.width;
-            DrawLineEx(p1, p2, 3.0f, hazard);
+            for (float sx = r.x - r.height; sx < r.x + r.width; sx += 14.0f)
+            {
+                Vector2 p1 = { sx, r.y + r.height };
+                Vector2 p2 = { sx + r.height, r.y };
+                /* Clamp orizzontale, stesso spirito di DrawFloorZeroExitGate: le
+                   strisce nascono/muoiono fuori da 'r' per coprirlo fino ai
+                   bordi, ma disegnate intere sforerebbero fuori dal blocco. */
+                if (p1.x < r.x) p1.x = r.x;
+                if (p2.x > r.x + r.width) p2.x = r.x + r.width;
+                DrawLineEx(p1, p2, 3.0f, hazard);
+            }
+        }
+        else
+        {
+            for (float sx = r.x; sx < r.x + r.width; sx += 14.0f)
+            {
+                float tipX = sx + 5.0f;
+                if (tipX > r.x + r.width) tipX = r.x + r.width;
+                DrawLineEx((Vector2){ sx, r.y + r.height }, (Vector2){ tipX, r.y + r.height - 4.0f }, 2.0f, hazard);
+            }
         }
         DrawRectangleLinesEx(r, 2.0f, hazard);
     }
@@ -1908,29 +1931,23 @@ static void DrawArtSheetFrameTiled(const ArtSheet *sheet, int row, int frame, Re
    area del blocco (DrawTiledArea/le facce 2.5D), non solo un dettaglio sopra.
    false quando l'asset manca (checkout senza assets/art/, o rigenerazione
    parziale del pacchetto): chi chiama ricade sul tile/blocco 2.5D di sempre,
-   MAI un buco -- stesso contratto di ogni altro propKey in questo file. */
-static bool DrawObstacleFamilyProp(ObstacleFamily family, Rectangle r)
+   MAI un buco -- stesso contratto di ogni altro propKey in questo file.
+   WP-SPIKE (DEC-198): 'hazardExtended' arriva GIA' RISOLTO dal chiamante
+   tramite WorldHazardSpikesExtendedAt -- la STESSA funzione che
+   CombatResolveHazards (src/gameplay/combat.c) usa per decidere il danno.
+   Sceglie solo il TAG dell'asset (props/spuntoni ha gia' "estesi", 2
+   fotogrammi, ed "retratti", 1 fotogramma, consegnati): quando la fase e'
+   retratta si vede "retratti" ed e' garantito -- per costruzione, non per
+   promessa separata -- che il contatto in quello stesso istante non
+   danneggia. Ignorato per le altre famiglie. */
+static bool DrawObstacleFamilyProp(ObstacleFamily family, Rectangle r, bool hazardExtended)
 {
     const char *key = NULL;
     const char *animName = "idle";
     if (family == OBSTACLE_HAZARD)
     {
         key = "props/spuntoni";
-        /* Default proposto dall'implementazione (WP-INT, stile DEC-019):
-           SEMPRE "estesi", mai "retratti" -- il danno di contatto e' COSTANTE
-           per tutta la vita del pericolo (CombatResolveHazards non ha alcun
-           gate temporale, "nessun windup a tempo", secrets-and-obstacles.md),
-           quindi mostrare "retratti" anche solo a intermittenza avrebbe
-           promesso una finestra di sicurezza ("retratti = innocuo") che il
-           motore non offre mai: un'incoerenza fra quello che si vede e quello
-           che si subisce, la stessa cosa che il telegraph a bande sotto esiste
-           per evitare (DEC-058). Il tag "retratti" del prop resta consegnato
-           ma INUTILIZZATO in questo WP: serve a una futura variante di
-           pericolo davvero temporizzata (trappola con finestra di sicurezza
-           reale), che oggi non esiste nel motore. Registrato in
-           docs/design/systems/secrets-and-obstacles.md, "Default proposti
-           dall'implementazione". */
-        animName = "estesi";
+        animName = hazardExtended ? "estesi" : "retratti";
     }
     else if (family == OBSTACLE_DESTRUCTIBLE)
     {
@@ -1993,8 +2010,14 @@ static void DrawObstacles(Game *game)
                pavimento, e nessun tile puo' disegnarla (non sa cosa ha sotto). */
             DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
             Rectangle rr = { o->x, o->y, o->w, o->h };
-            if (!DrawObstacleFamilyProp(o->family, rr)) DrawTiledArea(game, tiles, rr, role, NULL, NULL, WHITE);
-            DrawObstacleFamilyOverlay(o->family, rr);
+            /* WP-SPIKE (DEC-198): STESSO predicato di CombatResolveHazards,
+               risolto una volta per ostacolo e passato a entrambe le funzioni
+               di disegno sotto -- mai due calcoli paralleli. Ignorato dalle
+               altre famiglie (il default 'true' e' innocuo per loro). */
+            bool hazardExtended = (o->family != OBSTACLE_HAZARD) ||
+                WorldHazardSpikesExtendedAt(game->obstacleCellX[i], game->obstacleCellY[i], game->obstacleLocalIndex[i], game->runElapsedSeconds);
+            if (!DrawObstacleFamilyProp(o->family, rr, hazardExtended)) DrawTiledArea(game, tiles, rr, role, NULL, NULL, WHITE);
+            DrawObstacleFamilyOverlay(o->family, rr, hazardExtended);
         }
         return;
     }
@@ -2013,7 +2036,11 @@ static void DrawObstacles(Game *game)
         /* Ombra a terra alla base del blocco. */
         DrawEllipse((int)(o->x + o->w*0.5f), (int)(o->y + o->h + 4.0f), o->w*0.55f, o->h*0.22f, (Color){ 0, 0, 0, 90 });
         Rectangle topRect = { o->x, o->y - LIFT, o->w, o->h };
-        if (!DrawObstacleFamilyProp(o->family, topRect))
+        /* WP-SPIKE (DEC-198): stesso predicato del ramo col tileset sopra e di
+           CombatResolveHazards -- vedi il commento li'. */
+        bool hazardExtended = (o->family != OBSTACLE_HAZARD) ||
+            WorldHazardSpikesExtendedAt(game->obstacleCellX[i], game->obstacleCellY[i], game->obstacleLocalIndex[i], game->runElapsedSeconds);
+        if (!DrawObstacleFamilyProp(o->family, topRect, hazardExtended))
         {
             /* Faccia frontale (lo spessore): dalla base del blocco giu' di LIFT. */
             DrawRectangle((int)o->x, (int)(o->y + o->h - LIFT), (int)o->w, (int)LIFT, side);
@@ -2021,7 +2048,7 @@ static void DrawObstacles(Game *game)
             DrawRectangle((int)o->x, (int)(o->y - LIFT), (int)o->w, (int)o->h, top);
             DrawRectangleLinesEx(topRect, 2.0f, edge);
         }
-        DrawObstacleFamilyOverlay(o->family, topRect);
+        DrawObstacleFamilyOverlay(o->family, topRect, hazardExtended);
     }
 }
 

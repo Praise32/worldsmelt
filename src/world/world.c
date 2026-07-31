@@ -1429,6 +1429,41 @@ static void WorldGenerateFloorMap(Game *game)
 #define OBSTACLE_HAZARD_CHANCE_PER_FLOOR 0.05f
 #define OBSTACLE_HAZARD_CHANCE_MAX 0.40f
 
+/* WP-SPIKE (DEC-198, seconda revisione): mescolamento a interi puro (variante
+   FNV-1a sui byte di cellX/cellY/localIndex, stesso stile di KindHash in
+   tools/melting-gen/gen_inspire.c e FusionHashText in src/gameplay/fusion.c)
+   -- serve SOLO a decorrelare la fase del ciclo spuntoni fra celle diverse
+   della griglia del piano E fra spuntoni diversi della STESSA cella (fino a
+   ROOM_LAYOUT_MAX_PER_CELL), mai a estrarre nulla: non e' e non consuma
+   alcuno stream RNG di gioco. localIndex e' Game.obstacleLocalIndex, gia'
+   assegnato da WorldBuildObstacles a ogni ostacolo (l'indice dentro la cella
+   che RoomLayoutBuild produce), stabile fra visite quanto cellX/cellY. */
+static unsigned int WorldHazardCellHash(int cellX, int cellY, int localIndex)
+{
+    unsigned int h = 2166136261u;
+    unsigned int ux = (unsigned int)cellX;
+    unsigned int uy = (unsigned int)cellY;
+    unsigned int ul = (unsigned int)localIndex;
+    for (int i = 0; i < 4; i++) { h ^= (ux >> (i*8)) & 0xFFu; h *= 16777619u; }
+    for (int i = 0; i < 4; i++) { h ^= (uy >> (i*8)) & 0xFFu; h *= 16777619u; }
+    for (int i = 0; i < 4; i++) { h ^= (ul >> (i*8)) & 0xFFu; h *= 16777619u; }
+    return h;
+}
+
+bool WorldHazardSpikesExtendedAt(int cellX, int cellY, int localIndex, float timeSeconds)
+{
+    /* Difensivo: un tempo negativo (non dovrebbe mai capitare,
+       Game.runElapsedSeconds parte da zero e accumula solo in avanti) non
+       deve produrre un fmodf negativo -- si tratta come zero, l'istante piu'
+       innocuo (disciplina zero-default). */
+    if (timeSeconds < 0.0f) timeSeconds = 0.0f;
+    unsigned int h = WorldHazardCellHash(cellX, cellY, localIndex);
+    float phase = (float)(h % 100000u) / 100000.0f * WORLD_HAZARD_PERIOD_SECONDS;
+    float t = fmodf(timeSeconds + phase, WORLD_HAZARD_PERIOD_SECONDS);
+    if (t < 0.0f) t += WORLD_HAZARD_PERIOD_SECONDS;
+    return t < WORLD_HAZARD_EXTENDED_SECONDS;
+}
+
 static void WorldBuildObstacles(Game *game, const RoomState *room)
 {
     game->obstacleCount = 0;

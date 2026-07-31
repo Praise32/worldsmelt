@@ -717,7 +717,20 @@ static int CombatSlotToSwapFor(const Player *p, ItemKind kind)
    giocatore o nemico. Statica: i test passano dal frame vero
    (CombatUpdatePlayer, come qualunque altro chiamante) invece di isolare
    questa funzione, cosi' la copertura segue davvero cio' che succede in
-   gioco (revisione WP3). */
+   gioco (revisione WP3).
+   WP-SPIKE (DEC-198): il danno di contatto si applica SOLO durante la fase
+   ESTESA del ciclo -- WorldHazardSpikesExtendedAt (src/world/world.c) e' l'
+   UNICO predicato che decide la fase, la STESSA funzione che il renderer usa
+   per scegliere il tag "estesi"/"retratti" (DrawObstacleFamilyProp,
+   src/render/game_renderer.c): mai un secondo calcolo qui, cosi' "quando si
+   vede retratti il contatto non danneggia" e' garantito per costruzione, non
+   per coincidenza fra due implementazioni. cellX/cellY vengono da
+   Game.obstacleCellX/obstacleCellY (la cella ASSOLUTA della griglia del
+   piano che WorldBuildObstacles gia' assegna a questo slot), localIndex da
+   Game.obstacleLocalIndex (l'indice dentro la cella, decorrela la fase anche
+   fra spuntoni della stessa cella), il tempo da Game.runElapsedSeconds (il
+   timer di run esistente, mai time() ne' un contatore separato: si ferma in
+   pausa insieme al resto della simulazione). */
 static void CombatResolveHazards(Game *game)
 {
     Player *p = &game->player;
@@ -725,6 +738,7 @@ static void CombatResolveHazards(Game *game)
     {
         Obstacle *o = &game->obstacles[i];
         if (o->family != OBSTACLE_HAZARD) continue;
+        if (!WorldHazardSpikesExtendedAt(game->obstacleCellX[i], game->obstacleCellY[i], game->obstacleLocalIndex[i], game->runElapsedSeconds)) continue;
         if (CombatCircleTouchesObstacle(p->pos, p->radius, o))
         {
             CombatDamagePlayer(game, 1, "un pericolo ambientale");

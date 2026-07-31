@@ -191,34 +191,71 @@ playtest, vedi `governance/open-questions.md` voce 29.
   **ignorano** del tutto — l'interpretazione scelta fra le due ammesse più sopra
   ("ignorano o evitano"): il motore non ha ancora un'euristica di pathing per "evitare" un
   ostacolo.
-- **Telegraph dei pericoli:** nessun windup a tempo — il pericolo è disegnato con un segnale
-  distinto (forma a bande, leggibile senza colore, DEC-058) fin dal primo frame in cui esiste
-  nella stanza, quindi sempre prima di qualunque contatto possibile.
-- **Veste visiva delle due famiglie non-solide (WP-INT, 30/07; comportamento VOLUTO
-  superato da DEC-198, 31/07):** con `props/spuntoni` e `props/cassa` agganciati al motore,
-  il pericolo passivo si disegna oggi **SEMPRE** col tag "estesi", mai "retratti" — il danno
-  di contatto è costante per tutta la vita del pericolo (`CombatResolveHazards` non ha alcun
-  gate temporale), quindi mostrare "retratti" anche solo a intermittenza avrebbe promesso una
-  finestra di sicurezza che il motore non offre mai (una prima versione alternava i due tag
-  nel tempo ed è stata bocciata proprio per questo). **Il proprietario ha chiesto la variante
-  davvero temporizzata SUBITO (DEC-198):** cicli retratti/estesi in cui il danno di contatto
-  si applica SOLO durante la fase estesa, con animazione e danno sincronizzati — questo
-  SUPERA il default "sempre estesi" qui sopra, che resta corretto solo come descrizione dello
-  stato ATTUALE del motore (nessun gate temporale ancora implementato), non più come
-  comportamento voluto. **Gap di implementazione dichiarato, in coda**: il gate temporale su
-  `CombatResolveHazards` e la sincronizzazione animazione/danno non sono ancora stati fatti.
-  Il vero telegraph resta comunque SEMPRE la sovrapposizione a bande sopra, disegnata
-  incondizionatamente indipendentemente da questo lavoro. Il distruttibile usa `props/cassa`
-  (non `props/vaso`, anch'esso consegnato, non toccato da DEC-198): un contenitore di legno
-  si legge come "distruttibile" in ogni ambientazione del gioco senza dipendere dal tema. I
-  due prop RIEMPIONO il rettangolo dell'ostacolo ripetendo il fotogramma (stessa disciplina di
+- **Telegraph dei pericoli:** il pericolo è disegnato con un segnale distinto (forma a bande,
+  leggibile senza colore, DEC-058) fin dal primo frame in cui esiste nella stanza, quindi
+  sempre prima di qualunque contatto possibile — vero in ENTRAMBE le fasi del ciclo
+  introdotto da DEC-198 (vedi il punto "Ciclo temporizzato degli spuntoni" più sotto): la
+  fase retratta non è "nessun segnale", è un segnale più debole (punte accennate) invece di
+  quello pieno (bande) della fase estesa. *Storico: fino al 30/07 (WP3/WP-INT) questo punto
+  diceva "nessun windup a tempo" perché il danno di contatto era costante — non più accurato
+  da quando DEC-198 (31/07, WP-SPIKE) rende il pericolo davvero temporizzato: il ciclo STESSO
+  è il windup, visibile e periodico, non nascosto.*
+- **Veste visiva delle due famiglie non-solide (WP-INT, 30/07; ciclo temporizzato DEC-198,
+  WP-SPIKE, 31/07):** con `props/spuntoni` e `props/cassa` agganciati al motore, il pericolo
+  passivo si disegna col tag "estesi" o "retratti" a seconda della **fase del ciclo** (vedi il
+  punto successivo), non più sempre "estesi" come nella prima versione di WP-INT (quel
+  default è **superato**: descriveva solo lo stato del motore PRIMA che il gate temporale
+  esistesse, mai un comportamento voluto). Il distruttibile usa `props/cassa` (non
+  `props/vaso`, anch'esso consegnato, non toccato da DEC-198): un contenitore di legno si
+  legge come "distruttibile" in ogni ambientazione del gioco senza dipendere dal tema. I due
+  prop RIEMPIONO il rettangolo dell'ostacolo ripetendo il fotogramma (stessa disciplina di
   `DrawTiledArea`, che è cosa sostituiscono), non si ancorano più come uno sprite isolato: i
   blocchi di `RoomLayoutBuild` sono spesso molto più larghi che alti (forme CORRIDOR/ARENA),
   e un singolo sprite scalato dalla sola larghezza sforerebbe il rettangolo sull'asse
   verticale. Degrado invariato quando l'asset manca: si ricade sul tile del piano o sul
-  blocco 2.5D di sempre, con la stessa sovrapposizione a bande/crepa sopra.
+  blocco 2.5D di sempre, con la stessa sovrapposizione a bande (fase estesa) o punte accennate
+  (fase retratta) sopra, vedi il punto successivo.
   (`DrawObstacleFamilyProp`, `src/render/game_renderer.c`; `governance/open-questions.md`
   punto 35, chiuso.)
+- **Ciclo temporizzato degli spuntoni (DEC-198, WP-SPIKE, 31/07 — IMPLEMENTATO, non più un
+  gap; seconda revisione lo stesso giorno, vedi sotto):** gli spuntoni (`OBSTACLE_HAZARD`)
+  alternano una fase ESTESA (danneggia al contatto) e una fase RETRATTA (nessun danno, mai),
+  con **animazione e danno sincronizzati per costruzione**: un unico predicato puro,
+  `WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, timeSeconds)` (`src/world/world.h`/
+  `.c`), decide la fase ed è l'UNICA fonte usata SIA da `CombatResolveHazards` (il danno) SIA
+  dal renderer (`DrawObstacleFamilyProp` per il tag "estesi"/"retratti",
+  `DrawObstacleFamilyOverlay` per il ripiego geometrico quando l'asset manca) — mai due
+  calcoli paralleli, così "quando il tag mostra retratti il contatto non danneggia MAI" è
+  garantito, non promesso. **Periodo e fase, default proposti (non canone, vedi
+  `governance/open-questions.md` voce 29)**: periodo fisso **2.0 s estesi + 1.2 s retratti**
+  (3.2 s totali); la fase (l'offset dentro il periodo) è derivata da un hash puro della
+  **cella ASSOLUTA della griglia del piano** che possiede il pericolo
+  (`Game.obstacleCellX`/`obstacleCellY`, le stesse coordinate che `WorldBuildObstacles` già
+  assegna a ogni ostacolo) **E dall'indice LOCALE dentro la cella**
+  (`Game.obstacleLocalIndex`, fino a `ROOM_LAYOUT_MAX_PER_CELL - 1`, già assegnato allo stesso
+  ostacolo) — nessuno stream RNG di gioco, nessun `time()`: celle diverse hanno fasi diverse
+  E spuntoni diversi della STESSA cella hanno fasi diverse a loro volta, quindi gli spuntoni
+  del piano non pulsano mai tutti insieme (nemmeno nella maggioranza delle stanze, che sono
+  1x1 e quindi hanno tutti i loro pericoli nella stessa cella — la revisione del 31/07 corregge
+  proprio questo caso, il più frequente), la stessa terna cella/indice locale allo stesso
+  tempo produce sempre la stessa fase (determinismo). *Storico: la prima versione di questo
+  punto (31/07, mattina) faceva dipendere la fase dalla sola cella — bocciata perché oltre
+  metà delle stanze è 1x1 (`WORLD_SIZE_CUM_1X1`, `src/world/world.c`) e quindi il difetto che
+  DEC-198 chiede di evitare si ripresentava nel caso più comune; corretto lo stesso giorno.*
+  Il tempo è `Game.runElapsedSeconds`, il timer di run già esistente
+  (WP1, DEC-051): accumulato per dt SOLO durante `PHASE_PLAY` e `inRealRun`, mai `time()` né
+  un contatore indipendente — il ciclo si ferma in pausa insieme al resto della simulazione,
+  come qualunque altro stato di gameplay. **Telegraph in fase retratta (DEC-058)**: la
+  piastra resta visibile e leggibile come pericolo — l'asset già lo garantisce (il tag
+  "retratti" mostra punte accennate); il ripiego geometrico (`DrawObstacleFamilyOverlay`)
+  disegna una variante piatta (punte corte alla base, non le bande piene della fase estesa)
+  invece di sparire, così "nessun indizio" non si confonde mai con "nessun pericolo qui".
+  **Nemici**: continuano a ignorare i pericoli in ENTRAMBE le fasi (default WP3 invariato,
+  `CombatResolveObstacles` salta i pericoli per qualunque cerchio, a prescindere dalla fase).
+  (`WORLD_HAZARD_EXTENDED_SECONDS`/`WORLD_HAZARD_RETRACTED_SECONDS`/`WORLD_HAZARD_PERIOD_SECONDS`,
+  `WorldHazardSpikesExtendedAt`, `src/world/world.h`/`.c`; `CombatResolveHazards`,
+  `src/gameplay/combat.c`; test dedicato in `GameObstaclesTest`, blocco (e),
+  `src/tests/game_tests.c`.)
 - **Persistenza dei distruttibili (infrastruttura, non ancora osservabile in gioco):** il
   motore registra per cella/piano quali distruttibili sono stati spaccati e non li
   ricostruisce a un ingresso successivo nella stessa cella; si azzera al piano successivo (i

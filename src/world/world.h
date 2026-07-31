@@ -234,4 +234,44 @@ Rectangle WorldSecretWallRect(const Game *game, int cx, int cy, int dir);
    RoomState.secretOpened e' scritto, definitivo per tutto il piano). */
 bool WorldTryBreachSecretWall(Game *game, Vector2 pos, float radius);
 
+/* WP-SPIKE (DEC-198, secrets-and-obstacles.md "Default proposti
+   dall'implementazione"): gli spuntoni (OBSTACLE_HAZARD) diventano
+   TEMPORIZZATI -- cicli retratti/estesi, danno di contatto SOLO durante la
+   fase estesa. Periodo fisso, default proposto non canone (registrato in
+   governance/open-questions.md): 2.0s estesi + 1.2s retratti = 3.2s di
+   periodo. La FASE (l'offset dentro il periodo) e' derivata dalla cella
+   ASSOLUTA della griglia del piano che possiede il pericolo
+   (Game.obstacleCellX/obstacleCellY, le stesse coordinate che WorldBuildObstacles
+   gia' assegna a ogni ostacolo) E dall'indice LOCALE dentro la cella
+   (Game.obstacleLocalIndex, fino a ROOM_LAYOUT_MAX_PER_CELL-1, gia' assegnato
+   allo stesso ostacolo) tramite un hash a interi puro (nessuno stream RNG,
+   nessun time()): celle diverse hanno fasi diverse, e SPUNTONI DIVERSI DENTRO
+   LA STESSA CELLA hanno fasi diverse a loro volta (seconda revisione WP-SPIKE:
+   la prima versione condivideva la fase per cella, il caso piu' frequente
+   visto che oltre meta' delle stanze e' 1x1 -- corretto perche' "gli spuntoni
+   non pulsano tutti insieme" valesse anche li'), cosi' gli spuntoni del piano
+   non pulsano tutti insieme, e la stessa terna cella/indice locale allo
+   stesso tempo di gioco produce sempre la stessa fase (determinismo dal seme
+   di run tramite il piano, non serve altro). */
+#define WORLD_HAZARD_EXTENDED_SECONDS 2.0f
+#define WORLD_HAZARD_RETRACTED_SECONDS 1.2f
+#define WORLD_HAZARD_PERIOD_SECONDS (WORLD_HAZARD_EXTENDED_SECONDS + WORLD_HAZARD_RETRACTED_SECONDS)
+
+/* WP-SPIKE: l'UNICO predicato che decide se lo spuntone della cella
+   (cellX,cellY), indice locale 'localIndex' dentro la cella, e' in fase
+   ESTESA al tempo di gioco 'timeSeconds' -- usato SIA da CombatResolveHazards
+   (il danno) SIA dal renderer (la scelta del tag "estesi"/"retratti" e del
+   ripiego geometrico quando l'asset manca): la STESSA funzione, mai due
+   calcoli paralleli, cosi' "quando si vede retratti il contatto non
+   danneggia MAI" e' una garanzia strutturale, non una coincidenza fra due
+   implementazioni che devono restare sincronizzate a mano (DEC-198, il
+   difetto esplicito che questa decisione corregge).
+   Puro: nessun accesso a Game, nessun raylib, verificabile da un test senza
+   aprire una finestra. 'timeSeconds' e' Game.runElapsedSeconds (il timer di
+   run gia' esistente, accumulato per dt SOLO durante PHASE_PLAY e
+   inRealRun, mai time() ne' un contatore separato): stesso motivo per cui il
+   ciclo si ferma in pausa insieme al resto della simulazione, invece di
+   continuare a girare "dietro le quinte". */
+bool WorldHazardSpikesExtendedAt(int cellX, int cellY, int localIndex, float timeSeconds);
+
 #endif

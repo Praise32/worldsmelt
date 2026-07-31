@@ -6902,6 +6902,34 @@ bool GameObstaclesTest(Game *game)
             found = true;
             Obstacle hz = g.obstacles[hazardIdx];   /* esiste (ed e' quindi gia' telegrafato) da PRIMA di ogni contatto */
 
+            /* WP-SPIKE (DEC-198): il danno di contatto e' ora gated dalla
+               fase del ciclo (WorldHazardSpikesExtendedAt, src/world/world.c) --
+               questo blocco (b) verifica "telegrafato che danneggia" nella
+               fase ESTESA (la fase in cui il tag visivo promette danno). Cerca
+               il primo istante ESTESO avanzando con dt espliciti (1/60s, mai
+               un salto a un tempo comodo) dal tempo di run zero; la fase
+               RETRATTA (nessun danno) ha il proprio blocco dedicato in (e). */
+            {
+                int hazCellX = g.obstacleCellX[hazardIdx], hazCellY = g.obstacleCellY[hazardIdx];
+                int hazLocal = g.obstacleLocalIndex[hazardIdx];
+                float probeDt = 1.0f/60.0f;
+                g.runElapsedSeconds = 0.0f;
+                int probeSteps = 0;
+                int probeMax = (int)(WORLD_HAZARD_PERIOD_SECONDS/probeDt) + 4;
+                while (!WorldHazardSpikesExtendedAt(hazCellX, hazCellY, hazLocal, g.runElapsedSeconds) && probeSteps < probeMax)
+                {
+                    g.runElapsedSeconds += probeDt;
+                    probeSteps++;
+                }
+                if (!WorldHazardSpikesExtendedAt(hazCellX, hazCellY, hazLocal, g.runElapsedSeconds))
+                {
+                    fprintf(stderr, "GameObstaclesTest: (b) piano %d: nessun istante ESTESO trovato in un periodo pieno per cella (%d,%d)\n",
+                            floor, hazCellX, hazCellY);
+                    ok = false;
+                    continue;
+                }
+            }
+
             Rectangle roomRectB = WorldCurrentRoomRect(&g);
 
             int startHp = 6;
@@ -7067,7 +7095,257 @@ bool GameObstaclesTest(Game *game)
         }
     }
 
-    if (ok) printf("  [obstacles] WP3: distruttibile rimosso dalla bomba e persistente rientrando, croce centrale libera per ogni famiglia, pericolo telegrafato che danneggia dentro gli i-frames (nemici lo ignorano), budget nemici ridotto dagli ostacoli (DEC-043): ok\n");
+    /* (e) WP-SPIKE (DEC-198): gli spuntoni (OBSTACLE_HAZARD) diventano
+       TEMPORIZZATI -- il danno di contatto segue ESATTAMENTE
+       WorldHazardSpikesExtendedAt (src/world/world.c), il predicato puro
+       condiviso con il renderer (DrawObstacleFamilyProp/DrawObstacleFamilyOverlay
+       in src/render/game_renderer.c, mai un secondo calcolo indipendente).
+       Guida sempre il tempo con dt ESPLICITI (1/60s, mai GetTime() ne' un
+       contatore indipendente) attraverso Game.runElapsedSeconds, lo stesso
+       campo che CombatResolveHazards legge in gioco vero. */
+    {
+        bool found = false;
+        for (int floor = 1; floor <= FLOOR_COUNT && !found; floor++)
+        {
+            Game g;
+            RoomsTestGenerateFloor(seed + 3u, floor, &g);
+            g.content.floors[floor - 1].roomLayout.active = true;
+            g.content.floors[floor - 1].roomLayout.form = ROOM_LAYOUT_SCATTER;
+            g.content.floors[floor - 1].roomLayout.density = ROOM_LAYOUT_DENSITY_MAX;
+            RoomState *r = WorldCurrentRoomMutable(&g);
+            r->kind = ROOM_COMBAT;
+            r->cleared = false;
+            g.phase = PHASE_PLAY;
+            g.inRealRun = true;
+            WorldSpawnRoomContents(&g);
+
+            int hazardIdx = -1;
+            for (int i = g.obstacleHoleCount; i < g.obstacleCount; i++)
+                if (g.obstacles[i].family == OBSTACLE_HAZARD) { hazardIdx = i; break; }
+            if (hazardIdx < 0) continue;
+            found = true;
+
+            Obstacle hz = g.obstacles[hazardIdx];
+            Vector2 hazardCenter = { hz.x + hz.w*0.5f, hz.y + hz.h*0.5f };
+            int cellX = g.obstacleCellX[hazardIdx], cellY = g.obstacleCellY[hazardIdx];
+            int localIndex = g.obstacleLocalIndex[hazardIdx];
+            const float dt = 1.0f/60.0f;
+            const int startHp = 6;
+
+            /* (e1) DETERMINISMO: non la stessa chiamata confrontata con se'
+               stessa (varrebbe per QUALUNQUE funzione pura, hash costante
+               incluso) -- rigenera lo STESSO piano da una Game indipendente
+               (stesso seme, stessa forma/densita' forzate) e verifica che il
+               pericolo nello stesso slot riceva la stessa terna cella/indice
+               locale, poi che il predicato concordi su un periodo intero
+               campionato fra le due terne ottenute dalle due generazioni: il
+               ciclo non si sposta rientrando nella stanza (uscire e rientrare
+               rigenera RoomState ma non il piano). */
+            {
+                Game g2;
+                RoomsTestGenerateFloor(seed + 3u, floor, &g2);
+                g2.content.floors[floor - 1].roomLayout.active = true;
+                g2.content.floors[floor - 1].roomLayout.form = ROOM_LAYOUT_SCATTER;
+                g2.content.floors[floor - 1].roomLayout.density = ROOM_LAYOUT_DENSITY_MAX;
+                RoomState *r2 = WorldCurrentRoomMutable(&g2);
+                r2->kind = ROOM_COMBAT;
+                r2->cleared = false;
+                g2.phase = PHASE_PLAY;
+                g2.inRealRun = true;
+                WorldSpawnRoomContents(&g2);
+
+                if (hazardIdx >= g2.obstacleCount || g2.obstacles[hazardIdx].family != OBSTACLE_HAZARD ||
+                    g2.obstacleCellX[hazardIdx] != cellX || g2.obstacleCellY[hazardIdx] != cellY ||
+                    g2.obstacleLocalIndex[hazardIdx] != localIndex)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (e1) piano %d: due generazioni indipendenti dello stesso seme/piano non hanno prodotto lo stesso pericolo nello slot %d\n",
+                            floor, hazardIdx);
+                    ok = false;
+                }
+                else
+                {
+                    for (float t = 0.0f; t < WORLD_HAZARD_PERIOD_SECONDS; t += 0.31f)
+                    {
+                        if (WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, t) !=
+                            WorldHazardSpikesExtendedAt(g2.obstacleCellX[hazardIdx], g2.obstacleCellY[hazardIdx], g2.obstacleLocalIndex[hazardIdx], t))
+                        {
+                            fprintf(stderr, "GameObstaclesTest: (e1) piano %d: t=%.2f la fase differisce fra due generazioni indipendenti dello stesso piano/seme per cella (%d,%d) indice %d\n",
+                                    floor, t, cellX, cellY, localIndex);
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            /* (e2) NUCLEO: il predicato puro e' la SOLA fonte del danno --
+               campiona piu' istanti nell'arco di un periodo pieno, resetta il
+               giocatore a ogni campione, e verifica che il danno di contatto
+               segua ESATTAMENTE cio' che WorldHazardSpikesExtendedAt
+               restituisce per quello stesso (cellX,cellY,t): mai un contatto
+               che danneggia mentre il predicato dice "retratti", mai un
+               contatto senza danno mentre il predicato dice "estesi" -- il
+               test che il giudice puo' mutare per far fallire una qualunque
+               finestra fasulla. */
+            bool sawExtendedSample = false, sawRetractedSample = false;
+            for (float t = 0.0f; t < WORLD_HAZARD_PERIOD_SECONDS; t += 0.2f)
+            {
+                bool expectExtended = WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, t);
+                if (expectExtended) sawExtendedSample = true; else sawRetractedSample = true;
+
+                g.player.maxHp = startHp; g.player.hp = startHp; g.player.tempHp = 0;
+                g.player.invuln = 0.0f; g.player.radius = 14.0f; g.player.pos = hazardCenter;
+                g.runElapsedSeconds = t;
+                CombatUpdatePlayer(&g, dt, (Vector2){ 0.0f, 0.0f }, false);
+                bool damaged = (g.player.hp < startHp) && (g.player.invuln > 0.0f);
+
+                if (expectExtended && !damaged)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (e2) piano %d: t=%.2f ESTESO secondo il predicato ma il contatto non ha danneggiato\n",
+                            floor, t);
+                    ok = false;
+                }
+                if (!expectExtended && damaged)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (e2) piano %d: t=%.2f RETRATTO secondo il predicato ma il contatto ha danneggiato (finestra fasulla)\n",
+                            floor, t);
+                    ok = false;
+                }
+            }
+            if (!sawExtendedSample || !sawRetractedSample)
+            {
+                fprintf(stderr, "GameObstaclesTest: (e2) piano %d: il campionamento non ha attraversato entrambe le fasi (estesa=%d, retratta=%d) -- periodo/costanti sospetti\n",
+                        floor, sawExtendedSample, sawRetractedSample);
+                ok = false;
+            }
+
+            /* (e3) TRANSIZIONE guidata con dt ESPLICITI (mai un salto diretto
+               a un tempo comodo): parte da un istante RETRATTO noto e avanza
+               un frame alla volta finche' il predicato non passa a ESTESO,
+               verificando ad OGNI frame che il danno segua la fase di
+               quell'istante -- e non un frame prima o dopo. */
+            g.player.maxHp = startHp; g.player.hp = startHp; g.player.tempHp = 0;
+            g.player.invuln = 0.0f; g.player.radius = 14.0f; g.player.pos = hazardCenter;
+            g.runElapsedSeconds = 0.0f;
+            /* Riparte sempre da un istante RETRATTO: se la cella e' ESTESA a
+               t=0, la fase retratta del PERIODO SUCCESSIVO e' comunque
+               raggiungibile avanzando (il ciclo e' periodico). */
+            int guardSteps = 0;
+            int guardMax = (int)(2.0f*WORLD_HAZARD_PERIOD_SECONDS/dt) + 8;
+            while (WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, g.runElapsedSeconds) && guardSteps < guardMax)
+            {
+                g.runElapsedSeconds += dt;
+                guardSteps++;
+            }
+            bool transitionSawDamage = false;
+            guardSteps = 0;
+            while (guardSteps < guardMax)
+            {
+                bool extendedNow = WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, g.runElapsedSeconds);
+                int hpBefore = g.player.hp;
+                CombatUpdatePlayer(&g, dt, (Vector2){ 0.0f, 0.0f }, false);
+                bool damagedNow = (g.player.hp < hpBefore);
+                if (!extendedNow && damagedNow)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (e3) piano %d: danno durante la transizione mentre il predicato diceva RETRATTI (t=%.3f)\n",
+                            floor, g.runElapsedSeconds);
+                    ok = false;
+                    break;
+                }
+                if (extendedNow)
+                {
+                    if (!damagedNow)
+                    {
+                        fprintf(stderr, "GameObstaclesTest: (e3) piano %d: nessun danno al primo istante ESTESO raggiunto dalla transizione (t=%.3f)\n",
+                                floor, g.runElapsedSeconds);
+                        ok = false;
+                    }
+                    transitionSawDamage = true;
+                    break;
+                }
+                g.runElapsedSeconds += dt;
+                guardSteps++;
+            }
+            if (!transitionSawDamage && guardSteps >= guardMax)
+            {
+                fprintf(stderr, "GameObstaclesTest: (e3) piano %d: la transizione guidata non ha mai raggiunto una fase ESTESA entro due periodi\n", floor);
+                ok = false;
+            }
+
+            /* (e4) I nemici continuano a ignorare il pericolo ANCHE in fase
+               ESTESA (il gate del danno riguarda solo CombatResolveHazards;
+               CombatResolveObstacles salta i pericoli per QUALUNQUE cerchio,
+               invariato da WP3). */
+            EntitiesClear(&g);
+            /* g.runElapsedSeconds e' gia' fermo sul primo istante ESTESO
+               raggiunto dalla transizione guidata in (e3) sopra: lo stesso
+               istante, senza ricalcolarlo una seconda volta. */
+            g.player.pos = hazardCenter;
+            EntitiesAddEnemy(&g, ENEMY_CHASER, hazardCenter);
+            int enemyIdx = -1;
+            Vector2 enemyPosBefore = { 0.0f, 0.0f };
+            for (int i = 0; i < MAX_ENEMIES; i++)
+                if (g.enemies[i].active) { enemyIdx = i; enemyPosBefore = g.enemies[i].pos; break; }
+            if (enemyIdx < 0)
+            {
+                fprintf(stderr, "GameObstaclesTest: (e4) piano %d: nessuno slot nemico libero per il controllo\n", floor);
+                ok = false;
+            }
+            else
+            {
+                CombatUpdateEnemies(&g, dt);
+                Vector2 enemyPosAfter = g.enemies[enemyIdx].pos;
+                float moved2 = GameMathLengthSquared(GameMathSubtract(enemyPosAfter, enemyPosBefore));
+                if (moved2 > 0.001f)
+                {
+                    fprintf(stderr, "GameObstaclesTest: (e4) piano %d: un nemico sul pericolo in fase ESTESA si e' spostato (atteso: fermo, lo ignora)\n",
+                            floor);
+                    ok = false;
+                }
+            }
+        }
+        if (!found)
+        {
+            fprintf(stderr, "GameObstaclesTest: (e) nessun ostacolo PERICOLO trovato in %d piani a densita' massima: verifica WP-SPIKE (DEC-198) non eseguita\n", FLOOR_COUNT);
+            ok = false;
+        }
+    }
+
+    /* (e5) WP-SPIKE (DEC-198, seconda revisione): DECORRELAZIONE per SINGOLO
+       spuntone, non solo per cella -- oltre meta' delle stanze del gioco e'
+       1x1 (WORLD_SIZE_CUM_1X1, src/world/world.c), quindi due o piu' pericoli
+       nella stessa stanza finiscono quasi sempre nella STESSA cella
+       (cellX,cellY): se la fase dipendesse solo dalla cella pulserebbero
+       all'unisono nel caso piu' frequente, esattamente il difetto che questa
+       revisione corregge. Test PURO sul predicato -- non passa dalla
+       generazione procedurale (che potrebbe non piazzare mai due pericoli
+       nella stessa cella per i semi di questa suite): gira sempre, ad ogni
+       esecuzione, e fallisce davvero con la mutazione che azzera cellX/cellY
+       nell'hash o che omette localIndex dal mescolamento. */
+    {
+        int testCellX = 3, testCellY = -2;
+        bool anyDiffer = false;
+        for (int li = 1; li < ROOM_LAYOUT_MAX_PER_CELL && !anyDiffer; li++)
+        {
+            for (float t = 0.0f; t < WORLD_HAZARD_PERIOD_SECONDS; t += 0.05f)
+            {
+                if (WorldHazardSpikesExtendedAt(testCellX, testCellY, 0, t) !=
+                    WorldHazardSpikesExtendedAt(testCellX, testCellY, li, t))
+                {
+                    anyDiffer = true;
+                    break;
+                }
+            }
+        }
+        if (!anyDiffer)
+        {
+            fprintf(stderr, "GameObstaclesTest: (e5) spuntoni nella stessa cella (%d,%d) con indice locale diverso (0 contro 1..%d) restano PERFETTAMENTE in fase per un periodo intero: la fase non e' derivata dal singolo spuntone\n",
+                    testCellX, testCellY, ROOM_LAYOUT_MAX_PER_CELL - 1);
+            ok = false;
+        }
+    }
+
+    if (ok) printf("  [obstacles] WP3: distruttibile rimosso dalla bomba e persistente rientrando, croce centrale libera per ogni famiglia, pericolo telegrafato che danneggia dentro gli i-frames (nemici lo ignorano), budget nemici ridotto dagli ostacoli (DEC-043); WP-SPIKE (DEC-198): spuntoni temporizzati, danno solo in fase estesa, stesso predicato puro di gameplay e resa, determinismo dalla cella E dall'indice locale (spuntoni della stessa cella decorrelati): ok\n");
     else fprintf(stderr, "GameObstaclesTest: FALLITO -- vedi i messaggi sopra\n");
     return ok;
 }

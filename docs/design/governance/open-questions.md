@@ -294,6 +294,39 @@ non sono canone.
     non solo per la bomba in senso stretto — un parametro `breach` esplicito impedisce
     comunque che un'ipotetica esplosione di origine nemica apra un varco.
 
+    **Aggiornamento 31/07 (WP-SPIKE, DEC-198):** il "danno di contatto: 1 punto" resta
+    invariato, ma non è più costante per tutta la vita del pericolo — DEC-198 introduce un
+    ciclo retratti/estesi e il danno si applica SOLO in fase estesa (vedi anche la voce 35
+    sotto, "Chiusa"). Numeri nuovi, tutti **default proposti, non canone**: periodo fisso
+    **2.0 s estesi + 1.2 s retratti** (3.2 s di periodo totale), fase (l'offset dentro il
+    periodo) derivata da un hash puro della **cella ASSOLUTA della griglia del piano** che
+    possiede il pericolo (`Game.obstacleCellX`/`obstacleCellY`, le stesse coordinate che
+    `WorldBuildObstacles` già assegna) — nessuno stream RNG, nessun `time()`, il tempo è
+    `Game.runElapsedSeconds` (il timer di run esistente, WP1, accumulato per dt solo durante
+    `PHASE_PLAY` e `inRealRun`).
+
+    **Aggiornamento 31/07, seconda revisione (stesso giorno):** la prima versione derivava la
+    fase SOLO dalla cella (sopra) — "più spuntoni nella STESSA cella condividono la stessa
+    fase" era dichiarato come semplificazione accettata. Corretto perché non regge nel caso
+    più comune: oltre metà delle stanze è 1x1 (`WORLD_SIZE_CUM_1X1`, `src/world/world.c`), e
+    in una stanza 1x1 con più pericoli TUTTI condividono l'unica cella — la semplificazione
+    faceva quindi pulsare all'unisono gli spuntoni nella maggioranza delle stanze che ne hanno
+    più di uno, esattamente il difetto che DEC-198 chiede di evitare ("gli spuntoni non
+    pulsano tutti insieme"). La fase ora è derivata dalla cella **E dall'indice LOCALE dentro
+    la cella** (`Game.obstacleLocalIndex`, fino a `ROOM_LAYOUT_MAX_PER_CELL - 1`, già
+    assegnato allo stesso ostacolo da `WorldBuildObstacles`, stabile fra visite quanto
+    cellX/cellY): non c'è più semplificazione dichiarata, ogni singolo spuntone del piano ha
+    una fase propria (fino a collisioni di hash, statisticamente rare e non un requisito di
+    design). Predicato unico e puro,
+    `WorldHazardSpikesExtendedAt(cellX, cellY, localIndex, timeSeconds)` (`src/world/world.c`),
+    usato SIA da `CombatResolveHazards` (il danno) SIA dal renderer (`DrawObstacleFamilyProp`/
+    `DrawObstacleFamilyOverlay`, `src/render/game_renderer.c`, scelta del tag e del ripiego
+    geometrico): mai due calcoli paralleli, così "quando si vede retratti il contatto non
+    danneggia" è garantito per costruzione. Da confermare al playtest.
+    (`WORLD_HAZARD_EXTENDED_SECONDS/RETRACTED_SECONDS/PERIOD_SECONDS`,
+    `WorldHazardSpikesExtendedAt`, `src/world/world.h`/`.c`; vedi
+    `systems/secrets-and-obstacles.md`, sezione "Default proposti dall'implementazione".)
+
 ## Stanza di fusione nel motore (WP4, 2026-07-30)
 
 Una domanda aperta da `systems/special-rooms.md`, che lascia esplicitamente in coda
@@ -403,9 +436,12 @@ personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 
     "Default proposti dall'implementazione".)~~ **Chiusa sull'alternanza (31/07, DEC-198):**
     il proprietario vuole la variante davvero temporizzata SUBITO, non "sempre estesi" —
     cicli retratti/estesi con danno solo da estesi, animazione e danno sincronizzati. Questo
-    SUPERA il default "sempre estesi"; l'implementazione (gate temporale su
-    `CombatResolveHazards`) resta da fare, in coda. La scelta del prop distruttibile
-    (`props/cassa`) non è toccata da questa decisione.
+    SUPERA il default "sempre estesi". **Implementata lo stesso 31/07 (WP-SPIKE)**: gate
+    temporale su `CombatResolveHazards` fatto, predicato puro condiviso con il renderer
+    (`WorldHazardSpikesExtendedAt`) — i numeri del ciclo (periodo, fase per cella e per
+    singolo spuntone) sono registrati come nuovo default proposto nella voce 29 sopra. La
+    scelta del prop
+    distruttibile (`props/cassa`) non è toccata da questa decisione.
 
 36. ~~Con tre spritesheet di personaggio ora agganciati al motore (`character/fonditrice`/
     `ashblade`/`bulwark`), quale sheet mostra il personaggio GENERATO per-run
