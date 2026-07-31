@@ -181,6 +181,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --trials-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --arena-hub-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --suspend-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --prefs-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --fusion-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --discovery-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --audio-test

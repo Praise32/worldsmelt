@@ -98,15 +98,19 @@ void AudioSyncMusic(const Game *game, AppMode mode, float dt);
 void AudioPlaySfx(AudioSfx sfx);
 
 /* Volumi 0..1 (clampati qui, mai fuori banda). Master moltiplica sia
-   musica sia SFX; i tre canali restano indipendenti. Default: tutti a 1.0.
+   musica sia SFX; i tre canali restano indipendenti. Default: tutti a 1.0
+   (questo modulo non li persiste da solo -- lo stato qui sotto e' solo di
+   PROCESSO, azzerato ad ogni AudioInit/riavvio del binario).
    Da W8 Options li espone come tre righe-slider (APP_OPTIONS, src/app/app.c e
    DrawOptionsOverlay in src/render/game_renderer.c) a passi di
    OPTIONS_VOLUME_STEP.
-   NON PERSISTONO fra un avvio e l'altro: il gioco non ha (ancora) un file di
-   configurazione, e inventarne uno qui avrebbe voluto dire decidere da solo
-   percorso, formato e politica di migrazione -- tre cose che
-   ui/options-and-accessibility.md non fissa. Ripartono quindi da 1.0 ad ogni
-   avvio; la persistenza e' registrata come domanda aperta. */
+   PERSISTONO fra un avvio e l'altro DA DEC-189/190 (WP-PREFS): src/app/app.c
+   (AppRun) li carica da prefs/settings.txt (src/app/prefs.c) subito dopo
+   AudioInit chiamando i tre setter sotto, e li risalva all'uscita da Options
+   e alla chiusura del gioco. Questo modulo non sa nulla del file -- resta
+   proprietario solo del VALORE in memoria e del suo clamp, come sempre;
+   la persistenza e' un livello sopra, di proposito (src/app possiede i file,
+   non src/audio). */
 
 /* Passo e numero di caselle degli slider di Options (default proposto, stile
    DEC-019: il documento elenca "audio" fra le categorie minime senza fissare

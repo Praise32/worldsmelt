@@ -375,4 +375,15 @@ bool GameMouseHoverFocusTest(Game *game);
    Vedi src/tests/suspend_tests.c. */
 bool GameSuspendTest(Game *game);
 
+/* DEC-189/190 (prefs/settings.txt, src/app/prefs.c): le preferenze del
+   giocatore -- andata/ritorno dei tre volumi, file assente/corrotto/
+   troncato/di schema estraneo che ricade sempre sul default 1.0 senza mai
+   un crash, clamp in [0,1] anche da un file manomesso a mano, il file che si
+   crea al primo salvataggio, e l'integrazione vera attraverso UpdateApp (i
+   due punti d'ingresso di APP_OPTIONS, "una scrittura per visita solo se
+   qualcosa e' cambiato"). Come GameSuspendTest, gira dopo InitWindow (usa
+   UpdateApp per davvero) ma il file delle preferenze vive in una cartella
+   temporanea, mai in prefs/. Vedi src/tests/prefs_tests.c. */
+bool GamePrefsTest(Game *game);
+
 #endif

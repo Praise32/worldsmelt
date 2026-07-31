@@ -1665,7 +1665,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (37 voci attive su 58 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, e il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci, aggiornando senza chiudere le voci 9 e 17) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, e WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt, DEC-189/190) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).",
       "topics": [
         "open-questions",
         "governance",
@@ -1698,7 +1698,10 @@
         "WP19",
         "WP21",
         "WP22",
+        "WP-PREFS",
         "DEC-185",
+        "DEC-189",
+        "DEC-190",
         "DEC-204"
       ],
       "related": [],
@@ -2748,7 +2751,9 @@
       "source_files": [
         "src/app/app.c",
         "src/audio/audio.h",
-        "src/render/game_renderer.c"
+        "src/render/game_renderer.c",
+        "src/app/prefs.h",
+        "src/app/prefs.c"
       ],
       "last_reviewed": "2026-07-31",
       "last_verified_commit": "4d7a410"
@@ -3179,7 +3184,11 @@
         "tutorial",
         "WP17",
         "DEC-050",
-        "sospensione-run"
+        "sospensione-run",
+        "WP-PREFS",
+        "DEC-189",
+        "DEC-190",
+        "preferenze-giocatore"
       ],
       "related": [
         "eng-dependencies",
@@ -3223,7 +3232,10 @@
         "src/tests/floor_zero_arena_tests.c",
         "src/game/run_suspend.c",
         "src/game/run_suspend.h",
-        "src/tests/suspend_tests.c"
+        "src/tests/suspend_tests.c",
+        "src/app/prefs.c",
+        "src/app/prefs.h",
+        "src/tests/prefs_tests.c"
       ],
       "last_reviewed": "2026-07-31",
       "last_verified_commit": "a5cc3a3"

@@ -1,5 +1,8 @@
 #include "app/app.h"
 #include "app/app_internal.h"
+/* DEC-189/190: le preferenze del giocatore (oggi solo i tre volumi audio) --
+   caricamento/salvataggio, vedi src/app/prefs.h. */
+#include "app/prefs.h"
 
 #include "assets/art_atlas.h"
 #include "audio/audio.h"
@@ -708,6 +711,49 @@ static void AppSuspendDrop(AppUi *ui)
     ui->suspendAvailable = false;
 }
 
+/* ============================================================
+   DEC-189/190 (prefs/settings.txt, src/app/prefs.c): i tre volumi audio,
+   UNICO contenuto per ora. Due soli punti li scrivono su disco -- l'uscita
+   da APP_OPTIONS (sotto, "una scrittura per visita SOLO se qualcosa e'
+   cambiato") e la chiusura pulita del gioco (AppRun, accanto ad
+   AudioShutdown/ArtAtlasShutdown, "ultima occasione" per chi esce dalla
+   finestra invece che da Options) -- entrambi dietro la STESSA guardia
+   test-safe 'prefsEnabled', spenta per ogni "AppUi ui = {0}" di test.
+   ============================================================ */
+
+/* Istantanea dei tre volumi CORRENTI in 'ui->optionsEntry*': presa nei due
+   soli punti che aprono APP_OPTIONS (da MainMenu e da PauseMenu, sotto),
+   cosi' l'uscita puo' confrontare "adesso" con "all'ingresso" senza rileggere
+   il disco. Non e' dietro 'prefsEnabled': la snapshot non tocca mai il
+   filesystem, e va comunque presa (anche a persistenza spenta) perche' il
+   confronto all'uscita la legge a prescindere -- lasciarla a zero-default
+   produrrebbe un falso "cambiato" al primo confronto utile. */
+static void AppSnapshotOptionsEntryVolumes(AppUi *ui)
+{
+    ui->optionsEntryMasterVolume = AudioGetMasterVolume();
+    ui->optionsEntryMusicVolume = AudioGetMusicVolume();
+    ui->optionsEntrySfxVolume = AudioGetSfxVolume();
+}
+
+/* Salva i tre volumi CORRENTI se 'prefsEnabled' e' acceso. 'onlyIfChanged'
+   confronta con la snapshot d'ingresso presa sopra: vero all'uscita da
+   Options (non una scrittura ad ogni visita, solo quando c'e' davvero
+   qualcosa di nuovo da salvare), falso alla chiusura del gioco (ultima
+   occasione, si scrive comunque -- economico: un tmp+rename in piu' non
+   costa nulla all'uscita, ed e' l'unico modo di non perdere un volume
+   cambiato senza mai passare da "Indietro" in Options). */
+static void AppSaveVolumePrefs(AppUi *ui, bool onlyIfChanged)
+{
+    if (!ui->prefsEnabled) return;
+    float master = AudioGetMasterVolume();
+    float music = AudioGetMusicVolume();
+    float sfx = AudioGetSfxVolume();
+    if (onlyIfChanged && master == ui->optionsEntryMasterVolume &&
+        music == ui->optionsEntryMusicVolume && sfx == ui->optionsEntrySfxVolume) return;
+    PlayerPrefs prefs = { master, music, sfx };
+    PrefsSave(&prefs);
+}
+
 /* La macchina a stati canonica (9 stati, vedi UpdateApp in app_internal.h per
    il contratto). Regola generale di focus condivisa da Options/BuildScreen/
    ExitConfirm (ui/navigation-map.md, "il focus torna sull'elemento che ha
@@ -979,6 +1025,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 {
                     ui->openedFrom = APP_MAIN_MENU;
                     ui->returnFocus = ui->focus;
+                    AppSnapshotOptionsEntryVolumes(ui);   /* DEC-189/190 */
                     *mode = APP_OPTIONS;
                     ui->focus = 0;
                 }
@@ -1527,6 +1574,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                 {
                     ui->openedFrom = APP_PAUSE_MENU;
                     ui->returnFocus = ui->focus;
+                    AppSnapshotOptionsEntryVolumes(ui);   /* DEC-189/190 */
                     *mode = APP_OPTIONS;
                     ui->focus = 0;
                 }
@@ -1659,6 +1707,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                    riprenderebbe da solo alla visita successiva di Options se
                    il tasto risultasse ancora premuto in quel momento. */
                 ui->optionsDragging = false;
+                AppSaveVolumePrefs(ui, true);   /* DEC-189/190: una scrittura per visita, solo se qualcosa e' cambiato */
                 *mode = ui->openedFrom;
                 ui->focus = ui->returnFocus;
             }
@@ -1998,6 +2047,10 @@ int AppRun(int argc, char **argv)
        bisogno vero della finestra (GameSuspendTest non disegna nulla, vedi
        src/tests/suspend_tests.c). */
     bool suspendTest = false;
+    /* DEC-189/190: come --suspend-test, gira dopo InitWindow senza bisogno
+       vero della finestra (GamePrefsTest non disegna nulla, vedi
+       src/tests/prefs_tests.c). */
+    bool prefsTest = false;
     bool fusionTest = false;
     bool fusionScreenshotTest = false;
     /* DEC-065/131/152/159/169: come --economy-test, gira dopo InitWindow
@@ -2239,6 +2292,12 @@ int AppRun(int argc, char **argv)
             smokeTest = true;
             suspendTest = true;
         }
+        /* DEC-189/190 (le preferenze del giocatore): come --suspend-test sopra. */
+        if (strcmp(argv[i], "--prefs-test") == 0)
+        {
+            smokeTest = true;
+            prefsTest = true;
+        }
         /* DEC-022/023/143/162/171 (la fusione): come --economy-test, gira
            dopo InitWindow senza bisogno vero della finestra (GameFusionTest
            non disegna nulla, vedi src/tests/game_tests.c). */
@@ -2413,6 +2472,23 @@ int AppRun(int argc, char **argv)
        (make test gira headless, senza backend audio reale): vedi
        AudioSelfTest, src/tests/audio_tests.c, --audio-test. */
     AudioInit();
+    /* DEC-189/190: le preferenze del giocatore si caricano DOPO AudioInit e
+       PRIMA di MainMenu (appMode piu' sotto), cosi' i tre volumi salvati
+       sono gia' applicati al primissimo sguardo di Options -- stessa guardia
+       'smokeTest' di 'appUi.prefsEnabled' piu' sotto (mai il file REALE del
+       giocatore in un *Test che arriva fin qui: PrefsLoad ricadrebbe sul
+       default silenzioso se lo facesse, ma e' comunque un file che nessun
+       *Test deve toccare, stesso principio di catalogWritesEnabled/
+       suspendEnabled). PrefsLoad non fallisce mai (default 1.0/1.0/1.0 su
+       file assente/corrotto): i tre AudioSet* sotto clampano comunque. */
+    if (!smokeTest)
+    {
+        PlayerPrefs prefs;
+        PrefsLoad(&prefs);
+        AudioSetMasterVolume(prefs.masterVolume);
+        AudioSetMusicVolume(prefs.musicVolume);
+        AudioSetSfxVolume(prefs.sfxVolume);
+    }
     if (!smokeTest)
     {
         int monitor = GetCurrentMonitor();
@@ -2600,6 +2676,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 46;   /* 46: il primo codice di uscita libero (l'ultimo era 45) */
+    }
+    if (prefsTest)
+    {
+        bool ok = GamePrefsTest(&game);
+        printf("Prefs test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 47;   /* 47: il primo codice di uscita libero (l'ultimo era --suspend-test=46) */
     }
     if (fusionScreenshotTest)
     {
@@ -2798,6 +2882,14 @@ int AppRun(int argc, char **argv)
        "Continua", cancellazione da abbandono/reroll/"Nuova run"). */
     appUi.suspendEnabled = !smokeTest;
     appUi.suspendAvailable = appUi.suspendEnabled && RunSuspendIsAvailable();
+    /* DEC-189/190: stessa guardia, stesso perimetro delle due sopra -- il
+       salvataggio dei volumi resta spento in ogni *Test che arriva a questo
+       main loop. La snapshot d'ingresso di Options (ui.optionsEntry*) non ha
+       bisogno di un'inizializzazione qui: i due soli punti che aprono
+       APP_OPTIONS la scrivono PRIMA di cambiare 'mode' (AppSnapshotOptions-
+       EntryVolumes), quindi il confronto all'uscita la trova sempre gia'
+       presa per la visita in corso. */
+    appUi.prefsEnabled = !smokeTest;
     int frames = smokeTest ? 10 : -1;
     bool screenshotDone = false;
     float simAccum = 0.0f;
@@ -2863,6 +2955,15 @@ int AppRun(int argc, char **argv)
        sopra escono subito dopo e lasciano la pulizia al teardown del contesto
        OpenGL di CloseWindow, esattamente come fanno gia' col device audio. */
     ArtAtlasShutdown();
+    /* DEC-189/190: ultima occasione di salvare i volumi PRIMA di spegnere il
+       device audio -- copre chi chiude la finestra (o la macchina) mentre
+       era ancora dentro Options, o subito dopo esserne uscito senza che
+       l'uscita da Options avesse davvero qualcosa da scrivere. 'onlyIfChanged'
+       falso: qui non c'e' una snapshot d'ingresso significativa da
+       confrontare (la sessione sta finendo), si scrive comunque -- economico
+       (dietro 'prefsEnabled', spento in ogni *Test che arriva fin qui, come
+       ArtAtlasShutdown/AudioShutdown qui sotto). */
+    AppSaveVolumePrefs(&appUi, false);
     AudioShutdown();
     CloseWindow();
     return 0;

@@ -2329,6 +2329,29 @@ typedef struct AppUi {
        barra e lo rilascia quando il tasto torna su, in APP_OPTIONS. */
     bool optionsDragging;
     int optionsDraggingIndex;
+    /* DEC-189/190 (prefs/settings.txt, src/app/prefs.c): guardia test-safe
+       della PERSISTENZA delle preferenze, gemella di 'catalogWritesEnabled'/
+       'suspendEnabled' sopra e per lo stesso identico motivo -- ogni test C
+       che chiama UpdateApp costruisce la propria "AppUi ui = {0}", quindi per
+       tutta quella suite il salvataggio resta spento per costruzione: nessun
+       file del giocatore letto o scritto. I due soli punti che l'accendono:
+       AppRun (il gioco vero, spento nei *Test che arrivano al suo main loop
+       esattamente come le due guardie gemelle) e --prefs-test.
+       'optionsEntryMasterVolume'/'optionsEntryMusicVolume'/'optionsEntrySfxVolume'
+       sono l'istantanea dei tre volumi presa DA UpdateApp ai due soli punti
+       che aprono APP_OPTIONS (da MainMenu e da PauseMenu, src/app/app.c):
+       confrontata con quella corrente all'uscita, decide se c'e' qualcosa da
+       salvare -- "una scrittura per visita SOLO se qualcosa e' cambiato",
+       mai a ogni tick dello slider (DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE,
+       stile DEC-019, registrato in ui/options-and-accessibility.md e in
+       governance/open-questions.md: DEC-189 fissa esistenza/percorso/
+       formato del file, non la politica di QUANDO salvare). Zero-default
+       (0.0f) e' innocuo per costruzione: senza 'prefsEnabled' acceso nessun
+       ramo li legge mai. */
+    bool prefsEnabled;
+    float optionsEntryMasterVolume;
+    float optionsEntryMusicVolume;
+    float optionsEntrySfxVolume;
     /* W9, correzione di Fable: la riga di conferma della fascia FUSIONE e'
        cliccabile ma non aveva alcun feedback al passaggio del mouse (unica
        superficie cliccabile senza: le voci di menu e le righe oggetto lo

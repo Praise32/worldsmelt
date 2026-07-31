@@ -11,10 +11,10 @@ summary: >-
   design.
 last_reviewed: 2026-07-31
 last_verified_commit: a5cc3a3
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial, WP17, DEC-050, sospensione-run]
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial, WP17, DEC-050, sospensione-run, WP-PREFS, DEC-189, DEC-190, preferenze-giocatore]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c, src/app/prefs.c, src/app/prefs.h, src/tests/prefs_tests.c]
 ---
 
 # Registro dei difetti e limiti noti
@@ -295,13 +295,16 @@ del task, non un difetto di implementazione dentro quello scope:
    dalla percentuale scritta (DEC-058: nessuna informazione dal solo colore).
    `src/app/app.c` (case `APP_OPTIONS`), `DrawOptionsOverlay`/`DrawOptionsSliderRow`
    in `src/render/game_renderer.c`, costanti in `src/audio/audio.h`.
-   **Cosa RESTA aperto**: (a) i volumi **non persistono** fra un avvio e l'altro — il
-   gioco non ha un file di configurazione, e inventarne uno avrebbe voluto dire
-   decidere da soli percorso, formato e migrazione, tre cose che
-   `docs/design/ui/options-and-accessibility.md` non fissa; (b) passo, etichette e
-   ordine sono un **default proposto** (stile DEC-019), non canone: quel documento
-   elenca "audio" fra le categorie minime senza fissare slider né valori.
-   Entrambi in `docs/design/governance/open-questions.md`.
+   ~~**Cosa RESTA aperto**: (a) i volumi **non persistono** fra un avvio e l'altro~~ —
+   **CHIUSA (31/07, WP-PREFS, DEC-189/190)**: `prefs/settings.txt` (`src/app/prefs.c`)
+   salva i tre volumi con la stessa disciplina di `catalog/`/`suspend/` (chiave=valore,
+   `prefsSchema=1`, tmp+rename atomico, zero-default 1.0 su file assente/corrotto/
+   troncato/di schema estraneo, mai un crash). Si carica dopo `AudioInit`, prima di
+   `MainMenu`; si salva all'uscita da `Options` (solo se un volume e' davvero cambiato)
+   e alla chiusura pulita del gioco. La POLITICA di quando salvare resta un default
+   proposto (voce 59, `docs/design/governance/open-questions.md`), non la sua esistenza
+   (canone da DEC-189). (b) passo, etichette e ordine erano un default proposto, ora
+   **canone** (DEC-190, voce 25 chiusa in `open-questions.md`).
    Le altre quattro categorie minime del documento (video, controlli, accessibilità,
    gameplay) restano da scrivere e W8 non le ha inventate.
 
@@ -310,7 +313,12 @@ mappatura pura stato/piano/stanza-boss -> traccia, clamp dei volumi, ciclo di vi
 init/shutdown ripetuto con e senza device audio reale e con/senza `Game`, mai un
 crash. Gira sotto Xvfb senza alcun backend audio (ambiente di CI/sviluppo di
 questo repo): `AudioIsDeviceReady()` false dopo `AudioInit()` e' lo scenario
-REALE esercitato da `make test`, non solo un caso sintetico.
+REALE esercitato da `make test`, non solo un caso sintetico. La persistenza
+(`prefs/settings.txt`) e' verificata a parte da `--prefs-test`
+(`src/tests/prefs_tests.c`, `GamePrefsTest`): andata/ritorno, file
+corrotto/troncato/di schema estraneo -> default 1.0 senza crash, clamp `[0,1]`
+anche da un file manomesso, il file si crea al primo salvataggio, integrazione
+vera attraverso `UpdateApp` sui due punti d'ingresso di `Options`.
 
 ## 10 — Consumo del pacchetto artistico (W8): buchi di ASSET dichiarati, non mascherati
 

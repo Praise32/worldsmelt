@@ -30,6 +30,11 @@ catalog/
 # (suspend/current.txt), mai versionato come catalog/ sopra.
 suspend/
 
+# Preferenze del giocatore (DEC-189/190): i tre volumi audio oggi, un file
+# solo (prefs/settings.txt) scritto da src/app/prefs.c -- dati del
+# giocatore, mai versionato come catalog/ e suspend/ sopra.
+prefs/
+
 # RunBundle v1 (scripts/bundle-export.sh/-import.sh): tar.gz esportati e la
 # cartella di lavoro temporanea usata durante l'import (.import-tmp.*).
 bundles/

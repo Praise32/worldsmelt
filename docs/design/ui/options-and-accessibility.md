@@ -11,7 +11,7 @@ last_verified_commit: 4d7a410
 topics: [opzioni, accessibilita, input-parity, controller, lettore-di-schermo, DEC-057, DEC-058, DEC-075, DEC-086, DEC-166, DEC-189, DEC-190]
 related: []
 supersedes: []
-source_files: [src/app/app.c, src/audio/audio.h, src/render/game_renderer.c]
+source_files: [src/app/app.c, src/audio/audio.h, src/render/game_renderer.c, src/app/prefs.h, src/app/prefs.c]
 ---
 
 # Options and Accessibility
@@ -62,15 +62,24 @@ informazione affidata al solo colore o alla sola lunghezza (DEC-058).
 `generale`/`musica`/`effetti`, partenza a 1.0 — confermati dal proprietario, non più un
 default proposto.
 
-**Persistenza — canone (DEC-189, 31/07):** nasce un file di preferenze del giocatore,
-`prefs/settings.txt`, accanto a `catalog/` e con le stesse regole di quel file (dati del
-giocatore, mai versionato, tmp+rename atomico, formato chiave=valore con campo di versione,
-disciplina zero-default). Primo contenuto: i tre volumi audio. Questa decisione fissa
-esistenza, percorso e formato; l'**implementazione resta un gap dichiarato** — oggi il gioco
-non legge/scrive ancora questo file e riparte da 1.0 a ogni avvio, vedi voce **9** di
-`docs/engineering/known-issues.md` per lo stato del difetto noto. Le domande aperte **24** e
-**25** in `../governance/open-questions.md` sono chiuse; questo file di preferenze è
-distinto dal salvataggio di run (`suspend/current.txt`, DEC-202) e dal Catalogo.
+**Persistenza — canone (DEC-189, 31/07) e implementata (WP-PREFS, stesso giorno):** il
+file di preferenze del giocatore, `prefs/settings.txt` (`src/app/prefs.c`), vive accanto a
+`catalog/` e con le stesse regole di quel file (dati del giocatore, mai versionato,
+tmp+rename atomico, formato chiave=valore con campo di versione `prefsSchema=1`,
+disciplina zero-default: file assente/corrotto/troncato/di schema estraneo → i tre volumi
+restano a 1.0, mai un crash). Primo contenuto: i tre volumi audio. Si **carica** subito
+dopo `AudioInit`, prima che `MainMenu` sia raggiungibile — i valori salvati sono già
+applicati (`AudioSetMasterVolume`/`MusicVolume`/`SfxVolume`) al primissimo sguardo su
+questa schermata. Si **salva** in due punti: all'uscita da `Options`, ma solo se almeno un
+volume è cambiato rispetto a quando la schermata è stata aperta (mai una scrittura a ogni
+tick dello slider), e alla chiusura pulita del gioco (copre chi chiude la finestra senza
+tornare su "Indietro"). Il PERCORSO/FORMATO/esistenza sono canone (DEC-189); la politica di
+QUANDO salvare resta un *default proposto dall'implementazione* (stile DEC-019), voce **59**
+di `../governance/open-questions.md`. Le domande aperte **24** e **25** sono chiuse; questo
+file di preferenze è distinto dal salvataggio di run (`suspend/current.txt`, DEC-202) e dal
+Catalogo. Voce **9** di `docs/engineering/known-issues.md` aggiornata: il difetto noto
+"i volumi non persistono" è chiuso. Verificato da `--prefs-test`
+(`GamePrefsTest`, `src/tests/prefs_tests.c`).
 
 ## Parità rigorosa di input (DEC-057)
 

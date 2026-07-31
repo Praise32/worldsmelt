@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (37 voci attive su 58 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, e il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci, aggiornando senza chiudere le voci 9 e 17) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).
+  Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, e WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt, DEC-189/190) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).
 last_reviewed: 2026-07-31
-last_updated_from_session: 2026-07-31-decision-batch-dec185-204
+last_updated_from_session: 2026-07-31-wp-prefs
 last_verified_commit: 4d7a410
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22, DEC-185, DEC-204]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22, WP-PREFS, DEC-185, DEC-189, DEC-190, DEC-204]
 related: []
 supersedes: []
 source_files: []
@@ -1016,3 +1016,33 @@ Anche la **seconda** passata è stata bocciata, per tre residui, chiusi dalla **
     `--layout-test` (le voci condizionali di `MainMenu`/`PauseMenu` restano dentro il
     riquadro). (`systems/save-and-meta-progression.md`, `ui/main-menu.md`,
     `ui/pause-menu.md`, `05-game-states-and-flow.md`, DEC-050, `src/game/run_suspend.c`.)
+
+59. **Le preferenze del giocatore (DEC-189/190, `prefs/settings.txt`): QUANDO si salva
+    su disco?** DEC-189 fissa esistenza, percorso e formato del file (chiave=valore,
+    `prefsSchema=1`, tmp+rename atomico, disciplina zero-default), ma non la politica di
+    scrittura. L'implementazione (2026-07-31) ne fissa due come *default proposti
+    dall'implementazione (stile DEC-019), NON canone*:
+    - **Caricamento**: subito dopo `AudioInit`, prima che `MainMenu` sia raggiungibile —
+      i tre volumi salvati sono già applicati (`AudioSetMasterVolume`/`MusicVolume`/
+      `SfxVolume`) al primissimo sguardo su `Options`. File assente/corrotto/di schema
+      estraneo → i tre volumi restano al default 1.0 già in uso dal modulo audio, mai un
+      crash.
+    - **Salvataggio, in DUE punti**: (a) all'uscita da `Options` (i due ingressi, da
+      `MainMenu` e da `PauseMenu`), **ma solo se almeno uno dei tre volumi è cambiato**
+      rispetto a quando la schermata è stata aperta — una visita che non tocca nulla non
+      produce una scrittura su disco, contro l'alternativa più semplice "sempre", che
+      avrebbe reso ogni singola apertura di `Options` un tmp+rename anche a schermata
+      inerte; (b) alla chiusura pulita del gioco (`AppRun`, accanto ad `ArtAtlasShutdown`/
+      `AudioShutdown`), **incondizionato** — copre chi chiude la finestra (o il sistema)
+      mentre un volume era stato appena cambiato senza mai tornare su "Indietro". Mai una
+      scrittura per-tick dello slider: lo slider aggiorna solo lo stato in memoria
+      (`AudioSet*Volume`, già clampato), il disco lo vede solo ai due punti sopra.
+    Guardia test-safe `AppUi.prefsEnabled` (zero-default spento, gemella di
+    `catalogWritesEnabled`/`suspendEnabled`): nessun `*Test` che arriva al main loop di
+    `AppRun` tocca mai `prefs/` vero. Verificato da `--prefs-test` (`GamePrefsTest`,
+    `src/tests/prefs_tests.c`): andata/ritorno, file corrotto/troncato/di schema
+    estraneo → default 1.0 senza crash, clamp `[0,1]` anche da un file manomesso a mano,
+    il file si crea al primo salvataggio, e l'integrazione vera attraverso `UpdateApp` sui
+    due punti d'ingresso di `Options` (nessuna scrittura se nulla cambia, una scrittura se
+    qualcosa cambia). (`ui/options-and-accessibility.md`, DEC-189, DEC-190,
+    `src/app/prefs.c`, `src/app/app.c`.)
