@@ -73,14 +73,23 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
   9 pack CC0 con sorgenti .aseprite scaricati da itch.io (licenze snapshot
   accanto a ogni pack), **22 reference card** prodotte da 5 agenti Fase A
   (`20_reference_cards/` + INDEX.md per il giro di voti), bozza
-  `30_visual_language/visual-language-v2-DRAFT.md` + `negative_rules.md`.
+  `assets/art-library/30_visual_language/visual-language-v2-DRAFT.md` +
+  `assets/art-library/30_visual_language/negative_rules.md`.
   Regole fissate dal proprietario: personaggi **senza volto** e **senza armi**
   (armi = oggetti/overlay), formato piccolo (~26px in cella 32, stile masse
   alla RoR Returns — misurati 22-34px dai suoi sheet), coerente con 640×360 di
   DEC-200. Prove in `assets/art-src/experiments/` (trio mini 32 approvato dal
-  gusto, craft pass, A/B 32/64/128). ATTENDE il proprietario: voto card,
-  scelta outline (opzione A split / B RoR pura), poi batch DEC (supererà in
-  parte DEC-176/177) e onde di produzione del nuovo pacchetto grafico.
+  gusto, craft pass, A/B 32/64/128). **CHIUSO (31/07, sessione remota):** voto
+  card accettato in blocco
+  (`assets/art-library/10_references/approved-ai-reference/APPROVED.md`),
+  outline deciso — **opzione B, masse senza outline** — e batch DEC-205..210
+  registrato dal decision-facilitator: DEC-205 (masse senza outline, supera
+  DEC-176(a)), DEC-206 (senza volto), DEC-207 (senza armi in mano, precisa
+  DEC-049), DEC-208 (scala 32px riconfermata, DEC-177 invariata, 64px
+  scartato), DEC-209 (reference distillation come canone di produzione),
+  DEC-210 (onda 1 = personaggi+nemici). Propagato in
+  `docs/design/content/visual-language.md`. Prossimo: produzione dell'onda 1
+  (asset/codice, fuori da questo lavoro di decisione).
 - **Storia W8** (asset art consumati dal motore: art_atlas/art_draw, priorità immagini
   DEC-175, nove schermate rivestite): committata il 30/07 prima di questa sessione; i
   "buchi dichiarati" di allora (font, sheet personaggi, prop cuore/bomba/chiave, salute

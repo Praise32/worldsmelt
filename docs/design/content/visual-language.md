@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» (DEC-176) e della scala base sprite, 32px dopo la rettifica pipeline SD1.5/LoRA (DEC-177), chiude la domanda aperta 12."
-last_reviewed: 2026-07-28
-last_verified_commit: 0ec60d0
-topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173, stile S1, outline nero, scala 32px, DEC-176, DEC-177]
+summary: "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049), ora precisati: mai armi disegnate nello sprite base (DEC-207). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale: **masse senza outline** (DEC-205, 31/07, supera DEC-176(a) «S1 outline nero») e della scala base sprite, 32px (DEC-177, riconfermata da DEC-208 dopo l'esplorazione di 64px), chiude la domanda aperta 12. Fonte unica anche delle regole «personaggi senza volto» (DEC-206) e «personaggi senza armi in mano» (DEC-207). Il processo di reference distillation (DEC-209) e il piano di rifacimento a onde (DEC-210, onda 1 = personaggi+nemici) vivono in `assets/art-library/`, working doc non canonico."
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [linguaggio visivo, pixel art, 7 strati, 6 slot visivi, DEC-046, DEC-049, DEC-073b, palette, fucina, DEC-173, masse senza outline, scala 32px, DEC-176, DEC-177, DEC-205, DEC-206, DEC-207, DEC-208, DEC-209, DEC-210]
 related: []
 supersedes: []
 source_files: []
@@ -171,49 +171,78 @@ Questa palette **vincola** la variazione per-World di palette e dettagli già pr
 DEC-073b per la silhouette stabile delle risorse fisse: la variazione resta dentro questi
 31 colori, non introduce tinte fuori palette.
 
-## Stile pixel-art ufficiale e scala base sprite (DEC-176)
+## Stile pixel-art ufficiale e scala base sprite (DEC-205/DEC-208, storia in DEC-176/DEC-177)
 
 Oltre alla palette, il gioco ha uno **stile pixel-art ufficiale** e una **scala base**
-per gli sprite, entrambi scelti dal proprietario al checkpoint CP1 della produzione
-pixel-art dopo un confronto visivo su cinque prove di stile e su tre scale. Vale per
+per gli sprite. Lo stile è stato rivisto il 31/07 (DEC-205) dopo la sessione di
+reference distillation (`assets/art-library/`, DEC-209); la scala è stata riconfermata
+lo stesso giorno (DEC-208) dopo l'esplorazione di un'alternativa a 64px. Vale per
 **sprite originali nuovi** e per il **remap batch dei 189 sprite curati CC0**, la stessa
 copertura della palette (DEC-173).
 
-### Stile: S1 «outline nero»
+### Stile: masse senza outline (DEC-205, 31/07 — supera DEC-176(a) «S1 outline nero»)
 
-- **Outline nero 1px**: ogni sprite ha un contorno di 1 pixel nel colore `slag-nero`
-  della palette attorno al perimetro esterno della silhouette.
-- **Shading piatto a 2 toni per materiale**: ogni superficie usa un tono base più un solo
-  tono d'ombra (nessuna banda intermedia, nessun gradiente).
-- **Niente dithering**: nessun pattern di retinatura per simulare toni intermedi.
-- **Eccezione dettagli piccoli**: dettagli piccoli e ad alto contrasto (occhi, punte
-  luminose, bagliori) possono restare **senza outline interno** quando l'outline li
-  renderebbe illeggibili sotto la scala base; l'outline nero resta obbligatorio solo sul
-  perimetro esterno della silhouette.
-- Scelto fra cinque prove sugli stessi soggetti (goblin, pozione, cuore HUD, cornice
-  slot): S1 outline nero (scelto), S2 outline colorato selettivo + cluster shading, S3
-  no-outline silhouette + rim-light, S4 2-bit alto contrasto, S5 dithering leggero
-  retro. Sorgenti in `assets/art-src/style-tests/` (commit `3752eef`); riferimento
-  canonico `assets/art-src/style-tests/S1-outline-nero.aseprite`, preview a
-  ingrandimento ×8 in `assets/art-src/style-tests/preview/S1-outline-nero-x8.png`.
+- **Nessun outline nero perimetrale, da nessuna parte**: personaggi, nemici, mondo e UI.
+  Fino al 31/07 lo stile ufficiale era **S1 «outline nero»** (DEC-176(a), outline 1px
+  `slag-nero` sul perimetro di ogni sprite); questa sezione lo sostituisce.
+- **Silhouette per contrasto di valore**: il bordo, dove serve, è **implicito** — il
+  tono più scuro del materiale stesso, mai un nero puro perimetrale disegnato a parte.
+- **Un solo grande piano di luce** compatto per scena, luce dall'alto/alto-sinistra
+  coerente in tutta la scena; **2–3 toni per materiale**; le ombre si **raggruppano**
+  in masse scure, non si distribuiscono in mezzitoni.
+- **Mai dithering. Mai noise fill.** La texture è sempre: (a) un motivo geometrico
+  seamless usato come maschera con 2 toni adiacenti della palette Fucina, oppure (b)
+  accenti sparsi **≤10–15%** dei pixel su base piatta.
+- **Craft pass obbligatorio** prima di ogni consegna: bordi a gradini irregolari (mai
+  linee rette lunghe sui contorni organici), terminatore di luce che segue la forma,
+  pieghe dei tessuti a tratti corti scuri (2–4px) con crinale chiaro adiacente — il
+  blocking geometrico grezzo non è mai un livello di consegna accettabile.
+- **Obbligo conseguente**: ogni asset passa il **floor test su pavimento chiaro E
+  scuro** prima dell'approvazione — senza outline il contrasto va garantito caso per
+  caso (masse scure → accento emissivo che stacca sul buio; masse chiare → ancoraggio
+  d'ombra alla base).
+- Scelto dopo un confronto diretto A/B sullo stesso soggetto (opzione A «split» —
+  outline solo sui viventi, mondo senza — scartata; opzione B — nessun outline da
+  nessuna parte — scelta): sorgenti in `assets/art-src/experiments/ror-style-mini/`
+  (`trio-mini-32.aseprite`, preview `outline-A-vs-B.png` e `trio-mini-in-stanza.png`).
+  Working doc più ampio della distillazione (principi, non canone finché non riversati
+  qui): `assets/art-library/30_visual_language/visual-language-v2-DRAFT.md` e
+  `negative_rules.md` (DEC-209).
 
-### Scala base: 32px (DEC-177, rettifica di DEC-176)
+### Scala base: 32px (DEC-177, riconfermata da DEC-208 dopo l'esplorazione di 64px)
 
 - **32px** è la scala base per **personaggi, nemici e oggetti**. Fissata inizialmente a
-  24px da DEC-176, poi corretta a 32px lo stesso giorno da DEC-177 perché **512/32 = 16
+  24px da DEC-176, corretta a 32px lo stesso giorno da DEC-177 perché **512/32 = 16
   esatto** con la risoluzione di lavoro SD1.5 della pipeline Style LoRA (DEC-148/168/175)
   — un rapporto intero, senza jitter di upscale/downscale nel Pixel Art Fixer, a
   differenza di 24px (512/24 = 21,33) — e offre **~1,8×** il dettaglio per frame utile
-  alla LoRA.
-- I **boss** possono superare questa scala.
+  alla LoRA. Cella personaggio 32×32, **corpo utile ~26px** (fino a 30 per i tozzi).
+- I **boss** possono superare questa scala (entità multi-tile, 64+ su 2 tile).
 - Le **icone HUD seguono la propria griglia**, indipendente dalla scala base: non c'è
   obbligo che mondo e interfaccia condividano la stessa taglia in pixel.
-- Scelta iniziale dopo un confronto diretto 16px/24px/32px sullo stesso soggetto (goblin):
-  16px scartato per dettaglio insufficiente a comunicare i 7 strati di trasformazione
-  visiva definiti sopra (in particolare silhouette e materiale) — motivo ancora valido.
-  Costi accettati della scala 32px: più tempo di produzione per sprite, stanze più
-  affollate/dense a parità di area di cella, e un ritocco futuro dei raggi di collisione
-  (~+2px, gap di implementazione esplicito, non ancora eseguito).
+- **Riconfermata il 31/07 (DEC-208)** dopo che la ricerca esterna del proprietario aveva
+  proposto **64×64** come alternativa: le prove dirette (`assets/art-src/experiments/
+  attizzatrice-ab/`, confronto statico e in movimento 32/64/128) hanno mostrato che il
+  fascino della ricerca era lo **stile** a masse (DEC-205), non la risoluzione maggiore
+  — 64px scartato. Costi accettati della scala 32px, invariati: più tempo di produzione
+  per sprite, stanze più affollate/dense a parità di area di cella, e un ritocco futuro
+  dei raggi di collisione (~+2px, gap di implementazione esplicito, non ancora
+  eseguito).
+- Scelta iniziale (28/07) dopo un confronto diretto 16px/24px/32px sullo stesso soggetto
+  (goblin): 16px scartato per dettaglio insufficiente a comunicare i 7 strati di
+  trasformazione visiva definiti sopra (in particolare silhouette e materiale) — motivo
+  ancora valido.
+
+## Personaggi: senza volto e senza armi in mano (DEC-206/DEC-207)
+
+- **Senza volto**: mai occhi, musi o tratti facciali sui personaggi giocabili; **vuoto
+  nero pieno** sotto cappucci ed elmi. Si applica identicamente alla rosa base e al
+  personaggio generato per-run (DEC-049): l'identità del personaggio passa da
+  silhouette, materiale e accento (i 7 strati sopra), non da un volto (DEC-206).
+- **Senza armi in mano**: le armi **non fanno mai parte dello sprite base** del
+  personaggio. Al massimo sono oggetti equipaggiati che appaiono via slot visivi
+  (DEC-049) / ItemVisualBundle, su un livello separato nel rig sorgente quando animate
+  (DEC-207) — vedi anche la sezione seguente sui 6 slot visivi.
 
 ## Slot visivi degli oggetti sul personaggio (DEC-049)
 
@@ -229,7 +258,15 @@ sopra: gli strati descrivono COME una trasformazione visiva si compone (silhouet
 materiale, ecc.), i 6 slot visivi descrivono DOVE sul personaggio un oggetto equipaggiato si
 sovrappone visivamente. Il numero esatto di slot funzionali (attivo, Innesto, espandibili —
 DEC-011) e la relazione precisa con questi 6 slot visivi restano da chiarire (vedi Domande
-aperte residue).
+aperte residue) — DEC-207 (31/07) non risolve questa mappatura, precisa solo che l'arma non
+è mai parte dello sprite base: resta un oggetto fra gli altri sui 6 slot visivi.
+
+**Precisazione (31/07, DEC-207):** un'arma equipaggiata occupa uno di questi 6 slot visivi
+esattamente come qualunque altro oggetto — non esiste, e non è mai esistita come regola
+approvata, un'arma "di default" disegnata dentro lo sprite base del personaggio. Il rig
+sorgente separa sempre il corpo (livelli guides/shadow/body/details/emissive) dalle
+parti-arto e dall'arma quando animate (vedi la sezione «Personaggi: senza volto e senza
+armi in mano» sopra).
 
 ## Silhouette stabile delle risorse fisse (DEC-073b)
 
@@ -346,10 +383,20 @@ Nessuna informazione critica deve dipendere solo dal colore.
 **Scenario: uno sprite nuovo rispetta lo stile e la scala ufficiali**
 - Given un artista che disegna un nuovo nemico o un nuovo oggetto,
 - When lo esporta come sprite di gioco,
-- Then l'esterno della silhouette ha un outline `slag-nero` di 1px, le superfici usano
-  shading piatto a 2 toni senza dithering, e lo sprite è disegnato alla scala base di
-  32px (più grande solo se è un boss), coerente con lo stile S1 (DEC-176) e la scala
-  DEC-177.
+- Then la silhouette non ha alcun outline nero perimetrale (il bordo implicito è il tono
+  più scuro del materiale), le superfici usano 2–3 toni per materiale con un piano di
+  luce unico e ombre raggruppate, niente dithering né noise fill, e lo sprite è
+  disegnato alla scala base di 32px (più grande solo se è un boss), coerente con lo
+  stile masse senza outline (DEC-205) e la scala DEC-177/DEC-208; prima dell'approvazione
+  passa il floor test su pavimento chiaro e scuro.
+
+**Scenario: un personaggio nuovo rispetta le regole senza-volto e senza-armi**
+- Given un artista che disegna un nuovo personaggio giocabile (rosa base o personaggio
+  generato),
+- When definisce testa e mani nello sprite base,
+- Then non disegna alcun tratto facciale (vuoto nero pieno sotto cappuccio/elmo, DEC-206)
+  e non disegna alcuna arma in mano: l'arma, se presente, appare solo come oggetto
+  equipaggiato su uno dei 6 slot visivi (DEC-207), mai come parte dello sprite base.
 
 **Scenario: le icone delle risorse fisse restano riconoscibili tra World diversi**
 - Given un giocatore che ha giocato una run nel World A e un'altra nel World B,

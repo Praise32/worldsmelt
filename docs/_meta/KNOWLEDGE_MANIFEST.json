@@ -1523,7 +1523,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale «S1 – outline nero» (DEC-176) e della scala base sprite, 32px dopo la rettifica pipeline SD1.5/LoRA (DEC-177), chiude la domanda aperta 12.",
+      "summary": "Fonte unica dei 7 strati di trasformazione visiva usati per fusioni e sinergie in tutta la KB. L'aspetto è uno dei quattro assi dell'escalation leggibile del tema per piano (DEC-024). Fonte unica della regola: tutto il gioco, UI compresa, è pixel art (DEC-046). Fonte unica anche dei 6 slot visivi degli oggetti sul personaggio, comuni a sprite curati e generati (DEC-049), ora precisati: mai armi disegnate nello sprite base (DEC-207). Fonte unica anche della silhouette iconica stabile delle risorse fisse tra i World, con gap di implementazione noto (DEC-073b). Fonte unica anche della palette ufficiale «Fucina di Worldsmelt», 31 colori, esplicitamente non-neon (DEC-173). Fonte unica anche dello stile pixel-art ufficiale: **masse senza outline** (DEC-205, 31/07, supera DEC-176(a) «S1 outline nero») e della scala base sprite, 32px (DEC-177, riconfermata da DEC-208 dopo l'esplorazione di 64px), chiude la domanda aperta 12. Fonte unica anche delle regole «personaggi senza volto» (DEC-206) e «personaggi senza armi in mano» (DEC-207). Il processo di reference distillation (DEC-209) e il piano di rifacimento a onde (DEC-210, onda 1 = personaggi+nemici) vivono in `assets/art-library/`, working doc non canonico.",
       "topics": [
         "linguaggio visivo",
         "pixel art",
@@ -1535,17 +1535,22 @@
         "palette",
         "fucina",
         "DEC-173",
-        "stile S1",
-        "outline nero",
+        "masse senza outline",
         "scala 32px",
         "DEC-176",
-        "DEC-177"
+        "DEC-177",
+        "DEC-205",
+        "DEC-206",
+        "DEC-207",
+        "DEC-208",
+        "DEC-209",
+        "DEC-210"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-28",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "design-decision-log",
@@ -1555,13 +1560,17 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 204 decisioni di design (DEC-001..DEC-204) che cambiano il comportamento del gioco: 203 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 210 decisioni di design (DEC-001..DEC-210) che cambiano il comportamento del gioco: 209 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia. Il batch DEC-205..210 (31/07, sessione remota del proprietario sulla reference distillation) supera DEC-176(a) (outline nero → masse senza outline) e riconferma DEC-177 (scala 32px) dopo l'esplorazione di 64px.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..204"
+        "DEC-001..210",
+        "masse senza outline",
+        "DEC-205",
+        "DEC-208",
+        "reference distillation"
       ],
       "related": [],
       "supersedes": [],
@@ -1665,7 +1674,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, e WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt, DEC-189/190) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177 e riconfermata sulla scala da DEC-208, la voce 18 aggiornata senza chiudersi da DEC-210, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt (DEC-189/190), e il batch DEC-205..DEC-210 della sessione remota di reference distillation dello stesso giorno non chiude voci nuove ma tocca la 12 e la 18) dopo DEC-001..DEC-210: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).",
       "topics": [
         "open-questions",
         "governance",
@@ -1702,7 +1711,11 @@
         "DEC-185",
         "DEC-189",
         "DEC-190",
-        "DEC-204"
+        "DEC-204",
+        "DEC-205",
+        "DEC-208",
+        "DEC-209",
+        "DEC-210"
       ],
       "related": [],
       "supersedes": [],

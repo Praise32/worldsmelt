@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 204 decisioni di design (DEC-001..DEC-204) che cambiano il comportamento del gioco: 203 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+  Registro delle 210 decisioni di design (DEC-001..DEC-210) che cambiano il comportamento del gioco: 209 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia. Il batch DEC-205..210 (31/07, sessione remota del proprietario sulla reference distillation) supera DEC-176(a) (outline nero → masse senza outline) e riconferma DEC-177 (scala 32px) dopo l'esplorazione di 64px.
 last_reviewed: 2026-07-31
 last_verified_commit: 4d7a410
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..204]
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..210, masse senza outline, DEC-205, DEC-208, reference distillation]
 related: []
 supersedes: []
 source_files: []
@@ -1955,6 +1955,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Conseguenze:** `content/visual-language.md` guadagna la sezione «Stile pixel-art ufficiale e scala base sprite» con le regole di outline/shading e la scala, e corregge la riga sulla collocazione del file `.gpl` della palette (ora canonico nel repository, non più «fuori da questo repository» — nota di correzione a DEC-173, che resta approved: cambia solo la collocazione del file, non la scelta dei 31 colori). Il paragrafo di DEC-046 su «risoluzioni di riferimento attuali... default dell'implementazione» resta valido per gli aspetti tecnici non coperti qui (es. rendering a campionamento a punto), ma la **scala base degli sprite pixel-art è ora un valore di design approvato**, non più solo un default proposto. La domanda aperta 12 si **chiude**: scala dei pixel del gioco = 24px base per mondo/personaggio (boss eccettuati), griglia propria per le icone HUD, senza obbligo di scala condivisa fra mondo e interfaccia. La domanda aperta 11 (risoluzione logica dell'interfaccia, 960×640 vs 640×360) **resta aperta**: questa decisione non la tocca, coerente con DEC-174.
 - **Documenti aggiornati:** `docs/design/content/visual-language.md`, `docs/design/governance/open-questions.md` (chiusura domanda 12) (aggiornati in questo stesso lavoro)
 - **Nota (2026-07-28):** il punto **(b) Scala** è superato da **DEC-177** — la scala base passa da 24px a 32px per allinearsi alla pipeline SD1.5/LoRA. Il punto **(a) Stile S1** resta invariato e approved.
+- **Nota (2026-07-31):** il punto **(a) Stile S1 «outline nero»** è superato da **DEC-205** — la sessione di reference distillation del 31/07 sostituisce l'outline nero perimetrale con lo stile a masse senza outline (contrasto di valore, bordo implicito). Il punto **(b) Scala**, già corretto a 32px da DEC-177, resta invariato e riconfermato da **DEC-208** dopo un'esplorazione diretta di 64px.
 
 ---
 
@@ -1967,6 +1968,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** mantenere **24px** (scartato: rapporto non intero con la risoluzione SD1.5, jitter di upscale/downscale, meno dettaglio per frame per la Style LoRA); **16px** (già scartato da DEC-176 per dettaglio insufficiente a comunicare i 7 strati di trasformazione visiva, motivo che vale ancora); **64px** (rapporto intero altrettanto pulito con 512, 512/64=8, ma dettaglio e costo di produzione/collisione eccessivi per il volume richiesto dal catalogo curato e dal dataset LoRA).
 - **Conseguenze:** `content/visual-language.md` aggiorna la sezione «Stile pixel-art ufficiale e scala base sprite» (24px → 32px, con la motivazione di allineamento pipeline) e lo scenario Given/When/Then pertinente; `governance/open-questions.md` aggiorna il valore riportato nella nota di chiusura della domanda 12 (resta chiusa, cambia solo il valore). Il ritocco dei raggi di collisione resta un **gap di implementazione esplicito** (stile DEC-009/DEC-052): il codice dovrà adeguarsi al nuovo ingombro visivo, non ancora applicato in questo lavoro.
 - **Documenti aggiornati:** `docs/design/content/visual-language.md`, `docs/design/governance/open-questions.md`, `docs/design/governance/decision-log.md` (nota su DEC-176) (aggiornati in questo stesso lavoro)
+- **Nota (2026-07-31):** la scala **32px** è **riconfermata da DEC-208** dopo un'esplorazione diretta dell'alternativa 64×64 proposta dalla ricerca esterna del proprietario (prove `assets/art-src/experiments/attizzatrice-ab/`): nessun valore cambia, questa non è una nota di sostituzione.
 
 ---
 
@@ -2291,3 +2293,75 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** nessuna — la domanda chiedeva un dato quantitativo per calibrare il lavoro futuro, non una scelta fra alternative di design.
 - **Conseguenze:** nessun documento canonico dedicato al dimensionamento dei batch esiste oggi (`docs/ai-production/20-SESSION-PROTOCOL.md` fissa il formato delle sessioni, non il ritmo settimanale): questa decisione resta la fonte diretta del dato, da consultare per dimensionare i lavori futuri, senza propagazione in un documento di sistema dedicato.
 - **Documenti aggiornati:** `docs/design/governance/open-questions.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-205 — Stile di resa «masse senza outline» (Opzione B): SUPERA DEC-176(a)
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-176(a) (28/07) aveva fissato lo stile pixel-art ufficiale «S1 – outline nero» (outline nero 1px perimetrale su ogni sprite) dopo un confronto visivo su cinque prove al checkpoint CP1. La sessione arte del 31/07 sera («definiamo lo stile e rifacciamo tutta la grafica della demo») ha costruito `assets/art-library/` (9 pack CC0 di reference con licenza verificata) e prodotto una nuova prova diretta A/B sullo stesso soggetto — `assets/art-src/experiments/ror-style-mini/trio-mini-32.aseprite`, preview `preview/outline-A-vs-B.png` e `preview/trio-mini-in-stanza.png` — confrontando l'opzione A «split» (outline nero solo sui personaggi/nemici viventi, mondo senza) con l'opzione B (nessun outline da nessuna parte, stile a masse alla Risk of Rain Returns). Il proprietario ha risposto in sessione remota, con le prove visive alla mano, scegliendo esplicitamente l'opzione B.
+- **Decisione:** **nessun outline nero perimetrale in nessun asset** (personaggi, nemici, mondo, UI). Contrasto affidato alla **silhouette per valore**; il bordo implicito, dove serve, è il **tono più scuro del materiale**, mai nero puro perimetrale. Un solo **grande piano di luce** compatto per scena, **2–3 toni per materiale**, ombre **raggruppate** in masse scure (non mezzitoni distribuiti). **Mai dithering, mai noise fill**: la texture è sempre o (a) un motivo geometrico seamless usato come maschera con 2 toni adiacenti della palette Fucina (DEC-173), o (b) accenti sparsi ≤10–15% dei pixel su base piatta. **Craft pass obbligatorio** prima di ogni consegna: bordi a gradini irregolari (mai linee rette lunghe sui contorni organici), terminatore di luce che segue la forma, pieghe dei tessuti a tratti corti scuri (2–4px) con crinale chiaro adiacente — il blocking geometrico grezzo non è mai un livello di consegna accettabile. **Obbligo conseguente:** ogni asset passa il **floor test su pavimento chiaro E scuro** prima dell'approvazione — senza outline il contrasto va garantito caso per caso (masse scure → accento emissivo che stacca sul buio; masse chiare → ancoraggio d'ombra alla base).
+- **Alternative considerate:** Opzione A «split» (outline nero solo sui personaggi/nemici viventi, mondo senza outline) — scartata esplicitamente dal proprietario dopo il confronto diretto A/B, preferendo la coerenza totale dell'opzione B su tutta la grafica; mantenere integralmente lo stile S1 di DEC-176(a) — superata da questa decisione.
+- **Conseguenze:** **SUPERA esplicitamente DEC-176(a)** (che resta `approved` come registrazione storica della scelta al checkpoint CP1 e riceve una nota datata di sostituzione parziale, stesso trattamento già usato per DEC-036/DEC-109/DEC-172/DEC-176(b)). **DEC-176(b)/DEC-177 (scala base 32px) NON sono toccate da questa decisione** — vedi DEC-208, che le riconferma dopo esplorazione. `content/visual-language.md`, sezione «Stile pixel-art ufficiale e scala base sprite», viene riscritta per lo stile (outline nero → masse senza outline); il titolo della sezione perde il riferimento a «S1». Tutti gli sprite esistenti in stile S1 outline nero (rosa base e nemici W8/WP-INT, remap batch dei 189 curati CC0, prop autoprodotti 30–31/07) diventano **provvisori da rifare** nell'onda di produzione (vedi DEC-210); questa decisione non tocca alcun asset né il codice, resta di competenza del proprietario e degli agenti art.
+- **Documenti aggiornati:** `docs/design/content/visual-language.md`, `docs/design/governance/decision-log.md` (nota su DEC-176)
+
+---
+
+### DEC-206 — Personaggi senza volto: vuoto nero sotto cappucci ed elmi
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** nessun documento canonico vincolava esplicitamente i personaggi a non avere tratti facciali; gli sprite curati esistenti non erano vincolati su questo punto. Le reference card della Fase A (`sprLizardMonk1`, «tonaca-cono 2 toni + cavo cappuccio scuro»; `supernova idle 8-dir`, «SENZA VOLTO nativo») mostravano il principio già praticato nei pack migliori del gold set di reference. Il proprietario ha risposto testualmente in sessione remota: «non mostrare dettagli del viso, fai i personaggi senza viso».
+- **Decisione:** **mai occhi, musi o tratti facciali** sui personaggi giocabili; **vuoto nero pieno** sotto cappucci ed elmi (stesso principio della reference `sprLizardMonk1`). Si applica identicamente a tutti i personaggi della rosa base e al personaggio generato per-run (DEC-049): l'identità del personaggio passa da silhouette, materiale e accento (vedi i 7 strati di trasformazione visiva), non da un volto.
+- **Alternative considerate:** dettagli facciali minimi o stilizzati (es. una singola fessura luminosa sotto il cappuccio) — non scelta: il proprietario ha escluso esplicitamente ogni dettaglio del viso, senza eccezioni.
+- **Conseguenze:** `content/visual-language.md` guadagna la regola esplicita nella sezione di stile. Nessun documento `approved` viene sostituito nel merito (nessuna decisione precedente descriveva volti sui personaggi).
+- **Documenti aggiornati:** `docs/design/content/visual-language.md`
+
+---
+
+### DEC-207 — Personaggi senza armi disegnate in mano: precisazione di DEC-049
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-049 (18/07) fissava già i 6 slot visivi degli oggetti equipaggiati sovrapposti al personaggio, ma non escludeva esplicitamente che lo sprite BASE del personaggio potesse includere un'arma disegnata in mano. Le reference della Fase A confermano il principio nella pratica: il pack `good_and_evil` separa esplicitamente le cartelle `with_weapon`/`without_weapon` per lo stesso personaggio, e il `demon` dello stesso pack ha «anatomia a livelli con ARMA SU LIVELLO SEPARATO». Il proprietario ha risposto testualmente: «i personaggi non dovrebbero avere armi disegnate in mano, le armi al massimo sono oggetti».
+- **Decisione:** **le armi non fanno mai parte dello sprite base** del personaggio. Al massimo sono **oggetti equipaggiati** che appaiono via slot visivi (DEC-049) / ItemVisualBundle, su un **livello separato** nel rig sorgente quando animate (struttura a livelli: guides nascosto / shadow / body / details / emissive per il corpo; parti-arto e arma su livelli distinti dal corpo).
+- **Alternative considerate:** arma sempre disegnata in mano come parte integrante dello sprite base (comportamento di alcuni sprite curati attuali) — scartata esplicitamente dal proprietario.
+- **Conseguenze:** **precisa DEC-049** senza sostituirlo nel merito (DEC-049 già stabiliva la sovrapposizione via slot visivi; questa decisione chiude l'ambiguità residua sullo sprite base, mai esplicitamente vietata prima). `content/visual-language.md`, sezione «Slot visivi degli oggetti sul personaggio (DEC-049)», guadagna la precisazione esplicita.
+- **Documenti aggiornati:** `docs/design/content/visual-language.md`
+
+---
+
+### DEC-208 — Scala base sprite: CONFERMATA 32px (DEC-177) dopo esplorazione completa; 64px scartato
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** la ricerca esterna del proprietario del 30/07 sera aveva proposto 64×64 come alternativa alla scala 32px di DEC-177. Le prove dirette dell'Attizzatrice — `assets/art-src/experiments/attizzatrice-ab/` (confronto statico e in movimento 32 vs 64 vs 128, `confronto-statico-triplo.png`, `confronto-walk-32vs64.gif`, `confronto-zoom-gioco.png`) — e il trio mini a corpi ~26px in cella 32 (`assets/art-src/experiments/ror-style-mini/`, `preview/trio-mini-x8.png`, `preview/trio-mini-in-stanza.png`) hanno permesso un confronto visivo diretto con lo stile a masse alla Risk of Rain Returns applicato a più scale.
+- **Decisione:** **DEC-177 (32px) è CONFERMATA** dopo l'esplorazione completa. Cella personaggio **32×32**, corpo utile **~26px** (fino a 30 per i tozzi); mondo a densità uniforme **32px/tile**; **boss** come entità multi-tile (64+ su 2 tile); coerente con la risoluzione logica **640×360** di DEC-200 (vista 20×11,25 tile — 32px è l'unica scala che tiene insieme stanza leggibile e corpo espressivo). Il percorso **64×64** è stato esplorato con prove dirette e **scartato dal proprietario** dopo aver visto lo stile a masse alla RoR Returns applicato alle prove (sprite reali di Risk of Rain Returns, misurati 22–34px di corpo): il fascino individuato nella ricerca esterna era lo **STILE** (masse, no-outline, craft pass — DEC-205), non la risoluzione maggiore. Il «rifacimento del mondo» annunciato dal proprietario è quindi un rifacimento di **STILE** di tutta la grafica della demo, a **scala 32px invariata**.
+- **Alternative considerate:** **64px** (esplorato con prove dirette in `attizzatrice-ab/`, scartato: il fascino della ricerca esterna era lo stile non la scala maggiore, e 64px avrebbe rotto il rapporto intero 512/32=16 di DEC-177 con la pipeline SD1.5/LoRA oltre ad aggravare i costi di produzione/collisione già accettati a 32px); **128px** (presente nella stessa prova come controllo di scala, mai seriamente in gara).
+- **Conseguenze:** DEC-177 resta `approved`, **invariata nel valore**, e riceve una nota di conferma datata (non di sostituzione: nessun numero cambia). `content/visual-language.md` non richiede modifiche al valore della scala, solo un rimando alla riconferma nella sezione pertinente.
+- **Documenti aggiornati:** `docs/design/content/visual-language.md` (nota), `docs/design/governance/decision-log.md` (nota su DEC-177)
+
+---
+
+### DEC-209 — Il processo di «reference distillation» diventa canone di produzione art
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** la sessione arte del 31/07 ha costruito `assets/art-library/` (9 pack CC0 scaricati da itch.io, con `source_url.txt`/`license.txt` snapshot accanto a ogni pack) e prodotto 22 reference card (`20_reference_cards/`, Fase A) valutate 1–5 per proprietà da 5 agenti. Il proprietario ha risposto in sessione remota, con le prove alla mano, **accettando in blocco** i voti proposti dalla Fase A — manifesto in `assets/art-library/10_references/approved-ai-reference/APPROVED.md` (16 card promosse ad approved, 6 a study-only, nessuna rejected in questo primo giro).
+- **Decisione:** il processo **«reference distillation»** — raccolta pack CC0 con licenza verificata → card di principi astratti per proprietà → voto 1–5 del proprietario → promozione a approved/study-only/rejected — è il **canone di produzione art** per il resto del progetto, non un esercizio una tantum del 31/07. Regole vincolanti confermate: le reference si usano **solo per principi astratti** (body plan, cluster, shading, timing), **mai copie** di design o pixel riconoscibili; i pack la cui licenza vieta l'uso AI restano **study-only umano**, mai aperti dagli agenti né usati per training LoRA (es. `architecture_shop` di Readient, vietato agli agenti); il **gold set LoRA** (`40_worldsmelt_gold_set/`) resta **solo materiale originale Worldsmelt approvato** dal proprietario — **DEC-201 resta invariata** e si applica identica a questo materiale (nessuna promozione automatica, approvazione sempre esplicita).
+- **Alternative considerate:** promozione automatica delle card con voto proposto ≥4 senza conferma esplicita del proprietario — scartata: contraddirebbe DEC-201, che vuole approvazione sempre esplicita, mai automatica o a campione; usare le reference come base diretta per asset (copia/derivazione) invece che solo principi astratti — scartata per rischio di originalità e licenza, coerente con `systems/generated-content-validation.md`.
+- **Conseguenze:** nessun documento `approved` viene sostituito; DEC-201 viene confermata ed esplicitamente estesa al materiale della reference distillation. `content/visual-language.md` cita `assets/art-library/30_visual_language/` come working doc della distillazione (fonte «in lavorazione», non canonica finché non riversata nel documento di design).
+- **Documenti aggiornati:** `docs/design/content/visual-language.md`
+
+---
+
+### DEC-210 — Piano di rifacimento grafica demo, onda 1: personaggi + nemici
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** con lo stile masse-senza-outline (DEC-205), i personaggi senza volto (DEC-206) e senza armi in mano (DEC-207) ora fissati, tutti gli asset pixel-art esistenti della demo (stile S1 outline nero, prodotti W8/WP-INT) sono provvisori da rifare. Rifare tutte le categorie insieme non è realistico nel ritmo di lavoro di 10+ ore/settimana del proprietario (DEC-204): serve un ordine di produzione esplicito.
+- **Decisione:** il rifacimento procede **a onde**, scelta esplicita del proprietario. **Onda 1 (questa decisione): personaggi + nemici.** Tre personaggi completi (rosa base Wayfinder/Ashblade/Bulwark, DEC-080) con **walk 4 direzioni, idle, hit, death**; bestiario organizzato per **famiglie di body plan**, con i **tier dei nemici come recolor di famiglia** (monocromia di fazione, coerente con la sezione Colore del linguaggio visivo) invece che sprite indipendenti per tier. **Onde successive** (in coda, ordine da decidere a onda 1 consegnata): tileset con il metodo base-piatta + giunti-sparsi (`industrial_punk` come riferimento di reference distillation, DEC-209), oggetti/HUD con la grammatica ItemVisualBundle (`medieval_fantasy_items` come riferimento).
+- **Alternative considerate:** rifacimento simultaneo di tutte le categorie (mondo, oggetti, HUD, personaggi) — scartato: non realistico nel ritmo settimanale fissato da DEC-204; iniziare dai tileset/ambiente invece che dai personaggi — scartato: il proprietario ha scelto esplicitamente personaggi+nemici come priorità, l'elemento con cui il giocatore ha il contatto visivo più continuo.
+- **Conseguenze:** gli asset attuali in stile S1 outline nero restano segnalati come provvisori dell'onda 0, in attesa della consegna dell'onda 1 (registrazione operativa in `HANDOFF.md`, fuori dal mandato di questa sessione). Questa decisione non tocca asset né codice, di competenza del proprietario e degli agenti art. `content/visual-language.md` non cambia per questa decisione: è pianificazione di produzione, non regola visiva.
+- **Documenti aggiornati:** nessuno strutturale oltre al decision-log; la sequenza di produzione non ha oggi una fonte canonica dedicata.
