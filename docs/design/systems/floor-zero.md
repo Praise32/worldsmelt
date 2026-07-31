@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Piano 0: hub ibrido di rifugio e arene opzionali, dove si sceglie tema (con anteprima visiva generata, DEC-039) e personaggio mentre la run si prepara — entrambi modificabili finché non si attraversa l'uscita verso il piano 1, con il cambio di tema che riavvia la generazione dei piani (DEC-091) — carte tema e schede personaggio sono cliccabili col mouse, perché il Piano 0 conta come menu ai fini di DEC-057 (DEC-075); completare un'arena dà una piccola dote iniziale alla run (DEC-029), disattivata in modalità Classificata. Le arene sono simulazioni a rischio zero che ripristinano esattamente lo stato d'ingresso e non hanno un'economia propria: le uniche ricompense sono la dote e la meta-progressione (DEC-055, DEC-092, DEC-093); basta un solo contenuto \"best-of\" perché un'arena si apra, seminata dal pool curato minimo quando mancano (DEC-094). Il museo permette anche di provare le creazioni esposte, senza alcun limite di tentativi, tempo o usi (DEC-040, DEC-095) ed è curato in modo misto: promozione automatica per metriche più preferiti del giocatore, che hanno la precedenza e non escono mai dal museo (DEC-063); un preferito diventato Reliquia resta esposto ma non più provabile in arena, mentre una promozione solo per metriche esce automaticamente (DEC-085). Le prove specifiche della run vengono presentate al passaggio verso il piano 1 (DEC-042). Il Piano 0 è il crogiolo dei mondi della cornice narrativa (DEC-067). L'abbandono del Piano 0 passa da ESC a `ExitConfirm` (DEC-074). Al primissimo avvio, prima della visita guidata, il gioco propone la scelta binaria completo/solo curato con una schermata dedicata a due carte, senza default silenzioso (DEC-070, DEC-086). La primissima visita al Piano 0 è un tutorial integrato nelle arene opzionali, senza tutorial separato (DEC-047). Il contenuto curato di fallback del Piano 0 è lo stato base del gioco, precaricato e sempre disponibile, senza attesa possibile (DEC-153); l'HUD di combattimento resta nascosto nel Piano 0, consultabile dal menu di pausa, visibile durante le prove (DEC-169)."
-last_reviewed: 2026-07-30
-last_verified_commit: 63753fc
-topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169, prove, DEC-042, WP16, WP15a, DEC-004, DEC-047, DEC-092, DEC-093, DEC-094, DEC-095, best-of, simulazione]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [Piano 0, hub, tema, arene, museo, DEC-091, onboarding, Reliquie, DEC-153, DEC-169, prove, DEC-042, WP16, WP15a, DEC-004, DEC-047, DEC-092, DEC-093, DEC-094, DEC-095, best-of, simulazione, DEC-185, DEC-192]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/render/game_renderer.h, src/core/game_types.h, src/world/floor_zero.c, src/world/floor_zero.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/content/run_catalog.h, src/gameplay/combat.c, src/game/trials.c, src/app/app.c, src/tests/floor_zero_arena_tests.c]
@@ -244,9 +244,9 @@ giocatore non sta combattendo.
 
 - L'HUD resta comunque **consultabile dal menu di pausa** in qualunque momento, come ogni
   altra informazione di stato della run in preparazione (vedi
-  [Pause Menu](../ui/pause-menu.md)). Con quale comando il menu di pausa si apra dal Piano 0
-  — dove ESC è già assegnato a `ExitConfirm` (DEC-074) — DEC-169 non lo fissa: è la domanda
-  aperta 22 in `../governance/open-questions.md`.
+  [Pause Menu](../ui/pause-menu.md)). Il comando con cui il menu di pausa si apre dal Piano 0
+  — dove ESC resta assegnato a `ExitConfirm` (DEC-074) — è il **comando di pausa**, lo stesso
+  di `Gameplay`: canone (DEC-185, 31/07).
 - Durante le **arene di sfida** (opzionali o del museo) — incluse quelle della primissima
   visita guidata (DEC-047) — l'HUD torna **visibile**: lì il giocatore combatte davvero e
   ha bisogno delle stesse informazioni che userebbe nei piani 1-5.
@@ -261,14 +261,14 @@ l'HUD di combattimento resta nascosto.
 > (`src/world/floor_zero_arena.c`) sono i due soli punti che scrivono
 > `Game.floorZeroTrialActive`, quindi l'HUD di combattimento ricompare durante una
 > simulazione e torna nascosto all'uscita, senza alcun lavoro aggiuntivo sul renderer —
-> esattamente come la nota precedente prevedeva. **Limite dichiarato:** dentro la
+> esattamente come la nota precedente prevedeva. **Canone (DEC-192, 31/07):** dentro la
 > simulazione il timer di run **si disegna ma resta fermo a `0:00`**, perché il Piano 0 non
-> è una run cronometrata (`FloorZeroEnter` spegne `inRealRun` e azzera
-> `runElapsedSeconds`); non è un difetto di questo lavoro, è la conseguenza corretta di
-> DEC-051 applicata a un luogo dove il tempo della run non scorre. La consultazione dal menu
-> di pausa (sotto) era già disegnata (riquadro dedicato in `DrawPauseMenuOverlay`,
-> condizionato solo a `game->floor == 0`) e ha ora anche il comando che la apre: un
-> **default proposto** per la domanda aperta 22, vedi "Stato di implementazione" sotto.
+> è mai una run cronometrata, in nessuna delle sue attività (`FloorZeroEnter` spegne
+> `inRealRun` e azzera `runElapsedSeconds`) — conseguenza di DEC-051 applicata a un luogo
+> dove il tempo della run non scorre, confermata voluta dal proprietario. La consultazione
+> dal menu di pausa (sotto) era già disegnata (riquadro dedicato in `DrawPauseMenuOverlay`,
+> condizionato solo a `game->floor == 0`) e ha ora anche il comando che la apre, promosso a
+> canone da DEC-185: vedi "Stato di implementazione" sotto.
 
 ## Interazioni
 
@@ -451,7 +451,7 @@ dalla nota M5 di questo documento e sblocca il tutorial integrato di DEC-047 e l
 | **Tasto di ingresso** | `X` a contatto con la piazzola, lo stesso dell'arena del piano e della Pourhouse: per il giocatore è un solo gesto, "accetto ciò che questo posto propone". | `Game.interactQueued`, `FloorZeroArenaQueueEntry` |
 | **Uscita dalla simulazione** | ESC. Dentro una prova "indietro" significa "torna nell'hub"; fuori resta `ExitConfirm` (DEC-074). | `src/app/app.c`, case `APP_FLOOR_ZERO` |
 | **Vittoria** | Tutti i nemici abbattuti. Si **annuncia** e basta: la prova NON si chiude da sola (DEC-095, le prove sono illimitate — chiuderla d'ufficio taglierebbe corta la lezione della piazzola FUSIONE, dove i nemici sono il contorno e la fucina è il punto). Nessuna ricompensa: la dote di DEC-029 non è implementata (limite dichiarato sopra). | `FloorZeroArenaCleared`, `FloorZeroArenaNoteVictory` |
-| **Comando di pausa dal Piano 0** (domanda aperta 22) | Il **tasto di pausa** apre `PauseMenu` in consultazione; ESC resta `ExitConfirm` (DEC-074) e TAB resta il pannello mondi/personaggi (M5). Vedi `ui/pause-menu.md`. **Default proposto, la domanda resta aperta.** | `AppUi.pauseFromFloorZero`, `src/app/app.c` |
+| **Comando di pausa dal Piano 0** (DEC-185) | Il **tasto di pausa** apre `PauseMenu` in consultazione; ESC resta `ExitConfirm` (DEC-074) e TAB resta il pannello mondi/personaggi (M5). Vedi `ui/pause-menu.md`. **Canone.** | `AppUi.pauseFromFloorZero`, `src/app/app.c` |
 
 ## Regole per contenuti generati
 

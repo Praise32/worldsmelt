@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (55 voci attive su 56 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).
+  Coda ufficiale e unica delle domande ancora aperte (37 voci attive su 58 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, e il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci, aggiornando senza chiudere le voci 9 e 17) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).
 last_reviewed: 2026-07-31
-last_updated_from_session: 2026-07-31-wp22-ui-rifiniture
-last_verified_commit: 50911c9
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22]
+last_updated_from_session: 2026-07-31-decision-batch-dec185-204
+last_verified_commit: 4d7a410
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22, DEC-185, DEC-204]
 related: []
 supersedes: []
 source_files: []
@@ -97,6 +97,25 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 "Domande aperte" dei singoli documenti di sistema (es. `systems/grafts.md`,
 `systems/item-fusion.md`): quelle non sono duplicate qui.
 
+**Batch decisionale del 2026-07-31 (DEC-185...DEC-204).** Il proprietario ha risposto a un
+batch di 22 domande poste da Fable, in gran parte default proposti dall'implementazione in
+attesa di conferma. Venti risposte chiudono altrettante voci con una DEC dedicata ciascuna:
+22 (DEC-185, comando di pausa dal Piano 0), 26 (DEC-186, card di scoperta in basso al
+centro), 31 (DEC-187, conferma fusione in `BuildScreen`), 55 (DEC-188, `R` comando di
+sviluppo), 24 (DEC-189, file di preferenze `prefs/settings.txt`), 25 (DEC-190, slider
+volumi canone), 23 (DEC-191, escalation tileset dal piano 3), 27 (DEC-192, timer fermo nel
+Piano 0), 14 (DEC-193, piattaforme Linux+Windows), 15 (DEC-194, AI disclosure su negozio e
+crediti), 16 (DEC-195, modelli via download al primo avvio), 20 (DEC-196, primo esperimento
+audio SFX+musica insieme), 13 (DEC-197, strumento UI Markdown+PNG, niente Penpot), 35
+(DEC-198, spuntoni temporizzati), 36 (DEC-199, personaggio generato su sheet Fonditrice),
+11 (DEC-200, risoluzione logica 640×360, migrazione a CP4), 19 (DEC-201, regime di review
+sempre esplicito per curato/LoRA definitivi), 58 (DEC-202, default sospensione confermati
+in blocco), 54 (DEC-203, abbandono finalizza le prove come fine run), 21 (DEC-204, 10+ ore
+settimanali del proprietario). Due risposte **aggiornano ma non chiudono** la voce, con un
+rinvio esplicito registrato nel testo, senza una DEC di merito: 17 (import di contenuti
+utente rimandato a dopo la release) e 9 (dettagli del multiplayer asincrono rimandati a una
+sessione dedicata dopo il playtest della demo).
+
 ## Economia e stanze
 
 1. Quali sono le grandezze minime e massime delle stanze, in pixel per ciascuna taglia? (DEC-009 fissa solo la variabilità e una grandezza minima garantita, senza valori; DEC-170 aggiunge le taglie multiple in classi discrete 1x1/1x2/2x1/2x2/L e il comportamento della telecamera, senza fissare le dimensioni esatte di una cella né quale taglia ricevano la stanza boss e la stanza di partenza.) **Aggiornamento 27/07:** l'implementazione di DEC-170 ha adottato dei **default proposti** (cella = 876×458 px, cioè il canvas logico; partenza 1x1; boss 2x2 quando entra nella griglia; tesoro/negozio 1x1; distribuzione 55/15/15/8/7) — vedi `systems/rooms-and-floor-generation.md`, sezione «Default proposti dall'implementazione (DEC-170)». La domanda **resta aperta**: sono default di implementazione, non una decisione di design.
@@ -116,7 +135,7 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 
 ## Multiplayer
 
-9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e i valori esatti dei vincoli di budget della Classificata a seed diversi? (Il criterio di normalizzazione è ora fissato: budget di generazione vincolato, DEC-096; l'orario di rotazione della Daily è 00:00 UTC, DEC-081.)
+9. Quali dettagli restano da definire nel multiplayer asincrono oltre a DEC-016/DEC-021/DEC-062: gestione delle disconnessioni, metriche di classifica oltre a tempo e punteggio, regole di parità e di validità della run pubblicata, e i valori esatti dei vincoli di budget della Classificata a seed diversi? (Il criterio di normalizzazione è ora fissato: budget di generazione vincolato, DEC-096; l'orario di rotazione della Daily è 00:00 UTC, DEC-081.) **Aggiornamento 31/07 — RIMANDATA, non decisa qui:** il proprietario ha scelto esplicitamente di rimandare i dettagli del multiplayer asincrono a **dopo il playtest della demo**, in una sessione dedicata separata. Nessuna DEC di merito registra questa voce: è un rinvio, non una risposta.
 
 ## Produzione
 
@@ -124,19 +143,19 @@ identificatori stabili, le sezioni raggruppano per tema. Domande aperte più loc
 
 ## Interfaccia
 
-11. Qual è la risoluzione logica canonica dell'interfaccia e con quale regola di scaling? La proposta ricorrente è **640×360 con scaling intero**, presente negli appunti e nei template ma **mai approvata**: DEC-156 la apre esplicitamente come domanda aperta e fa marcare il valore come non approvato in `docs/ai-production/templates/UI-SKIN-SPEC.md`. (Provenienza: `Q-UI-002` del questionario ai-production archiviato, priorità BLOCKING per l'implementazione UI.) **Resta aperta (28/07, DEC-174):** il proprietario ha scelto di non deciderla ora; l'HUD in pixel art della demo si disegna nel frattempo per il **canvas logico attuale, 960×640** (lo stesso di DEC-170), non per fissare implicitamente questa domanda. Si decide dopo la demo.
+~~11. Qual è la risoluzione logica canonica dell'interfaccia e con quale regola di scaling? La proposta ricorrente è **640×360 con scaling intero**, presente negli appunti e nei template ma **mai approvata**: DEC-156 la apre esplicitamente come domanda aperta e fa marcare il valore come non approvato in `docs/ai-production/templates/UI-SKIN-SPEC.md`. (Provenienza: `Q-UI-002` del questionario ai-production archiviato, priorità BLOCKING per l'implementazione UI.) **Resta aperta (28/07, DEC-174):** il proprietario ha scelto di non deciderla ora; l'HUD in pixel art della demo si disegna nel frattempo per il **canvas logico attuale, 960×640** (lo stesso di DEC-170), non per fissare implicitamente questa domanda. Si decide dopo la demo.~~ **Chiusa (31/07, DEC-200):** la risoluzione logica canonica è **640×360** (16:9 nativo, scala intera ×3 = 1920×1080). La migrazione della GUI avviene nella sessione **CP4**; fino ad allora la demo resta sul canvas 960×640 (DEC-174, invariata). Sul 21:9: pillarbox a scala intera nella prima release, vista ultrawide nativa eventuale estensione futura non decisa. Vedi `docs/ai-production/templates/UI-SKIN-SPEC.md`.
 12. ~~Qual è la scala dei pixel del gioco — pixel nativi molto grandi, pixel medi, dettaglio alto con pixel snapping — e vale la stessa scala per il mondo e per l'interfaccia?~~ (Provenienza: `Q-UI-003`, BLOCKING per l'art bible.) **Chiusa (28/07, DEC-176; valore rettificato da DEC-177):** il proprietario ha scelto, al checkpoint CP1 della produzione pixel-art, la scala base per personaggi/nemici/oggetti — fissata a 24px da DEC-176 e **corretta lo stesso giorno a 32px** da DEC-177 per allinearsi alla pipeline SD1.5/LoRA (512/32 = 16 esatto); i boss possono superarla e le **icone HUD seguono la propria griglia**, indipendente da questa scala — nessun obbligo di scala condivisa fra mondo e interfaccia. Vedi `content/visual-language.md`, sezione «Stile pixel-art ufficiale e scala base sprite».
-13. Serve uno strumento di design come fonte dell'interfaccia (Penpot canonico, Penpot solo per mockup, un altro strumento, oppure file Markdown più PNG/SVG senza strumento), e in quale forma (cloud, self-host, nessuna integrazione)? (Provenienza: `Q-UI-001` e `Q-UI-005`.)
-22. Con quale comando il menu di pausa si apre dal Piano 0? DEC-169 indica il menu di pausa come luogo in cui l'HUD di combattimento resta consultabile durante il Piano 0, ma ESC è già assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso di `PauseMenu` prevedono oggi la sola provenienza da `Gameplay` (`ui/pause-menu.md`, `05-game-states-and-flow.md`). Manca il comando — o lo stato — che rende operativa la consultazione. (Provenienza: gap aperto da DEC-169 nella sessione del 2026-07-27; registrata anche in `ui/pause-menu.md` e `systems/floor-zero.md`.) **Aggiornamento 30/07 (WP15a) — DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE, la domanda RESTA APERTA:** dal Piano 0 il menu di pausa si apre con il **comando di pausa**, lo stesso di `Gameplay`, e "Riprendi"/ESC riportano nel Piano 0 invece che in `Gameplay` (`AppUi.pauseFromFloorZero`, zero-default falso = comportamento storico invariato). Scelto per esclusione motivata, non per gusto: ESC è `ExitConfirm` (DEC-074) e TAB è già il pannello mondi/personaggi del Piano 0 (M5/M6a, con l'invito "TAB per le carte" scritto a schermo, quindi riusarlo romperebbe un'affordance esistente); il comando di pausa era l'unico tasto libero nel Piano 0 ed è anche l'unico che significhi già "fermati e guarda lo stato" per chi ha giocato una run. Il riquadro di consultazione non è cambiato: `DrawPauseMenuFloorZeroConsult` era già disegnato, condizionato solo a `game->floor == 0`. Verificato da `--arena-hub-test`. Resta un default di implementazione: la scelta è del proprietario.
+~~13. Serve uno strumento di design come fonte dell'interfaccia (Penpot canonico, Penpot solo per mockup, un altro strumento, oppure file Markdown più PNG/SVG senza strumento), e in quale forma (cloud, self-host, nessuna integrazione)? (Provenienza: `Q-UI-001` e `Q-UI-005`.)~~ **Chiusa (31/07, DEC-197):** lo strumento è **Markdown + PNG nel repository**, mock riproducibili via script/Aseprite. **Niente Penpot**: la proposta di `docs/ai-production/15-UI-DESIGN-PIPELINE.md` (documento `approved`) è superata su questo punto specifico — vedi la nota di supersessione parziale in testa a quel documento.
+~~22. Con quale comando il menu di pausa si apre dal Piano 0? DEC-169 indica il menu di pausa come luogo in cui l'HUD di combattimento resta consultabile durante il Piano 0, ma ESC è già assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso di `PauseMenu` prevedono oggi la sola provenienza da `Gameplay` (`ui/pause-menu.md`, `05-game-states-and-flow.md`). Manca il comando — o lo stato — che rende operativa la consultazione. (Provenienza: gap aperto da DEC-169 nella sessione del 2026-07-27; registrata anche in `ui/pause-menu.md` e `systems/floor-zero.md`.) **Aggiornamento 30/07 (WP15a) — DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE, la domanda RESTA APERTA:** dal Piano 0 il menu di pausa si apre con il **comando di pausa**, lo stesso di `Gameplay`, e "Riprendi"/ESC riportano nel Piano 0 invece che in `Gameplay` (`AppUi.pauseFromFloorZero`, zero-default falso = comportamento storico invariato). Scelto per esclusione motivata, non per gusto: ESC è `ExitConfirm` (DEC-074) e TAB è già il pannello mondi/personaggi del Piano 0 (M5/M6a, con l'invito "TAB per le carte" scritto a schermo, quindi riusarlo romperebbe un'affordance esistente); il comando di pausa era l'unico tasto libero nel Piano 0 ed è anche l'unico che significhi già "fermati e guarda lo stato" per chi ha giocato una run. Il riquadro di consultazione non è cambiato: `DrawPauseMenuFloorZeroConsult` era già disegnato, condizionato solo a `game->floor == 0`. Verificato da `--arena-hub-test`. Resta un default di implementazione: la scelta è del proprietario.~~ **Chiusa (31/07, DEC-185):** il default WP15a è promosso a canone. Dal Piano 0 il menu di pausa si apre col comando di pausa, in sola consultazione; "Riprendi" torna nell'hub; ESC resta `ExitConfirm` (DEC-074), invariato.
 
 ## Distribuzione
 
 La **proprietà** di questo tema è assegnata al dominio ai-production da DEC-158, che non decide nessuna delle domande qui sotto.
 
-14. Quali sono le piattaforme di destinazione della prima release: Linux, Windows, Steam Deck, macOS? Il repository conserva Windows, ma Linux è la piattaforma principale di sviluppo. (Provenienza: `Q-DIST-001`, priorità BLOCKING.)
-15. Qual è il formato della **AI disclosure** e dove vive (pagina negozio, primo avvio, crediti in gioco), e quali requisiti deve soddisfare la pagina negozio? (DEC-158 assegna il tema ad ai-production proprio perché quel dominio possiede licenze e provenienza dei contenuti — DEC-113, DEC-140, DEC-148, `docs/ai-production/licenze.md` — su cui la disclosure poggia.)
-16. Come arrivano i modelli all'utente: installer separato, download al primo avvio, strumento o DLC di piattaforma, oppure nessun modello distribuito? (DEC-070/DEC-086 fissano la scelta binaria al primo avvio e DEC-113/DEC-140 stabiliscono che i pesi non sono mai ridistribuiti col gioco — li scarica l'utente —, ma il meccanismo concreto di consegna non è deciso. Provenienza: `Q-DIST-002`.)
-17. Il giocatore può importare contenuti propri — modelli, LoRA, prompt pack, rig, AudioSpec, skin dell'interfaccia — e con quali garanzie di validazione e originalità? (Provenienza: `Q-DIST-003`, priorità LATER, più la parte residua di `Q-IMG-001` sull'import di LoRA dell'utente; la sorte delle LoRA del progetto è invece decisa da DEC-148.)
+~~14. Quali sono le piattaforme di destinazione della prima release: Linux, Windows, Steam Deck, macOS? Il repository conserva Windows, ma Linux è la piattaforma principale di sviluppo. (Provenienza: `Q-DIST-001`, priorità BLOCKING.)~~ **Chiusa (31/07, DEC-193):** **Linux e Windows** per la prima release. Steam Deck riceve una verifica dedicata in seguito, non è un requisito della release 1.
+15. ~~Qual è il formato della **AI disclosure** e dove vive (pagina negozio, primo avvio, crediti in gioco), e quali requisiti deve soddisfare la pagina negozio? (DEC-158 assegna il tema ad ai-production proprio perché quel dominio possiede licenze e provenienza dei contenuti — DEC-113, DEC-140, DEC-148, `docs/ai-production/licenze.md` — su cui la disclosure poggia.)~~ **Chiusa (31/07, DEC-194):** la disclosure vive sulla **pagina negozio** e nei **crediti in gioco** (voce dedicata nel `MainMenu` col dettaglio di modelli, licenze Stability/Gemma, dataset CC0). Il dettaglio operativo esatto resta lavoro del dominio ai-production.
+16. ~~Come arrivano i modelli all'utente: installer separato, download al primo avvio, strumento o DLC di piattaforma, oppure nessun modello distribuito? (DEC-070/DEC-086 fissano la scelta binaria al primo avvio e DEC-113/DEC-140 stabiliscono che i pesi non sono mai ridistribuiti col gioco — li scarica l'utente —, ma il meccanismo concreto di consegna non è deciso. Provenienza: `Q-DIST-002`.)~~ **Chiusa (31/07, DEC-195):** **download dal gioco al primo avvio**, per chi sceglie l'esperienza completa; chi sceglie "solo curato" non scarica nulla. Fonte e verifica dei pesi dichiarate dal gioco; mai ridistribuiti col gioco (DEC-113/DEC-140 invariate).
+17. Il giocatore può importare contenuti propri — modelli, LoRA, prompt pack, rig, AudioSpec, skin dell'interfaccia — e con quali garanzie di validazione e originalità? (Provenienza: `Q-DIST-003`, priorità LATER, più la parte residua di `Q-IMG-001` sull'import di LoRA dell'utente; la sorte delle LoRA del progetto è invece decisa da DEC-148.) **Aggiornamento 31/07 — RIMANDATA, non decisa qui:** l'import di contenuti utente è rimandato esplicitamente a **dopo la release**, quando la pipeline generativa definitiva esisterà. Nessuna DEC di merito registra questa voce: è un rinvio, non una risposta.
 
 ## Revisione finali della maratona di implementazione (2026-07-28)
 
@@ -154,9 +173,9 @@ La sessione di revisione finale ha registrato le 10 domande accumulate durante l
 ## Produzione AI e asset
 
 18. Quali body plan si realizzano per primi e con quale approccio si anima il personaggio giocante (rig modulare con skin, spritesheet completo, ibrido, stickman fino alla vertical slice)? (`docs/ai-production/09-NEMICI-BODY-PLAN-RIG.md` propone senza decidere. Provenienza: `Q-ANIM-001` e `Q-ANIM-002`.)
-19. Quante immagini originali il proprietario può realisticamente produrre e rivedere per i **dataset definitivi**, quale regime di review manuale vale per gli asset (approvazione umana sempre, solo per la release, a campione) e serve uno strumento interno di approvazione/rifiuto già nella pre-alpha? (DEC-148 stabilisce che i dataset definitivi li crea il proprietario, non la loro ampiezza né il regime di review. Provenienza: `Q-IMG-003`, `Q-IMG-004`, `Q-F0-002`.)
-20. Il primo esperimento audio riguarda solo SFX, solo musica, o entrambi con due milestone separate? (DEC-109 fissa pipeline e catena di fallback, non l'ordine degli esperimenti. Provenienza: `Q-AUD-002`.)
-21. Qual è il budget cloud disponibile e quante ore settimanali il proprietario può dedicare a domande, review di codice e asset, ascolto audio e playtest? (DEC-168 porta il training sulle 30 ore settimanali gratuite di Kaggle e declassa il runbook RunPod a fallback a pagamento, senza impegnare alcun budget. Serve a dimensionare i batch di lavoro. Provenienza: `Q-BUD-001` e `Q-BUD-002`.)
+19. ~~Quante immagini originali il proprietario può realisticamente produrre e rivedere per i **dataset definitivi**, quale regime di review manuale vale per gli asset (approvazione umana sempre, solo per la release, a campione) e serve uno strumento interno di approvazione/rifiuto già nella pre-alpha? (DEC-148 stabilisce che i dataset definitivi li crea il proprietario, non la loro ampiezza né il regime di review. Provenienza: `Q-IMG-003`, `Q-IMG-004`, `Q-F0-002`.)~~ **Chiusa sul regime di review (31/07, DEC-201):** tutto ciò che entra nel curato definitivo e nei dataset LoRA passa **sempre** dall'approvazione esplicita del proprietario; gli asset provvisori della demo si giudicano a posteriori al playtest e **non entrano mai** nei dataset. La quantità di immagini producibili e l'eventuale strumento interno di approvazione/rifiuto restano dettagli operativi non fissati da questa decisione.
+20. ~~Il primo esperimento audio riguarda solo SFX, solo musica, o entrambi con due milestone separate? (DEC-109 fissa pipeline e catena di fallback, non l'ordine degli esperimenti. Provenienza: `Q-AUD-002`.)~~ **Chiusa (31/07, DEC-196):** **SFX e musica insieme, un'unica milestone** — scelta esplicita del proprietario, diversa dalla raccomandazione di default "SFX prima", motivata dal voler valutare in un solo giro la coerenza dell'intera pipeline Stable Audio Small.
+21. ~~Qual è il budget cloud disponibile e quante ore settimanali il proprietario può dedicare a domande, review di codice e asset, ascolto audio e playtest? (DEC-168 porta il training sulle 30 ore settimanali gratuite di Kaggle e declassa il runbook RunPod a fallback a pagamento, senza impegnare alcun budget. Serve a dimensionare i batch di lavoro. Provenienza: `Q-BUD-001` e `Q-BUD-002`.)~~ **Chiusa (31/07, DEC-204):** il budget cloud restava già fissato da DEC-168 (30 ore gratuite Kaggle/settimana, nessun budget a pagamento impegnato); il proprietario dedica **10 o più ore a settimana** a review, verdetti, playtest e decisioni. I batch di lavoro si dimensionano su questo ritmo pieno.
 
 ---
 
@@ -168,7 +187,7 @@ dall'aggancio degli asset di `assets/art/` al motore, una dal gating del timer d
 già un **default proposto** implementato (stile DEC-019): il gioco funziona, ma il numero
 o la politica non sono canone e vanno confermati o spostati.
 
-23. A quale piano scatta la variante di **escalation** del tileset? DEC-024 chiede che il
+~~23. A quale piano scatta la variante di **escalation** del tileset? DEC-024 chiede che il
     tema si intensifichi piano dopo piano sull'asse aspetto, e il contratto d'arte emette
     tre ruoli dedicati (`floor_deg`/`wall_deg`/`void_deg`, "crepe di brace",
     `docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md`), ma nessun documento fissa la
@@ -176,27 +195,35 @@ o la politica non sono canone e vanno confermati o spostati.
     della seconda traccia di gameplay (`AUDIO_GAMEPLAY_1_MAX_FLOOR`) e del passaggio dei
     boss a due fasi (DEC-028/106) — far coincidere i tre assi dell'escalation su un solo
     confine è l'ipotesi più leggibile per il giocatore. Da confermare al playtest.
-    (`ROOM_TILESET_DEGRADED_FROM_FLOOR`, `src/render/game_renderer.c`.)
-24. I **volumi audio devono persistere** fra un avvio e l'altro, e in quale forma? W8
+    (`ROOM_TILESET_DEGRADED_FROM_FLOOR`, `src/render/game_renderer.c`.)~~ **Chiusa (31/07,
+    DEC-191):** confermato dal piano 3 — i tre assi dell'escalation (aspetto, audio,
+    nemici/boss) coincidono di proposito sullo stesso confine.
+24. ~~I **volumi audio devono persistere** fra un avvio e l'altro, e in quale forma? W8
     espone i tre slider in `Options` ma il gioco non ha un file di configurazione:
     inventarne uno avrebbe voluto dire decidere da soli percorso, formato e politica di
     migrazione. *Default proposto e implementato*: nessuna persistenza, si riparte da 1.0
     ad ogni avvio. La domanda vera è più ampia dei volumi — serve un file di
     preferenze del giocatore, e se sì dove vive (accanto a `catalog/`?) e con quale
     schema versionato. (`docs/design/ui/options-and-accessibility.md` elenca "audio" fra
-    le categorie minime senza fissare né slider né persistenza.)
-25. Passo, etichette e ordine degli **slider di volume** sono canone o solo un default?
+    le categorie minime senza fissare né slider né persistenza.)~~ **Chiusa (31/07,
+    DEC-189):** il file di preferenze si fa — `prefs/settings.txt`, accanto a `catalog/`,
+    chiave=valore con campo versione, disciplina zero-default come `catalog/`/`suspend/`.
+    Primo contenuto: i tre volumi audio. L'implementazione concreta resta un gap dichiarato.
+25. ~~Passo, etichette e ordine degli **slider di volume** sono canone o solo un default?
     *Default proposto e implementato*: tre righe nell'ordine `Volume generale` / `Musica`
     / `Effetti`, passo del 10% su dieci caselle, valore mostrato anche in percentuale
     (DEC-058). Le altre quattro categorie minime del documento (video, controlli,
-    accessibilità, gameplay) restano da scrivere e W8 non le ha inventate.
-26. La **card di scoperta** va in alto al centro o in basso al centro? `ui/hud.md` dice
+    accessibilità, gameplay) restano da scrivere e W8 non le ha inventate.~~ **Chiusa
+    (31/07, DEC-190):** i default sono canone.
+26. ~~La **card di scoperta** va in alto al centro o in basso al centro? `ui/hud.md` dice
     "un riquadro in alto al centro (fuori dai quattro angoli)", ma quella formulazione
     descriveva l'HUD a quattro cluster con riquadro, che il layout V3 approvato al CP2 ha
     sostituito — e in V3 la quota alta a destra è occupata dalla riga piano/mondo.
     *Default proposto e implementato*: **basso al centro**, come il mock V3. Da
-    confermare, e in ogni caso `ui/hud.md` va allineato alla scelta.
-27. Il **timer di run non deve correre nel Piano 0**? DEC-051 fissa il timer sempre
+    confermare, e in ogni caso `ui/hud.md` va allineato alla scelta.~~ **Chiusa (31/07,
+    DEC-186):** basso al centro, layout V3. `ui/hud.md` allineato — "alto al centro"
+    resta accurata solo per il ripiego integrale senza pacchetto artistico.
+27. ~~Il **timer di run non deve correre nel Piano 0**? DEC-051 fissa il timer sempre
     visibile durante il gameplay ma non si pronuncia sul crogiolo, che nel motore usa la
     stessa `PHASE_PLAY` del gameplay vero per restare esplorabile mentre le proposte
     girano in sottofondo (M1b). *Default proposto e implementato*: **il cronometro viene
@@ -208,7 +235,8 @@ o la politica non sono canone e vanno confermati o spostati.
     dopo l'attraversamento del varco verso il piano 1. Da confermare al playtest —
     l'alternativa scartata (farlo accumulare anche nell'hub) penalizzerebbe chi si ferma a
     leggere le carte-proposta prima di scegliere. (`src/game/game.c`,
-    `src/world/floor_zero.c`.)
+    `src/world/floor_zero.c`.)~~ **Chiusa (31/07, DEC-192):** confermato — fermo per tutta
+    la permanenza nel Piano 0, incluse le simulazioni delle arene.
 
 ## Salute temporanea/protettiva nel motore (WP2, 2026-07-30)
 
@@ -284,7 +312,7 @@ qui solo per l'archetipo appena piazzabile nel motore, la stanza di fusione.
     di sicurezza, indipendentemente da questa frequenza. Da confermare al playtest.
     (`systems/special-rooms.md`, sezione "Default proposti dall'implementazione".)
 
-31. Con `ROOM_FUSION` ora presente nel motore, dove deve vivere la CONFERMA della fusione:
+~~31. Con `ROOM_FUSION` ora presente nel motore, dove deve vivere la CONFERMA della fusione:
     resta un'azione di `BuildScreen` (come oggi), o si sposta integralmente nella stanza di
     fusione, coerente col modello canonico descritto in
     [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md) ("la fusione
@@ -294,7 +322,9 @@ qui solo per l'archetipo appena piazzabile nel motore, la stanza di fusione.
     (che apre `BuildScreen` già pronta alla fusione), TAB da `Gameplay`, e la voce dedicata
     nel `PauseMenu` — nessuna delle tre è stata rimossa. Da confermare al playtest.
     (`systems/item-fusion.md`, "Domande aperte residue"; `ui/inventory-and-synergy-screen.md`,
-    nota di implementazione.)
+    nota di implementazione.)~~ **Chiusa (31/07, DEC-187):** confermato — la conferma resta
+    in `BuildScreen`, con le tre porte d'ingresso equivalenti; il crogiolo della stanza di
+    fusione è segnale/tema, non l'unico varco.
 
 ## Stanza a tempo nel motore (WP5, 2026-07-30)
 
@@ -350,7 +380,7 @@ Il lavoro che aggancia gli asset di CP4/CP5 (props di pickup/ostacoli, i tre she
 personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 (#10.1/
 #10.2/#10.3), ma introduce due scelte visive che nessun documento di design fissa.
 
-35. Con `props/spuntoni` e `props/cassa` ora agganciati al motore, quale ALTERNANZA
+~~35. Con `props/spuntoni` e `props/cassa` ora agganciati al motore, quale ALTERNANZA
     visiva mostra il pericolo passivo (`OBSTACLE_HAZARD`) fra i tag "retratti" ed "estesi",
     e quale prop veste il distruttibile (`OBSTACLE_DESTRUCTIBLE`) fra `props/vaso` e
     `props/cassa`, entrambi consegnati? `secrets-and-obstacles.md` fissa solo che il danno
@@ -370,9 +400,14 @@ personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 
     senza dipendere dal tema, mentre un vaso presuppone un arredo domestico/decorativo che
     non tutti i temi condividono. Da confermare al playtest. (`DrawObstacleFamilyProp`,
     `src/render/game_renderer.c`; vedi `systems/secrets-and-obstacles.md`, sezione
-    "Default proposti dall'implementazione".)
+    "Default proposti dall'implementazione".)~~ **Chiusa sull'alternanza (31/07, DEC-198):**
+    il proprietario vuole la variante davvero temporizzata SUBITO, non "sempre estesi" —
+    cicli retratti/estesi con danno solo da estesi, animazione e danno sincronizzati. Questo
+    SUPERA il default "sempre estesi"; l'implementazione (gate temporale su
+    `CombatResolveHazards`) resta da fare, in coda. La scelta del prop distruttibile
+    (`props/cassa`) non è toccata da questa decisione.
 
-36. Con tre spritesheet di personaggio ora agganciati al motore (`character/fonditrice`/
+36. ~~Con tre spritesheet di personaggio ora agganciati al motore (`character/fonditrice`/
     `ashblade`/`bulwark`), quale sheet mostra il personaggio GENERATO per-run
     (DEC-014/DEC-037)? Nessun documento fissa una veste dedicata per il personaggio
     generato, e produrne una richiederebbe un quarto sheet mai realizzato. *Default
@@ -385,7 +420,9 @@ personaggio, l'estensione del font) chiude i buchi di `known-issues.md` voce 10 
     Resta aperta la domanda più ampia se il personaggio generato debba avere in futuro
     una veste propria — richiederebbe generazione procedurale dello sprite, fuori scope
     di questo lavoro. Da confermare al playtest o da promuovere a decisione.
-    (`systems/characters.md`, sezione "Default proposti dall'implementazione".)
+    (`systems/characters.md`, sezione "Default proposti dall'implementazione".)~~ **Chiusa
+    (31/07, DEC-199):** confermato — sheet della Fonditrice, provvisorio dichiarato finché
+    non esiste la Style LoRA, nessun palette-swap.
 
 ## Arena di sfida nel motore (WP6, 2026-07-30)
 
@@ -714,7 +751,7 @@ fissa è **come si presenta la causa** sulla schermata dei risultati.
     (`src/tests/floor_zero_arena_tests.c`, blocco (m)).
     (`ui/results-and-leaderboards.md`, `ui/pause-menu.md`, `05-game-states-and-flow.md`.)
 
-54. Riusare `TrialsFinalizeAtRunEnd` per un abbandono chiude le prove ancora in corso
+~~54. Riusare `TrialsFinalizeAtRunEnd` per un abbandono chiude le prove ancora in corso
     esattamente come a fine run vera — **anche in positivo**. Un giocatore che abbandona
     con `Player.coins >= 30` vede `TRIAL_END_WITH_INGOTS` (+10) diventare `TRIAL_PASSED`;
     uno che non ha mai comprato nulla vede `TRIAL_NO_SHOP_PURCHASE` (+20) diventare
@@ -731,7 +768,8 @@ fissa è **come si presenta la causa** sulla schermata dei risultati.
     meta-progressione, questa combinazione (abbandono + soglia già raggiunta) andrà
     rivalutata come possibile incentivo a mollare la run invece di finirla. Resta un
     default d'implementazione: la scelta finale è del proprietario.
-    (`systems/rewards-and-economy.md`.)
+    (`systems/rewards-and-economy.md`.)~~ **Chiusa (31/07, DEC-203):** confermato —
+    l'abbandono finalizza le prove come una fine run, anche in positivo.
 
 ## Il reroll a nuovo seed nel motore (WP21, 2026-07-31)
 
@@ -742,7 +780,7 @@ esplicita, è oggi l'UNICA via per un reroll a seed nuovo — riusa la stessa
 generazione duplicata. Il tasto `R` in `Gameplay` chiama oggi sempre e soltanto
 `game->resetQueued`, mai un seed nuovo: il gap è chiuso.
 
-55. Il tasto `R` in `Gameplay` resta, invariato da prima di questo lavoro (fuori dal
+~~55. Il tasto `R` in `Gameplay` resta, invariato da prima di questo lavoro (fuori dal
     mandato di WP21), un reset rapido della STESSA run allo STESSO seed: butta via
     l'intero progresso della run corrente (piani percorsi, oggetti raccolti, Innesti)
     SENZA alcuna conferma. Nessuna decisione approvata autorizza oggi questo
@@ -762,7 +800,11 @@ generazione duplicata. Il tasto `R` in `Gameplay` chiama oggi sempre e soltanto
     principio di DEC-114); (b) portarlo anch'esso dietro conferma; (c) rimuoverlo dalla
     build di gioco e tenerlo solo come comando di sviluppo/debug (es. dietro un flag di
     build, fuori da `AppInputCollect`). Nessuna delle tre è ancora scelta.
-    (`ui/pause-menu.md`, DEC-114, DEC-141, `docs/engineering/known-issues.md`.)
+    (`ui/pause-menu.md`, DEC-114, DEC-141, `docs/engineering/known-issues.md`.)~~ **Chiusa
+    (31/07, DEC-188):** opzione (c) — `R` è un comando di sviluppo, escluso dalla build di
+    gioco finale, e resta attivo nella demo per il playtest. Il reroll di gioco è solo
+    "Rigenera la run" dal `PauseMenu` con conferma (DEC-114). Escludere `R` dalla build
+    finale resta un gap di implementazione da fare.
 
 ## Tre rifiniture UI nel motore (WP22, 2026-07-31)
 
@@ -890,8 +932,12 @@ Anche la **seconda** passata è stata bocciata, per tre residui, chiusi dalla **
     `--layout-test` (voce `h`, nucleo puro su sette risoluzioni).
     (`ui/run-setup.md`, DEC-038, `src/render/game_renderer.c`.)
 
-58. **La sospensione della run (DEC-050): percorso del file, stato dell'RNG salvato, che
-    cosa significa "l'ingresso" della stanza, e nessun salvataggio automatico.** DEC-050 e
+~~58. **La sospensione della run (DEC-050): percorso del file, stato dell'RNG salvato, che
+    cosa significa "l'ingresso" della stanza, e nessun salvataggio automatico.**~~ **Chiusa
+    (31/07, DEC-202):** i cinque default WP17 sono confermati in blocco, senza eccezioni —
+    vedi il testo originale sotto per il dettaglio di ciascuno.
+
+    DEC-050 e
     `systems/save-and-meta-progression.md` fissano il COMPORTAMENTO (si sospende in
     qualunque momento; al rientro la stanza corrente riparte dall'ingresso coi nemici
     ripristinati, il resto della run riprende com'era) ma nessun dettaglio tecnico. WP17

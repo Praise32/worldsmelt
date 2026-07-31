@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Distribuzione di ricompense, uso economico della valuta principale (DEC-013) — guadagnata da nemici sconfitti e stanze ripulite, dove «ripulita» è qualunque stanza completata secondo la propria condizione (DEC-167), col negozio che ricompra oggetti e Innesti indesiderati a prezzo ridotto (DEC-048) —, negozio a prezzi fissi più offerta speciale (DEC-026), scambio ad alto rischio a puntata generata (DEC-044, dettaglio in special-rooms.md), ricompense a tempo nei piani avanzati (DEC-051, archetipo in special-rooms.md/rooms-and-floor-generation.md) e punti sblocco a doppio canale esclusivi al singleplayer (DEC-015, DEC-027), con presentazione delle prove specifiche al passaggio verso il piano 1 (DEC-042, dettaglio in floor-zero.md); pattern rischio/ricompensa dell'arena di sfida. Punteggio composito multi-percorso: somma bonus da tempo, prove, esplorazione, scoperte, eliminazioni e Veterani, con bonus di efficienza per chi completa in fretta ed esplorando poco, e bonus per chi esplora tutto (DEC-060)."
-last_reviewed: 2026-07-30
-last_verified_commit: 775314e
-topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, stanza-segreta, budget-di-equita, DEC-044, DEC-025, prove, DEC-042, DEC-027, DEC-082, DEC-089, WP5, WP6, WP7, WP8, WP16, WP19]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [economia, ricompense, negozio, valuta, punti-sblocco, punteggio, DEC-167, stanza-a-tempo, arena-di-sfida, pourhouse, stanza-segreta, budget-di-equita, DEC-044, DEC-025, prove, DEC-042, DEC-027, DEC-082, DEC-089, WP5, WP6, WP7, WP8, WP16, WP19, DEC-203]
 related: []
 supersedes: []
 source_files: [src/game/trials.h, src/game/trials.c, src/app/app.c]
@@ -395,16 +395,15 @@ modo `TRIAL_END_WITH_INGOTS` ("Finisci la run con almeno 30 Ingots in tasca...",
 al piano 1 con 30+ Ingots e senza aver comprato nulla vede quindi in `RunResults` "Prove
 superate" includere due prove il cui testo chiede esplicitamente di **finire** la run — non
 solo la presentazione della causa (voce 53 di `governance/open-questions.md`), ma il bonus
-stesso premia una run interrotta. **Default proposto dall'implementazione (stile DEC-019)**:
-accettato deliberatamente per coerenza con "le prove restano come sono a quel momento" — la
-disciplina di WP19 (nessuna prova resta `TRIAL_IN_PROGRESS` per sempre) prevale sul
-disincentivo a leggere l'abbandono come corretto. **Impatto dichiarato oggi: di sola
-presentazione** — nessun sistema di punti sblocco esiste ancora nel motore (gap in
-[Save and Meta Progression](save-and-meta-progression.md)), quindi il bonus mostrato non si
-traduce ancora in un vantaggio spendibile; se in futuro le prove alimenteranno la
-meta-progressione, questa combinazione (abbandono + Ingots già in tasca + nessun acquisto)
-andrà rivalutata come possibile incentivo a mollare la run invece di finirla. Vedi
-`governance/open-questions.md`, voce 54.
+stesso premia una run interrotta. **Canone (DEC-203, 31/07)**: accettato — la disciplina di
+WP19 (nessuna prova resta `TRIAL_IN_PROGRESS` per sempre) prevale sul disincentivo a leggere
+l'abbandono come corretto; il proprietario ha confermato il comportamento senza eccezioni.
+**Impatto dichiarato oggi: di sola presentazione** — nessun sistema di punti sblocco esiste
+ancora nel motore (gap in [Save and Meta Progression](save-and-meta-progression.md)), quindi
+il bonus mostrato non si traduce ancora in un vantaggio spendibile; se in futuro le prove
+alimenteranno la meta-progressione, questa combinazione (abbandono + Ingots già in tasca +
+nessun acquisto) andrà rivalutata come possibile incentivo a mollare la run invece di
+finirla. Vedi `governance/open-questions.md`, voce 54 (chiusa).
 
 Il bonus totale compare in `RunResults` con una riga dedicata ("Prove superate: N/M, +X
 punti"), consultabile per l'intera run da `PauseMenu` e `BuildScreen` (vedi

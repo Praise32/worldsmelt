@@ -7,9 +7,9 @@ authority: supporting
 owner: ai-production
 summary: >-
   Pipeline Stable Audio 3 Small (checkpoint music/sfx) per SFX e musica, adottata da DEC-109 (risolve il conflitto con DEC-036, che considerava l'audio generativo futuro). Dal 28/07 rFXGen è uscito dalla pipeline (DEC-178): il fallback garantito è direttamente il pacchetto curato/statico. La demo attuale usa un pacchetto pre-generato offline, non la generazione a runtime (DEC-172).
-last_reviewed: 2026-07-28
-last_verified_commit: 892911a
-topics: [audio, stable-audio, dec-036, licenza, fallback, DEC-172, DEC-178, demo]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [audio, stable-audio, dec-036, licenza, fallback, DEC-172, DEC-178, demo, DEC-196]
 related: []
 supersedes: []
 source_files: []
@@ -29,6 +29,13 @@ source_files: []
 > stato installato né usato. Il generatore degli SFX (semplici e complessi) è il checkpoint
 > `sfx` di Stable Audio Small; la catena di fallback è a due livelli (checkpoint sfx →
 > curato), non più tre.
+>
+> **Nota primo esperimento (DEC-196, 2026-07-31):** il primo esperimento di audio
+> generativo copre **SFX e musica insieme, in un'unica milestone** — scelta esplicita del
+> proprietario, diversa dalla raccomandazione di default "SFX prima" (superficie di rischio
+> minore, iterazione più rapida). Motivazione: valutare in un solo giro la coerenza
+> complessiva della pipeline Stable Audio Small (entrambi i checkpoint, music e sfx) prima
+> di impegnarsi in iterazioni separate.
 
 ## Conflitto risolto (DEC-109)
 

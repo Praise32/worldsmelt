@@ -5,10 +5,10 @@ domain: design
 status: approved
 authority: canonical
 owner: design
-summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
-last_reviewed: 2026-07-30
-last_verified_commit: 63753fc
-topics: [hud, WP15a, arene-piano-0, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust]
+summary: "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051); resta fermo per tutta la permanenza nel Piano 0, incluse le arene di sfida (DEC-192). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, in basso al centro (layout V3, DEC-186), non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640 fino alla migrazione a 640×360 nella sessione CP4 (DEC-174, DEC-200). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184)."
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [hud, WP15a, arene-piano-0, gameplay, salute, risorse, timer-run, card-scoperta, floor-zero, DEC-065, DEC-051, DEC-152, DEC-169, DEC-174, canvas-960x640, DEC-184, statistiche, DEC-008, Crust, DEC-186, DEC-192, DEC-200]
 related: []
 supersedes: []
 source_files: [src/core/game_types.h, src/game/game.c, src/game/game_internal.h, src/world/world.c, src/gameplay/combat.c, src/render/game_renderer.c, src/render/game_renderer.h, src/render/art_draw.h, src/assets/art_atlas.h, src/app/app.c, src/app/app_internal.h, src/tests/discovery_tests.c, scripts/cp2_hud_mocks.lua]
@@ -46,10 +46,11 @@ chi la cerca. Dettagli delle prove e della consultazione in pausa: fonte unica
 > `APP_GAMEPLAY`. L'hook **è ora collegato**: `FloorZeroArenaEnter`/`FloorZeroArenaExit`
 > (`src/world/floor_zero_arena.c`) sono i due soli punti che scrivono quel flag, quindi
 > l'HUD ricompare durante una prova del Piano 0 e torna nascosto all'uscita — l'affermazione
-> "nessun codice lo imposta a vero" di questa nota non vale più. **Limite dichiarato:**
+> "nessun codice lo imposta a vero" di questa nota non vale più. **Canone (DEC-192, 31/07):**
 > dentro una prova del Piano 0 il **timer di run si disegna ma resta fermo a `0:00`**,
 > perché `FloorZeroEnter` spegne `inRealRun` e azzera `runElapsedSeconds` — il crogiolo non è
-> una run cronometrata (vedi "Timer di run sempre visibile" sotto e la domanda aperta 27).
+> mai una run cronometrata, in nessuna delle sue attività (vedi "Timer di run sempre
+> visibile" sotto).
 > Verificato da `--discovery-test` (`src/tests/discovery_tests.c`, la funzione pura) e da
 > `--arena-hub-test` (`src/tests/floor_zero_arena_tests.c`, l'aggancio vero: nascosto
 > nell'hub, visibile in prova, di nuovo nascosto all'uscita).
@@ -230,8 +231,10 @@ nell'overflow di DEC-131: la card è la notifica, non il contenuto.
 > lascia la casella dello sprite vuota, mai un rettangolo bianco.
 > La card si è spostata in **basso al centro**, come il layout V3 approvato al CP2: in alto
 > avrebbe coperto la riga piano/mondo, che in V3 è allineata a destra a quella stessa quota.
-> La formulazione "in alto al centro" di questo documento descriveva l'HUD a quattro cluster
-> con riquadro, sostituito da V3 — divergenza registrata come **domanda aperta 26**.
+> **Canone (DEC-186, 31/07):** basso al centro è la posizione confermata dal proprietario. La
+> formulazione "in alto al centro" descriveva l'HUD a quattro cluster con riquadro, sostituito
+> da V3 — resta accurata solo per il ripiego integrale senza pacchetto artistico
+> (`DrawHudDiscovery`/`DrawOuterUi`), non toccato da questa decisione.
 > Lo scarto DEC-152 è agganciato a `CombatDamagePlayer` (morte, `src/gameplay/combat.c`) e a
 > `WorldTryEnterRoom` (cambio stanza, `src/world/world.c`), **prima** che la stanza di arrivo
 > possa accodare le proprie scoperte — verificato che l'invariante "registrazione alla
@@ -303,16 +306,16 @@ chi legge il codice:
   **ripiego integrale** per il caso "`assets/art/ui` assente": i due percorsi si escludono
   a vicenda, mai mescolati nello stesso frame.
 
-## Canvas di riferimento della demo (DEC-174)
+## Canvas di riferimento della demo (DEC-174, DEC-200)
 
 L'HUD in pixel art della demo si disegna per il **canvas logico attuale, 960×640** — lo
 stesso rettangolo su cui sono costruite le stanze multi-taglia e la telecamera a zoom
 fisso di [Rooms and Floor Generation](../systems/rooms-and-floor-generation.md) (DEC-170).
-Questo **non** fissa la risoluzione logica canonica dell'interfaccia: la domanda aperta 11
-(proposta ricorrente 640×360 con scaling intero) **resta aperta**, si decide dopo la demo.
-960×640 è il canvas su cui si lavora **oggi**, non un valore di design definitivo — stesso
-trattamento dei default proposti stile DEC-019 già usati altrove in questo documento e in
-`content/visual-language.md`.
+**Chiusa (DEC-200, 31/07):** la risoluzione logica canonica dell'interfaccia è **640×360**
+(16:9 nativo, scala intera ×3 = 1920×1080); la **migrazione** della GUI avviene nella
+**sessione CP4**. Fino ad allora 960×640 resta il canvas su cui si lavora, non toccato da
+questa decisione — stesso trattamento dei default proposti stile DEC-019 già usati altrove
+in questo documento e in `content/visual-language.md`.
 
 Elementi indipendenti dalla risoluzione restano una buona pratica per i componenti a
 9-patch (bordi/riempimento che si adattano a più dimensioni), ma non sono la via
@@ -355,5 +358,5 @@ di lavoro (960×640) è già stabile per l'implementazione M2 in corso.
 7. **Given** più contenuti mai visti compaiono nella stessa stanza, **when** il giocatore li incontra quasi contemporaneamente, **then** le card di scoperta si accodano e vengono mostrate una alla volta, senza sovrapporsi sullo schermo (DEC-065).
 8. **Given** il giocatore ha card di scoperta ancora in coda non mostrate, **when** muore oppure cambia stanza, **then** quelle card vengono scartate silenziosamente senza inseguirlo nella stanza successiva, e la scoperta resta comunque registrata nel Catalogo (DEC-152).
 9. **Given** il giocatore è in `FloorZero`, **when** esplora l'hub senza aprire la pausa e senza entrare in una prova, **then** l'HUD di combattimento resta nascosto; **when** apre il menu di pausa, **then** può consultare salute, risorse e build; **when** entra in una prova, **then** l'HUD ricompare (DEC-169).
-10. **Given** l'HUD della demo è disegnato in pixel art, **when** viene posizionato sullo schermo, **then** usa come riferimento il canvas logico 960×640 in uso oggi, senza attendere la risposta alla domanda aperta 11 sulla risoluzione logica definitiva (DEC-174).
+10. **Given** l'HUD della demo è disegnato in pixel art, **when** viene posizionato sullo schermo, **then** usa come riferimento il canvas logico 960×640 in uso oggi, in attesa della migrazione alla risoluzione logica canonica 640×360 nella sessione CP4 (DEC-174, DEC-200).
 11. **Given** il giocatore è in `Gameplay` con il blocco statistiche visibile (default), **when** la build cambia (es. raccoglie un oggetto che aumenta il danno), **then** i valori del blocco si aggiornano in tempo reale, coerenti con quelli del pannello "Statistiche principali" di `BuildScreen`; **when** preme il tasto di toggle, **then** il blocco si nasconde senza alcun effetto sulla simulazione (DEC-184).

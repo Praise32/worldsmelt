@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Meccanica-firma: consumare due oggetti e un catalizzatore raro (DEC-022) per ottenere un oggetto composto subito con regole deterministiche e rifinito dall'IA in sottofondo (DEC-023, doppio stadio); nella fusione cross-categoria la categoria risultante è quella della sorgente dominante per rarità (DEC-143); il risultato ha un budget di potenza dedicato, più alto del singolo oggetto sorgente (DEC-162). Nella demo attuale lo sprite dello stadio 2 si pesca dal dataset CC0 come ponte provvisorio, senza modello immagine a runtime (DEC-171); questa pesca è un caso del layer generale di indirezione contenuto→image-id (DEC-175)."
-last_reviewed: 2026-07-30
-last_verified_commit: 82a0232
-topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0, DEC-175, indirezione-image-id, WP4, ROOM_FUSION]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [fusione, meccanica-firma, DEC-023, DEC-022, catalizzatore, doppio stadio, DEC-143, categoria-dominante, DEC-162, DEC-171, demo, dataset-cc0, DEC-175, indirezione-image-id, WP4, ROOM_FUSION, DEC-187]
 related: []
 supersedes: []
 source_files: [src/gameplay/fusion.c, src/content/curated_images.c, src/world/world.c]
@@ -240,15 +240,15 @@ oggetto valido e utilizzabile, non un'attesa o un contenuto rotto.
   solo che esiste ed è più alto del budget del singolo oggetto sorgente, non il numero).
   L'implementazione propone rarità +1 e banda di colpo `[1.25, 1.60]` (vedi
   «Default proposti dall'implementazione» sopra), da confermare al playtest.
-- Se l'innesco debba restare in `BuildScreen` anche dopo che la stanza di fusione esiste,
-  o spostarsi lì integralmente (il modello canonico in
-  [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md) vuole la fusione
-  *eseguita* nella stanza, con `BuildScreen` sola consultazione). *Default proposto e
-  implementato (WP4, 30/07)*: la conferma resta in `BuildScreen` (unica schermata dove si
-  esegue), con TRE porte d'ingresso equivalenti — il crogiolo della stanza di fusione, TAB
-  da `Gameplay`, la voce dedicata nel `PauseMenu` — nessuna rimossa. Da confermare al
-  playtest; vedi [Special Rooms](special-rooms.md), "Stato di implementazione", e
-  `governance/open-questions.md`.
+- ~~Se l'innesco debba restare in `BuildScreen` anche dopo che la stanza di fusione esiste,
+  o spostarsi lì integralmente~~ (il modello descritto in
+  [Inventory and Synergy Screen](../ui/inventory-and-synergy-screen.md), "la fusione
+  *eseguita* nella stanza, con `BuildScreen` sola consultazione", resta corretto come luogo
+  dove l'esecuzione è POSSIBILE, non come unico luogo). **Chiusa (DEC-187, 31/07):** la
+  conferma resta in `BuildScreen` (unica schermata dove si esegue), con TRE porte d'ingresso
+  equivalenti — il crogiolo della stanza di fusione, TAB da `Gameplay`, la voce dedicata nel
+  `PauseMenu` — nessuna rimossa. Il default WP4 (30/07) è promosso a canone; vedi
+  [Special Rooms](special-rooms.md), "Stato di implementazione".
 - Quali categorie siano davvero «idonee»: l'implementazione le ammette tutte (nessuna DEC le
   restringe), quindi anche due stat-up possono fondersi.
 

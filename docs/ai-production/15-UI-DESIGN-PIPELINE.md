@@ -6,15 +6,24 @@ status: approved
 authority: supporting
 owner: ai-production
 summary: >-
-  Proposta di pipeline UI: Penpot come sorgente design, token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni.
-last_reviewed: 2026-07-22
-last_verified_commit: 892911a
-topics: [ui, penpot, 9-slice, token, raygui, raylib, accessibilita]
+  Pipeline UI: token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni. La sorgente del design system NON è più Penpot (DEC-197, 2026-07-31): lo strumento canonico è Markdown + PNG nel repository.
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [ui, 9-slice, token, raygui, raylib, accessibilita, DEC-197, markdown-png]
 related: []
 supersedes: []
 source_files: []
 ---
 # Pipeline UI e GUI
+
+> **Nota di supersessione parziale (DEC-197, 2026-07-31):** la scelta di **Penpot** come
+> sorgente principale del design system, descritta nella sezione "Penpot" e nel diagramma
+> "Strategia" sotto, è **superata**: lo strumento di design UI canonico è **Markdown + PNG
+> nel repository** (mock riproducibili via script/Aseprite), **niente Penpot**. Il resto di
+> questo documento — token a 3 livelli, componenti minimi, 9-slice, moduli `src/ui/`, raygui
+> solo per tool interni, criteri di accettazione — resta valido come riferimento tecnico,
+> indipendente dallo strumento usato per produrre i mockup. Questo documento resta
+> `approved` (convenzione DEC-155: supersessione parziale, non integrale).
 
 ## Confine canonico
 
@@ -31,10 +40,14 @@ Prima di implementare una schermata:
 
 ## Strategia
 
+Diagramma originale (Penpot come sorgente), non più lo stato adottato — vedi la nota di
+supersessione in testa al documento; lo strato "Penpot design system" è sostituito da
+Markdown + PNG nel repository, il resto della catena resta lo stesso:
+
 ```text
 knowledge base UI
         ↓
-Penpot design system
+Penpot design system (superato: Markdown + PNG nel repo, DEC-197)
         ↓
 token + componenti + stati
         ↓
@@ -61,9 +74,9 @@ modulari:
 
 Testo, layout, focus, ridimensionamento e accessibilità restano deterministici.
 
-## Penpot
+## Penpot (superato da DEC-197 — vedi nota in testa al documento)
 
-Penpot è la proposta come sorgente principale del design system perché:
+Questa sezione descrive la proposta originale, non più adottata. Penpot era la proposta come sorgente principale del design system perché:
 
 - supporta componenti e varianti;
 - supporta design token;

@@ -252,18 +252,19 @@
       "status": "proposed",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.",
+      "summary": "Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), regime di review sempre esplicito per curato/LoRA definitivi (DEC-201), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.",
       "topics": [
         "dataset",
         "licenze",
         "kaggle",
         "provenienza",
-        "openrail-m"
+        "openrail-m",
+        "DEC-201"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
+      "last_reviewed": "2026-07-31",
       "last_verified_commit": null
     },
     {
@@ -531,21 +532,22 @@
       "status": "approved",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Proposta di pipeline UI: Penpot come sorgente design, token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni.",
+      "summary": "Pipeline UI: token a 3 livelli, componenti minimi, 9-slice, moduli src/ui/, raygui solo per tool interni. La sorgente del design system NON è più Penpot (DEC-197, 2026-07-31): lo strumento canonico è Markdown + PNG nel repository.",
       "topics": [
         "ui",
-        "penpot",
         "9-slice",
         "token",
         "raygui",
         "raylib",
-        "accessibilita"
+        "accessibilita",
+        "DEC-197",
+        "markdown-png"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-22",
-      "last_verified_commit": "892911a"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "aiprod-audio-generation-pipeline",
@@ -564,13 +566,14 @@
         "fallback",
         "DEC-172",
         "DEC-178",
-        "demo"
+        "demo",
+        "DEC-196"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-28",
-      "last_verified_commit": "892911a"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "aiprod-asset-curation-and-floor-zero",
@@ -656,20 +659,23 @@
       "status": "draft",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Perimetro del tema distribuzione (DEC-158): piattaforme di destinazione, requisiti della pagina negozio incluso l'hardware minimo in numeri (DEC-142), AI disclosure per i contenuti generati a runtime. Le scelte concrete restano domande aperte.",
+      "summary": "Perimetro del tema distribuzione (DEC-158): piattaforme Linux+Windows per la release 1 (DEC-193), AI disclosure su pagina negozio e crediti in gioco (DEC-194), modelli via download al primo avvio (DEC-195), requisiti della pagina negozio incluso l'hardware minimo in numeri (DEC-142). Import di contenuti utente rimandato a dopo la release.",
       "topics": [
         "distribuzione",
         "piattaforme",
         "pagina-negozio",
         "ai-disclosure",
         "licenze",
-        "steam"
+        "steam",
+        "DEC-193",
+        "DEC-194",
+        "DEC-195"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "aiprod-readme",
@@ -1114,19 +1120,20 @@
       "status": "draft",
       "authority": "supporting",
       "owner": "ai-production",
-      "summary": "Schema JSON per skin UI: risoluzione logica 640x360 (PROPOSTA, non approvata — DEC-156, open question 11), integer scale, token, componenti (panel/button/card/slot/tooltip/focus), input supportati, fallback_skin.",
+      "summary": "Schema JSON per skin UI: risoluzione logica canonica 640x360 (DEC-200, 2026-07-31), integer scale, token, componenti (panel/button/card/slot/tooltip/focus), input supportati, fallback_skin. Migrazione della GUI a questa risoluzione nella sessione CP4; la demo resta su 960x640 (DEC-174) fino ad allora.",
       "topics": [
         "template",
         "UI",
         "JSON schema",
         "design system",
-        "raylib"
+        "raylib",
+        "DEC-200"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-27",
-      "last_verified_commit": null
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "aiprod-weekly-issue",
@@ -1548,19 +1555,19 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Registro delle 184 decisioni di design (DEC-001..DEC-184) che cambiano il comportamento del gioco: 183 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
+      "summary": "Registro delle 204 decisioni di design (DEC-001..DEC-204) che cambiano il comportamento del gioco: 203 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.",
       "topics": [
         "decision-log",
         "governance",
         "worldsmelt",
         "design canonico",
-        "DEC-001..184"
+        "DEC-001..204"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "d30890b"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "design-definition-of-done",
@@ -1658,7 +1665,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (55 voci attive su 56 numerate; la 12 è chiusa da DEC-176) dopo DEC-001..DEC-176: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (37 voci attive su 58 numerate; la voce 12 già chiusa in precedenza da DEC-176/177, e il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci, aggiornando senza chiudere le voci 9 e 17) dopo DEC-001..DEC-204: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21) e l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22).",
       "topics": [
         "open-questions",
         "governance",
@@ -1690,13 +1697,15 @@
         "WP16",
         "WP19",
         "WP21",
-        "WP22"
+        "WP22",
+        "DEC-185",
+        "DEC-204"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "50911c9"
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-active-items",
@@ -1762,13 +1771,14 @@
         "colpo firmato",
         "DEC-080",
         "DEC-100",
-        "trait Lua"
+        "trait Lua",
+        "DEC-199"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-19",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-combat",
@@ -1851,7 +1861,9 @@
         "DEC-094",
         "DEC-095",
         "best-of",
-        "simulazione"
+        "simulazione",
+        "DEC-185",
+        "DEC-192"
       ],
       "related": [],
       "supersedes": [],
@@ -1870,8 +1882,8 @@
         "src/app/app.c",
         "src/tests/floor_zero_arena_tests.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "63753fc"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-content-validation",
@@ -1981,7 +1993,8 @@
         "DEC-175",
         "indirezione-image-id",
         "WP4",
-        "ROOM_FUSION"
+        "ROOM_FUSION",
+        "DEC-187"
       ],
       "related": [],
       "supersedes": [],
@@ -1990,8 +2003,8 @@
         "src/content/curated_images.c",
         "src/world/world.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "82a0232"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-items-pools",
@@ -2096,7 +2109,8 @@
         "WP7",
         "WP8",
         "WP16",
-        "WP19"
+        "WP19",
+        "DEC-203"
       ],
       "related": [],
       "supersedes": [],
@@ -2105,8 +2119,8 @@
         "src/game/trials.c",
         "src/app/app.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "775314e"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-rooms-floors",
@@ -2144,7 +2158,8 @@
         "WP6",
         "WP7",
         "WP8",
-        "DEC-025"
+        "DEC-025",
+        "DEC-191"
       ],
       "related": [],
       "supersedes": [],
@@ -2156,8 +2171,8 @@
         "src/world/world.c",
         "src/tests/game_tests.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-run-manifest",
@@ -2206,7 +2221,9 @@
         "reliquie",
         "sospensione-run",
         "DEC-050",
-        "WP17"
+        "WP17",
+        "DEC-202",
+        "DEC-189"
       ],
       "related": [],
       "supersedes": [],
@@ -2217,7 +2234,7 @@
         "src/tests/suspend_tests.c"
       ],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "a5cc3a3"
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-secrets-obstacles",
@@ -2243,7 +2260,8 @@
         "DEC-127",
         "stanze-segrete",
         "super-segrete",
-        "ROOM_SECRET"
+        "ROOM_SECRET",
+        "DEC-198"
       ],
       "related": [],
       "supersedes": [],
@@ -2255,8 +2273,8 @@
         "src/gameplay/combat.c",
         "src/render/game_renderer.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "a8a85bf"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-system-special-rooms",
@@ -2537,7 +2555,7 @@
       "status": "approved",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640, senza attendere la risoluzione logica definitiva (DEC-174, domanda aperta 11). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184).",
+      "summary": "Salute stratificata, risorse per funzione, slot attivo e Innesto. Stile pixel art come tutta la UI (DEC-046, fonte unica in content/visual-language.md). Timer di run sempre visibile in ogni momento del gameplay, non solo in competitivo (DEC-051); resta fermo per tutta la permanenza nel Piano 0, incluse le arene di sfida (DEC-192). Alla prima occorrenza di un contenuto generato mai visto, una card di scoperta breve appare in coda, in basso al centro (layout V3, DEC-186), non bloccante (DEC-065). L'HUD in pixel art della demo è disegnato per il canvas logico attuale 960×640 fino alla migrazione a 640×360 nella sessione CP4 (DEC-174, DEC-200). Un blocco compatto di statistiche correnti (danno, cadenza, velocità del colpo, velocità di movimento, raggio, Fortuna) è visibile di default sotto salute/risorse, con tasto di toggle (DEC-184).",
       "topics": [
         "hud",
         "WP15a",
@@ -2557,7 +2575,10 @@
         "DEC-184",
         "statistiche",
         "DEC-008",
-        "Crust"
+        "Crust",
+        "DEC-186",
+        "DEC-192",
+        "DEC-200"
       ],
       "related": [],
       "supersedes": [],
@@ -2576,8 +2597,8 @@
         "src/tests/discovery_tests.c",
         "scripts/cp2_hud_mocks.lua"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "63753fc"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-ui-build-screen",
@@ -2718,7 +2739,9 @@
         "DEC-058",
         "DEC-075",
         "DEC-086",
-        "DEC-166"
+        "DEC-166",
+        "DEC-189",
+        "DEC-190"
       ],
       "related": [],
       "supersedes": [],
@@ -2727,8 +2750,8 @@
         "src/audio/audio.h",
         "src/render/game_renderer.c"
       ],
-      "last_reviewed": "2026-07-30",
-      "last_verified_commit": "0ec60d0"
+      "last_reviewed": "2026-07-31",
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-ui-pause",
@@ -2753,6 +2776,9 @@
         "DEC-114",
         "DEC-159",
         "DEC-169",
+        "DEC-185",
+        "DEC-188",
+        "DEC-202",
         "WP21",
         "WP19",
         "WP17",
@@ -2770,7 +2796,7 @@
         "src/game/run_suspend.c"
       ],
       "last_reviewed": "2026-07-31",
-      "last_verified_commit": "a5cc3a3"
+      "last_verified_commit": "4d7a410"
     },
     {
       "id": "gd-ui-results-leaderboards",

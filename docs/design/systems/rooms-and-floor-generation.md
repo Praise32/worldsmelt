@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Struttura dei piani (griglia fissa, numero e grandezza di stanze variabili, DEC-009) e tassonomia completa dei tipi di stanza (DEC-010, estesa a un quinto archetipo dalla stanza a tempo, DEC-051). Modificatori di stanza generati nei piani avanzati (DEC-024). Il budget di difficoltà della stanza è condiviso tra ostacoli e nemici (DEC-043). Le stanze hanno taglie multiple in classi discrete stile Isaac (1x1/1x2/2x1/2x2/L) con telecamera a zoom fisso nelle taglie maggiori (DEC-170), che supera parzialmente il modello di taglie continue di DEC-009; nelle forme a L la telecamera segue in continuo clampata all'intera stanza (DEC-180), non più alla cella corrente. Una sola porta per coppia di stanze adiacenti, nel segmento più centrale del confine condiviso (DEC-181). La stanza boss è sempre foglia del grafo di adiacenza del piano, mai un passaggio obbligato (DEC-182). Il Piano 0 non è un piano generato: vedi floor-zero.md."
-last_reviewed: 2026-07-30
-last_verified_commit: a8a85bf
-topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, WP5, WP6, WP7, WP8, DEC-025]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [stanze, piani, generazione, griglia, budget-difficoltà, taglie-multiple, telecamera, forma-a-L, DEC-170, DEC-180, DEC-181, DEC-182, porta-unica, boss-isolato, DEC-043, WP3, ostacoli, ROOM_FUSION, ROOM_TIMED, ROOM_ARENA, ROOM_POURHOUSE, ROOM_SECRET, WP5, WP6, WP7, WP8, DEC-025, DEC-191]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/assets/art_atlas.h, src/render/art_draw.h, src/core/room_layout.h, src/world/world.c, src/tests/game_tests.c]
@@ -426,9 +426,10 @@ dalla stanza. Cinque cose da sapere, tutte in `src/render/game_renderer.c`
   è la Style LoRA di DEC-148, non un problema risolvibile con più codice.
 - **La variante di escalation (DEC-024, asse aspetto).** Il contratto emette tre ruoli col
   suffisso `_deg` (`floor_deg`/`wall_deg`/`void_deg`, "crepe di brace"); nessun documento
-  fissava a quale piano scattano. **Default proposto e implementato**: dal **piano 3**, lo
+  fissava a quale piano scattano. **Canone (DEC-191, 31/07)**: dal **piano 3**, lo
   stesso confine della seconda traccia di gameplay e del passaggio dei boss a due fasi
-  (DEC-028/106). Registrato come domanda aperta 23.
+  (DEC-028/106) — confermato dal proprietario: i tre assi dell'escalation coincidono di
+  proposito sullo stesso confine.
 - **Le porte hanno tre stati leggibili** — `aperta`, `chiusa`, `bloccata` — nello stesso
   vocabolario (italiano) dei ruoli del tileset e delle animazioni di `props/porta`: un solo
   vocabolario per il tile e per lo sprite. `bloccata` quando la stanza tiene chiuse le

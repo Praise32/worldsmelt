@@ -6,9 +6,9 @@ status: approved
 authority: canonical
 owner: design
 summary: "Rosa base canonica di 3 personaggi con nomi e ruoli fissi — Wayfinder (esploratore, personaggio di partenza e default), Ashblade (offensivo di vetro), Bulwark (difensivo di roccia) (DEC-080) — più un personaggio alternativo generato per ogni run che si aggiunge alla rosa nella scelta del Piano 0 (DEC-030); il trait unico del personaggio generato è un comportamento Lua validato in sandbox (DEC-037), con varietà anti-fotocopia rispetto alle run recenti via catalogo (DEC-098). Sblocchi della rosa base ora canonici (DEC-100): Wayfinder da subito, Ashblade alla prima run conclusa (qualunque esito), Bulwark al primo boss abbattuto — solo le statistiche restano da playtest. Il rifiuto dell'alternativa nel Piano 0 è ripensabile fino all'attraversamento dell'uscita (DEC-097). Sprite: curati a mano per la rosa base, generati dalla pipeline sprite esistente (come i nemici) per il personaggio alternativo (DEC-049). Il personaggio alternativo può avere, a volte, un colpo firmato generato: parte del suo budget, con statistiche compresse verso il bordo cauto delle bande in cambio, criterio canonico ma fattore ancora da playtest (DEC-068, DEC-078); il colpo firmato non si scarta mai, si normalizza in banda (DEC-079); è sempre il colpo di partenza, sostituito e ripristinato come ogni altro colpo di partenza, canone (DEC-099); i personaggi base usano sempre colpi standard curati. Nelle gare a stesso seed (Classificata stesso seed, Daily) le proposte di personaggio sono identiche per tutti i partecipanti, scelta libera (DEC-108)."
-last_reviewed: 2026-07-19
-last_verified_commit: 0ec60d0
-topics: [personaggi, rosa base, personaggio generato, colpo firmato, DEC-080, DEC-100, trait Lua]
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [personaggi, rosa base, personaggio generato, colpo firmato, DEC-080, DEC-100, trait Lua, DEC-199]
 related: []
 supersedes: []
 source_files: []
@@ -112,18 +112,20 @@ l'alternativa — i 6 slot visivi degli oggetti equipaggiati si sovrappongono al
 a **tutti** i personaggi: fonte unica del dettaglio di quegli strati è
 [Visual Language](../content/visual-language.md), non riformulato qui.
 
-### Default proposti dall'implementazione (stile DEC-019, WP-INT)
+### Canone (DEC-199, 31/07)
 
-Nessun documento fissa quale sheet mostra il personaggio GENERATO per-run, perché la
+Nessun documento fissava quale sheet mostra il personaggio GENERATO per-run, perché la
 pipeline che dovrebbe generarne uno dedicato (paragrafo sopra) non è ancora implementata.
-*Default proposto e implementato*: il personaggio generato mostra sempre lo sheet di
+**Confermato dal proprietario**: il personaggio generato mostra sempre lo sheet di
 **Wayfinder** (`character/fonditrice`, il personaggio 0 della rosa) — solo l'alfa della
 tinta resta distintiva (il lampeggio di invulnerabilità); moltiplicare uno sprite disegnato
 per un colore ne sporcherebbe la palette, quindi la palette del personaggio (curato o
-generato) non tinge più lo sprite come faceva lo stickman placeholder. Da confermare al
-playtest o da promuovere a decisione: l'alternativa (uno sheet dedicato al personaggio
-generato) richiede la pipeline di generazione sprite per-run, fuori scope di questo lavoro.
-(`src/render/game_renderer.c`; vedi `governance/open-questions.md` punto 36.)
+generato) non tinge più lo sprite come faceva lo stickman placeholder. **Provvisorio
+dichiarato** finché non esiste la Style LoRA che permetta di generare uno sheet dedicato,
+**nessun palette-swap**. Resta aperta, non decisa qui, la domanda più ampia se il
+personaggio generato debba avere in futuro una veste propria — richiederebbe generazione
+procedurale dello sprite, fuori scope di questo lavoro.
+(`src/render/game_renderer.c`; vedi `governance/open-questions.md` punto 36, chiuso.)
 
 ## Colpo firmato (DEC-068)
 

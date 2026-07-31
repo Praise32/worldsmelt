@@ -61,6 +61,12 @@ audio in [Audio and Feedback](content/audio-and-feedback.md). Questo documento n
 ridefinisce i dettagli di ciascun asse, solo il principio comune di escalation leggibile
 che li lega.
 
+**Soglia confermata (DEC-191, 31/07):** i tre assi aspetto (variante degradata del tileset),
+audio (seconda traccia di gameplay) e nemici/boss (boss a due fasi) scattano tutti dallo
+stesso confine, il **piano 3** — coincidenza deliberata per la massima leggibilità. Dettaglio
+tecnico in [Rooms and Floor Generation](systems/rooms-and-floor-generation.md), sezione
+"Stato di implementazione: la stanza vestita dal tileset".
+
 ## Difficoltà unica (DEC-038)
 
 Non esiste un livello di difficoltà selezionabile dal giocatore. La curva di difficoltà è

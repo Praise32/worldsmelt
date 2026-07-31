@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "Cosa persiste tra le run (DEC-015): catalogo contenuti, museo del Piano 0, punti singleplayer per sblocchi a doppio canale (DEC-027, dettaglio in rewards-and-economy.md); niente potenziamenti permanenti del personaggio. Il Catalogo del menu principale ha tre funzioni: enciclopedia — sette categorie canoniche, Oggetti/Nemici/Boss/Personaggi/Mondi/Layout/Colpi (DEC-083), con anche i contenuti curati incontrati marcati origine `curato` (DEC-103) —, preferiti, spesa punti (DEC-045). Il museo è curato in modo misto: metriche più preferiti del Catalogo, che hanno la precedenza e non escono mai (DEC-063). Le medaglie/cornici cosmetiche della Classificata giornaliera persistono nel profilo, fuori dall'economia dei punti (DEC-064). La run può essere sospesa in ogni momento: al rientro la stanza corrente riparte dall'ingresso con i nemici ripristinati, il resto della run riprende esattamente com'era (DEC-050). A ogni aggiornamento del gioco il catalogo viene riconvalidato: ciò che fallisce diventa una Reliquia, consultabile ma non più giocabile né sbloccabile; nel museo una Reliquia resta esposta solo se era lì come preferito, altrimenti ne esce automaticamente (DEC-069, DEC-085)."
 last_reviewed: 2026-07-31
-last_verified_commit: a5cc3a3
-topics: [save, meta-progressione, catalogo, museo, reliquie, sospensione-run, DEC-050, WP17]
+last_verified_commit: 4d7a410
+topics: [save, meta-progressione, catalogo, museo, reliquie, sospensione-run, DEC-050, WP17, DEC-202, DEC-189]
 related: []
 supersedes: []
 source_files: [src/content/run_catalog.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c]
@@ -221,16 +221,18 @@ regola di ripristino della stanza corrente.
 > versione diversa che non produce mai una voce "Continua" né un crash, sospensione
 > consumata, e le tre vie che la cancellano.
 
-### Default proposti dall'implementazione (WP17, non canone)
+### Default confermati in blocco (WP17, canone da DEC-202)
 
-Registrati anche in [open-questions.md](../governance/open-questions.md), voce 58; il
-proprietario resta libero di deciderli diversamente. Nessuno di questi è promosso a canone.
+Registrati anche in [open-questions.md](../governance/open-questions.md), voce 58 (chiusa).
+**Chiuso (DEC-202, 31/07):** i cinque default sono confermati in blocco dal proprietario,
+senza eccezioni.
 
 - **Percorso e forma del file**: `suspend/current.txt`, **una sola** sospensione per
   profilo (è quello che "Continua" sa esprimere: una voce, non una lista di salvataggi).
-  Il documento non fissa né percorso né molteplicità. Nota: questo è un **salvataggio di
-  run**, dominio di questo documento, non il file di preferenze della domanda aperta 24,
-  che resta aperta e distinta.
+  Nota: questo è un **salvataggio di run**, dominio di questo documento, distinto dal file
+  di **preferenze** del giocatore, `prefs/settings.txt` (DEC-189, domanda aperta 24, chiusa),
+  che vive accanto a `catalog/` con le stesse regole ma copre un'altra materia (volumi audio
+  e altre preferenze, non lo stato di una run in corso).
 - **Si salva lo stato dell'RNG di gioco** (`game->rng` al momento della sospensione, più
   `Game.floorEntryRng`, il valore d'ingresso nel piano): la sequenza di gioco riprende
   identica invece di divergere. L'alternativa — accettare la divergenza e non salvare

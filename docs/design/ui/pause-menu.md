@@ -7,8 +7,8 @@ authority: canonical
 owner: design
 summary: "La pausa ferma la simulazione in singleplayer; il tempo continua in asincrono competitivo. Espone anche l'elenco delle prove specifiche della run, sempre consultabile (DEC-042), ed è il punto in cui l'HUD di combattimento resta consultabile su richiesta durante il Piano 0, dove è nascosto (DEC-169)."
 last_reviewed: 2026-07-31
-last_verified_commit: a5cc3a3
-topics: [pause-menu, pausa, prove, abbandono-run, reroll, sospensione-run, DEC-042, DEC-050, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, WP21, WP19, WP17, WP16, WP15a, Piano-0, consultazione]
+last_verified_commit: 4d7a410
+topics: [pause-menu, pausa, prove, abbandono-run, reroll, sospensione-run, DEC-042, DEC-050, DEC-082, DEC-089, DEC-114, DEC-159, DEC-169, DEC-185, DEC-188, DEC-202, WP21, WP19, WP17, WP16, WP15a, Piano-0, consultazione]
 related: []
 supersedes: []
 source_files: [src/render/game_renderer.c, src/app/app.c, src/core/game_types.h, src/game/run_suspend.c]
@@ -24,8 +24,8 @@ accedere alle opzioni senza perdere progressi né subire azioni distruttive acci
 ## Condizioni di ingresso
 
 Da `Gameplay`, tramite il comando di pausa. Dal **Piano 0** con lo stesso comando, per la
-sola consultazione dell'HUD nascosto (DEC-169, vedi sotto): è un **default proposto
-dall'implementazione**, non canone — la domanda aperta 22 resta del proprietario.
+sola consultazione dell'HUD nascosto (DEC-169, vedi sotto): **canone** (DEC-185, 31/07) —
+il default proposto dall'implementazione WP15a è stato confermato dal proprietario.
 
 ## Focus iniziale
 
@@ -58,7 +58,7 @@ temporale. Questa distinzione va comunicata al giocatore quando la modalità è 
 ## Regole
 
 - Nessuna azione distruttiva immediata **come funzione di gioco**: il reroll (nuovo seed, DEC-114) e l'abbandono passano sempre da una conferma esplicita (`ExitConfirm`). Il tasto rapido `R` in `Gameplay` (riga sotto) è un'eccezione dichiarata a questa regola, non una sua violazione silenziosa.
-- Il reroll (nuovo seed) non ha tasti rapidi diretti in `Gameplay` (DEC-114): l'unica collocazione è la voce "Rigenera la run" di questo menu. Il tasto `R` in `Gameplay` resta invece SOLO il **reset rapido di sviluppo** della stessa run (stesso seed, mai un seed nuovo): butta via l'intero progresso della run corrente SENZA alcuna conferma. Nessuna decisione approvata autorizza oggi questo comportamento come funzione di gioco rivolta al giocatore finale — anzi DEC-114 dice il contrario ("nessun tasto rapido diretto: buttare una run per un tasto sbagliato è il caso peggiore"). Resta invariato da prima di questo lavoro (il mandato di WP21 è solo il reroll a nuovo seed, non questo tasto): è un residuo dei comandi di sviluppo, mai formalizzato come funzione di gioco. **Default proposto dall'implementazione, non canone** (stile DEC-019): vedi `../governance/open-questions.md`, la voce aggiunta da WP21.
+- Il reroll (nuovo seed) non ha tasti rapidi diretti in `Gameplay` (DEC-114): l'unica collocazione è la voce "Rigenera la run" di questo menu. Il tasto `R` in `Gameplay` resta invece SOLO il **reset rapido di sviluppo** della stessa run (stesso seed, mai un seed nuovo): butta via l'intero progresso della run corrente SENZA alcuna conferma. **Canone (DEC-188, 31/07):** `R` è un **comando di sviluppo**, escluso dalla build di gioco finale rivolta al giocatore; resta attivo nella build della **demo** per facilitare il playtest. Il reroll di gioco rivolto al giocatore finale è esclusivamente "Rigenera la run" con conferma (DEC-114/WP21). **Gap di implementazione dichiarato**: escludere `R` dalla build finale (es. dietro un flag di build, fuori da `AppInputCollect`) mantenendolo nella demo non è ancora stato fatto.
 - Il focus iniziale è "Riprendi".
 - Tornando da `Options`, il focus ritorna sull'elemento "Opzioni" di `PauseMenu`.
 - Tornando da `BuildScreen`, il focus ritorna sull'elemento "Visualizza build e sinergie".
@@ -180,6 +180,11 @@ colloca solo la voce di menu.
 > abbandono e reroll, DEC-082/DEC-089). Verificato da `--suspend-test`
 > (`src/tests/suspend_tests.c`) e `--layout-test` (le sette righe restano dentro il
 > riquadro).
+>
+> **Canone (DEC-202, 31/07):** i cinque default WP17 di `systems/save-and-meta-progression.md`
+> (percorso/molteplicità del file, stato dell'RNG salvato, "ingresso" = baricentro della
+> stanza, collocazione/conferma di questa voce senza `ExitConfirm`, nessun salvataggio
+> automatico) sono confermati in blocco. Fonte unica del dettaglio: quel documento.
 
 ## Prove (DEC-042)
 
@@ -221,30 +226,29 @@ ancora in preparazione lo fa da qui, senza uscire dal Piano 0 e senza che l'hub 
 in permanenza. Questo documento colloca la consultazione, non ridefinisce il contenuto
 dell'HUD né la regola di visibilità.
 
-DEC-169 **non fissa il comando** con cui il menu di pausa si apre dal Piano 0: ESC è già
+DEC-169 non fissava il comando con cui il menu di pausa si apre dal Piano 0: ESC era già
 assegnato a `ExitConfirm` (DEC-074) e le condizioni di ingresso qui sopra prevedono la sola
-provenienza da `Gameplay`. Il punto resta la domanda aperta
-(`../governance/open-questions.md`, punto 22): il default qui sotto **non la chiude**.
+provenienza da `Gameplay`. **Chiuso (DEC-185, 31/07):** il comando è quello di pausa, lo
+stesso di `Gameplay` — vedi la nota di implementazione sotto, ora canone.
 
-> **Nota di implementazione (WP15a, 2026-07-30, supera la nota W3 del 2026-07-28):** il
-> riquadro di consultazione è disegnato in `DrawPauseMenuOverlay`
-> (`src/render/game_renderer.c`), condizionato solo a `game->floor == 0` — indipendente da
-> quale comando abbia aperto `PauseMenu`, come previsto. Mostra salute (cuori) e risorse
-> (`Ingots`/`Blast Charges`/`Cast Keys`/`Flux`), le stesse informazioni della riga vitali
-> dell'HUD di `Gameplay`.
+> **Nota di implementazione (WP15a, 2026-07-30, supera la nota W3 del 2026-07-28; promossa a
+> canone da DEC-185, 31/07):** il riquadro di consultazione è disegnato in
+> `DrawPauseMenuOverlay` (`src/render/game_renderer.c`), condizionato solo a
+> `game->floor == 0` — indipendente da quale comando abbia aperto `PauseMenu`, come previsto.
+> Mostra salute (cuori) e risorse (`Ingots`/`Blast Charges`/`Cast Keys`/`Flux`), le stesse
+> informazioni della riga vitali dell'HUD di `Gameplay`.
 >
-> **DEFAULT PROPOSTO DALL'IMPLEMENTAZIONE (stile DEC-019) per la domanda aperta 22 — non
-> canone:** dal Piano 0 il menu di pausa si apre con il **comando di pausa**, lo stesso di
-> `Gameplay`. Gli altri due candidati erano già occupati e non si potevano riusare senza una
-> perdita: ESC è `ExitConfirm` (DEC-074) e TAB è il pannello mondi/personaggi del Piano 0
-> (M5/M6a, con l'invito "TAB per le carte" scritto a schermo). Il comando di pausa era
-> l'unico tasto ancora libero nel Piano 0 ed è anche l'unico che significhi già "fermati e
-> guarda lo stato" per chi ha giocato una run. `AppUi.pauseFromFloorZero` (zero-default
-> falso = provenienza `Gameplay`, comportamento storico invariato) è l'unica cosa che
-> cambia: decide dove torna "Riprendi". Le altre righe del menu restano quelle di sempre —
-> "Abbandona run" dal Piano 0 interrompe la preparazione esattamente come l'ESC di DEC-074,
-> generazione in sottofondo annullata compresa. Verificato da `--arena-hub-test`
-> (`src/tests/floor_zero_arena_tests.c`, blocco (l)).
+> **Canone (DEC-185, 31/07):** dal Piano 0 il menu di pausa si apre con il **comando di
+> pausa**, lo stesso di `Gameplay`. Gli altri due candidati erano già occupati e non si
+> potevano riusare senza una perdita: ESC è `ExitConfirm` (DEC-074) e TAB è il pannello
+> mondi/personaggi del Piano 0 (M5/M6a, con l'invito "TAB per le carte" scritto a schermo). Il
+> comando di pausa era l'unico tasto ancora libero nel Piano 0 ed è anche l'unico che
+> significhi già "fermati e guarda lo stato" per chi ha giocato una run. `AppUi.
+> pauseFromFloorZero` (zero-default falso = provenienza `Gameplay`, comportamento storico
+> invariato) è l'unica cosa che cambia: decide dove torna "Riprendi". Le altre righe del menu
+> restano quelle di sempre — "Abbandona run" dal Piano 0 interrompe la preparazione
+> esattamente come l'ESC di DEC-074, generazione in sottofondo annullata compresa. Verificato
+> da `--arena-hub-test` (`src/tests/floor_zero_arena_tests.c`, blocco (l)).
 
 ## Non-obiettivi
 
@@ -256,11 +260,9 @@ provenienza da `Gameplay`. Il punto resta la domanda aperta
 ## Domande aperte residue
 
 - Il comportamento della pausa è approved sia in singleplayer sia in asincrono competitivo.
-- Con quale comando il menu di pausa si apre dal Piano 0, dove DEC-169 lo indica come luogo
-  di consultazione dell'HUD ma ESC è già assegnato a `ExitConfirm` (DEC-074):
-  `../governance/open-questions.md`, punto 22. **Aggiornamento 30/07 (WP15a):** esiste ora
-  un default proposto e implementato — il comando di pausa — che **non chiude** la domanda:
-  la scelta resta del proprietario.
+- ~~Con quale comando il menu di pausa si apre dal Piano 0~~: **chiusa (DEC-185, 31/07)** —
+  il comando di pausa, promosso a canone dal default WP15a. Vedi
+  `../governance/open-questions.md`, punto 22 (chiusa).
 
 ## Scenari verificabili
 

@@ -6,9 +6,9 @@ status: proposed
 authority: supporting
 owner: ai-production
 summary: >-
-  Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.
-last_reviewed: 2026-07-27
-topics: [dataset, licenze, kaggle, provenienza, openrail-m]
+  Strategia prudente su provenienza del dataset Kaggle 89k immagini, stato reale del registro CC0 già in uso e piano dataset proprietario (DEC-148), regime di review sempre esplicito per curato/LoRA definitivi (DEC-201), separazione research/commercial, ledger minimo e obblighi di licenza di SD1.5/Qwen/Pixel Art Fixer.
+last_reviewed: 2026-07-31
+topics: [dataset, licenze, kaggle, provenienza, openrail-m, DEC-201]
 related: []
 supersedes: []
 source_files: []
@@ -32,6 +32,16 @@ progetto**. Il vecchio piano a due rami imperniato sul Kaggle 89k (una parte "re
 basata su di esso, l'altra "commercial-clean") è **sostituito** da questo piano: il corpus
 CC0 di oggi serve per i primi esperimenti di Style LoRA (`03-PIANO-LORA.md`), non per il
 dataset finale del gioco.
+
+**Regime di review — decisione (DEC-201, 2026-07-31):** tutto ciò che entra nel **curato
+definitivo** e nei **dataset LoRA** passa **sempre** dall'**approvazione esplicita del
+proprietario**: nessuna promozione automatica, nessun campionamento statistico al posto
+della review integrale. Gli asset **provvisori** della demo (il ponte CC0 di questa
+sezione, DEC-171) si giudicano **a posteriori** al playtest, con lo stesso criterio di ogni
+altra scelta di implementazione della demo, e **non entrano mai** nei dataset LoRA né nel
+curato definitivo: restano un ponte dichiaratamente temporaneo. La quantità di immagini
+producibili dal proprietario e l'eventuale strumento interno di approvazione/rifiuto
+restano dettagli operativi non fissati da questa decisione.
 
 ## Dataset Kaggle `ebrahimelgazar/pixel-art`
 

@@ -6,10 +6,10 @@ status: approved
 authority: canonical
 owner: design
 summary: >-
-  Registro delle 184 decisioni di design (DEC-001..DEC-184) che cambiano il comportamento del gioco: 183 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
-last_reviewed: 2026-07-30
-last_verified_commit: d30890b
-topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..184]
+  Registro delle 204 decisioni di design (DEC-001..DEC-204) che cambiano il comportamento del gioco: 203 approved e 1 superseded (DEC-003, sostituita da DEC-071); fonte canonica di rango massimo nella gerarchia.
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [decision-log, governance, worldsmelt, design canonico, DEC-001..204]
 related: []
 supersedes: []
 source_files: []
@@ -1709,6 +1709,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** approvare 640×360 contestualmente al recepimento dei flussi; rimandare anche il recepimento di DEC-137/DEC-139 all'implementazione del refactor.
 - **Conseguenze:** i due documenti di flusso descrivono la schermata unica con overlay e l'ingresso rapido alla build; `governance/open-questions.md` guadagna la domanda sulla risoluzione logica; `docs/ai-production/templates/UI-SKIN-SPEC.md` marca il valore come proposta non approvata.
 - **Documenti aggiornati:** `docs/design/ui/navigation-map.md`, `docs/design/05-game-states-and-flow.md`, `docs/design/governance/open-questions.md`, `docs/ai-production/templates/UI-SKIN-SPEC.md` (aggiornati in questo stesso lavoro)
+- **Nota (2026-07-31):** la domanda aperta 11 aperta qui si **chiude** con **DEC-200** — la risoluzione logica canonica è 640×360, con migrazione della GUI rimandata alla sessione CP4. Questa decisione resta corretta per il momento in cui fu presa: la domanda andava aperta, non decisa da sola.
 
 ---
 
@@ -1928,6 +1929,7 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** fissare subito 640×360 (scartata: avrebbe richiesto rifare canvas/celle/camera prima di poter disegnare l'HUD, bloccando il lavoro in corso); costruire elementi di HUD indipendenti dalla risoluzione come via principale (scartata: resta buona pratica per i componenti a 9-patch, ma non la via principale per non rimandare la disegnazione concreta dell'HUD).
 - **Conseguenze:** `ui/hud.md` registra il canvas 960×640 come riferimento della demo, con rimando esplicito a DEC-170 e alla domanda aperta 11; `governance/open-questions.md` aggiunge una nota alla domanda 11 che segnala che resta aperta e che la demo procede a 960×640. Nessun documento approved viene sostituito: DEC-170 resta invariata, questa decisione ne applica il canvas all'HUD.
 - **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+- **Nota (2026-07-31):** la domanda aperta 11 si **chiude** con **DEC-200** — risoluzione logica canonica 640×360, migrazione della GUI alla sessione CP4. Il canvas 960×640 fissato qui per la demo resta invariato fino a quella migrazione: questa decisione non è sostituita, solo superata in avanti dalla scelta definitiva.
 
 ---
 
@@ -2049,3 +2051,243 @@ Usare una voce per ogni decisione che cambia il comportamento del gioco.
 - **Alternative considerate:** nessun blocco statistiche in HUD, solo in `BuildScreen` (scartato: è esattamente lo status quo respinto dal playtest); statistiche sempre visibili senza possibilità di nasconderle (scartata: chi preferisce uno schermo più pulito non avrebbe modo di liberare spazio, mentre il toggle costa poco e non toglie nulla a chi le vuole sempre visibili); statistiche mostrate solo a richiesta (tenendo premuto un tasto) invece che come blocco persistente attivabile/disattivabile (scartata: meno immediata per un dato che il giocatore consulta spesso durante il combattimento).
 - **Conseguenze:** `ui/hud.md` guadagna una nuova riga nella tabella "Elementi interattivi", una sezione dedicata e uno scenario verificabile; la priorità visiva del blocco resta sotto sopravvivenza e risorse spendibili, coerente con l'Intento del documento (decisioni immediate di sopravvivenza prima di tutto). Nessun documento `approved` viene sostituito: è un elemento nuovo, mai fissato prima.
 - **Documenti aggiornati:** `docs/design/ui/hud.md` (aggiornato in questo stesso lavoro)
+
+---
+
+### DEC-185 — Il menu di pausa aperto dal Piano 0 diventa il canone per la consultazione dell'HUD; "Riprendi" torna nell'hub
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP15a (30/07) aveva implementato come default proposto, non canone, l'apertura del `PauseMenu` dal Piano 0 con lo stesso comando di pausa di `Gameplay`, in sola consultazione (salute, risorse, build), con "Riprendi"/ESC che tornano nel Piano 0 invece che in `Gameplay`. La scelta era stata fatta per esclusione motivata (ESC è già `ExitConfirm`, DEC-074; TAB è già il pannello mondi/personaggi), ma restava una domanda aperta (voce 22) in attesa di conferma del proprietario.
+- **Decisione:** dal Piano 0 il menu di pausa si apre con il **comando di pausa** (lo stesso di `Gameplay`), in sola consultazione; "Riprendi" e ESC tornano nel Piano 0; ESC fuori dal menu di pausa resta `ExitConfirm` (DEC-074), invariato. Il default proposto dall'implementazione WP15a (`AppUi.pauseFromFloorZero`) è **promosso a canone**.
+- **Alternative considerate:** riusare ESC per aprire la pausa dal Piano 0 (scartata: ESC è già `ExitConfirm`, DEC-074); riusare TAB (scartata: già il pannello mondi/personaggi, con l'invito "TAB per le carte" scritto a schermo); introdurre un nuovo tasto dedicato (scartata: nessuna necessità, il comando di pausa era l'unico libero e già significa "fermati e guarda lo stato" per chi ha giocato una run).
+- **Conseguenze:** `ui/pause-menu.md` e `systems/floor-zero.md` rimuovono la qualifica "default proposto, non canone" per questo punto specifico. Nessun comportamento di codice cambia: era già implementato così. La domanda aperta 22 si chiude.
+- **Documenti aggiornati:** `docs/design/ui/pause-menu.md`, `docs/design/systems/floor-zero.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-186 — La card di scoperta vive in basso al centro (layout V3); `ui/hud.md` viene allineato
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** il layout V3 approvato al CP2 disegna la card di scoperta in basso al centro (per non coprire la riga piano/mondo, allineata a destra alla stessa quota in V3); l'implementazione W8 l'aveva già collocata lì come default proposto, registrando la domanda aperta 26 per la divergenza con la formulazione "alto al centro" ancora presente in `ui/hud.md`, ereditata dalla descrizione dell'HUD a quattro cluster pre-V3.
+- **Decisione:** la posizione canonica della card di scoperta è **BASSO AL CENTRO**, coerente col mock V3 e con quanto disegna `DrawHudV3Card`. La formulazione "alto al centro" descriveva l'HUD a quattro cluster pre-V3 (resta accurata solo per il ripiego integrale senza pacchetto artistico, `DrawHudDiscovery`/`DrawOuterUi`, non toccato da questa decisione), non il layout V3 in uso oggi.
+- **Alternative considerate:** nessuna — la domanda era una scelta fra la formulazione originale del documento e quanto già implementato; il proprietario conferma l'implementato.
+- **Conseguenze:** `ui/hud.md` chiude la divergenza registrata come domanda aperta 26; il default proposto diventa canone.
+- **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-187 — La conferma della fusione resta in `BuildScreen`, con tre porte d'ingresso equivalenti
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** con `ROOM_FUSION` ora presente nel motore (WP4), restava da decidere se l'innesco/conferma della fusione dovesse restare in `BuildScreen` o spostarsi integralmente nella stanza di fusione, coerente col modello descritto in `ui/inventory-and-synergy-screen.md` ("fusione eseguita nella stanza..., `BuildScreen` sola consultazione"). L'implementazione aveva adottato come default proposto la permanenza in `BuildScreen` con tre porte d'ingresso equivalenti (voce 31).
+- **Decisione:** la conferma della fusione **RESTA in `BuildScreen`**, l'unica schermata in cui si esegue. Il crogiolo della stanza di fusione, TAB da `Gameplay` e la voce dedicata nel `PauseMenu` sono **tre porte d'ingresso equivalenti** che aprono la stessa schermata: nessuna delle tre viene rimossa. La stanza di fusione resta un segnale/tema ambientale, non l'unico varco alla meccanica.
+- **Alternative considerate:** spostare integralmente l'esecuzione nella stanza di fusione, rendendo `BuildScreen` sola consultazione come il testo originale di `ui/inventory-and-synergy-screen.md` suggeriva (scartata: avrebbe reso la fusione dipendente dal trovare fisicamente la stanza, contro la garanzia "nessuna run deve dipendere dal trovare la stanza per poter fondere" già adottata dall'implementazione).
+- **Conseguenze:** `systems/item-fusion.md` promuove a canone il default WP4 nella sezione "Domande aperte residue". Nessun documento `approved` viene sostituito nel merito: il modello di `ui/inventory-and-synergy-screen.md` resta corretto come luogo dove l'esecuzione è POSSIBILE, non come unico luogo.
+- **Documenti aggiornati:** `docs/design/systems/item-fusion.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-188 — Il tasto `R` è un comando di sviluppo, escluso dalla build di gioco finale
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP21 aveva chiuso il gap del reroll a nuovo seed (ora "Rigenera la run" nel `PauseMenu`, con conferma, DEC-114), ma il tasto `R` in `Gameplay` restava un reset rapido della stessa run allo stesso seed, senza conferma, mai formalizzato come funzione di gioco — anzi in contraddizione col principio di DEC-114 ("nessun tasto rapido diretto: buttare una run per un tasto sbagliato è il caso peggiore"). Tre opzioni erano aperte (voce 55): formalizzarlo come funzione di gioco invariata, portarlo dietro conferma, o escluderlo dalla build di gioco tenendolo solo come comando di sviluppo.
+- **Decisione:** `R` è un **comando di sviluppo**, **escluso dalla build di gioco finale** rivolta al giocatore. Resta attivo nella build della **demo**, per facilitare il playtest. Il reroll di gioco rivolto al giocatore finale resta esclusivamente quello con conferma esplicita dal `PauseMenu` ("Rigenera la run", DEC-114/WP21).
+- **Alternative considerate:** formalizzarlo come funzione di gioco invariata senza conferma (scartata: contraddice esplicitamente il principio di DEC-114); portarlo dietro conferma come "Rigenera la run" (scartata: ridondante con la via già esistente).
+- **Conseguenze:** `ui/pause-menu.md` aggiorna la sezione "Regole" per registrare lo stato definitivo. Resta un **lavoro di implementazione da fare**: escludere `R` dalla build finale (es. dietro un flag di build) mantenendolo nella demo — gap dichiarato, non risolto in questo lavoro di documentazione.
+- **Documenti aggiornati:** `docs/design/ui/pause-menu.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-189 — Nasce il file di preferenze del giocatore, `prefs/settings.txt`
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** il gioco non ha un file di configurazione persistente per le preferenze del giocatore, a differenza di `catalog/` (meta-progressione) e `suspend/current.txt` (sospensione della run, WP17). La domanda aperta 24 chiedeva se dovesse esistere, dove e con quale formato: la persistenza dei tre volumi audio era solo il primo caso concreto in attesa.
+- **Decisione:** il file di preferenze del giocatore **si fa**: `prefs/settings.txt`, accanto a `catalog/` e con le stesse regole (dati del giocatore, mai versionato, tmp+rename atomico, formato chiave=valore, campo di versione dedicato) e la stessa **disciplina zero-default** già in uso in `catalog/` e `suspend/current.txt` (una chiave assente vale sempre il significato più innocuo). Primo contenuto: i **tre volumi audio** (generale/musica/effetti). Questa decisione fissa esistenza, percorso e formato; l'implementazione concreta (lettura/scrittura, aggancio ai tre slider) resta un lavoro separato, non eseguito qui.
+- **Alternative considerate:** nessuna persistenza, mantenendo lo stato attuale (scartata: il giocatore perde le proprie preferenze a ogni avvio); un formato diverso da chiave=valore, es. JSON (scartata implicitamente: nessuna motivazione a deviare dallo stile già in uso e già robusto in `catalog/`/`suspend/`).
+- **Conseguenze:** `ui/options-and-accessibility.md` aggiorna la sezione sui volumi, rimuovendo "nessuna persistenza" come stato definitivo; `systems/save-and-meta-progression.md` guadagna un rimando che distingue questo file (preferenze) dal salvataggio di run (`suspend/current.txt`) e dal catalogo. La domanda aperta 24 si chiude su esistenza/percorso/formato; l'implementazione resta un gap dichiarato.
+- **Documenti aggiornati:** `docs/design/ui/options-and-accessibility.md`, `docs/design/systems/save-and-meta-progression.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-190 — Gli slider dei tre volumi (Generale/Musica/Effetti) sono canone
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** W8 aveva implementato tre righe-slider per i volumi (passo 10%, valore anche in percentuale, ordine Generale/Musica/Effetti) come default proposto, in attesa di conferma (domanda aperta 25).
+- **Decisione:** i default sono **canone**: tre righe nell'ordine **Volume generale / Musica / Effetti**, passo del **10%** su dieci caselle, valore mostrato anche in **percentuale scritta** accanto (coerente con la garanzia di accessibilità DEC-058: nessuna informazione affidata al solo colore o alla sola lunghezza).
+- **Alternative considerate:** nessuna proposta esplicitamente alternativa oltre l'implementato; la domanda chiedeva conferma o correzione di un default già in uso, e il proprietario conferma.
+- **Conseguenze:** `ui/options-and-accessibility.md` rimuove la qualifica "default proposti" per questi tre elementi specifici (passo, etichette, ordine) e li registra come canone; le altre quattro categorie minime (video, controlli, accessibilità, gameplay) restano da scrivere, non toccate da questa decisione.
+- **Documenti aggiornati:** `docs/design/ui/options-and-accessibility.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-191 — L'escalation visiva del tileset scatta dal piano 3, come la seconda traccia musicale e i boss a due fasi
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** W8 aveva collegato al motore i tre ruoli `_deg` del contratto d'arte (crepe di brace, DEC-024) senza che nessun documento fissasse la soglia di piano. L'implementazione aveva adottato come default il piano 3, lo stesso confine già usato per la seconda traccia musicale (`AUDIO_GAMEPLAY_1_MAX_FLOOR`) e per i boss a due fasi (DEC-028/106), registrando la domanda aperta 23.
+- **Decisione:** la variante degradata del tileset (asse "aspetto" dell'escalation di DEC-024) scatta dal **piano 3**. I tre assi dell'escalation — aspetto (tileset), audio (seconda traccia) e nemici/boss (boss a due fasi) — **coincidono di proposito** sullo stesso confine, per la massima leggibilità: il giocatore percepisce un unico salto di intensità, non tre segnali scoordinati.
+- **Alternative considerate:** una soglia indipendente per l'asse aspetto (scartata: avrebbe reso l'escalation meno leggibile, con segnali disallineati fra loro, contro il principio di "escalation leggibile" di DEC-024).
+- **Conseguenze:** `systems/rooms-and-floor-generation.md`, sezione "Stato di implementazione: la stanza vestita dal tileset", promuove il default a canone. `07-difficulty-and-progression.md` (DEC-024) resta invariato nel principio, guadagna un rimando al valore ora fissato.
+- **Documenti aggiornati:** `docs/design/systems/rooms-and-floor-generation.md`, `docs/design/07-difficulty-and-progression.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-192 — Il timer di run resta azzerato e fermo per tutta la permanenza nel Piano 0, incluse le arene di sfida
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** il motore azzera e ferma `runElapsedSeconds` all'ingresso nel Piano 0 (`FloorZeroEnter` spegne `inRealRun`), riprendendo solo al varco verso il piano 1 (`GameResetRunWithSeed`); lo stesso comportamento vale dentro le simulazioni delle arene del Piano 0, dove il timer si disegna ma resta fermo a `0:00`. Era un default proposto (voce 27), motivato dal fatto che farlo accumulare anche nell'hub penalizzerebbe chi si ferma a leggere le carte-proposta prima di scegliere.
+- **Decisione:** il comportamento implementato è **canone**: il timer di run è azzerato e fermo per tutta la permanenza nel Piano 0; riparte da zero solo attraversando il varco verso il piano 1. Resta fermo anche nelle **simulazioni delle arene** del Piano 0 (tutorial e arene opzionali): il crogiolo non è mai una run cronometrata, in nessuna delle sue attività.
+- **Alternative considerate:** far accumulare il timer anche nell'hub/nelle arene (scartata: penalizzerebbe la preparazione e l'apprendimento nel Piano 0, che non deve mai essere un luogo dove "il tempo corre" contro il giocatore).
+- **Conseguenze:** `ui/hud.md` e `systems/floor-zero.md` promuovono il comportamento a canone, rimuovendo "da confermare al playtest" per questo punto specifico.
+- **Documenti aggiornati:** `docs/design/ui/hud.md`, `docs/design/systems/floor-zero.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-193 — Le piattaforme della prima release sono Linux e Windows
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** il repository conserva sia il ramo Windows sia quello Linux, ma lo sviluppo corrente è su Linux; nessuna decisione fissava ancora il set di piattaforme della release (voce 14). Steam Deck era una delle opzioni sul tavolo.
+- **Decisione:** le piattaforme della **prima release** sono **Linux e Windows**. Il supporto **Steam Deck** riceverà una **verifica dedicata** in seguito (compatibilità Proton, controlli, UI a schermo piccolo) ma **non è un requisito della release 1**: la release 1 non è bloccata dalla verifica Steam Deck, che resta un lavoro successivo.
+- **Alternative considerate:** includere macOS nella prima release (scartata implicitamente, non nominata dal proprietario); rendere Steam Deck un requisito bloccante della release 1 (scartata: rimandato a verifica dedicata separata).
+- **Conseguenze:** `docs/ai-production/21-DISTRIBUZIONE.md`, sezione "Piattaforme", fissa il set della prima release. La domanda aperta 14 si chiude sul set delle piattaforme; la verifica Steam Deck resta un lavoro tecnico successivo, non una nuova domanda di design.
+- **Documenti aggiornati:** `docs/ai-production/21-DISTRIBUZIONE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-194 — La AI disclosure vive sulla pagina negozio e nei crediti in gioco
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-158 assegna il tema distribuzione al dominio ai-production, che possiede già licenze e provenienza dei contenuti (DEC-113, DEC-140, DEC-148, `licenze.md`) su cui la disclosure poggia; il formato e la collocazione restavano una domanda aperta (voce 15).
+- **Decisione:** la AI disclosure vive in **due luoghi**: la **pagina negozio** (dichiarazione pre-acquisto) e i **crediti in gioco**, con una **voce dedicata nel `MainMenu`** che riporta il dettaglio dei modelli usati, le licenze (Stability Community License, Gemma Terms of Use) e la provenienza CC0 dei dataset. Il tema resta di proprietà del dominio ai-production (DEC-158): questa decisione ne registra formato/collocazione; il dettaglio operativo esatto resta lavoro di quel dominio.
+- **Alternative considerate:** disclosure solo al primo avvio (scartata: il proprietario ha scelto esplicitamente pagina negozio + crediti, non una schermata di avvio); disclosure solo sulla pagina negozio senza crediti in gioco (scartata: i crediti restano il luogo dove chi già gioca può consultare il dettaglio).
+- **Conseguenze:** `docs/ai-production/21-DISTRIBUZIONE.md`, sezione "AI disclosure", fissa il formato/collocazione; il contenuto minimo esatto (quali modelli nominare, come formattare le licenze) resta un dettaglio operativo di quel dominio, non fissato numericamente qui.
+- **Documenti aggiornati:** `docs/ai-production/21-DISTRIBUZIONE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-195 — I modelli arrivano via download dal gioco al primo avvio, per chi sceglie l'esperienza completa
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-070/DEC-086 fissano la scelta binaria al primo avvio (completo vs solo curato) e DEC-113/DEC-140 stabiliscono che i pesi dei modelli non sono mai ridistribuiti col gioco; il meccanismo concreto di consegna restava una domanda aperta (voce 16): installer separato, download al primo avvio, strumento/DLC di piattaforma, o nessun modello distribuito.
+- **Decisione:** i modelli arrivano via **download dal gioco al primo avvio**, per chi sceglie l'**esperienza completa** (DEC-070/DEC-086). Chi sceglie "**solo curato**" **non scarica nulla**. Il gioco dichiara **fonte e verifica dei pesi** scaricati, provenienza tracciabile coerente con `licenze.md`. I pesi **non sono mai ridistribuiti** insieme al gioco (DEC-113/DEC-140 invariate, ribadite qui).
+- **Alternative considerate:** installer separato o strumento/DLC di piattaforma (scartate implicitamente: il download integrato al primo avvio è la via scelta, coerente con la scelta binaria già approvata da DEC-070/DEC-086); nessun modello distribuito in alcuna forma (scartata: contraddirebbe l'esperienza completa già approvata come opzione di gioco).
+- **Conseguenze:** `docs/ai-production/21-DISTRIBUZIONE.md` registra il meccanismo di consegna; il dettaglio tecnico (URL di distribuzione, verifica di integrità/hash, gestione di reti lente o interrotte) resta lavoro di implementazione futuro, non fissato qui.
+- **Documenti aggiornati:** `docs/ai-production/21-DISTRIBUZIONE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-196 — Il primo esperimento di audio generativo copre SFX e musica insieme, in un'unica milestone
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-109 fissa la pipeline e la catena di fallback dell'audio generativo, non l'ordine degli esperimenti; restava aperto (voce 20) se il primo esperimento dovesse riguardare solo SFX, solo musica, o entrambi. La raccomandazione tecnica di default sarebbe stata "SFX prima" (superficie di rischio minore, iterazione più rapida), ma il proprietario ha scelto diversamente.
+- **Decisione:** il primo esperimento di audio generativo copre **SFX e musica insieme, un'unica milestone**, non due esperimenti separati in sequenza. Scelta esplicita del proprietario (batch decisionale del 31/07), che ha preferito la milestone unica alla raccomandazione "SFX prima" senza estendere la motivazione.
+- **Alternative considerate:** SFX prima, poi musica come milestone separata — la raccomandazione di default, motivata da minor rischio e iterazione più rapida sui SFX — **esplicitamente non scelta** dal proprietario, che preferisce una milestone unica.
+- **Conseguenze:** `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md` registra l'ordine deciso per il primo esperimento; nessun documento `approved` viene sostituito (DEC-109 resta invariata nel principio di pipeline).
+- **Documenti aggiornati:** `docs/ai-production/16-AUDIO-GENERATION-PIPELINE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-197 — Lo strumento di design UI è Markdown + PNG nel repository; Penpot non è adottato
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** `docs/ai-production/15-UI-DESIGN-PIPELINE.md` (status `approved`) proponeva Penpot come sorgente principale del design system UI (componenti, varianti, token, server MCP). La domanda aperta 13 chiedeva se servisse davvero uno strumento di design dedicato (Penpot canonico, Penpot solo mockup, altro strumento, o Markdown+PNG senza strumento).
+- **Decisione:** lo strumento di design UI è **Markdown + PNG nel repository**: mock riproducibili via script/Aseprite, versionati come ogni altro asset del repo. **Niente Penpot**. Questa decisione **supera** la scelta di Penpot descritta in `15-UI-DESIGN-PIPELINE.md`, un documento `approved`.
+- **Alternative considerate:** Penpot come sorgente canonica, self-hosted (la proposta originale del documento, scartata: complessità di adozione/hosting non giustificata rispetto a un flusso già in uso Markdown+PNG via script/Aseprite); Penpot solo per mockup non vincolanti (scartata implicitamente, stessa preferenza per restare dentro il repository senza un secondo strumento esterno).
+- **Conseguenze:** `docs/ai-production/15-UI-DESIGN-PIPELINE.md` riceve una **nota esplicita di supersessione parziale** in testa al documento (stile DEC-036/176/178): la scelta dello strumento (Penpot) è superata da questa decisione; il resto del documento (token a 3 livelli, componenti minimi, 9-slice, moduli `src/ui/`, raygui solo per tool interni, criteri di accettazione) resta valido come riferimento tecnico indipendente dallo strumento di design usato per produrlo. Il documento **non passa a `superseded` per intero** (convenzione DEC-155: supersessione parziale → resta `approved` con nota datata), perché solo la sezione "sorgente del design system" è toccata.
+- **Documenti aggiornati:** `docs/ai-production/15-UI-DESIGN-PIPELINE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-198 — Gli spuntoni (pericolo passivo) diventano temporizzati: cicli retratti/estesi con danno solo da estesi
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP-INT (30/07) aveva implementato il pericolo passivo sempre nel tag visivo "estesi" (mai "retratti"), perché il motore non ha alcun gate temporale sul danno di contatto (`CombatResolveHazards`) e una prima versione che alternava i tag nel tempo era stata bocciata per aver mostrato "retratti" mentre il danno restava comunque costante — una finestra di sicurezza fasulla. Il tag "retratti" restava consegnato nell'asset ma inutilizzato, riservato dichiaratamente a "una futura variante di pericolo davvero temporizzata" (voce 35). Il proprietario ha chiesto che quella variante si faccia subito.
+- **Decisione:** gli spuntoni diventano **temporizzati subito**: cicli retratti/estesi in cui il **danno di contatto si applica solo durante la fase estesa**, con **animazione e danno sincronizzati** (nessuna finestra fasulla: quando il tag visivo mostra "retratti", il contatto non danneggia davvero). Questa decisione **supera** il default "sempre estesi" adottato da WP-INT: quel default resta corretto come descrizione dello stato **attuale** del motore (che non ha ancora il gate temporale), non più come comportamento **voluto**.
+- **Alternative considerate:** mantenere "sempre estesi" senza mai usare il tag "retratti" (il default WP-INT, ora esplicitamente superato); un pericolo che alterna i tag ma continua a danneggiare sempre (la prima versione già bocciata al playtest, scartata di nuovo per lo stesso motivo).
+- **Conseguenze:** `systems/secrets-and-obstacles.md`, sezione "Default proposti dall'implementazione", registra il nuovo comportamento voluto come decisione di design approvata, distinta dallo stato implementato oggi (**gap esplicito**: il motore non ha ancora il gate temporale su `CombatResolveHazards`; l'implementazione dei cicli retratti/estesi con danno sincronizzato resta un lavoro in coda). Nessun documento `approved` viene sostituito nel merito: nessuna DEC precedente fissava "sempre estesi" come canone, era un default di implementazione.
+- **Documenti aggiornati:** `docs/design/systems/secrets-and-obstacles.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-199 — Il personaggio generato per-run usa lo sheet della Fonditrice finché non esiste la Style LoRA
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP-INT aveva agganciato tre spritesheet di personaggio curati (Fonditrice/Ashblade/Bulwark) ma nessuno dedicato al personaggio generato per-run, la cui pipeline di generazione sprite dedicata non esiste ancora (backlog, dipende dalla Style LoRA, DEC-148). Il default implementato mostra sempre lo sheet della Fonditrice (personaggio 0 della rosa), senza palette-swap (voce 36).
+- **Decisione:** il personaggio generato per-run usa lo sheet della **Fonditrice** finché non esiste la Style LoRA che permetta di generarne uno dedicato. **Provvisorio dichiarato** esplicitamente come tale, **nessun palette-swap**: solo l'alfa della tinta (lampeggio di invulnerabilità) resta distintiva.
+- **Alternative considerate:** un palette-swap dello sheet della Fonditrice per dare al personaggio generato un'identità visiva distinta senza attendere la pipeline generativa (scartata: sporcherebbe la palette curata a mano, stessa limitazione già vera per la rosa curata).
+- **Conseguenze:** `systems/characters.md`, sezione "Default proposti dall'implementazione", promuove il default a canone (dichiarato provvisorio, in attesa della pipeline sprite per-run). Resta aperta, non decisa qui, la domanda più ampia se il personaggio generato debba avere in futuro una veste propria generata proceduralmente.
+- **Documenti aggiornati:** `docs/design/systems/characters.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-200 — La risoluzione logica canonica dell'interfaccia è 640×360; la demo resta su 960×640 fino a CP4
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-156 aveva aperto la domanda aperta 11 lasciando 640×360 con scaling intero come proposta mai approvata; DEC-174 aveva confermato che l'HUD della demo si disegna nel frattempo sul canvas 960×640, senza decidere la domanda aperta 11.
+- **Decisione:** la risoluzione logica **canonica** è **640×360** (16:9 nativo: scala intera ×3 = 1920×1080 esatto, ×2 = 720p, ×6 = 4K). La **migrazione** della GUI a questa risoluzione avviene nella **sessione CP4**: fino ad allora la demo resta sul canvas **960×640** (DEC-174), non toccato da questa decisione. Sul formato **21:9** (ultrawide): la prima release usa **pillarbox a scala intera** (barre laterali, nessuna vista estesa); una vista ultrawide nativa resta un'**eventuale estensione futura**, non decisa qui.
+- **Alternative considerate:** fissare una risoluzione logica diversa da 640×360 (scartata implicitamente: il proprietario conferma la proposta ricorrente già presente in appunti e template); migrare subito la GUI alla nuova risoluzione invece di aspettare CP4 (scartata: avrebbe interrotto il lavoro in corso sul canvas 960×640, stesso motivo che aveva motivato DEC-174); vista ultrawide nativa fin da subito (scartata: rimandata come estensione futura non necessaria alla prima release).
+- **Conseguenze:** `docs/ai-production/templates/UI-SKIN-SPEC.md` rimuove il marcatore "PROPOSTA, non approvata" sul valore `[640, 360]` e lo registra come canone approvato; DEC-156 e DEC-174 restano `approved` e ricevono ciascuna una **nota datata di collegamento** (non di supersessione: entrambe avevano correttamente lasciato la domanda aperta al momento giusto — questa decisione le chiude in avanti, non le contraddice). La domanda aperta 11 si chiude.
+- **Documenti aggiornati:** `docs/ai-production/templates/UI-SKIN-SPEC.md`, `docs/design/governance/open-questions.md`, `docs/design/governance/decision-log.md` (note su DEC-156 e DEC-174) (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-201 — Regime di review: tutto ciò che entra nel curato definitivo e nei dataset LoRA passa sempre dall'approvazione esplicita del proprietario
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-148 stabilisce che i dataset definitivi li crea il proprietario del progetto, ma non fissava un regime di review esplicito (approvazione sempre, solo per la release, a campione) né il destino degli asset provvisori della demo (dataset CC0, DEC-171) rispetto ai dataset definitivi (voce 19).
+- **Decisione:** **tutto** ciò che entra nel **curato definitivo** e nei **dataset LoRA** passa **sempre** dall'**approvazione esplicita del proprietario**: nessuna promozione automatica, nessun campionamento statistico al posto della review integrale. Gli asset **provvisori** della demo (es. il ponte CC0 di DEC-171) si giudicano **a posteriori** al playtest, con lo stesso criterio di ogni altra scelta di implementazione della demo, e **non entrano mai** nei dataset LoRA né nel curato definitivo.
+- **Alternative considerate:** review a campione per i volumi più grandi (scartata: il proprietario vuole approvazione sempre, non un compromesso statistico); promozione automatica degli asset della demo giudicati "abbastanza buoni" al playtest (scartata: romperebbe la distinzione già stabilita da DEC-171 fra ponte provvisorio e dataset definitivo).
+- **Conseguenze:** `docs/ai-production/04-DATASET-LICENZE.md`, sezione sul piano dataset proprietario (DEC-148), registra il regime di review; nessun documento `approved` viene sostituito (DEC-148 resta invariata, questa decisione ne dettaglia il regime di review che non fissava).
+- **Documenti aggiornati:** `docs/ai-production/04-DATASET-LICENZE.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-202 — I default della sospensione della run (WP17) sono confermati in blocco
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP17 (2026-07-31) aveva implementato cinque default per la sospensione della run (DEC-050) come "non canone" (voce 58): percorso/molteplicità del file, stato dell'RNG salvato, definizione di "ingresso" della stanza, collocazione/conferma della voce di menu, assenza di salvataggio automatico.
+- **Decisione:** i cinque default sono **confermati in blocco** come canone: **(1)** una sola sospensione per profilo, in `suspend/current.txt` accanto a `catalog/`, con le stesse regole di quel file (chiave=valore, tmp+rename atomico, zero-default, campo `suspendSchema=1`); **(2)** si salva lo **stato dell'RNG** di gioco (`game->rng` al momento della sospensione, più `Game.floorEntryRng`), perché la sequenza di gioco riprenda identica; **(3)** **"l'ingresso" della stanza è il suo baricentro** (`WorldRoomCenter`), non la porta da cui si era entrati; **(4)** **collocazione e conferma**: "Sospendi e esci" è la sesta riga di `PauseMenu` (fra "Rigenera la run" e "Abbandona run"), **senza** passare da `ExitConfirm`; **(5)** **nessun salvataggio automatico** alla chiusura della finestra. La sospensione **si consuma alla ripresa**; abbandono, reroll e "Nuova run" con una sospensione attiva la **cancellano**; il **Piano 0 non è sospendibile** in questa fetta (limite dichiarato, non requisito scartato).
+- **Alternative considerate:** nessuna alternativa esplicita proposta dal proprietario — la domanda chiedeva conferma o correzione dei cinque default già implementati, e la risposta è conferma integrale, senza eccezioni.
+- **Conseguenze:** `systems/save-and-meta-progression.md`, sezione "Default proposti dall'implementazione (WP17, non canone)", viene promossa a canone (titolo e qualifica "non canone" rimossi); `ui/pause-menu.md` allinea la propria nota di implementazione dello stesso WP17 di conseguenza.
+- **Documenti aggiornati:** `docs/design/systems/save-and-meta-progression.md`, `docs/design/ui/pause-menu.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-203 — L'abbandono finalizza le prove come una fine run: le prove già soddisfatte al momento dell'abbandono restano superate
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** WP19 riusa `TrialsFinalizeAtRunEnd` anche per l'abbandono, chiudendo le prove ancora in corso esattamente come a fine run vera, **anche in positivo**: un giocatore che abbandona con `Player.coins >= 30` vede `TRIAL_END_WITH_INGOTS` diventare superata; uno che non ha mai comprato nulla vede `TRIAL_NO_SHOP_PURCHASE` diventare superata — due prove il cui testo chiede esplicitamente di finire la run, mostrate come superate a chi ha invece mollato (voce 54). Non era chiaro se questo fosse accettabile o se l'abbandono dovesse far fallire sempre queste due prove.
+- **Decisione:** il comportamento è **accettato** come canone: l'abbandono finalizza le prove esattamente **come una fine run**. Le prove già soddisfatte al momento dell'abbandono **restano superate**, anche in positivo, anche per le due prove che chiedono esplicitamente di "finire" la run. La disciplina "nessuna prova resta in corso per sempre" (WP16) prevale sul disincentivo a leggere l'abbandono come corretto.
+- **Alternative considerate:** far fallire sempre `TRIAL_END_WITH_INGOTS` e `TRIAL_NO_SHOP_PURCHASE` in caso di abbandono, indipendentemente dalla soglia raggiunta (scartata: introdurrebbe un secondo percorso di chiusura delle prove da mantenere in parallelo, e tratterebbe l'abbandono in modo diverso da ogni altra prova senza un motivo di design dichiarato per quella specifica eccezione).
+- **Conseguenze:** `systems/rewards-and-economy.md` promuove il default WP19 a canone; resta registrato che l'impatto è oggi di sola presentazione (nessun sistema di punti sblocco esiste ancora nel motore) e che, se in futuro le prove alimenteranno la meta-progressione, questa combinazione andrà rivalutata come possibile incentivo a mollare la run — nota già presente, non modificata da questa decisione.
+- **Documenti aggiornati:** `docs/design/systems/rewards-and-economy.md`, `docs/design/governance/open-questions.md` (aggiornati in questo stesso lavoro)
+
+---
+
+### DEC-204 — Il proprietario dedica 10+ ore a settimana a review, verdetti, playtest e decisioni
+
+- **Data:** 2026-07-31
+- **Stato:** approved
+- **Contesto:** DEC-168 aveva già dimensionato il training sulle 30 ore settimanali gratuite di Kaggle, senza impegnare un budget cloud a pagamento; restava aperto (voce 21) quante ore settimanali il proprietario potesse dedicare a domande, review di codice e asset, ascolto audio e playtest — un dato necessario per dimensionare correttamente i batch di lavoro proposti dagli agenti.
+- **Decisione:** il proprietario dedica **10 o più ore a settimana** a review, verdetti, playtest e decisioni. I batch di lavoro (dimensione delle sessioni di decisione, volume di asset da rivedere, frequenza dei checkpoint di playtest) si dimensionano su questo **ritmo pieno**, non su un ritmo ridotto o part-time.
+- **Alternative considerate:** nessuna — la domanda chiedeva un dato quantitativo per calibrare il lavoro futuro, non una scelta fra alternative di design.
+- **Conseguenze:** nessun documento canonico dedicato al dimensionamento dei batch esiste oggi (`docs/ai-production/20-SESSION-PROTOCOL.md` fissa il formato delle sessioni, non il ritmo settimanale): questa decisione resta la fonte diretta del dato, da consultare per dimensionare i lavori futuri, senza propagazione in un documento di sistema dedicato.
+- **Documenti aggiornati:** `docs/design/governance/open-questions.md` (aggiornato in questo stesso lavoro)

@@ -6,11 +6,13 @@ status: draft
 authority: supporting
 owner: ai-production
 summary: >-
-  Perimetro del tema distribuzione (DEC-158): piattaforme di destinazione, requisiti della
-  pagina negozio incluso l'hardware minimo in numeri (DEC-142), AI disclosure per i
-  contenuti generati a runtime. Le scelte concrete restano domande aperte.
-last_reviewed: 2026-07-27
-topics: [distribuzione, piattaforme, pagina-negozio, ai-disclosure, licenze, steam]
+  Perimetro del tema distribuzione (DEC-158): piattaforme Linux+Windows per la release 1
+  (DEC-193), AI disclosure su pagina negozio e crediti in gioco (DEC-194), modelli via
+  download al primo avvio (DEC-195), requisiti della pagina negozio incluso l'hardware
+  minimo in numeri (DEC-142). Import di contenuti utente rimandato a dopo la release.
+last_reviewed: 2026-07-31
+last_verified_commit: 4d7a410
+topics: [distribuzione, piattaforme, pagina-negozio, ai-disclosure, licenze, steam, DEC-193, DEC-194, DEC-195]
 related: []
 supersedes: []
 source_files: []
@@ -38,8 +40,10 @@ Tre materie, tutte ancora prive di una decisione concreta:
 ## Piattaforme
 
 Il repository conserva sia il ramo Windows sia quello Linux, ma lo sviluppo corrente è
-su Linux. Nessuna decisione fissa ancora il set di piattaforme della prima release
-(Linux, Windows, Steam Deck, macOS): vedi la domanda aperta collegata sotto.
+su Linux. **Decisione (DEC-193, 2026-07-31):** le piattaforme della **prima release** sono
+**Linux e Windows**. Il supporto **Steam Deck** riceve una verifica dedicata in seguito
+(compatibilità Proton, controlli, UI a schermo piccolo), ma **non è un requisito della
+release 1**. macOS non è nominato, non incluso nella prima release.
 
 `docs/engineering/multiplayer-steam.md` valuta Steamworks come possibile via di
 distribuzione (leaderboard, achievement, Workshop, cloud save) per il multiplayer
@@ -63,8 +67,16 @@ La pagina negozio deve poter dichiarare, quando esisterà:
 - l'eventuale menzione di generazione IA come parte dell'esperienza (si veda AI
   disclosure sotto).
 
-Il formato esatto della pagina e quali di questi punti sono obbligatori restano domande
-aperte.
+**Meccanismo di consegna dei modelli — decisione (DEC-195, 2026-07-31):** i modelli
+arrivano via **download dal gioco al primo avvio**, per chi sceglie l'esperienza completa
+(DEC-070/DEC-086). Chi sceglie "solo curato" non scarica nulla. Il gioco dichiara fonte e
+verifica dei pesi scaricati; i pesi non sono mai ridistribuiti insieme al gioco
+(DEC-113/DEC-140 invariate). Il dettaglio tecnico (URL di distribuzione, verifica di
+integrità/hash, gestione di reti lente o interrotte) resta lavoro di implementazione
+futuro, non fissato da questa decisione.
+
+Il formato esatto della pagina e quali altri punti oltre a quelli sopra sono obbligatori
+restano domande aperte.
 
 ## AI disclosure
 
@@ -80,10 +92,13 @@ dalle licenze e dalla provenienza già registrate in questo dominio:
 - DEC-148 — provenienza e destino della pipeline immagini (SD1.5, Style LoRA, dataset
   definitivi del proprietario).
 
-Non sono ancora decisi: il **formato** della disclosure (pagina negozio, schermata al
-primo avvio, crediti in gioco, una combinazione), il suo **contenuto minimo** (quali
-modelli nominare, se nominare le licenze), e se serva differenziarla fra modalità
-solo-curato (nessuna generazione) e modalità completa.
+**Decisione (DEC-194, 2026-07-31):** la disclosure vive in **due luoghi** — la **pagina
+negozio** (dichiarazione pre-acquisto) e i **crediti in gioco**, con una **voce dedicata nel
+`MainMenu`** che riporta il dettaglio dei modelli usati, le licenze (Stability Community
+License, Gemma Terms of Use) e la provenienza CC0 dei dataset. Il **contenuto minimo esatto**
+(quali modelli nominare per nome, come formattare le licenze) e l'eventuale differenziazione
+fra modalità solo-curato e modalità completa restano dettagli operativi di questo dominio,
+non fissati numericamente dalla decisione.
 
 ## Cross-reference
 
@@ -97,15 +112,16 @@ solo-curato (nessuna generazione) e modalità completa.
 
 ## Domande aperte
 
-Le scelte concrete di questo dominio sono domande aperte in
+Tre delle quattro domande di questo dominio sono state chiuse il 2026-07-31 in
 [`docs/design/governance/open-questions.md`](../design/governance/open-questions.md#distribuzione):
 
-- piattaforme di destinazione della prima release (open question 14);
-- formato e collocazione della AI disclosure, requisiti esatti della pagina negozio (open
-  question 15);
-- meccanismo di consegna dei modelli all'utente (open question 16);
+- ~~piattaforme di destinazione della prima release~~ (open question 14, chiusa da DEC-193);
+- ~~formato e collocazione della AI disclosure~~ (open question 15, chiusa da DEC-194); i
+  requisiti esatti restanti della pagina negozio restano da scrivere;
+- ~~meccanismo di consegna dei modelli all'utente~~ (open question 16, chiusa da DEC-195);
 - modding/import di contenuti utente — modelli, LoRA, prompt pack, rig, AudioSpec, skin
-  UI (open question 17).
+  UI (open question 17): **rimandato esplicitamente a dopo la release**, quando la pipeline
+  generativa definitiva esisterà; resta aperta, non decisa.
 
-Questo documento non decide nessuna di queste domande: fissa solo a chi appartiene il
-tema e da cosa dipende.
+Questo documento non decide da solo: registra le decisioni prese altrove (decision-log) e
+i dettagli operativi ancora da scrivere in questo dominio.
