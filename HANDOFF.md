@@ -3,48 +3,63 @@
 Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 `docs/archive/handoffs/` (integrale precedente: `docs/archive/handoffs/HANDOFF-2026-07-19.md`).
 
-## Stato al 2026-07-30 — W8: il motore consuma gli asset artistici veri
+## Stato al 2026-07-31 — W10/W11: gap-closure completa dai docs, demo pronta al playtest
 
-- **Branch**: `main`. **NON committato**: in attesa del giudizio di Fable (task di gradino 3).
-- **Il problema che chiudeva**: `make run-demo` mostrava ancora la grafica vecchia. Le 73
-  coppie spritesheet+manifest della sessione artistica erano su disco e nessuna riga di C le
-  leggeva; il commit B3 ("aggancio completo al layer image-id") aveva agganciato solo il
-  ramo OGGETTI attraverso il ponte CC0 statico — nemici, boss, tileset, HUD e personaggio no.
-- **Moduli nuovi** (confini documentati in `docs/engineering/architecture.md`):
-  - `src/assets/art_atlas.{h,c}` (`ArtAtlas*`): carica e POSSIEDE gli asset di `assets/art/`.
-    Scanner sequenziale minimale per i tre sapori di manifest (spritesheet + `slice` per i
-    9-patch, tileset, font bitmap) — il gioco non linka cJSON; ogni chiave sconosciuta viene
-    saltata, così un contratto esteso domani si carica oggi. Animatore PURO e deterministico
-    (`ArtAnimFrameAt`/`ArtAnimDone`, nessun `GetTime` dentro). Registro statico al modulo e
-    non in `Game`: gli asset non sono contenuto di run e `Game` viene azzerato più volte per
-    partita. Caricamento pigro, voci negative in cache, `ArtAtlasShutdown` accanto ad
-    `AudioShutdown`.
-  - `src/render/art_draw.{h,c}` (`ArtDraw*`): DISEGNA. Fotogramma ancorato con specchiatura,
-    tile con ritaglio proporzionale del sorgente, 9-patch a bordi ripetuti (non stirati),
-    font pixel, icone. `ArtUiReady()` è l'interruttore unico fra veste pixel art e ripiego.
-- **Cosa si vede ora**: tileset dei 5 temi (pavimento con varianti deterministiche, cornice,
-  angoli, porte a 3 stati, `l_block`, ostacoli per famiglia `ROOM_LAYOUT_*`, vuoto, variante
-  di escalation `_deg` dal piano 3); personaggio animato (4 camminate/idle/hit) al posto
-  dello stickman, coi layer degli oggetti sopra invariati; nemici e boss animati con flip e
-  `hit`; animazione di MORTE via `Game.artFx` (effetti solo grafici che sopravvivono
-  all'entità — un nemico esce di scena nell'istante in cui muore, e cambiare quella
-  semantica avrebbe toccato ogni `if (e->active)` del motore); colpi per forma; HUD in
-  pixel art nel canvas 960×640 col layout V3 approvato al CP2, numero per numero (DEC-174);
-  **tutte le nove schermate** rivestite coi componenti di sistema; tre slider di volume in
-  `Options`.
-- **Priorità delle immagini** (DEC-175(b)): `Item.imageId`/`EnemyTypeDef.imageId`/
-  `DiscoveryCard.imageId` nuovi accanto a `imagePath`, scritti dagli stessi punti che già
-  scrivevano il percorso. Ordine: originale in `assets/art` → ponte CC0 di `assets/curated`
-  → cella d'atlas → primitiva. Il seed non cambia di un bit: la pesca della fusione è la
-  stessa, si conserva anche l'id della voce pescata.
-- **Test**: `make test` (con `--art-atlas-test` nuovo), `make test-script`, `make docs-check`
-  verdi. `--atlas-fallback-test` ora punta di proposito il pacchetto artistico su una
-  cartella inesistente, così continua a proteggere il gradino più basso della priorità.
-  Screenshot di verifica: `logs/worldsmelt-w8-<schermata>.png` (9 scatti).
-- **Buchi dichiarati** (asset mancanti, non codice): `docs/engineering/known-issues.md`
-  voce 10 — font senza accentate né parentesi tonde, un solo sheet di personaggio per tre
-  personaggi, cuore/bomba/chiave senza prop, salute temporanea e timer di run assenti dal
-  motore. Domande aperte 23-26 in `docs/design/governance/open-questions.md`.
+- **Branch**: `main`, tutto committato e pushato (19 commit della sessione 30-31/07,
+  `20f5c16..73500d6`). Working tree: SOLO le modifiche audio pre-esistenti in attesa del
+  verdetto SFX del proprietario (`assets/audio/*`, `scripts/audio-pack.py`) — non toccate.
+- **Il mandato**: analisi di TUTTI i docs contro il codice (8 lettori in parallelo, 97 gap
+  classificati) e implementazione dei gap per il playtest completo (DEC-171: la demo copre
+  tutti i sistemi documentati). Scala CLAUDE.md rispettata su ogni WP: implementer→verifier
+  con mutation-test, escalation a Fable sui gradini 3.
+- **Sistemi entrati** (ognuno con test in `make test`, docs aggiornati nello stesso lavoro,
+  default proposti registrati in open-questions):
+  - Timer di run (DEC-051) + tempo in RunResults/catalogo; salute temporanea Crust
+    (DEC-008) dal negozio con contatore HUD; ostacoli distruttibili + pericoli telegrafati
+    + budget condiviso (DEC-013/128/043).
+  - I **cinque archetipi speciali** tutti fisici nel motore: ROOM_FUSION (crogiolo),
+    ROOM_TIMED (clessidra, dal piano 3), ROOM_ARENA (conferma X, foglia per costruzione,
+    budget x1.5), ROOM_POURHOUSE (puntata dal seed nel budget di equità, DEC-044, modulo
+    `world/pourhouse`), ROOM_SECRET a due livelli (varco murato + breccia, DEC-025).
+  - Prove della run (DEC-042, modulo `game/trials`, card di presentazione al varco);
+    arene del Piano 0 (DEC-092-095, modulo `world/floor_zero_arena`: simulazioni a rischio
+    zero con snapshot integrale, best-of dal catalogo, tutorial DEC-047, HUD via
+    `floorZeroTrialActive`); abbandono→RunResults con causa (DEC-082/089); reroll con
+    conferma dal PauseMenu (DEC-114, R resta reset stesso-seed); sospensione + Continua
+    (DEC-050, modulo `game/run_suspend`, `suspend/current.txt` schema 1); ExitConfirm
+    modale leggero dal MainMenu + riga Modalità in RunSetup + focus build sull'ultimo
+    acquisito (DEC-090).
+  - **Asset demo prodotti in autonomia** (autorizzazione del proprietario 30/07, aseprite-mcp,
+    stile S1/palette Fucina, sorgenti in `assets/art-src/`): crogiolo, clessidra, spuntoni,
+    pickup cuore/bomba/chiave, sheet Ashblade e Bulwark (rosa distinguibile in silhouette),
+    crepa-segreta, tag-veterano, font esteso con accentate+parentesi (glyphs_ext + decoder
+    UTF-8). Tutto agganciato al motore (WP-INT). Provvisori: fuori dal dataset LoRA.
+- **Incidenti di sessione, risolti e con guardrail**: quota disco esaurita da copie del repo
+  negli scratchpad dei mutation-test (pulita; ora vietato copiare il repo, mutazioni in
+  place con ripristino via Edit); un commit parziale che aveva rotto main (riparato in
+  `4c098f1`); due implementer che si sono cancellati il lavoro con `git checkout` durante i
+  mutation-test (ricostruito e verificato; ora vietato git checkout sul tree condiviso).
+- **Test**: `make test` completo (35 marker ok, incluse le suite nuove: run-timer,
+  temp-health, obstacles, trials, arena-hub, suspend, exit-confirm-light-modal,
+  run-setup-mode-line), `make test-script`, `make test-gen`, `make test-sprites`,
+  `make docs-index && make docs-check` — tutti verdi alla chiusura (2026-07-31).
+- **Differiti dichiarati** (non persi: motivati in `scratchpad`-backlog e nei doc):
+  museo del Piano 0 con Reliquie/preferiti (DEC-063/085/069/045), meta-progressione
+  Embers/sblocchi rosa (DEC-015/027/100 — nessun salvataggio meta esiste ancora),
+  punteggio composito completo (DEC-060), codice breve di condivisione (DEC-066/077),
+  danno da contatto per forma + knockback (DEC-061/134), boss due fasi (DEC-028/106),
+  Veterani (asset tag pronto), multi-attivi e piega-regole, card scoperta estesa a
+  oggetti/fusioni, Options a 6 categorie/rimappatura (DEC-058), scelta binaria primo
+  avvio (DEC-070/086), quick-win gen-side (guardrail originalità nel validatore, limiti
+  dark DEC-119). Out-of-scope demo (DEC-171/172): stadio 2 fusione, multiplayer online,
+  gen-progress UI. Asset-gated: famiglia audio Piano 0 (DEC-121). Il **bilanciamento**
+  fine resta legato al feedback del playtest round 2 (mai arrivato): valori attuali =
+  default proposti DEC-019 + tabelle di equità/ricompensa nuove, tutti in open-questions.
+- **Storia W8** (asset art consumati dal motore: art_atlas/art_draw, priorità immagini
+  DEC-175, nove schermate rivestite): committata il 30/07 prima di questa sessione; i
+  "buchi dichiarati" di allora (font, sheet personaggi, prop cuore/bomba/chiave, salute
+  temporanea, timer) sono TUTTI chiusi da questa sessione — vedi known-issues voce 10
+  aggiornata.
 
 ## Stato al 2026-07-28 — Chiusura maratona implementativa della demo
 
@@ -122,23 +137,18 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 
 ## Prossimi passi
 
-1. **Validazione finale**: `make docs-index && make docs-check` (eseguiti al termine della
-   maratona, nessun docstring work-in-progress su docs/).
-2. **Playtest**: con la demo giocabile e la lista di gap dichiarati, inizio raccolta feedback
-   su economia, bilanciamento, leggibilità visiva (leggibilità formula DEC-146).
-3. **Risposta alle open questions**: alcuni gap della demo dipendono da risposte alle 21 OQ
-   (es. #9 per audio Piano 0, #13 per design tool UI, #18 per body plan e animazione).
-   Richiede sessione decisionale dedicata.
-4. **Training Style LoRA su Kaggle**: con DEC-148/168, il proprietario prepara i dataset
-   definitivi per il training (~30 ore gratuite di Kaggle); demo intanto gira con asset CC0
-   bridge (DEC-171).
-5. **Aggancio asset art**: CP3c prototipo è un campione di produzione; il passo successivo è
-   scalare la pipeline Aseprite a tutti i personaggi base (3 roster + generato-per-run) e
-   boss/nemici principali. Timeline: attesa della revisione art dal proprietario + coordinate
-   con il training LoRA.
-6. **Mechanics-lab sbloccato** (DEC-165): pronto per esperimenti su game feel, danno,
-   movimento, knockback, VFX. Richiede investigazione aggiuntiva su DEC-146 e DEC-163
-   (proxy di leggibilità, template di contenuto).
+1. **Playtest completo del proprietario** (`make run-demo`): i 5 archetipi speciali, prove
+   della run, arene del Piano 0, sospensione/Continua, Crust, timer, i 3 personaggi
+   distinti. In sospeso per lui: il verdetto SFX (audio non toccato) e la sessione CP4 GUI.
+2. **Feedback → bilanciamento**: i valori sono default proposti (DEC-019 + open-questions
+   3/28-58); il primo giro di tuning parte dal feedback del playtest.
+3. **Batch decisionale**: le open questions sono arrivate a ~58 voci, molte con default
+   proposto implementato — una sessione con worldsmelt-decision-facilitator può chiuderne
+   parecchie in un colpo (candidate: 22-27, 31-58).
+4. **Differiti della sessione** (vedi sopra): museo Piano 0 e meta-progressione Embers sono
+   i due lavori grossi successivi; i quick-win gen-side (guardrail originalità) sono brevi.
+5. **Training Style LoRA su Kaggle** (DEC-148/168) e **mechanics-lab** (DEC-165) restano i
+   binari di medio periodo, invariati dalla sessione precedente.
 
 ## Orientarsi
 
