@@ -218,3 +218,17 @@ charrig resta ma non si aggancia nulla senza suo ok). SFX bocciati, in coda.
 - **Implementazione**: CLAUDE.md (scala agenti) + AGENTS.md (regole moduli per C/Lua/Python).
 - **Documentazione/design**: docs/CLAUDE.md + docs/design/README.md (percorso curato).
 - **Indice generale**: docs/INDEX.md (rigenera con `make docs-index` dopo ogni commit su docs/).
+
+## Night run 02→03/08 — mandato notturno del proprietario
+
+"Approvo tutto" sulla review UI (11/11 schermate + le 3 scelte segnalate:
+pausa con ABBANDONA in fiamma, risorse a stringa ambra, MONDO: riempito nel
+Piano 0 — la riga vuota attuale è un bug da correggere). In più: usare tutti
+gli sprite/animazioni dai materiali esistenti e GENERARE i mancanti; piena
+autonomia fino a demo pronta. Piano notte: WP-UI-0 fondamenta (opus, in
+volo) → WP-UI-1 HUD → WP-UI-2 Build+Fusione → WP-UI-3 famiglia menu
+(setup/pausa/uscita/opzioni) → WP-UI-4 risultati+Piano0+catalogo — tutti
+SEQUENZIALI (stessi file renderer), sonnet+verifica opus, commit a verdetto.
+In parallelo: censimento entità senza sprite → produzione dei mancanti con
+le pipeline esistenti. Personaggi giocabili: restano gli sheet attuali (il
+redo è congelato finché il proprietario non approva il metodo).
