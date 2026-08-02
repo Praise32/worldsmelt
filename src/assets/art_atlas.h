@@ -194,7 +194,7 @@ const ArtSheet *ArtAtlasFindByImageId(const char *imageId);
 /* L'animazione di nome 'name', o NULL. Il confronto e' esatto: i nomi canonici
  * per famiglia li fissa docs/ai-production/08-PIPELINE-SPRITE-ANIMAZIONI.md
  * (walk_down/walk_up/walk_left/walk_right/idle/hit/death per il personaggio,
- * walk/hit/death per i nemici, idle/attack/hit/death per i boss, fly/impact per
+ * walk/hit/death per i nemici, idle/attack/walk/hit/death per i boss, fly/impact per
  * i colpi, aperta/chiusa/bloccata per le porte). */
 const ArtAnim *ArtSheetAnim(const ArtSheet *sheet, const char *name);
 
