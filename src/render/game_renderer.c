@@ -87,25 +87,6 @@ static int UiTextW(const char *text, int size)
     return MeasureText(text, size);
 }
 
-/* M4: 'uiScale' arrotonda il TEXT_SIZE di raygui (GuiLabel/GuiPanel/GuiStatusBar
-   -- tutto cio' che raygui disegna da solo, a differenza dei DrawText diretti
-   di DrawOuterUi/gli overlay, che si scalano ciascuno per conto proprio, vedi
-   UiRound piu' sotto). */
-static void UiApplyTheme(const Theme *theme, float uiScale)
-{
-    GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(15.0f*uiScale + 0.5f));
-    GuiSetStyle(DEFAULT, BACKGROUND_COLOR, ColorToInt((Color){ 16, 18, 24, 255 }));
-    GuiSetStyle(DEFAULT, LINE_COLOR, ColorToInt(GameColorWithAlpha(theme->accent, 120)));
-    /* Pannelli e riquadri: sfondo scuro semitrasparente, bordo nel colore accento. */
-    GuiSetStyle(DEFAULT, BASE_COLOR_NORMAL, ColorToInt((Color){ 20, 22, 29, 236 }));
-    GuiSetStyle(DEFAULT, BORDER_COLOR_NORMAL, ColorToInt(GameColorWithAlpha(theme->accent, 170)));
-    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));
-    GuiSetStyle(STATUSBAR, TEXT_COLOR_NORMAL, ColorToInt((Color){ 224, 228, 236, 255 }));
-    GuiSetStyle(STATUSBAR, BASE_COLOR_NORMAL, ColorToInt((Color){ 24, 27, 34, 236 }));
-    GuiSetStyle(STATUSBAR, BORDER_COLOR_NORMAL, ColorToInt(GameColorWithAlpha(theme->accent2, 150)));
-    GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
-}
-
 /* ============================================================
    DEC-200 (WP-UI-0): DOVE SI DISEGNA.
  *
@@ -852,9 +833,9 @@ static const ArtSheet *EnemySheet(const Enemy *e)
 }
 
 /* L'animazione di un nemico VIVO. 'hit' vince su tutto (il colpo subito deve
-   vedersi), poi la camminata; 'idle' esiste solo sui boss e fa da riposo. La
-   morte non passa da qui: e' un ArtFx che sopravvive all'entita' (vedi ArtFx in
-   core/game_types.h). */
+   vedersi), poi 'attack' (l'attacco in corso, WP-ASSET-3), poi la camminata;
+   'idle' esiste solo sui boss e fa da riposo. La morte non passa da qui: e'
+   un ArtFx che sopravvive all'entita' (vedi ArtFx in core/game_types.h). */
 static void DrawEnemySprite(const ArtSheet *sheet, const Enemy *e, Color tint)
 {
     Vector2 ground = SpriteGroundPos(e->pos, e->radius, 0.62f);
@@ -866,6 +847,22 @@ static void DrawEnemySprite(const ArtSheet *sheet, const Enemy *e, Color tint)
        verso. */
     bool flip = e->vel.x < -1.0f;
     if (e->hitFlash > 0.0f && ArtDrawAnim(sheet, "hit", 0.0f, ground, scale, flip, tint)) return;
+    /* WP-ASSET-3: 'attack' vince sulla camminata mentre la finestra e' aperta
+       (Enemy.attackAnimTimer, consumato da CombatUpdateEnemies come hitFlash).
+       Il tempo passato ad ArtDrawAnim e' il tempo TRASCORSO dall'innesco --
+       ENEMY_ATTACK_ANIM_DURATION meno cio' che resta del timer -- MAI
+       GetTime(): stesso determinismo di 'hit' sopra (che usa 0.0f fisso),
+       generalizzato a una riga con piu' di un fotogramma. Il fallback
+       (ArtDrawAnim torna false se lo sheet non dichiara 'attack', vedi
+       ArtSheetAnim) fa proseguire la catena sulla camminata invariata: un
+       nemico senza quella riga nel manifest non deve mai vedersi diverso da
+       prima di WP-ASSET-3. */
+    if (e->attackAnimTimer > 0.0f)
+    {
+        float attackElapsed = ENEMY_ATTACK_ANIM_DURATION - e->attackAnimTimer;
+        if (attackElapsed < 0.0f) attackElapsed = 0.0f;
+        if (ArtDrawAnim(sheet, "attack", attackElapsed, ground, scale, flip, tint)) return;
+    }
     /* La fase per-nemico entra nel tempo dell'animazione: senza, tutti i
        nemici della stanza camminerebbero all'unisono (lo stesso motivo per cui
        EntitiesAddEnemyTyped randomizza e->phase per il movimento). */
@@ -1004,8 +1001,14 @@ static void DrawEnemy(Game *game, const Enemy *e)
     {
         float w = e->radius*2.2f;
         float pct = GameMathClampFloat(e->hp/e->maxHp, 0.0f, 1.0f);
-        DrawRectangle((int)(e->pos.x - w*0.5f), (int)(e->pos.y - e->radius - 14), (int)w, 4, BLACK);
-        DrawRectangle((int)(e->pos.x - w*0.5f), (int)(e->pos.y - e->radius - 14), (int)(w*pct), 4, game->theme.accent2);
+        /* WP-UI-4: era game->theme.accent2 (l'accento GENERATO della run, che
+           per costruzione sta a +172 gradi di tinta dal primario -- vicino al
+           ciano per molte tinte primarie calde) su fondo nero puro. Fisso
+           come tutto il resto dell'INTERFACCIA (vedi ui_theme.h): riempimento
+           UI_FOCUS su fondo UI_PANEL, il bordo resta implicito nel contrasto
+           di valore fra i due, mai una terza DrawRectangleLinesEx. */
+        DrawRectangle((int)(e->pos.x - w*0.5f), (int)(e->pos.y - e->radius - 14), (int)w, 4, UI_PANEL);
+        DrawRectangle((int)(e->pos.x - w*0.5f), (int)(e->pos.y - e->radius - 14), (int)(w*pct), 4, UI_FOCUS);
     }
 }
 
@@ -1268,7 +1271,12 @@ static void DrawPickup(Game *game, const Pickup *p)
         }
         else if (p->kind == PICKUP_COIN) { c = GOLD; label = "$"; DrawCircleV(pos, 11, c); }
         else if (p->kind == PICKUP_BOMB) { c = DARKGRAY; label = "B"; DrawCircleV(pos, 12, c); DrawCircleV((Vector2){ pos.x + 6, pos.y - 8 }, 3, ORANGE); }
-        else if (p->kind == PICKUP_KEY) { c = SKYBLUE; label = "K"; DrawCircleV(pos, 10, c); DrawRectangle((int)pos.x, (int)pos.y - 3, 17, 6, c); }
+        /* WP-UI-4: era SKYBLUE (un ciano raylib, mai visto nella palette
+           Fucina) -- una chiave e' metallo caldo, non vetro freddo: bronzo-
+           chiaro letterale, non un token di ui_theme.h (quei token restano
+           riservati all'INTERFACCIA, mai al MONDO: pickup/nemici/colpi --
+           vedi il commento in cima a ui_theme.h). */
+        else if (p->kind == PICKUP_KEY) { c = (Color){ 201, 138, 46, 255 }; label = "K"; DrawCircleV(pos, 10, c); DrawRectangle((int)pos.x, (int)pos.y - 3, 17, 6, c); }
         else if (p->kind == PICKUP_EXIT) { c = game->theme.accent2; label = "EXIT"; DrawCircleV(pos, 26, GameColorWithAlpha(c, 90)); DrawCircleLines((int)pos.x, (int)pos.y, 24, c); }
         else if (p->kind == PICKUP_ENERGY)
         {
@@ -1288,7 +1296,7 @@ static void DrawPickup(Game *game, const Pickup *p)
                senza leggere l'etichetta. Come l'energia e' una forma
                geometrica e non una cella d'atlas: aggiungerne una
                invaliderebbe ogni atlas gia' generato (vedi AtlasSprite). */
-            c = (Color){ 226, 138, 255, 255 };
+            c = (Color){ 207, 111, 150, 255 }  /* prugna-chiara: era un magenta fuori Fucina */;
             label = "F";
             Vector2 up = { pos.x, pos.y - 13 }, right = { pos.x + 11, pos.y }, down = { pos.x, pos.y + 13 }, left = { pos.x - 11, pos.y };
             DrawTriangle(left, down, up, c);
@@ -1336,7 +1344,7 @@ static void DrawPickup(Game *game, const Pickup *p)
                clessidra ("attiva"/"scaduta") cosi' anche il degrado
                geometrico porta lo stesso segnale del prop dedicato, non solo
                l'etichetta testuale sopra. */
-            c = (p->value != 0) ? (Color){ 96, 224, 214, 255 } : (Color){ 140, 140, 148, 255 };
+            c = (p->value != 0) ? (Color){ 106, 134, 160, 255 }  /* ardesia-chiara: era un ciano fuori Fucina */ : (Color){ 140, 140, 148, 255 };
             DrawRectangleLines((int)pos.x - 11, (int)pos.y - 14, 22, 28, DARKGRAY);
             Vector2 topL = { pos.x - 9, pos.y - 12 }, topR = { pos.x + 9, pos.y - 12 };
             Vector2 botL = { pos.x - 9, pos.y + 12 }, botR = { pos.x + 9, pos.y + 12 };
@@ -3494,8 +3502,7 @@ bool HudCombatShouldDraw(AppMode mode, bool floorZeroTrialActive)
    ui/hud.md ("nascosto o attenuato durante PauseMenu e BuildScreen"), e il
    Piano 0 fuori da una prova ha i suoi overlay dedicati (riepilogo + carte)
    che occuperebbero lo stesso angolo. Nessun raygui qui: i cluster usano solo
-   DrawText/DrawRectangle, quindi non serve UiApplyTheme (gli overlay dei menu
-   applicano il proprio tema per conto loro). */
+   DrawText/DrawRectangle. */
 static void DrawOuterUi(Game *game, UiLayout layout)
 {
     float s = layout.uiScale;
@@ -3515,8 +3522,9 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    DrawFloorZeroIndicator: una riga discreta dentro la scena, non piu' un
    overlay bloccante) e Gameplay non disegna nessun overlay sopra la scena.
    MenuBoxForMode/MenuItemCountForMode/MenuItemRect sono la fonte UNICA della
-   geometria delle voci: sia per disegnarle (DrawMenuRow) sia per il hit-test
-   del mouse (RendererMenuItemAt, chiamata da UpdateApp in src/app/app.c) --
+   geometria delle voci: sia per disegnarle (UiMenuRow, ui_theme.h) sia per il
+   hit-test del mouse (RendererMenuItemAt, chiamata da UpdateApp in
+   src/app/app.c) --
    duplicarla in due posti avrebbe fatto disallineare "cosa si vede" da "cosa
    si clicca" al primo ritocco di uno dei due lati. */
 /* M4: nucleo PURO (nessuna chiamata raylib) di MenuBoxForMode -- e' quello che
@@ -3595,6 +3603,86 @@ static void DrawOuterUi(Game *game, UiLayout layout)
 #define UI_BUILD_INDIETRO_BOTTOM 36.0f
 #define UI_BUILD_INDIETRO_H 26.0f
 
+/* ============================================================
+   WP-UI-3: RunSetup/PauseMenu/Options/ExitConfirm(leggero), in pixel di
+   canvas VERI come MainMenu/BuildScreen prima di loro. Mock approvati
+   (mock-runsetup.png/mock-pausemenu.png/mock-exitconfirm.png/
+   mock-options.png, 1280x720 = 2x il canvas), misurati e divisi per due.
+   Le quattro condividono LETTERALMENTE la stessa testata (titolo + filetto:
+   quota identica sui quattro mock) -- pad 24, non i 14 di MainMenu (piu'
+   respiro, scelta del proprietario), filetto SPESSO 2px di canvas (il
+   doppio dell'1px di MainMenu). Condividono anche altezza/passo di riga di
+   MainMenu (26/32) ma un inset ASIMMETRICO (12 sinistra, 8 destra, non i
+   10/10 simmetrici di MainMenu): misurato identico sui quattro mock, non un
+   refuso. MainMenu resta la propria funzione gia' committata (WP-UI-0) e
+   non usa queste costanti. */
+#define UI_MENU_FAMILY_PAD 24.0f
+#define UI_MENU_FAMILY_TITLE_Y 10.0f
+#define UI_MENU_FAMILY_RULE_Y 28.0f
+#define UI_MENU_FAMILY_ROW_H 26.0f
+#define UI_MENU_FAMILY_ROW_PITCH 32.0f
+#define UI_MENU_FAMILY_ROW_INSET_L 12.0f
+#define UI_MENU_FAMILY_ROW_INSET_R 8.0f
+
+#define UI_RUN_SETUP_W 380.0f
+#define UI_RUN_SETUP_H 190.0f
+#define UI_RUN_SETUP_ROW_TOP 60.0f
+
+/* 270 (non piu' 560*uiScale=224): con la testata e le righe misurate dal
+   mock, la sesta/settima voce (Abbandona run, con o senza "Sospendi e
+   esci") resta comunque dentro il box -- vedi il commento su
+   DrawPauseMenuFloorZeroConsult per il conto preciso. */
+#define UI_PAUSE_MENU_W 380.0f
+#define UI_PAUSE_MENU_H 270.0f
+#define UI_PAUSE_MENU_ROW_TOP 50.0f
+
+#define UI_OPTIONS_W 420.0f
+#define UI_OPTIONS_H 230.0f
+/* Le righe di Opzioni non sono voci di testo semplici (etichetta + barra a
+   blocchetti sotto): passo 30, non 32 -- misurato identico sulle tre righe
+   slider E su INDIETRO nel mock (che quindi resta sulla stessa griglia,
+   niente riga speciale). */
+#define UI_OPTIONS_ROW_TOP 59.0f
+#define UI_OPTIONS_ROW_PITCH 30.0f
+
+/* Il dialogo leggero "MainMenu -> Esci" (DEC-090): un modale piccolo, non
+   piu' il riquadro stretto-ma-a-tutta-altezza di WP22 -- il mock lo mostra
+   compatto su entrambi gli assi. I TRE contesti a schermo pieno di
+   ExitConfirm (abbandono dal Piano 0, abbandono di una run in corso,
+   reroll di WP21/DEC-114) restano fuori dal mock di questo WP e continuano
+   sulla griglia storica (il ramo 'else' sotto, invariato). */
+#define UI_EXIT_CONFIRM_LIGHT_W 260.0f
+#define UI_EXIT_CONFIRM_LIGHT_H 148.0f
+#define UI_EXIT_CONFIRM_LIGHT_ROW_TOP 58.0f
+/* Controllo finale (verifica unificata): anche il ramo a schermo PIENO passa
+   a quote canvas native -- la testata della famiglia (titolo a 10, filetto a
+   28-29) e' in pixel di canvas, quindi la domanda DEVE iniziare sotto il
+   filetto (36) e le voci sotto l'ultima riga possibile della domanda
+   (36 + 3*9 = 63 -> righe da 70). Prima la domanda restava sulla griglia
+   storica (52*0.4 = 20.8) e tagliava titolo e filetto in 3 contesti su 5. */
+#define UI_EXIT_CONFIRM_FULL_QUESTION_Y 36.0f
+#define UI_EXIT_CONFIRM_FULL_QUESTION_STEP 9.0f
+#define UI_EXIT_CONFIRM_FULL_ROW_TOP 70.0f
+
+/* WP-UI-4 (mock-runresults.png): 380x220 misurati sul mock -- RunResults
+   lascia la griglia storica per una geometria propria in pixel di canvas,
+   come RunSetup/PauseMenu/Options prima di lei. 220, non 190 come RunSetup:
+   sopra le due voci di menu c'e' un blocco di righe piu' alto (esito, piano,
+   tempo, PIU' fino a tre righe facoltative -- causa/catalogo/prove, vedi
+   DrawRunResultsOverlay), che RunSetup non ha. Da questo momento ExitConfirm
+   a schermo pieno resta l'UNICO overlay ancora sulla griglia storica sotto
+   (vedi il commento li'). */
+#define UI_RUN_RESULTS_W 380.0f
+#define UI_RUN_RESULTS_H 220.0f
+/* Quota della prima voce di menu ("Nuova run subito"), misurata dal mock ma
+   spostata piu' in basso (122 nel mock, 132 qui): il mock mostra la run piu'
+   comune (una sola riga facoltativa, "Prove superate"), ma fino a TRE righe
+   facoltative possono comparire insieme in una run vera (causa della
+   sconfitta, catalogo, prove -- nessuna esclude le altre due, vedi
+   DrawRunResultsOverlay) e devono restare sopra questa quota senza mai
+   toccare la prima voce. */
+#define UI_RUN_RESULTS_ROW_TOP 132.0f
+
 static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitConfirmLight)
 {
     if (mode == APP_MAIN_MENU)
@@ -3610,62 +3698,45 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitCo
         return (Rectangle){ floorf(sw*0.5f - UI_BUILD_W*0.5f), floorf(sh*0.5f - UI_BUILD_H*0.5f),
                             UI_BUILD_W, UI_BUILD_H };
     }
+    if (mode == APP_RUN_SETUP)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_RUN_SETUP_W*0.5f), floorf(sh*0.5f - UI_RUN_SETUP_H*0.5f),
+                            UI_RUN_SETUP_W, UI_RUN_SETUP_H };
+    }
+    if (mode == APP_PAUSE_MENU)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_PAUSE_MENU_W*0.5f), floorf(sh*0.5f - UI_PAUSE_MENU_H*0.5f),
+                            UI_PAUSE_MENU_W, UI_PAUSE_MENU_H };
+    }
+    if (mode == APP_OPTIONS)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_OPTIONS_W*0.5f), floorf(sh*0.5f - UI_OPTIONS_H*0.5f),
+                            UI_OPTIONS_W, UI_OPTIONS_H };
+    }
+    if (mode == APP_EXIT_CONFIRM && exitConfirmLight)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_EXIT_CONFIRM_LIGHT_W*0.5f), floorf(sh*0.5f - UI_EXIT_CONFIRM_LIGHT_H*0.5f),
+                            UI_EXIT_CONFIRM_LIGHT_W, UI_EXIT_CONFIRM_LIGHT_H };
+    }
+    /* WP-UI-4: RunResults ha ora la propria geometria (vedi UI_RUN_RESULTS_*
+       sopra), come RunSetup/PauseMenu/Options/MainMenu prima di lei. */
+    if (mode == APP_RUN_RESULTS)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_RUN_RESULTS_W*0.5f), floorf(sh*0.5f - UI_RUN_RESULTS_H*0.5f),
+                            UI_RUN_RESULTS_W, UI_RUN_RESULTS_H };
+    }
     float uiScale = UI_CANVAS_SCALE;
-    /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
-       intera a schermo pieno, non solo poche voci): riusa le stesse fonti
-       dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
-       di piu' spazio delle 1-4 voci di un menu qualunque. */
-    /* WP22 (DEC-090, gap G9 ui-cornice, TERZA passata): il riquadro piu'
-       stretto (460 invece dei 600 di MainMenu/RunSetup/Options/RunResults)
-       vale SOLO per il dialogo leggero "MainMenu -> Esci", cioe' quando
-       'exitConfirmLight' e' vero (ExitConfirmIsLightModalFor(ui->openedFrom),
-       vedi RendererDrawApp/DrawExitConfirmOverlay). Serve li' e solo li':
-       il dialogo si disegna SOPRA il MainMenu ridisegnato sotto, e con la
-       stessa larghezza di 600 i due riquadri combaciavano esattamente,
-       coprendo il menu per intero -- nessun punto dello schermo restava
-       "leggibile dietro" come richiede DEC-090. Il margine risparmiato
-       (600-460=140, 70 per lato) e' maggiore del margine orizzontale delle
-       righe di menu (60, vedi l'offset "60.0f*uiScale" in MenuItemRectFor
-       sotto): un bordo di 10px di ciascuna riga del MainMenu (il suo
-       riquadro pieno/la sua cornice, non solo il testo) ricade quindi FUORI
-       dal riquadro piu' stretto di ExitConfirm, su entrambi i lati -- e
-       resta visibile perche' RendererDrawApp non ridisegna piu' un secondo
-       velo scuro sopra il MainMenu gia' disegnato (vedi
-       DrawMainMenuOverlay/BeginMenuOverlayDim sotto).
-       Gli altri TRE contesti di ExitConfirm (abbandono della preparazione nel
-       Piano 0, abbandono di una run in corso da PauseMenu, rigenerazione
-       della run di WP21/DEC-114) restano a schermo pieno e conservano i 600
-       di sempre: DEC-090 li vuole invariati, e la seconda passata di questo
-       lavoro li aveva stretti anche loro senza motivo. La misura che l'ha
-       smentita (font reale assets/art/ui/font-5px.json, UiFontScale(16)=3,
-       uiScale 1.0): le tre domande a schermo pieno sono larghe 765, 849 e 864
-       px -- a 460 di box restavano 380 px di spazio utile fra i due margini
-       da 40, meno della meta' del necessario. Da questa passata la domanda
-       non e' piu' una riga sola: DrawExitConfirmOverlay la manda a capo con
-       WrapTextLines dentro box.width-80, cosi' STA nel pannello in tutti e
-       quattro i contesti (a 600: due righe da 501+249 / 378+456 / 480+369 px;
-       a 460 l'unica domanda del contesto leggero, "Uscire dal gioco?", e'
-       larga 201 px e resta su una riga sola).
-       L'altezza resta 400 in tutti i contesti: le due righe di ExitConfirm
-       ("Conferma"/"Annulla") cominciano a 110 (MENU_ROW_START_Y_BASE) e la
-       domanda mandata a capo occupa al massimo 52..107 (tre righe da 20,
-       glifi alti 15), quindi non le tocca mai.
-       Verificato da UiLayoutSelfTest (voce 'e': le voci restano dentro il box
-       a ogni risoluzione sintetica, in ENTRAMBE le geometrie; voce 'f': la
-       geometria leggera e' davvero piu' stretta e quella a schermo pieno e'
-       davvero uguale a MainMenu) e da GameExitConfirmLightModalTest
-       (game_tests.c, --exit-confirm-light-modal-test) che campiona i pixel
-       del frame vero. */
-    float w = ((mode == APP_EXIT_CONFIRM && exitConfirmLight) ? 460.0f : 600.0f)*uiScale;
-    /* 560 (invece di 400): PAUSE_MENU da WP21 (DEC-114) -- con la sesta riga
-       "Rigenera la run" (MenuItemCountForMode sotto) l'ultima voce arriva a
-       110 + 5*52 + 40 = 410 (MENU_ROW_START_Y_BASE/MENU_ROW_H_BASE piu' sotto),
-       il vecchio box da 400 la avrebbe tagliata fuori -- 560 lascia margine
-       anche per il riquadro di consultazione del Piano 0 sotto le righe
-       (DrawPauseMenuFloorZeroConsult, DEC-169), che a sua volta segue questa
-       stessa quota (vedi il commento li'). BuildScreen non passa piu' di qui
-       da WP-UI-2 (vedi il ramo dedicato sopra, UI_BUILD_H fisso). */
-    float h = (mode == APP_PAUSE_MENU ? 560.0f : 400.0f)*uiScale;
+    /* Griglia storica (1600x900*uiScale): da WP-UI-4 resta qui SOLO cio' che
+       nessun mock ha ancora coperto -- i TRE contesti a schermo pieno di
+       ExitConfirm (abbandono dal Piano 0, abbandono di una run in corso,
+       reroll di DEC-114; il ramo 'exitConfirmLight' e' intercettato sopra,
+       quindi chi arriva qui con APP_EXIT_CONFIRM ha gia' exitConfirmLight
+       falso per costruzione: niente piu' ternario, la larghezza e' sempre
+       600). ExitConfirm resta l'UNICO chiamante di questo ramo: nessun altro
+       overlay ha bisogno di condividerne la geometria, vedi il commento sul
+       riferimento CONGELATO in UiLayoutSelfTest (g). */
+    float w = 600.0f*uiScale;
+    float h = 400.0f*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
@@ -3704,7 +3775,7 @@ static int MenuItemCountForMode(AppMode mode, RendererMenuCtx ctx)
            e "Abbandona run" (che scala a indice 6) SOLO dentro una run vera --
            dal Piano 0 il menu resta a sei righe, ed e' anche cio' che tiene il
            riquadro di consultazione di DEC-169 (DrawPauseMenuFloorZeroConsult,
-           quota 420) sotto l'ultima riga senza sovrapporsi: con sette righe
+           quota 242) sotto l'ultima riga senza sovrapporsi: con sette righe
            l'ultima arriverebbe a 462. */
         case APP_PAUSE_MENU: return ctx.pauseSuspend ? 7 : 6;   /* Riprendi, Build e sinergie, Prove, Opzioni, Rigenera la run, [Sospendi e esci,] Abbandona run */
         /* W8 (chiude la parte UI del difetto noto 9): tre volumi + Indietro.
@@ -3720,23 +3791,12 @@ static int MenuItemCountForMode(AppMode mode, RendererMenuCtx ctx)
     }
 }
 
-/* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. */
+/* _BASE: i valori pre-M4, moltiplicati per uiScale in MenuItemRectFor. Da
+   WP-UI-4 il SOLO chiamante rimasto e' ExitConfirm a schermo pieno --
+   RunResults ha la propria quota (UI_RUN_RESULTS_ROW_TOP, vedi sopra), che
+   non dipende da uiScale come questa. */
 #define MENU_ROW_START_Y_BASE 110.0f
 #define MENU_ROW_H_BASE 52.0f
-/* DEC-159/DEC-051/WP16: RunResults ha, sopra le sue due voci, un blocco di
-   righe SEMPRE presenti (esito, piano raggiunto, tempo) piu' un numero
-   VARIABILE di righe facoltative (causa della sconfitta se game over,
-   conteggio catalogo se >0, prove superate se ne esiste almeno una, WP16) --
-   una quota fissa piu' bassa di MENU_ROW_START_Y_BASE lascia sempre spazio a
-   tutte, comparissero o no le facoltative, senza dover far dipendere la
-   geometria delle voci (quindi anche il hit-test del mouse,
-   RendererMenuItemAt) dal contenuto della run. 172 e non piu' 150: la riga
-   Tempo (WP1) e' una quinta riga SEMPRE disegnata, non una facoltativa in
-   piu' -- serve lo stesso passo di 22px delle altre per non farla toccare la
-   prima voce di menu. 194 e non piu' 172 (WP16): la riga "Prove superate" e'
-   una TERZA facoltativa, che si somma a causa/catalogo -- stesso passo di
-   22px, stesso motivo. */
-#define MENU_ROW_START_Y_RUN_RESULTS 194.0f
 
 /* M4: nucleo puro gemello di MenuBoxForModeFor -- stessa ragione (--layout-test),
    stessa garanzia (uiScale==1.0 => letterali identici a prima). */
@@ -3766,8 +3826,50 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh, bo
         return (Rectangle){ box.x + UI_BUILD_PAD, box.y + box.height - UI_BUILD_INDIETRO_BOTTOM,
                             UI_BUILD_DIVIDER_X - UI_BUILD_PAD - UI_BUILD_GAP, UI_BUILD_INDIETRO_H };
     }
-    float rowStartY = (mode == APP_RUN_RESULTS) ? MENU_ROW_START_Y_RUN_RESULTS : MENU_ROW_START_Y_BASE;
-    float top = box.y + rowStartY*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
+    /* WP-UI-3: RunSetup/PauseMenu/ExitConfirm(leggero) condividono la STESSA
+       altezza/passo/inset di riga (misurati identici sui tre mock, vedi il
+       blocco UI_MENU_FAMILY_* sopra) -- cambia solo la quota della prima
+       riga, propria di ciascuna testata. ExitConfirm a schermo pieno (light
+       falso) e' rientrato nella famiglia col controllo finale (row-top
+       dedicato UI_EXIT_CONFIRM_FULL_ROW_TOP, sotto le 3 righe di domanda). */
+    if (mode == APP_RUN_SETUP || mode == APP_PAUSE_MENU || mode == APP_EXIT_CONFIRM)
+    {
+        float rowTop = (mode == APP_RUN_SETUP) ? UI_RUN_SETUP_ROW_TOP
+                     : (mode == APP_PAUSE_MENU) ? UI_PAUSE_MENU_ROW_TOP
+                     : exitConfirmLight ? UI_EXIT_CONFIRM_LIGHT_ROW_TOP
+                                        : UI_EXIT_CONFIRM_FULL_ROW_TOP;
+        return (Rectangle){ box.x + UI_MENU_FAMILY_ROW_INSET_L,
+                            box.y + rowTop + (float)index*UI_MENU_FAMILY_ROW_PITCH,
+                            box.width - UI_MENU_FAMILY_ROW_INSET_L - UI_MENU_FAMILY_ROW_INSET_R,
+                            UI_MENU_FAMILY_ROW_H };
+    }
+    /* WP-UI-3: le righe di Opzioni (tre slider + Indietro) hanno un passo
+       diverso (30, non 32 -- vedi UI_OPTIONS_ROW_PITCH) perche' ciascuna
+       porta etichetta+barra, non solo testo; restano pero' sullo stesso
+       inset orizzontale della famiglia. */
+    if (mode == APP_OPTIONS)
+    {
+        return (Rectangle){ box.x + UI_MENU_FAMILY_ROW_INSET_L,
+                            box.y + UI_OPTIONS_ROW_TOP + (float)index*UI_OPTIONS_ROW_PITCH,
+                            box.width - UI_MENU_FAMILY_ROW_INSET_L - UI_MENU_FAMILY_ROW_INSET_R,
+                            UI_MENU_FAMILY_ROW_H };
+    }
+    /* WP-UI-4: RunResults condivide l'altezza/il passo/l'inset della famiglia
+       (le sue due voci sono voci di menu comuni, non hanno bisogno di una
+       geometria di riga propria come Options) -- cambia solo la quota della
+       prima riga (UI_RUN_RESULTS_ROW_TOP), piu' bassa delle altre per
+       lasciare spazio al blocco di righe informative sopra di lei (vedi il
+       commento sulla costante). */
+    if (mode == APP_RUN_RESULTS)
+    {
+        return (Rectangle){ box.x + UI_MENU_FAMILY_ROW_INSET_L,
+                            box.y + UI_RUN_RESULTS_ROW_TOP + (float)index*UI_MENU_FAMILY_ROW_PITCH,
+                            box.width - UI_MENU_FAMILY_ROW_INSET_L - UI_MENU_FAMILY_ROW_INSET_R,
+                            UI_MENU_FAMILY_ROW_H };
+    }
+    /* Griglia storica: da qui in poi il SOLO chiamante rimasto e' ExitConfirm
+       a schermo pieno (vedi il commento in MenuBoxForModeFor). */
+    float top = box.y + MENU_ROW_START_Y_BASE*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
     return (Rectangle){ box.x + 60.0f*uiScale, top, box.width - 120.0f*uiScale, 40.0f*uiScale };
 }
 
@@ -3805,106 +3907,18 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight)
     return RendererMenuItemAtCtx(mode, mouse, ctx);
 }
 
-/* Una voce di menu: riquadro pieno + bordo se ha il focus ('focus').
-   W9 (playtest round 1, copertura mouse totale): il passaggio del mouse
-   SPOSTA il focus (UpdateApp lo fa PRIMA di questa chiamata, stesso frame --
-   vedi il commento sul passo "hover" in UpdateApp), quindi 'hover' qui sotto
-   coincide quasi sempre con 'hasFocus' per costruzione; resta calcolato a
-   parte (invece di essere tolto) perche' e' innocuo e protegge il caso limite
-   in cui la geometria letta qui (a disegno) e quella letta da UpdateApp (un
-   frame "fa", nello stesso game loop) potessero mai divergere. 'uiScale' si
-   ricalcola qui dalla finestra VERA (non e' un parametro): stessa fonte di
-   MenuItemRect, che questa funzione chiama per la propria geometria -- cosi'
-   il font della riga scala sempre in accordo col riquadro che lo contiene,
-   senza dover far transitare uiScale per ogni DrawXOverlay che la chiama. */
-static void DrawMenuRowCtx(AppMode mode, int index, const char *label, int focus, Color accent, bool exitConfirmLight)
-{
-    float uiScale = UI_CANVAS_SCALE;
-    Rectangle row = MenuItemRect(mode, index, exitConfirmLight);
-    bool hasFocus = (index == focus);
-    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
-    DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
-    /* W8: la cornice della riga e' il 9-patch a SLOT (bordo sottile, senza
-       rivetti), tinto dall'accento quando la riga ha il fuoco. Il fuoco resta
-       segnalato da DUE cose (cornice accesa piu' riempimento piu' chiaro), non
-       dal solo colore: DEC-058. */
-    if (!ArtDrawSlot(row, hasFocus ? accent : GameColorWithAlpha(accent, 150)))
-        DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 130));
-    UiText(label, (int)row.x + UiRound(16.0f*uiScale), (int)row.y + UiRound(10.0f*uiScale), UiRound(18.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 205, 210, 220, 255 });
-}
-
-/* La forma comune: nessuno degli altri overlay ha un contesto da propagare
-   (il riquadro stretto esiste SOLO per il dialogo leggero di ExitConfirm,
-   vedi MenuBoxForModeFor), quindi passano 'false' una volta sola qui invece
-   di portarsi dietro un parametro che per loro non significherebbe nulla.
-   L'unico chiamante di DrawMenuRowCtx con un valore vero e'
-   DrawExitConfirmOverlay. */
-static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, Color accent)
-{
-    DrawMenuRowCtx(mode, index, label, focus, accent, false);
-}
-
-/* Cornice comune a tutti gli overlay di menu: fondo scurito su tutto lo
-   schermo (mette in pausa visiva la scena sotto) + pannello raygui col
-   titolo. Estratta da BeginMenuOverlay (M8) perche' il Catalogo (vedi
-   BeginCatalogOverlay sotto) ha bisogno della STESSA cornice ma di un box di
-   dimensioni proprie -- MenuBoxForMode e' agganciato a un AppMode dei 7
-   overlay canonici, e il Catalogo vive dentro APP_MAIN_MENU (nessun nuovo
-   AppMode, spec M8), quindi non puo' fornirne uno adatto da solo.
-   'dimAlpha' e' il SOLO parametro che varia fra i due usi (WP22, DEC-090,
-   gap G9): schermo pieno quasi opaco (190) per ogni overlay canonico, o un
-   velo leggero (vedi EXIT_CONFIRM_LIGHT_DIM_ALPHA sotto) per il solo dialogo
-   "MainMenu -> ExitConfirm" che deve restare un dialogo leggero SOPRA il
-   menu ancora leggibile dietro -- il pannello stesso (9-patch/titolo) resta
-   identico in entrambi i casi, cambia solo quanto si scurisce quello che sta
-   SOTTO il box. */
-static void DrawMenuOverlayChromeDim(Rectangle box, Game *game, const char *title, Color accent, int dimAlpha)
-{
-    float uiScale = UI_CANVAS_SCALE;
-    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GameColorWithAlpha(BLACK, dimAlpha));
-    /* W8: la cornice di OGNI schermata e' il pannello 9-patch di
-       assets/art/ui, non piu' GuiPanel. Non e' solo estetica: raygui disegnava
-       col proprio font vettoriale e col proprio tema, cioe' con una tipografia
-       diversa da quella dei contenuti dentro il pannello -- due grafiche nello
-       stesso riquadro. Il tema raygui si applica comunque (UiApplyTheme) perche'
-       DrawStatLine usa ancora GuiLabel per l'allineamento delle sue due
-       colonne; il resto dell'interfaccia non passa piu' da raygui.
-       Il riquadro di fondo scuro si disegna PRIMA della cornice: il 9-patch e'
-       una cornice con un centro semitrasparente, e senza un fondo pieno sotto
-       il testo della scena si leggerebbe attraverso. */
-    UiApplyTheme(&game->theme, uiScale);
-    DrawRectangleRec(box, (Color){ 14, 16, 22, 240 });
-    if (!ArtDrawPanel(box, WHITE))
-    {
-        GuiPanel(box, title);
-        /* Il "24" non scala: stesso motivo di DrawPanel (RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT
-           e' un #define fisso di raygui). */
-        DrawRectangle((int)box.x, (int)box.y + 24, (int)box.width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
-        return;
-    }
-    /* Titolo e filetto: la stessa gerarchia che GuiPanel dava (una barra in
-       testa col nome della schermata), ridisegnata coi componenti. */
-    UiText(title, (int)box.x + UiRound(14.0f*uiScale), (int)box.y + UiRound(8.0f*uiScale),
-           UiRound(16.0f*uiScale), accent);
-    DrawRectangle((int)box.x + UiRound(8.0f*uiScale), (int)box.y + UiRound(28.0f*uiScale),
-                  (int)box.width - UiRound(16.0f*uiScale), UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 200));
-}
-
-/* Schermo pieno quasi opaco (190): il comportamento di sempre, per i sei
-   overlay canonici che restano a schermo pieno (nessuna scena sotto deve
-   restare leggibile). */
-static void DrawMenuOverlayChrome(Rectangle box, Game *game, const char *title, Color accent)
-{
-    DrawMenuOverlayChromeDim(box, game, title, accent, 190);
-}
-
 /* WP22 (DEC-090, gap G9 ui-cornice): quanto si scurisce lo schermo dietro il
    SOLO dialogo "MainMenu -> ExitConfirm" (chiusura del gioco) -- abbastanza
    leggero da lasciare il menu sotto ancora leggibile (non solo intuibile),
    a differenza del 190 usato ovunque altrove (Piano 0/PauseMenu, che restano
    a schermo pieno per DEC-090 stesso, "gli altri usi di ExitConfirm
-   mantengono la presentazione gia' documentata"). */
-#define EXIT_CONFIRM_LIGHT_DIM_ALPHA 90
+   mantengono la presentazione gia' documentata").
+   WP-UI-3 (mock-exitconfirm.png): il velo diventa UI_GROUND (non piu' BLACK)
+   a ~55% (140/255, non piu' 90/255) -- "overlay UI_GROUND ~55%" e' il canone
+   del mock. E' comunque un velo PIU' dimesso del 190 a schermo pieno: la
+   verifica (GameExitConfirmLightModalTest) confronta le due luminanze, non
+   un valore assoluto, quindi resta valida a prescindere dal numero esatto. */
+#define EXIT_CONFIRM_LIGHT_DIM_ALPHA 140
 
 /* Vedi la dichiarazione in game_renderer.h: nucleo puro, nessuna chiamata
    raylib, condiviso da disegno e test (--layout-test). */
@@ -3940,42 +3954,6 @@ RendererMenuCtx RendererMenuCtxFor(const Game *game, const AppUi *ui)
     return ctx;
 }
 
-/* Nucleo comune a BeginMenuOverlay/BeginMenuOverlayLight sotto: il box e il
-   pannello sono sempre gli stessi per un dato 'mode', cambia solo 'dimAlpha'
-   (vedi il commento su DrawMenuOverlayChromeDim). WP22 (seconda passata,
-   correzione del "doppio velo" contestato dal giudice): questa e' anche la
-   via con cui DrawMainMenuOverlay disegna se stesso SENZA alcun
-   oscuramento a schermo pieno (dimAlpha 0) quando serve come sfondo di
-   ExitConfirm -- prima quel caso richiamava BeginMenuOverlay (dimAlpha fisso
-   190), e l'oscuramento leggero di BeginMenuOverlayLight sopra ci si
-   sommava (190+90 compositi, PIU' scuro del solo 190 di prima di WP22): con
-   dimAlpha 0 qui il MainMenu sotto non disegna alcun velo proprio, e resta
-   un SOLO velo leggero (quello di BeginMenuOverlayLight) sull'intero
-   schermo. */
-static Rectangle BeginMenuOverlayDim(AppMode mode, Game *game, const char *title, Color accent, int dimAlpha, bool exitConfirmLight)
-{
-    Rectangle box = MenuBoxForMode(mode, exitConfirmLight);
-    DrawMenuOverlayChromeDim(box, game, title, accent, dimAlpha);
-    return box;
-}
-
-/* Ritorna il box, cosi' il chiamante posiziona il resto del proprio
-   contenuto senza ricalcolarlo. */
-static Rectangle BeginMenuOverlay(AppMode mode, Game *game, const char *title, Color accent)
-{
-    return BeginMenuOverlayDim(mode, game, title, accent, 190, false);
-}
-
-/* WP22: gemella leggera di BeginMenuOverlay, stesso box/pannello ma velo di
-   fondo attenuato (EXIT_CONFIRM_LIGHT_DIM_ALPHA) -- solo per il dialogo
-   "MainMenu -> ExitConfirm" (vedi DrawExitConfirmOverlay e il case
-   APP_EXIT_CONFIRM in RendererDrawApp, che ridisegna il MainMenu SOTTO
-   prima di chiamare questa). */
-static Rectangle BeginMenuOverlayLight(AppMode mode, Game *game, const char *title, Color accent)
-{
-    return BeginMenuOverlayDim(mode, game, title, accent, EXIT_CONFIRM_LIGHT_DIM_ALPHA, true);
-}
-
 /* 'focus' arriva come intero, non piu' come 'const AppUi *ui' (WP22, seconda
    passata): la sola cosa che questa funzione legge da 'ui' era ui->focus, e
    il chiamante "sfondo di ExitConfirm" (RendererDrawApp, case
@@ -3985,12 +3963,13 @@ static Rectangle BeginMenuOverlayLight(AppMode mode, Game *game, const char *tit
    'focus' diretto il chiamante normale passa ui->focus, quello "sfondo"
    passa ui->returnFocus (la riga su cui il giocatore stava davvero prima di
    aprire ExitConfirm), senza copie.
-   'dimBackground' sceglie fra BeginMenuOverlay (schermo pieno quasi opaco,
-   il MainMenu disegnato da solo, comportamento di sempre) e la variante
-   senza velo (vedi BeginMenuOverlayDim sopra), usata SOLO quando questa
-   funzione disegna il MainMenu come sfondo di ExitConfirm: il velo
-   dell'intero schermo lo applica in quel caso SOLO ExitConfirm sopra (un
-   velo solo, mai due sommati). */
+   'dimBackground' distingue le due chiamate DENTRO questa stessa funzione
+   (vedi il corpo sotto, 'if (dimBackground) DrawRectangle(...)'): pieno
+   (comportamento di sempre) quando il MainMenu e' la schermata a se',
+   spento quando questa funzione disegna il MainMenu come sfondo di
+   ExitConfirm -- il velo dell'intero schermo lo applica in quel caso SOLO
+   ExitConfirm sopra (un velo solo, mai due sommati, WP22 seconda passata:
+   la correzione del "doppio velo" contestato dal giudice). */
 /* WP17 (DEC-050): 'hasContinue' arriva dal chiamante (RendererMainMenuHasContinueRow,
    fonte unica) e non viene ricalcolato qui, perche' questa funzione riceve
    'focus' come intero e non l'AppUi -- vedi il commento sopra. */
@@ -4067,9 +4046,15 @@ static void DrawMainMenuOverlay(Game *game, int focus, bool dimBackground, bool 
    finisce a 30) e la prima voce (110) c'e' invece una fascia libera larga 80:
    78..93 (glifi alti 10 a UiFontScale(14)=2) la usa lasciando 48px sopra e
    17px sotto, senza toccare nessuna delle tre voci di menu. */
-#define RUN_SETUP_MODE_LABEL_X_BASE 76.0f
-#define RUN_SETUP_MODE_LABEL_Y_BASE 78.0f
-#define RUN_SETUP_MODE_LABEL_H_BASE 20.0f
+/* WP-UI-3 (ui/run-setup.md): quota della riga informativa "Modalita'",
+   condivisa fra il disegno (DrawRunSetupOverlay) e il test
+   (GameRunSetupModeLineTest, src/tests/game_tests.c) -- fonte UNICA, stesso
+   principio di MenuBoxForMode/MenuItemRect. y=41/h=14 sono misurati sul
+   mock (mock-runsetup.png): la riga sta nella fascia libera fra il filetto
+   del titolo (che finisce a 29) e la prima voce (60, UI_RUN_SETUP_ROW_TOP),
+   senza toccare ne' l'uno ne' l'altra. */
+#define UI_RUN_SETUP_MODE_LABEL_Y 41.0f
+#define UI_RUN_SETUP_MODE_LABEL_H 14.0f
 
 const char *RendererRunSetupModeLabel(void)
 {
@@ -4078,28 +4063,71 @@ const char *RendererRunSetupModeLabel(void)
 
 Rectangle RendererRunSetupModeLabelBand(void)
 {
-    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = MenuBoxForMode(APP_RUN_SETUP, false);
-    float x = box.x + RUN_SETUP_MODE_LABEL_X_BASE*uiScale;
-    return (Rectangle){ x, box.y + RUN_SETUP_MODE_LABEL_Y_BASE*uiScale,
-                        box.x + box.width - 40.0f*uiScale - x, RUN_SETUP_MODE_LABEL_H_BASE*uiScale };
+    return (Rectangle){ box.x + UI_MENU_FAMILY_PAD, box.y + UI_RUN_SETUP_MODE_LABEL_Y,
+                        box.width - UI_MENU_FAMILY_PAD*2.0f, UI_RUN_SETUP_MODE_LABEL_H };
+}
+
+/* Cornice condivisa dalle quattro schermate WP-UI-3 sotto (RunSetup,
+   PauseMenu, Options, ExitConfirm leggero): fondo scurito + UiPanel +
+   blocco titolo/filetto. Fattorizzata perche' le quattro lo disegnano
+   LETTERALMENTE identico -- stessa quota di titolo/filetto misurata sui
+   quattro mock (vedi il blocco UI_MENU_FAMILY_* sopra MenuBoxForModeFor).
+   MainMenu (WP-UI-0, DrawMainMenuOverlay) resta la propria funzione gia'
+   committata e non passa di qui: la sua testata ha pad/quote leggermente
+   diversi (14 non 24, filetto 1px non 2) e non si tocca codice gia'
+   approvato solo per farla combaciare.
+   'dimColor'/'dimAlpha' sono parametri (non sempre BLACK/190) perche' il
+   dialogo leggero di ExitConfirm usa un velo piu' chiaro in UI_GROUND
+   (DrawExitConfirmOverlay, EXIT_CONFIRM_LIGHT_DIM_ALPHA) -- le altre tre
+   schermate passano sempre BLACK/190, il comportamento di sempre (il mock
+   non chiede di cambiarlo per loro). */
+static Rectangle DrawMenuFamilyChrome(AppMode mode, bool exitConfirmLight, const char *title, Color dimColor, int dimAlpha)
+{
+    Rectangle box = MenuBoxForMode(mode, exitConfirmLight);
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GameColorWithAlpha(dimColor, (unsigned char)dimAlpha));
+    UiPanel(box);
+
+    int titleY = (int)box.y + (int)UI_MENU_FAMILY_TITLE_Y;
+    int pad = (int)UI_MENU_FAMILY_PAD;
+    /* Ombra 1px come il titolo di MainMenu (DrawMainMenuOverlay): stacca
+       l'oro dal marrone del pannello, due colori vicini di valore. */
+    UiTextAt(title, (int)box.x + pad + 1, titleY + 1, UI_TAGLIA_2, UI_GROUND);
+    UiTextAt(title, (int)box.x + pad, titleY, UI_TAGLIA_2, UI_TITOLO);
+
+    /* Filetto SPESSO 2px di canvas (misurato sui quattro mock, il doppio
+       dell'1px di MainMenu): due UiDivider consecutivi, non un rettangolo a
+       mano -- resta l'unico componente "riga" della palette (DEC-205). */
+    int ruleY = (int)box.y + (int)UI_MENU_FAMILY_RULE_Y;
+    UiDivider((int)box.x + pad, ruleY, (int)box.width - pad*2);
+    UiDivider((int)box.x + pad, ruleY + 1, (int)box.width - pad*2);
+
+    return box;
 }
 
 static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);   /* il box torna da RendererRunSetupModeLabelBand/MenuItemRect, non serve qui */
+    (void)game;
+    Rectangle box = DrawMenuFamilyChrome(APP_RUN_SETUP, false, "NUOVA RUN", BLACK, 190);
+
     /* "Modalita'" e' un'etichetta fissa (unica modalita' esistente, DEC-038:
        niente selettore di difficolta'), non una voce selezionabile: disegnata
        SOPRA le tre voci, nella fascia libera fra il filetto del titolo e la
-       riga "Seed", senza passare da DrawMenuRow/MenuItemRect -- cosi' non
-       occupa un indice, non e' cliccabile e non si sovrappone piu' a nessuna
-       riga (vedi RendererRunSetupModeLabelBand sopra). */
+       riga "Seed", senza passare da MenuItemRect -- cosi' non occupa un
+       indice, non e' cliccabile e non si sovrappone a nessuna riga (vedi
+       RendererRunSetupModeLabelBand sopra, contratto invariato). */
     Rectangle band = RendererRunSetupModeLabelBand();
-    UiText(RendererRunSetupModeLabel(), (int)band.x, (int)band.y, UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
-    DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_RUN_SETUP, 2, "Indietro", ui->focus, game->theme.accent2);
+    UiTextAt(RendererRunSetupModeLabel(), (int)band.x, (int)band.y, UI_TAGLIA_1, UI_SECONDARIO);
+
+    /* "SEED %u - R: RIGENERA": senza parentesi (scelta del mock) -- il
+       valore e l'invito a rigenerare restano nello stesso UI_TESTO di ogni
+       riga non a fuoco, UiMenuRow li ridipinge in oro quando la riga prende
+       il fuoco, come ogni altra voce. */
+    UiMenuRow(MenuItemRect(APP_RUN_SETUP, 0, false), TextFormat("SEED %u  -  R: RIGENERA", ui->seed), ui->focus == 0);
+    UiMenuRow(MenuItemRect(APP_RUN_SETUP, 1, false), "AVVIA", ui->focus == 1);
+    UiMenuRow(MenuItemRect(APP_RUN_SETUP, 2, false), "INDIETRO", ui->focus == 2);
+
+    UiTextAt("INVIO: CONFERMA", (int)box.x + (int)UI_MENU_FAMILY_PAD, (int)box.y + 171.0f, UI_TAGLIA_1, UI_HINT);
 }
 
 /* DEC-169 (ui/pause-menu.md, "Consultazione dell'HUD nel Piano 0"): nel Piano
@@ -4117,21 +4145,23 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
     const Player *p = &game->player;
     int labelFont = UiRound(15.0f*uiScale);
     int x = (int)box.x + UiRound(40.0f*uiScale);
-    /* 420 e non piu' 368: con la sesta voce "Rigenera la run" (WP21, DEC-114)
-       le righe del PauseMenu arrivano a box.y+410 (110 + 5*52 + 40, l'ultima
-       riga e' ora "Abbandona run" all'indice 5) e la vecchia quota (scelta
-       per cinque righe, 110 + 4*52 + 40 = 358) ci sarebbe finita sotto per
-       soli 10px, sovrapponendosi al testo della riga. Questa funzione E'
-       raggiungibile dal Piano 0 (WP15a, pauseFromFloorZero): la quota segue
-       le righe, come da nota precedente -- MenuBoxForModeFor riserva ora 560
-       (non piu' 400) di altezza per APP_PAUSE_MENU proprio per lasciare
-       spazio a questo riquadro sotto le sei righe. */
-    int y = (int)box.y + UiRound(420.0f*uiScale);
-    UiText("Stato (Piano 0):", x, y, labelFont, game->theme.accent2);
+    /* WP-UI-3: 242, non piu' 420*uiScale -- il box ha ora la propria
+       geometria in pixel di canvas (UI_PAUSE_MENU_H=270), e questo riquadro
+       segue le RIGHE VERE invece di una quota indovinata. Questa funzione e'
+       raggiungibile SOLO da floor==0, che a sua volta esclude sempre la
+       riga "Sospendi e esci" (RendererPauseMenuHasSuspendRow richiede
+       floor>=1): l'ultima riga e' quindi sempre "Abbandona run"
+       all'indice 5, il cui fondo e' UI_PAUSE_MENU_ROW_TOP + 5*PITCH + H =
+       50 + 160 + 26 = 236 -- 242 lascia 6px di margine, e i ~24px di
+       contenuto di questo riquadro (etichetta + cuori/risorse, gia'
+       misurati prima di WP-UI-3) stanno comodi nei 28px che restano prima
+       del fondo del pannello (270). */
+    int y = (int)box.y + 242;
+    UiText("Stato (Piano 0):", x, y, labelFont, UI_SECONDARIO);
     y += UiRound(22.0f*uiScale);
     DrawHearts(p, x, y, uiScale);
     UiText(TextFormat("%dc  %db  %dk  %df", p->coins, p->bombs, p->keys, p->flux),
-              x + UiRound(140.0f*uiScale), y, labelFont, GOLD);
+              x + UiRound(140.0f*uiScale), y, labelFont, UI_GLINT);
 }
 
 /* WP16 (DEC-042, ui/pause-menu.md "Prove"): il pannello che sostituisce le
@@ -4140,16 +4170,19 @@ static void DrawPauseMenuFloorZeroConsult(Game *game, Rectangle box, float uiSca
    somma che DrawRunResultsOverlay/il riepilogo di BuildScreen mostrano,
    TrialsBonusTotal e' l'unica fonte). Colore per stato: nessuna informazione
    affidata al solo colore (DEC-058), l'etichetta testuale (TrialStateLabel)
-   resta sempre disegnata accanto. */
+   resta sempre disegnata accanto. I tre colori di stato (superata/fallita/
+   neutra) restano letterali come in DrawBuildScreenOverlay (Fortuna, WP-UI-2):
+   sono un esito di GIOCO, non cornice -- fuori dalla palette Fucina di
+   proposito. */
 static void DrawTrialsPanel(Game *game, Rectangle box, float uiScale)
 {
     int headFont = UiRound(16.0f*uiScale);
     int labelFont = UiRound(14.0f*uiScale);
     int x = (int)box.x + UiRound(40.0f*uiScale);
-    int y = (int)box.y + UiRound(64.0f*uiScale);
+    int y = (int)box.y + 40;   /* WP-UI-3: appena sotto il filetto (finisce a 29), come le altre righe informative della famiglia (Modalita'/AUDIO, entrambe a y=41). */
     UiText(TextFormat("PROVE DELLA RUN -- %d/%d superate, +%d punti",
                        TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
-           x, y, headFont, game->theme.accent2);
+           x, y, headFont, UI_TITOLO);
     y += UiRound(34.0f*uiScale);
     for (int i = 0; i < game->trialCount; i++)
     {
@@ -4168,26 +4201,40 @@ static void DrawTrialsPanel(Game *game, Rectangle box, float uiScale)
         y += UiRound(28.0f*uiScale);
     }
     UiText("ESC o INVIO per tornare.", x, (int)(box.y + box.height) - UiRound(40.0f*uiScale),
-           labelFont, (Color){ 150, 158, 172, 255 });
+           labelFont, UI_HINT);
+}
+
+/* "ABBANDONA RUN" (DEC-058 + scelta del proprietario sui mock, WP-UI-3): a
+   differenza di ogni altra voce resta in UI_FOCUS (fiamma) anche SENZA il
+   fuoco -- l'unica azione distruttiva del menu, riconoscibile prima ancora
+   di navigarci sopra. Col fuoco torna IDENTICA a una UiMenuRow qualunque
+   (fascia + barra + testo oro): "come le altre", scelta esplicita del
+   proprietario, non un'omissione -- mock-pausemenu.png mostra la voce in
+   flamma SENZA fuoco (nessun'altra riga li' ce l'ha). */
+static void DrawPauseMenuAbandonRow(Rectangle row, bool focused)
+{
+    if (focused) { UiMenuRow(row, "ABBANDONA RUN", true); return; }
+    int textY = (int)(row.y + (row.height - (float)UiTextHeight(UI_TAGLIA_2))*0.5f);
+    UiTextAt("ABBANDONA RUN", (int)row.x + 10, textY, UI_TAGLIA_2, UI_FOCUS);
 }
 
 static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
 {
-    Rectangle box = BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
+    Rectangle box = DrawMenuFamilyChrome(APP_PAUSE_MENU, false, "PAUSA", BLACK, 190);
     if (ui->pauseTrialsOpen)
     {
         DrawTrialsPanel(game, box, UI_CANVAS_SCALE);
         return;
     }
-    DrawMenuRow(APP_PAUSE_MENU, 0, "Riprendi", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 1, "Build e sinergie", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 2, "Prove", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, 3, "Opzioni", ui->focus, game->theme.accent2);
+    UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 0, false), "RIPRENDI", ui->focus == 0);
+    UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 1, false), "BUILD E SINERGIE", ui->focus == 1);
+    UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 2, false), "PROVE", ui->focus == 2);
+    UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 3, false), "OPZIONI", ui->focus == 3);
     /* WP21 (DEC-114): "Rigenera la run" -- il reroll a seed nuovo, con
        conferma esplicita via ExitConfirm (ui->exitRerollsRun). Mai un tasto
        rapido diretto (il vecchio R e' ora SOLO il reset rapido stesso seed,
        src/app/app.c, case APP_GAMEPLAY). */
-    DrawMenuRow(APP_PAUSE_MENU, 4, "Rigenera la run", ui->focus, game->theme.accent2);
+    UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 4, false), "RIGENERA LA RUN", ui->focus == 4);
     /* WP17 (DEC-050): l'uscita NON distruttiva -- scrive la sospensione e
        torna al menu principale, dove "Continua" riportera' qui. Sta subito
        sopra "Abbandona run" apposta: fra le due uscite, quella che non perde
@@ -4195,27 +4242,34 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
        (RendererPauseMenuHasSuspendRow, fonte unica anche per il conteggio
        delle voci e per src/app/app.c). */
     bool hasSuspend = RendererPauseMenuHasSuspendRow(game, ui);
-    if (hasSuspend) DrawMenuRow(APP_PAUSE_MENU, 5, "Sospendi e esci", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_PAUSE_MENU, hasSuspend ? 6 : 5, "Abbandona run", ui->focus, game->theme.accent2);
+    if (hasSuspend) UiMenuRow(MenuItemRect(APP_PAUSE_MENU, 5, false), "SOSPENDI E ESCI", ui->focus == 5);
+    int abandonIndex = hasSuspend ? 6 : 5;
+    DrawPauseMenuAbandonRow(MenuItemRect(APP_PAUSE_MENU, abandonIndex, false), ui->focus == abandonIndex);
     if (game->floor == 0)
         DrawPauseMenuFloorZeroConsult(game, box, UI_CANVAS_SCALE);
 }
 
-/* Geometria della barra di una riga-slider (indice 0..2: generale/musica/
-   effetti), separata dal disegno (W9, playtest round 1: le barre diventano
-   TRASCINABILI col mouse) -- stessa ragione di MenuItemRect/ThemeCardRectFor:
-   una sola fonte, sia per disegnare la barra sia per il hit-test/trascinamento
+/* Geometria della barra-a-blocchetti di una riga slider (indice 0..2:
+   generale/musica/effetti): 94x8 canvas, misurata sul mock
+   (mock-options.png), separata dal disegno (W9, playtest round 1: le barre
+   diventano TRASCINABILI col mouse) -- stessa ragione di MenuItemRect: una
+   sola fonte, sia per disegnare la barra sia per il hit-test/trascinamento
    che UpdateApp (src/app/app.c) le applica in RendererOptionsSliderValueAt
    sotto. 'sw'/'sh' espliciti (mai GetScreenWidth/Height qui dentro) cosi'
    resta nello stile "For" del resto del file, testabile su risoluzioni
    sintetiche. */
+#define UI_OPTIONS_BAR_W 94.0f
+#define UI_OPTIONS_BAR_H 8.0f
+#define UI_OPTIONS_BAR_CELL_GAP 2.0f
+/* 12, non UI_MENU_FAMILY_ROW_INSET_L (12) + qualcos'altro: il contenuto
+   (etichetta, barra) rientra di altri 12px DENTRO la riga -- misurato sul
+   mock, box.x+24 in totale per l'etichetta (12 dell'inset di riga + questi
+   12), la stessa quota di ogni altra riga informativa della famiglia. */
+#define UI_OPTIONS_CONTENT_INSET 12.0f
 static Rectangle OptionsSliderBarRectFor(int index, float sw, float sh)
 {
-    float uiScale = UI_CANVAS_SCALE;
     Rectangle row = MenuItemRectFor(APP_OPTIONS, index, sw, sh, false);
-    float barW = row.width*0.42f;
-    float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
-    return (Rectangle){ barX, row.y, barW, row.height };
+    return (Rectangle){ row.x + UI_OPTIONS_CONTENT_INSET, row.y + 10.0f, UI_OPTIONS_BAR_W, UI_OPTIONS_BAR_H };
 }
 
 /* Il valore 0..1 che corrisponde a una posizione orizzontale del mouse dentro
@@ -4249,78 +4303,67 @@ float RendererOptionsSliderValueAt(int index, float mouseX)
 bool RendererOptionsSliderHit(int index, Vector2 mouse)
 {
     Rectangle bar = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
-    float slack = 6.0f*UI_CANVAS_SCALE;
+    float slack = 3.0f;
     Rectangle grab = { bar.x - slack, bar.y, bar.width + 2.0f*slack, bar.height };
     return CheckCollisionPointRec(mouse, grab);
 }
 
-/* Una riga-slider del menu Opzioni (W8): etichetta, barra a passi discreti,
-   valore in percentuale. La barra e' fatta di CASELLE e non di un cursore
-   continuo -- il volume si muove a passi del 10% (OPTIONS_VOLUME_STEP), e dieci
-   caselle dicono a colpo d'occhio quante ce ne sono e quante sono accese, cosa
-   che un cursore su una guida liscia non dice. Le frecce ai due lati
-   dell'etichetta sono il promemoria del comando da tastiera; W9: la barra e'
-   anche trascinabile col mouse (RendererOptionsSliderValueAt, applicata da
-   UpdateApp), DEC-057, il mouse e' ammesso nei menu.
-   Il valore si legge SIA dalla barra SIA dalla percentuale scritta: nessuna
-   informazione affidata al solo colore o alla sola lunghezza (DEC-058). */
-static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const char *label, float value)
+/* Una riga-slider del menu Opzioni (WP-UI-3, mock-options.png): etichetta in
+   alto a sinistra, percentuale in alto a destra (UI_TESTO, ACCANTO
+   all'etichetta e non sopra la barra -- scelta del mock), barra a
+   blocchetti sotto, stesso rientro dell'etichetta. La barra e' fatta di
+   CASELLE e non di un cursore continuo -- il volume si muove a passi del
+   10% (OPTIONS_VOLUME_CELLS resta 10, il vecchio contratto: e' un passo di
+   comportamento -- ui/options-and-accessibility.md -- non una scelta
+   visiva, il mock non lo tocca). Il fuoco resta un segnale a TRE parti come
+   ogni UiMenuRow (fascia + barra laterale + colore): qui pero' il testo non
+   e' centrato in un'unica riga, quindi la fascia/barra si ridisegnano a
+   mano (stessa geometria di UiMenuRow) e il colore di etichetta/blocchetti
+   accesi passa da UI_SECONDARIO/UI_DIVISORE a UI_TITOLO col fuoco. */
+static void DrawOptionsSliderRow(const AppUi *ui, int index, const char *label, float value)
 {
-    float uiScale = UI_CANVAS_SCALE;
     Rectangle row = MenuItemRect(APP_OPTIONS, index, false);
-    DrawMenuRow(APP_OPTIONS, index, label, ui->focus, game->theme.accent2);
+    bool focused = (index == ui->focus);
+    if (focused)
+    {
+        DrawRectangleRec(row, UI_BEVEL_LUCE);
+        DrawRectangle((int)row.x, (int)row.y, 4, (int)row.height, UI_FOCUS);
+    }
 
-    bool hasFocus = (index == ui->focus);
-    int font = UiRound(14.0f*uiScale);
+    int contentX = (int)row.x + (int)UI_OPTIONS_CONTENT_INSET;
+    UiTextAt(label, contentX, (int)row.y, UI_TAGLIA_1, focused ? UI_TITOLO : UI_SECONDARIO);
+
     char percent[8];
     snprintf(percent, sizeof(percent), "%d%%", (int)(GameMathClampFloat(value, 0.0f, 1.0f)*100.0f + 0.5f));
+    int percentW = UiTextWidth(percent, UI_TAGLIA_1);
+    UiTextAt(percent, (int)(row.x + row.width) - (int)UI_OPTIONS_CONTENT_INSET - percentW, (int)row.y, UI_TAGLIA_1, UI_TESTO);
 
-    /* La barra occupa la meta' destra della riga, il testo la sinistra: cosi'
-       un'etichetta piu' lunga non spinge mai la barra fuori dal riquadro.
-       barX/barW vengono da OptionsSliderBarRectFor sopra -- stessa geometria
-       del trascinamento, mai due formule a rischio di disallinearsi. */
-    float cellGap = 2.0f*uiScale;
-    Rectangle barRect = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
-    float barW = barRect.width;
-    float barX = barRect.x;
-    float cellW = (barW - cellGap*(float)(OPTIONS_VOLUME_CELLS - 1))/(float)OPTIONS_VOLUME_CELLS;
-    float cellH = UiRound(12.0f*uiScale);
-    float barY = row.y + (row.height - cellH)*0.5f;
+    Rectangle bar = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
+    float cellW = (bar.width - UI_OPTIONS_BAR_CELL_GAP*(float)(OPTIONS_VOLUME_CELLS - 1))/(float)OPTIONS_VOLUME_CELLS;
     int lit = (int)(GameMathClampFloat(value, 0.0f, 1.0f)*(float)OPTIONS_VOLUME_CELLS + 0.5f);
     for (int i = 0; i < OPTIONS_VOLUME_CELLS; i++)
     {
-        Rectangle cell = { barX + (float)i*(cellW + cellGap), barY, cellW, cellH };
-        DrawRectangleRec(cell, i < lit ? (hasFocus ? game->theme.accent : GameColorWithAlpha(game->theme.accent, 170))
-                                       : (Color){ 34, 37, 46, 220 });
-        DrawRectangleLinesEx(cell, 1.0f, GameColorWithAlpha(BLACK, 160));
-    }
-    UiText(percent, (int)(row.x + row.width - UiRound(42.0f*uiScale)), (int)(row.y + UiRound(11.0f*uiScale)),
-           font, hasFocus ? RAYWHITE : (Color){ 190, 196, 208, 255 });
-    if (hasFocus)
-    {
-        UiText("<", (int)(barX - UiRound(14.0f*uiScale)), (int)(barY - UiRound(1.0f*uiScale)), font, game->theme.accent2);
-        UiText(">", (int)(barX + barW + UiRound(4.0f*uiScale)), (int)(barY - UiRound(1.0f*uiScale)), font, game->theme.accent2);
+        Rectangle cell = { bar.x + (float)i*(cellW + UI_OPTIONS_BAR_CELL_GAP), bar.y, cellW, bar.height };
+        DrawRectangleRec(cell, i < lit ? (focused ? UI_TITOLO : UI_DIVISORE) : UI_GROUND);
     }
 }
 
 static void DrawOptionsOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    Rectangle box = BeginMenuOverlay(APP_OPTIONS, game, "OPZIONI", game->theme.accent2);
+    (void)game;
+    Rectangle box = DrawMenuFamilyChrome(APP_OPTIONS, false, "OPZIONI", BLACK, 190);
     /* La categoria "audio" e' la prima delle categorie minime di
        ui/options-and-accessibility.md; le altre (video, controlli,
        accessibilita', gameplay) restano da scrivere e non si inventano qui.
        Lo schermo intero resta l'unica informazione consultabile non ancora
        promossa a voce, come prima di W8. */
-    UiText("AUDIO", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(52.0f*uiScale),
-           UiRound(14.0f*uiScale), game->theme.accent);
-    DrawOptionsSliderRow(game, ui, 0, "Volume generale", AudioGetMasterVolume());
-    DrawOptionsSliderRow(game, ui, 1, "Musica", AudioGetMusicVolume());
-    DrawOptionsSliderRow(game, ui, 2, "Effetti", AudioGetSfxVolume());
-    DrawMenuRow(APP_OPTIONS, 3, "Indietro", ui->focus, game->theme.accent2);
-    UiText("Schermo intero -- F11", (int)box.x + UiRound(40.0f*uiScale),
-           (int)(box.y + box.height - UiRound(34.0f*uiScale)), UiRound(13.0f*uiScale),
-           (Color){ 160, 168, 182, 255 });
+    UiTextAt("AUDIO", (int)box.x + (int)UI_MENU_FAMILY_PAD, (int)box.y + 41, UI_TAGLIA_1, UI_TITOLO);
+    DrawOptionsSliderRow(ui, 0, "VOLUME GENERALE", AudioGetMasterVolume());
+    DrawOptionsSliderRow(ui, 1, "MUSICA", AudioGetMusicVolume());
+    DrawOptionsSliderRow(ui, 2, "EFFETTI", AudioGetSfxVolume());
+    UiMenuRow(MenuItemRect(APP_OPTIONS, 3, false), "INDIETRO", ui->focus == 3);
+    UiTextAt("SCHERMO INTERO -- F11", (int)box.x + (int)UI_MENU_FAMILY_PAD,
+             (int)(box.y + box.height) - 20, UI_TAGLIA_1, UI_MUTO);
 }
 
 /* ============================================================
@@ -4740,8 +4783,13 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     {
         /* Fortuna (indice 5) resta evidenziata in verde come prima di DEC-184:
            e' l'unica delle sei che il giocatore legge come "buono/cattivo"
-           col segno, le altre sono grandezze neutre. */
-        Color color = (i == 5) ? (Color){ 126, 232, 152, 255 } : UI_TESTO;
+           col segno, le altre sono grandezze neutre. WP-UI-4: il verde era
+           (126,232,152), fuori palette -- ora verderame-chiaro, la stessa
+           famiglia di UiRarityTint(RARITY_UNCOMMON) ((58,125,99), il
+           "verderame" scuro della rarita') ma piu' luminoso: qui e' un
+           segnale di lettura del valore, non un pallino di rarita' minuscolo,
+           e deve restare leggibile a taglia di testo. */
+        Color color = (i == 5) ? (Color){ 109, 179, 136, 255 } : UI_TESTO;
         DrawStatLine(statLabels[i], statValues[i], rightX, rightEdge, statY + i*14, color);
     }
     /* RISORSE: una STRINGA UNICA ambra (mock: "27C 3B 2K"), non tre valori
@@ -4783,16 +4831,72 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
     if (hoveredItem) DrawItemTooltip(hoveredItem);
 }
 
+/* Righe fisse del riepilogo (WP-UI-4, mock-runresults.png): outcome/piano/
+   tempo, sempre le stesse tre quote, mai ricalcolate dal numero di righe
+   facoltative sotto -- vedi UI_RUN_RESULTS_ROW_TOP per perche' quel numero
+   e' comunque limitato a tre. */
+#define UI_RUN_RESULTS_OUTCOME_Y 41.0f
+#define UI_RUN_RESULTS_STAT_Y0 57.0f
+#define UI_RUN_RESULTS_STAT_PITCH 14.0f
+#define UI_RUN_RESULTS_OPTIONAL_Y0 87.0f
+#define UI_RUN_RESULTS_OPTIONAL_PITCH 14.0f
+
+/* Riga "etichetta: valore" del riepilogo -- a differenza di DrawStatLine
+   (colonna DESTRA di BuildScreen, valore allineato a un bordo comune tra piu'
+   righe) qui c'e' una sola colonna e il valore segue l'etichetta sulla
+   STESSA riga: RunResults non ha un secondo bordo con cui allinearsi.
+   'value' porta gia' lo spazio iniziale (es. " 1 / 5"), cosi' questa
+   funzione non deve misurare uno spazio a parte per il distacco. */
+/* Pannello + titolo (a due strati, ombra+colore come MainMenu) + filetto
+   spesso 2px: la cornice tonale condivisa dai DUE overlay che non passano da
+   DrawMenuFamilyChrome -- RunResults (il titolo cambia colore con l'esito,
+   la cornice condivisa lo fissa a UI_TITOLO) e il Catalogo (non e' uno dei 7
+   AppMode canonici che MenuBoxForModeFor conosce: M8, "vive dentro
+   APP_MAIN_MENU", vedi BeginCatalogOverlay). 'titleColor' e' l'unica
+   differenza fra i due usi. */
+static void DrawTonalPanelChrome(Rectangle box, const char *title, Color titleColor)
+{
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GameColorWithAlpha(BLACK, 190));
+    UiPanel(box);
+    int titleY = (int)box.y + (int)UI_MENU_FAMILY_TITLE_Y;
+    int pad = (int)UI_MENU_FAMILY_PAD;
+    UiTextAt(title, (int)box.x + pad + 1, titleY + 1, UI_TAGLIA_2, UI_GROUND);
+    UiTextAt(title, (int)box.x + pad, titleY, UI_TAGLIA_2, titleColor);
+    int ruleY = (int)box.y + (int)UI_MENU_FAMILY_RULE_Y;
+    UiDivider((int)box.x + pad, ruleY, (int)box.width - pad*2);
+    UiDivider((int)box.x + pad, ruleY + 1, (int)box.width - pad*2);
+}
+
+static void DrawRunResultLine(int x, int y, const char *label, const char *value)
+{
+    UiTextAt(label, x, y, UI_TAGLIA_1, UI_HINT);   /* UI_MUTO su UI_PANEL era 1.83:1, illeggibile (verifica unificata) */
+    UiTextAt(value, x + UiTextWidth(label, UI_TAGLIA_1), y, UI_TAGLIA_1, UI_TESTO);
+}
+
 static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    const char *title = (game->phase == PHASE_WIN) ? "VITTORIA UFFICIALE" : "SCONFITTA";
-    Rectangle box = BeginMenuOverlay(APP_RUN_RESULTS, game, title, game->theme.accent2);
-    const char *outcome = (game->phase == PHASE_WIN)
-        ? "Boss del piano 5 sconfitto."
-        : "La run e' finita qui.";
-    UiText(outcome, (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
-    UiText(TextFormat("Piano raggiunto: %d / %d", game->floor, FLOOR_COUNT), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(80.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    bool won = (game->phase == PHASE_WIN);
+    const char *title = won ? "VITTORIA UFFICIALE" : "SCONFITTA";
+    /* WP-UI-4: l'ESITO tinge il titolo -- fiamma (allarme, si e' persa la
+       run) per la sconfitta, oro-fuso (trionfo) per la vittoria. Il mock
+       approvato mostra solo il caso sconfitta, ma la coppia di colori e' un
+       requisito esplicito del lavoro, non un'invenzione di questo giro --
+       DEC-058 vale comunque: il TESTO del titolo ("SCONFITTA"/"VITTORIA
+       UFFICIALE") resta il segnale primario, il colore rinforza. Il filetto
+       sotto resta UI_DIVISORE come ovunque altro (il mock lo mostra bronzo
+       anche nel caso sconfitta, DrawTonalPanelChrome non lo tinge mai):
+       SOLO il titolo segue l'esito. */
+    Color titleColor = won ? UI_TITOLO : UI_FOCUS;
+    Rectangle box = MenuBoxForMode(APP_RUN_RESULTS, false);
+    DrawTonalPanelChrome(box, title, titleColor);
+    int pad = (int)UI_MENU_FAMILY_PAD;
+    int x = (int)box.x + pad;
+
+    const char *outcome = won ? "Boss del piano 5 sconfitto." : "La run e' finita qui.";
+    UiTextAt(outcome, x, (int)box.y + (int)UI_RUN_RESULTS_OUTCOME_Y, UI_TAGLIA_1, UI_SECONDARIO);
+
+    DrawRunResultLine(x, (int)box.y + (int)UI_RUN_RESULTS_STAT_Y0, "Piano raggiunto:",
+                       TextFormat(" %d / %d", game->floor, FLOOR_COUNT));
     /* WP1 (DEC-051/DEC-056, ui/results-and-leaderboards.md riga "Tempo e piano
        raggiunto | Sempre"): il tempo finale, sia a vittoria che a sconfitta --
        stesso game->runElapsedSeconds gia' accumulato durante PHASE_PLAY in una
@@ -4805,19 +4909,24 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        testi esistenti e' un giro contenuti a parte, fuori scope qui. */
     int runMinutes = (int)game->runElapsedSeconds / 60;
     int runSeconds = (int)game->runElapsedSeconds % 60;
-    UiText(TextFormat("Tempo: %d:%02d", runMinutes, runSeconds), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(102.0f*uiScale), UiRound(15.0f*uiScale), (Color){ 205, 210, 220, 255 });
+    DrawRunResultLine(x, (int)box.y + (int)(UI_RUN_RESULTS_STAT_Y0 + UI_RUN_RESULTS_STAT_PITCH), "Tempo:",
+                       TextFormat(" %d:%02d", runMinutes, runSeconds));
+
+    /* Fino a TRE righe facoltative, nell'ordine storico (causa -> catalogo ->
+       prove): 'lineY' avanza SOLO per quelle davvero disegnate, cosi' non si
+       sovrappongono ne' lasciano un buco quando una manca. Tutte e tre
+       INSIEME sono un caso realistico (morire con nuove scoperte registrate
+       dopo aver superato delle prove), non un caso limite da ignorare --
+       UI_RUN_RESULTS_ROW_TOP lascia apposta il margine per contenerle senza
+       toccare la prima voce di menu. */
+    float lineY = UI_RUN_RESULTS_OPTIONAL_Y0;
     /* DEC-159: la causa della sconfitta, SOLO a game over (mai a vittoria: li'
        game->deathCause resta la stringa vuota dello zero-default, scritta
-       unicamente da CombatDamagePlayer). Riga indipendente da quella del
-       catalogo sotto: 'lineY' avanza SOLO per le righe davvero disegnate, cosi'
-       le due righe facoltative non si sovrappongono ne' lasciano un buco
-       quando una delle due manca. Parte da 124 (non piu' 102): la riga Tempo
-       sopra ha gia' preso la quota 102. */
-    float lineY = 124.0f;
+       unicamente da CombatDamagePlayer). */
     if (game->phase == PHASE_GAME_OVER && game->deathCause[0])
     {
-        UiText(TextFormat("Causa: %s.", game->deathCause), (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
-        lineY += 22.0f;
+        UiTextAt(TextFormat("Causa: %s.", game->deathCause), x, (int)box.y + (int)lineY, UI_TAGLIA_1, UI_SECONDARIO);
+        lineY += UI_RUN_RESULTS_OPTIONAL_PITCH;
     }
     /* WP19 (DEC-082/089): l'abbandono confermato di una run vera chiude come
        sconfitta (il titolo sopra segue gia' "phase != PHASE_WIN", e phase
@@ -4828,8 +4937,8 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        si disegnano mai insieme. */
     if (game->runAbandoned)
     {
-        UiText("Causa: abbandono volontario.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), (Color){ 205, 210, 220, 255 });
-        lineY += 22.0f;
+        UiTextAt("Causa: abbandono volontario.", x, (int)box.y + (int)lineY, UI_TAGLIA_1, UI_SECONDARIO);
+        lineY += UI_RUN_RESULTS_OPTIONAL_PITCH;
     }
     /* M7 (DEC-015/041/045/069, substrato del catalogo): il feedback canonico
        "se sono stati registrati nuovi contenuti nel catalogo"
@@ -4837,12 +4946,16 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        e' 0 (riga OMESSA, mai "0" a schermo, spec M7 punto 4) per una run
        fallback, per una run senza nulla di nuovo da registrare, o quando
        AppWriteRunCatalog non e' mai stata chiamata per questa run (il caso
-       "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER). */
+       "0" di GameResetRun, invariato finche' non arriva PHASE_WIN/GAME_OVER).
+       WP-UI-4: era game->theme.accent2 (l'accento GENERATO della run) -- una
+       riga di stato dell'INTERFACCIA, come le altre, non un colore del
+       mondo: UI_GLINT (bagliore), lo stesso token che segnala le altre
+       evidenziazioni brevi (es. RISORSE di BuildScreen). */
     if (game->catalogRecordsWritten > 0)
     {
-        UiText(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
-                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
-        lineY += 22.0f;
+        UiTextAt(TextFormat("Creazioni registrate nel catalogo: %d", game->catalogRecordsWritten),
+                 x, (int)box.y + (int)lineY, UI_TAGLIA_1, UI_GLINT);
+        lineY += UI_RUN_RESULTS_OPTIONAL_PITCH;
     }
     /* WP16 (DEC-042/DEC-027): il bonus delle prove specifiche, riga dedicata
        come richiesto dal work package -- TrialsFinalizeAtRunEnd (chiamata da
@@ -4861,12 +4974,16 @@ static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
        per le prove (nessun punteggio composito DEC-060 esiste ancora, vedi
        rewards-and-economy.md); il bonus non alimenta ancora il canale punti
        sblocco di DEC-027 (nessun sistema di punti sblocco esiste ancora nel
-       motore, gap dichiarato in save-and-meta-progression.md). */
+       motore, gap dichiarato in save-and-meta-progression.md).
+       WP-UI-4/mock-runresults.png: il bonus in FIAMMA (mai rosa) -- l'unica
+       riga qui che festeggia un risultato ottenuto in run, non un dato
+       neutro come le altre. */
     if (TrialsCountedTotal(game) > 0)
-        UiText(TextFormat("Prove superate: %d/%d, +%d punti", TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
-                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(lineY*uiScale), UiRound(14.0f*uiScale), game->theme.accent2);
-    DrawMenuRow(APP_RUN_RESULTS, 0, "Nuova run subito", ui->focus, game->theme.accent2);
-    DrawMenuRow(APP_RUN_RESULTS, 1, "Menu principale", ui->focus, game->theme.accent2);
+        UiTextAt(TextFormat("Prove superate: %d/%d, +%d punti", TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
+                 x, (int)box.y + (int)lineY, UI_TAGLIA_1, UI_FOCUS);
+
+    UiMenuRow(MenuItemRect(APP_RUN_RESULTS, 0, false), "Nuova run subito", ui->focus == 0);
+    UiMenuRow(MenuItemRect(APP_RUN_RESULTS, 1, false), "Menu principale", ui->focus == 1);
 }
 
 /* Dichiarata qui perche' DrawExitConfirmOverlay (subito sotto) la usa e la
@@ -4883,13 +5000,42 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
    MenuBoxForModeFor); la terza e' il margine di sicurezza per un testo futuro
    piu' lungo -- oltre, WrapTextLines tronca con "..." invece di sconfinare
    sulle voci. */
-#define EXIT_CONFIRM_QUESTION_Y_BASE 52.0f
-#define EXIT_CONFIRM_QUESTION_STEP_BASE 20.0f
 #define EXIT_CONFIRM_QUESTION_MAX_LINES 3
+
+/* WP-UI-3 (mock-exitconfirm.png): la domanda del dialogo LEGGERO ha la sua
+   propria quota/passo -- il box e' piu' corto (148 canvas, non 400*uiScale)
+   e la testata e' quella nuova della famiglia (filetto a 29, non 30*uiScale).
+   y=41 e' la stessa quota di ogni riga informativa della famiglia
+   (Modalita'/AUDIO); 2 righe (non 3) bastano alla domanda piu' lunga del
+   dialogo leggero ("Iniziare una nuova run? ...", verificato: wrappa su due
+   righe di 182+42px dentro i 212 disponibili) e restano ben sopra la prima
+   voce (58, UI_EXIT_CONFIRM_LIGHT_ROW_TOP). */
+#define UI_EXIT_CONFIRM_LIGHT_QUESTION_Y 41.0f
+#define UI_EXIT_CONFIRM_LIGHT_QUESTION_STEP 7.0f
+#define UI_EXIT_CONFIRM_LIGHT_QUESTION_MAX_LINES 2
+
+/* "Conferma" (WP-UI-3, mock-exitconfirm.png): l'unica voce distruttiva del
+   dialogo resta in UI_FOCUS (fiamma) SEMPRE, fuoco o non fuoco -- il mock
+   la mostra in fiamma anche mentre ha il fuoco (a differenza di "Abbandona
+   run" del PauseMenu, che torna oro col fuoco: vedi DrawPauseMenuAbandonRow).
+   E' la stessa "riga pericolosa" del vecchio bordo rosso (DrawMenuRowCtx,
+   RED), migrata da una cornice colorata a un testo colorato (DEC-205 vieta
+   le cornici). */
+static void DrawExitConfirmConfirmRow(Rectangle row, bool focused)
+{
+    if (focused)
+    {
+        DrawRectangleRec(row, UI_BEVEL_LUCE);
+        DrawRectangle((int)row.x, (int)row.y, 4, (int)row.height, UI_FOCUS);
+    }
+    int textY = (int)(row.y + (row.height - (float)UiTextHeight(UI_TAGLIA_2))*0.5f);
+    UiTextAt("CONFERMA", (int)row.x + 10, textY, UI_TAGLIA_2, UI_FOCUS);
+}
 
 static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
     float uiScale = UI_CANVAS_SCALE;
+    (void)game;
     /* WP22 (DEC-090, gap G9): il contesto "MainMenu -> Esci" (chiusura del
        gioco) e' uno dei DUE (dei CINQUE, vedi 'question' sotto) in cui
        openedFrom vale APP_MAIN_MENU -- exitAbandonsRun resta sempre falso li'
@@ -4900,11 +5046,15 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
        RendererDrawApp ha gia' ridisegnato il MainMenu SOTTO in questo stesso
        frame quando la condizione e' vera: qui serve solo il velo di fondo piu'
        leggero (non un altro schermo pieno che lo cancellerebbe), e il riquadro
-       piu' stretto che 'lightModal' seleziona in MenuBoxForModeFor. */
+       piu' piccolo che 'lightModal' seleziona in MenuBoxForModeFor.
+       WP-UI-3: il velo leggero e' ora UI_GROUND a EXIT_CONFIRM_LIGHT_DIM_ALPHA
+       (~55%, il canone del mock) invece di BLACK -- DrawMenuFamilyChrome
+       accetta colore/alfa del velo proprio per questo caso, l'unico dei
+       quattro che devia dal BLACK/190 di sempre. */
     bool lightModal = ExitConfirmIsLightModalFor(ui->openedFrom, ui->exitDropsSuspendedRun);
-    Rectangle box = lightModal
-        ? BeginMenuOverlayLight(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2)
-        : BeginMenuOverlay(APP_EXIT_CONFIRM, game, "CONFERMA", game->theme.accent2);
+    Rectangle box = DrawMenuFamilyChrome(APP_EXIT_CONFIRM, lightModal, "CONFERMA",
+                                          lightModal ? UI_GROUND : BLACK,
+                                          lightModal ? EXIT_CONFIRM_LIGHT_DIM_ALPHA : 190);
     /* Contesti distinti (DEC-057 + M1b + WP21/DEC-114 + WP17/DEC-050), tutti
        derivati da 'ui': MainMenu/Esci ha tutti e tre i booleani di contesto
        falsi; i due abbandoni (Piano 0/
@@ -4930,27 +5080,30 @@ static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
                     ? "Abbandonare la preparazione? La generazione in corso verra' annullata."
                     : "Abbandonare la run in corso? Il progresso non salvato si perde.")));
     /* WP22, terza passata: la domanda va A CAPO dentro il pannello invece di
-       essere disegnata come una riga sola. Prima sconfinava SEMPRE, in tutti i
-       contesti a schermo pieno (765/849/864 px di testo contro i 520 di spazio
-       utile di un box da 600, misurati col font reale): il testo usciva dal
-       riquadro e, su finestre strette, veniva pure tagliato dal bordo dello
-       schermo. Stesso WrapTextLines gia' usato dal Catalogo e dai blurb del
-       Piano 0, stesso margine di 40 per lato del testo di prima. */
+       essere disegnata come una riga sola -- WrapTextLines misura col font
+       reale (UiFontScale(questionFont)), quindi non serve un secondo sistema
+       di misura solo perche' il box leggero e' piu' stretto: cambiano solo
+       Y_BASE/STEP/MAX_LINES e la larghezza disponibile (box.width, che
+       DrawMenuFamilyChrome ha gia' scelto in base a 'lightModal'). */
     int questionFont = UiRound(16.0f*uiScale);
+    float questionYBase = lightModal ? UI_EXIT_CONFIRM_LIGHT_QUESTION_Y : UI_EXIT_CONFIRM_FULL_QUESTION_Y;
+    float questionStep = lightModal ? UI_EXIT_CONFIRM_LIGHT_QUESTION_STEP : UI_EXIT_CONFIRM_FULL_QUESTION_STEP;
+    int questionMaxLines = lightModal ? UI_EXIT_CONFIRM_LIGHT_QUESTION_MAX_LINES : EXIT_CONFIRM_QUESTION_MAX_LINES;
+    float questionMaxWidth = box.width - UI_MENU_FAMILY_PAD*2.0f;
     char lines[EXIT_CONFIRM_QUESTION_MAX_LINES][160];
-    int lineCount = WrapTextLines(question, questionFont, box.width - 80.0f*uiScale, lines, EXIT_CONFIRM_QUESTION_MAX_LINES);
+    int lineCount = WrapTextLines(question, questionFont, questionMaxWidth, lines, questionMaxLines);
     for (int i = 0; i < lineCount; i++)
     {
-        UiText(lines[i], (int)box.x + UiRound(40.0f*uiScale),
-               (int)box.y + UiRound((EXIT_CONFIRM_QUESTION_Y_BASE + (float)i*EXIT_CONFIRM_QUESTION_STEP_BASE)*uiScale),
-               questionFont, (Color){ 205, 210, 220, 255 });
+        UiText(lines[i], (int)box.x + (int)UI_MENU_FAMILY_PAD,
+               (int)(box.y + questionYBase + (float)i*questionStep),
+               questionFont, UI_TESTO);
     }
     /* Le due voci seguono la STESSA geometria del pannello appena disegnato
-       (stretta nel dialogo leggero, larga negli altri tre contesti): e' la
+       (piccola nel dialogo leggero, larga negli altri tre contesti): e' la
        stessa che RendererMenuItemAt riceve da src/app/app.c per il hit-test
        del mouse, mai una seconda copia. */
-    DrawMenuRowCtx(APP_EXIT_CONFIRM, 0, "Conferma", ui->focus, RED, lightModal);
-    DrawMenuRowCtx(APP_EXIT_CONFIRM, 1, "Annulla", ui->focus, game->theme.accent2, lightModal);
+    DrawExitConfirmConfirmRow(MenuItemRect(APP_EXIT_CONFIRM, 0, lightModal), ui->focus == 0);
+    UiMenuRow(MenuItemRect(APP_EXIT_CONFIRM, 1, lightModal), "ANNULLA", ui->focus == 1);
 }
 
 /* Indicatore di generazione DENTRO il Piano 0 (M1b, ui/generation-status.md):
@@ -5037,23 +5190,23 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
    dopo essere state definite (nessun blocco di forward declaration).
    ============================================================ */
 
-/* Stessa formula "box grande" di BuildScreen (760x520*uiScale, l'unico
-   overlay canonico che non e' 600x400): il Catalogo ha bisogno dello stesso
-   spazio (tabs di categoria + lista + dettaglio) ma non e' quell'AppMode,
-   quindi non puo' passare da MenuBoxForModeFor -- una copia dei due soli
-   letterali che servono, non l'intera funzione. */
+/* WP-UI-4 (mock-catalog.png): 600x300 misurati sul mock -- quasi a schermo
+   pieno (640x360), lo spazio che tabs+lista+dettaglio hanno sempre chiesto.
+   Il Catalogo non e' uno degli AppMode canonici di MenuBoxForModeFor (vive
+   dentro APP_MAIN_MENU, M8, "nessun nuovo AppMode"), quindi resta un box a
+   parte -- ma da pixel di canvas veri come tutti gli altri da WP-UI-0. */
+#define UI_CATALOG_W 600.0f
+#define UI_CATALOG_H 300.0f
 static Rectangle CatalogBoxFor(float sw, float sh)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    float w = 760.0f*uiScale;
-    float h = 520.0f*uiScale;
-    return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
+    return (Rectangle){ floorf(sw*0.5f - UI_CATALOG_W*0.5f), floorf(sh*0.5f - UI_CATALOG_H*0.5f),
+                        UI_CATALOG_W, UI_CATALOG_H };
 }
 
-static Rectangle BeginCatalogOverlay(Game *game, const char *title, Color accent)
+static Rectangle BeginCatalogOverlay(const char *title)
 {
     Rectangle box = CatalogBoxFor(UiCanvasW(), UiCanvasH());
-    DrawMenuOverlayChrome(box, game, title, accent);
+    DrawTonalPanelChrome(box, title, UI_TITOLO);
     return box;
 }
 
@@ -5071,24 +5224,27 @@ static const char *CatalogCategoryLabel(RunCatalogCategory cat)
     }
 }
 
-/* Le sette schedine di categoria in cima al pannello: sinistra/destra le
-   scorre (UpdateApp, src/app/app.c), qui solo disegno. Focus MAI dal solo
-   colore (DEC-058): la categoria attiva ha bordo piu' spesso E il conteggio
-   fra parentesi (un secondo segnale indipendente, non decorativo). */
-static void DrawCatalogTabs(Rectangle box, const RunCatalogSummary *cat, int active, float uiScale, Color accent)
+/* Le sette "pillole" di categoria in cima al pannello (mock-catalog.png):
+   niente piu' cornice/riempimento per voce (DEC-205) -- solo il testo (oro-
+   fuso a fuoco, cenere-chiara le altre, MAI il solo colore: il conteggio fra
+   parentesi resta il secondo segnale) piu' una fascia FIAMMA sotto la sola
+   voce attiva, la stessa idea della barra di UiMenuRow spostata in
+   orizzontale. */
+#define UI_CATALOG_TAB_Y 45.0f
+#define UI_CATALOG_TAB_BAR_Y 52.0f
+static void DrawCatalogTabs(Rectangle box, const RunCatalogSummary *cat, int active)
 {
-    float tabY = box.y + 46.0f*uiScale;
-    float tabW = (box.width - 40.0f*uiScale)/(float)RUN_CATALOG_CATEGORY_COUNT;
+    int pad = (int)UI_MENU_FAMILY_PAD;
+    float tabW = (box.width - (float)pad*2.0f)/(float)RUN_CATALOG_CATEGORY_COUNT;
     for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++)
     {
-        Rectangle tab = { box.x + 20.0f*uiScale + (float)c*tabW, tabY, tabW - 4.0f*uiScale, 26.0f*uiScale };
         bool isActive = (c == active);
-        DrawRectangleRec(tab, isActive ? GameColorWithAlpha(accent, 55) : GameColorWithAlpha(BLACK, 90));
-        DrawRectangleLinesEx(tab, isActive ? 2.5f : 1.0f, isActive ? accent : GameColorWithAlpha(accent, 130));
+        float tabX = box.x + (float)pad + (float)c*tabW;
         char label[24];
         snprintf(label, sizeof(label), "%s (%d)", CatalogCategoryLabel((RunCatalogCategory)c), cat->entryCount[c]);
-        int font = UiRound(11.0f*uiScale);
-        UiText(label, (int)tab.x + UiRound(6.0f*uiScale), (int)tab.y + UiRound(6.0f*uiScale), font, isActive ? RAYWHITE : (Color){ 190, 196, 206, 255 });
+        UiTextAt(label, (int)tabX, (int)box.y + (int)UI_CATALOG_TAB_Y, UI_TAGLIA_1, isActive ? UI_TITOLO : UI_SECONDARIO);
+        if (isActive)
+            DrawRectangle((int)tabX, (int)box.y + (int)UI_CATALOG_TAB_BAR_Y, (int)(tabW - 6.0f), 2, UI_FOCUS);
     }
 }
 
@@ -5096,16 +5252,17 @@ static void DrawCatalogTabs(Rectangle box, const RunCatalogSummary *cat, int act
    SCORREVOLE larga 'visibleMax' righe (spec M8: fino a 256 voci per
    categoria -- non entrano mai tutte nel box, serve scorrere). 'focus' e'
    gia' clampato dal chiamante (DrawCatalogOverlay). Il rientro (DEC-058:
-   focus mai dal solo colore) usa lo stesso schema di DrawMenuRow -- bordo
-   piu' spesso sulla voce a fuoco, non solo un colore di sfondo diverso. */
+   focus mai dal solo colore) e' ora UiMenuRow -- lo stesso componente delle
+   voci di menu, non piu' una cornice+riempimento fatta a mano qui: la lista
+   deve leggersi come una lista di voci selezionabili, non come una tabella. */
 static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCatalogCategory active, int focus,
-                             float listTop, float rowH, int visibleMax, float uiScale, Color accent)
+                             float listTop, float rowH, int visibleMax)
 {
+    int pad = (int)UI_MENU_FAMILY_PAD;
     int count = cat->entryCount[active];
     if (count == 0)
     {
-        UiText("Nessuna voce in questa categoria.", (int)box.x + UiRound(24.0f*uiScale), (int)listTop,
-                 UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        UiTextAt("Nessuna voce in questa categoria.", (int)box.x + pad, (int)listTop, UI_TAGLIA_1, UI_SECONDARIO);
         return;
     }
 
@@ -5113,37 +5270,32 @@ static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCata
     if (start > count - visibleMax) start = count - visibleMax;
     if (start < 0) start = 0;
 
-    float listW = box.width*0.55f - 30.0f*uiScale;
+    float listW = box.x + box.width*0.55f - (box.x + (float)pad);
     int shown = 0;
     for (int i = start; i < count && shown < visibleMax; i++, shown++)
     {
         const RunCatalogEntry *e = &cat->entries[active][i];
-        Rectangle row = { box.x + 20.0f*uiScale, listTop + (float)shown*rowH, listW, rowH - 4.0f*uiScale };
-        bool hasFocus = (i == focus);
-        DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : GameColorWithAlpha(BLACK, 70));
-        DrawRectangleLinesEx(row, hasFocus ? 2.0f : 1.0f, hasFocus ? accent : GameColorWithAlpha(accent, 110));
+        Rectangle row = { box.x + (float)pad, listTop + (float)shown*rowH, listW, rowH - 4.0f };
         char label[96];
         if (active == RUN_CATALOG_CAT_BOSS)
             snprintf(label, sizeof(label), "%s -- %s", e->name, e->bossDefeated ? "sconfitto" : "incontrato");
         else
             snprintf(label, sizeof(label), "%s (x%d)", e->name, e->encounterCount);
-        UiText(label, (int)row.x + UiRound(8.0f*uiScale), (int)row.y + UiRound(5.0f*uiScale),
-                 UiRound(13.0f*uiScale), hasFocus ? RAYWHITE : (Color){ 200, 206, 216, 255 });
+        UiMenuRow(row, label, i == focus);
     }
 
     if (count > visibleMax)
     {
         char pos[24];
         snprintf(pos, sizeof(pos), "%d/%d", focus + 1, count);
-        UiText(pos, (int)(box.x + 20.0f*uiScale + listW - UiRound(40.0f*uiScale)), (int)(listTop - UiRound(16.0f*uiScale)),
-                 UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        int tw = UiTextWidth(pos, UI_TAGLIA_1);
+        UiTextAt(pos, (int)(box.x + (float)pad + listW) - tw, (int)listTop - 14, UI_TAGLIA_1, UI_HINT);
     }
     if (cat->overflowCount[active] > 0)
     {
         char more[48];
         snprintf(more, sizeof(more), "-- e altre %d", cat->overflowCount[active]);
-        UiText(more, (int)box.x + UiRound(20.0f*uiScale), (int)(listTop + (float)visibleMax*rowH + 2.0f*uiScale),
-                 UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        UiTextAt(more, (int)box.x + pad, (int)(listTop + (float)visibleMax*rowH + 2.0f), UI_TAGLIA_1, UI_HINT);
     }
 }
 
@@ -5152,53 +5304,54 @@ static void DrawCatalogList(Rectangle box, const RunCatalogSummary *cat, RunCata
    movimento per i nemici, ruolo/trait hook/colpo firmato per i personaggi,
    gia' composto in RunCatalogEntry.detail da RunCatalogAggregate). Word-wrap
    con lo stesso WrapTextLines del blurb dei temi/personaggi (M5/M6a): stesso
-   trattamento testuale in tutta la UI, non una regola nuova qui. */
-static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float listTop, float uiScale, Color accent)
+   trattamento testuale in tutta la UI, non una regola nuova qui. WrapTextLines
+   misura ancora col 'fontSize' in pixel della via storica (UiText/UiFontScale,
+   sopra in questo file) -- 8 e' la taglia che UiFontScale traduce nella
+   STESSA scala 1 di UI_TAGLIA_1, cosi' il blocco wrappato resta alla stessa
+   taglia del resto della colonna anche se passa da un'API diversa. */
+static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float listTop)
 {
     float detailX = box.x + box.width*0.58f;
-    float detailW = box.width - box.width*0.58f - 20.0f*uiScale;
-    int nameFont = UiRound(15.0f*uiScale);
-    UiText(e->name, (int)detailX, (int)listTop, nameFont, accent);
+    float detailW = box.width - box.width*0.58f - (float)UI_MENU_FAMILY_PAD;
+    UiTextAt(e->name, (int)detailX, (int)listTop, UI_TAGLIA_2, UI_TITOLO);
 
-    int lineY = (int)listTop + UiRound(26.0f*uiScale);
+    int lineY = (int)listTop + 22;
     if (e->detail[0])
     {
-        int detailFont = UiRound(12.0f*uiScale);
         char lines[6][160];
-        int n = WrapTextLines(e->detail, detailFont, detailW, lines, 6);
+        int n = WrapTextLines(e->detail, 8, detailW, lines, 6);
         for (int l = 0; l < n; l++)
         {
-            UiText(lines[l], (int)detailX, lineY, detailFont, (Color){ 205, 210, 220, 255 });
-            lineY += UiRound(16.0f*uiScale);
+            UiText(lines[l], (int)detailX, lineY, 8, UI_SECONDARIO);
+            lineY += 12;
         }
     }
-    lineY += UiRound(6.0f*uiScale);
+    lineY += 6;
     UiText(TextFormat("Incontri: %d  --  Run: %d", e->encounterCount, e->runCount),
-             (int)detailX, lineY, UiRound(12.0f*uiScale), (Color){ 176, 184, 198, 255 });
+             (int)detailX, lineY, 8, UI_HINT);
 }
 
 static void DrawCatalogOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    Rectangle box = BeginCatalogOverlay(game, "CATALOGO", game->theme.accent2);
+    (void)game;   /* WP-UI-4: il Catalogo non legge piu' game->theme (era la sola fonte di accent2 qui) */
+    Rectangle box = BeginCatalogOverlay("CATALOGO");
     const RunCatalogSummary *cat = &ui->catalog;
 
     int totalEntries = 0;
     for (int c = 0; c < RUN_CATALOG_CATEGORY_COUNT; c++) totalEntries += cat->entryCount[c];
+    int pad = (int)UI_MENU_FAMILY_PAD;
     if (totalEntries == 0)
     {
         /* Catalogo vuoto (spec M8): un messaggio sobrio, MAI un errore -- vale
            per l'intera vista (nessuna categoria ha nulla da mostrare, quindi
            niente tabs/lista/dettaglio vuoti a fare da rumore). */
-        UiText("Il crogiolo non ricorda ancora nulla: gioca una run.",
-                 (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(70.0f*uiScale),
-                 UiRound(16.0f*uiScale), (Color){ 205, 210, 220, 255 });
-        UiText("ESC -- torna al menu.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(98.0f*uiScale),
-                 UiRound(13.0f*uiScale), (Color){ 150, 158, 172, 255 });
+        UiTextAt("Il crogiolo non ricorda ancora nulla: gioca una run.",
+                 (int)box.x + pad, (int)box.y + 60, UI_TAGLIA_2, UI_SECONDARIO);
+        UiTextAt("ESC -- torna al menu.", (int)box.x + pad, (int)box.y + 84, UI_TAGLIA_1, UI_HINT);
         return;
     }
 
-    DrawCatalogTabs(box, cat, ui->catalogCategory, uiScale, game->theme.accent2);
+    DrawCatalogTabs(box, cat, ui->catalogCategory);
 
     RunCatalogCategory active = (RunCatalogCategory)ui->catalogCategory;
     int count = cat->entryCount[active];
@@ -5206,18 +5359,17 @@ static void DrawCatalogOverlay(Game *game, const AppUi *ui)
     if (focus >= count) focus = count > 0 ? count - 1 : 0;
     if (focus < 0) focus = 0;
 
-    float listTop = box.y + 92.0f*uiScale;
-    float rowH = 26.0f*uiScale;
-    float detailH = 78.0f*uiScale;
-    int visibleMax = (int)((box.y + box.height - detailH - listTop)/rowH);
+    float listTop = box.y + 64.0f;
+    float rowH = UI_MENU_FAMILY_ROW_H;
+    float footerReserve = 30.0f;
+    int visibleMax = (int)((box.y + box.height - footerReserve - listTop)/rowH);
     if (visibleMax < 1) visibleMax = 1;
 
-    DrawCatalogList(box, cat, active, focus, listTop, rowH, visibleMax, uiScale, game->theme.accent2);
-    if (count > 0) DrawCatalogDetail(box, &cat->entries[active][focus], listTop, uiScale, game->theme.accent2);
+    DrawCatalogList(box, cat, active, focus, listTop, rowH, visibleMax);
+    if (count > 0) DrawCatalogDetail(box, &cat->entries[active][focus], listTop);
 
-    UiText("Sinistra/destra: categoria -- Su/giu': voce -- ESC: torna al menu",
-             (int)box.x + UiRound(20.0f*uiScale), (int)(box.y + box.height - UiRound(24.0f*uiScale)),
-             UiRound(11.0f*uiScale), (Color){ 150, 158, 172, 255 });
+    UiTextAt("Sx/Dx: categoria -- Su/Giu: voce -- ESC: menu",
+             (int)box.x + pad, (int)(box.y + box.height - 18.0f), UI_TAGLIA_1, UI_HINT);
 }
 
 /* M5 (DEC-005), requisito 9: geometria PROPRIA del pannello di scelta del
@@ -5561,29 +5713,47 @@ bool RendererFloorZeroHintChipAt(const Game *game, Vector2 mouse)
     return CheckCollisionPointRec(mouse, box);
 }
 
+/* Una "targhetta" del riepilogo (WP-UI-4, mock-floorzero.png): pannello
+   tonale (UiPanel, mai una cornice colorata da 1px -- DEC-205) largo quanto
+   il suo testo, alto quanto basta per un rigo a UI_TAGLIA_1. 'textColor' e'
+   l'unico parametro che varia fra le due targhette: MONDO resta un dato
+   dell'INTERFACCIA (UI_SECONDARIO, il token di sempre), PERSONAGGIO usa
+   invece 'character->palette' -- lo stesso colore con cui BuildScreen firma
+   il nome del personaggio (DrawHudV3Stats), cosi' le due schermate non
+   raccontano il personaggio con due tinte diverse. */
+static void DrawFloorZeroSummaryTag(float x, float y, float h, const char *text, Color textColor)
+{
+    int tw = UiTextWidth(text, UI_TAGLIA_1);
+    Rectangle box = { x, y, (float)tw + 16.0f, h };
+    UiPanel(box);
+    int textY = (int)(box.y + (box.height - (float)UiTextHeight(UI_TAGLIA_1))*0.5f);
+    UiTextAt(text, (int)box.x + 8, textY, UI_TAGLIA_1, textColor);
+}
+
 /* Riepilogo persistente di mondo + personaggio (M5 requisito 9 + M6a
  * requisito 3, "Feedback": "Il tema scelto e il personaggio scelto restano
  * visibili in un riepilogo"): visibile per TUTTA la permanenza nel Piano 0,
  * non solo nell'istante della conferma. Il personaggio e' SEMPRE definito
  * (preselezione di default, vedi FloorZeroEnter) quindi la sua targhetta
  * compare da subito; quella del mondo resta gating su themeChosenIndex>=0
- * come in M5 -- il mondo puo' davvero essere ancora indefinito. */
-static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiScale)
+ * come in M5 -- il mondo puo' davvero essere ancora indefinito (WP-UI-4: e
+ * un -1 zero-init scorretto lo rendeva 0 sui percorsi che non passano da
+ * FloorZeroEnter, riga "Mondo: " vuota -- fix in GameResetRunWithSeed,
+ * src/game/game.c). 'uiScale' e' sparito dalla firma (WP-UI-4): il canvas e'
+ * fisso a 640x360 da DEC-200, ogni numero qui e' gia' un pixel di canvas
+ * vero, come nel resto delle schermate rivestite. */
+static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect)
 {
-    float y = gameRect.y + 12.0f*uiScale;
-    int font = UiRound(14.0f*uiScale);
+    float x = gameRect.x + 8.0f;
+    float y = gameRect.y + 8.0f;
+    const float rowH = 16.0f;
+    const float pitch = 20.0f;
 
     if (game->themeChosenIndex >= 0)
     {
         const ThemeCard *chosen = &game->themeCards[game->themeChosenIndex];
-        char text[64];
-        snprintf(text, sizeof(text), "Mondo: %s", chosen->name);
-        int tw = UiTextW(text, font);
-        Rectangle box = { gameRect.x + 12.0f*uiScale, y, (float)tw + 24.0f*uiScale, 26.0f*uiScale };
-        DrawRectangleRec(box, (Color){ 16, 18, 24, 190 });
-        DrawRectangleLinesEx(box, 1.5f, game->theme.accent2);
-        UiText(text, (int)box.x + UiRound(12.0f*uiScale), (int)box.y + UiRound(6.0f*uiScale), font, RAYWHITE);
-        y += 30.0f*uiScale;
+        DrawFloorZeroSummaryTag(x, y, rowH, TextFormat("Mondo: %s", chosen->name), UI_SECONDARIO);
+        y += pitch;
     }
 
     /* M6b-1: GameResolveCharacterDef risolve sia la rosa sia il quarto slot
@@ -5593,15 +5763,7 @@ static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiS
        Piano 0) non deve leggere un puntatore morto. */
     const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
     if (character)
-    {
-        char ctext[64];
-        snprintf(ctext, sizeof(ctext), "Personaggio: %s", character->name);
-        int ctw = UiTextW(ctext, font);
-        Rectangle cbox = { gameRect.x + 12.0f*uiScale, y, (float)ctw + 24.0f*uiScale, 26.0f*uiScale };
-        DrawRectangleRec(cbox, (Color){ 16, 18, 24, 190 });
-        DrawRectangleLinesEx(cbox, 1.5f, character->palette);
-        UiText(ctext, (int)cbox.x + UiRound(12.0f*uiScale), (int)cbox.y + UiRound(6.0f*uiScale), font, RAYWHITE);
-    }
+        DrawFloorZeroSummaryTag(x, y, rowH, TextFormat("Personaggio: %s", character->name), character->palette);
 }
 
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
@@ -5647,7 +5809,7 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
                chiuso, il pannello resta apribile anche dopo la scelta del
                mondo (requisito 1: il personaggio resta modificabile). */
             DrawFloorZeroPanel(game, UiCanvasW(), UiCanvasH());
-            DrawFloorZeroSummary(game, canvasLayout.gameRect, canvasLayout.uiScale);
+            DrawFloorZeroSummary(game, canvasLayout.gameRect);
             break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
@@ -5835,11 +5997,13 @@ bool UiLayoutSelfTest(void)
                 if (lite == 1 && mode != APP_EXIT_CONFIRM) continue;
                 bool light = (lite == 1);
                 Rectangle box = MenuBoxForModeFor(mode, sw, sh, light);
-                /* (e0) DEC-200: il riquadro sta dentro il CANVAS. E' la
-                   verifica nata con la migrazione: le quote degli overlay sono
-                   scritte nella griglia 1600x900 e riportate a 640x360 da
-                   UI_CANVAS_SCALE -- se qualcuno aggiungesse una riga a
-                   PauseMenu (il piu' alto, 560 di griglia) senza rifare i
+                /* (e0) DEC-200: il riquadro sta dentro il CANVAS. Verifica
+                   nata con la migrazione a griglia storica 1600x900*uiScale
+                   (ancora valida per RunResults e i tre contesti a schermo
+                   pieno di ExitConfirm); da WP-UI-3 copre anche i box propri
+                   in pixel di canvas di RunSetup/PauseMenu/Options/
+                   ExitConfirm-leggero (UI_PAUSE_MENU_H=270, il piu' alto dei
+                   quattro) -- se qualcuno aggiungesse una riga senza rifare i
                    conti, il pannello sfonderebbe il canvas invece di uscire
                    dalla finestra, che nessuno vedrebbe in un test. */
                 if (!UiRectInside(canvasRect, box))
@@ -5880,35 +6044,47 @@ bool UiLayoutSelfTest(void)
             }
         }
 
-        /* (g) WP22 (terza passata): le DUE geometrie di ExitConfirm restano
-           quelle che devono essere.
+        /* (g) WP22 (terza passata)/WP-UI-3/WP-UI-4: le DUE geometrie di
+           ExitConfirm restano quelle che devono essere.
            - a schermo pieno (i tre contesti che DEC-090 vuole invariati:
              abbandono dal Piano 0, abbandono di una run in corso, reroll di
-             DEC-114) il box e' quello STANDARD delle schermate ancora sulla
-             griglia storica -- si confronta con RunSetup, non piu' con
-             MainMenu: WP-UI-0 ha dato al MainMenu una geometria propria in
-             pixel di canvas, quindi "uguale a MainMenu" ha smesso di essere
-             la formulazione giusta dell'invariante (la sostanza no: la
-             seconda passata di WP22 aveva stretto ANCHE i tre contesti a
-             schermo pieno, e la domanda sconfinava dal pannello);
-           - nel dialogo leggero e' strettamente piu' stretto SIA dello
-             standard sia del riquadro del MainMenu che gli sta dietro, ed e'
-             quello a rendere possibile la "leggibilita' dietro" di DEC-090. */
+             DEC-114) il box resta quello della griglia storica (600*uiScale)
+             -- confrontato con un letterale CONGELATO, non piu' con
+             RunResults: da WP-UI-4 anche RunResults ha una geometria propria
+             in pixel di canvas (come gia' MainMenu/RunSetup/PauseMenu/
+             Options prima di lei), quindi ExitConfirm a schermo pieno resta
+             l'UNICO overlay su quella griglia e non ha piu' un secondo
+             chiamante con cui confrontarsi (la sostanza dell'invariante no:
+             resta "il box a schermo pieno di ExitConfirm non si e' mai
+             ristretto da solo" -- stessa filosofia del blocco (c) qui sotto,
+             tre riferimenti scritti a mano invece che ricalcolati con la
+             stessa formula della funzione sotto esame);
+           - il dialogo leggero deve restare piu' stretto del riquadro del
+             MainMenu che gli sta dietro (260 contro 340): e' quello a
+             rendere possibile la "leggibilita' dietro" di DEC-090, l'unico
+             requisito visivo reale. Il confronto col box a schermo pieno
+             (240, "standard") e' stato TOLTO da WP-UI-3: prima delle due
+             geometrie condividevano la stessa formula (un ternario
+             460/600*uiScale), quindi "piu' stretto dello standard" era un
+             modo indiretto di dire "il ramo giusto del ternario" -- da
+             WP-UI-3 il dialogo leggero ha una geometria propria misurata dal
+             mock (mock-exitconfirm.png, 260x148 canvas), indipendente da
+             quella a schermo pieno, e risulta piu' LARGA di 240: non e' una
+             regressione, il confronto non era mai la sostanza dell'invariante. */
         Rectangle mainBox = MenuBoxForModeFor(APP_MAIN_MENU, sw, sh, false);
-        Rectangle standardBox = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
         Rectangle exitFull = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, false);
         Rectangle exitLight = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, true);
-        if (fabsf(exitFull.width - standardBox.width) > UI_LAYOUT_TEST_EPS)
+        float legacyGridW = 600.0f*UI_CANVAS_SCALE;
+        if (fabsf(exitFull.width - legacyGridW) > UI_LAYOUT_TEST_EPS)
         {
-            fprintf(stderr, "UiLayoutSelfTest: (g) il box di ExitConfirm a schermo pieno (%.1f) non e' piu' quello standard (%.1f) -- i tre contesti a schermo pieno devono restare invariati (DEC-090)\n",
-                    exitFull.width, standardBox.width);
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box di ExitConfirm a schermo pieno (%.1f) non e' piu' quello della griglia storica (%.1f) -- i tre contesti a schermo pieno devono restare invariati (DEC-090)\n",
+                    exitFull.width, legacyGridW);
             return false;
         }
-        if (!(exitLight.width < exitFull.width - UI_LAYOUT_TEST_EPS) ||
-            !(exitLight.width < mainBox.width - UI_LAYOUT_TEST_EPS))
+        if (!(exitLight.width < mainBox.width - UI_LAYOUT_TEST_EPS))
         {
-            fprintf(stderr, "UiLayoutSelfTest: (g) il box del dialogo leggero ExitConfirm (%.1f) non e' piu' stretto sia dello standard (%.1f) sia del MainMenu (%.1f) (WP22, DEC-090)\n",
-                    exitLight.width, exitFull.width, mainBox.width);
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box del dialogo leggero ExitConfirm (%.1f) non e' piu' stretto del MainMenu (%.1f) (DEC-090: deve restare leggibile dietro)\n",
+                    exitLight.width, mainBox.width);
             return false;
         }
     }

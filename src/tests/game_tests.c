@@ -1962,7 +1962,7 @@ bool GameExitConfirmLightModalTest(Game *game)
        (RendererRunSetupModeLabelBand, la STESSA che il disegno usa) non
        deve contenere NESSUNA voce di menu -- RendererMenuItemAt deve
        rispondere -1 su tutta la fascia. Fallisce se la riga diventasse
-       selezionabile (una DrawMenuRow al posto della UiText: la fascia
+       selezionabile (una UiMenuRow al posto della UiText: la fascia
        coinciderebbe con una voce), e fallisce anche se la riga tornasse alla
        vecchia quota +142, dentro la fascia della voce "Seed" (110..150) --
        che era il difetto di posizione contestato dal giudice.
@@ -2596,6 +2596,20 @@ bool GameArtScreensScreenshotTest(Game *game)
                la stanza sarebbero quelli del piano 1 e lo scatto mostrerebbe
                una sala d'attesa vestita da stanza di combattimento. */
             game->floor = 0;
+            /* WP-UI-4: 'game' arriva qui da GameResetRun soltanto -- MAI da
+               FloorZeroEnter (questo binario non attraversa mai il Piano 0
+               vero) -- quindi game->themeCardCount resta 0 e la riga "Mondo:"
+               di DrawFloorZeroSummary si ometterebbe sempre (game->
+               themeChosenIndex < 0 dopo il fix in GameResetRunWithSeed, vedi
+               src/game/game.c). Lo scatto deve pero' mostrare un nome VERO
+               (requisito del reskin, non solo "niente riga vuota"): si
+               popola una carta col ripiego di gioco vero -- lo stesso
+               percorso che RunContentLoad usa in gioco quando la generazione
+               e' assente -- e la si sceglie, esattamente come farebbe il
+               giocatore in FloorZero prima di attraversare il varco. */
+            RunContentMakeFallbackThemeCards(4242u, game->themeCards, 1);
+            game->themeCardCount = 1;
+            game->themeChosenIndex = 0;
         }
         RendererDrawApp(game, canvas, shots[i].mode, &ui, true, &progress, path);
         game->floor = savedFloor;
@@ -8698,4 +8712,273 @@ bool GameFusionScreenshotTest(Game *game)
 
     UnloadRenderTexture(canvas);
     return textureValid;
+}
+
+/* WP-ASSET-3: scrive uno spritesheet SINTETICO di 'rowCount' righe, 16x16 per
+   fotogramma, un solo fotogramma a riga, ciascuna riempita di un colore
+   PIENO e distinto -- mai un originale di assets/art/: qui serve un colore
+   esatto e prevedibile per ogni riga (hit/attack/walk), che un disegno a
+   mano non garantirebbe. Vero errore solo se ExportImage fallisce (disco
+   pieno, percorso non scrivibile): non e' un caso che GameAtlasFallbackTest
+   protegge, li' serve invece un atlas SENZA celle utili. */
+static bool WriteSyntheticEnemySheet(const char *pngPath, const Color *rowColors, int rowCount)
+{
+    Image img = GenImageColor(16, 16*rowCount, BLANK);
+    for (int r = 0; r < rowCount; r++) ImageDrawRectangle(&img, 0, 16*r, 16, 16, rowColors[r]);
+    bool ok = ExportImage(img, pngPath);
+    UnloadImage(img);
+    return ok;
+}
+
+/* Ripulisce il fixture di GameEnemyAttackAnimTest: ArtAtlasSetTestDir(NULL)
+   PRIMA di tutto (come GameAtlasFallbackTest), cosi' nessuna voce di questi
+   sheet sintetici resta in cache per il resto di make test; poi i quattro
+   file e le due cartelle, innermost prima (rmdir vuole una cartella vuota).
+   Chiamata su OGNI via d'uscita della funzione sotto, successo o fallimento. */
+static void CleanupAttackAnimFixture(const char *root, const char *enemiesDir,
+                                     const char *jsonWith, const char *pngWith,
+                                     const char *jsonNo, const char *pngNo)
+{
+    ArtAtlasSetTestDir(NULL);
+    remove(jsonWith);
+    remove(pngWith);
+    remove(jsonNo);
+    remove(pngNo);
+    RemoveTempCatalogTestDir(enemiesDir);
+    RemoveTempCatalogTestDir(root);
+}
+
+/* Disegna un frame vero su 'canvas' e campiona il pixel dove ArtDrawFrame
+   ancora lo sprite del nemico -- lo stesso punto che DrawEnemySprite calcola
+   con SpriteGroundPos(e->pos, e->radius, 0.62f) (game_renderer.c, statica:
+   non richiamabile da qui, formula replicata). Qualunque riga lo sheet
+   sintetico disegni (hit/attack/walk hanno tutte lo stesso frame_w/frame_h e
+   lo stesso anchor), il rettangolo di destinazione e' lo STESSO: solo la
+   sorgente cambia riga. 'ground', quindi, cade sempre dentro il rettangolo
+   disegnato per costruzione (l'ancora del manifest, 8/14, sta dentro il
+   fotogramma 16x16), qualunque sia la scala scelta da EntitySpriteScale --
+   campionare esattamente li' non richiede indovinare ne' scala ne' offset.
+   Trasformazione mondo->immagine, DEC-200 (stessa formula di GameLayerTest/
+   GameAtlasFallbackTest qui sopra): schermo = mondo - cameraTarget + meta'
+   canvas, zoom 1; la Y va poi capovolta per leggere il framebuffer con
+   LoadImageFromTexture (riga 0 dell'immagine = fondo del canvas). */
+static Color SampleEnemyGroundPixel(Game *game, RenderTexture2D canvas, Vector2 enemyPos, float radius)
+{
+    RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
+    Vector2 ground = { enemyPos.x, enemyPos.y + radius*0.62f };
+    int imgX = (int)(ground.x - game->cameraTarget.x + (float)SCREEN_WIDTH*0.5f);
+    int imgY = SCREEN_HEIGHT - 1 - (int)(ground.y - game->cameraTarget.y + (float)SCREEN_HEIGHT*0.5f);
+    Image frame = LoadImageFromTexture(canvas.texture);
+    Color sampled = GetImageColor(frame, imgX, imgY);
+    UnloadImage(frame);
+    return sampled;
+}
+
+/* WP-ASSET-3: la catena hit->attack->walk/idle di DrawEnemySprite
+   (src/render/game_renderer.c) e il timer che la pilota (Enemy.attackAnimTimer
+   / ENEMY_ATTACK_ANIM_DURATION, core/game_types.h). Due parti:
+
+   1. RESA (Parte 1 sotto): due sheet sintetici con ArtAtlasSetTestDir, come
+      GameAtlasFallbackTest -- "con-attacco" (hit/attack/walk, replica dei
+      17/18 nemici censiti in assets/art/) e "senza-attacco" (solo hit/walk,
+      replica del solo goblin-di-slag, l'unico senza quella riga). Si
+      campiona il pixel vero dello sprite (SampleEnemyGroundPixel sopra) per
+      provare: attackAnimTimer>0 -> riga 'attack'; il timer esaurito -> si
+      ricade sulla camminata; hitFlash vince comunque su attackAnimTimer
+      quando sono aperti insieme (l'ordine dichiarato dal commento su
+      DrawEnemySprite); un nemico SENZA 'attack' nel manifest non crasha e
+      mostra la camminata (il fallback di ArtSheetAnim/ArtDrawAnim regge).
+
+   2. INNESCO (Parte 2 sotto): senza disegnare nulla, i punti REALI che
+      aprono la finestra in src/gameplay/combat.c -- CombatEnemyFire (un
+      nemico TIPIZZATO che spara, l'unica chiamata e' gia' filtrata su
+      fire!=NONE), il ramo storico SHOOTER/TANK, e il contatto col giocatore
+      (l'attacco "solo al contatto") -- e che CombatUpdateEnemies la consumi
+      nel tempo, stessa disciplina di slowTimer/hitFlash. */
+bool GameEnemyAttackAnimTest(Game *game)
+{
+    MakeDirectory("generated");
+    const char *root = "generated/wp-asset-3-attack-anim-test";
+    MakeDirectory(root);
+    char enemiesDir[300];
+    snprintf(enemiesDir, sizeof(enemiesDir), "%s/enemies", root);
+    MakeDirectory(enemiesDir);
+
+    char jsonWith[340], pngWith[340], jsonNo[340], pngNo[340];
+    snprintf(jsonWith, sizeof(jsonWith), "%s/con-attacco.json", enemiesDir);
+    snprintf(pngWith,  sizeof(pngWith),  "%s/con-attacco.png",  enemiesDir);
+    snprintf(jsonNo,   sizeof(jsonNo),   "%s/senza-attacco.json", enemiesDir);
+    snprintf(pngNo,    sizeof(pngNo),    "%s/senza-attacco.png",  enemiesDir);
+
+    /* Manifest ESATTAMENTE come li scrive la pipeline vera (una riga, nessuno
+       spazio superfluo -- stessa convenzione di ScenarioParseSpriteSheet,
+       art_atlas_tests.c). Righe: hit=0, attack=1, walk=2 (con), hit=0, walk=1
+       (senza). frames=1/fps=1 per hit/attack: qui non serve scorrere piu'
+       fotogrammi, solo provare QUALE riga viene scelta. */
+    const char *manifestWith =
+        "{\"frame_w\":16,\"frame_h\":16,\"anchor\":[8,14],\"anims\":{"
+        "\"hit\":{\"row\":0,\"frames\":1,\"fps\":1,\"loop\":false},"
+        "\"attack\":{\"row\":1,\"frames\":1,\"fps\":1,\"loop\":false},"
+        "\"walk\":{\"row\":2,\"frames\":1,\"fps\":8,\"loop\":true}}}";
+    const char *manifestNo =
+        "{\"frame_w\":16,\"frame_h\":16,\"anchor\":[8,14],\"anims\":{"
+        "\"hit\":{\"row\":0,\"frames\":1,\"fps\":1,\"loop\":false},"
+        "\"walk\":{\"row\":1,\"frames\":1,\"fps\":8,\"loop\":true}}}";
+
+    bool wrote = SaveFileText(jsonWith, manifestWith) && SaveFileText(jsonNo, manifestNo);
+    const Color kHit = RED, kAttack = MAGENTA, kWalk = LIME;
+    Color withColors[3] = { kHit, kAttack, kWalk };
+    Color noColors[2] = { kHit, kWalk };
+    wrote = wrote && WriteSyntheticEnemySheet(pngWith, withColors, 3);
+    wrote = wrote && WriteSyntheticEnemySheet(pngNo, noColors, 2);
+    if (!wrote)
+    {
+        fprintf(stderr, "GameEnemyAttackAnimTest: impossibile scrivere il fixture sintetico\n");
+        CleanupAttackAnimFixture(root, enemiesDir, jsonWith, pngWith, jsonNo, pngNo);
+        return false;
+    }
+
+    ArtAtlasSetTestDir(root);
+    if (!ArtAtlasGet("enemies/con-attacco") || !ArtAtlasGet("enemies/senza-attacco"))
+    {
+        fprintf(stderr, "GameEnemyAttackAnimTest: il fixture sintetico non si carica\n");
+        CleanupAttackAnimFixture(root, enemiesDir, jsonWith, pngWith, jsonNo, pngNo);
+        return false;
+    }
+
+    /* ===== Parte 1: RESA (pixel veri) ===== */
+    EntitiesClear(game);
+    game->cameraTarget = game->player.pos;   /* stessa scelta di GameLayerTest: trasformazione ESATTA, non indovinata */
+    Vector2 enemyPos = { game->player.pos.x + 60.0f, game->player.pos.y };
+    float radius = 15.0f;
+
+    Enemy *re = &game->enemies[0];
+    memset(re, 0, sizeof(*re));
+    re->active = true;
+    re->kind = ENEMY_CHASER;
+    re->pos = enemyPos;
+    re->radius = radius;
+    re->maxHp = re->hp = 20.0f;
+    snprintf(re->type.imageId, sizeof(re->type.imageId), "con-attacco");
+
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    /* 1a: attacco appena innescato (timer al massimo) -> riga 'attack'. */
+    re->hitFlash = 0.0f;
+    re->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
+    Color gotAttacking = SampleEnemyGroundPixel(game, canvas, enemyPos, radius);
+
+    /* 1b: timer esaurito (attacco finito) -> si ricade sulla camminata
+       (nessuna soglia sullo zero: '> 0.0f' e' esattamente cio' che
+       DrawEnemySprite controlla). */
+    re->attackAnimTimer = 0.0f;
+    Color gotAfterAttack = SampleEnemyGroundPixel(game, canvas, enemyPos, radius);
+
+    /* 1c: hit E attacco aperti insieme -> vince 'hit' (l'ordine dichiarato
+       dal commento su DrawEnemySprite: un colpo subito ADESSO e' piu'
+       urgente di un attacco gia' in corso). */
+    re->hitFlash = 0.12f;
+    re->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
+    Color gotHitWins = SampleEnemyGroundPixel(game, canvas, enemyPos, radius);
+
+    /* 1d: nemico SENZA 'attack' nel manifest (goblin-di-slag nella realta'):
+       il timer e' aperto ma ArtSheetAnim non trova la riga, ArtDrawAnim torna
+       false, la catena scende alla camminata -- MAI un crash. */
+    re->hitFlash = 0.0f;
+    re->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
+    snprintf(re->type.imageId, sizeof(re->type.imageId), "senza-attacco");
+    Color gotNoAttackTag = SampleEnemyGroundPixel(game, canvas, enemyPos, radius);
+    bool canvasSurvived = canvas.texture.id != 0;   /* se fosse andato in crash, non si arriverebbe qui */
+
+    UnloadRenderTexture(canvas);
+
+    /* Tolleranza generosa (vignette/DrawVignette puo' scurire leggermente i
+       bordi, vedi DrawGameplayCanvas): il punto e' distinguere RED/MAGENTA/
+       LIME fra loro, non un confronto a bit esatti. */
+    const int TOL = 60;
+    bool ok1 = ColorChannelDiff(gotAttacking, kAttack) <= TOL;
+    bool ok2 = ColorChannelDiff(gotAfterAttack, kWalk) <= TOL;
+    bool ok3 = ColorChannelDiff(gotHitWins, kHit) <= TOL;
+    bool ok4 = canvasSurvived && ColorChannelDiff(gotNoAttackTag, kWalk) <= TOL;
+    if (!ok1 || !ok2 || !ok3 || !ok4)
+    {
+        fprintf(stderr,
+                "GameEnemyAttackAnimTest: resa (1)=%d attacco=(%d,%d,%d) (2)=%d dopo=(%d,%d,%d) "
+                "(3)=%d hit-vince=(%d,%d,%d) (4)=%d senza-attacco=(%d,%d,%d)\n",
+                ok1, gotAttacking.r, gotAttacking.g, gotAttacking.b,
+                ok2, gotAfterAttack.r, gotAfterAttack.g, gotAfterAttack.b,
+                ok3, gotHitWins.r, gotHitWins.g, gotHitWins.b,
+                ok4, gotNoAttackTag.r, gotNoAttackTag.g, gotNoAttackTag.b);
+        CleanupAttackAnimFixture(root, enemiesDir, jsonWith, pngWith, jsonNo, pngNo);
+        return false;
+    }
+
+    /* ===== Parte 2: INNESCO (nessun disegno, solo lo stato del gameplay) ===== */
+    EntitiesClear(game);
+
+    /* 2a: CombatEnemyFire -- un nemico TIPIZZATO pronto a sparare (cooldown
+       gia' scaduto), lontano dal giocatore (nessun contatto a interferire).
+       L'unica chiamata a CombatEnemyFire e' gia' filtrata su fire!=NONE,
+       quindi basta un giro di CombatUpdateEnemies per attraversarla. */
+    EnemyTypeDef fireType; memset(&fireType, 0, sizeof(fireType));
+    fireType.active = true;
+    fireType.form = ENEMY_FORM_BLOB;
+    fireType.move = ENEMY_MOVE_CHASE;
+    fireType.fire = ENEMY_FIRE_SINGLE;
+    fireType.hpMul = 1.0f; fireType.speedMul = 1.0f; fireType.sizeMul = 1.0f;
+    fireType.fireRate = 3.0f;
+    fireType.pellets = 1;
+    EntitiesAddEnemyTyped(game, ENEMY_CHASER, (Vector2){ game->player.pos.x + 300.0f, game->player.pos.y }, &fireType);
+    Enemy *fireEnemy = &game->enemies[0];
+    fireEnemy->cooldown = 0.0f;
+    fireEnemy->attackAnimTimer = 0.0f;
+    CombatUpdateEnemies(game, 1.0f/60.0f);
+    bool firedOpened = fireEnemy->attackAnimTimer == ENEMY_ATTACK_ANIM_DURATION;
+
+    /* 2b: il ramo storico SHOOTER (non tipizzato: kind-based, come prima di
+       fase 3b), stesso schema. */
+    EntitiesClear(game);
+    EntitiesAddEnemy(game, ENEMY_SHOOTER, (Vector2){ game->player.pos.x + 300.0f, game->player.pos.y });
+    Enemy *shooterEnemy = &game->enemies[0];
+    shooterEnemy->cooldown = 0.0f;
+    shooterEnemy->attackAnimTimer = 0.0f;
+    CombatUpdateEnemies(game, 1.0f/60.0f);
+    bool shooterOpened = shooterEnemy->attackAnimTimer == ENEMY_ATTACK_ANIM_DURATION;
+
+    /* 2c: il contatto (l'attacco "solo al contatto" di ENEMY_FIRE_NONE, e
+       ogni nemico storico che tocca il giocatore): un inseguitore piazzato
+       ESATTAMENTE sul giocatore tocca per costruzione. */
+    EntitiesClear(game);
+    EntitiesAddEnemy(game, ENEMY_CHASER, game->player.pos);
+    Enemy *touchEnemy = &game->enemies[0];
+    touchEnemy->attackAnimTimer = 0.0f;
+    CombatUpdateEnemies(game, 1.0f/60.0f);
+    bool touchOpened = touchEnemy->attackAnimTimer == ENEMY_ATTACK_ANIM_DURATION;
+
+    /* 2d: consumo nel tempo -- stessa disciplina di hitFlash/slowTimer, un
+       solo posto (CombatUpdateEnemies) che decrementa. Nemico lontano e senza
+       fuoco: nessun altro innesco puo' riaprire la finestra mentre si
+       misura la sua chiusura. */
+    EntitiesClear(game);
+    EntitiesAddEnemy(game, ENEMY_CHASER, (Vector2){ game->player.pos.x + 500.0f, game->player.pos.y });
+    Enemy *decayEnemy = &game->enemies[0];
+    decayEnemy->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
+    float totalDt = 0.0f;
+    while (decayEnemy->attackAnimTimer > 0.0f && totalDt < 5.0f)
+    {
+        CombatUpdateEnemies(game, 0.05f);
+        totalDt += 0.05f;
+    }
+    bool decayed = decayEnemy->attackAnimTimer <= 0.0f && totalDt < 5.0f;
+
+    CleanupAttackAnimFixture(root, enemiesDir, jsonWith, pngWith, jsonNo, pngNo);
+
+    if (!firedOpened || !shooterOpened || !touchOpened || !decayed)
+    {
+        fprintf(stderr,
+                "GameEnemyAttackAnimTest: innesco fire=%d shooter=%d contatto=%d decadimento=%d (timer finale %.3f dopo %.2fs)\n",
+                firedOpened, shooterOpened, touchOpened, decayed, decayEnemy->attackAnimTimer, totalDt);
+        return false;
+    }
+    return true;
 }

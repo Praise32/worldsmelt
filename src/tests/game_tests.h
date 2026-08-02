@@ -388,4 +388,19 @@ bool GameSuspendTest(Game *game);
    temporanea, mai in prefs/. Vedi src/tests/prefs_tests.c. */
 bool GamePrefsTest(Game *game);
 
+/* WP-ASSET-3: la catena hit->attack->walk/idle di DrawEnemySprite
+   (src/render/game_renderer.c) e il timer che la pilota (Enemy.attackAnimTimer,
+   core/game_types.h, consumato da CombatUpdateEnemies come hitFlash). Due
+   sheet SINTETICI (mai gli originali di assets/art/, per un colore esatto e
+   prevedibile per riga) con ArtAtlasSetTestDir, come GameAtlasFallbackTest:
+   uno dichiara 'attack', l'altro no. Campiona pixel reali su una
+   RenderTexture2D (stessa tecnica di GameLayerTest) per provare che 'attack'
+   vince sulla camminata finche' il timer e' aperto e che, senza quella riga
+   nel manifest, la catena ricade sulla camminata SENZA crash. Verifica anche,
+   senza disegnare, che i punti reali che innescano l'attacco (CombatEnemyFire
+   per un nemico tipizzato, il ramo storico SHOOTER e il contatto col
+   giocatore) aprano davvero la finestra, e che CombatUpdateEnemies la
+   consumi nel tempo. Vedi src/tests/game_tests.c per i dettagli. */
+bool GameEnemyAttackAnimTest(Game *game);
+
 #endif

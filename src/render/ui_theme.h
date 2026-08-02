@@ -45,6 +45,9 @@ extern const Color UI_TITOLO;      /* oro-fuso: titoli e testo della voce a fuoc
 extern const Color UI_TESTO;       /* bianco-caldo: testo normale */
 extern const Color UI_SECONDARIO;  /* cenere-chiara: didascalie e note */
 extern const Color UI_MUTO;        /* cenere-scura: cio' che c'e' ma non chiede attenzione */
+extern const Color UI_HINT;        /* cenere: etichette dati e suggerimenti -- leggibile su UI_PANEL
+                                      (4.4:1), e' il tono dei mock approvati; UI_MUTO resta per cio'
+                                      che deve quasi sparire (versione, placeholder) */
 extern const Color UI_FOCUS;       /* fiamma: la barra del fuoco, e nient'altro */
 extern const Color UI_GLINT;       /* bagliore: punte di luce, evidenziazioni brevi */
 extern const Color UI_DIVISORE;    /* bronzo-scuro: filetti fra le sezioni */

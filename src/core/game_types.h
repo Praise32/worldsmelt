@@ -1236,6 +1236,22 @@ typedef struct FloorZeroTrialSnapshot {
     float messageTimer;
 } FloorZeroTrialSnapshot;
 
+/* WP-ASSET-3: durata (secondi) della riga 'attack' quando DrawEnemySprite la
+   mostra. Costante FISSA e non letta dal manifest -- src/gameplay non apre mai
+   un ArtSheet (stesso confine di EntitiesAddArtFx qui sopra: quel modulo
+   "non legge i manifest degli spritesheet", li legge src/assets/art_atlas.c),
+   quindi chi innesca l'attacco (combat.c) non puo' sapere quanti fotogrammi
+   abbia la riga 'attack' di QUESTO nemico. Censimento reale (assets/art/, WP-
+   ASSET-3): 17/18 nemici dichiarano 'attack' a 3 fotogrammi/9-10fps (~0.30-
+   0.33s), i 5/5 boss a 4 fotogrammi/8fps (0.5s esatti) -- e' il caso peggiore
+   che fissa questa costante, con lo stesso spirito "tetto generoso" del
+   commento sopra: un nemico piu' veloce tiene l'ultimo fotogramma qualche
+   decimo in piu' (innocuo, la riga non cicla), mai il contrario. Il renderer
+   deriva da qui il tempo trascorso per ArtDrawAnim (ENEMY_ATTACK_ANIM_DURATION
+   meno cio' che resta di Enemy.attackAnimTimer), MAI da GetTime(): stesso
+   determinismo del resto della catena hit/walk/idle. */
+#define ENEMY_ATTACK_ANIM_DURATION 0.5f
+
 typedef struct Enemy {
     bool active;
     /* EnemyKind resta, ma ora dice UNA COSA SOLA: se e' un boss (punteggio,
@@ -1278,6 +1294,16 @@ typedef struct Enemy {
        legge soltanto. Zero-default (nessun colpo in corso): un nemico azzerato
        con memset mostra la camminata di sempre. */
     float hitFlash;
+    /* WP-ASSET-3: secondi che restano alla riga 'attack' (sparo o contatto: i
+       punti reali sono CombatEnemyFire, i due rami storici SHOOTER/TANK/BOSS e
+       il contatto col giocatore, tutti in combat.c). Stessa disciplina di
+       hitFlash qui sopra: lo scrive SOLO chi fa eseguire l'attacco, lo consuma
+       il ciclo dei nemici (CombatUpdateEnemies, insieme a slowTimer/hitFlash),
+       il renderer lo legge soltanto. 'hit' vince comunque su 'attack' in
+       DrawEnemySprite -- un colpo subito ADESSO resta piu' urgente da
+       mostrare di un attacco gia' in corso. Zero-default: un nemico azzerato
+       con memset non attacca mai, mostra la camminata di sempre. */
+    float attackAnimTimer;
 } Enemy;
 
 typedef struct Shot {

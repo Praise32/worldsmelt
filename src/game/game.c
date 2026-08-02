@@ -217,6 +217,17 @@ void GameResetRunWithSeed(Game *game, unsigned int runSeed)
        sovrascrive questo campo SUBITO dopo la chiamata, quando davvero
        arriva da un attraversamento del Piano 0. */
     game->characterChosenIndex = -1;
+    /* WP-UI-4 (bug di reskin, non di gameplay: il campo non guidava ancora
+       nessun disegno prima di DrawFloorZeroSummary): stessa ragione della
+       riga sopra -- -1, MAI 0 (che il memset scriverebbe da solo e che
+       collide con "carta di tema 0 scelta", vedi core/game_types.h). Questa
+       funzione non passa mai dal Piano 0 vero (FloorZeroEnter la precede e
+       scrive gia' -1 lei stessa, ridondante ma innocuo), ma e' anche
+       l'UNICO reset che i binari *Test/showcase chiamano SENZA mai
+       attraversare FloorZeroEnter -- senza questa riga quei percorsi
+       vedevano "il mondo 0 e' scelto" con un ThemeCard vuoto (nome ""),
+       cioe' una riga "Mondo: " renderizzata VUOTA invece che omessa. */
+    game->themeChosenIndex = -1;
     ScriptItemsInit(game, NULL);   /* nessun personaggio applicato per costruzione, vedi sopra */
     WorldStartFloor(game, 1);
     /* WP16 (DEC-042): le prove specifiche della run si assegnano QUI, non in

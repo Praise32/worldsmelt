@@ -195,6 +195,7 @@ test: game
 	$(TEST_RUNNER) ./$(GAME_BIN) --layout-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --atlas-fallback-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --layer-test
+	$(TEST_RUNNER) ./$(GAME_BIN) --enemy-attack-anim-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --exit-confirm-light-modal-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --run-setup-mode-line-test
 	$(TEST_RUNNER) ./$(GAME_BIN) --shot-forms-screenshot-test

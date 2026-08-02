@@ -912,6 +912,13 @@ static Vector2 CombatEnemyMoveDir(Enemy *e, Vector2 dir, float dist, float dt)
 /* Il fuoco del nemico, secondo il suo modo di sparare. */
 static void CombatEnemyFire(Game *game, Enemy *e, Vector2 dir)
 {
+    /* WP-ASSET-3: l'unico punto in cui un nemico TIPIZZATO spara davvero
+       (l'unica chiamata e' in CombatUpdateEnemies, gia' filtrata su
+       'e->type.fire != ENEMY_FIRE_NONE'): qui si apre la finestra
+       dell'animazione 'attack', sullo stesso schema di 'hitFlash' sopra ma per
+       chi attacca invece di chi subisce. */
+    e->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
+
     float speed = 245.0f + 14.0f*(float)game->floor;
     float radius = e->type.boss ? 7.0f : 6.0f;
     Color color = e->type.boss ? game->theme.boss : game->theme.enemy;
@@ -971,6 +978,10 @@ void CombatUpdateEnemies(Game *game, float dt)
            ciclo che consuma slowTimer -- un solo posto in cui i timer di un
            nemico avanzano. */
         if (e->hitFlash > 0.0f) e->hitFlash -= dt;
+        /* WP-ASSET-3: stessa disciplina per la finestra di 'attack' -- un solo
+           posto in cui si CONSUMA, per non doverla ricordare a ogni punto che
+           la apre (CombatEnemyFire e i tre rami sotto). */
+        if (e->attackAnimTimer > 0.0f) e->attackAnimTimer -= dt;
 
         Vector2 move;
         if (e->type.active)
@@ -1045,6 +1056,7 @@ void CombatUpdateEnemies(Game *game, float dt)
         else if ((e->kind == ENEMY_SHOOTER || e->kind == ENEMY_TANK) && e->cooldown <= 0.0f)
         {
             EntitiesAddShot(game, false, e->pos, dir, 245.0f + 14.0f*(float)game->floor, 1.0f, 6.0f, 0, game->theme.enemy);
+            e->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;   /* WP-ASSET-3: nemico storico, stesso sparo di CombatEnemyFire */
             e->cooldown = e->kind == ENEMY_TANK ? 1.4f : 1.0f;
         }
         else if (e->kind == ENEMY_BOSS && e->cooldown <= 0.0f)
@@ -1055,6 +1067,7 @@ void CombatUpdateEnemies(Game *game, float dt)
                 float a = (float)s*PI_F*2.0f/(float)count + (float)GetTime()*0.22f;
                 EntitiesAddShot(game, false, e->pos, (Vector2){ cosf(a), sinf(a) }, 215.0f + 10.0f*(float)game->floor, 1.0f, 7.0f, 0, game->theme.boss);
             }
+            e->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;   /* WP-ASSET-3: una sola finestra 'attack' per l'intera raffica, non una per proiettile */
             if (game->floor == FLOOR_COUNT && GameRngRange(&game->rng, 0, 100) < 45)
             {
                 EntitiesAddEnemy(game, ENEMY_CHASER, EntitiesRandomRoomPosition(&game->rng, WorldCurrentRoomRect(game), 60.0f));
@@ -1075,6 +1088,12 @@ void CombatUpdateEnemies(Game *game, float dt)
                       : (e->kind == ENEMY_TANK ? "un corazzato" : "un inseguitore")));
             char cause[64];
             snprintf(cause, sizeof(cause), "contatto con %s", enemyName);
+            /* WP-ASSET-3: l'attacco a CONTATTO (il "fa danno solo al contatto"
+               di ENEMY_FIRE_NONE, e ogni nemico storico che tocca il
+               giocatore): nessun cooldown qui sopra, quindi si riarma a ogni
+               fotogramma di contatto -- corretto, il nemico sta attaccando
+               per tutta la durata del contatto, non per un singolo istante. */
+            e->attackAnimTimer = ENEMY_ATTACK_ANIM_DURATION;
             CombatDamagePlayer(game, 1, cause);
         }
     }

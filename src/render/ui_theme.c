@@ -12,6 +12,7 @@ const Color UI_TITOLO     = { 232, 183, 74, 255 };  /* oro-fuso */
 const Color UI_TESTO      = { 244, 242, 236, 255 }; /* bianco-caldo */
 const Color UI_SECONDARIO = { 167, 167, 181, 255 }; /* cenere-chiara */
 const Color UI_MUTO       = { 74, 74, 85, 255 };    /* cenere-scura */
+const Color UI_HINT = { 115, 115, 130, 255 };        /* cenere */
 const Color UI_FOCUS      = { 224, 91, 35, 255 };   /* fiamma */
 const Color UI_GLINT      = { 255, 196, 107, 255 }; /* bagliore */
 const Color UI_DIVISORE   = { 122, 74, 43, 255 };   /* bronzo-scuro */

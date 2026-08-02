@@ -2009,6 +2009,7 @@ int AppRun(int argc, char **argv)
     bool genTest = false;
     bool atlasFallbackTest = false;
     bool layerTest = false;
+    bool enemyAttackAnimTest = false;
     bool exitConfirmLightModalTest = false;
     bool runSetupModeLineTest = false;
     bool rarityScreenshotTest = false;
@@ -2133,6 +2134,14 @@ int AppRun(int argc, char **argv)
         {
             smokeTest = true;
             layerTest = true;
+        }
+        /* WP-ASSET-3: come --layer-test, ma per la catena hit/attack/walk di
+           DrawEnemySprite -- vedi GameEnemyAttackAnimTest in
+           src/tests/game_tests.c. */
+        if (strcmp(argv[i], "--enemy-attack-anim-test") == 0)
+        {
+            smokeTest = true;
+            enemyAttackAnimTest = true;
         }
         /* WP22 (DEC-090, gap G9 ui-cornice, seconda passata): come
            --layer-test, ma per ExitConfirm/MainMenu -- vedi
@@ -2809,6 +2818,14 @@ int AppRun(int argc, char **argv)
         GameUnloadAssets(&game);
         CloseWindow();
         return ok ? 0 : 11;
+    }
+    if (enemyAttackAnimTest)
+    {
+        bool ok = GameEnemyAttackAnimTest(&game);
+        printf("Enemy attack anim test: %s\n", ok ? "ok" : "failed");
+        GameUnloadAssets(&game);
+        CloseWindow();
+        return ok ? 0 : 48;   /* 48: il primo codice di uscita libero (l'ultimo era --suspend-test=47) */
     }
     if (exitConfirmLightModalTest)
     {
