@@ -170,11 +170,34 @@ Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
   domande aperte. Open questions rimangono 21 voci (numerate 1-11, 13-22; la 12 chiusa da
   DEC-176). La coda è pubblica in `docs/design/governance/open-questions.md`.
 
+## Rifacimento UI (mandato confermato dal proprietario, 02/08)
+
+Flusso concordato: mostro com'è → propongo → conferma → implemento, con screenshot
+reale di ogni schermata appena rivestita. Direzione APPROVATA (v2 del 02/08):
+**risoluzione interna 640×360** (esegue DEC-200), **palette 100% Fucina** (via il
+neon rosa/ciano/arancio), **pannelli tonali** (fill slag-scuro, bevel 2 toni
+slag-caldo sopra / slag-nero sotto, MAI cornici colorate 1px), **focus** = barra
+fiamma 4px + testo oro-fuso su riga slag-caldo, **font di gioco in due taglie**
+(5px base, ×2 per titoli/voci di menu/numeri HUD/riga PIANO — correzione
+esplicita del proprietario: "scritte tagliate e tutto troppo piccolo" riferita
+alla v1 a taglia singola). Mock di riferimento in scratchpad sessione
+(mock-mainmenu.png, mock-gameplay.png). Ordine: fondamenta+token → MainMenu →
+HUD → BuildScreen → RunResults → le altre. Scala agenti: WP-UI-0 (trasversale) a
+opus giudicato da Fable; reskin per-schermata a sonnet giudicati da opus.
+Screenshot: `bin/melting_run_gpu --art-screens-screenshot-test` → logs/worldsmelt-w8-*.png.
+PERSONAGGI CONGELATI (il proprietario non approva il metodo sprite attuale;
+charrig resta ma non si aggancia nulla senza suo ok). SFX bocciati, in coda.
+
 ## Prossimi passi
 
 1. **Playtest completo del proprietario** (`make run-demo`): i 5 archetipi speciali, prove
    della run, arene del Piano 0, sospensione/Continua, Crust, timer, i 3 personaggi
-   distinti. In sospeso per lui: il verdetto SFX (audio non toccato) e la sessione CP4 GUI.
+   distinti. Resta sua la sessione CP4 GUI (con mandato 640×360 da DEC-200).
+   **Verdetto SFX ARRIVATO (31/07 sera, ascolto remoto): BOCCIATI** — "meccanici ed
+   elettrici", troppo aggressivi ("earrape") in alcuni punti, e sospetti hook senza
+   suono dopo l'implementazione completa. IN CODA (dopo lo stile grafico): rifare la
+   famiglia SFX via pipeline DEC-109 + censimento degli hook audio scoperti; le
+   modifiche audio nel working tree restano non committate in attesa del remake.
 2. **Feedback → bilanciamento**: i valori sono default proposti (DEC-019 + open-questions
    3/28-58); il primo giro di tuning parte dal feedback del playtest.
 3. **Batch decisionale**: le open questions sono arrivate a ~58 voci, molte con default
