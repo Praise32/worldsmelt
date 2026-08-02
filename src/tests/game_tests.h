@@ -90,8 +90,10 @@ bool GameAtlasFallbackTest(Game *game);
 
 /* Personaggio a strati (src/render/item_layers.h): BuildItemLayers su un
    mix di oggetti costruito a mano (un layer per slot + uno slot in
-   overflow), poi lo stesso mix disegnato per davvero con RendererDrawApp.
-   Vedi src/tests/game_tests.c per i dettagli. */
+   overflow), il ramo sprite di DrawItemLayer (WP-ASSET-1: le 15 varianti di
+   assets/art/equip/ si caricano davvero, la scelta della variante e'
+   stabile per lo stesso nome), poi lo stesso mix disegnato per davvero con
+   RendererDrawApp. Vedi src/tests/game_tests.c per i dettagli. */
 bool GameLayerTest(Game *game);
 
 /* WP22 (DEC-090, gap G9 ui-cornice, seconda passata): ExitConfirm da

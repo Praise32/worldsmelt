@@ -1367,36 +1367,81 @@ bool GameAtlasFallbackTest(Game *game)
 }
 
 /* Il personaggio a strati (fase 3, vedi docs/engineering/specs/2026-07-13-
-   items-synergy-vision.md sezione 3, e src/render/item_layers.h). Due parti:
+   items-synergy-vision.md sezione 3, e src/render/item_layers.h). Tre parti:
 
    1. BuildItemLayers e' una funzione PURA (item_layers.c): la si esercita
       qui direttamente, con un array di Item costruito a mano, senza bisogno
       di Game* ne' di una finestra, per verificare (a) un layer per ciascuno
       dei sei slot e (b) il tetto per-slot con badge di overflow su uno slot
       sovraffollato (8 cappelli, oltre ITEM_LAYER_MAX_PER_SLOT = 6).
-   2. Il percorso vero, a schermo: lo stesso mix di oggetti finisce nel
+   2. WP-ASSET-1 (ramo sprite di DrawItemLayer): le 15 varianti di overlay
+      in assets/art/equip/ ci sono e si caricano davvero (ArtAtlasGet sulla
+      cartella di produzione, nessun ArtAtlasSetTestDir qui), e la scelta
+      della variante (ItemLayer.variantSeed) e' stabile per lo stesso nome
+      di oggetto -- vedi i due blocchi dopo il controllo dell'overflow.
+   3. Il percorso vero, a schermo: lo stesso mix di oggetti finisce nel
       Player VERO e RendererDrawApp disegna un frame completo su una
       RenderTexture. Come --atlas-fallback-test, l'unica cosa richiesta e'
       che non vada in crash e che produca un frame -- il rendering resta
       visivo, non e' questo il posto per predire pixel esatti di una dozzina
-      di layer sovrapposti. */
+      di layer sovrapposti (il proprietario guarda
+      logs/melting-run-layers-screen.png a occhio). */
 bool GameLayerTest(Game *game)
 {
+    /* Verdetto D4 (WP-ASSET-1, giro 2): nomi REALI e distinti, non piu' 13
+       Item con name vuoto -- FNV-1a("") e' sempre la stessa costante
+       (2166136261u, l'offset basis), quindi con name vuoto TUTTI gli oggetti
+       dello stesso slot sceglievano SEMPRE la stessa variante e il test di
+       determinismo sotto era tautologico (una copia di struct e' identica
+       anche senza che l'hash dipenda davvero dal nome). Gli otto nomi qui
+       sono scelti apposta (calcolati offline con lo stesso FNV-1a di
+       ItemLayerHashName, item_layers.c) perche' i loro hash mod 3 coprano
+       le tre varianti dello slot HAT (0,1,2 -> equip/hat_1/_2/_3), non solo
+       una. "Casco di Slag" e' anche il nome su cui e' asserito il valore
+       FNV-1a esatto piu' sotto: se ItemLayerHashName cambiasse algoritmo
+       (o tornasse a una costante), quell'assert lo direbbe subito. */
     Item items[13] = { 0 };
     int n = 0;
+    static const char *const hatNames[8] = {
+        "Casco di Slag", "Elmo di Cenere", "Cappuccio Bronzeo", "Corno di Brace",
+        "Tesa di Ardesia", "Cuffia di Fumo", "Punta di Terra", "Falda di Rame",
+    };
+    /* Verdetto D3: sei colori BEN distinti e saturi (fuori dalla palette
+       Fucina, desaturata, e da quella dell'HUD) per i sei cappelli che
+       diventano davvero un layer (il tetto e' 6, vedi ITEM_LAYER_MAX_PER_SLOT):
+       la Parte 2 piu' sotto conta i pixel di ciascun colore sullo screenshot
+       vero per dimostrare che l'accento di OGNI cappello impilato resta
+       visibile, non solo quello del cappello piu' in alto (la regressione
+       segnalata dal verdetto). I due nomi in eccesso (indici 6-7, oltre il
+       tetto) restano equipaggiati ma non producono un layer disegnato:
+       il loro colore non conta per quel conteggio. */
+    static const Color hatColors[8] = { RED, ORANGE, YELLOW, GREEN, BLUE, PURPLE, PINK, MAROON };
     for (int i = 0; i < 8; i++)
     {
         items[n].active = true;
         items[n].slot = SLOT_HAT;
-        items[n].color = RED;
+        items[n].color = hatColors[i];
+        snprintf(items[n].name, sizeof(items[n].name), "%s", hatNames[i]);
         n++;
     }
+    /* Verdetto R1 (giro 3): SKYBLUE, non BLUE -- BLUE e' hatColors[4]. Con lo
+       stesso colore su un cappello E sui cinque oggetti non-cappello, il
+       controllo D3 sotto (che cerca BLUE) veniva soddisfatto anche da un
+       pixel di uno di QUESTI cinque (es. l'accento di SLOT_HAND, che cade
+       proprio dentro la finestra di scansione del cappello, vedi il
+       commento sulla finestra piu' sotto): un guasto vero sull'accento del
+       cappello #4 poteva restare mascherato. Un colore fuori da entrambi i
+       set (hatColors E questo) rompe la collisione alla radice. */
     static const ItemSlot others[] = { SLOT_EYES, SLOT_HAND, SLOT_BACK, SLOT_BODY, SLOT_AURA };
+    static const char *const otherNames[5] = {
+        "Lente Gemella", "Manico Runico", "Manto Grigio", "Placca Sorda", "Scintilla Muta",
+    };
     for (int i = 0; i < 5; i++)
     {
         items[n].active = true;
         items[n].slot = others[i];
-        items[n].color = BLUE;
+        items[n].color = SKYBLUE;
+        snprintf(items[n].name, sizeof(items[n].name), "%s", otherNames[i]);
         n++;
     }
 
@@ -1451,19 +1496,245 @@ bool GameLayerTest(Game *game)
         return false;
     }
 
+    /* WP-ASSET-1: gli overlay sprite dei 6 slot visivi (assets/art/equip/,
+       generati da scripts/gen_equip_overlays.py) devono esistere ed essere
+       leggibili nel pacchetto vero -- questo test non chiama
+       ArtAtlasSetTestDir, quindi ArtAtlasGet legge la stessa assets/art/
+       che il gioco vero usa (come RendererDrawApp piu' sotto). Un asset
+       mancante non farebbe crashare il gioco (DrawItemLayer ricadrebbe
+       sulla forma geometrica, item_layers.c), ma deve far fallire QUESTO
+       test: il ramo sprite va provato, non solo il suo ripiego. */
+    static const char *const equipKeys[] = {
+        "equip/hat_1", "equip/hat_2", "equip/hat_3",
+        "equip/eyes_1", "equip/eyes_2", "equip/eyes_3",
+        "equip/hand_1", "equip/hand_2", "equip/hand_3",
+        "equip/back_1", "equip/back_2",
+        "equip/body_1", "equip/body_2",
+        "equip/aura_1", "equip/aura_2",
+    };
+    for (int i = 0; i < (int)(sizeof(equipKeys)/sizeof(equipKeys[0])); i++)
+    {
+        if (!ArtAtlasGet(equipKeys[i]))
+        {
+            fprintf(stderr, "GameLayerTest: overlay equip mancante o illeggibile: %s\n", equipKeys[i]);
+            return false;
+        }
+    }
+
+    /* Verdetto D4: il valore FNV-1a di "Casco di Slag" e' fisso (calcolato
+       offline con lo STESSO algoritmo di ItemLayerHashName -- offset basis
+       2166136261u, prime 16777619u, un XOR-poi-moltiplica per byte). layers[4]
+       e' il primo layer HAT (indice 4 nell'array: 4 layer di BODY/BACK/HAND/
+       EYES lo precedono, vedi expectedOrder sopra) cioe' items[0] nell'ordine
+       di raccolta. Se ItemLayerHashName cambiasse algoritmo -- o smettesse
+       di dipendere davvero dal nome, tornando a una costante come quando i
+       13 oggetti avevano tutti name vuoto -- questo assert lo direbbe
+       SUBITO, a differenza del solo controllo di determinismo sotto (due
+       copie identiche danno sempre lo stesso hash anche se l'hash fosse una
+       costante fissa: quel controllo da solo era tautologico). */
+    if (layers[4].variantSeed != 45667266u)
+    {
+        fprintf(stderr, "GameLayerTest: FNV-1a(\"Casco di Slag\") = %u, atteso 45667266\n", layers[4].variantSeed);
+        return false;
+    }
+    /* Due nomi DIVERSI sullo stesso slot devono poter cadere su varianti
+       DIVERSE (layers[5] e' "Elmo di Cenere", stackIndex 1): non e' garantito
+       per ogni coppia di nomi (il modulo puo' far collidere due hash), ma per
+       QUESTA coppia si', ed e' la prova che la scelta dipende davvero dal
+       nome e non e' un valore fisso che il test di determinismo qui sotto,
+       da solo, non potrebbe smascherare. */
+    if (layers[4].variantSeed % 3 == layers[5].variantSeed % 3)
+    {
+        fprintf(stderr, "GameLayerTest: \"Casco di Slag\" ed \"Elmo di Cenere\" cadono sulla stessa variante (%u)\n",
+                layers[4].variantSeed % 3);
+        return false;
+    }
+
+    /* La variante scelta per uno slot dipende SOLO dal nome dell'oggetto
+       (ItemLayer.variantSeed, item_layers.h/.c): due copie dello STESSO
+       oggetto nello STESSO slot devono scegliere la stessa variante sempre,
+       o il personaggio "sfarfallerebbe" fra due sprite diversi da un frame
+       all'altro per lo stesso oggetto (BuildItemLayers viene richiamata ogni
+       frame da DrawEquipment, game_renderer.c). Nome diverso da tutti quelli
+       sopra (non "Lente Gemella", gia' usato da items[8]): la duplicazione e'
+       lo scopo di QUESTO controllo, non un caso. */
+    Item twins[2] = { 0 };
+    twins[0].active = true;
+    twins[0].slot = SLOT_EYES;
+    twins[0].color = GREEN;
+    snprintf(twins[0].name, sizeof(twins[0].name), "Ampolla Duplicata");
+    twins[1] = twins[0];
+    ItemLayer twinLayers[2];
+    int twinCount = BuildItemLayers(twins, 2, twinLayers, 2);
+    if (twinCount != 2 || twinLayers[0].variantSeed != twinLayers[1].variantSeed)
+    {
+        fprintf(stderr, "GameLayerTest: due oggetti con lo stesso nome scelgono variantSeed diversi (%u vs %u)\n",
+                twinCount > 0 ? twinLayers[0].variantSeed : 0u, twinCount > 1 ? twinLayers[1].variantSeed : 0u);
+        return false;
+    }
+
     /* Parte 2: lo stesso mix sul Player vero, disegnato per davvero. Cattura
        anche uno screenshot di comodo (percorso SEPARATO da
        logs/melting-run-screen.png, che resta di --screenshot-test) cosi' il
        proprietario puo' vedere il personaggio a strati senza dover giocare
-       una run fino a raccogliere otto cappelli. */
+       una run fino a raccogliere otto cappelli.
+       'cameraTarget = player.pos' (non un pos forzato: il giocatore resta
+       dove il resto del test lo ha lasciato, cosi' lo screenshot per il
+       proprietario mostra ancora una stanza sensata) rimuove l'UNICA
+       incognita residua della trasformazione mondo->schermo (l'inseguimento
+       della telecamera ha un ritardo/smoothing, WorldCameraApproach in
+       world.c): con target e player allineati la trasformazione e' ESATTA e
+       nota (WorldGameCamera, stesso file: schermo = mondo - cameraTarget +
+       (SCREEN_WIDTH/2, SCREEN_HEIGHT/2), zoom sempre 1, DEC-170), quindi la
+       finestra di scansione D3 sotto si puo' CALCOLARE, non indovinare. */
     memset(game->player.items, 0, sizeof(game->player.items));
     for (int i = 0; i < n; i++) game->player.items[i] = items[i];
     game->player.itemCount = n;
+    game->player.radius = 14.0f;
+    game->cameraTarget = game->player.pos;
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, true, NULL, "logs/melting-run-layers-screen.png");   /* non deve andare in crash */
     bool textureValid = canvas.texture.id != 0;
+
+    /* Verdetto D3 (regressione) + R1 (giro 3, non falsificabile): coi 6
+       cappelli impilati, l'accento di OGNI cappello deve restare visibile --
+       prima la banda scelta per l'accento (vicina alla cima) finiva coperta
+       dal cappello successivo per 5 dei 6. Si conta, sullo screenshot VERO
+       appena disegnato, almeno un pixel di ciascuno dei sei colori saturi
+       assegnati sopra -- MA SOLO dentro la finestra della pila (R1): un
+       'cuore' o un'icona HUD qualunque (in riscrittura nello stesso tree,
+       nessuna garanzia sui suoi colori futuri) puo' condividere per
+       coincidenza uno dei sei colori, e un pixel fuori da questa finestra
+       non deve poter salvare un accento davvero rotto -- oltre al colore gia'
+       reso univoco fra cappelli e non-cappelli sopra (R1). Finestra in
+       coordinate di MONDO: x in anchors.hat.x +-16 (sprite largo 14 nativi *
+       scala 2 = 28, ancora al centro), y da 58 SOPRA a 12 SOTTO anchors.
+       hat.y (il cappello piu' alto, stackIndex5, arriva a -54; il piu'
+       basso, stackIndex0, scende a +8 -- vedi il commento su
+       EQUIP_HAT_SCALE in item_layers.c per il conto dello spostamento di
+       8*stackIndex e dell'ancora a riga7); qualche pixel di margine.
+       WorldCameraView (world.c) e' la stessa fonte pura che RendererDrawApp
+       usa per la Camera2D (gia' impiegata da GameAtlasFallbackTest sopra):
+       niente formula duplicata a mano. LoadImageFromTexture legge pero' il
+       framebuffer OpenGL grezzo, memorizzato CAPOVOLTO rispetto a come si e'
+       disegnato (stesso commento di GameAtlasFallbackTest, riga 0
+       dell'immagine = fondo del canvas): la Y va capovolta, la X no. Min/max
+       sui due estremi capovolti invece di assumere quale dei due resti il
+       piu' piccolo -- piu' robusto di doverlo ragionare a mano ogni volta. */
+    Rectangle mainView = WorldCameraView(game);
+    PlayerAnchors mainAnchors = PlayerComputeAnchors(game->player.pos, game->player.radius);
+    int winX0 = (int)(mainAnchors.hat.x - 16.0f - mainView.x);
+    int winX1 = (int)(mainAnchors.hat.x + 16.0f - mainView.x);
+    int imgYTop = (int)((float)SCREEN_HEIGHT - 1.0f - (mainAnchors.hat.y - 58.0f - mainView.y));
+    int imgYBottom = (int)((float)SCREEN_HEIGHT - 1.0f - (mainAnchors.hat.y + 12.0f - mainView.y));
+    int winY0 = (imgYTop < imgYBottom) ? imgYTop : imgYBottom;
+    int winY1 = ((imgYTop > imgYBottom) ? imgYTop : imgYBottom) + 1;
+    Image shot = LoadImageFromTexture(canvas.texture);
+    bool accentColorFound[6] = { false, false, false, false, false, false };
+    for (int y = winY0; y < winY1 && y < shot.height; y++)
+    {
+        if (y < 0) continue;
+        for (int x = winX0; x < winX1 && x < shot.width; x++)
+        {
+            if (x < 0) continue;
+            Color px = GetImageColor(shot, x, y);
+            for (int c = 0; c < 6; c++)
+            {
+                if (!accentColorFound[c] && ColorChannelDiff(px, hatColors[c]) < 15) accentColorFound[c] = true;
+            }
+        }
+    }
+    UnloadImage(shot);
     UnloadRenderTexture(canvas);
+
+    for (int c = 0; c < 6; c++)
+    {
+        if (!accentColorFound[c])
+        {
+            fprintf(stderr, "GameLayerTest: l'accento del cappello #%d (colore indice %d) non e' visibile nella finestra della pila [%d,%d)x[%d,%d)\n",
+                    c, c, winX0, winX1, winY0, winY1);
+            return false;
+        }
+    }
+
+    /* Verdetto N1 (giro 3): sonda specchiata sullo slot mano, le 3 varianti
+       in ENTRAMBI i flip (6 combinazioni). Scena DEDICATA (non le 13 voci
+       sopra): con solo la coppia stackIndex 0/1 per rendering (stesso nome
+       -> stessa variante, stackIndex0 pari -> non specchiato, stackIndex1
+       dispari -> specchiato) non c'e' rischio che una seconda coppia
+       impilata copra l'accento della prima (lo stesso problema di fondo del
+       verdetto D3, qui evitato invece che dimostrato: SLOT_HAND non ha una
+       banda "sempre scoperta" come l'orlo del cappello). Player in (0,0) e
+       telecamera agganciata li': con la trasformazione ESATTA del commento
+       sopra si PREDICE il pixel dell'accento invece di cercarlo alla cieca,
+       la sola verifica che risponde davvero a "verifica accento su sagoma"
+       (un'esistenza sola, come sopra per D3, non basta: un accento che galleggia
+       FUORI sagoma ha comunque il colore giusto, solo nel posto sbagliato). */
+    static const char *const handProbeNames[3] = { "Impugnatura Fredda", "Manico di Slag", "Asta Spenta" };
+    RenderTexture2D probeCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    for (int v = 0; v < 3; v++)
+    {
+        Item probe[2] = { 0 };
+        probe[0].active = true;
+        probe[0].slot = SLOT_HAND;
+        probe[0].color = RED;
+        snprintf(probe[0].name, sizeof(probe[0].name), "%s", handProbeNames[v]);
+        probe[1] = probe[0];
+        probe[1].color = GREEN;
+
+        memset(game->player.items, 0, sizeof(game->player.items));
+        game->player.items[0] = probe[0];
+        game->player.items[1] = probe[1];
+        game->player.itemCount = 2;
+        game->player.pos = (Vector2){ 0.0f, 0.0f };
+        game->player.radius = 14.0f;
+        game->cameraTarget = game->player.pos;
+
+        RendererDrawApp(game, probeCanvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
+        Image probeShot = LoadImageFromTexture(probeCanvas.texture);
+        PlayerAnchors probeAnchors = PlayerComputeAnchors(game->player.pos, game->player.radius);
+        Rectangle probeView = WorldCameraView(game);
+
+        for (int flip = 0; flip < 2; flip++)
+        {
+            float side = flip ? -1.0f : 1.0f;
+            /* Stesse formule di SLOT_HAND in item_layers.c (DrawItemLayer):
+               posizione, poi l'accento a (dxNative,-11) nativi scalati
+               EQUIP_HAND_SCALE=2.0 -- dxNative -1.0f SOLO se specchiato,
+               verdetto N1 (vedi il commento su EQUIP_HAND_SCALE in
+               item_layers.c per la derivazione: con l'ancora in colonna 5 di
+               un frame largo 10, lo specchio non e' simmetrico attorno a
+               quella colonna, e senza il -1 l'accento cadeva sulla colonna 4,
+               vuota in hand_2/hand_3). stackIndex sempre 0 o 1 qui
+               (stackIndex/2 == 0): nessuno scarto verticale di coppia. */
+            Vector2 posWorld = { probeAnchors.hand.x + side*13.0f, probeAnchors.hand.y };
+            float dxNative = flip ? -1.0f : 0.0f;
+            const float dyNative = -11.0f, handScale = 2.0f, sizeNative = 1.0f;
+            Vector2 accentTopLeft = { posWorld.x + dxNative*handScale, posWorld.y + dyNative*handScale };
+            Vector2 accentCenter = { accentTopLeft.x + sizeNative*handScale*0.5f, accentTopLeft.y + sizeNative*handScale*0.5f };
+            /* Stessa Y capovolta di R1 sopra (LoadImageFromTexture legge il
+               framebuffer OpenGL grezzo, riga 0 = fondo del canvas): senza
+               questo la sonda campionava il pixel SBAGLIATO e falliva anche
+               a fix corretto -- scoperto misurando lo screenshot vero, non
+               ragionandoci soltanto (la stessa disciplina che il verdetto N1
+               chiede al codice di produzione). */
+            int sx = (int)(accentCenter.x - probeView.x);
+            int sy = (int)((float)SCREEN_HEIGHT - 1.0f - (accentCenter.y - probeView.y));
+            Color expected = flip ? GREEN : RED;
+            Color got = GetImageColor(probeShot, sx, sy);
+            if (ColorChannelDiff(got, expected) >= 15)
+            {
+                fprintf(stderr, "GameLayerTest: sonda N1 mano \"%s\" flip=%d: pixel (%d,%d) e' (%d,%d,%d), atteso vicino a (%d,%d,%d) -- accento fuori sagoma\n",
+                        handProbeNames[v], flip, sx, sy, got.r, got.g, got.b, expected.r, expected.g, expected.b);
+                UnloadImage(probeShot);
+                UnloadRenderTexture(probeCanvas);
+                return false;
+            }
+        }
+        UnloadImage(probeShot);
+    }
+    UnloadRenderTexture(probeCanvas);
 
     return textureValid;
 }

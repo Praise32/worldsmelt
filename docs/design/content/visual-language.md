@@ -246,6 +246,14 @@ copertura della palette (DEC-173).
 
 ## Slot visivi degli oggetti sul personaggio (DEC-049)
 
+> Stato implementazione (03/08/2026, night run): i 6 slot disegnano **overlay
+> sprite** (`assets/art/equip/`, 2-3 varianti neutre per slot scelte
+> deterministicamente dal nome dell'oggetto) con il colore dell'oggetto
+> confinato a un **accento di 1-2 pixel dedicati** (mai tint globale,
+> DEC-199) e ripiego geometrico invariato se l'asset manca. Nota aperta:
+> gli slot corpo e schiena restano dietro lo sprite base opaco (ordine di
+> disegno del renderer) — in coda al rifacimento UI.
+
 Gli oggetti equipaggiati si sovrappongono al personaggio attraverso **6 slot visivi** fissi.
 Questi slot si applicano identicamente a **tutti** i personaggi, indipendentemente
 dall'origine del loro sprite: sia ai personaggi della rosa base, con sprite pixel art curati

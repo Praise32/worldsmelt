@@ -6,13 +6,13 @@
 /* Il personaggio a strati (vision doc, docs/engineering/specs/2026-07-13-
    items-synergy-vision.md, sezione 3; APPUNTI.md sezioni 4 e 6): la base e'
    uno stickman minimale e FISSO (vedi DrawPlayer in game_renderer.c), e ogni
-   oggetto equipaggiato aggiunge un layer geometrico sopra di essa, ancorato
-   a uno slot fisso (testa, occhi, mano, schiena, corpo, aura). Questo file
-   e' il modello pluggable del layer: PURO (BuildItemLayers non tocca lo
-   schermo, non alloca, non dipende da Game), cosi' e' testabile da solo e
-   pronto ad accogliere sprite generati al posto della forma geometrica senza
-   che il resto del motore se ne accorga (vedi il commento su ItemLayer
-   sotto). */
+   oggetto equipaggiato aggiunge un layer sopra di essa, ancorato a uno slot
+   fisso (testa, occhi, mano, schiena, corpo, aura). Questo file e' il
+   modello pluggable del layer: PURO (BuildItemLayers non tocca lo schermo,
+   non alloca, non dipende da Game), cosi' e' testabile da solo e -- da
+   WP-ASSET-1 -- disegnato con un overlay sprite quando l'asset e' presente,
+   con la forma geometrica di sempre come ripiego (vedi il commento su
+   ItemLayer sotto). */
 
 /* Quanti oggetti nello STESSO slot ottengono un layer disegnato per davvero.
    Oltre questo tetto l'oggetto resta pienamente funzionante (i suoi trait e
@@ -51,21 +51,28 @@ typedef struct PlayerAnchors {
 
 PlayerAnchors PlayerComputeAnchors(Vector2 pos, float radius);
 
-/* Cosa disegna un oggetto equipaggiato al suo slot. OGGI: una forma
-   geometrica tinta del colore dell'oggetto (vedi DrawItemLayer in
-   item_layers.c) -- esattamente cio' che il gioco gia' faceva prima di
-   questo refactor, solo riorganizzato. DOMANI: quando arriveranno gli
-   sprite 128x128 generati per oggetto (vision doc, sezione 3), questo
-   struct guadagnera' un handle Texture2D/cella d'atlas e DrawItemLayer
-   scegliera' lo sprite quando presente, la forma quando no -- un cambio
-   confinato a UNA funzione (DrawItemLayer), mai al resto del motore
-   (BuildItemLayers, l'ordine degli slot, gli agganci) che non deve sapere
-   da dove viene un layer. */
+/* Cosa disegna un oggetto equipaggiato al suo slot. WP-ASSET-1: DrawItemLayer
+   (item_layers.c) prova prima un overlay sprite generico in assets/art/equip/
+   (2-3 varianti per slot, MAI legate a un oggetto specifico -- vedi
+   scripts/gen_equip_overlays.py) e ricade sulla forma geometrica di sempre
+   solo quando l'asset manca (checkout parziale, degrado standard). Il
+   cambio e' rimasto confinato a UNA funzione (DrawItemLayer), come promesso
+   qui sotto: BuildItemLayers, l'ordine degli slot e gli agganci non sanno da
+   dove viene un layer. */
 typedef struct ItemLayer {
     ItemSlot slot;
     Color color;
     int stackIndex;   /* posizione 0-based fra i layer con lo stesso slot, nell'ordine di raccolta */
     int stackTotal;    /* quanti oggetti occupano DAVVERO questo slot (puo' superare ITEM_LAYER_MAX_PER_SLOT) */
+    /* Hash FNV-1a del nome dell'oggetto (BuildItemLayers, item_layers.c):
+       sceglie DETERMINISTICAMENTE quale delle 2-3 varianti sprite dello slot
+       disegnare (variantSeed % numero varianti dello slot). Per NOME, non
+       per istanza: due copie dello stesso oggetto nello stesso slot mostrano
+       sempre la stessa variante, e la stessa run rigenerata con lo stesso
+       seed produce lo stesso personaggio a schermo -- nessun dado ad ogni
+       frame. Non e' un colore ne' un ID di inventario: sceglie solo la
+       "faccia" grafica fra le varianti generiche dello slot. */
+    unsigned int variantSeed;
 } ItemLayer;
 
 /* Costruisce, in ORDINE DI DISEGNO fisso (corpo, mantello, mano, occhi,
@@ -81,12 +88,15 @@ typedef struct ItemLayer {
    scritti in out (mai piu' di outCapacity). */
 int BuildItemLayers(const Item *items, int itemCount, ItemLayer *out, int outCapacity);
 
-/* L'UNICA funzione che disegna un layer sullo schermo. Oggi: interruttore
-   sullo slot, forma geometrica bespoke (la stessa che il gioco aveva prima
-   del refactor), tinta di layer.color, posizionata rispetto ad anchors e
-   layer.stackIndex. Se layer.stackTotal supera ITEM_LAYER_MAX_PER_SLOT e
-   questo e' l'ultimo layer visibile dello slot, disegna anche un piccolo
-   "+N" (vedi il commento sulla costante sopra). */
+/* L'UNICA funzione che disegna un layer sullo schermo. Interruttore sullo
+   slot: prova un overlay sprite neutro (assets/art/equip/, variante scelta
+   da layer.variantSeed) con un piccolo accento di layer.color sovrapposto
+   (MAI un tint dell'intero sprite, DEC-199), posizionato rispetto ad anchors
+   e layer.stackIndex; se l'asset manca ricade sulla forma geometrica bespoke
+   tinta di layer.color che il gioco aveva prima di WP-ASSET-1. Se
+   layer.stackTotal supera ITEM_LAYER_MAX_PER_SLOT e questo e' l'ultimo layer
+   visibile dello slot, disegna anche un piccolo "+N" (vedi il commento sulla
+   costante sopra), sempre allo stesso modo indipendentemente dal ramo. */
 void DrawItemLayer(PlayerAnchors anchors, ItemLayer layer);
 
 /* Vero se lo slot va disegnato PRIMA della base (dietro di essa): corpo e
