@@ -16,6 +16,7 @@
 #include "gameplay/item_pool.h"
 #include "gameplay/item_slots.h"
 #include "gameplay/item_traits.h"
+#include "gameplay/synergies.h"
 #include "render/game_renderer.h"
 #include "render/item_layers.h"
 #include "script/script_api.h"
@@ -8656,6 +8657,45 @@ bool GameFusionScreenshotTest(Game *game)
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     RendererDrawApp(game, canvas, APP_BUILD_SCREEN, &ui, true, NULL, "logs/worldsmelt-fusion-screen.png");
     bool textureValid = canvas.texture.id != 0;
+
+    /* WP-UI-2 correzione (verifier opus, B1): stesso riquadro, ma con TUTTE e
+       sei le sinergie di synergies.h forzate attive -- le regole non sono
+       mutuamente esclusive e MAX_ITEMS e' 18, quindi una run vera puo'
+       davvero arrivarci. Non e' una combinazione di oggetti reale (le sei
+       regole condizionano su tratti/tipi di colpo diversi, costruirla per
+       davvero non aggiungerebbe nulla a QUESTO scatto, che verifica solo il
+       layout della fascia tag di DrawBuildScreenOverlay): 'synergies' si
+       scrive a mano dopo ScriptItemsProcessDirty, che lo avrebbe comunque
+       ricalcolato da zero al primo ricalcolo delle statistiche -- innocuo qui
+       perche' lo scatto non ne fa scattare uno. */
+    if (textureValid)
+    {
+        game->player.synergies = (1u << SYNERGY_COUNT) - 1u;
+        RendererDrawApp(game, canvas, APP_BUILD_SCREEN, &ui, true, NULL, "logs/worldsmelt-fusion-synergies-screen.png");
+        textureValid = canvas.texture.id != 0;
+    }
+
+    /* WP-UI-2 correzione (verifier opus, B3): il ripiego della card di
+       risultato quando il lookup per nome fallisce -- 'fusionResultName' non
+       viene mai azzerato da AppFusionConfirm (src/app/app.c), quindi resta il
+       messaggio dell'ULTIMA fusione anche dopo che quell'oggetto e' uscito
+       da Player.items[] (es. un Innesto fuso e poi sganciato con [G]). Si
+       simula qui il caso piu' semplice che produce lo STESSO percorso di
+       codice (lookup che non trova nessun nome uguale in items[]), senza
+       montare l'intera catena fondi-Innesto/sgancia-con-G: un nome che
+       nell'inventario del banco sopra non esiste proprio. */
+    if (textureValid)
+    {
+        AppUi fallbackUi = ui;
+        snprintf(fallbackUi.fusionResultName, sizeof(fallbackUi.fusionResultName), "%s", "Radice Sganciata");
+        snprintf(fallbackUi.fusionMessage, sizeof(fallbackUi.fusionMessage), "%s",
+                 "Fuso: Radice Sganciata (da Manico Torto + Lente Rotta).");
+        fallbackUi.fusionResultImage[0] = '\0';
+        fallbackUi.fusionResultImageId[0] = '\0';
+        RendererDrawApp(game, canvas, APP_BUILD_SCREEN, &fallbackUi, true, NULL, "logs/worldsmelt-fusion-fallback-screen.png");
+        textureValid = canvas.texture.id != 0;
+    }
+
     UnloadRenderTexture(canvas);
     return textureValid;
 }

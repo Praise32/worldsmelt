@@ -2265,15 +2265,17 @@ static void TraitsToText(unsigned int traits, char *out, int outSize)
     if (!out[0]) snprintf(out, outSize, "nessuno");
 }
 
-static void DrawStatLine(const char *label, const char *value, int x, int y, Color color, float uiScale)
+/* WP-UI-2: riga statistica del pannello PERSONAGGIO di BuildScreen --
+   etichetta UI_MUTO a sinistra, valore allineato a DESTRA su 'rightEdgeX'
+   (mock-buildscreen.png: "9.8"/"545"/"0.23S" finiscono tutti sullo stesso
+   bordo, non scivolano a seconda di quante cifre ha il numero). 'color'
+   resta un parametro invece di un token fisso solo per Fortuna, l'unica riga
+   col proprio significato "buono/cattivo" oltre al valore nudo (vedi il
+   chiamante, DrawBuildScreenOverlay). */
+static void DrawStatLine(const char *label, const char *value, int x, int rightEdgeX, int y, Color color)
 {
-    /* W8: due colonne allineate a mano invece di due GuiLabel -- raygui
-       resterebbe l'ultimo punto con una tipografia propria dentro una
-       schermata vestita coi componenti. Le due quote (0 e 118) sono quelle di
-       prima, moltiplicate per la scala come faceva il rettangolo di GuiLabel. */
-    int font = UiRound(14.0f*uiScale);
-    UiText(label, x, y, font, (Color){ 150, 158, 172, 255 });
-    UiText(value, x + UiRound(118.0f*uiScale), y, font, color);
+    UiTextAt(label, x, y, UI_TAGLIA_1, UI_MUTO);
+    UiTextAt(value, rightEdgeX - UiTextWidth(value, UI_TAGLIA_1), y, UI_TAGLIA_1, color);
 }
 
 /* DEC-184 (ui/hud.md, "Blocco statistiche"): le SEI righe -- danno, cadenza,
@@ -2497,58 +2499,129 @@ static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap)
     }
 }
 
-/* Ritorna true se il mouse e' sopra la riga (fase 4: per il tooltip). Il tooltip
-   VERO lo disegna il chiamante dopo tutti i pannelli, cosi' non finisce sotto la
-   riga successiva. */
-static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int width, bool owned, float uiScale)
+/* WP-UI-2: DrawText che non deborda, in pixel di canvas/TAGLIA_1/2 -- se
+   'text' e' piu' largo di 'maxWidth' lo taglia e chiude con "..". Sostituisce
+   la vecchia DrawTextClipped (in punti/UiText, la tipografia pre-token) per
+   ogni riga di BuildScreen/fusione col contenuto GENERATO (nome di un
+   oggetto, fino a 47 caratteri) dentro una larghezza fissa: il difetto noto
+   di playtest "NON-COMUNE sborda dal pannello" nasceva proprio da una riga
+   senza questa guardia. */
+static void UiTextClipped(const char *text, int x, int y, int taglia, Color color, int maxWidth)
 {
+    if (UiTextWidth(text, taglia) <= maxWidth) { UiTextAt(text, x, y, taglia, color); return; }
+    char head[160];
+    snprintf(head, sizeof(head), "%s", text);
+    for (int len = (int)strlen(head); len > 0; len--)
+    {
+        char probe[164];
+        head[len - 1] = '\0';
+        snprintf(probe, sizeof(probe), "%s..", head);
+        if (UiTextWidth(probe, taglia) <= maxWidth) { UiTextAt(probe, x, y, taglia, color); return; }
+    }
+    /* Nemmeno ".." ci starebbe: meglio non scrivere nulla che debordare. */
+}
+
+/* WP-UI-2: la fascia "a fuoco" -- riempimento UI_BEVEL_LUCE piu' barra
+   UI_FOCUS di 4px a sinistra -- e' lo stesso linguaggio di UiMenuRow
+   (ui_theme.c), ma senza IL SUO testo/freccia: la riusano sia la riga a
+   fuoco della lista OGGETTI PRESI sia lo slot di fusione RIEMPITO
+   (mock-fusion.png: "1. MANICO TORTO" ha la stessa fascia di un oggetto a
+   fuoco). Un'unica fonte del disegno, cosi' le due schermate non divergono
+   al primo ritocco. */
+static void DrawFocusBand(Rectangle row)
+{
+    DrawRectangleRec(row, UI_BEVEL_LUCE);
+    DrawRectangle((int)row.x, (int)row.y, 4, (int)row.height, UI_FOCUS);
+}
+
+/* WP-UI-2: la riga di un oggetto POSSEDUTO nella lista OGGETTI PRESI
+   (mock-buildscreen.png) -- due righe (nome; poi slot-tratti e rarita' a
+   destra), SEMPRE col pallino di rarita' davanti al nome (DEC-058: il
+   pallino non e' mai l'unico segnale, il testo "RARO"/"NONCOMUNE"/... nello
+   stesso UiRarityTint sta comunque a destra). La riga a fuoco
+   (ui->buildItemFocus) prende in piu' DrawFocusBand -- niente piu' badge
+   "1"/"2" di fusione qui: nei due mock la selezione delle sorgenti si legge
+   SOLO dagli slot della fascia FUSIONE sotto, non ripetuta anche in lista
+   (meno righe, ui/inventory-and-synergy-screen.md). Ogni riga chiude con UN
+   filetto UI_DIVISORE in fondo, a fuoco o no (nel mock la fascia del fuoco
+   ha comunque il proprio filetto: non si fonde con la riga sotto). Niente
+   icona/sprite (i due mock sono solo testo+pallino): un layer visivo in meno
+   da tenere sincronizzato con item_layers.c, che questo WP non tocca.
+   Ritorna vero se il mouse ci sta sopra: il tooltip lo disegna il chiamante,
+   per ultimo, sopra ogni pannello. */
+static bool DrawBuildItemRow(const Item *item, Rectangle row, bool focused)
+{
+    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
+    if (focused) DrawFocusBand(row);
+    else if (hover) DrawRectangleRec(row, GameColorWithAlpha(UI_BEVEL_LUCE, 130));
+
+    Color rarity = UiRarityTint(item->rarity);
+    int inset = focused ? 14 : 6;
+    /* Pallino centrato sulla riga del NOME (TAGLIA_1, che comincia a
+       'row.y+3'), non un'ordinata fissa: un valore indipendente dalla vera
+       altezza del glifo cade a cavallo fra riga 1 e riga 2 non appena
+       UiTextHeight cambia (correzione dallo stesso difetto trovato sulla
+       card di risultato, DrawFusionBand). */
+    DrawCircle((int)row.x + inset + 3, (int)row.y + 3 + UiTextHeight(UI_TAGLIA_1)/2, 3.0f, rarity);
+
+    int textX = (int)row.x + inset + 10;
+    int rightEdge = (int)(row.x + row.width) - inset;
+    UiTextClipped(item->name, textX, (int)row.y + 3, UI_TAGLIA_1, UI_TESTO, rightEdge - textX);
+
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
-    /* Bordo della riga = colore della rarita' (design doc, sezione 6: "si
-       vede col colore del bordo... nel pannello"), non piu' il colore
-       proprio dell'oggetto (item->color resta usato per il layer sul
-       personaggio e per la forma di riserva qui sotto -- solo il bordo del
-       PANNELLO passa alla rarita'). 2px invece di 1: leggibile anche a
-       sguardo veloce, senza diventare invadente sulle righe COMUNI/grigie. */
-    Color rarityColor = RarityColor(item->rarity);
-    /* M4: l'altezza scala con uiScale -- il chiamante (DrawOuterUi) usa lo
-       STESSO passo (64*uiScale) per la spaziatura fra righe, cosi' il margine
-       di 6px fra una riga e la successiva resta proporzionale invece di
-       sparire (o esplodere) quando la riga cresce. */
-    int fontName = UiRound(14.0f*uiScale);
-    int fontSlot = UiRound(12.0f*uiScale);
-    Rectangle row = { (float)x, (float)y, (float)width, 58.0f*uiScale };
-    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
-    DrawRectangleRec(row, hover ? (Color){ 40, 45, 56, 235 } : (owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 }));
-    DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
-    if (!DrawItemIcon(game, item, (Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, 36.0f*uiScale))
-    {
-        DrawItemShape((Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, *item, 12.0f*uiScale);
-    }
-    /* Se l'oggetto cambia il modo di sparare (step C), un puntino del colore del
-       colpo in coda al nome: si vede a colpo d'occhio quali oggetti danno un tipo
-       di colpo. */
-    if (item->shotType.active) DrawCircleV((Vector2){ x + 47.0f*uiScale, y + 15.0f*uiScale }, 4.0f*uiScale, item->color);
-    UiText(item->name, x + UiRound(55.0f*uiScale), y + UiRound(9.0f*uiScale), fontName, RAYWHITE);
-    /* Nome della rarita' in coda alla riga slot/traits, nel suo colore (design
-       doc, sezione 6: "...e col nome nel pannello"): due DrawText invece di
-       uno solo cosi' SOLO il nome della rarita' prende il suo colore, il
-       resto della riga resta nel grigio neutro gia' in uso. */
-    char slotTraits[200];
-    snprintf(slotTraits, sizeof(slotTraits), "%s  |  %s  |  ", SlotName(item->slot), traits);
-    int textX = x + UiRound(55.0f*uiScale);
-    int textY = y + UiRound(31.0f*uiScale);
-    UiText(slotTraits, textX, textY, fontSlot, (Color){ 190, 198, 211, 255 });
-    int rarityTextX = textX + UiTextW(slotTraits, fontSlot);
-    UiText(RarityName(item->rarity), rarityTextX, textY, fontSlot, rarityColor);
+    char slotLine[160];
+    snprintf(slotLine, sizeof(slotLine), "%s - %s", SlotName(item->slot), traits);
+    const char *rarityText = RarityName(item->rarity);
+    int rarityW = UiTextWidth(rarityText, UI_TAGLIA_1);
+    int subY = (int)row.y + 3 + UiTextHeight(UI_TAGLIA_1) + 4;
+    UiTextClipped(slotLine, textX, subY, UI_TAGLIA_1, UI_SECONDARIO, rightEdge - textX - rarityW - 8);
+    UiTextAt(rarityText, rightEdge - rarityW, subY, UI_TAGLIA_1, rarity);
+
+    UiDivider((int)row.x, (int)(row.y + row.height) - 1, (int)row.width);
     return hover;
 }
 
-/* Il tooltip di un oggetto (fase 4, richiesta dell'utente): passando il mouse su un
-   oggetto, una scheda con COSA FA -- slot, trait, rarita', e il tipo di colpo che
-   conferisce. Disegnato per ULTIMO (sopra tutto), ancorato vicino al mouse ma
-   tenuto dentro lo schermo. */
-static void DrawItemTooltip(const Item *item, float uiScale)
+/* WP-UI-2: la riga di un oggetto del PIANO (sezione OGGETTI DEL PIANO --
+   non ancora posseduto) -- UNA riga sola (nome a sinistra, slot-tratti a
+   destra), pallino UI_MUTO invece che di rarita': e' solo un'anteprima di
+   cosa il piano PUO' offrire, la rarita' non e' ancora il dato interessante
+   (i due mock lasciano questo pallino muto, a differenza di quello colorato
+   degli oggetti gia' posseduti sopra). Stesso filetto in fondo, stesso
+   ritorno hover del tooltip del chiamante. */
+static bool DrawFloorItemRow(const Item *item, Rectangle row)
+{
+    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
+    if (hover) DrawRectangleRec(row, GameColorWithAlpha(UI_BEVEL_LUCE, 90));
+
+    int dotY = (int)(row.y + row.height*0.5f);
+    DrawCircle((int)row.x + 9, dotY, 3.0f, UI_MUTO);
+
+    char traits[128];
+    TraitsToText(item->traits, traits, sizeof(traits));
+    char slotLine[160];
+    snprintf(slotLine, sizeof(slotLine), "%s - %s", SlotName(item->slot), traits);
+    int slotW = UiTextWidth(slotLine, UI_TAGLIA_1);
+    int rightEdge = (int)(row.x + row.width) - 4;
+    int textY = dotY - UiTextHeight(UI_TAGLIA_1)/2;
+    int nameX = (int)row.x + 18;
+
+    UiTextClipped(item->name, nameX, textY, UI_TAGLIA_1, UI_TESTO, rightEdge - nameX - slotW - 10);
+    UiTextAt(slotLine, rightEdge - slotW, textY, UI_TAGLIA_1, UI_SECONDARIO);
+
+    UiDivider((int)row.x, (int)(row.y + row.height) - 1, (int)row.width);
+    return hover;
+}
+
+/* Il tooltip di un oggetto: passando il mouse su una riga, una scheda con
+   COSA FA -- categoria/slot/rarita', tratti, e il tipo di colpo che
+   conferisce. Disegnato per ULTIMO (sopra tutto), ancorato vicino al mouse
+   ma tenuto dentro il canvas. WP-UI-2: UiPanel (bevel a due valori) al posto
+   del riquadro nero con bordo colorato dalla rarita' -- quel bordo era
+   esattamente la "cornice colorata" che DEC-205 vieta; la rarita' resta
+   leggibile dal pallino accanto al nome, come in ogni altra card di questa
+   schermata. */
+static void DrawItemTooltip(const Item *item)
 {
     char traits[128];
     TraitsToText(item->traits, traits, sizeof(traits));
@@ -2558,7 +2631,7 @@ static void DrawItemTooltip(const Item *item, float uiScale)
     /* La CATEGORIA in testa: con quattro categorie e due di esse legate a uno
        slot esclusivo (attivo, Innesto), sapere "che tipo di oggetto e'
        questo" viene prima di slot visivo e rarita'. */
-    snprintf(lines[n++], sizeof(lines[0]), "%s  -  %s  -  %s", ItemKindLabel(item->kind), SlotName(item->slot), RarityName(item->rarity));
+    snprintf(lines[n++], sizeof(lines[0]), "%s - %s - %s", ItemKindLabel(item->kind), SlotName(item->slot), RarityName(item->rarity));
     snprintf(lines[n++], sizeof(lines[0]), "Effetti: %s", traits);
     if (item->shotType.active)
         snprintf(lines[n++], sizeof(lines[0]), "Spari: %s (%s)", item->shotType.name, ShotFormName(item->shotType.form));
@@ -2574,25 +2647,30 @@ static void DrawItemTooltip(const Item *item, float uiScale)
     else if (item->kind == ITEM_GRAFT)
         snprintf(lines[n++], sizeof(lines[0]), "Innesto: [G] per sganciarlo a terra");
 
-    int titleFont = UiRound(16.0f*uiScale);
-    int lineFont = UiRound(13.0f*uiScale);
-    int w = UiTextW(item->name, titleFont);
-    for (int i = 0; i < n; i++) { int lw = UiTextW(lines[i], lineFont); if (lw > w) w = lw; }
-    w += UiRound(24.0f*uiScale);
-    int lineStep = UiRound(18.0f*uiScale);
-    int h = UiRound(30.0f*uiScale) + n*lineStep + UiRound(8.0f*uiScale);
+    int w = UiTextWidth(item->name, UI_TAGLIA_2) + 24;
+    for (int i = 0; i < n; i++) { int lw = UiTextWidth(lines[i], UI_TAGLIA_1) + 16; if (lw > w) w = lw; }
+    int lineStep = UiTextHeight(UI_TAGLIA_1) + 5;
+    int h = UiTextHeight(UI_TAGLIA_2) + 12 + n*lineStep + 6;
 
     Vector2 m = UiCanvasMouse();
-    float bx = m.x + 18.0f*uiScale;
-    float by = m.y + 8.0f*uiScale;
-    if (bx + w > UiCanvasW() - 6.0f) bx = m.x - (float)w - 8.0f*uiScale;
-    if (by + h > UiCanvasH() - 6.0f) by = UiCanvasH() - (float)h - 6.0f;
+    float bx = m.x + 14.0f;
+    float by = m.y + 8.0f;
+    if (bx + (float)w > UiCanvasW() - 4.0f) bx = m.x - (float)w - 8.0f;
+    if (by + (float)h > UiCanvasH() - 4.0f) by = UiCanvasH() - (float)h - 4.0f;
+    /* WP-UI-2 correzione (verifier opus, minore): il ribaltamento a sinistra
+       qui sopra puo' comunque uscire dal canvas quando il mouse e' vicino al
+       bordo sinistro E il tooltip e' largo (nome lungo) -- stesso margine di
+       4px usato per il bordo destro/basso. */
+    if (bx < 4.0f) bx = 4.0f;
 
-    DrawRectangleRec((Rectangle){ bx, by, (float)w, (float)h }, (Color){ 12, 14, 19, 245 });
-    DrawRectangleLinesEx((Rectangle){ bx, by, (float)w, (float)h }, 2.0f, GameColorWithAlpha(RarityColor(item->rarity), 230));
-    UiText(item->name, (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(8.0f*uiScale), titleFont, RAYWHITE);
+    UiPanel((Rectangle){ bx, by, (float)w, (float)h });
+    Color rarity = UiRarityTint(item->rarity);
+    /* Pallino centrato sulla riga del NOME (TAGLIA_2), non un'ordinata fissa:
+       stessa correzione di DrawFusionBand piu' sotto, stesso motivo. */
+    DrawCircle((int)bx + 11, (int)by + 6 + UiTextHeight(UI_TAGLIA_2)/2, 3.0f, rarity);
+    UiTextAt(item->name, (int)bx + 20, (int)by + 6, UI_TAGLIA_2, UI_TITOLO);
     for (int i = 0; i < n; i++)
-        UiText(lines[i], (int)bx + UiRound(12.0f*uiScale), (int)by + UiRound(30.0f*uiScale) + i*lineStep, lineFont, (Color){ 198, 205, 217, 255 });
+        UiTextAt(lines[i], (int)bx + 8, (int)by + UiTextHeight(UI_TAGLIA_2) + 12 + i*lineStep, UI_TAGLIA_1, UI_SECONDARIO);
 }
 
 /* Il blocco BUILD (fase 4, richiesta dell'utente: "sinergie/colpo piu' in vista").
@@ -3487,12 +3565,50 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    testo delle voci, che ha il proprio rientro dentro la fascia. */
 #define UI_MAIN_MENU_PAD 14.0f
 
+/* ============================================================
+   WP-UI-2: BuildScreen e la fascia FUSIONE, in pixel di canvas VERI, come
+   MainMenu (WP-UI-0) e l'HUD (WP-UI-1) prima di questa. I numeri vengono dai
+   due mock approvati dal proprietario (mock-buildscreen.png/mock-fusion.png,
+   1280x720 = 2x il canvas), misurati e divisi per due -- non piu' la griglia
+   1600x900 riportata a 640x360 da UI_CANVAS_SCALE (DrawBuildBlock/DrawHearts,
+   condivise col ripiego HUD/PauseMenu, RESTANO su quella griglia: sono
+   chiamate qui sotto per posizione, mai riscritte).
+   Un solo pannello a schermo pieno (non piu' il riquadro centrato piccolo di
+   prima) con due colonne separate da UN pixel di canvas in UI_BEVEL_LUCE: i
+   due mock non mostrano due UiPanel affiancati (che lascerebbero un doppio
+   filetto luce+ombra sulla cucitura) ma un'unica cucitura chiara, quindi un
+   solo UiPanel(box) piu' quella riga verticale disegnata a mano. */
+#define UI_BUILD_W 620.0f
+#define UI_BUILD_H 340.0f
+/* Margine interno dal bordo del pannello (sinistra/destra) e dalla cucitura
+   centrale verso ciascuna colonna. */
+#define UI_BUILD_PAD 16.0f
+#define UI_BUILD_GAP 14.0f
+/* X della cucitura, relativa a box.x: 320 (non la meta' esatta, 310) perche'
+   nel mock la colonna sinistra -- che porta la fascia FUSIONE, la voce piu'
+   affollata dello schermo -- e' visibilmente piu' larga della destra. */
+#define UI_BUILD_DIVIDER_X 320.0f
+/* Riga "Indietro" (UiMenuRow): ancorata al fondo della colonna sinistra in
+   ENTRAMBI i mock (stessa quota con o senza fusione in corso) -- 36 e 26 sono
+   rispettivamente la distanza dal fondo del box e l'altezza della riga,
+   misurate li'. */
+#define UI_BUILD_INDIETRO_BOTTOM 36.0f
+#define UI_BUILD_INDIETRO_H 26.0f
+
 static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitConfirmLight)
 {
     if (mode == APP_MAIN_MENU)
     {
         return (Rectangle){ floorf(sw*0.5f - UI_MAIN_MENU_W*0.5f), floorf(sh*0.5f - UI_MAIN_MENU_H*0.5f),
                             UI_MAIN_MENU_W, UI_MAIN_MENU_H };
+    }
+    /* WP-UI-2: BuildScreen ha ora la propria geometria in pixel di canvas
+       veri (vedi il blocco UI_BUILD_* sopra), come MainMenu -- il ramo
+       'exitConfirmLight'/600/400 sotto non la riguarda piu'. */
+    if (mode == APP_BUILD_SCREEN)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_BUILD_W*0.5f), floorf(sh*0.5f - UI_BUILD_H*0.5f),
+                            UI_BUILD_W, UI_BUILD_H };
     }
     float uiScale = UI_CANVAS_SCALE;
     /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
@@ -3540,21 +3656,16 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitCo
        davvero uguale a MainMenu) e da GameExitConfirmLightModalTest
        (game_tests.c, --exit-confirm-light-modal-test) che campiona i pixel
        del frame vero. */
-    float w = (mode == APP_BUILD_SCREEN ? 760.0f
-             : ((mode == APP_EXIT_CONFIRM && exitConfirmLight) ? 460.0f : 600.0f))*uiScale;
-    /* 560 e non piu' 520: la fascia FUSIONE in fondo (DrawFusionBand) e' una
-       riga di contenuto in piu' rispetto a quando questo riquadro e' nato, e
-       comprimere le liste sopra sarebbe stato peggio. A 640 px di altezza --
-       la finestra minima, SCREEN_HEIGHT -- il riquadro resta comunque dentro
-       lo schermo (40..600).
-       PAUSE_MENU condivide lo stesso 560 da WP21 (DEC-114): con la sesta riga
+    float w = ((mode == APP_EXIT_CONFIRM && exitConfirmLight) ? 460.0f : 600.0f)*uiScale;
+    /* 560 (invece di 400): PAUSE_MENU da WP21 (DEC-114) -- con la sesta riga
        "Rigenera la run" (MenuItemCountForMode sotto) l'ultima voce arriva a
        110 + 5*52 + 40 = 410 (MENU_ROW_START_Y_BASE/MENU_ROW_H_BASE piu' sotto),
        il vecchio box da 400 la avrebbe tagliata fuori -- 560 lascia margine
        anche per il riquadro di consultazione del Piano 0 sotto le righe
        (DrawPauseMenuFloorZeroConsult, DEC-169), che a sua volta segue questa
-       stessa quota (vedi il commento li'). */
-    float h = (mode == APP_BUILD_SCREEN || mode == APP_PAUSE_MENU ? 560.0f : 400.0f)*uiScale;
+       stessa quota (vedi il commento li'). BuildScreen non passa piu' di qui
+       da WP-UI-2 (vedi il ramo dedicato sopra, UI_BUILD_H fisso). */
+    float h = (mode == APP_PAUSE_MENU ? 560.0f : 400.0f)*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
 }
 
@@ -3643,17 +3754,20 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh, bo
                             box.width - UI_MAIN_MENU_ROW_INSET*2.0f, UI_MAIN_MENU_ROW_H };
     }
     float uiScale = UI_CANVAS_SCALE;
-    /* BuildScreen non e' un menu di voci: e' una schermata piena con UNA sola
-       riga d'azione ("Indietro"). Alla quota comune (MENU_ROW_START_Y_BASE)
-       quella riga cadeva in MEZZO al contenuto, sopra "OGGETTI PRESI"; qui
-       sta in fondo al riquadro, sotto la fascia FUSIONE, dove il giocatore
-       la cerca. Resta una fonte di geometria SOLA, quindi il hit-test del
-       mouse (RendererMenuItemAt) la segue senza sapere nulla di questa
-       eccezione. */
+    /* WP-UI-2: BuildScreen non e' un menu di voci: e' una schermata piena con
+       UNA sola riga d'azione ("Indietro"), ancorata al fondo della COLONNA
+       SINISTRA (non del box intero, che a schermo pieno e' quasi tutto lo
+       schermo) -- stessa larghezza della lista OGGETTI PRESI/della fascia
+       FUSIONE sopra di lei nei due mock. Resta una fonte di geometria SOLA
+       (come per ogni altro modo), quindi il hit-test del mouse
+       (RendererMenuItemAt) la segue senza sapere nulla di questa eccezione. */
+    if (mode == APP_BUILD_SCREEN)
+    {
+        return (Rectangle){ box.x + UI_BUILD_PAD, box.y + box.height - UI_BUILD_INDIETRO_BOTTOM,
+                            UI_BUILD_DIVIDER_X - UI_BUILD_PAD - UI_BUILD_GAP, UI_BUILD_INDIETRO_H };
+    }
     float rowStartY = (mode == APP_RUN_RESULTS) ? MENU_ROW_START_Y_RUN_RESULTS : MENU_ROW_START_Y_BASE;
-    float top = (mode == APP_BUILD_SCREEN)
-        ? box.y + box.height - 46.0f*uiScale
-        : box.y + rowStartY*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
+    float top = box.y + rowStartY*uiScale + (float)index*MENU_ROW_H_BASE*uiScale;
     return (Rectangle){ box.x + 60.0f*uiScale, top, box.width - 120.0f*uiScale, 40.0f*uiScale };
 }
 
@@ -4210,178 +4324,175 @@ static void DrawOptionsOverlay(Game *game, const AppUi *ui)
 }
 
 /* ============================================================
-   La fascia FUSIONE in fondo a BuildScreen (systems/item-fusion.md +
-   ui/inventory-and-synergy-screen.md, riga "Fusioni possibili").
-   Mostra esattamente cio' che il documento chiede e nient'altro: quali due
-   oggetti verrebbero consumati, se il catalizzatore c'e', e l'esito
-   (nome + immagine). Nessun numero interno, nessuno stato di validazione,
-   nessun prompt: sono i "Non mostrare" del documento.
-   ============================================================ */
-#define FUSION_BAND_H_BASE 176.0f
+   WP-UI-2: la lista OGGETTI PRESI e la fascia FUSIONE in fondo alla colonna
+   sinistra di BuildScreen (systems/item-fusion.md +
+   ui/inventory-and-synergy-screen.md, riga "Fusioni possibili"). Mostrano
+   esattamente cio' che i documenti chiedono e nient'altro: quali due oggetti
+   verrebbero consumati, se il catalizzatore c'e', e l'esito -- nessun
+   punteggio di validazione, nessun prompt, nessuna formula (i "Non
+   mostrare" del documento).
+   A differenza di prima questi due numeri sono FISSI, non piu' misurati da
+   DrawBuildBlock (che restava per il ripiego HUD/PauseMenu, invariato): il
+   nuovo header "colpo attuale + tag" di DrawBuildScreenOverlay e' sempre
+   alto uguale, quindi la lista puo' cominciare a una riga fissa. */
+#define UI_BUILD_LIST_Y 90            /* prima riga della lista OGGETTI PRESI, relativa a box.y */
+#define UI_BUILD_ROW_STEP 34          /* passo verticale di ogni riga (nome + sottoriga + filetto) */
+#define UI_BUILD_FUSION_TITLE_Y 196   /* inizio della fascia FUSIONE, relativa a box.y -- (196-90)/34 = 3 righe visibili, quante ne mostra il mock */
 
-/* Marcatori sulla riga di un oggetto: la barra a sinistra e' il fuoco da
-   tastiera, il quadratino a destra col numero dice che quell'oggetto e' la
-   prima o la seconda sorgente scelta. Disegnati QUI e non dentro
-   DrawItemPreview perche' quella funzione la condivide l'HUD di gioco, dove
-   una selezione per la fusione non esiste. */
-static void DrawFusionRowMark(const AppUi *ui, int index, int focus, int x, int y, int width, float uiScale, Color accent)
+/* WP-UI-2: uno slot della fascia FUSIONE. VUOTO: solo testo placeholder
+   UI_MUTO fra due filetti UI_DIVISORE (mock-buildscreen.png, "1. -- (INVIO)"
+   -- niente sfondo, e' un invito, non ancora una scelta). PIENO: la stessa
+   DrawFocusBand di una riga a fuoco della lista sopra (mock-fusion.png:
+   "1. MANICO TORTO" ha lo stesso riempimento UI_BEVEL_LUCE e la stessa barra
+   UI_FOCUS) -- deliberato, e' visivamente "gia' scelto", lo stesso
+   linguaggio. Niente icona: come DrawBuildItemRow, i due mock sono solo
+   testo + pallino. */
+static void DrawFusionSourceSlot(const Player *p, int field, int ordinal, Rectangle row)
 {
-    int rowH = UiRound(58.0f*uiScale);
-    if (index == focus)
-        DrawRectangle(x - UiRound(9.0f*uiScale), y, UiRound(4.0f*uiScale), rowH, accent);
-
-    int a = FUSION_UI_SLOT(ui->fusionSourceA);
-    int b = FUSION_UI_SLOT(ui->fusionSourceB);
-    const char *badge = (index == a) ? "1" : ((index == b) ? "2" : NULL);
-    if (!badge) return;
-
-    int size = UiRound(20.0f*uiScale);
-    Rectangle mark = { (float)(x + width - size - UiRound(8.0f*uiScale)), (float)(y + UiRound(8.0f*uiScale)), (float)size, (float)size };
-    DrawRectangleRec(mark, GameColorWithAlpha(accent, 200));
-    UiText(badge, (int)mark.x + UiRound(6.0f*uiScale), (int)mark.y + UiRound(3.0f*uiScale), UiRound(14.0f*uiScale), BLACK);
-}
-
-/* DrawText che non deborda: se il testo e' piu' largo di 'maxWidth' lo taglia
-   e chiude con "..". Serve alla fascia FUSIONE, dove i nomi degli oggetti sono
-   contenuto GENERATO (fino a 47 caratteri) dentro riquadri di larghezza fissa:
-   senza, un nome lungo scriverebbe sopra il riquadro accanto. */
-static void DrawTextClipped(const char *text, int x, int y, int font, Color color, int maxWidth)
-{
-    if (UiTextW(text, font) <= maxWidth) { UiText(text, x, y, font, color); return; }
-
-    char head[160];
-    snprintf(head, sizeof(head), "%s", text);
-    for (int len = (int)strlen(head); len > 0; len--)
-    {
-        char probe[164];
-        head[len - 1] = '\0';
-        snprintf(probe, sizeof(probe), "%s..", head);
-        if (UiTextW(probe, font) <= maxWidth) { UiText(probe, x, y, font, color); return; }
-    }
-    /* Nemmeno ".." ci starebbe: meglio non scrivere nulla che debordare. */
-}
-
-static void DrawFusionSourceSlot(const Game *game, int field, int ordinal, int x, int y, int width, float uiScale)
-{
-    const Player *p = &game->player;
     int slot = FUSION_UI_SLOT(field);
     int count = GameMathClampInt(p->itemCount, 0, MAX_ITEMS);
     bool filled = slot >= 0 && slot < count;
-    Rectangle box = { (float)x, (float)y, (float)width, 34.0f*uiScale };
 
-    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 120));
-    Color frame = filled ? RarityColor(p->items[slot].rarity) : (Color){ 90, 96, 110, 255 };
-    if (!ArtDrawSlot(box, frame)) DrawRectangleLinesEx(box, filled ? 2.0f : 1.0f, frame);
-    /* W8: la casella mostra anche lo SPRITE della sorgente scelta, non solo il
-       nome -- e' cio' che rende leggibile "quali due oggetti si consumano"
-       senza rileggere due righe di testo (mock V3 della fascia FUSIONE). Il
-       testo si sposta a destra dell'icona solo quando l'icona c'e' davvero:
-       una casella vuota non deve avere un rientro senza motivo. */
-    int textX = x + UiRound(10.0f*uiScale);
+    char line[96];
+    if (filled) snprintf(line, sizeof(line), "%d. %s", ordinal, p->items[slot].name);
+    else snprintf(line, sizeof(line), "%d. -- (INVIO)", ordinal);
+
+    int textY = (int)(row.y + (row.height - (float)UiTextHeight(UI_TAGLIA_1))*0.5f);
     if (filled)
     {
-        float iconSize = 26.0f*uiScale;
-        Vector2 center = { box.x + iconSize*0.5f + 4.0f*uiScale, box.y + box.height*0.5f };
-        /* Cast: DrawItemIcon deve poter riempire la cache delle texture curate,
-           che vive dentro Game -- questa funzione riceve un Game const perche'
-           non tocca stato di gioco, e la cache non e' stato di gioco. Stessa
-           natura del cast che DrawHudBuild non ha bisogno di fare solo perche'
-           riceve un Game* non-const. */
-        if (DrawItemIcon((Game *)game, &p->items[slot], center, iconSize))
-            textX = x + UiRound(38.0f*uiScale);
+        DrawFocusBand(row);
+        UiTextClipped(line, (int)row.x + 14, textY, UI_TAGLIA_1, UI_TESTO, (int)row.width - 20);
     }
-    char line[96];
-    if (filled) snprintf(line, sizeof(line), "%d.  %s", ordinal, p->items[slot].name);
-    else snprintf(line, sizeof(line), "%d.  -- (INVIO sceglie)", ordinal);
-    DrawTextClipped(line, textX, y + UiRound(9.0f*uiScale), UiRound(14.0f*uiScale),
-                    filled ? RAYWHITE : (Color){ 140, 148, 162, 255 }, width - (textX - x) - UiRound(10.0f*uiScale));
+    else
+    {
+        UiDivider((int)row.x, (int)row.y, (int)row.width);
+        UiTextClipped(line, (int)row.x + 6, textY, UI_TAGLIA_1, UI_MUTO, (int)row.width - 12);
+        UiDivider((int)row.x, (int)(row.y + row.height) - 1, (int)row.width);
+    }
 }
 
 /* W9 correzione round 1 (MINORE, "nessun percorso col solo mouse porta a
    termine una fusione"): geometria della riga di stato/azione della fascia
    FUSIONE -- quella che dice "fondi" quando si puo' fondere e il PERCHE' no
-   altrimenti. Fattorizzata perche' e' l'unica fonte sia del disegno (sotto) sia
-   del hit-test del mouse (RendererFusionConfirmAt): un click qui vale [F],
-   stessa funzione (AppFusionConfirm), stesso messaggio di esito anche quando la
-   fusione non si puo' fare. La riga e' un po' piu' alta del testo (22 contro 14
-   punti di font) perche' un bersaglio di click sotto i ~20 px e' scomodo; resta
-   ben separata sia dalle righe oggetto sopra (che finiscono prima di 'bandY',
-   vedi BuildScreenItemListLayoutFor) sia dalla riga "Indietro" sotto
-   (MenuItemRectFor: box.y + box.height - 46*uiScale), verificato da
-   RendererMouseHitTestSelfTest. */
-static Rectangle FusionConfirmRowRectFor(int x, int y, int width, float uiScale)
+   altrimenti. Fattorizzata perche' e' l'unica fonte sia del disegno
+   (DrawFusionBand) sia del hit-test del mouse (RendererFusionConfirmAt): un
+   click qui vale [F], stessa funzione (AppFusionConfirm), stesso messaggio
+   di esito anche quando la fusione non si puo' fare. 'bandY' e' la quota
+   dell'inizio fascia (BuildScreenItemListLayoutFor, STESSA per disegno e
+   hit-test): 46 sotto di lei restano titolo+flux (22) e gli slot (22).
+   WP-UI-2 correzione (verifier opus, minore): 'hasResult' sposta la riga
+   SOTTO la card di risultato (40 = altezza card 36 + margine 4) quando ce
+   n'e' una -- nei due mock la riga di stato sta sempre DOPO la card, mai
+   prima. Resta ben separata sia dalle righe oggetto sopra sia dalla riga
+   "Indietro" sotto (UI_BUILD_INDIETRO_BOTTOM), verificato da
+   RendererMouseHitTestSelfTest in ENTRAMBI i casi (con e senza risultato). */
+static Rectangle FusionConfirmRowRectFor(int x, int bandY, int width, bool hasResult)
 {
-    int hy = y + UiRound(10.0f*uiScale) + UiRound(24.0f*uiScale) + UiRound(40.0f*uiScale);
-    return (Rectangle){ (float)x, (float)hy - 2.0f*uiScale, (float)width, 22.0f*uiScale };
+    int y = bandY + 46 + (hasResult ? 40 : 0);
+    return (Rectangle){ (float)x, (float)y, (float)width, 18.0f };
 }
 
-static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width, float uiScale)
+static void DrawFusionBand(Game *game, const AppUi *ui, int bandY, int x, int width)
 {
     const Player *p = &game->player;
-    Color accent = game->theme.accent2;
-    DrawRectangle(x, y, width, UiRound(2.0f*uiScale), GameColorWithAlpha(accent, 120));
-
-    int ty = y + UiRound(10.0f*uiScale);
-    UiText("FUSIONE", x, ty, UiRound(16.0f*uiScale), accent);
+    UiTextAt("FUSIONE", x, bandY, UI_TAGLIA_2, UI_TITOLO);
     /* Il catalizzatore in chiaro: e' l'unica condizione che il giocatore non
        puo' dedurre dalla lista oggetti (item-fusion.md, caso limite
        "nessun catalizzatore": l'interfaccia lo segnala). */
     char fluxLine[48];
     snprintf(fluxLine, sizeof(fluxLine), "Flux: %d", p->flux);
-    int fluxFont = UiRound(15.0f*uiScale);
-    UiText(fluxLine, x + width - UiTextW(fluxLine, fluxFont), ty, fluxFont,
-             p->flux > 0 ? (Color){ 226, 138, 255, 255 } : (Color){ 150, 158, 172, 255 });
+    UiTextAt(fluxLine, x + width - UiTextWidth(fluxLine, UI_TAGLIA_1), bandY + 3, UI_TAGLIA_1, UI_GLINT);
 
-    int sy = ty + UiRound(24.0f*uiScale);
-    int gap = UiRound(14.0f*uiScale);
+    int sy = bandY + 22;
+    int gap = 10;
     int slotW = (width - gap)/2;
-    DrawFusionSourceSlot(game, ui->fusionSourceA, 1, x, sy, slotW, uiScale);
-    DrawFusionSourceSlot(game, ui->fusionSourceB, 2, x + slotW + gap, sy, slotW, uiScale);
+    DrawFusionSourceSlot(p, ui->fusionSourceA, 1, (Rectangle){ (float)x, (float)sy, (float)slotW, 20.0f });
+    DrawFusionSourceSlot(p, ui->fusionSourceB, 2, (Rectangle){ (float)(x + slotW + gap), (float)sy, (float)slotW, 20.0f });
+
+    bool hasResult = ui->fusionResultName[0] != '\0';
+
+    /* Esito dell'ultima fusione (DEC-171, mock-fusion.png: la card sta SOPRA
+       la riga di stato, non sotto -- vedi la correzione d'ordine piu' sotto).
+       Nome + il messaggio gia' pronto (AppFusionConfirm: "Fuso: NOME (da A +
+       B)."). Se l'inventario contiene ancora l'oggetto appena fuso -- il caso
+       normale, FusionPerform (src/gameplay/fusion.c) lo inserisce SEMPRE per
+       ultimo -- si aggiunge anche la riga slot-tratti col pallino di rarita'
+       VERO.
+       WP-UI-2 correzione (verifier opus, B3): se il lookup FALLISCE (l'oggetto
+       fuso non c'e' piu' in Player.items[] -- 'fusionResultName' non viene mai
+       azzerato da AppFusionConfirm, quindi resta il messaggio dell'ULTIMA
+       fusione anche dopo che quell'oggetto e' stato consumato da un'altra
+       fusione, o -- caso concreto -- un Innesto fuso e poi sganciato con [G]
+       lo rimuove da items[]) la card degrada al solo nome/messaggio SENZA
+       pallino: il ripiego precedente disegnava comunque un pallino
+       UI_TITOLO, che e' ESATTAMENTE UiRarityTint(RARITY_LEGENDARY) -- cioe'
+       inventava la rarita' piu' alta per un oggetto che potrebbe averne
+       una qualunque. Meglio ometterlo che mostrare un dato falso. */
+    const Item *resultItem = NULL;
+    if (hasResult)
+    {
+        int itemCount = GameMathClampInt(p->itemCount, 0, MAX_ITEMS);
+        for (int i = itemCount - 1; i >= 0; i--)
+            if (strcmp(p->items[i].name, ui->fusionResultName) == 0) { resultItem = &p->items[i]; break; }
+    }
+
+    if (hasResult)
+    {
+        Rectangle card = { (float)x, (float)(bandY + 46), (float)width, 36.0f };
+        UiPanel(card);
+        int cty = (int)card.y + 4;
+        /* Rientro UNICO per tutte e tre le righe (20 = spazio del pallino,
+           anche quando il pallino non c'e': il testo resta comunque allineato
+           SOTTO il nome invece di un gradino piu' a sinistra -- correzione
+           verifier opus, minore). */
+        int textX = (int)card.x + 20;
+        int textRight = (int)(card.x + card.width) - 8;
+        if (resultItem)
+        {
+            /* Il pallino resta centrato sulla RIGA 1 (il nome), non a meta'
+               della card intera -- un valore fisso cadeva a cavallo fra riga 1
+               e riga 2 non appena UiTextHeight cambiava (playtest: si vedeva
+               il pallino sovrapposto alla "F" di "Fuso:"). */
+            DrawCircle((int)card.x + 11, cty + UiTextHeight(UI_TAGLIA_1)/2, 3.0f, UiRarityTint(resultItem->rarity));
+        }
+        UiTextClipped(ui->fusionResultName, textX, cty, UI_TAGLIA_1, UI_TITOLO, textRight - textX);
+        cty += UiTextHeight(UI_TAGLIA_1) + 2;
+        UiTextClipped(ui->fusionMessage, textX, cty, UI_TAGLIA_1, UI_SECONDARIO, textRight - textX);
+        if (resultItem)
+        {
+            cty += UiTextHeight(UI_TAGLIA_1) + 2;
+            char traits[128];
+            TraitsToText(resultItem->traits, traits, sizeof(traits));
+            char slotLine[160];
+            snprintf(slotLine, sizeof(slotLine), "%s - %s", SlotName(resultItem->slot), traits);
+            UiTextClipped(slotLine, textX, cty, UI_TAGLIA_1, UI_SECONDARIO, textRight - textX);
+        }
+    }
 
     /* Riga di stato: se si puo' fondere lo dice, altrimenti dice PERCHE' no
-       -- e' lo stesso testo che comparirebbe premendo F, mostrato prima di
-       premerlo. */
+       -- lo stesso testo che comparirebbe premendo F, mostrato prima di
+       premerlo. Sta SOTTO la card quando c'e' un risultato (vedi
+       FusionConfirmRowRectFor sopra), altrimenti subito dopo gli slot. */
     FusionStatus status = FusionCheck(p, FUSION_UI_SLOT(ui->fusionSourceA), FUSION_UI_SLOT(ui->fusionSourceB));
-    /* La quota della riga viene dalla SUA geometria (FusionConfirmRowRectFor
-       sopra), non da un secondo calcolo: e' anche il bersaglio del click. */
-    Rectangle confirmRow = FusionConfirmRowRectFor(x, y, width, uiScale);
+    Rectangle confirmRow = FusionConfirmRowRectFor(x, bandY, width, hasResult);
     /* Hover del mouse sulla riga (AppUi.fusionConfirmHover): velo leggero
-       dello stesso verde della conferma, cosi' il bersaglio cliccabile si
+       dello stesso colore della conferma, cosi' il bersaglio cliccabile si
        vede PRIMA del click, come per ogni voce di menu. */
     if (ui->fusionConfirmHover)
-        DrawRectangleRec(confirmRow, (Color){ 126, 232, 152, 30 });
-    int hy = (int)(confirmRow.y + 2.0f*uiScale);
-    /* W9 correzione round 1: l'etichetta nomina ENTRAMBE le vie, perche' adesso
-       la riga e' anche cliccabile (DEC-057: il mouse e' ammesso in tutto cio'
+        DrawRectangleRec(confirmRow, GameColorWithAlpha(UiRarityTint(RARITY_UNCOMMON), 30));
+    /* W9 correzione round 1: l'etichetta nomina ENTRAMBE le vie, perche' la
+       riga e' anche cliccabile (DEC-057: il mouse e' ammesso in tutto cio'
        che e' menu, e senza questo un giocatore col solo mouse non poteva
-       portare a termine nessuna fusione). */
-    DrawTextClipped(status == FUSION_OK ? "[F] o click: fondi -- consuma 2 oggetti + 1 Flux" : FusionStatusText(status),
-                    x, hy, UiRound(14.0f*uiScale),
-                    status == FUSION_OK ? (Color){ 126, 232, 152, 255 } : (Color){ 205, 160, 160, 255 }, width);
-
-    if (!ui->fusionResultName[0]) return;
-
-    /* Esito dell'ultima fusione: nome + immagine curata (DEC-171). Se
-       l'immagine manca (pacchetto assente, file rimosso) resta il riquadro
-       vuoto col nome: mai una schermata rotta. */
-    int ry = hy + UiRound(22.0f*uiScale);
-    float thumb = 44.0f*uiScale;
-    Rectangle dst = { (float)x, (float)ry, thumb, thumb };
-    /* W8: si riusa DrawItemIcon (la sola fonte della priorita' delle immagini)
-       costruendo un Item minimo coi due riferimenti che 'ui' porta -- invece di
-       ripetere qui la catena originale/curato/atlas, che sarebbe divergita al
-       primo ritocco. Un Item azzerato con solo imageId/imagePath e' esattamente
-       cio' che quella funzione legge. */
-    Item resultIcon;
-    memset(&resultIcon, 0, sizeof(resultIcon));
-    snprintf(resultIcon.imageId, sizeof(resultIcon.imageId), "%s", ui->fusionResultImageId);
-    snprintf(resultIcon.imagePath, sizeof(resultIcon.imagePath), "%s", ui->fusionResultImage);
-    DrawItemIcon(game, &resultIcon, (Vector2){ dst.x + thumb*0.5f, dst.y + thumb*0.5f }, thumb);
-    DrawRectangleLinesEx(dst, 1.0f, GameColorWithAlpha(accent, 160));
-    int textX = x + UiRound(54.0f*uiScale);
-    int textW = x + width - textX;
-    DrawTextClipped(ui->fusionResultName, textX, ry + UiRound(2.0f*uiScale), UiRound(15.0f*uiScale), RAYWHITE, textW);
-    DrawTextClipped(ui->fusionMessage, textX, ry + UiRound(22.0f*uiScale), UiRound(13.0f*uiScale), (Color){ 176, 184, 198, 255 }, textW);
+       portare a termine nessuna fusione).
+       WP-UI-2 correzione (verifier opus, minore): i colori (126,232,152)/
+       (205,160,160) di prima non venivano da nessun token della palette --
+       verderame (UiRarityTint(RARITY_UNCOMMON), gia' in uso per la rarita'
+       NONCOMUNE) per "si puo' fondere", UI_SECONDARIO per il resto (un motivo
+       che non e' un errore, solo un'informazione neutra: "manca il
+       catalizzatore" non e' un fallimento del giocatore). */
+    Color statusColor = (status == FUSION_OK) ? UiRarityTint(RARITY_UNCOMMON) : UI_SECONDARIO;
+    const char *statusText = (status == FUSION_OK) ? "[F] o click: fondi -- consuma 2 ogg. + 1 Flux" : FusionStatusText(status);
+    UiTextClipped(statusText, x, (int)confirmRow.y + 2, UI_TAGLIA_1, statusColor, width);
 }
 
 /* W9 (playtest round 1, copertura mouse totale): geometria della colonna
@@ -4391,11 +4502,7 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
    per disegnare le righe sia per sapere quale riga c'e' sotto il puntatore --
    stesso principio di MenuBoxForMode/MenuItemRect (vedi il commento li'
    sopra): duplicarla avrebbe fatto disallineare "cosa si vede" da "cosa si
-   clicca" al primo ritocco di uno dei due lati. Chiama DrawBuildBlock in
-   modalita' SOLA MISURA (measureOnly=true): l'altezza del blocco BUILD dipende
-   dal numero di sinergie attive, quindi anche il punto in cui comincia la
-   lista OGGETTI PRESI e' dinamico -- non si puo' indovinarlo senza rifare
-   la stessa misura che fa il disegno vero.
+   clicca" al primo ritocco di uno dei due lati.
    W9 correzione round 1 (BOCCIATO): la finestra visibile ('first') dipende SOLO
    da 'ui->buildItemScroll', MAI da 'ui->buildItemFocus' -- vedi il commento su
    quel campo in game_types.h. Con la vecchia formula "first = focus - maxShow +
@@ -4404,24 +4511,21 @@ static void DrawFusionBand(Game *game, const AppUi *ui, int x, int y, int width,
    uno step per ogni frame di movimento. Chi muove il focus tiene l'ancora
    allineata da src/app/app.c (AppBuildScrollFollowFocus), che per sapere
    quante righe stanno nella finestra chiama RendererBuildItemRowsVisible qui
-   sotto: STESSA misura, mai una copia. */
+   sotto: STESSA misura, mai una copia.
+   WP-UI-2: 'innerX'/'leftW'/'ly'/'bandY'/'rowStep' sono ora FISSI (UI_BUILD_*)
+   invece che misurati da DrawBuildBlock -- vedi il commento sul blocco
+   UI_BUILD_LIST_Y/UI_BUILD_ROW_STEP/UI_BUILD_FUSION_TITLE_Y sopra la fascia
+   FUSIONE. 'game' resta nella firma solo per leggere itemCount. */
 static void BuildScreenItemListLayoutFor(Game *game, const AppUi *ui, float sw, float sh,
                                           int *outInnerX, int *outLeftW, int *outLy, int *outBandY,
                                           int *outRowStep, int *outFirst, int *outMaxShow, int *outCount)
 {
-    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, sw, sh, false);
-    int innerX = (int)box.x + UiRound(40.0f*uiScale);
-    int innerY = (int)box.y + UiRound(52.0f*uiScale);
-    int innerW = (int)box.width - UiRound(80.0f*uiScale);
-    int leftW = (int)(innerW*0.56f);
-    int rowStep = UiRound(64.0f*uiScale);
-    int bandY = (int)(box.y + box.height) - UiRound(FUSION_BAND_H_BASE*uiScale) - UiRound(14.0f*uiScale);
-
-    int ly = innerY;
-    int buildH = DrawBuildBlock(game, innerX, ly, leftW, uiScale, true);   /* measureOnly: nessun disegno */
-    ly += buildH + UiRound(12.0f*uiScale);
-    ly += UiRound(28.0f*uiScale);   /* l'etichetta "OGGETTI PRESI" */
+    int innerX = (int)box.x + (int)UI_BUILD_PAD;
+    int leftW = (int)(UI_BUILD_DIVIDER_X - UI_BUILD_PAD - UI_BUILD_GAP);
+    int ly = (int)box.y + UI_BUILD_LIST_Y;
+    int bandY = (int)box.y + UI_BUILD_FUSION_TITLE_Y;
+    int rowStep = UI_BUILD_ROW_STEP;
 
     int count = GameMathClampInt(game->player.itemCount, 0, MAX_ITEMS);
     int maxShow = (bandY - ly)/rowStep;
@@ -4458,16 +4562,15 @@ int RendererBuildItemRowsVisible(Game *game)
 
 int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse)
 {
-    float sw = UiCanvasW();
-    float sh = UiCanvasH();
-    float uiScale = UI_CANVAS_SCALE;
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
-    BuildScreenItemListLayoutFor(game, ui, sw, sh, &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
+    BuildScreenItemListLayoutFor(game, ui, UiCanvasW(), UiCanvasH(), &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     (void)bandY;
     for (int i = first; i < count && i - first < maxShow; i++)
     {
-        int rowY = ly + (i - first)*rowStep;
-        Rectangle row = { (float)innerX, (float)rowY, (float)leftW, 58.0f*uiScale };
+        /* Riga - 4: STESSA quota di DrawBuildItemRow in DrawBuildScreenOverlay
+           (rowStep meno il filetto/margine in fondo), mai un secondo numero
+           indipendente per il bersaglio del click. */
+        Rectangle row = { (float)innerX, (float)(ly + (i - first)*rowStep), (float)leftW, (float)(rowStep - 4) };
         if (CheckCollisionPointRec(mouse, row)) return i;
     }
     return -1;
@@ -4475,23 +4578,39 @@ int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse)
 
 /* Zona cliccabile della riga di conferma della fascia FUSIONE: un click qui
    equivale a [F] (W9 correzione round 1 -- vedi FusionConfirmRowRectFor sopra).
-   Geometricamente indipendente dallo scorrimento della lista: la fascia sta
-   sempre in fondo al riquadro, quindi 'ui' non serve al chiamante. */
-bool RendererFusionConfirmAt(Game *game, Vector2 mouse)
+   Geometricamente indipendente dallo scorrimento della lista, MA (WP-UI-2
+   correzione, minore) non piu' da 'ui->fusionResultName': quando c'e' un
+   risultato da mostrare la riga scende sotto la sua card (vedi
+   FusionConfirmRowRectFor), quindi il chiamante deve passare l'AppUi VERO, non
+   piu' un probe azzerato. */
+bool RendererFusionConfirmAt(Game *game, const AppUi *ui, Vector2 mouse)
 {
-    AppUi probe = { 0 };   /* la posizione della fascia non dipende da nessun campo di 'ui' */
-    float uiScale = UI_CANVAS_SCALE;
+    AppUi probe = { 0 };   /* per BuildScreenItemListLayoutFor: bandY non dipende da scorrimento/fuoco */
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
     BuildScreenItemListLayoutFor(game, &probe, UiCanvasW(), UiCanvasH(),
                                   &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     (void)ly; (void)rowStep; (void)first; (void)maxShow; (void)count;
-    return CheckCollisionPointRec(mouse, FusionConfirmRowRectFor(innerX, bandY, leftW, uiScale));
+    return CheckCollisionPointRec(mouse, FusionConfirmRowRectFor(innerX, bandY, leftW, ui->fusionResultName[0] != '\0'));
 }
 
+/* WP-UI-2: BuildScreen in pixel di canvas veri (mock-buildscreen.png/
+   mock-fusion.png), come MainMenu (WP-UI-0) e l'HUD (WP-UI-1) prima di
+   questa. Fondo pieno UI_GROUND (non piu' un velo semitrasparente sulla
+   scena di gioco -- stessa scelta di MainMenu): il pannello copre gia' quasi
+   tutto il canvas (UI_BUILD_W x UI_BUILD_H su 640x360), e la scena dietro
+   porterebbe con se' i colori GENERATI della run (accent/accent2) proprio
+   nel bordo di 10px che resterebbe scoperto altrimenti. Un solo UiPanel per
+   le due colonne, separate da una cucitura di UN pixel di canvas (vedi il
+   commento sul blocco UI_BUILD_* sopra MenuBoxForModeFor): i due mock non
+   mostrano due riquadri affiancati col doppio filetto luce+ombra. */
 static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UI_CANVAS_SCALE;
-    Rectangle box = BeginMenuOverlay(APP_BUILD_SCREEN, game, "BUILD E SINERGIE", game->theme.accent2);
+    Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, UiCanvasW(), UiCanvasH(), false);
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UI_GROUND);
+    UiPanel(box);
+    int dividerX = (int)box.x + (int)UI_BUILD_DIVIDER_X;
+    DrawRectangle(dividerX, (int)box.y + 1, 1, (int)box.height - 2, UI_BEVEL_LUCE);
+
     const Player *p = &game->player;
     const Item *hoveredItem = NULL;   /* il tooltip va disegnato per ULTIMO, sopra tutto */
 
@@ -4499,87 +4618,169 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
        non stanno piu' sempre in una colonna laterale sul gioco -- vivono qui, in
        questo overlay centrale (il "pannello build" di DEC-137), che l'HUD di
        gioco rimanda con la sua riga compatta. Due colonne: a sinistra la build
-       vera (colpo + sinergie + oggetti presi), a destra le statistiche e cosa
-       offre il piano corrente. Stesse fonti dati del vecchio pannello GIOCATORE. */
+       vera (colpo + sinergie + oggetti presi + fusione), a destra le
+       statistiche e cosa offre il piano corrente. Stesse fonti dati del
+       vecchio pannello GIOCATORE. */
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
     BuildScreenItemListLayoutFor(game, ui, UiCanvasW(), UiCanvasH(),
                                   &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
-    int innerY = (int)box.y + UiRound(52.0f*uiScale);
-    int innerW = (int)box.width - UiRound(80.0f*uiScale);
-    int gap = UiRound(28.0f*uiScale);
-    int rightX = innerX + leftW + gap;
-    int rightW = innerW - leftW - gap;
+    int rightX = (int)box.x + (int)UI_BUILD_DIVIDER_X + (int)UI_BUILD_GAP;
+    int rightW = (int)(UI_BUILD_W - UI_BUILD_DIVIDER_X - UI_BUILD_GAP - UI_BUILD_PAD);
+    int titleY = (int)box.y + 16;   /* comune alle due colonne: "colpo attuale" a sinistra, PERSONAGGIO a destra */
 
-    /* Colonna sinistra: colpo + sinergie, poi gli oggetti presi (disegnate SUL
-       SERIO stavolta, measureOnly=false -- BuildScreenItemListLayoutFor sopra
-       ha gia' fatto la stessa chiamata solo per misurare). */
-    DrawBuildBlock(game, innerX, innerY, leftW, uiScale, false);
-    UiText("OGGETTI PRESI", innerX, ly - UiRound(28.0f*uiScale), UiRound(16.0f*uiScale), game->theme.accent2);
-    if (p->itemCount == 0) UiText("Nessun oggetto ancora.", innerX, ly, UiRound(14.0f*uiScale), (Color){ 150, 158, 172, 255 });
+    /* --- Colonna sinistra -------------------------------------------- */
+    /* Il "colpo attuale" del mock (nome TAGLIA_2 + pallino di rarita'): la
+       rarita' NON e' una proprieta' del colpo (ShotTypeDef non ne ha una,
+       core/shot_type.h) -- e' quella dell'OGGETTO che lo ha dato, gia'
+       tracciato da 'p->shotTypeItem' (script_items.c, "quale oggetto ha dato
+       il tipo di colpo"). -1 = nessun oggetto (colpo firmato del personaggio,
+       o nessun tipo attivo): il pallino resta cenere neutro, come un oggetto
+       COMUNE. */
+    Rarity shotRarity = (p->shotTypeItem >= 0 && p->shotTypeItem < p->itemCount)
+        ? p->items[p->shotTypeItem].rarity : RARITY_COMMON;
+    DrawCircle(innerX + 3, titleY + UiTextHeight(UI_TAGLIA_2)/2, 3.0f, UiRarityTint(shotRarity));
+    char shotTitle[64];
+    if (p->shotType.active) snprintf(shotTitle, sizeof(shotTitle), "%s (%s)", p->shotType.name, ShotFormName(p->shotType.form));
+    else snprintf(shotTitle, sizeof(shotTitle), "Colpo base");
+    UiTextClipped(shotTitle, innerX + 12, titleY, UI_TAGLIA_2, UI_TITOLO, leftW - 12);
+
+    /* Le sinergie implicite attive, come pillole (mock: "VOLO INFILZANTE",
+       "SCIAME") -- STESSO dato di sempre (p->synergies/SynergyName), solo
+       vestito diverso: fill UI_BEVEL_LUCE, bordo UI_DIVISORE, testo UI_GLINT
+       (DEC-012: "sinergie implicite" e "fusione" restano due binari
+       distinti, questa fascia mostra il primo).
+       WP-UI-2 correzione (verifier opus, B1): le sei regole di synergies.c
+       non sono mutuamente esclusive e MAX_ITEMS e' 18 -- una run puo' davvero
+       averne 5-6 attive insieme. La versione precedente le mandava a capo su
+       una SECONDA riga fissa (tagY += 20), che sforava 8px DENTRO il titolo
+       "OGGETTI PRESI" (inchiodato a box.y+68). Restano su UNA riga sola, come
+       nel mock: le pillole che non entrano si riassumono in un badge "+N"
+       invece di spingere tutto il resto della colonna in basso. */
+    int tagY = (int)box.y + 40;
+    int tagX = innerX;
+    int tagRowRight = innerX + leftW;
+    int activeIdx[SYNERGY_COUNT];
+    int activeCount = 0;
+    for (int i = 0; i < (int)SYNERGY_COUNT; i++)
+        if (p->synergies & (1u << i)) activeIdx[activeCount++] = i;
+
+    int shown = 0;
+    for (shown = 0; shown < activeCount; shown++)
+    {
+        const char *name = SynergyName(activeIdx[shown]);
+        int tw = UiTextWidth(name, UI_TAGLIA_1) + 12;
+        int gap = (shown > 0) ? 6 : 0;
+        /* Riserva lo spazio per un eventuale badge "+N" SOLO se dopo questa
+           pillola ne resterebbero ancora da riassumere -- l'ultima pillola
+           attiva non ha bisogno di lasciare posto a nessun badge. */
+        bool moreAfter = (shown + 1) < activeCount;
+        int reserve = moreAfter ? (UiTextWidth("+9", UI_TAGLIA_1) + 12 + 6) : 0;
+        if (tagX + gap + tw + reserve > tagRowRight) break;
+        tagX += gap;
+        Rectangle pill = { (float)tagX, (float)tagY, (float)tw, 16.0f };
+        DrawRectangleRec(pill, UI_BEVEL_LUCE);
+        DrawRectangleLinesEx(pill, 1.0f, UI_DIVISORE);
+        UiTextAt(name, tagX + 6, tagY + 3, UI_TAGLIA_1, UI_GLINT);
+        tagX += tw;
+    }
+    if (shown < activeCount)
+    {
+        char more[16];   /* larghezza abbondante: GCC non sa staticamente che activeCount-shown <= SYNERGY_COUNT */
+        snprintf(more, sizeof(more), "+%d", activeCount - shown);
+        int tw = UiTextWidth(more, UI_TAGLIA_1) + 12;
+        int badgeX = tagX + (shown > 0 ? 6 : 0);
+        Rectangle pill = { (float)badgeX, (float)tagY, (float)tw, 16.0f };
+        DrawRectangleRec(pill, UI_BEVEL_LUCE);
+        DrawRectangleLinesEx(pill, 1.0f, UI_DIVISORE);
+        UiTextAt(more, badgeX + 6, tagY + 3, UI_TAGLIA_1, UI_GLINT);
+    }
+    if (activeCount == 0) UiTextAt("Nessuna sinergia attiva.", innerX, tagY + 3, UI_TAGLIA_1, UI_MUTO);
+
+    UiTextAt("OGGETTI PRESI", innerX, (int)box.y + 68, UI_TAGLIA_2, UI_TITOLO);
+    if (p->itemCount == 0)
+        UiTextAt("Nessun oggetto ancora.", innerX, ly, UI_TAGLIA_1, UI_SECONDARIO);
     else
     {
         /* Finestra scorrevole: la riga a fuoco resta sempre visibile anche
            con piu' oggetti di quanti ne stiano nel riquadro (l'inventario
-           arriva a MAX_ITEMS, la finestra ne mostra 3-4). Senza, selezionare
-           il decimo oggetto sarebbe impossibile a occhio. 'first'/'maxShow'
-           vengono gia' calcolati da BuildScreenItemListLayoutFor sopra. */
+           arriva a MAX_ITEMS, la finestra ne mostra 3). Senza, selezionare il
+           decimo oggetto sarebbe impossibile a occhio. 'first'/'maxShow'
+           vengono gia' calcolati da BuildScreenItemListLayoutFor sopra --
+           STESSA geometria del hit-test del mouse (RendererBuildItemRowAt),
+           mai un secondo calcolo. */
         int focus = GameMathClampInt(ui->buildItemFocus, 0, count - 1);
         for (int i = first; i < count && i - first < maxShow; i++)
         {
-            int rowY = ly + (i - first)*rowStep;
-            if (DrawItemPreview(game, &p->items[i], innerX, rowY, leftW, true, uiScale)) hoveredItem = &p->items[i];
-            DrawFusionRowMark(ui, i, focus, innerX, rowY, leftW, uiScale, game->theme.accent2);
+            Rectangle row = { (float)innerX, (float)(ly + (i - first)*rowStep), (float)leftW, (float)(rowStep - 4) };
+            if (DrawBuildItemRow(&p->items[i], row, i == focus)) hoveredItem = &p->items[i];
         }
     }
 
-    /* Colonna destra: statistiche estese (le stesse righe del vecchio pannello
-       GIOCATORE, con DrawStatLine) e cuori, poi cosa puo' offrire il piano. */
-    int ry = innerY;
-    UiText("PERSONAGGIO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
-    ry += UiRound(26.0f*uiScale);
-    DrawHearts(p, rightX, ry, uiScale);
-    ry += UiRound(30.0f*uiScale);
+    DrawFusionBand(game, ui, bandY, innerX, leftW);
+
+    /* --- Colonna destra ------------------------------------------------ */
+    UiTextAt("PERSONAGGIO", rightX, titleY, UI_TAGLIA_2, UI_TITOLO);
+    /* WP-UI-2 correzione (verifier opus, B2): DrawHudV3Hearts (sopra in questo
+       stesso file, gia' committata da WP-UI-1) e' ESATTAMENTE l'icona 14px dei
+       due mock -- niente scala "a occhio" su DrawHearts (che vive nella griglia
+       1600x900*uiScale del ripiego HUD/PauseMenu: un uiScale fuori da quella
+       griglia produce cuori disallineati/sovrapposti, non una taglia diversa
+       coerente). Stesso ramo ArtUiReady()/ripiego del resto della schermata:
+       con l'atlas presente i cuori sono le icone pixel-art, senza atlas restano
+       i cerchi/triangolo di DrawHearts (mai una schermata vuota di vita). */
+    if (ArtUiReady()) DrawHudV3Hearts(p, rightX, (int)box.y + 40);
+    else DrawHearts(p, rightX, (int)box.y + 40, UI_CANVAS_SCALE);
+
     const char *statLabels[6];
     char statValues[6][16];
     HudStatRowsFill(p, statLabels, statValues);
+    int statY = (int)box.y + 68;
+    int rightEdge = rightX + rightW;
     for (int i = 0; i < 6; i++)
     {
         /* Fortuna (indice 5) resta evidenziata in verde come prima di DEC-184:
            e' l'unica delle sei che il giocatore legge come "buono/cattivo"
            col segno, le altre sono grandezze neutre. */
-        Color color = (i == 5) ? (Color){ 126, 232, 152, 255 } : RAYWHITE;
-        DrawStatLine(statLabels[i], statValues[i], rightX, ry + UiRound((float)(22*i)*uiScale), color, uiScale);
+        Color color = (i == 5) ? (Color){ 126, 232, 152, 255 } : UI_TESTO;
+        DrawStatLine(statLabels[i], statValues[i], rightX, rightEdge, statY + i*14, color);
     }
-    DrawStatLine("Risorse", TextFormat("%dc  %db  %dk", p->coins, p->bombs, p->keys), rightX, ry + UiRound(132.0f*uiScale), GOLD, uiScale);
+    /* RISORSE: una STRINGA UNICA ambra (mock: "27C 3B 2K"), non tre valori
+       separati come nel vecchio pannello -- scelta del proprietario sulla v1
+       del reskin (WP-UI-2). */
+    DrawStatLine("Risorse", TextFormat("%dC %dB %dK", p->coins, p->bombs, p->keys), rightX, rightEdge, statY + 6*14, UI_GLINT);
     /* WP16 (DEC-042, ui/inventory-and-synergy-screen.md "Prove"): riga
-       dedicata, pattern delle righe statistiche esistenti sopra -- il
-       dettaglio per prova (testo + stato) vive nel pannello di PauseMenu
-       (DrawTrialsPanel), qui solo il riepilogo "N/M superate, +X punti"
-       (TrialsPassedCount/TrialsBonusTotal, unica fonte del conteggio: le due
-       schermate non possono mai divergere). Visibile solo da quando le prove
-       sono state presentate (game->trialCount > 0): nel Piano 0, dove questa
-       schermata e' comunque raggiungibile solo dal crogiolo di fusione
-       inesistente li', il conteggio e' zero e la riga resta silenziosa. */
+       dedicata, pattern delle righe statistiche sopra -- il dettaglio per
+       prova (testo + stato) vive nel pannello di PauseMenu (DrawTrialsPanel),
+       qui solo il riepilogo "N/M superate, +X punti"
+       (TrialsPassedCount/TrialsCountedTotal/TrialsBonusTotal, unica fonte del
+       conteggio: le due schermate non possono mai divergere). Visibile solo
+       da quando le prove sono state presentate (game->trialCount > 0): nel
+       Piano 0, dove questa schermata e' comunque raggiungibile solo dal
+       crogiolo di fusione inesistente li', il conteggio e' zero e la riga
+       resta silenziosa -- ma lo SLOT (statY + 7*14) resta comunque riservato,
+       cosi' "OGGETTI DEL PIANO" sotto non cambia quota a seconda della run. */
     if (game->trialCount > 0)
         DrawStatLine("Prove", TextFormat("%d/%d, +%d", TrialsPassedCount(game), TrialsCountedTotal(game), TrialsBonusTotal(game)),
-                     rightX, ry + UiRound(154.0f*uiScale), (Color){ 126, 232, 152, 255 }, uiScale);
-    ry += UiRound(184.0f*uiScale);
+                     rightX, rightEdge, statY + 7*14, UI_TESTO);
 
     int floorIndex = GameMathClampInt(game->floor - 1, 0, FLOOR_COUNT - 1);
-    UiText("OGGETTI DEL PIANO", rightX, ry, UiRound(16.0f*uiScale), game->theme.accent2);
-    ry += UiRound(28.0f*uiScale);
-    /* Le righe del piano si fermano sopra la riga "Indietro" (la fascia
-       FUSIONE occupa solo la colonna sinistra, quindi non le toglie spazio). */
-    int floorRows = ((int)(box.y + box.height) - UiRound(56.0f*uiScale) - ry)/rowStep;
-    if (floorRows > 3) floorRows = 3;
-    for (int i = 0; i < floorRows; i++)
-        if (DrawItemPreview(game, &game->content.floors[floorIndex].items[i], rightX, ry + i*rowStep, rightW, false, uiScale))
+    int floorTitleY = (int)box.y + 196;   /* stessa quota di UI_BUILD_FUSION_TITLE_Y: le due colonne restano simmetriche */
+    UiTextAt("OGGETTI DEL PIANO", rightX, floorTitleY, UI_TAGLIA_2, UI_TITOLO);
+    int floorY = floorTitleY + 22;
+    /* floors[].items ha sempre 3 elementi (core/game_types.h): nessun
+       conteggio dinamico da fermare prima della riga "Indietro" come nel
+       vecchio codice, lo spazio qui c'e' sempre (la colonna destra non ha
+       una fascia FUSIONE che le tolga spazio in fondo). */
+    for (int i = 0; i < 3; i++)
+    {
+        Rectangle row = { (float)rightX, (float)(floorY + i*22), (float)rightW, 18.0f };
+        if (DrawFloorItemRow(&game->content.floors[floorIndex].items[i], row))
             hoveredItem = &game->content.floors[floorIndex].items[i];
+    }
 
-    DrawFusionBand(game, ui, innerX, bandY, leftW, uiScale);
-    DrawMenuRow(APP_BUILD_SCREEN, 0, "Indietro", ui->focus, game->theme.accent2);
-    /* Il tooltip per ultimo, sopra tutto (come nel vecchio pannello). */
-    if (hoveredItem) DrawItemTooltip(hoveredItem, uiScale);
+    UiMenuRow(MenuItemRect(APP_BUILD_SCREEN, 0, false), "Indietro", ui->focus == 0);
+    /* Il tooltip per ultimo, sopra tutto. */
+    if (hoveredItem) DrawItemTooltip(hoveredItem);
 }
 
 static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
@@ -5964,18 +6165,28 @@ bool RendererMouseHitTestSelfTest(Game *game)
        fusione) e NON si sovrappone ne' alle righe oggetto ne' alla riga
        "Indietro" -- un click li' non deve mai fare due cose insieme (fondere e
        uscire dalla schermata, o fondere e cambiare sorgente). Con la lista
-       PIENA (MAX_ITEMS), il caso peggiore per la sovrapposizione. */
+       PIENA (MAX_ITEMS), il caso peggiore per la sovrapposizione.
+       WP-UI-2 correzione (verifier opus, minore): 'hasResult' esercita
+       ENTRAMBE le quote della riga (FusionConfirmRowRectFor sopra) -- da
+       quando la riga scende sotto la card dell'ultimo risultato, il caso
+       "risultato presente" e' quello col margine piu' stretto verso
+       "Indietro" (4px, vedi il commento sul blocco UI_BUILD_* piu' sopra) e
+       merita la stessa garanzia del caso vuoto, non solo quella piu' larga. */
+    for (int pass = 0; pass < 2; pass++)
     {
+        bool hasResult = (pass == 1);
         int savedCount = game->player.itemCount;
         game->player.itemCount = MAX_ITEMS;
         AppUi ui = { 0 };
+        AppUi confirmUi = { 0 };
+        if (hasResult) snprintf(confirmUi.fusionResultName, sizeof(confirmUi.fusionResultName), "%s", "Prova");
 
         bool reachable = false, overlapRow = false, overlapBack = false;
         for (float y = 0.0f; y < sh; y += 2.0f)
             for (float x = 0.0f; x < sw; x += 4.0f)
             {
                 Vector2 pt = { x, y };
-                if (!RendererFusionConfirmAt(game, pt)) continue;
+                if (!RendererFusionConfirmAt(game, &confirmUi, pt)) continue;
                 reachable = true;
                 if (RendererBuildItemRowAt(game, &ui, pt) >= 0) overlapRow = true;
                 if (RendererMenuItemAt(APP_BUILD_SCREEN, pt, false) >= 0) overlapBack = true;
@@ -5984,13 +6195,13 @@ bool RendererMouseHitTestSelfTest(Game *game)
 
         if (!reachable)
         {
-            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione non e' raggiungibile\n");
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione non e' raggiungibile (risultato presente=%d)\n", hasResult);
             return false;
         }
         if (overlapRow || overlapBack)
         {
-            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione si sovrappone a %s\n",
-                    overlapRow ? "una riga oggetto" : "la riga Indietro");
+            fprintf(stderr, "RendererMouseHitTestSelfTest: (b2) la riga di conferma della fusione si sovrappone a %s (risultato presente=%d)\n",
+                    overlapRow ? "una riga oggetto" : "la riga Indietro", hasResult);
             return false;
         }
     }

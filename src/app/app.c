@@ -1775,7 +1775,7 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
                la riga e' un bersaglio di click, quindi deve dirlo anche al
                passaggio del mouse, come ogni altra superficie cliccabile. */
             ui->fusionConfirmHover = (hoveredBuildRow < 0) &&
-                                     RendererFusionConfirmAt(game, mousePos);
+                                     RendererFusionConfirmAt(game, ui, mousePos);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && ui->fusionConfirmHover)
                 AppFusionConfirm(game, ui);
             /* W9: la lista e' una finestra SCORREVOLE (RendererBuildItemRowAt/

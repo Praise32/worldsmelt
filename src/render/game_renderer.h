@@ -145,7 +145,10 @@ Rectangle RendererRunSetupModeLabelBand(void);
      sapere per tenere l'ancora allineata al focus.
    - RendererFusionConfirmAt: vero se 'mouse' e' sulla riga di stato/azione
      della fascia FUSIONE ("fondi ...", o il motivo per cui non si puo'): un
-     click qui vale [F].
+     click qui vale [F]. Riceve 'ui' (WP-UI-2): quella riga scende sotto la
+     card dell'ultimo risultato quando 'ui->fusionResultName' non e' vuoto
+     (vedi FusionConfirmRowRectFor in game_renderer.c), quindi la sua quota
+     non e' piu' indipendente da ogni campo di AppUi come prima del reskin.
    - RendererFloorZeroCardAt: indice di carta sotto 'mouse' nella sezione
      ATTIVA (game->floorZeroPanelSection) del pannello combinato del Piano 0
      (DEC-075), o -1 se il pannello e' chiuso o il punto non cade su nessuna
@@ -166,7 +169,7 @@ Rectangle RendererRunSetupModeLabelBand(void);
      come navigazione). */
 int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse);
 int RendererBuildItemRowsVisible(Game *game);
-bool RendererFusionConfirmAt(Game *game, Vector2 mouse);
+bool RendererFusionConfirmAt(Game *game, const AppUi *ui, Vector2 mouse);
 int RendererFloorZeroCardAt(const Game *game, Vector2 mouse);
 int RendererFloorZeroSectionTabAt(const Game *game, Vector2 mouse);
 bool RendererFloorZeroHintChipAt(const Game *game, Vector2 mouse);
