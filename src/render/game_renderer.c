@@ -80,17 +80,6 @@ static void UiText(const char *text, int x, int y, int size, Color color)
     else DrawText(text, x, y, size, color);
 }
 
-/* La variante con contorno, per il testo che poggia DIRETTAMENTE sulla scena
-   senza una cornice sotto (la cifra del layout V3: "elementi flottanti con
-   contorno"). Fuori dal font pixel non c'e' contorno da imitare: si ricade sul
-   DrawText semplice, come faceva prima. */
-static void UiTextOutlined(const char *text, int x, int y, int size, Color color)
-{
-    const ArtSheet *font = ArtUiFont();
-    if (font) ArtDrawTextOutlined(font, text, x, y, UiFontScale(size), color);
-    else DrawText(text, x, y, size, color);
-}
-
 static int UiTextW(const char *text, int size)
 {
     const ArtSheet *font = ArtUiFont();
@@ -222,64 +211,6 @@ static UiLayout UiCanvasLayout(void)
     layout.gameScale = 1.0f;
     layout.uiScale = UI_CANVAS_SCALE;
     return layout;
-}
-
-static Color RoomMapColor(RoomKind kind)
-{
-    switch (kind)
-    {
-        case ROOM_START: return (Color){ 220, 220, 220, 255 };
-        case ROOM_TREASURE: return (Color){ 240, 210, 75, 255 };
-        case ROOM_SHOP: return (Color){ 95, 220, 130, 255 };
-        case ROOM_BOSS: return (Color){ 230, 82, 90, 255 };
-        case ROOM_COMBAT: return (Color){ 130, 145, 165, 255 };
-        /* M1b: colore ambra/braci, distinto dalle stanze di un piano vero --
-           coerente con l'aspetto "curato e distinto" richiesto per il
-           crogiolo (DEC-067), anche sulla minimappa (che qui mostra una
-           sola cella). */
-        case ROOM_HUB: return (Color){ 224, 140, 62, 255 };
-        /* WP4: violetto, distinto dall'ambra del crogiolo del Piano 0 sopra e
-           da ogni altro colore di questa tavola. L'icona dedicata di
-           DrawRoomIcon compare pero' solo a stanza GIA' visitata (DrawMinimap
-           filtra su room->visited): PRIMA dell'ingresso la distinguibilita'
-           senza colore chiesta da DEC-058 non e' garantita -- limite
-           registrato in docs/engineering/known-issues.md voce 12. */
-        case ROOM_FUSION: return (Color){ 196, 120, 224, 255 };
-        /* WP5: ciano/acqua, distinto da ogni altro colore di questa tavola --
-           coerente con la clessidra (assets/art/props/clessidra) come segnale
-           dedicato dell'archetipo. Stesso limite DEC-058 pre-ingresso della
-           nota su ROOM_FUSION sopra (known-issues.md, voce 12): l'icona di
-           DrawRoomIcon compare solo a stanza gia' visitata. */
-        case ROOM_TIMED: return (Color){ 88, 214, 224, 255 };
-        /* WP6: blu acceso -- l'unica tinta francamente BLU della tavola (il
-           combattimento sopra e' un grigio-azzurro slavato), quindi non si
-           confonde ne' con lui ne' col rosso del boss a colpo d'occhio. Stesso
-           limite DEC-058 pre-ingresso delle due note sopra (known-issues.md,
-           voce 12): l'icona "A" di DrawRoomIcon compare solo a stanza gia'
-           visitata. DENTRO la stanza, pero', lo stato della sfida non dipende
-           mai dal solo colore -- il segnale porta sempre un'etichetta testuale
-           (DrawPickup, PICKUP_ARENA_ALTAR). */
-        case ROOM_ARENA: return (Color){ 84, 132, 246, 255 };
-        /* WP7: magenta caldo -- la sola tinta rosa della tavola, distinta dal
-           violetto della fusione (che vira al blu) e dal rosso del boss.
-           Stesso limite DEC-058 pre-ingresso delle note sopra
-           (known-issues.md, voce 12): l'icona "P" di DrawRoomIcon compare solo
-           a stanza gia' visitata. DENTRO la stanza, invece, la puntata non
-           dipende mai dal colore: il banco la scrive PER ESTESO, offerta e
-           prezzo su due righe (DrawPickup, PICKUP_POURHOUSE_BANK). */
-        case ROOM_POURHOUSE: return (Color){ 232, 96, 160, 255 };
-        /* WP8: ottone/oro scuro, distinto dal giallo acceso del tesoro (che e'
-           chiaro e saturo) e dall'ambra del crogiolo del Piano 0. A differenza
-           di ogni altro archetipo qui NON esiste il problema DEC-058 "prima di
-           entrare": una segreta col varco ancora murato non compare affatto
-           sulla minimappa (DrawMinimap salta le celle per cui
-           WorldRoomHiddenOnMap e' vero, special-rooms.md), quindi questo
-           colore si vede solo DOPO che il giocatore l'ha aperta -- e a quel
-           punto l'icona "S" di DrawRoomIcon compare con lui alla prima
-           visita. */
-        case ROOM_SECRET: return (Color){ 206, 158, 74, 255 };
-        default: return (Color){ 40, 44, 50, 255 };
-    }
 }
 
 /* ============================================================
@@ -1387,8 +1318,9 @@ static void DrawPickup(Game *game, const Pickup *p)
                -- la silhouette "crogiolo/altare" che nessun'altra raccolta usa,
                distinguibile a colpo d'occhio anche senza etichetta. Colore
                ambrato/braci, coerente col tema del crogiolo del Piano 0
-               (ROOM_HUB) senza riusarne l'esatta tinta (gia' presa da
-               RoomMapColor per non confondere le due stanze). */
+               (ROOM_HUB) senza riusarne l'esatta tinta -- gia' presa
+               altrove (l'identita' di ROOM_HUB) per non confondere le due
+               stanze. */
             c = (Color){ 255, 148, 61, 255 };
             label = "CR";
             DrawRectangle((int)pos.x - 13, (int)pos.y + 2, 26, 12, DARKGRAY);
@@ -1663,12 +1595,100 @@ static void DrawPlayer(Game *game)
    architettura del piano, non i messaggi, cosi' non compaiono due volte. La
    riga dei comandi che stava qui sotto e' caduta col layout a pannelli
    (DEC-137): i comandi si imparano giocando, l'HUD in overlay resta essenziale. */
+/* ============================================================
+   Le quote del layout HUD in pixel art (WP-UI-1, mock 02/08 approvato dal
+   proprietario: vedi HANDOFF.md). Tutte in pixel di CANVAS (640x360,
+   DEC-200), raccolte in UN blocco solo e non sparse nelle funzioni -- sono il
+   contratto col mock, un giro artistico futuro deve poterle rileggere in un
+   colpo d'occhio (15-UI-DESIGN-PIPELINE.md, "nessun numero magico sparso").
+   Il blocco vive QUI, prima di DrawTransientMessage/DrawFloorZeroTrialHint
+   (i due banner subito sotto), perche' quei due condividono l'angolo basso
+   dell'HUD con la barra comandi e la card di scoperta (DrawHudV3Card, molto
+   piu' sotto nel file, dove vive il resto dell'HUD): le loro quote
+   (HUD_MSG_Y/HUD_TRIALHINT_Y) vanno impilate SOPRA HUD_V3_CARD_Y, e il
+   preprocessore risolve le macro nell'ordine in cui compaiono nel file --
+   da qui la necessita' di un solo blocco, presto, invece di uno vicino a
+   ogni funzione. */
+#define HUD_V3_MARGIN 4                 /* margine dal bordo canvas: pannelli e testo allineato al bordo */
+#define HUD_V3_PANEL_X HUD_V3_MARGIN
+#define HUD_V3_PANEL_Y HUD_V3_MARGIN
+/* Larghezza fissa, come il resto delle quote del mock -- non si allarga con
+   valori piu' lunghi. La riga risorse (DrawHudV3Resources) somma passi FISSI
+   (RES_ICON_ADVANCE/RES_GROUP_GAP), non misura la larghezza vera dei tre
+   numeri come fa invece DrawHudV3Stats per le sue etichette: con lingotti a
+   QUATTRO cifre (>=1000, oggi non raggiungibile in una run normale ma non
+   impedito dal tipo, int) la terza coppia quadratino+numero (chiavi)
+   potrebbe uscire dal bordo destro del pannello. Limite noto, non corretto
+   qui: servirebbe misurare la riga come in DrawHudV3Stats, un cambio piu'
+   largo di questo giro. */
+#define HUD_V3_PANEL_W 150
+#define HUD_V3_PANEL_H 58
+#define HUD_V3_PANEL_PAD 4
+#define HUD_V3_CONTENT_X (HUD_V3_PANEL_X + HUD_V3_PANEL_PAD)
+#define HUD_V3_NAME_Y (HUD_V3_PANEL_Y + HUD_V3_PANEL_PAD)
+#define HUD_V3_HEARTS_Y (HUD_V3_NAME_Y + 8)
+#define HUD_V3_HEART_PX 14
+#define HUD_V3_HEART_STEP 15
+/* Margine fra l'ultimo slot di cuore BASE e il primo cuore Crust (DEC-008/WP2),
+   cosi' i due contatori non si toccano -- vedi HudTempHeartsX piu' sotto. */
+#define HUD_V3_TEMP_HEARTS_GAP 6
+#define HUD_V3_RES_Y (HUD_V3_HEARTS_Y + HUD_V3_HEART_PX + 3)
+#define HUD_V3_RES_ICON_PX 8            /* lato del quadratino colore -- il mock sostituisce l'icona a sprite con una tinta piatta */
+#define HUD_V3_RES_ICON_ADVANCE 10
+#define HUD_V3_RES_GROUP_GAP 10
+#define HUD_V3_FLUX_Y (HUD_V3_RES_Y + 13)
+
+/* Blocco statistiche (toggle C, DEC-184): SOTTO il pannello vitali (chiuso a
+   PANEL_Y+PANEL_H), non piu' sovrapposto -- il vecchio Y fisso (50) cadeva
+   dentro un pannello che allora non esisteva ancora come massa unica. */
+#define HUD_V3_STATS_X HUD_V3_MARGIN
+#define HUD_V3_STATS_Y (HUD_V3_PANEL_Y + HUD_V3_PANEL_H + 4)
+#define HUD_V3_STATS_ROW_H 7
+#define HUD_V3_STATS_PAD 4
+#define HUD_V3_STATS_GAP 4
+
+#define HUD_V3_SLOT_BOX 26
+#define HUD_V3_SLOT_STEP 34
+/* Barra comandi basso-sinistra: altezza fissa, il mock la vuole ben piu' alta
+   della singola riga TAGLIA_1 che contiene (margine generoso sopra e sotto).
+   Le caselle attivo/Innesto condividono il suo bordo INFERIORE ma sono piu'
+   alte (SLOT_BOX=26 > BAR_H=21): SLOTS_Y risale di conseguenza, non e' un
+   numero indipendente da tarare a mano. */
+#define HUD_V3_BAR_H 21
+#define HUD_V3_BAR_Y (SCREEN_HEIGHT - HUD_V3_MARGIN - HUD_V3_BAR_H)
+#define HUD_V3_SLOTS_Y (HUD_V3_BAR_Y + HUD_V3_BAR_H - HUD_V3_SLOT_BOX)
+
+#define HUD_V3_MINIMAP_CELL 11
+#define HUD_V3_MINIMAP_GAP 2
+#define HUD_V3_MINIMAP_PAD 4
+#define HUD_V3_MINIMAP_Y 25
+
+#define HUD_V3_CARD_W 250
+#define HUD_V3_CARD_H 48
+/* La card di scoperta sta SOPRA la barra comandi con un margine, non piu'
+   incollata al fondo del canvas: prima (Y=SCREEN_HEIGHT-56=304, alta 48, fino
+   a 352) copriva in parte la barra comandi nuova (che comincia a
+   HUD_V3_BAR_Y=335) -- il difetto noto ("la barra si sovrapponeva... alla
+   card scoperta") che questo giro chiude. */
+#define HUD_V3_CARD_Y (HUD_V3_BAR_Y - 6 - HUD_V3_CARD_H)
+
+/* I due banner larghi di DrawGameplayCanvas qui sotto (trial hint e messaggio
+   di raccolta) impilati SOPRA la card con lo stesso margine: stessa causa
+   dello spostamento della card qui sopra (la barra comandi nuova occupava lo
+   stesso angolo), la stessa correzione -- "ricolloca le etichette
+   raccolta/card" del difetto noto. */
+#define HUD_MSG_H 28
+#define HUD_MSG_Y (HUD_V3_CARD_Y - 6 - HUD_MSG_H)
+#define HUD_TRIALHINT_H 28
+#define HUD_TRIALHINT_Y (HUD_MSG_Y - 6 - HUD_TRIALHINT_H)
+
 static void DrawTransientMessage(Game *game)
 {
     if (game->messageTimer <= 0.0f) return;
-    Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 46.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
-    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 160));
-    UiText(game->message, (int)box.x + 10, (int)box.y + 6, 15, RAYWHITE);
+    Rectangle box = { 18.0f, (float)HUD_MSG_Y, (float)SCREEN_WIDTH - 36.0f, (float)HUD_MSG_H };
+    UiPanel(box);
+    UiTextAt(game->message, (int)box.x + 10, (int)box.y + (HUD_MSG_H - UiTextHeight(UI_TAGLIA_2))/2,
+             UI_TAGLIA_2, UI_TESTO);
 }
 
 /* WP15a (DEC-047, systems/floor-zero.md "Primissima visita: tutorial
@@ -1683,10 +1703,14 @@ static void DrawTransientMessage(Game *game)
 static void DrawFloorZeroTrialHint(const Game *game)
 {
     if (!game->floorZeroTrialActive || !game->floorZeroTrialHint[0]) return;
-    Rectangle box = { 18.0f, (float)SCREEN_HEIGHT - 78.0f, (float)SCREEN_WIDTH - 36.0f, 28.0f };
-    DrawRectangleRec(box, GameColorWithAlpha(BLACK, 170));
-    DrawRectangleLinesEx(box, 1.0f, (Color){ 236, 178, 92, 190 });
-    UiText(game->floorZeroTrialHint, (int)box.x + 10, (int)box.y + 6, 15, (Color){ 246, 214, 160, 255 });
+    /* WP-UI-1: via il bordo arancio (la palette Fucina bandisce le cornici
+       accese fuori da UiPanel, "niente... arancio-cornice") -- UI_GLINT sul
+       testo ("punte di luce, evidenziazioni brevi") porta lo stesso segnale
+       di attenzione senza un colore fuori tavolozza. */
+    Rectangle box = { 18.0f, (float)HUD_TRIALHINT_Y, (float)SCREEN_WIDTH - 36.0f, (float)HUD_TRIALHINT_H };
+    UiPanel(box);
+    UiTextAt(game->floorZeroTrialHint, (int)box.x + 10, (int)box.y + (HUD_TRIALHINT_H - UiTextHeight(UI_TAGLIA_2))/2,
+             UI_TAGLIA_2, UI_GLINT);
 }
 
 /* Un colpo, disegnato secondo la sua FORMA (step C, core/shot_type.h). Le forme
@@ -2316,7 +2340,7 @@ static int DrawHearts(const Player *p, int x, int y, float uiScale)
 /* Una lettera-icona al centro di una cella della minimappa per le stanze speciali
    (fase 4): T tesoro, $ negozio, B boss. Le stanze normali/di partenza restano
    vuote. Reso leggibile anche a 26px. */
-static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiScale)
+static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color)
 {
     const char *g = NULL;
     if (kind == ROOM_TREASURE) g = "T";
@@ -2328,9 +2352,32 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
     else if (kind == ROOM_POURHOUSE) g = "P";   /* WP7: idem, Pourhouse (DEC-136) */
     else if (kind == ROOM_SECRET) g = "S";      /* WP8: idem, stanza segreta gia' aperta (DEC-025) */
     if (!g) return;
-    int fontSize = UiRound(14.0f*uiScale);
+    if (ArtUiReady())
+    {
+        /* Minimappa in pixel art (mock 02/08): TAGLIA_1 fissa, non piu'
+           'uiScale*14' -- la cella e' 11px (spec del mock), un glifo da 10px
+           (TAGLIA_2) non ci starebbe piu' dentro col margine di prima.
+           ArtUiReady (font E panel E slot), non ArtUiFont: con un pacchetto
+           parziale l'HUD sceglie il ripiego a celle grandi (~34px) e la
+           lettera deve seguire quel ramo proporzionale, non restare a 5px. */
+        int w = UiTextWidth(g, UI_TAGLIA_1);
+        int h = UiTextHeight(UI_TAGLIA_1);
+        UiTextAt(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)h*0.5f),
+                 UI_TAGLIA_1, color);
+        return;
+    }
+    /* Ripiego SENZA pacchetto artistico (DrawHudRunStatus: celle ben piu'
+       grandi della minimappa in pixel art, fino a ~34px alle risoluzioni
+       piu' larghe): una TAGLIA_1 fissa ci lascerebbe la lettera a 5-8px persa
+       dentro la cella (correzione da review del giudice). Proporzionale alla
+       cella VERA che questa chiamata sta decorando -- niente parametro
+       uiScale in piu' da tenere sincronizzato con 'cell', la cella stessa
+       e' gia' la fonte di verita' sulla scala. */
+    int fontSize = UiRound(cell.height*0.9f);
+    if (fontSize < 8) fontSize = 8;
     int w = UiTextW(g, fontSize);
-    UiText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f), fontSize, color);
+    UiText(g, (int)(cell.x + cell.width*0.5f - (float)w*0.5f), (int)(cell.y + cell.height*0.5f - (float)fontSize*0.5f),
+           fontSize, color);
 }
 
 /* DEC-137: la minimappa e' passata da pannello laterale a overlay in un angolo
@@ -2346,13 +2393,32 @@ static void DrawRoomIcon(RoomKind kind, Rectangle cell, Color color, float uiSca
    perche' il bordo si disegna solo dove finisce davvero la stanza e il gap si
    riempie fra due celle sorelle. Una 2x2 si legge come un blocco unico, come in
    Isaac. */
-static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap, float uiScale)
+/* Fucina (WP-UI-1, mock 02/08): tre soli stati di riempimento -- corrente
+   (oro, UI_TITOLO), boss (brace-scura), tutto il resto (ardesia-scura) -- al
+   posto della vecchia tavolozza per-archetipo (RoomMapColor, rimossa: vedi
+   docs/engineering/known-issues.md #12), che nel dettaglio comprendeva un
+   ciano (ROOM_TIMED) e un magenta (ROOM_POURHOUSE), entrambi banditi dalla
+   palette dell'interfaccia (ui_theme.h). Le stanze speciali restano
+   leggibili dalla LETTERA di DrawRoomIcon dopo la visita, esattamente come
+   DEC-137 gia' notava ("le lettere... dicono la stessa cosa"): il colore
+   extra era un secondo canale ridondante, non l'unica fonte di
+   quell'informazione -- e la sua rimozione chiude anche known-issues.md #12
+   (nessun colore-solo pre-visita da cui DEC-058 debba piu' proteggere). */
+static const Color HUD_MAP_NORMAL = { 38, 48, 63, 255 };   /* ardesia-scura */
+/* Lo stesso "sotto" del gradiente del cuore (assets/art/ui/icons.png, riga
+   'heart': outline 126,34,22 + fill 177,58,30) gia' sulla palette Fucina --
+   qui diventa lo stato "stanza del boss". Costante locale e non un token
+   ui_theme.h perche' usata in un solo punto (stessa scelta per
+   HUD_RES_KEY_BRONZE piu' sotto). */
+static const Color HUD_MAP_BOSS = { 126, 34, 22, 255 };    /* brace-scura */
+
+static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap)
 {
     for (int y = 0; y < GRID_SIZE; y++)
     {
         for (int x = 0; x < GRID_SIZE; x++)
         {
-            if (!game->rooms[y][x].exists) continue;   /* niente cornice sulle celle inesistenti: la mappa "respira" */
+            if (!game->rooms[y][x].exists) continue;   /* niente cella sulle celle inesistenti: la mappa "respira" */
             const RoomState *room = WorldRoomAt(game, x, y);
             /* WP8 (systems/special-rooms.md, "Stanza segreta"): una segreta col
                varco ancora murato NON compare sulla mappa -- nemmeno smorzata
@@ -2365,10 +2431,27 @@ static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap, flo
                nessun bordo/gap la tradisce. */
             if (WorldRoomHiddenOnMap(room)) continue;
             Rectangle cell = { (float)(baseX + x*(size + gap)), (float)(baseY + y*(size + gap)), (float)size, (float)size };
-            /* Visitata: colore pieno del suo tipo. Non visitata ma esistente
-               (adiacente a una visitata): smorzata, cosi' si vede DOVE si puo'
-               andare senza svelare cosa c'e'. */
-            Color base = room->visited ? RoomMapColor(room->kind) : GameColorLerp(RoomMapColor(room->kind), (Color){ 30, 33, 40, 255 }, 0.7f);
+            /* "Stanza corrente" = tutte le celle della stanza in cui si trova
+               il giocatore, non solo quella di stato (game->roomX/roomY). */
+            bool current = WorldSameRoom(game, x, y, game->roomX, game->roomY);
+            /* Correzione dal giudizio del verifier (DEC-058/known-issues.md
+               #12): il boss si tinge di HUD_MAP_BOSS SOLO se la stanza e'
+               visited -- altrimenti (nota-ma-non-visitata) resta
+               HUD_MAP_NORMAL come ogni altro archetipo, e lo smorzamento qui
+               sotto la rende IDENTICA a una stanza qualunque non visitata.
+               Prima 'solid' sceglieva il boss a prescindere da 'visited' e lo
+               smorzamento si limitava ad attenuarlo: una stanza boss nota ma
+               mai visitata restava riconoscibile dal SOLO colore (una brace
+               smorzata, distinta dall'ardesia smorzata), esattamente il
+               canale-solo-colore che DEC-058 vieta -- la lettera "B" di
+               DrawRoomIcon compare solo dopo la visita, quindi prima non
+               c'era nessun secondo canale a compensare. */
+            Color solid = current ? UI_TITOLO : ((room->kind == ROOM_BOSS && room->visited) ? HUD_MAP_BOSS : HUD_MAP_NORMAL);
+            /* Visitata: colore pieno. Non visitata ma esistente (adiacente a
+               una visitata): smorzata, cosi' si vede DOVE si puo' andare
+               senza svelare cosa c'e' (la stanza corrente e' per definizione
+               visitata, lo smorzamento qui non la riguarda mai). */
+            Color base = room->visited ? solid : GameColorLerp(solid, (Color){ 30, 33, 40, 255 }, 0.7f);
             DrawRectangleRec(cell, base);
             /* Il gap verso una cella SORELLA si riempie: e' cio' che fonde le
                celle in un blocco unico invece di lasciarle come stanze vicine. */
@@ -2377,23 +2460,39 @@ static void DrawMinimap(Game *game, int baseX, int baseY, int size, int gap, flo
             if (gap > 0 && WorldSameRoom(game, x, y, x, y + 1))
                 DrawRectangle((int)cell.x, (int)(cell.y + cell.height), size, gap, base);
 
-            /* "Stanza corrente" = tutte le celle della stanza in cui si trova
-               il giocatore, non solo quella di stato (game->roomX/roomY). */
-            bool current = WorldSameRoom(game, x, y, game->roomX, game->roomY);
-            /* Bordo solo sui lati ESTERNI della stanza (verso una stanza
-               diversa, o verso il vuoto): dentro la stanza non c'e' confine da
-               disegnare. */
-            Color line = current ? RAYWHITE : GameColorWithAlpha(BLACK, 150);
-            float thick = current ? (float)UiRound(3.0f*uiScale) : 1.0f;
-            if (!WorldSameRoom(game, x, y, x, y - 1)) DrawRectangleRec((Rectangle){ cell.x, cell.y, cell.width, thick }, line);
-            if (!WorldSameRoom(game, x, y, x, y + 1)) DrawRectangleRec((Rectangle){ cell.x, cell.y + cell.height - thick, cell.width, thick }, line);
-            if (!WorldSameRoom(game, x, y, x - 1, y)) DrawRectangleRec((Rectangle){ cell.x, cell.y, thick, cell.height }, line);
-            if (!WorldSameRoom(game, x, y, x + 1, y)) DrawRectangleRec((Rectangle){ cell.x + cell.width - thick, cell.y, thick, cell.height }, line);
+            /* Porte come TACCHE (mock 02/08): un segno solo dove c'e' un
+               varco vero fra due stanze DIVERSE -- non piu' un bordo pieno su
+               ogni lato esterno della stanza, che ridondava con la fusione
+               delle celle sorelle qui sopra e nel mock non c'e'. Un solo
+               verso per lato condiviso (RIGHT/DOWN): il verso opposto (LEFT
+               della cella a destra, UP di quella sotto) e' lo STESSO segmento
+               fisico -- ridisegnarlo da entrambi i lati sarebbe lo stesso
+               pixel due volte.
+               LETTO DA 'game->rooms[y][x].doors[]', NON da 'room->doors[]'
+               (correzione dal giudizio del verifier): 'room' e' la cella di
+               STATO (WorldRoomAt), la stessa per OGNI cella della stanza --
+               'doors[]' invece e' un fatto del LATO di QUESTA cella
+               (game_types.h, commento su RoomState), valido su ognuna
+               separatamente. Su una stanza 2x2 leggerlo da 'room' avrebbe
+               fatto sparire le tacche sui lati destro/inferiore delle celle
+               sorelle (i loro doors[] veri non sono quelli della cella di
+               stato) e ne avrebbe disegnate di fantasma dove la cella di
+               stato aveva una porta ma QUESTA cella no. */
+            if (gap > 0 && game->rooms[y][x].doors[DIR_RIGHT] && !WorldSameRoom(game, x, y, x + 1, y)
+                && x + 1 < GRID_SIZE && game->rooms[y][x + 1].exists)
+                DrawRectangleRec((Rectangle){ cell.x + cell.width, cell.y + cell.height*0.3f, (float)gap, cell.height*0.4f }, UI_SECONDARIO);
+            if (gap > 0 && game->rooms[y][x].doors[DIR_DOWN] && !WorldSameRoom(game, x, y, x, y + 1)
+                && y + 1 < GRID_SIZE && game->rooms[y + 1][x].exists)
+                DrawRectangleRec((Rectangle){ cell.x + cell.width*0.3f, cell.y + cell.height, cell.width*0.4f, (float)gap }, UI_SECONDARIO);
 
             /* Le icone delle stanze speciali si vedono solo dopo averle visitate:
                un pizzico di scoperta, come in Isaac. UNA per stanza, sulla sua
-               cella di stato, non una per cella. */
-            if (room->visited && room == &game->rooms[y][x]) DrawRoomIcon(room->kind, cell, GameColorWithAlpha(BLACK, 200), uiScale);
+               cella di stato, non una per cella. Lettera scura sul fondo oro
+               (corrente, chiaro) e chiara altrimenti (ardesia/brace, scuri):
+               un nero fisso come prima leggeva bene solo sui colori chiari
+               della vecchia tavolozza, non sull'ardesia scura di adesso. */
+            if (room->visited && room == &game->rooms[y][x])
+                DrawRoomIcon(room->kind, cell, current ? UI_GROUND : UI_TESTO);
         }
     }
 }
@@ -2740,7 +2839,7 @@ static void DrawHudRunStatus(Game *game, Rectangle gr, float s)
     /* FPS in coda alla riga della fonte, allineato al bordo destro del riquadro. */
     UiText(fpsText, (int)(box.x + boxW - ip) - UiTextW(fpsText, fpsFont), cy + UiRound(1.0f*s), fpsFont, (Color){ 126, 232, 152, 255 });
     cy += UiRound(lineH + gapAfterText);
-    DrawMinimap(game, (int)(box.x + (boxW - (float)mmW)*0.5f), cy, mmCell, mmGap, s);
+    DrawMinimap(game, (int)(box.x + (boxW - (float)mmW)*0.5f), cy, mmCell, mmGap);
 }
 
 /* Basso-sinistra: la build a colpo d'occhio -- tipo di colpo attivo, sinergie
@@ -2848,73 +2947,46 @@ static void DrawHudDiscovery(Game *game, Rectangle gr, float s)
 }
 
 /* ============================================================
-   W8: l'HUD in PIXEL ART, layout V3.
+   W8/WP-UI-1: l'HUD in PIXEL ART, layout V3 rivestito coi token Fucina.
  *
- * DOVE SI DISEGNA. Dentro il CANVAS logico 960x640, non piu' in overlay sullo
- * schermo -- e' quanto prescrive DEC-174 ("l'HUD in pixel art della demo si
- * disegna per il canvas logico attuale, 960x640") e ha una conseguenza pratica
- * decisiva: le coordinate qui sotto sono ESATTAMENTE quelle del layout V3
- * approvato (scripts/cp2_hud_mocks.lua, variante CP2-V3-minimal), numero per
- * numero, invece di essere riderivate da uiScale. L'HUD scala quindi con la
- * game view, a passi interi, e un pixel dell'icona di un cuore resta grande
- * come un pixel del pavimento -- che e' la sola cosa che fa leggere l'insieme
- * come pixel art e non come due grafiche sovrapposte.
+ * DOVE SI DISEGNA. Dentro il CANVAS logico 640x360 (DEC-200), non in overlay
+ * sullo schermo -- e' quanto prescrive DEC-174 ("l'HUD in pixel art si
+ * disegna per il canvas logico") e ha una conseguenza pratica decisiva: le
+ * coordinate delle funzioni qui sotto sono ESATTAMENTE quelle del mock
+ * approvato (vedi il blocco #define poco sopra DrawTransientMessage, molto
+ * piu' su nel file), numero per numero, invece di essere riderivate da
+ * uiScale. L'HUD scala quindi con la game view, a passi interi, e un pixel
+ * dell'icona di un cuore resta grande come un pixel del pavimento -- che e'
+ * la sola cosa che fa leggere l'insieme come pixel art e non come due
+ * grafiche sovrapposte.
  * Il vecchio HUD in overlay (DrawOuterUi) resta come RIPIEGO integrale per il
  * caso "assets/art/ui assente": mai i due mescolati.
  *
- * CIFRA DEL LAYOUT V3: "niente pannelli, elementi flottanti con contorno". Il
- * testo poggia direttamente sulla scena con un contorno nero (UiTextOutlined);
- * le cornici 9-patch restano solo dove delimitano una CASELLA (slot attivo,
- * slot Innesto, card di scoperta), che e' informazione di stato, non decoro.
-   ============================================================ */
-
-/* Le quote del layout V3, tutte in pixel di canvas. Raccolte qui e non sparse
-   nelle funzioni: sono il contratto col mock approvato, e un giro artistico
-   futuro deve poterle rileggere in un colpo d'occhio (criterio di
-   accettazione di 15-UI-DESIGN-PIPELINE.md: nessun numero magico sparso). */
-#define HUD_V3_MARGIN 10
-#define HUD_V3_NAME_Y 8
-#define HUD_V3_HEARTS_Y 17
-#define HUD_V3_HEART_PX 12
-#define HUD_V3_HEART_STEP 13
-/* Margine fra l'ultimo slot di cuore BASE e il primo cuore Crust (DEC-008/WP2),
-   cosi' i due contatori non si toccano -- vedi HudTempHeartsX piu' sotto. */
-#define HUD_V3_TEMP_HEARTS_GAP 6
-#define HUD_V3_RES_Y 34
-#define HUD_V3_RES_ICON_PX 11
-#define HUD_V3_RES_ICON_ADVANCE 13
-#define HUD_V3_RES_GROUP_GAP 10
-#define HUD_V3_SLOTS_Y (SCREEN_HEIGHT - 76)
-#define HUD_V3_SLOT_BOX 30
-#define HUD_V3_SLOT_STEP 40
-#define HUD_V3_MINIMAP_CELL 14
-#define HUD_V3_MINIMAP_GAP 3
-#define HUD_V3_MINIMAP_Y 40
-#define HUD_V3_CARD_W 250
-#define HUD_V3_CARD_H 48
-#define HUD_V3_CARD_Y (SCREEN_HEIGHT - 56)
-#define HUD_V3_HINT_Y (SCREEN_HEIGHT - 50)
-/* DEC-184 (ui/hud.md, "Blocco statistiche"): sotto la riga risorse (RES_Y=34
-   + l'altezza della sua icona/testo), ben sopra le caselle attivo/Innesto in
-   fondo (SLOTS_Y) -- priorita' 4 di ui/hud.md, un gradino sotto sopravvivenza/
-   minacce/risorse, mai a competere visivamente con quelle. */
-#define HUD_V3_STATS_Y 50
-#define HUD_V3_STATS_ROW_H 7
-#define HUD_V3_STATS_PAD 4
-#define HUD_V3_STATS_GAP 4
-#define HUD_V3_STATS_FONT 8
+ * CIFRA DEL LAYOUT (WP-UI-1, mock 02/08): pannelli tonali UiPanel
+ * (src/render/ui_theme.h, DEC-205 "niente cornici colorate da 1px") al posto
+ * dei riquadri semitrasparenti col bordo acceso di prima -- stessa massa
+ * visiva del resto dell'interfaccia rivestita in WP-UI-0 (MainMenu). Il
+ * testo passa da UiTextOutlined (contorno nero, per poggiare direttamente
+ * sulla scena) a UiTextAt su UI_TAGLIA_1/2 quando sta DENTRO un pannello (il
+ * pannello gia' garantisce il contrasto); un'ombra a doppio disegno
+ * (UI_GROUND scalato di 1px) resta SOLO sui tre testi ancora flottanti sulla
+ * scena -- piano/mondo in alto a destra, timer in alto al centro -- che
+ * sono gli unici senza un pannello sotto. */
 
 /* La riga dei cuori (priorita' 1 di ui/hud.md). Tre icone dal set consegnato:
    heart pieno, heart_half per il mezzo cuore, heart_empty per lo slot vuoto --
    la stessa semantica di DrawHearts (2 punti vita per cuore), disegnata con gli
-   sprite invece che con due cerchi e un triangolo. */
+   sprite invece che con due cerchi e un triangolo. Gia' sulla palette Fucina
+   (assets/art/ui/icons.png: outline brace 126,34,22 + riempimento 177,58,30
+   per il cuore pieno, ardesia scura per il vuoto) -- nessuna tinta da
+   cambiare qui, solo la taglia (WP-UI-1: 12px -> 14px, mock 02/08). */
 static void DrawHudV3Hearts(const Player *p, int x, int y)
 {
     int full = p->hp/2;
     bool half = (p->hp%2) != 0;
     int slots = (p->maxHp + 1)/2;
     if (slots < 1) slots = 1;
-    float scale = (float)HUD_V3_HEART_PX/16.0f;   /* le icone sono 16x16, il layout ne vuole 12 */
+    float scale = (float)HUD_V3_HEART_PX/16.0f;   /* le icone sono 16x16, il layout ne vuole 14 */
     for (int i = 0; i < slots; i++)
     {
         float ix = (float)(x + i*HUD_V3_HEART_STEP);
@@ -2946,12 +3018,15 @@ int HudTempHeartsSlotCount(int tempHp)
    dell'ultimo slot di cuore BASE (maxHp, non hp: lo slot dei cuori base non
    si restringe quando il giocatore e' ferito, vedi DrawHudV3Hearts sopra),
    con HUD_V3_TEMP_HEARTS_GAP di margine cosi' i due contatori non si
-   toccano. Nucleo PURO, stesso stile di HudTempHeartsSlotCount sopra. */
+   toccano. Parte da HUD_V3_CONTENT_X (l'interno del pannello vitali, WP-UI-1)
+   e non piu' da HUD_V3_MARGIN (il bordo del canvas): i cuori vivono dentro il
+   pannello, non piu' flottanti sul bordo. Nucleo PURO, stesso stile di
+   HudTempHeartsSlotCount sopra. */
 int HudTempHeartsX(int maxHp)
 {
     int baseHeartSlots = (maxHp + 1)/2;
     if (baseHeartSlots < 1) baseHeartSlots = 1;
-    return HUD_V3_MARGIN + baseHeartSlots*HUD_V3_HEART_STEP + HUD_V3_TEMP_HEARTS_GAP;
+    return HUD_V3_CONTENT_X + baseHeartSlots*HUD_V3_HEART_STEP + HUD_V3_TEMP_HEARTS_GAP;
 }
 
 /* Ripiego SENZA pacchetto artistico (DrawHudVitals sotto, il cluster che
@@ -2989,42 +3064,60 @@ static void DrawHudV3TempHearts(const Player *p, int x, int y)
         ArtDrawIcon("heart_temp", (float)(x + i*HUD_V3_HEART_STEP), (float)y, scale, WHITE);
 }
 
-/* La riga delle risorse, nell'ordine fisso del layout V3: lingotti, cariche di
-   breccia, chiavi, Flux (DEC-072 per i nomi in gioco, DEC-013 per il
-   raggruppamento per funzione). Il Flux entra solo quando se ne possiede
-   almeno uno -- e' una risorsa rara, e uno "0" fisso sarebbe rumore per la
-   maggior parte della run (regola gia' in vigore prima di W8) -- e porta il
-   riquadro di evidenza quando basta per una fusione, come chiede ui/hud.md
-   ("evidenziato quando sufficiente per una fusione"). */
+/* Bronzo-chiaro delle chiavi (WP-UI-1, mock 02/08): la stessa tinta gia'
+   presente nell'icona 'key'/'active' di assets/art/ui/icons.png (curata,
+   sulla palette Fucina) promossa a costante locale perche' qui serve un
+   quadratino di tinta pura e non esiste un token ui_theme.h dedicato per un
+   solo riuso (stessa scelta di HUD_MAP_BOSS sopra in DrawMinimap). */
+static const Color HUD_RES_KEY_BRONZE = { 201, 138, 46, 255 };
+
+/* Le tre risorse spendibili come QUADRATINO di tinta piatta + numero
+   (WP-UI-1, mock 02/08): lingotti, cariche di breccia, chiavi (DEC-072 per i
+   nomi in gioco, DEC-013 per il raggruppamento per funzione) -- il mock
+   sostituisce le icone a sprite di prima con un blocco di colore, piu'
+   leggibile alla taglia minuta del pannello. I tre colori non sono
+   invenzioni: oro e' UI_TITOLO, cenere e' la stessa tinta "comune" gia'
+   dichiarata in UiRarityTint (nessuna nuova costante per un solo riuso),
+   bronzo-chiaro e' HUD_RES_KEY_BRONZE sopra. Il Flux ha una riga propria
+   sotto (DrawHudV3Flux): nel mock non e' un quarto quadratino nella stessa
+   fila, e' un testo isolato. */
 static void DrawHudV3Resources(Game *game, int x, int y)
 {
     const Player *p = &game->player;
-    struct { const char *icon; int value; bool show; } row[4] = {
-        { "ingot", p->coins, true },
-        { "charge", p->bombs, true },
-        { "key", p->keys, true },
-        { "flux", p->flux, p->flux > 0 },
+    struct { Color color; int value; } row[3] = {
+        { UI_TITOLO, p->coins },
+        { UiRarityTint(RARITY_COMMON), p->bombs },
+        { HUD_RES_KEY_BRONZE, p->keys },
     };
-    float scale = (float)HUD_V3_RES_ICON_PX/16.0f;
     int cx = x;
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 3; i++)
     {
-        if (!row[i].show) continue;
+        DrawRectangle(cx, y, HUD_V3_RES_ICON_PX, HUD_V3_RES_ICON_PX, row[i].color);
+        cx += HUD_V3_RES_ICON_ADVANCE;
         char text[16];
         snprintf(text, sizeof(text), "%d", row[i].value);
-        int textW = UiTextW(text, 12);
-        /* FUSION_FLUX_COST vale 1 (gameplay/fusion.c, FusionCheck): "abbastanza
-           per fondere" e' quindi "almeno uno". Si esprime come confronto e non
-           come costante nuova per non duplicare una regola che vive li'. */
-        if (i == 3 && row[i].value >= 1)
-            DrawRectangleLinesEx((Rectangle){ (float)cx - 2.0f, (float)y - 2.0f,
-                                              (float)(HUD_V3_RES_ICON_ADVANCE + textW + 4), 15.0f },
-                                 1.0f, game->theme.accent);
-        ArtDrawIcon(row[i].icon, (float)cx, (float)y, scale, WHITE);
-        cx += HUD_V3_RES_ICON_ADVANCE;
-        UiTextOutlined(text, cx, y + 2, 12, RAYWHITE);
-        cx += textW + HUD_V3_RES_GROUP_GAP;
+        UiTextAt(text, cx, y - 1, UI_TAGLIA_2, UI_TESTO);
+        cx += UiTextWidth(text, UI_TAGLIA_2) + HUD_V3_RES_GROUP_GAP;
     }
+}
+
+/* Il Flux (DEC-022/072), riga propria sotto le tre risorse (mock 02/08):
+   stessa regola di sempre, visibile solo quando se ne possiede almeno uno --
+   e' una risorsa rara, "0" fisso sarebbe rumore per la maggior parte della
+   run. FUSION_FLUX_COST vale 1 (gameplay/fusion.c, FusionCheck): "abbastanza
+   per fondere" e "se ne possiede almeno uno" sono quindi la STESSA
+   condizione -- il riquadro di evidenza di prima ("evidenziato quando
+   sufficiente per una fusione", ui/hud.md) e' gia' garantito dal solo fatto
+   che la riga compaia, in UI_GLINT ("punte di luce, evidenziazioni brevi"):
+   un secondo segnale sovrapposto sarebbe stata una cornice accesa in piu',
+   proprio cio' che la palette Fucina vieta fuori da UiPanel. */
+static void DrawHudV3Flux(Game *game, int x, int y)
+{
+    const Player *p = &game->player;
+    if (p->flux <= 0) return;
+    char text[24];
+    snprintf(text, sizeof(text), "FLUX %d", p->flux);
+    UiTextAt(text, x, y, UI_TAGLIA_1, UI_GLINT);
 }
 
 /* DEC-184 (ui/hud.md, "Blocco statistiche"): il blocco compatto di sola
@@ -3055,58 +3148,65 @@ static void DrawHudV3Stats(Game *game, int x, int y)
     int labelW = 0, valueW = 0;
     for (int i = 0; i < 6; i++)
     {
-        int lw = UiTextW(labels[i], HUD_V3_STATS_FONT);
+        int lw = UiTextWidth(labels[i], UI_TAGLIA_1);
         if (lw > labelW) labelW = lw;
-        int vw = UiTextW(values[i], HUD_V3_STATS_FONT);
+        int vw = UiTextWidth(values[i], UI_TAGLIA_1);
         if (vw > valueW) valueW = vw;
     }
     int valueX = x + HUD_V3_STATS_PAD + labelW + HUD_V3_STATS_GAP;
     Rectangle box = { (float)x, (float)y,
                       (float)(HUD_V3_STATS_PAD*2 + labelW + HUD_V3_STATS_GAP + valueW),
                       (float)(HUD_V3_STATS_PAD*2 + 6*HUD_V3_STATS_ROW_H) };
-    DrawRectangleRec(box, (Color){ 13, 15, 21, 190 });
-    if (!ArtDrawPanel(box, WHITE)) DrawHudBox(box, game->theme.accent2, 1.0f, 190);
+    UiPanel(box);
 
+    /* WP-UI-1 (mock 02/08): etichette UI_MUTO, valori UI_TESTO allineati a
+       destra -- via il verde speciale sulla Fortuna (indice 5) di prima, il
+       mock tratta le sei righe in modo uniforme. */
     for (int i = 0; i < 6; i++)
     {
         int ry = y + HUD_V3_STATS_PAD + i*HUD_V3_STATS_ROW_H;
-        /* Fortuna (indice 5) e' l'unica delle sei che il giocatore legge come
-           "buono/cattivo" col segno -- stesso trattamento verde del pannello
-           PERSONAGGIO di BuildScreen, le altre restano testo neutro. */
-        Color valueColor = (i == 5) ? (Color){ 126, 232, 152, 255 } : (Color){ 224, 228, 236, 255 };
-        UiText(labels[i], x + HUD_V3_STATS_PAD, ry, HUD_V3_STATS_FONT, (Color){ 150, 158, 172, 255 });
-        UiText(values[i], valueX, ry, HUD_V3_STATS_FONT, valueColor);
+        UiTextAt(labels[i], x + HUD_V3_STATS_PAD, ry, UI_TAGLIA_1, UI_MUTO);
+        UiTextAt(values[i], valueX, ry, UI_TAGLIA_1, UI_TESTO);
     }
 }
 
-/* Le due CASELLE funzionali: attivo (tasto E) e Innesto (tasto G). Entrambe
-   sono una cornice a slot 9-patch con l'icona del set (active/graft) e
-   l'etichetta del tasto sotto -- il tasto fra parentesi quadre e' l'unico
-   posto in cui il giocatore scopre come si usano.
-   Lo STATO di ricarica e' la barra sotto l'icona: piena in proporzione alle
-   cariche o al cooldown residuo. active-items.md chiede che "disponibile/in
-   ricarica" sia SEMPRE visibile, e una barra lo dice senza far leggere numeri.
-   Una casella vuota resta disegnata (una cornice spenta): grafts.md chiede che
-   l'interfaccia mostri quanti slot sono disponibili, non solo quelli pieni. */
-static void DrawHudV3Slot(Game *game, int x, int y, const char *icon, const char *key,
+/* Le due CASELLE funzionali: attivo (tasto E) e Innesto (tasto G). WP-UI-1
+   (mock 02/08): la cornice a slot 9-patch diventa un UiPanel 26px come ogni
+   altro riquadro dell'HUD -- il mock le mostra vuote (nessun oggetto attivo
+   nella scena di riferimento), una lettera sola al centro, niente icona ne'
+   barra: quello resta il caso "slot occupato", non coperto dal mock ma
+   necessario al gioco vero.
+   Lo STATO di ricarica e' la barra sotto l'icona quando lo slot e' occupato:
+   piena in proporzione alle cariche o al cooldown residuo. active-items.md
+   chiede che "disponibile/in ricarica" sia SEMPRE visibile, e una barra lo
+   dice senza far leggere numeri. Pronto = oro (UI_TITOLO, lo stesso segnale
+   di "in fuoco" di UiMenuRow), in carica = cenere-scura (UI_MUTO): via il
+   colore procedurale della run (game->theme.accent), che ui_theme.h bandisce
+   dall'interfaccia ("mai dal tema generato della run"). Una casella vuota
+   resta disegnata (UiPanel comunque): grafts.md chiede che l'interfaccia
+   mostri quanti slot sono disponibili, non solo quelli pieni. */
+static void DrawHudV3Slot(int x, int y, const char *icon, const char *key,
                           bool filled, float fill, bool ready)
 {
     Rectangle box = { (float)x, (float)y, (float)HUD_V3_SLOT_BOX, (float)HUD_V3_SLOT_BOX };
-    Color frame = filled ? (ready ? game->theme.accent : (Color){ 140, 146, 158, 255 })
-                         : (Color){ 96, 100, 112, 255 };
-    DrawRectangleRec((Rectangle){ box.x + 2.0f, box.y + 2.0f, box.width - 4.0f, box.height - 4.0f },
-                     (Color){ 13, 15, 21, 200 });
-    if (!ArtDrawSlot(box, frame)) DrawRectangleLinesEx(box, 1.0f, frame);
-    if (filled) ArtDrawIcon(icon, box.x + 4.0f, box.y + 3.0f, 11.0f/16.0f*2.0f, WHITE);
-    /* Barra 24x4 a 3 px dal bordo, come il mock. Il fondo si disegna sempre:
-       una barra vuota e' informazione ("non e' pronto"), una barra assente no. */
-    Rectangle bar = { box.x + 3.0f, box.y + 23.0f, 24.0f, 4.0f };
-    DrawRectangleRec(bar, (Color){ 24, 20, 24, 220 });
-    float clamped = GameMathClampFloat(fill, 0.0f, 1.0f);
-    if (clamped > 0.0f)
-        DrawRectangleRec((Rectangle){ bar.x, bar.y, bar.width*clamped, bar.height },
-                         ready ? game->theme.accent : (Color){ 120, 126, 138, 255 });
-    UiTextOutlined(key, x + 8, y + 33, 8, (Color){ 198, 205, 217, 255 });
+    UiPanel(box);
+    if (filled)
+    {
+        ArtDrawIcon(icon, box.x + (HUD_V3_SLOT_BOX - 12)*0.5f, box.y + 2.0f, 12.0f/16.0f, WHITE);
+        Rectangle bar = { box.x + 3.0f, box.y + 15.0f, HUD_V3_SLOT_BOX - 6.0f, 3.0f };
+        DrawRectangleRec(bar, UI_GROUND);
+        float clamped = GameMathClampFloat(fill, 0.0f, 1.0f);
+        if (clamped > 0.0f)
+            DrawRectangleRec((Rectangle){ bar.x, bar.y, bar.width*clamped, bar.height },
+                             ready ? UI_TITOLO : UI_MUTO);
+    }
+    /* La lettera resta sempre leggibile: centrata nel riquadro quando vuoto
+       (come il mock), spostata in basso quando pieno per non finire sotto
+       l'icona/la barra sopra. */
+    int keyW = UiTextWidth(key, UI_TAGLIA_1);
+    int keyX = x + (HUD_V3_SLOT_BOX - keyW)/2;
+    int keyY = filled ? (y + 20) : (y + (HUD_V3_SLOT_BOX - UiTextHeight(UI_TAGLIA_1))/2);
+    UiTextAt(key, keyX, keyY, UI_TAGLIA_1, UI_SECONDARIO);
 }
 
 static void DrawHudV3Slots(Game *game, int x, int y)
@@ -3133,21 +3233,24 @@ static void DrawHudV3Slots(Game *game, int x, int y)
             activeFill = 1.0f - GameMathClampFloat(active->cooldownTimer/total, 0.0f, 1.0f);
         }
     }
-    DrawHudV3Slot(game, x, y, "active", "[E]", active != NULL, activeFill, activeReady);
+    /* WP-UI-1: "E"/"G" senza parentesi quadre (mock 02/08) -- le parentesi
+       restano il segno delle scorciatoie in TESTO scorrevole (barra comandi
+       qui sotto), non della lettera isolata dentro una casella gia' quadrata. */
+    DrawHudV3Slot(x, y, "active", "E", active != NULL, activeFill, activeReady);
 
     int graftOwned = ItemCountOfKind(p, ITEM_GRAFT);
     /* Un Innesto non ha ricarica (grafts.md: e' passivo finche' resta
        innestato): la barra e' piena quando lo slot e' occupato, vuota se no --
        "occupato/libero", che e' l'unico stato che quello slot ha. */
-    DrawHudV3Slot(game, x + HUD_V3_SLOT_STEP, y, "graft", "[G]", graftOwned > 0,
+    DrawHudV3Slot(x + HUD_V3_SLOT_STEP, y, "graft", "G", graftOwned > 0,
                   graftOwned > 0 ? 1.0f : 0.0f, graftOwned > 0);
 }
 
-/* La card di scoperta (DEC-065/131/152), ora con lo sprite che il documento
-   chiede da sempre ("sprite, nome, una riga di descrizione") e che la v1 a solo
-   testo non poteva mostrare. Posizione BASSO-CENTRO come il mock V3, non piu'
-   alto-centro: in alto avrebbe coperto la riga piano/mondo, che nel layout V3
-   e' allineata a destra proprio a quella quota.
+/* La card di scoperta (DEC-065/131/152): sprite, nome, una riga di
+   descrizione. Posizione BASSO-CENTRO come sempre, ma piu' in alto di prima
+   (HUD_V3_CARD_Y, blocco di quote sopra DrawTransientMessage): il vecchio
+   Y (SCREEN_HEIGHT-56) finiva a ridosso della barra comandi nuova, il
+   difetto noto che questo giro chiude spostando la card, non la barra.
    Le regole di visibilita' non cambiano di una riga: una card alla volta, coda
    in Game, scarto silenzioso su morte e cambio stanza -- tutte in src/game. */
 static void DrawHudV3Card(Game *game)
@@ -3157,10 +3260,9 @@ static void DrawHudV3Card(Game *game)
     int x = SCREEN_WIDTH/2 - HUD_V3_CARD_W/2;
     int y = HUD_V3_CARD_Y;
     Rectangle box = { (float)x, (float)y, (float)HUD_V3_CARD_W, (float)HUD_V3_CARD_H };
-    DrawRectangleRec(box, (Color){ 13, 15, 21, 214 });
-    if (!ArtDrawPanel(box, WHITE)) DrawHudBox(box, game->theme.accent, 1.0f, 214);
+    UiPanel(box);   /* WP-UI-1: via il bordo acceso (game->theme.accent) del riquadro di prima -- "niente cornice arancio" */
     Rectangle slot = { box.x + 5.0f, box.y + 5.0f, 38.0f, 38.0f };
-    ArtDrawSlot(slot, game->theme.accent2);
+    UiPanel(slot);
     /* Lo sprite della scoperta: l'image-id sta nella card se chi l'ha accodata
        lo conosceva (GameQueueDiscoveryCard). Assente = la casella resta vuota,
        come nella v1 a solo testo: mai un rettangolo bianco al suo posto. */
@@ -3174,10 +3276,12 @@ static void DrawHudV3Card(Game *game)
         if (!ArtDrawAnim(sheet, "idle", (float)GetTime(), anchorPos, scale, false, WHITE))
             ArtDrawAnim(sheet, "walk", (float)GetTime(), anchorPos, scale, false, WHITE);
     }
-    UiText(card->name, x + 50, y + 10, 12, game->theme.accent);
-    UiText(card->line, x + 50, y + 28, 8, (Color){ 190, 196, 208, 255 });
+    /* Titolo TAGLIA_2 oro, testo TAGLIA_1 (spec del mock): entrambi dentro il
+       pannello, nessuna ombra -- il contrasto lo da' gia' UiPanel. */
+    UiTextAt(card->name, x + 50, y + 8, UI_TAGLIA_2, UI_TITOLO);
+    UiTextAt(card->line, x + 50, y + 8 + UiTextHeight(UI_TAGLIA_2) + 3, UI_TAGLIA_1, UI_TESTO);
     const char *badge = "NUOVO!";
-    UiText(badge, x + HUD_V3_CARD_W - UiTextW(badge, 8) - 7, y + 6, 8, game->theme.accent2);
+    UiTextAt(badge, x + HUD_V3_CARD_W - UiTextWidth(badge, UI_TAGLIA_1) - 6, y + 6, UI_TAGLIA_1, UI_GLINT);
 }
 
 /* L'orchestratore dell'HUD V3. Chiamato DENTRO il canvas (vedi RendererDrawApp)
@@ -3187,58 +3291,113 @@ static void DrawHudV3Card(Game *game)
    RendererDrawApp(..., NULL, ...) in src/tests/game_tests.c): NULL si legge
    come "nessuna preferenza salvata", quindi blocco statistiche VISIBILE, la
    stessa scelta zero-default di AppUi.hudStatsHidden. */
+/* Ombra a doppio disegno per il testo ancora flottante DIRETTAMENTE sulla
+   scena (nessun UiPanel sotto): 1px in UI_GROUND, poi il testo vero sopra --
+   la stessa cifra del titolo di MainMenu (DrawMainMenuOverlay, WP-UI-0), non
+   piu' il contorno nero di UiTextOutlined (che apparteneva al vecchio
+   "elementi flottanti con contorno" del layout V3, sostituito qui). */
+static void DrawHudFloatingText(const char *text, int x, int y, int taglia, Color tint)
+{
+    UiTextAt(text, x + 1, y + 1, taglia, UI_GROUND);
+    UiTextAt(text, x, y, taglia, tint);
+}
+
 static void DrawHudCanvas(Game *game, const AppUi *ui)
 {
     const Player *p = &game->player;
     const CharacterDef *character = GameResolveCharacterDef(game, game->characterChosenIndex);
 
-    UiTextOutlined(character ? character->name : "SENZA PERSONAGGIO",
-                   HUD_V3_MARGIN, HUD_V3_NAME_Y, 8,
-                   character ? character->palette : (Color){ 205, 210, 220, 255 });
-    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): il timer della run
-       centrato in alto, formato MM:SS. */
-    int minutes = (int)game->runElapsedSeconds / 60;
-    int seconds = (int)game->runElapsedSeconds % 60;
-    char timerText[16];
-    snprintf(timerText, sizeof(timerText), "%d:%02d", minutes, seconds);
-    int timerW = UiTextW(timerText, 8);
-    UiTextOutlined(timerText, SCREEN_WIDTH / 2 - timerW / 2, HUD_V3_NAME_Y, 8, RAYWHITE);
-    DrawHudV3Hearts(p, HUD_V3_MARGIN, HUD_V3_HEARTS_Y);
+    /* Larghezza della barra comandi, calcolata QUI (non piu' giu' insieme al
+       suo disegno) perche' le caselle attivo/Innesto -- disegnate prima nel
+       file, sotto -- devono partire alla sua DESTRA: un ordine di disegno
+       invertito (barra sopra, caselle sotto) le avrebbe lasciate alla stessa
+       X della barra, e la barra le avrebbe coperte disegnandosi per ultima
+       (bug visto nello screenshot di verifica di questo giro). */
+    const char *hint1 = "[TAB] BUILD";
+    const char *hint2 = "[C] STATS";
+    int hint1W = UiTextWidth(hint1, UI_TAGLIA_1);
+    int hint2W = UiTextWidth(hint2, UI_TAGLIA_1);
+    const int barGap = 14;
+    int barW = HUD_V3_PANEL_PAD*2 + hint1W + barGap + hint2W;
+
+    /* Pannello alto-sinistra (mock 02/08): nome, cuori, risorse, Flux -- una
+       sola massa UiPanel al posto delle scritte flottanti di prima. */
+    UiPanel((Rectangle){ (float)HUD_V3_PANEL_X, (float)HUD_V3_PANEL_Y, (float)HUD_V3_PANEL_W, (float)HUD_V3_PANEL_H });
+    UiTextAt(character ? character->name : "Senza personaggio",
+             HUD_V3_CONTENT_X, HUD_V3_NAME_Y, UI_TAGLIA_1, UI_SECONDARIO);
+    DrawHudV3Hearts(p, HUD_V3_CONTENT_X, HUD_V3_HEARTS_Y);
     /* DEC-008/WP2: "accanto ai cuori" -- stessa riga (HUD_V3_HEARTS_Y), X dalla
        funzione pura HudTempHeartsX sopra (nessun numero magico qui, vedi
-       il blocco HUD_V3_* di quote piu' su). */
+       il blocco di quote sopra DrawTransientMessage). */
     DrawHudV3TempHearts(p, HudTempHeartsX(p->maxHp), HUD_V3_HEARTS_Y);
-    DrawHudV3Resources(game, HUD_V3_MARGIN, HUD_V3_RES_Y);
+    DrawHudV3Resources(game, HUD_V3_CONTENT_X, HUD_V3_RES_Y);
+    DrawHudV3Flux(game, HUD_V3_CONTENT_X, HUD_V3_FLUX_Y);
+
     /* DEC-184: priorita' visiva 4 (sotto sopravvivenza/minacce/risorse sopra,
        sopra progressione sotto) -- disegnata PRIMA delle caselle attivo/
        Innesto nell'ordine di chiamata solo perche' sta piu' in alto sullo
        schermo, non per priorita': le due caselle restano priorita' 2. */
-    if (!(ui && ui->hudStatsHidden)) DrawHudV3Stats(game, HUD_V3_MARGIN, HUD_V3_STATS_Y);
-    DrawHudV3Slots(game, HUD_V3_MARGIN, HUD_V3_SLOTS_Y);
+    if (!(ui && ui->hudStatsHidden)) DrawHudV3Stats(game, HUD_V3_STATS_X, HUD_V3_STATS_Y);
+    /* A destra della barra comandi (disegnata piu' sotto, ma la sua larghezza
+       e' gia' nota qui sopra): condividono il bordo inferiore, vedi
+       HUD_V3_SLOTS_Y nel blocco di quote. */
+    DrawHudV3Slots(game, HUD_V3_MARGIN + barW + 8, HUD_V3_SLOTS_Y);
 
-    /* Progressione a DESTRA, allineata al bordo: piano/stanza sopra, mondo
-       sotto. Nel layout V3 prendono il posto del cluster con riquadro. */
+    /* DEC-051 (ui/hud.md, "Timer di run sempre visibile"): centrato in alto,
+       formato MM:SS -- l'unico testo che non sta ne' a sinistra ne' a
+       destra, resta flottante con l'ombra (nessun pannello lo ospiterebbe
+       senza rubare spazio alla scena al centro). */
+    int minutes = (int)game->runElapsedSeconds / 60;
+    int seconds = (int)game->runElapsedSeconds % 60;
+    char timerText[16];
+    snprintf(timerText, sizeof(timerText), "%d:%02d", minutes, seconds);
+    int timerW = UiTextWidth(timerText, UI_TAGLIA_2);
+    DrawHudFloatingText(timerText, SCREEN_WIDTH/2 - timerW/2, HUD_V3_NAME_Y, UI_TAGLIA_2, UI_SECONDARIO);
+
+    /* Progressione a DESTRA, allineata al bordo: piano/stanza sopra (oro, TAGLIA_2),
+       mondo sotto (UI_SECONDARIO, TAGLIA_1, MAI il colore procedurale della run --
+       ui_theme.h vieta i colori del tema generato nell'interfaccia). Entrambi
+       ancora flottanti sulla scena (nessun pannello dietro nel mock): l'ombra
+       e' la sola concessione al contrasto. */
     char floorLine[96];
-    snprintf(floorLine, sizeof(floorLine), "PIANO %d/%d - %s", game->floor, FLOOR_COUNT,
+    snprintf(floorLine, sizeof(floorLine), "PIANO %d/%d : %s", game->floor, FLOOR_COUNT,
              GameRoomKindName(GameCurrentRoom(game)->kind));
-    UiTextOutlined(floorLine, SCREEN_WIDTH - UiTextW(floorLine, 12) - HUD_V3_MARGIN, HUD_V3_NAME_Y, 12, RAYWHITE);
-    UiTextOutlined(game->theme.name, SCREEN_WIDTH - UiTextW(game->theme.name, 12) - HUD_V3_MARGIN, 22, 12, game->theme.accent2);
+    DrawHudFloatingText(floorLine, SCREEN_WIDTH - UiTextWidth(floorLine, UI_TAGLIA_2) - HUD_V3_MARGIN,
+                        HUD_V3_NAME_Y, UI_TAGLIA_2, UI_TITOLO);
+    DrawHudFloatingText(game->theme.name, SCREEN_WIDTH - UiTextWidth(game->theme.name, UI_TAGLIA_1) - HUD_V3_MARGIN,
+                        HUD_V3_NAME_Y + UiTextHeight(UI_TAGLIA_2) + 2, UI_TAGLIA_1, UI_SECONDARIO);
 
+    /* Minimappa su UiPanel (mock 02/08): il pannello lo disegna il chiamante
+       (non DrawMinimap, che resta condivisa col ripiego DrawHudRunStatus e
+       gestisce gia' un proprio riquadro esterno -- un secondo pannello
+       innestato li' sarebbe ridondante). */
     int mmW = GRID_SIZE*HUD_V3_MINIMAP_CELL + (GRID_SIZE - 1)*HUD_V3_MINIMAP_GAP;
-    DrawMinimap(game, SCREEN_WIDTH - mmW - HUD_V3_MARGIN, HUD_V3_MINIMAP_Y,
-                HUD_V3_MINIMAP_CELL, HUD_V3_MINIMAP_GAP, 1.0f);
+    Rectangle mmPanel = { (float)(SCREEN_WIDTH - mmW - HUD_V3_MINIMAP_PAD*2 - HUD_V3_MARGIN), (float)HUD_V3_MINIMAP_Y,
+                          (float)(mmW + HUD_V3_MINIMAP_PAD*2), (float)(mmW + HUD_V3_MINIMAP_PAD*2) };
+    UiPanel(mmPanel);
+    DrawMinimap(game, (int)mmPanel.x + HUD_V3_MINIMAP_PAD, (int)mmPanel.y + HUD_V3_MINIMAP_PAD,
+                HUD_V3_MINIMAP_CELL, HUD_V3_MINIMAP_GAP);
 
     DrawHudV3Card(game);
-    UiTextOutlined("[TAB] BUILD", 90, HUD_V3_HINT_Y, 12, (Color){ 176, 184, 198, 255 });
-    UiTextOutlined("[C] STATS", 90 + UiTextW("[TAB] BUILD", 12) + 14, HUD_V3_HINT_Y, 12, (Color){ 176, 184, 198, 255 });
 
-    /* Diagnostica di fonte grafica (era il cluster LOG in basso a destra): il
-       layout V3 non ha un pannello per lei, ma l'informazione serve a chi
-       verifica una build -- resta una riga sola, alla scala piu' piccola, dove
-       il mock metteva l'indicatore di forgia. */
-    const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "SPRITE LOCALI (SD)" : "ATLAS FALLBACK";
-    UiTextOutlined(atlasMode, SCREEN_WIDTH - UiTextW(atlasMode, 8) - HUD_V3_MARGIN,
-                   SCREEN_HEIGHT - 18, 8, GameColorWithAlpha(game->theme.accent2, 200));
+    /* Barra comandi basso-sinistra: dimensionata sul proprio contenuto (come
+       ogni altro pannello di questo file, hint1/hint2/barW calcolati in testa
+       alla funzione), non piu' due UiTextOutlined sciolti a X=90 fisso --
+       quel numero magico presumeva una larghezza del pannello vitali che nel
+       mock non esiste piu'. */
+    Rectangle barBox = { (float)HUD_V3_MARGIN, (float)HUD_V3_BAR_Y, (float)barW, (float)HUD_V3_BAR_H };
+    UiPanel(barBox);
+    int barTextY = HUD_V3_BAR_Y + (HUD_V3_BAR_H - UiTextHeight(UI_TAGLIA_1))/2;
+    UiTextAt(hint1, HUD_V3_MARGIN + HUD_V3_PANEL_PAD, barTextY, UI_TAGLIA_1, UI_SECONDARIO);
+    UiTextAt(hint2, HUD_V3_MARGIN + HUD_V3_PANEL_PAD + hint1W + barGap, barTextY, UI_TAGLIA_1, UI_SECONDARIO);
+
+    /* Diagnostica di fonte grafica (era il cluster LOG in basso a destra): niente
+       pannello per lei (informazione di contorno per chi verifica una build, non
+       per il giocatore) -- UI_MUTO al posto del colore procedurale della run,
+       stesso motivo della riga "mondo" qui sopra. */
+    const char *atlasMode = strstr(game->content.atlasPath, ".png") ? "Sprite locali (SD)" : "Atlas fallback";
+    UiTextAt(atlasMode, SCREEN_WIDTH - UiTextWidth(atlasMode, UI_TAGLIA_1) - HUD_V3_MARGIN,
+             SCREEN_HEIGHT - UiTextHeight(UI_TAGLIA_1) - HUD_V3_MARGIN, UI_TAGLIA_1, UI_MUTO);
 }
 
 /* DEC-169: vedi il commento sulla dichiarazione in game_renderer.h. Nucleo

@@ -6708,9 +6708,13 @@ bool GameTempHealthTest(Game *game)
         ok = false;
     }
     int tempHeartsX = HudTempHeartsX(game->player.maxHp);
-    if (tempHeartsX != 55)   /* HUD_V3_MARGIN 10 + baseHeartSlots(maxHp=6)=3 * HUD_V3_HEART_STEP 13 + HUD_V3_TEMP_HEARTS_GAP 6 */
+    /* WP-UI-1 (mock 02/08): i cuori vivono dentro il pannello vitali, non piu'
+       sul bordo del canvas -- HUD_V3_CONTENT_X 8 (pannello a X=4 + padding 4)
+       al posto di HUD_V3_MARGIN 10, e HUD_V3_HEART_STEP sale a 15 (cuori
+       12px -> 14px). 8 + baseHeartSlots(maxHp=6)=3 * 15 + HUD_V3_TEMP_HEARTS_GAP 6 = 59. */
+    if (tempHeartsX != 59)
     {
-        fprintf(stderr, "GameTempHealthTest: HudTempHeartsX(maxHp=6) atteso 55, ottenuto %d\n", tempHeartsX);
+        fprintf(stderr, "GameTempHealthTest: HudTempHeartsX(maxHp=6) atteso 59, ottenuto %d\n", tempHeartsX);
         ok = false;
     }
     char crustHudLine[24];

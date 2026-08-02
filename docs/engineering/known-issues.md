@@ -478,7 +478,7 @@ comportamento più ampio del solo WP3), oppure la si tratta come infrastruttura 
 del task delle stanze segrete. `docs/design/systems/secrets-and-obstacles.md` registra lo
 stesso limite nella sua sezione "Default proposti dall'implementazione".
 
-## 12 — Le celle note-ma-non-visitate della minimappa distinguono il tipo di stanza SOLO col colore (DEC-058)
+## 12 — ~~Le celle note-ma-non-visitate della minimappa distinguono il tipo di stanza SOLO col colore (DEC-058)~~ — CHIUSA dal WP-UI-1 (02/08)
 
 **Sintomo**: `docs/design/systems/special-rooms.md` (WP4, "Stanza di fusione") chiede un
 segnale visivo "prima di entrare" nella stanza, distinguibile senza colore (DEC-058, che
@@ -530,6 +530,26 @@ minimappa. DENTRO la stanza, invece, il contratto non dipende **mai** dal colore
 `"FREDDA"`) e, sotto, **offerta e prezzo scritti per esteso su due righe** — è l'unica
 stanza in cui una decisione irreversibile dipende da un contenuto composto al momento,
 quindi il testo non è decorazione ma il contratto stesso.
+
+**Stato**: CHIUSO (02/08, WP-UI-1 — reskin dell'HUD di gameplay coi token Fucina,
+`docs/design/ui/hud.md`). Il mock approvato per la barra comandi/pannelli dell'HUD (che
+questo lavoro replica) riduce la minimappa a TRE soli stati di riempimento — corrente
+(oro), boss (brace-scura), tutto il resto (ardesia-scura) — al posto della tavolozza
+`RoomMapColor` per-archetipo che alimentava il limite qui sopra (e che, di suo, portava
+anche un ciano e un magenta banditi dalla nuova palette d'interfaccia). Le celle
+note-ma-non-visitate non portano più NESSUN colore specifico per l'archetipo: sono
+sempre la stessa ardesia smorzata, indipendentemente dal tipo di stanza. Il canale
+"tipo di stanza" prima dell'ingresso resta quindi SOLO la lettera di `DrawRoomIcon`,
+mostrata solo a stanza visitata; dopo la visita la stanza boss porta colore brace E
+lettera insieme (colore + canale non-colore, come DEC-058 chiede). La domanda aperta nel 2026-07 ("accettare che DEC-058 valga solo dopo
+l'ingresso, o introdurre un canale non-colore anche prima") si risolve quindi nel primo
+corno, ma senza bisogno di un'eccezione a DEC-058: prima dell'ingresso non c'è più
+nessuna informazione di tipo trasmessa (né a colore né altrimenti), quindi non c'è
+nulla da cui DEC-058 debba proteggere. `RoomMapColor` (la tavola di colori per
+archetipo che alimentava il vecchio riempimento) è stata rimossa da
+`src/render/game_renderer.c` insieme al suo unico chiamante: i valori restano
+recuperabili dalla cronologia git se un giorno servisse un canale colore per l'interno
+delle stanze (non più per la minimappa).
 
 ## 13 — La Pourhouse (WP7) non ha un prop dedicato: riusa il piedistallo generico
 
