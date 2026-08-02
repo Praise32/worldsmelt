@@ -9,10 +9,17 @@
 
 Rectangle WorldCameraBoundsFromRoom(Rectangle roomRect)
 {
+    /* DEC-200: la cornice viene da ROOM_FRAME_W/H, non piu' dal canvas -- le
+       due cose erano lo stesso 960x640 fino a DEC-174 e si sono separate con
+       la migrazione a 640x360. Derivarla ancora dal canvas darebbe qui una
+       cornice NEGATIVA a destra e in basso (640-918, 360-562): il rettangolo
+       di clamp collasserebbe sulla vista e la telecamera mostrerebbe sempre
+       l'angolo in alto a sinistra della stanza, col giocatore libero di
+       uscire dall'inquadratura. */
     const float left = ROOM_X;
     const float top = ROOM_Y;
-    const float right = (float)SCREEN_WIDTH - ROOM_RIGHT;
-    const float bottom = (float)SCREEN_HEIGHT - ROOM_BOTTOM;
+    const float right = ROOM_FRAME_W - ROOM_RIGHT;
+    const float bottom = ROOM_FRAME_H - ROOM_BOTTOM;
     return (Rectangle){ roomRect.x - left, roomRect.y - top,
                         roomRect.width + left + right, roomRect.height + top + bottom };
 }

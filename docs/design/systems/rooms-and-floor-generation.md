@@ -93,6 +93,14 @@ implementazione**, non fissati da questa decisione.
 - **Stanza 1x1:** inquadrata **per intero**, con **camera fissa** — comportamento invariato
   rispetto al modello M2: l'intera stanza è sempre visibile, senza movimento di camera e
   senza zoom.
+  > **Nota (2026-08-02, WP-UI-0):** questa riga vale finché la cella inquadrata sta in una
+  > schermata, ed è vera **per costruzione** solo perché la cella (876×458 più cornice =
+  > 960×640) era grande esattamente quanto il canvas. **DEC-200** porta il canvas interno a
+  > **640×360**: la vista è ora più piccola della cella, quindi nel motore anche una 1x1
+  > **scorre**, con lo stesso clamp delle taglie maggiori e senza mai mostrare area fuori
+  > dalla stanza. Il principio qui sopra **non è stato revocato** — per riottenerlo va
+  > ridimensionata la cella, che è una decisione di bilanciamento: vedi la **domanda aperta
+  > 60** in `governance/open-questions.md`, dove le tre strade sono messe a confronto.
 - **Taglie maggiori (1x2, 2x1, 2x2, L):** il giocatore cammina dentro uno spazio più ampio
   dello schermo; la **telecamera lo segue** a **zoom fisso** — **nessuno zoom dinamico** che
   si adatti alla taglia della stanza o all'azione — **clampata ai bordi della stanza**: non
@@ -114,9 +122,13 @@ sono **default proposti dall'implementazione del 27/07**, non decisioni di desig
 da confermare (vedi `governance/open-questions.md`).
 
 - **Dimensione di una cella:** il canvas logico di gioco di sempre, **876×458 px**
-  (`ROOM_X/Y/W/H`). Una cella più la sua cornice di muro riempie esattamente lo schermo
-  960×640: è ciò che rende la stanza **1x1 identica a prima di DEC-170**, telecamera ferma
-  e cornice compresa, senza alcun caso speciale nel codice.
+  (`ROOM_X/Y/W/H`). Una cella più la sua cornice di muro occupa **960×640**: finché quello
+  era anche il canvas, è ciò che rendeva la stanza **1x1 identica a prima di DEC-170**,
+  telecamera ferma e cornice compresa, senza alcun caso speciale nel codice. **Dal 02/08
+  (DEC-200) le due misure sono separate**: la cella inquadrata resta 960×640 (nel codice
+  `ROOM_FRAME_W`/`ROOM_FRAME_H`, prima scritta come `SCREEN_WIDTH`/`SCREEN_HEIGHT`) mentre
+  il canvas scende a 640×360 — vedi la nota nella sezione «Telecamera» sopra e la domanda
+  aperta 60.
 - **Grandezza minima garantita (DEC-009):** una cella, cioè 876×458 px.
 - **Stanza di partenza: sempre 1x1.** Il primo schermo di un piano è anche quello che
   insegna a leggere lo spazio, e la 1x1 si vede per intero senza muovere la telecamera.

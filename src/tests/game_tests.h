@@ -107,7 +107,7 @@ bool GameExitConfirmLightModalTest(Game *game);
    selezionabile. Fino a questa passata cancellare quella UiText lasciava
    make test interamente verde. Campiona pixel reali come
    GameExitConfirmLightModalTest sopra, piu' il nucleo puro
-   (RendererRunSetupModeLabelBandFor/RendererMenuItemAt). Vedi
+   (RendererRunSetupModeLabelBand/RendererMenuItemAt). Vedi
    src/tests/game_tests.c per i dettagli. */
 bool GameRunSetupModeLineTest(Game *game);
 

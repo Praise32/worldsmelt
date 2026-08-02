@@ -728,6 +728,20 @@ static bool CatalogScreenEmptyScenario(Game *game)
     AppMode mode = APP_MAIN_MENU;
     ui.focus = 1;   /* Catalogo */
 
+    /* Cursore parcheggiato fuori da ogni geometria di menu, come in
+       GameStatesTest e nella suite della sospensione -- e SUBITO PRIMA del
+       confirm, non una volta per tutte a inizio suite: raylib rilegge la
+       posizione vera del puntatore ad ogni PollInputEvents (cioe' ad ogni
+       frame disegnato), e sotto Xvfb la posizione vera resta il centro della
+       finestra perche' la finestra non ha il fuoco e glfwSetCursorPos non
+       sposta nulla davvero. Serve perche' questo scenario scrive il focus a
+       mano (ui.focus = 1, "Catalogo") mentre il solo PASSAGGIO del mouse lo
+       sposta (W9): col centro della finestra dentro il riquadro -- che e'
+       centrato -- il focus finiva sulla riga sotto il cursore. Fino a WP-UI-0
+       quella riga era per caso proprio "Catalogo" e la dipendenza non si
+       vedeva; con la geometria del MainMenu a 640x360 (DEC-200) il centro cade
+       su un'altra voce e il confirm apriva Opzioni. */
+    SetMousePosition(2, 2);
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     if (mode != APP_MAIN_MENU || !ui.catalogOpen)
     {
@@ -810,6 +824,20 @@ static bool CatalogScreenPopulatedScenario(Game *game)
     AppUi ui = { 0 };
     AppMode mode = APP_MAIN_MENU;
     ui.focus = 1;   /* Catalogo */
+    /* Cursore parcheggiato fuori da ogni geometria di menu, come in
+       GameStatesTest e nella suite della sospensione -- e SUBITO PRIMA del
+       confirm, non una volta per tutte a inizio suite: raylib rilegge la
+       posizione vera del puntatore ad ogni PollInputEvents (cioe' ad ogni
+       frame disegnato), e sotto Xvfb la posizione vera resta il centro della
+       finestra perche' la finestra non ha il fuoco e glfwSetCursorPos non
+       sposta nulla davvero. Serve perche' questo scenario scrive il focus a
+       mano (ui.focus = 1, "Catalogo") mentre il solo PASSAGGIO del mouse lo
+       sposta (W9): col centro della finestra dentro il riquadro -- che e'
+       centrato -- il focus finiva sulla riga sotto il cursore. Fino a WP-UI-0
+       quella riga era per caso proprio "Catalogo" e la dipendenza non si
+       vedeva; con la geometria del MainMenu a 640x360 (DEC-200) il centro cade
+       su un'altra voce e il confirm apriva Opzioni. */
+    SetMousePosition(2, 2);
     { AppInput in = InputConfirm(); UpdateApp(game, &mode, &gen, &ui, &in); }
     CATALOG_SCREEN_TEST_CHECK(ui.catalogOpen, "confirm su Catalogo non apre la vista");
     CATALOG_SCREEN_TEST_CHECK(ui.catalog.filesRead >= 2, "l'aggregato non ha letto almeno i due file scritti da questo scenario");

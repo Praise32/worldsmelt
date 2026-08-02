@@ -14,8 +14,17 @@
 
 #include <stdbool.h>
 
-#define SCREEN_WIDTH 960
-#define SCREEN_HEIGHT 640
+/* DEC-200 (WP-UI-0): RISOLUZIONE INTERNA del gioco. Tutto -- mondo, HUD,
+   schermate -- si disegna su un canvas di questa taglia, che poi va a schermo
+   con una scala INTERA massima, centrato, con letterbox slag-nero attorno
+   (RendererDrawApp). 640x360 e' 16:9 nativo: x2 = 720p, x3 = 1080p esatto,
+   x6 = 4K, quindi su un monitor comune non resta nemmeno una banda.
+   ATTENZIONE: da questa migrazione SCREEN_* non e' piu' la taglia della cella
+   di stanza inquadrata -- quella resta ROOM_FRAME_W/H piu' sotto, perche' li'
+   e' tarato lo spazio di GIOCO. Chi cerca "quanto e' grande una stanza" non
+   deve leggere queste due costanti. */
+#define SCREEN_WIDTH 640
+#define SCREEN_HEIGHT 360
 #define APP_WINDOW_WIDTH 1600
 #define APP_WINDOW_HEIGHT 900
 
@@ -30,8 +39,7 @@
    ogni stanza parte sempre da (ROOM_X, ROOM_Y) e cresce verso destra/basso di
    una cella per volta (si simula una stanza per volta, le stanze non
    coesistono mai nello stesso spazio). La telecamera (src/world/room_camera.h)
-   traduce quel mondo nel canvas 960x640: per la 1x1 la traduzione e'
-   l'identita' -- l'inquadratura fissa di sempre, cornice di muro compresa.
+   traduce quel mondo nel canvas.
    L'UNICO modo corretto di leggere il rettangolo di una stanza resta
    WorldRoomRect/WorldCurrentRoomRect (src/world/world.h). */
 #define ROOM_X 42.0f
@@ -41,6 +49,19 @@
 #define ROOM_RIGHT (ROOM_X + ROOM_W)
 #define ROOM_BOTTOM (ROOM_Y + ROOM_H)
 #define DOOR_HALF 50.0f
+/* Estensione INQUADRABILE di una cella 1x1: il riquadro di gioco qui sopra
+   piu' la cornice (muro, fascia alta, fascia bassa) che la telecamera puo'
+   mostrare attorno. Fino a DEC-174 coincideva col canvas -- erano gli stessi
+   960x640 -- ed era scritta come "SCREEN_WIDTH - ROOM_RIGHT" dentro
+   WorldCameraBoundsFromRoom. DEC-200 separa le due cose: il canvas scende a
+   640x360, questi valori NO, perche' su di essi e' tarato lo spazio di gioco
+   (dimensioni della stanza, porte, posizioni di spawn, velocita'). La
+   conseguenza e' che la telecamera ora scorre anche dentro una cella 1x1
+   invece di mostrarla tutta in un colpo: vedi il principio 2 di
+   src/world/room_camera.h e la domanda aperta sulla taglia della cella a
+   640x360 (governance/open-questions.md). */
+#define ROOM_FRAME_W 960.0f
+#define ROOM_FRAME_H 640.0f
 
 #define FLOOR_COUNT 5
 #define GRID_SIZE 5
@@ -2021,24 +2042,24 @@ typedef struct Game {
 } Game;
 
 typedef struct UiLayout {
-    /* DEC-137: una sola superficie. La game view (il canvas 960x640 campionato
-       POINT) riempie TUTTO lo schermo -- niente piu' colonne riservate alla UI,
-       che ora vive in overlay sopra il canvas (DrawOuterUi, ancorata ai bordi di
-       gameRect). Di quel layout a pannelli restano solo le tre grandezze del
-       canvas: dove sta, quanto e' scalato, e la scala del chrome sovrapposto. I
-       vecchi leftPanel/rightPanel/bottomPanel sono spariti col layout a colonne. */
+    /* DEC-200 (WP-UI-0): dove finisce il canvas interno (SCREEN_WIDTH x
+       SCREEN_HEIGHT) dentro la finestra, e con quale scala. Da questa
+       migrazione e' l'UNICO punto in cui coordinate di finestra e coordinate
+       di gioco si incontrano: tutto il resto del renderer disegna sul canvas
+       e non sa nemmeno quanto sia grande la finestra. */
     Rectangle gameRect;
+    /* Scala del blit finale: un INTERO (>=1), mai una frazione. Il canvas e'
+       campionato POINT e una scala frazionaria fa cadere i pixel raddoppiati a
+       distanze irregolari -- il difetto che la migrazione a 640x360 esiste
+       per togliere di mezzo (prima era agganciata a passi di 1/8). */
     float gameScale;
-    /* M4 (fullscreen-first): fattore di scala dell'INTERFACCIA in overlay (HUD,
-       font, overlay dei menu) -- MAI del canvas di gioco, che resta 960x640 sempre
-       e usa la sua scala indipendente 'gameScale' sopra. Derivato dalla sola
-       altezza dello schermo (UiComputeLayoutFor, src/render/game_renderer.c) e
-       quantizzato a passi di 0.25 per restare coerente col gusto "a scatti" del
-       resto del progetto (gameScale a passi di 1/8, minimappa a taglie discrete).
-       1.0 per qualunque finestra <=900px di altezza: e' cio' che garantisce che le
-       finestre di test compatte (960x640, smoke test) e la finestra grande di
-       riferimento (1600x900, screenshot test) restino bit-per-bit identiche a
-       prima di M4. */
+    /* Le geometrie storiche degli overlay sono scritte nella griglia di
+       progetto 1600x900 (l'uiScale 1.0 di M4). Il canvas 640x360 ne e'
+       esattamente 0.4 su ENTRAMBI gli assi, quindi resta un solo fattore
+       COSTANTE che le riporta dentro il canvas senza rimisurarle una per
+       una: non dipende piu' dalla finestra (a scalare e' gameScale sopra, e
+       lo fa per tutto insieme). Vedi UI_CANVAS_SCALE in
+       src/render/game_renderer.c. */
     float uiScale;
 } UiLayout;
 

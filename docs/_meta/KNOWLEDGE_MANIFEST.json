@@ -1674,7 +1674,7 @@
       "status": "draft",
       "authority": "canonical",
       "owner": "design",
-      "summary": "Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177 e riconfermata sulla scala da DEC-208, la voce 18 aggiornata senza chiudersi da DEC-210, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt (DEC-189/190), e il batch DEC-205..DEC-210 della sessione remota di reference distillation dello stesso giorno non chiude voci nuove ma tocca la 12 e la 18) dopo DEC-001..DEC-210: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).",
+      "summary": "Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 60 numerate; la voce 12 già chiusa in precedenza da DEC-176/177 e riconfermata sulla scala da DEC-208, la voce 18 aggiornata senza chiudersi da DEC-210, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt (DEC-189/190), il batch DEC-205..DEC-210 della sessione remota di reference distillation dello stesso giorno non chiude voci nuove ma tocca la 12 e la 18, e WP-UI-0 del 2026-08-02 aggiunge la voce 60 sulla taglia della cella di stanza dopo la migrazione al canvas 640x360 di DEC-200) dopo DEC-001..DEC-210: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22), la persistenza delle preferenze del giocatore (WP-PREFS) e la risoluzione interna 640x360 (WP-UI-0).",
       "topics": [
         "open-questions",
         "governance",
@@ -1708,6 +1708,7 @@
         "WP21",
         "WP22",
         "WP-PREFS",
+        "WP-UI-0",
         "DEC-185",
         "DEC-189",
         "DEC-190",
@@ -1715,12 +1716,13 @@
         "DEC-205",
         "DEC-208",
         "DEC-209",
-        "DEC-210"
+        "DEC-210",
+        "DEC-200"
       ],
       "related": [],
       "supersedes": [],
       "source_files": [],
-      "last_reviewed": "2026-07-31",
+      "last_reviewed": "2026-08-02",
       "last_verified_commit": "4d7a410"
     },
     {

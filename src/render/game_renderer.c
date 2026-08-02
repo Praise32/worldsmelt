@@ -13,6 +13,7 @@
 #include "render/art_draw.h"
 #include "render/item_layers.h"
 #include "render/rarity_style.h"
+#include "render/ui_theme.h"
 /* WP7: i due testi della puntata della Pourhouse (offerta e prezzo per esteso,
    DEC-058). Il renderer non li compone: li chiede al modulo che possiede la
    puntata, cosi' non esistono due formulazioni della stessa cosa. */
@@ -22,7 +23,6 @@
    renderer (FloorZeroArenaThemeLabel, src/world/floor_zero_arena.h). */
 #include "world/floor_zero_arena.h"
 
-#include "rlgl.h"
 #include "raygui.h"   /* solo dichiarazioni: l'implementazione e' in src/render/raygui_impl.c */
 
 #include <math.h>
@@ -117,58 +117,66 @@ static void UiApplyTheme(const Theme *theme, float uiScale)
     GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
 }
 
-/* M4 (fullscreen-first): fattore di scala dell'interfaccia ESTERNA (pannelli,
-   font, overlay dei menu -- mai il canvas 960x640, che ha la sua scala a parte,
-   vedi 'scale' sotto). Derivato dalla sola ALTEZZA dello schermo (la larghezza
-   varia troppo con l'ultrawide per essere un indizio affidabile di "quanto e'
-   grande lo schermo"): 900px di altezza -> 1.0, cioe' l'aspetto di sempre prima
-   di M4 (la finestra grande di riferimento del progetto e' 1600x900, vedi
-   APP_WINDOW_WIDTH/HEIGHT in core/game_types.h). Sopra i 900px cresce fino a un
-   tetto di 3.0 (oltre, l'interfaccia diventerebbe piu' un ostacolo che un aiuto
-   anche su un 4K). QUANTIZZATO a passi di 0.25 con un floor (non arrotondato):
-   stessa scelta della scala del canvas qui sotto, un valore continuo farebbe
-   "respirare" pannelli e font ad ogni pixel di resize invece di scattare fra
-   pochi valori stabili. 1080p (rapporto 1.2) cade quindi a 1.0 (floor di 4.8/4),
-   1440p (1.6) a 1.5, 2160p (2.4) a 2.25: coerente col commento del task e con
-   quanto verifica --layout-test (punto c, non-regressione a 1600x900). */
-static float UiScaleForHeight(float sh)
-{
-    float raw = GameMathClampFloat(sh/900.0f, 1.0f, 3.0f);
-    return floorf(raw*4.0f)/4.0f;
-}
+/* ============================================================
+   DEC-200 (WP-UI-0): DOVE SI DISEGNA.
+ *
+ * Da questa migrazione esiste UNA sola superficie di disegno -- il canvas
+ * interno SCREEN_WIDTH x SCREEN_HEIGHT (640x360) -- e la finestra e' solo il
+ * posto dove quel canvas viene ingrandito di un fattore INTERO alla fine del
+ * frame (RendererDrawApp). "Schermo", in tutto il resto di questo file, vuol
+ * quindi dire CANVAS: GetScreenWidth/GetScreenHeight NON compaiono piu' da
+ * nessuna parte tranne UiComputeLayout qui sotto, che e' il solo punto in cui
+ * le due coordinate si incontrano.
+ *
+ * Prima di WP-UI-0 non era cosi': la scena viveva nel canvas mentre HUD e
+ * overlay si disegnavano DIRETTAMENTE nel framebuffer di finestra, scalandosi
+ * a mano con uiScale. Quel doppio spazio e' esattamente cio' che rendeva
+ * impossibile "un pixel di interfaccia = un pixel d'arte": a 1600x900 una
+ * riga di menu era alta 40 px di finestra e il font pixel ne occupava 15,
+ * senza alcun rapporto stabile fra i due.
+   ============================================================ */
+static float UiCanvasW(void) { return (float)SCREEN_WIDTH; }
+static float UiCanvasH(void) { return (float)SCREEN_HEIGHT; }
+
+/* Le geometrie storiche degli overlay (riquadri, quote delle righe, margini)
+   sono scritte nella griglia di progetto 1600x900 -- l'uiScale 1.0 di M4, la
+   finestra grande di riferimento. Il canvas 640x360 ne e' esattamente 0.4 su
+   ENTRAMBI gli assi, quindi un unico fattore le riporta dentro il canvas
+   conservando le proporzioni con cui erano state approvate, invece di
+   rimisurare a mano sette schermate. E' una COSTANTE e non piu' una funzione
+   della finestra: a scalare con la finestra, adesso, e' il blit finale, e lo
+   fa per tutto insieme. Le schermate rivestite col nuovo sistema di token
+   (src/render/ui_theme.h) non lo usano affatto -- lavorano in pixel di canvas
+   diretti, che e' il modo giusto. */
+#define UI_CANVAS_SCALE 0.4f
 
 UiLayout UiComputeLayoutFor(float sw, float sh)
 {
-    float uiScale = UiScaleForHeight(sh);
-    /* DEC-137: una sola superficie. La game view riempie TUTTO lo schermo --
-       niente piu' colonne sottratte alla UI, che ora vive in overlay sopra il
-       canvas (DrawOuterUi). Il canvas resta pixel-perfect con la STESSA
-       disciplina di prima: si sceglie il piu' grande passo di 1/8 che ci sta
-       INTERO (fit, mai crop -- la stanza e' fissa 960x640 senza camera, tagliarla
-       nasconderebbe gameplay), e lo si centra. Sparita ogni riserva di spazio per
-       i pannelli: lo spazio libero e' l'intero schermo. */
+    /* Scala INTERA, mai frazionaria (DEC-200): il canvas e' campionato POINT e
+       una scala come 1.625 (il vecchio aggancio a 1/8) fa cadere i pixel
+       raddoppiati a distanze irregolari -- alcuni larghi 2, altri 1 -- che
+       "brillano" appena la camera si muove. A scala intera ogni pixel di
+       canvas diventa un quadrato identico a tutti gli altri. 640x360 e' 16:9,
+       quindi su un monitor 16:9 la scala intera non lascia nemmeno bande:
+       x2 = 720p, x3 = 1080p, x6 = 4K. */
     float scale = fminf(sw/(float)SCREEN_WIDTH, sh/(float)SCREEN_HEIGHT);
-    /* Scala AGGANCIATA a passi di 1/8 (mai continua): il canvas e' campionato
-       con filtro POINT (vedi app.c), e a scala continua i pixel raddoppiati
-       cadrebbero a distanze irregolari che "brillano" quando la finestra
-       cambia o la camera si muove. A passi di 1/8 la cadenza dei pixel
-       raddoppiati e' fissa e regolare. Il floor sceglie il passo INFERIORE:
-       meglio una cornice di margine in piu' (le bande che restano dal rapporto
-       3:2 del canvas su uno schermo 16:9) che tagliare la stanza. */
-    scale = floorf(scale*8.0f)/8.0f;
-    /* M4: nessun tetto sulla scala -- la game view deve riempire lo schermo su
-       1440p/4K. Resta SOLO il minimo 0.75, a guardia delle finestre ridotte a
-       mano sotto la finestra di test compatta (960x640, dove scale vale gia' 1.0
-       esatto). Le bande dal rapporto 3:2 le riempie ClearBackground (scuro), e
-       l'HUD in overlay ci si appoggia sopra ai bordi di gameRect. */
-    if (scale < 0.75f) scale = 0.75f;
+    scale = floorf(scale);
+    /* Minimo 1: sotto, il canvas andrebbe RIMPICCIOLITO, cioe' si perderebbero
+       righe di pixel. Meglio che una finestra piu' piccola del canvas ne
+       tagli i bordi (caso di sola manutenzione: nessuna configurazione reale
+       ha meno di 640x360 di area utile). */
+    if (scale < 1.0f) scale = 1.0f;
     float gw = (float)SCREEN_WIDTH*scale;
     float gh = (float)SCREEN_HEIGHT*scale;
 
     UiLayout layout = { 0 };
-    layout.gameRect = (Rectangle){ (sw - gw)*0.5f, (sh - gh)*0.5f, gw, gh };
+    /* Centrato, con quel che avanza lasciato al letterbox (UI_GROUND): la
+       centratura e' cio' che garantisce bande uguali sui due lati. Le
+       coordinate restano intere -- una mezza unita' di offset spalmerebbe una
+       colonna di pixel del canvas su due colonne di finestra. */
+    layout.gameRect = (Rectangle){ floorf((sw - gw)*0.5f), floorf((sh - gh)*0.5f), gw, gh };
     layout.gameScale = scale;
-    layout.uiScale = uiScale;
+    layout.uiScale = UI_CANVAS_SCALE;
     return layout;
 }
 
@@ -189,6 +197,31 @@ bool UiScreenToGameMouse(UiLayout layout, Vector2 *out)
         out->y = GameMathClampFloat(out->y, 0.0f, (float)SCREEN_HEIGHT);
     }
     return inside;
+}
+
+Vector2 UiCanvasMouse(void)
+{
+    UiLayout layout = UiComputeLayout();
+    Vector2 mouse = GetMousePosition();
+    /* Senza clamp, a differenza di UiScreenToGameMouse sopra: un puntatore
+       fuori dal canvas deve restare fuori da OGNI rettangolo interrogato,
+       mentre un clamp ai bordi lo farebbe cadere su un widget appoggiato al
+       bordo (in un menu centrato non succede, ma un hit-test che dipende da
+       "per fortuna il pannello non tocca il bordo" e' un difetto in attesa). */
+    return (Vector2){ (mouse.x - layout.gameRect.x)/layout.gameScale,
+                      (mouse.y - layout.gameRect.y)/layout.gameScale };
+}
+
+/* Il canvas visto come UiLayout, per i disegni che vogliono ancora "il
+   rettangolo su cui appoggiarsi" (l'HUD di ripiego, gli indicatori del Piano
+   0). Da WP-UI-0 quel rettangolo E' il canvas, senza scala di mezzo. */
+static UiLayout UiCanvasLayout(void)
+{
+    UiLayout layout = { 0 };
+    layout.gameRect = (Rectangle){ 0.0f, 0.0f, UiCanvasW(), UiCanvasH() };
+    layout.gameScale = 1.0f;
+    layout.uiScale = UI_CANVAS_SCALE;
+    return layout;
 }
 
 static Color RoomMapColor(RoomKind kind)
@@ -2386,7 +2419,7 @@ static bool DrawItemPreview(Game *game, const Item *item, int x, int y, int widt
     int fontName = UiRound(14.0f*uiScale);
     int fontSlot = UiRound(12.0f*uiScale);
     Rectangle row = { (float)x, (float)y, (float)width, 58.0f*uiScale };
-    bool hover = CheckCollisionPointRec(GetMousePosition(), row);
+    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
     DrawRectangleRec(row, hover ? (Color){ 40, 45, 56, 235 } : (owned ? (Color){ 28, 32, 40, 220 } : (Color){ 24, 27, 34, 210 }));
     DrawRectangleLinesEx(row, 2.0f, GameColorWithAlpha(rarityColor, hover ? 255 : 200));
     if (!DrawItemIcon(game, item, (Vector2){ x + 28.0f*uiScale, y + 29.0f*uiScale }, 36.0f*uiScale))
@@ -2450,11 +2483,11 @@ static void DrawItemTooltip(const Item *item, float uiScale)
     int lineStep = UiRound(18.0f*uiScale);
     int h = UiRound(30.0f*uiScale) + n*lineStep + UiRound(8.0f*uiScale);
 
-    Vector2 m = GetMousePosition();
+    Vector2 m = UiCanvasMouse();
     float bx = m.x + 18.0f*uiScale;
     float by = m.y + 8.0f*uiScale;
-    if (bx + w > (float)GetScreenWidth() - 6.0f) bx = m.x - (float)w - 8.0f*uiScale;
-    if (by + h > (float)GetScreenHeight() - 6.0f) by = (float)GetScreenHeight() - (float)h - 6.0f;
+    if (bx + w > UiCanvasW() - 6.0f) bx = m.x - (float)w - 8.0f*uiScale;
+    if (by + h > UiCanvasH() - 6.0f) by = UiCanvasH() - (float)h - 6.0f;
 
     DrawRectangleRec((Rectangle){ bx, by, (float)w, (float)h }, (Color){ 12, 14, 19, 245 });
     DrawRectangleLinesEx((Rectangle){ bx, by, (float)w, (float)h }, 2.0f, GameColorWithAlpha(RarityColor(item->rarity), 230));
@@ -3267,9 +3300,42 @@ static void DrawOuterUi(Game *game, UiLayout layout)
    del mouse devono restare la STESSA geometria: se il dialogo leggero si
    disegnasse stretto ma il hit-test rispondesse largo, i 70px di margine per
    lato risponderebbero a click su voci che li' non sono disegnate. */
+/* ============================================================
+   WP-UI-0: la geometria del MainMenu e' la PRIMA scritta in PIXEL DI CANVAS
+   veri, invece che nella griglia storica 1600x900 riportata a 640x360 da
+   UI_CANVAS_SCALE. E' la differenza fra "una vecchia schermata rimpicciolita"
+   e "una schermata disegnata per questa risoluzione": i numeri qui sotto
+   vengono dal mockup approvato dal proprietario (mock-mainmenu.png, 1280x720
+   = 2x il canvas), misurati e divisi per due, non da una conversione
+   automatica. Le altre sei schermate restano sulla griglia storica finche'
+   non tocchera' a loro (un WP per schermata): mescolare i due sistemi in una
+   schermata sola sarebbe peggio di tenerli separati fra schermate.
+   ============================================================ */
+#define UI_MAIN_MENU_W 340.0f
+#define UI_MAIN_MENU_H 240.0f
+/* Quote RELATIVE alla cima del riquadro. La prima riga comincia sotto il
+   blocco d'intestazione (titolo + filetto + sottotitolo); il passo di 32
+   lascia 6 px di respiro fra due fasce di fuoco alte 26. */
+#define UI_MAIN_MENU_ROW_TOP 52.0f
+#define UI_MAIN_MENU_ROW_H 26.0f
+#define UI_MAIN_MENU_ROW_PITCH 32.0f
+/* Margine orizzontale delle righe dentro il riquadro: la fascia del fuoco
+   deve arrivare quasi al bordo del pannello (una fascia troppo rientrata
+   sembra un bottone, e le voci NON sono bottoni). */
+#define UI_MAIN_MENU_ROW_INSET 10.0f
+/* Margine del blocco d'intestazione (titolo, filetto, sottotitolo): 4 px piu'
+   dentro delle righe, cosi' il testo del titolo si allinea otticamente col
+   testo delle voci, che ha il proprio rientro dentro la fascia. */
+#define UI_MAIN_MENU_PAD 14.0f
+
 static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitConfirmLight)
 {
-    float uiScale = UiScaleForHeight(sh);
+    if (mode == APP_MAIN_MENU)
+    {
+        return (Rectangle){ floorf(sw*0.5f - UI_MAIN_MENU_W*0.5f), floorf(sh*0.5f - UI_MAIN_MENU_H*0.5f),
+                            UI_MAIN_MENU_W, UI_MAIN_MENU_H };
+    }
+    float uiScale = UI_CANVAS_SCALE;
     /* BuildScreen e' l'unico overlay "grande" (spec M1a: mostra la build
        intera a schermo pieno, non solo poche voci): riusa le stesse fonti
        dati del pannello BUILD/OGGETTI PRESI di DrawOuterUi, che hanno bisogno
@@ -3335,7 +3401,7 @@ static Rectangle MenuBoxForModeFor(AppMode mode, float sw, float sh, bool exitCo
 
 static Rectangle MenuBoxForMode(AppMode mode, bool exitConfirmLight)
 {
-    return MenuBoxForModeFor(mode, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
+    return MenuBoxForModeFor(mode, UiCanvasW(), UiCanvasH(), exitConfirmLight);
 }
 
 static int MenuItemCountForMode(AppMode mode, RendererMenuCtx ctx)
@@ -3407,7 +3473,17 @@ static int MenuItemCountForMode(AppMode mode, RendererMenuCtx ctx)
 static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh, bool exitConfirmLight)
 {
     Rectangle box = MenuBoxForModeFor(mode, sw, sh, exitConfirmLight);
-    float uiScale = UiScaleForHeight(sh);
+    /* WP-UI-0: il MainMenu ha la propria geometria in pixel di canvas (vedi il
+       blocco UI_MAIN_MENU_* sopra). Resta comunque QUESTA la fonte unica per
+       disegno e hit-test del mouse, come per ogni altra schermata: la
+       differenza e' solo da dove vengono i numeri. */
+    if (mode == APP_MAIN_MENU)
+    {
+        return (Rectangle){ box.x + UI_MAIN_MENU_ROW_INSET,
+                            box.y + UI_MAIN_MENU_ROW_TOP + (float)index*UI_MAIN_MENU_ROW_PITCH,
+                            box.width - UI_MAIN_MENU_ROW_INSET*2.0f, UI_MAIN_MENU_ROW_H };
+    }
+    float uiScale = UI_CANVAS_SCALE;
     /* BuildScreen non e' un menu di voci: e' una schermata piena con UNA sola
        riga d'azione ("Indietro"). Alla quota comune (MENU_ROW_START_Y_BASE)
        quella riga cadeva in MEZZO al contenuto, sopra "OGGETTI PRESI"; qui
@@ -3424,7 +3500,19 @@ static Rectangle MenuItemRectFor(AppMode mode, int index, float sw, float sh, bo
 
 static Rectangle MenuItemRect(AppMode mode, int index, bool exitConfirmLight)
 {
-    return MenuItemRectFor(mode, index, (float)GetScreenWidth(), (float)GetScreenHeight(), exitConfirmLight);
+    return MenuItemRectFor(mode, index, UiCanvasW(), UiCanvasH(), exitConfirmLight);
+}
+
+/* Vedi game_renderer.h: la geometria dei menu vista dall'altro verso, per chi
+   deve sapere DOVE guardare invece di CHI c'e' sotto un punto. */
+Rectangle RendererMenuBoxBounds(AppMode mode, bool exitConfirmLight)
+{
+    return MenuBoxForMode(mode, exitConfirmLight);
+}
+
+Rectangle RendererMenuItemBounds(AppMode mode, int index, bool exitConfirmLight)
+{
+    return MenuItemRect(mode, index, exitConfirmLight);
 }
 
 int RendererMenuItemAtCtx(AppMode mode, Vector2 mouse, RendererMenuCtx ctx)
@@ -3458,10 +3546,10 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight)
    senza dover far transitare uiScale per ogni DrawXOverlay che la chiama. */
 static void DrawMenuRowCtx(AppMode mode, int index, const char *label, int focus, Color accent, bool exitConfirmLight)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle row = MenuItemRect(mode, index, exitConfirmLight);
     bool hasFocus = (index == focus);
-    bool hover = CheckCollisionPointRec(GetMousePosition(), row);
+    bool hover = CheckCollisionPointRec(UiCanvasMouse(), row);
     DrawRectangleRec(row, hasFocus ? GameColorWithAlpha(accent, 55) : (hover ? GameColorWithAlpha(accent, 25) : GameColorWithAlpha(BLACK, 90)));
     /* W8: la cornice della riga e' il 9-patch a SLOT (bordo sottile, senza
        rivetti), tinto dall'accento quando la riga ha il fuoco. Il fuoco resta
@@ -3499,10 +3587,8 @@ static void DrawMenuRow(AppMode mode, int index, const char *label, int focus, C
    SOTTO il box. */
 static void DrawMenuOverlayChromeDim(Rectangle box, Game *game, const char *title, Color accent, int dimAlpha)
 {
-    int sw = GetScreenWidth();
-    int sh = GetScreenHeight();
-    float uiScale = UiScaleForHeight((float)sh);
-    DrawRectangle(0, 0, sw, sh, GameColorWithAlpha(BLACK, dimAlpha));
+    float uiScale = UI_CANVAS_SCALE;
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GameColorWithAlpha(BLACK, dimAlpha));
     /* W8: la cornice di OGNI schermata e' il pannello 9-patch di
        assets/art/ui, non piu' GuiPanel. Non e' solo estetica: raygui disegnava
        col proprio font vettoriale e col proprio tema, cioe' con una tipografia
@@ -3635,22 +3721,63 @@ static Rectangle BeginMenuOverlayLight(AppMode mode, Game *game, const char *tit
 /* WP17 (DEC-050): 'hasContinue' arriva dal chiamante (RendererMainMenuHasContinueRow,
    fonte unica) e non viene ricalcolato qui, perche' questa funzione riceve
    'focus' come intero e non l'AppUi -- vedi il commento sopra. */
+/* L'etichetta di build mostrata in basso a sinistra. Vive qui e non in
+   core/game_types.h perche' oggi la mostra SOLO questa schermata: il giorno in
+   cui servisse anche altrove (RunResults, un log di bug) e' quello di
+   spostarla, non prima. */
+#define UI_BUILD_LABEL "v0.9 demo"
+
+/* WP-UI-0: la PRIMA schermata rivestita coi token di src/render/ui_theme.h.
+   Cosa cambia rispetto alla versione precedente, e perche':
+   - il fondo e' pieno (UI_GROUND) e non piu' un velo nero sopra la scena di
+     gioco. Il MainMenu e' una SCHERMATA, non un overlay: la stanza che si
+     intravedeva dietro portava con se' i colori generati della run (i
+     rosa/ciano che il proprietario ha bocciato) proprio nel primo sguardo sul
+     gioco;
+   - niente cornice colorata da 1 px attorno al riquadro (DEC-205): un
+     pannello e' una massa tonale col bevel a due valori, che e' anche il modo
+     in cui l'arte del gioco definisce i bordi;
+   - i colori NON vengono piu' da game->theme (l'accento generato della run):
+     l'interfaccia ha la sua tavolozza, il tema resta il colore del mondo.
+   'dimBackground' falso significa "questa schermata sta facendo da SFONDO a
+   un dialogo" (ExitConfirm leggero, DEC-090): in quel caso non si dipinge il
+   fondo pieno, cosi' l'unico velo del frame resta quello del dialogo sopra e
+   non se ne sommano due. */
 static void DrawMainMenuOverlay(Game *game, int focus, bool dimBackground, bool hasContinue)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    Rectangle box = dimBackground
-        ? BeginMenuOverlay(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2)
-        : BeginMenuOverlayDim(APP_MAIN_MENU, game, "WORLDSMELT", game->theme.accent2, 0, false);
-    UiText("Roguelite con contenuti generati in locale.", (int)box.x + UiRound(40.0f*uiScale), (int)box.y + UiRound(56.0f*uiScale), UiRound(15.0f*uiScale), game->theme.accent2);
+    (void)game;
+    Rectangle box = MenuBoxForMode(APP_MAIN_MENU, false);
+    if (dimBackground) DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, UI_GROUND);
+    UiPanel(box);
+
+    int pad = (int)UI_MAIN_MENU_PAD;
+    int titleY = (int)box.y + 12;
+    /* Ombra di 1 px in slag-nero sotto il titolo: e' l'unico "effetto" della
+       schermata e serve a staccare l'oro dal marrone del pannello, che sono
+       due colori vicini di valore. Un contorno su quattro lati (UiTextOutlined)
+       qui non va: DEC-205 vale anche per il testo, e a taglia 2 l'oro
+       contornato di nero diventa una scritta di plastica. */
+    UiTextAt("Worldsmelt", (int)box.x + pad + 1, titleY + 1, UI_TAGLIA_2, UI_GROUND);
+    UiTextAt("Worldsmelt", (int)box.x + pad, titleY, UI_TAGLIA_2, UI_TITOLO);
+
+    int ruleY = titleY + UiTextHeight(UI_TAGLIA_2) + 7;
+    UiDivider((int)box.x + pad, ruleY, (int)box.width - pad*2);
+    UiTextAt("Roguelite con contenuti generati in locale.",
+             (int)box.x + pad, ruleY + 7, UI_TAGLIA_1, UI_SECONDARIO);
+
     /* Le quattro voci storiche scalano di uno quando "Continua" c'e': la
        mappatura indice -> azione del case APP_MAIN_MENU (src/app/app.c) usa lo
        STESSO scarto, calcolato dalla stessa condizione. */
     int base = hasContinue ? 1 : 0;
-    if (hasContinue) DrawMenuRow(APP_MAIN_MENU, 0, "Continua", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, base + 0, "Nuova run", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, base + 1, "Catalogo", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, base + 2, "Opzioni", focus, game->theme.accent2);
-    DrawMenuRow(APP_MAIN_MENU, base + 3, "Esci", focus, game->theme.accent2);
+    if (hasContinue) UiMenuRow(MenuItemRect(APP_MAIN_MENU, 0, false), "Continua", focus == 0);
+    UiMenuRow(MenuItemRect(APP_MAIN_MENU, base + 0, false), "Nuova run", focus == base + 0);
+    UiMenuRow(MenuItemRect(APP_MAIN_MENU, base + 1, false), "Catalogo", focus == base + 1);
+    UiMenuRow(MenuItemRect(APP_MAIN_MENU, base + 2, false), "Opzioni", focus == base + 2);
+    UiMenuRow(MenuItemRect(APP_MAIN_MENU, base + 3, false), "Esci", focus == base + 3);
+
+    /* Fuori dal pannello, nell'angolo: c'e' per chi la cerca (un rapporto di
+       bug), non deve competere con niente. */
+    UiTextAt(UI_BUILD_LABEL, 8, SCREEN_HEIGHT - UiTextHeight(UI_TAGLIA_1) - 7, UI_TAGLIA_1, UI_MUTO);
 }
 
 /* WP22 (terza passata, ui/run-setup.md): etichetta e fascia della riga
@@ -3676,10 +3803,10 @@ const char *RendererRunSetupModeLabel(void)
     return "Modalita': Standard";
 }
 
-Rectangle RendererRunSetupModeLabelBandFor(float sw, float sh)
+Rectangle RendererRunSetupModeLabelBand(void)
 {
-    float uiScale = UiScaleForHeight(sh);
-    Rectangle box = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
+    float uiScale = UI_CANVAS_SCALE;
+    Rectangle box = MenuBoxForMode(APP_RUN_SETUP, false);
     float x = box.x + RUN_SETUP_MODE_LABEL_X_BASE*uiScale;
     return (Rectangle){ x, box.y + RUN_SETUP_MODE_LABEL_Y_BASE*uiScale,
                         box.x + box.width - 40.0f*uiScale - x, RUN_SETUP_MODE_LABEL_H_BASE*uiScale };
@@ -3687,15 +3814,15 @@ Rectangle RendererRunSetupModeLabelBandFor(float sw, float sh)
 
 static void DrawRunSetupOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
-    BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);   /* il box torna da RendererRunSetupModeLabelBandFor/MenuItemRect, non serve qui */
+    float uiScale = UI_CANVAS_SCALE;
+    BeginMenuOverlay(APP_RUN_SETUP, game, "NUOVA RUN", game->theme.accent2);   /* il box torna da RendererRunSetupModeLabelBand/MenuItemRect, non serve qui */
     /* "Modalita'" e' un'etichetta fissa (unica modalita' esistente, DEC-038:
        niente selettore di difficolta'), non una voce selezionabile: disegnata
        SOPRA le tre voci, nella fascia libera fra il filetto del titolo e la
        riga "Seed", senza passare da DrawMenuRow/MenuItemRect -- cosi' non
        occupa un indice, non e' cliccabile e non si sovrappone piu' a nessuna
-       riga (vedi RendererRunSetupModeLabelBandFor sopra). */
-    Rectangle band = RendererRunSetupModeLabelBandFor((float)GetScreenWidth(), (float)GetScreenHeight());
+       riga (vedi RendererRunSetupModeLabelBand sopra). */
+    Rectangle band = RendererRunSetupModeLabelBand();
     UiText(RendererRunSetupModeLabel(), (int)band.x, (int)band.y, UiRound(14.0f*uiScale), (Color){ 176, 184, 198, 255 });
     DrawMenuRow(APP_RUN_SETUP, 0, TextFormat("Seed: %u  (R rigenera)", ui->seed), ui->focus, game->theme.accent2);
     DrawMenuRow(APP_RUN_SETUP, 1, "Avvia", ui->focus, game->theme.accent2);
@@ -3776,7 +3903,7 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
     Rectangle box = BeginMenuOverlay(APP_PAUSE_MENU, game, "PAUSA", game->theme.accent2);
     if (ui->pauseTrialsOpen)
     {
-        DrawTrialsPanel(game, box, UiScaleForHeight((float)GetScreenHeight()));
+        DrawTrialsPanel(game, box, UI_CANVAS_SCALE);
         return;
     }
     DrawMenuRow(APP_PAUSE_MENU, 0, "Riprendi", ui->focus, game->theme.accent2);
@@ -3798,7 +3925,7 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
     if (hasSuspend) DrawMenuRow(APP_PAUSE_MENU, 5, "Sospendi e esci", ui->focus, game->theme.accent2);
     DrawMenuRow(APP_PAUSE_MENU, hasSuspend ? 6 : 5, "Abbandona run", ui->focus, game->theme.accent2);
     if (game->floor == 0)
-        DrawPauseMenuFloorZeroConsult(game, box, UiScaleForHeight((float)GetScreenHeight()));
+        DrawPauseMenuFloorZeroConsult(game, box, UI_CANVAS_SCALE);
 }
 
 /* Geometria della barra di una riga-slider (indice 0..2: generale/musica/
@@ -3811,7 +3938,7 @@ static void DrawPauseMenuOverlay(Game *game, const AppUi *ui)
    sintetiche. */
 static Rectangle OptionsSliderBarRectFor(int index, float sw, float sh)
 {
-    float uiScale = UiScaleForHeight(sh);
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle row = MenuItemRectFor(APP_OPTIONS, index, sw, sh, false);
     float barW = row.width*0.42f;
     float barX = row.x + row.width - barW - UiRound(48.0f*uiScale);
@@ -3832,7 +3959,7 @@ static Rectangle OptionsSliderBarRectFor(int index, float sw, float sh)
    (0.0 e 1.0 sono gia' multipli esatti del passo). */
 float RendererOptionsSliderValueAt(int index, float mouseX)
 {
-    Rectangle bar = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    Rectangle bar = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
     if (bar.width <= 0.0f) return 0.0f;
     float raw = GameMathClampFloat((mouseX - bar.x)/bar.width, 0.0f, 1.0f);
     float snapped = roundf(raw/OPTIONS_VOLUME_STEP)*OPTIONS_VOLUME_STEP;
@@ -3848,8 +3975,8 @@ float RendererOptionsSliderValueAt(int index, float mouseX)
    da slider gia' esistente in UpdateApp). Stessa geometria di ValueAt. */
 bool RendererOptionsSliderHit(int index, Vector2 mouse)
 {
-    Rectangle bar = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
-    float slack = 6.0f*UiScaleForHeight((float)GetScreenHeight());
+    Rectangle bar = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
+    float slack = 6.0f*UI_CANVAS_SCALE;
     Rectangle grab = { bar.x - slack, bar.y, bar.width + 2.0f*slack, bar.height };
     return CheckCollisionPointRec(mouse, grab);
 }
@@ -3866,7 +3993,7 @@ bool RendererOptionsSliderHit(int index, Vector2 mouse)
    informazione affidata al solo colore o alla sola lunghezza (DEC-058). */
 static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const char *label, float value)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle row = MenuItemRect(APP_OPTIONS, index, false);
     DrawMenuRow(APP_OPTIONS, index, label, ui->focus, game->theme.accent2);
 
@@ -3880,7 +4007,7 @@ static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const c
        barX/barW vengono da OptionsSliderBarRectFor sopra -- stessa geometria
        del trascinamento, mai due formule a rischio di disallinearsi. */
     float cellGap = 2.0f*uiScale;
-    Rectangle barRect = OptionsSliderBarRectFor(index, (float)GetScreenWidth(), (float)GetScreenHeight());
+    Rectangle barRect = OptionsSliderBarRectFor(index, UiCanvasW(), UiCanvasH());
     float barW = barRect.width;
     float barX = barRect.x;
     float cellW = (barW - cellGap*(float)(OPTIONS_VOLUME_CELLS - 1))/(float)OPTIONS_VOLUME_CELLS;
@@ -3905,7 +4032,7 @@ static void DrawOptionsSliderRow(Game *game, const AppUi *ui, int index, const c
 
 static void DrawOptionsOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = BeginMenuOverlay(APP_OPTIONS, game, "OPZIONI", game->theme.accent2);
     /* La categoria "audio" e' la prima delle categorie minime di
        ui/options-and-accessibility.md; le altre (video, controlli,
@@ -4123,7 +4250,7 @@ static void BuildScreenItemListLayoutFor(Game *game, const AppUi *ui, float sw, 
                                           int *outInnerX, int *outLeftW, int *outLy, int *outBandY,
                                           int *outRowStep, int *outFirst, int *outMaxShow, int *outCount)
 {
-    float uiScale = UiScaleForHeight(sh);
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = MenuBoxForModeFor(APP_BUILD_SCREEN, sw, sh, false);
     int innerX = (int)box.x + UiRound(40.0f*uiScale);
     int innerY = (int)box.y + UiRound(52.0f*uiScale);
@@ -4164,7 +4291,7 @@ int RendererBuildItemRowsVisible(Game *game)
 {
     AppUi probe = { 0 };   /* solo per la firma: la misura non legge nessun campo di scorrimento */
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
-    BuildScreenItemListLayoutFor(game, &probe, (float)GetScreenWidth(), (float)GetScreenHeight(),
+    BuildScreenItemListLayoutFor(game, &probe, UiCanvasW(), UiCanvasH(),
                                   &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     (void)innerX; (void)leftW; (void)ly; (void)bandY; (void)rowStep; (void)first; (void)count;
     return maxShow > 0 ? maxShow : 1;
@@ -4172,9 +4299,9 @@ int RendererBuildItemRowsVisible(Game *game)
 
 int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    float uiScale = UiScaleForHeight(sh);
+    float sw = UiCanvasW();
+    float sh = UiCanvasH();
+    float uiScale = UI_CANVAS_SCALE;
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
     BuildScreenItemListLayoutFor(game, ui, sw, sh, &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     (void)bandY;
@@ -4194,9 +4321,9 @@ int RendererBuildItemRowAt(Game *game, const AppUi *ui, Vector2 mouse)
 bool RendererFusionConfirmAt(Game *game, Vector2 mouse)
 {
     AppUi probe = { 0 };   /* la posizione della fascia non dipende da nessun campo di 'ui' */
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
-    BuildScreenItemListLayoutFor(game, &probe, (float)GetScreenWidth(), (float)GetScreenHeight(),
+    BuildScreenItemListLayoutFor(game, &probe, UiCanvasW(), UiCanvasH(),
                                   &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     (void)ly; (void)rowStep; (void)first; (void)maxShow; (void)count;
     return CheckCollisionPointRec(mouse, FusionConfirmRowRectFor(innerX, bandY, leftW, uiScale));
@@ -4204,7 +4331,7 @@ bool RendererFusionConfirmAt(Game *game, Vector2 mouse)
 
 static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = BeginMenuOverlay(APP_BUILD_SCREEN, game, "BUILD E SINERGIE", game->theme.accent2);
     const Player *p = &game->player;
     const Item *hoveredItem = NULL;   /* il tooltip va disegnato per ULTIMO, sopra tutto */
@@ -4216,7 +4343,7 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
        vera (colpo + sinergie + oggetti presi), a destra le statistiche e cosa
        offre il piano corrente. Stesse fonti dati del vecchio pannello GIOCATORE. */
     int innerX, leftW, ly, bandY, rowStep, first, maxShow, count;
-    BuildScreenItemListLayoutFor(game, ui, (float)GetScreenWidth(), (float)GetScreenHeight(),
+    BuildScreenItemListLayoutFor(game, ui, UiCanvasW(), UiCanvasH(),
                                   &innerX, &leftW, &ly, &bandY, &rowStep, &first, &maxShow, &count);
     int innerY = (int)box.y + UiRound(52.0f*uiScale);
     int innerW = (int)box.width - UiRound(80.0f*uiScale);
@@ -4298,7 +4425,7 @@ static void DrawBuildScreenOverlay(Game *game, const AppUi *ui)
 
 static void DrawRunResultsOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     const char *title = (game->phase == PHASE_WIN) ? "VITTORIA UFFICIALE" : "SCONFITTA";
     Rectangle box = BeginMenuOverlay(APP_RUN_RESULTS, game, title, game->theme.accent2);
     const char *outcome = (game->phase == PHASE_WIN)
@@ -4402,7 +4529,7 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
 
 static void DrawExitConfirmOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     /* WP22 (DEC-090, gap G9): il contesto "MainMenu -> Esci" (chiusura del
        gioco) e' uno dei DUE (dei CINQUE, vedi 'question' sotto) in cui
        openedFrom vale APP_MAIN_MENU -- exitAbandonsRun resta sempre falso li'
@@ -4557,7 +4684,7 @@ static int WrapTextLines(const char *text, int fontSize, float maxWidth, char ou
    letterali che servono, non l'intera funzione. */
 static Rectangle CatalogBoxFor(float sw, float sh)
 {
-    float uiScale = UiScaleForHeight(sh);
+    float uiScale = UI_CANVAS_SCALE;
     float w = 760.0f*uiScale;
     float h = 520.0f*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
@@ -4565,7 +4692,7 @@ static Rectangle CatalogBoxFor(float sw, float sh)
 
 static Rectangle BeginCatalogOverlay(Game *game, const char *title, Color accent)
 {
-    Rectangle box = CatalogBoxFor((float)GetScreenWidth(), (float)GetScreenHeight());
+    Rectangle box = CatalogBoxFor(UiCanvasW(), UiCanvasH());
     DrawMenuOverlayChrome(box, game, title, accent);
     return box;
 }
@@ -4692,7 +4819,7 @@ static void DrawCatalogDetail(Rectangle box, const RunCatalogEntry *e, float lis
 
 static void DrawCatalogOverlay(Game *game, const AppUi *ui)
 {
-    float uiScale = UiScaleForHeight((float)GetScreenHeight());
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = BeginCatalogOverlay(game, "CATALOGO", game->theme.accent2);
     const RunCatalogSummary *cat = &ui->catalog;
 
@@ -4742,7 +4869,7 @@ static void DrawCatalogOverlay(Game *game, const AppUi *ui)
  * (DrawFloorZeroSectionTabs) sopra il titolo, che M5 non aveva. */
 static Rectangle ThemeCardsPanelBoxFor(float sw, float sh)
 {
-    float uiScale = UiScaleForHeight(sh);
+    float uiScale = UI_CANVAS_SCALE;
     float w = 760.0f*uiScale;
     float h = 320.0f*uiScale;
     return (Rectangle){ sw*0.5f - w*0.5f, sh*0.5f - h*0.5f, w, h };
@@ -4969,7 +5096,12 @@ static void DrawCharacterCards(const Game *game, Rectangle box, float uiScale)
  * aprire anche con un click, sulla STESSA area che si vede. */
 static Rectangle FloorZeroHintChipRectFor(float sw, float sh)
 {
-    float uiScale = UiScaleForHeight(sh);
+    /* 'sh' non serve piu' da DEC-200: la quota del fumetto era proporzionale
+       all'altezza dello schermo, ora e' una quota fissa del canvas. Il
+       parametro resta per non spezzare la simmetria con le altre *For (tutte
+       (sw, sh)) e con i loro chiamanti/test. */
+    (void)sh;
+    float uiScale = UI_CANVAS_SCALE;
     const char *hint = "TAB o click -- mondo e personaggio";
     int font = UiRound(14.0f*uiScale);
     int tw = UiTextW(hint, font);
@@ -4979,7 +5111,7 @@ static Rectangle FloorZeroHintChipRectFor(float sw, float sh)
 static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
 {
     if (game->themeCardCount <= 0) return;
-    float uiScale = UiScaleForHeight(sh);
+    float uiScale = UI_CANVAS_SCALE;
 
     if (!game->themeCardsPanelOpen)
     {
@@ -5031,9 +5163,9 @@ static void DrawFloorZeroPanel(const Game *game, float sw, float sh)
 int RendererFloorZeroCardAt(const Game *game, Vector2 mouse)
 {
     if (!game->themeCardsPanelOpen) return -1;
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    float uiScale = UiScaleForHeight(sh);
+    float sw = UiCanvasW();
+    float sh = UiCanvasH();
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
     int count = (game->floorZeroPanelSection == FLOOR_ZERO_PANEL_WORLDS)
                 ? game->themeCardCount : GameCharacterCardCount(game);
@@ -5049,9 +5181,9 @@ int RendererFloorZeroCardAt(const Game *game, Vector2 mouse)
 int RendererFloorZeroSectionTabAt(const Game *game, Vector2 mouse)
 {
     if (!game->themeCardsPanelOpen) return -1;
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    float uiScale = UiScaleForHeight(sh);
+    float sw = UiCanvasW();
+    float sh = UiCanvasH();
+    float uiScale = UI_CANVAS_SCALE;
     Rectangle box = ThemeCardsPanelBoxFor(sw, sh);
     for (int s = 0; s < 2; s++)
         if (CheckCollisionPointRec(mouse, FloorZeroSectionTabRectFor(box, s, uiScale))) return s;
@@ -5065,7 +5197,7 @@ int RendererFloorZeroSectionTabAt(const Game *game, Vector2 mouse)
 bool RendererFloorZeroHintChipAt(const Game *game, Vector2 mouse)
 {
     if (game->themeCardCount <= 0 || game->themeCardsPanelOpen) return false;
-    Rectangle box = FloorZeroHintChipRectFor((float)GetScreenWidth(), (float)GetScreenHeight());
+    Rectangle box = FloorZeroHintChipRectFor(UiCanvasW(), UiCanvasH());
     return CheckCollisionPointRec(mouse, box);
 }
 
@@ -5115,35 +5247,27 @@ static void DrawFloorZeroSummary(const Game *game, Rectangle gameRect, float uiS
 void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const AppUi *ui,
                      bool takeScreenshot, const GenProgress *genProgress, const char *screenshotPath)
 {
+    /* DEC-200 (WP-UI-0): il frame INTERO -- scena, HUD e overlay delle
+       schermate -- si compone dentro il canvas 640x360. Fino a WP-UI-0 solo la
+       scena stava qui e tutto il resto si disegnava dopo, nel framebuffer di
+       finestra, a coordinate di finestra: due spazi diversi nello stesso
+       frame. Da qui in poi la finestra riceve UNA sola cosa, il canvas
+       ingrandito di un fattore intero. */
+    UiLayout canvasLayout = UiCanvasLayout();
     BeginTextureMode(canvas);
     DrawGameplayCanvas(game);
-    /* W8: l'HUD in pixel art vive DENTRO il canvas (DEC-174), quindi si disegna
-       qui, prima che il canvas venga scalato. La regola di visibilita' resta
-       HudCombatShouldDraw, una sola: e' la stessa condizione che governa il
-       ripiego in overlay poco piu' sotto -- i due percorsi si escludono a
-       vicenda (ArtUiReady), mai entrambi nello stesso frame. */
+    /* W8: l'HUD in pixel art vive DENTRO il canvas (DEC-174). La regola di
+       visibilita' resta HudCombatShouldDraw, una sola: e' la stessa condizione
+       che governa il ripiego a primitive qui accanto -- i due percorsi si
+       escludono a vicenda (ArtUiReady), mai entrambi nello stesso frame. */
     bool hudVisible = HudCombatShouldDraw(mode, game->floorZeroTrialActive);
     bool hudPixelArt = ArtUiReady();
-    if (hudVisible && hudPixelArt) DrawHudCanvas(game, ui);
-    EndTextureMode();
-
-    BeginDrawing();
-    /* Lo sfondo scuro riempie le bande che il rapporto 3:2 del canvas lascia sui
-       lati di uno schermo 16:9 (DEC-137): la game view e' centrata e massimale,
-       le bande sono una cornice scura, non spazio riservato alla UI. */
-    ClearBackground((Color){ 9, 11, 16, 255 });
-    UiLayout layout = UiComputeLayout();
-    /* DEC-137: la game view riempie lo schermo e la GUI vive SOPRA di essa. Il
-       canvas scalato PRIMA della GUI: l'HUD in overlay (DrawOuterUi) e gli overlay
-       di stato ci si appoggiano sopra. Niente piu' cornice/etichetta "GAME VIEW":
-       era chrome da colonne separate, ora la vista di gioco E' lo schermo. */
-    Rectangle src = { 0.0f, 0.0f, (float)canvas.texture.width, -(float)canvas.texture.height };
-    DrawTexturePro(canvas.texture, src, layout.gameRect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
     /* HUD di gioco SOLO in Gameplay, o nel Piano 0 durante una prova (DEC-169):
        fuori da queste due situazioni e' nascosto (ui/hud.md), e il Piano 0 ha
        i suoi overlay dedicati (riepilogo + carte) sullo stesso angolo -- vedi
        il case APP_FLOOR_ZERO sotto. */
-    if (hudVisible && !hudPixelArt) DrawOuterUi(game, layout);
+    if (hudVisible && hudPixelArt) DrawHudCanvas(game, ui);
+    else if (hudVisible) DrawOuterUi(game, canvasLayout);
 
     /* UN overlay per stato (switch esplicito, M1a): 'ui' e' NULL solo per
        Gameplay (che non ne ha bisogno) e per FloorZero (che legge
@@ -5155,15 +5279,15 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
         case APP_MAIN_MENU: if (ui->catalogOpen) DrawCatalogOverlay(game, ui); else DrawMainMenuOverlay(game, ui->focus, true, RendererMainMenuHasContinueRow(ui)); break;
         case APP_RUN_SETUP: DrawRunSetupOverlay(game, ui); break;
         case APP_FLOOR_ZERO:
-            DrawFloorZeroIndicator(layout.gameRect, layout.uiScale, genProgress);
+            DrawFloorZeroIndicator(canvasLayout.gameRect, canvasLayout.uiScale, genProgress);
             /* M6a: il pannello combinato (aperto o solo l'invito, a seconda
                di game->themeCardsPanelOpen) e il riepilogo persistente
                convivono SEMPRE, a differenza di M5 -- il riepilogo mostra
                anche il personaggio (sempre definito) anche col pannello
                chiuso, il pannello resta apribile anche dopo la scelta del
                mondo (requisito 1: il personaggio resta modificabile). */
-            DrawFloorZeroPanel(game, (float)GetScreenWidth(), (float)GetScreenHeight());
-            DrawFloorZeroSummary(game, layout.gameRect, layout.uiScale);
+            DrawFloorZeroPanel(game, UiCanvasW(), UiCanvasH());
+            DrawFloorZeroSummary(game, canvasLayout.gameRect, canvasLayout.uiScale);
             break;
         case APP_GAMEPLAY: break;
         case APP_PAUSE_MENU: DrawPauseMenuOverlay(game, ui); break;
@@ -5192,19 +5316,45 @@ void RendererDrawApp(Game *game, RenderTexture2D canvas, AppMode mode, const App
             DrawExitConfirmOverlay(game, ui);
             break;
     }
+    EndTextureMode();
+
+    BeginDrawing();
+    /* Letterbox slag-nero (UI_GROUND, il fondo assoluto della palette Fucina):
+       riempie quel che avanza quando il monitor non e' 16:9, o quando la
+       finestra non e' un multiplo esatto di 640x360. Non e' spazio riservato a
+       nulla -- e' fuori dal gioco. */
+    ClearBackground(UI_GROUND);
+    UiLayout layout = UiComputeLayout();
+    /* L'altezza NEGATIVA della sorgente ribalta la texture: il framebuffer
+       OpenGL e' memorizzato dal basso verso l'alto. */
+    Rectangle src = { 0.0f, 0.0f, (float)canvas.texture.width, -(float)canvas.texture.height };
+    DrawTexturePro(canvas.texture, src, layout.gameRect, (Vector2){ 0.0f, 0.0f }, 0.0f, WHITE);
+    EndDrawing();
 
     /* screenshotPath e' del chiamante (mai NULL quando takeScreenshot e'
        vero, vedi game_renderer.h): --screenshot-test continua a scrivere
        logs/melting-run-screen.png esattamente come prima (vedi app.c),
        questo parametro serve solo a chi (come --layer-test, vedi
        src/tests/game_tests.c) vuole un frame catturato altrove, senza
-       toccare quel file. */
-    if (takeScreenshot)
+       toccare quel file.
+       DEC-200: si cattura il CANVAS, non piu' il backbuffer (TakeScreenshot).
+       Tre ragioni. (1) Il canvas e' il frame VERO: il backbuffer aggiunge il
+       letterbox e la scala della finestra del momento, cioe' rumore che
+       cambia da una macchina all'altra (sotto Xvfb erano 1920x1080 con bande).
+       (2) Cosi' uno scatto e' pixel-esatto e confrontabile con quello di ieri.
+       (3) Il raddoppio a punto (x2, 1280x720) e' li' solo perche' un PNG
+       640x360 e' scomodo da guardare a occhio: NON aggiunge informazione, ogni
+       pixel diventa un quadrato 2x2 esatto. Dopo EndDrawing per non forzare un
+       flush a meta' frame. */
+    if (takeScreenshot && screenshotPath)
     {
-        rlDrawRenderBatchActive();
-        TakeScreenshot(screenshotPath);
+        Image shot = LoadImageFromTexture(canvas.texture);
+        /* Stesso ribaltamento del blit qui sopra, per la stessa ragione. */
+        ImageFlipVertical(&shot);
+        ImageResizeNN(&shot, shot.width*2, shot.height*2);
+        ExportImage(shot, screenshotPath);
+        UnloadImage(shot);
     }
-    EndDrawing();
 }
 
 /* ============================================================
@@ -5248,31 +5398,36 @@ bool UiLayoutSelfTest(void)
         UiLayout L = UiComputeLayoutFor(sw, sh);
         Rectangle screen = { 0.0f, 0.0f, sw, sh };
 
-        /* (a) DEC-137: la game view sta dentro lo schermo ed e' CENTRATA -- una
-           sola superficie, niente piu' pannelli-colonna da separare. Il canvas
-           3:2 su uno schermo di rapporto diverso lascia bande simmetriche, ed e'
-           proprio la centratura a garantirle uguali sui due lati. */
+        /* (a) il canvas sta dentro lo schermo ed e' CENTRATO. La centratura e'
+           cio' che garantisce bande di letterbox uguali sui due lati quando il
+           monitor non e' un multiplo esatto di 640x360. */
         if (!UiRectInside(screen, L.gameRect))
         {
             fprintf(stderr, "UiLayoutSelfTest: (a) la game view esce dallo schermo a %.0fx%.0f\n", sw, sh);
             return false;
         }
-        if (fabsf(L.gameRect.x - (sw - L.gameRect.width)*0.5f) > UI_LAYOUT_TEST_EPS ||
-            fabsf(L.gameRect.y - (sh - L.gameRect.height)*0.5f) > UI_LAYOUT_TEST_EPS)
+        if (fabsf(L.gameRect.x - floorf((sw - L.gameRect.width)*0.5f)) > UI_LAYOUT_TEST_EPS ||
+            fabsf(L.gameRect.y - floorf((sh - L.gameRect.height)*0.5f)) > UI_LAYOUT_TEST_EPS)
         {
             fprintf(stderr, "UiLayoutSelfTest: (a) game view non centrata a %.0fx%.0f\n", sw, sh);
             return false;
         }
 
-        /* (b) la scala e' il MASSIMO passo di 1/8 che riempie lo schermo INTERO
-           (niente piu' spazio riservato ai pannelli: maxW/maxH sono sw/sh): il
-           passo SUCCESSIVO (+1/8) non deve piu' starci, altrimenti la game view
-           avrebbe lasciato bande evitabili. Sotto il minimo 0.75 il vincolo non
-           si applica: quello e' un pavimento imposto, non "il massimo che ci sta". */
-        float nextScale = L.gameScale + 0.125f;
+        /* (b) DEC-200: la scala e' un INTERO, ed e' il PIU' GRANDE che ci sta.
+           Due verifiche in una, perche' sono la stessa promessa: se fosse
+           frazionaria i pixel del canvas cadrebbero a distanze irregolari, se
+           non fosse la massima il gioco lascerebbe bande evitabili. Sotto il
+           minimo 1 il secondo vincolo non si applica: quello e' un pavimento
+           imposto, non "il massimo che ci sta". */
+        if (fabsf(L.gameScale - floorf(L.gameScale)) > 0.0001f)
+        {
+            fprintf(stderr, "UiLayoutSelfTest: (b) scala non intera a %.0fx%.0f (%.3f)\n", sw, sh, L.gameScale);
+            return false;
+        }
+        float nextScale = L.gameScale + 1.0f;
         bool nextFits = (nextScale*(float)SCREEN_WIDTH <= sw + UI_LAYOUT_TEST_EPS) &&
                         (nextScale*(float)SCREEN_HEIGHT <= sh + UI_LAYOUT_TEST_EPS);
-        if (nextFits && L.gameScale > 0.75f + 0.001f)
+        if (nextFits && L.gameScale > 1.0f + 0.001f)
         {
             fprintf(stderr, "UiLayoutSelfTest: (b) bande evitabili a %.0fx%.0f (scale %.3f, il passo successivo ci stava)\n", sw, sh, L.gameScale);
             return false;
@@ -5280,7 +5435,10 @@ bool UiLayoutSelfTest(void)
 
         /* (d) monotonia: la lista e' gia' ordinata per risoluzione crescente
            (larghezza E altezza mai decrescenti da una riga alla successiva) --
-           gameRect (in area) e uiScale non devono MAI restringersi. */
+           gameRect (in area) e uiScale non devono MAI restringersi. Da DEC-200
+           uiScale e' costante, quindi il suo lato del confronto passa sempre:
+           resta perche' il giorno in cui tornasse a variare l'invariante deve
+           valere anche per lui. */
         float area = L.gameRect.width*L.gameRect.height;
         if (i > 0 && (area < prevArea - UI_LAYOUT_TEST_EPS || L.uiScale < prevUiScale - 0.0001f))
         {
@@ -5290,16 +5448,25 @@ bool UiLayoutSelfTest(void)
         prevArea = area;
         prevUiScale = L.uiScale;
 
-        /* (e) geometria dei menu: ogni voce dentro il proprio box, nessuna
-           sovrapposizione fra voci consecutive dello stesso menu. Invariata da
-           DEC-137: gli overlay dei menu erano gia' box centrati, indipendenti
-           dai pannelli spariti.
-           WP22 (terza passata): il giro interno 'lite' ripete la verifica sulla
-           geometria RISTRETTA del dialogo leggero (ExitConfirm da MainMenu),
-           che dalla terza passata e' un box diverso -- senza, meta' della
-           geometria di ExitConfirm resterebbe fuori da --layout-test. Gli altri
-           overlay non hanno una seconda geometria: per loro il secondo giro
-           sarebbe una copia identica, quindi si salta. */
+    }
+
+    /* (e) geometria dei menu: ogni voce dentro il proprio box, nessuna
+       sovrapposizione fra voci consecutive dello stesso menu.
+       DEC-200: FUORI dal giro sulle risoluzioni, dove stava fino a WP-UI-0.
+       Gli overlay non vivono piu' in coordinate di finestra ma sul canvas
+       (640x360), quindi ripetere queste verifiche per ogni risoluzione
+       sintetica non proverebbe piu' nulla -- darebbe sette volte lo stesso
+       risultato. Il fatto che la geometria NON dipenda piu' dalla finestra e'
+       proprio cio' che la migrazione ha comprato.
+       WP22 (terza passata): il giro interno 'lite' ripete la verifica sulla
+       geometria RISTRETTA del dialogo leggero (ExitConfirm da MainMenu),
+       che dalla terza passata e' un box diverso -- senza, meta' della
+       geometria di ExitConfirm resterebbe fuori da --layout-test. Gli altri
+       overlay non hanno una seconda geometria: per loro il secondo giro
+       sarebbe una copia identica, quindi si salta. */
+    {
+        float sw = UiCanvasW(), sh = UiCanvasH();
+        Rectangle canvasRect = { 0.0f, 0.0f, sw, sh };
         for (int m = 0; m < (int)(sizeof(kMenuModes)/sizeof(kMenuModes[0])); m++)
         {
             AppMode mode = kMenuModes[m];
@@ -5308,6 +5475,18 @@ bool UiLayoutSelfTest(void)
                 if (lite == 1 && mode != APP_EXIT_CONFIRM) continue;
                 bool light = (lite == 1);
                 Rectangle box = MenuBoxForModeFor(mode, sw, sh, light);
+                /* (e0) DEC-200: il riquadro sta dentro il CANVAS. E' la
+                   verifica nata con la migrazione: le quote degli overlay sono
+                   scritte nella griglia 1600x900 e riportate a 640x360 da
+                   UI_CANVAS_SCALE -- se qualcuno aggiungesse una riga a
+                   PauseMenu (il piu' alto, 560 di griglia) senza rifare i
+                   conti, il pannello sfonderebbe il canvas invece di uscire
+                   dalla finestra, che nessuno vedrebbe in un test. */
+                if (!UiRectInside(canvasRect, box))
+                {
+                    fprintf(stderr, "UiLayoutSelfTest: (e0) il box del menu %d (leggero=%d) esce dal canvas %.0fx%.0f\n", (int)mode, lite, sw, sh);
+                    return false;
+                }
                 /* WP17 (DEC-050): il giro 'cond' ripete la verifica col menu
                    nella sua forma PIU' LUNGA -- MainMenu con "Continua" (5
                    voci) e PauseMenu con "Sospendi e esci" (7) -- perche' e' la
@@ -5342,53 +5521,66 @@ bool UiLayoutSelfTest(void)
         }
 
         /* (g) WP22 (terza passata): le DUE geometrie di ExitConfirm restano
-           quelle che devono essere, a ogni risoluzione.
+           quelle che devono essere.
            - a schermo pieno (i tre contesti che DEC-090 vuole invariati:
              abbandono dal Piano 0, abbandono di una run in corso, reroll di
-             DEC-114) il box e' ESATTAMENTE quello di MainMenu, come prima di
-             WP22: la seconda passata lo aveva stretto anche li' e la domanda
-             sconfinava dal pannello;
-           - nel dialogo leggero e' strettamente piu' stretto, ed e' quello a
-             rendere possibile la "leggibilita' dietro" di DEC-090. */
+             DEC-114) il box e' quello STANDARD delle schermate ancora sulla
+             griglia storica -- si confronta con RunSetup, non piu' con
+             MainMenu: WP-UI-0 ha dato al MainMenu una geometria propria in
+             pixel di canvas, quindi "uguale a MainMenu" ha smesso di essere
+             la formulazione giusta dell'invariante (la sostanza no: la
+             seconda passata di WP22 aveva stretto ANCHE i tre contesti a
+             schermo pieno, e la domanda sconfinava dal pannello);
+           - nel dialogo leggero e' strettamente piu' stretto SIA dello
+             standard sia del riquadro del MainMenu che gli sta dietro, ed e'
+             quello a rendere possibile la "leggibilita' dietro" di DEC-090. */
         Rectangle mainBox = MenuBoxForModeFor(APP_MAIN_MENU, sw, sh, false);
+        Rectangle standardBox = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
         Rectangle exitFull = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, false);
         Rectangle exitLight = MenuBoxForModeFor(APP_EXIT_CONFIRM, sw, sh, true);
-        if (fabsf(exitFull.width - mainBox.width) > UI_LAYOUT_TEST_EPS)
+        if (fabsf(exitFull.width - standardBox.width) > UI_LAYOUT_TEST_EPS)
         {
-            fprintf(stderr, "UiLayoutSelfTest: (g) il box di ExitConfirm a schermo pieno (%.1f) non e' piu' quello di MainMenu (%.1f) a %.0fx%.0f -- i tre contesti a schermo pieno devono restare invariati (DEC-090)\n",
-                    exitFull.width, mainBox.width, sw, sh);
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box di ExitConfirm a schermo pieno (%.1f) non e' piu' quello standard (%.1f) -- i tre contesti a schermo pieno devono restare invariati (DEC-090)\n",
+                    exitFull.width, standardBox.width);
             return false;
         }
-        if (!(exitLight.width < mainBox.width - UI_LAYOUT_TEST_EPS))
+        if (!(exitLight.width < exitFull.width - UI_LAYOUT_TEST_EPS) ||
+            !(exitLight.width < mainBox.width - UI_LAYOUT_TEST_EPS))
         {
-            fprintf(stderr, "UiLayoutSelfTest: (g) il box del dialogo leggero ExitConfirm (%.1f) non e' piu' stretto di quello di MainMenu (%.1f) a %.0fx%.0f (WP22, DEC-090)\n",
-                    exitLight.width, mainBox.width, sw, sh);
+            fprintf(stderr, "UiLayoutSelfTest: (g) il box del dialogo leggero ExitConfirm (%.1f) non e' piu' stretto sia dello standard (%.1f) sia del MainMenu (%.1f) (WP22, DEC-090)\n",
+                    exitLight.width, exitFull.width, mainBox.width);
             return false;
         }
     }
 
-    /* (c) riferimento congelato a 1600x900 (la finestra grande del progetto,
-       APP_WINDOW_WIDTH/HEIGHT): uiScale ESATTAMENTE 1.0 e gameScale pari alla
-       formula DEC-137 a tutto schermo (fit + passo di 1/8, minimo 0.75, nessun
-       tetto). A 1600x900 vale floor(min(1600/960, 900/640)*8)/8 = floor(11.25)/8
-       = 11/8 = 1.375. Ripetuta qui SOLO come paragone: se UiComputeLayoutFor
-       divergesse da questi numeri, la vista di riferimento sarebbe cambiata. */
+    /* (c) tre riferimenti CONGELATI, scritti a mano e non ricalcolati con la
+       stessa formula della funzione sotto esame (che non proverebbe nulla):
+       - 1600x900, la finestra grande del progetto (APP_WINDOW_WIDTH/HEIGHT):
+         min(1600/640, 900/360) = 2.5, quindi scala 2 e bande di 320x180 in
+         totale -- il caso "monitor non multiplo", quello che il letterbox
+         serve a coprire;
+       - 1920x1080, il caso che DEC-200 cita come motivo della scelta: x3
+         ESATTO, zero bande;
+       - 1280x720: x2 esatto, la risoluzione dei mock approvati.
+       uiScale e' costante da DEC-200 (UI_CANVAS_SCALE): se tornasse a
+       dipendere dalla finestra, queste tre righe se ne accorgerebbero. */
     {
-        float sw = 1600.0f, sh = 900.0f;
-        UiLayout L = UiComputeLayoutFor(sw, sh);
-        if (fabsf(L.uiScale - 1.0f) > 0.0001f)
+        static const float kRefW[] = { 1600.0f, 1920.0f, 1280.0f };
+        static const float kRefH[] = {  900.0f, 1080.0f,  720.0f };
+        static const float kRefScale[] = { 2.0f, 3.0f, 2.0f };
+        for (int r = 0; r < 3; r++)
         {
-            fprintf(stderr, "UiLayoutSelfTest: (c) uiScale a 1600x900 e' %.4f, atteso 1.0\n", L.uiScale);
-            return false;
-        }
-        float expScale = floorf(fminf(sw/(float)SCREEN_WIDTH, sh/(float)SCREEN_HEIGHT)*8.0f)/8.0f;
-        if (expScale < 0.75f) expScale = 0.75f;
-        if (fabsf(L.gameScale - expScale) > 0.001f ||
-            fabsf(L.gameRect.x - (sw - L.gameRect.width)*0.5f) > UI_LAYOUT_TEST_EPS ||
-            fabsf(L.gameRect.y - (sh - L.gameRect.height)*0.5f) > UI_LAYOUT_TEST_EPS)
-        {
-            fprintf(stderr, "UiLayoutSelfTest: (c) layout a 1600x900 diverge dalla formula DEC-137 (scale %.3f, atteso %.3f)\n", L.gameScale, expScale);
-            return false;
+            UiLayout L = UiComputeLayoutFor(kRefW[r], kRefH[r]);
+            if (fabsf(L.uiScale - UI_CANVAS_SCALE) > 0.0001f)
+            {
+                fprintf(stderr, "UiLayoutSelfTest: (c) uiScale a %.0fx%.0f e' %.4f, atteso %.4f\n", kRefW[r], kRefH[r], L.uiScale, UI_CANVAS_SCALE);
+                return false;
+            }
+            if (fabsf(L.gameScale - kRefScale[r]) > 0.001f)
+            {
+                fprintf(stderr, "UiLayoutSelfTest: (c) gameScale a %.0fx%.0f e' %.3f, atteso %.0f\n", kRefW[r], kRefH[r], L.gameScale, kRefScale[r]);
+                return false;
+            }
         }
     }
 
@@ -5426,16 +5618,16 @@ bool UiLayoutSelfTest(void)
        "Modalita'" di RunSetup non deve toccare NESSUNA delle tre voci
        selezionabili -- fino alla seconda passata cadeva a 142, dentro la
        fascia della voce "Seed" (110..150). Nucleo puro, stessa geometria che
-       DrawRunSetupOverlay usa per disegnarla
-       (RendererRunSetupModeLabelBandFor). */
-    for (int i = 0; i < n; i++)
+       DrawRunSetupOverlay usa per disegnarla (RendererRunSetupModeLabelBand).
+       Un solo giro, non piu' uno per risoluzione: come per la voce (e), da
+       DEC-200 questa geometria vive sul canvas e non dipende dalla finestra. */
     {
-        float sw = kW[i], sh = kH[i];
-        Rectangle band = RendererRunSetupModeLabelBandFor(sw, sh);
+        float sw = UiCanvasW(), sh = UiCanvasH();
+        Rectangle band = RendererRunSetupModeLabelBand();
         Rectangle box = MenuBoxForModeFor(APP_RUN_SETUP, sw, sh, false);
         if (!UiRectInside(box, band))
         {
-            fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup esce dal box a %.0fx%.0f\n", sw, sh);
+            fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup esce dal box\n");
             return false;
         }
         RendererMenuCtx runSetupCtx = { 0 };   /* RunSetup non ha voci condizionali: il contesto azzerato e' il suo */
@@ -5443,7 +5635,7 @@ bool UiLayoutSelfTest(void)
         {
             if (UiRectOverlap(band, MenuItemRectFor(APP_RUN_SETUP, idx, sw, sh, false)))
             {
-                fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup si sovrappone alla voce %d a %.0fx%.0f\n", idx, sw, sh);
+                fprintf(stderr, "UiLayoutSelfTest: (h) la riga 'Modalita' di RunSetup si sovrappone alla voce %d\n", idx);
                 return false;
             }
         }
@@ -5471,8 +5663,8 @@ bool UiLayoutSelfTest(void)
  * schema di GameRoomsTest/GameFusionTest. */
 bool RendererMouseHitTestSelfTest(Game *game)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
+    float sw = UiCanvasW();
+    float sh = UiCanvasH();
 
     /* (a) Opzioni: il valore lungo la barra e' clampato a [0,1] oltre i due
        estremi, e monotono (mai decrescente) muovendo il mouse da sinistra a

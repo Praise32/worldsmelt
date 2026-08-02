@@ -774,7 +774,18 @@ bool UpdateApp(Game *game, AppMode *mode, AppGen *gen, AppUi *ui, const AppInput
        gate: un click va sempre onorato, si sia mosso o no il mouse in quel
        frame. 'lastMousePos'/'mouseTracked' si aggiornano qui, una volta sola
        per frame, PRIMA di ogni ramo che li legge. */
-    Vector2 mousePos = GetMousePosition();
+    /* DEC-200 (WP-UI-0): 'mousePos' e' in coordinate di CANVAS (640x360), non
+       di finestra -- e' l'unico spazio in cui esiste una geometria di
+       interfaccia da questa migrazione in poi (UiCanvasMouse,
+       src/render/game_renderer.h). Passare GetMousePosition() a un hit-test
+       significherebbe cercare le voci di menu a coordinate moltiplicate per la
+       scala del blit: quasi sempre fuori dal pannello, e sempre sbagliate.
+       Il confronto con 'lastMousePos' resta valido: due punti nello stesso
+       spazio. Il gate diventa semmai un filo meno sensibile (un movimento
+       sotto il pixel di canvas non conta come movimento), che e' proprio cio'
+       che si vuole -- il fuoco non deve spostarsi per un tremolio piu' fine
+       del pixel del gioco. */
+    Vector2 mousePos = UiCanvasMouse();
     bool mouseMoved = !ui->mouseTracked ||
                        mousePos.x != ui->lastMousePos.x || mousePos.y != ui->lastMousePos.y;
     ui->lastMousePos = mousePos;
@@ -2851,11 +2862,14 @@ int AppRun(int argc, char **argv)
         return ok ? 0 : 37;   /* 37: il primo codice di uscita libero (vedi gli altri test sopra, l'ultimo era --art-atlas-test=36) */
     }
 
+    /* DEC-200: il canvas interno 640x360 su cui si disegna TUTTO il gioco --
+       mondo, HUD e schermate (RendererDrawApp). La finestra riceve solo questo,
+       ingrandito di un fattore intero e centrato. */
     RenderTexture2D gameCanvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     /* POINT, non BILINEAR: gli sprite sono pixel art a 16 colori e il filtro
-       bilineare li sfocava nello scaling del canvas. La scala del layout e'
-       agganciata a passi di 1/8 (UiComputeLayout) apposta per rendere
-       regolare la cadenza dei pixel raddoppiati con questo filtro. */
+       bilineare li sfocava nello scaling del canvas. La scala del blit e'
+       INTERA (UiComputeLayout) apposta perche' ogni pixel di canvas diventi
+       un quadrato identico agli altri con questo filtro. */
     SetTextureFilter(gameCanvas.texture, TEXTURE_FILTER_POINT);
     AppMode appMode = (smokeTest && !menuScreenshotTest) ? APP_GAMEPLAY : APP_MAIN_MENU;
     /* AppUi vive per l'intera sessione (posseduta da AppRun, spec M1a):

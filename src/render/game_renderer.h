@@ -8,6 +8,17 @@
 UiLayout UiComputeLayout(void);
 bool UiScreenToGameMouse(UiLayout layout, Vector2 *out);
 
+/* DEC-200 (WP-UI-0): il puntatore in coordinate di CANVAS (640x360), cioe' le
+   sole coordinate in cui esiste una geometria di interfaccia da questa
+   migrazione in poi. Va usata da chiunque interroghi un hit-test
+   (RendererMenuItemAt* e compagnia, src/app/app.c dentro UpdateApp): passare
+   GetMousePosition() -- coordinate di FINESTRA -- significherebbe cercare le
+   voci di menu a x/y moltiplicati per la scala del blit, cioe' quasi sempre
+   fuori dal pannello. Non e' clampata al canvas: un puntatore fuori deve
+   restare fuori da ogni rettangolo, non cadere sul widget piu' vicino al
+   bordo. */
+Vector2 UiCanvasMouse(void);
+
 /* M4: nucleo PURO di UiComputeLayout (nessuna chiamata raylib, solo matematica
    sulle struct) -- separato apposta perche' --layout-test (src/app/app.c) possa
    esercitarlo su risoluzioni sintetiche PRIMA di InitWindow, come --gen-test.
@@ -93,15 +104,31 @@ int RendererMenuItemAt(AppMode mode, Vector2 mouse, bool exitConfirmLight);
    che fare con la sospensione, senza doversi portare dietro una struct. */
 int RendererMenuItemAtCtx(AppMode mode, Vector2 mouse, RendererMenuCtx ctx);
 
+/* La stessa geometria vista dall'altro verso: il riquadro della schermata e
+   quello della voce 'index', in coordinate di CANVAS. Esposte per i test che
+   campionano i pixel di un frame vero (GameExitConfirmLightModalTest): senza,
+   quei test ricostruiscono le quote a mano da letterali copiati da
+   game_renderer.c -- e quando la geometria cambia il test continua a passare
+   misurando il punto sbagliato, oppure fallisce per un motivo che non c'entra.
+   Stesso principio di RendererRunSetupModeLabelBandFor qui sotto: la fonte
+   della geometria e' una sola, e chi verifica la interroga invece di
+   duplicarla. */
+Rectangle RendererMenuBoxBounds(AppMode mode, bool exitConfirmLight);
+Rectangle RendererMenuItemBounds(AppMode mode, int index, bool exitConfirmLight);
+
 /* WP22 (terza passata, ui/run-setup.md): etichetta e fascia occupata dalla
    riga informativa "Modalita': Standard" di RunSetup -- fonte UNICA condivisa
    fra DrawRunSetupOverlay (che ci disegna il testo) e i test
    (GameRunSetupModeLineTest a pixel su un frame vero, UiLayoutSelfTest voce
-   'h' come nucleo puro). La riga NON e' una voce di menu: non ha indice,
+   'h' come nucleo puro). Senza argomenti da DEC-200: la fascia vive sul
+   canvas 640x360 come ogni altra geometria di interfaccia, e passarle la
+   taglia della FINESTRA -- cosa che il test faceva -- restituiva un
+   rettangolo centrato sullo schermo ma misurato in pixel di canvas, cioe' un
+   punto di misura sbagliato che continuava a passare per caso. La riga NON e' una voce di menu: non ha indice,
    RendererMenuItemAt non deve mai rispondere per un punto dentro questa
    fascia, e la fascia non tocca nessuna delle tre voci selezionabili. */
 const char *RendererRunSetupModeLabel(void);
-Rectangle RendererRunSetupModeLabelBandFor(float sw, float sh);
+Rectangle RendererRunSetupModeLabelBand(void);
 
 /* W9 (playtest round 1, "mouse ovunque"): il resto delle geometrie che
    RendererMenuItemAt sopra non copre, stesso principio -- fonte UNICA sia per

@@ -1289,22 +1289,31 @@ bool GameAtlasFallbackTest(Game *game)
         return false;
     }
 
-    Vector2 enemyPos = { 150.0f, 200.0f };
-    Vector2 exitPos = { 750.0f, 450.0f };
+    /* DEC-200: le coordinate di MONDO non coincidono piu' con quelle del
+       canvas -- la telecamera traduce (e con un canvas 640x360 piu' piccolo
+       della cella inquadrata traduce DAVVERO, anche in una stanza 1x1). I due
+       punti di sonda si scelgono quindi DENTRO l'inquadratura corrente invece
+       che a coordinate di mondo fisse: prima di WP-UI-0 la vista era tutta la
+       cella e qualunque punto della stanza era per forza visibile, ora un
+       letterale come (150,200) puo' cadere fuori dallo schermo e il test
+       misurerebbe due pixel di pavimento identici.
+       WorldCameraView e' la stessa fonte che RendererDrawApp usa per la
+       Camera2D, quindi qui non si duplica nessuna formula. */
+    Rectangle view = WorldCameraView(game);
+    Vector2 enemyPos = { view.x + view.width*0.25f, view.y + view.height*0.35f };
+    Vector2 exitPos = { view.x + view.width*0.72f, view.y + view.height*0.62f };
     /* LoadImageFromTexture su una RenderTexture2D legge i pixel col
        framebuffer OpenGL grezzo, che e' memorizzato capovolto rispetto alle
        coordinate con cui si e' disegnato (stesso motivo per cui
        RendererDrawApp usa un'altezza negativa quando ricompone il canvas
-       sullo schermo, vedi sotto in questo file): riga 0 dell'immagine letta
-       corrisponde al FONDO del canvas disegnato, non all'alto. Le coordinate
-       di gioco vanno quindi capovolte in verticale prima di leggere il
-       pixel. Il controllo sul giocatore sotto non lo fa (e passa comunque)
-       solo perche' la sua intera sagoma di riserva e' un unico colore
-       (tint) abbastanza esteso da coprire per coincidenza anche il pixel
-       "sbagliato": non e' una controprova valida in generale, qui sotto si
-       usa invece la trasformazione corretta. */
-    int enemyImgY = SCREEN_HEIGHT - 1 - (int)enemyPos.y;
-    int exitImgY = SCREEN_HEIGHT - 1 - (int)exitPos.y;
+       sullo schermo): riga 0 dell'immagine letta corrisponde al FONDO del
+       canvas disegnato, non all'alto. Le coordinate vanno quindi prima
+       tradotte da mondo a canvas (meno l'origine dell'inquadratura) e poi
+       capovolte in verticale. */
+    int enemyImgX = (int)(enemyPos.x - view.x);
+    int exitImgX = (int)(exitPos.x - view.x);
+    int enemyImgY = SCREEN_HEIGHT - 1 - (int)(enemyPos.y - view.y);
+    int exitImgY = SCREEN_HEIGHT - 1 - (int)(exitPos.y - view.y);
 
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
 
@@ -1316,8 +1325,8 @@ bool GameAtlasFallbackTest(Game *game)
     EntitiesClear(game);
     RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
     Image before = LoadImageFromTexture(canvas.texture);
-    Color enemyBefore = GetImageColor(before, (int)enemyPos.x, enemyImgY);
-    Color exitBefore = GetImageColor(before, (int)exitPos.x, exitImgY);
+    Color enemyBefore = GetImageColor(before, enemyImgX, enemyImgY);
+    Color exitBefore = GetImageColor(before, exitImgX, exitImgY);
     UnloadImage(before);
 
     EntitiesAddEnemy(game, ENEMY_CHASER, enemyPos);
@@ -1336,9 +1345,16 @@ bool GameAtlasFallbackTest(Game *game)
        sulla forma geometrica invece di lasciare la cella vuota (e quindi
        l'entita') invisibile. */
     Image after = LoadImageFromTexture(canvas.texture);
-    Color headPixel = GetImageColor(after, (int)game->player.pos.x, (int)(game->player.pos.y - 30.0f));
-    Color enemyAfter = GetImageColor(after, (int)enemyPos.x, enemyImgY);
-    Color exitAfter = GetImageColor(after, (int)exitPos.x, exitImgY);
+    /* Stessa traduzione mondo -> canvas -> immagine capovolta delle due sonde
+       sopra. Fino a WP-UI-0 questa riga leggeva le coordinate di mondo grezze
+       e passava per coincidenza (la sagoma di riserva del giocatore e' un
+       unico colore abbastanza esteso da coprire anche il pixel sbagliato): non
+       era una controprova valida, e con la telecamera che traduce davvero non
+       lo sarebbe piu' nemmeno per caso. */
+    Color headPixel = GetImageColor(after, (int)(game->player.pos.x - view.x),
+                                    SCREEN_HEIGHT - 1 - (int)(game->player.pos.y - 30.0f - view.y));
+    Color enemyAfter = GetImageColor(after, enemyImgX, enemyImgY);
+    Color exitAfter = GetImageColor(after, exitImgX, exitImgY);
     UnloadImage(after);
     UnloadRenderTexture(canvas);
 
@@ -1457,80 +1473,55 @@ bool GameLayerTest(Game *game)
    disegnato e leggibile dietro, un SOLO velo di oscuramento (mai due sommati)
    -- a differenza degli altri TRE contesti di ExitConfirm (abbandono dal Piano
    0, abbandono di una run da PauseMenu, reroll di WP21/DEC-114), che restano a
-   schermo pieno come sempre (DEC-090). La prima passata di questo
-   lavoro si limitava ad asserire 'ExitConfirmIsLightModalFor(openedFrom)'
+   schermo pieno come sempre (DEC-090). La prima passata di questo lavoro si
+   limitava ad asserire 'ExitConfirmIsLightModalFor(openedFrom)'
    (--states-test): tautologico, perche' quel nucleo puro non dice nulla sul
    FRAME VERO (ne' sul velo, ne' sul fatto che MainMenu sia davvero
-   ridisegnato). Questo test campiona invece i pixel di RendererDrawApp
-   REALE, tre catture su una RenderTexture2D (stesso schema di
-   GameAtlasFallbackTest/GameLayerTest sopra):
+   ridisegnato). Questo test campiona invece i pixel di RendererDrawApp REALE,
+   tre catture:
 
-   (1) 'raw'   -- APP_GAMEPLAY, nessun overlay: la scena nuda, per conoscere
-                  il colore di sfondo VERO nei due punti campionati (nessun
-                  letterale di colore indovinato).
+   (1) 'raw'   -- APP_GAMEPLAY, nessun overlay: la scena nuda.
    (2) 'light' -- APP_EXIT_CONFIRM aperto da APP_MAIN_MENU (il SOLO contesto
                   leggero, DEC-090).
    (3) 'full'  -- APP_EXIT_CONFIRM aperto da APP_FLOOR_ZERO (contesto a
-                  schermo pieno, invariato): serve solo da riferimento per la
-                  verifica (1) sotto, sulla STESSA scena di 'game' (nessuna
-                  mutazione fra le tre catture).
+                  schermo pieno, invariato): riferimento per il confronto,
+                  sulla STESSA scena di 'game' (nessuna mutazione fra le tre).
 
-   Due coordinate, derivate dalla stessa geometria di MenuBoxForModeFor/
-   MenuItemRectFor (game_renderer.c), non da letterali indovinati:
-   - 'corner' (2,2): fuori da QUALUNQUE box, in entrambi i contesti.
-   - 'gutter': dentro il box di MainMenu (600 di larghezza) ma FUORI dal box
-     -- piu' stretto -- del dialogo LEGGERO di ExitConfirm (460, la geometria
-     che 'exitConfirmLight = true' seleziona): il margine risparmiato (140,
-     70 per lato) supera il margine orizzontale delle righe di menu (60), e
-     la Y scelta (offset relativo 95 dalla cima del box) cade nello spazio
-     libero fra la didascalia ("Roguelite con contenuti...", che finisce
-     verso 76) e la riga 0 (che comincia a 110, MENU_ROW_START_Y_BASE) --
-     margine di oltre 15px su entrambi i lati, il doppio dei 12px di
-     margine fra due righe consecutive. Il pixel e' quindi il SOLO
-     riempimento del pannello (14,16,22,240, fisso, indipendente dal tema),
-     senza il colore-accento di una riga a fuoco ne' testo: il segnale piu'
-     affidabile per distinguere "pannello disegnato" da "pannello assente"
-     qualunque sia il tema/la scena sotto.
+   DEC-200 (WP-UI-0) cambia DUE cose in questo test, entrambe in meglio.
+   - DOVE si leggono i pixel. Fino a WP-UI-0 gli overlay si disegnavano
+     direttamente nel framebuffer di finestra e il canvas conteneva solo la
+     scena, quindi il test doveva leggere lo SCHERMO (LoadImageFromScreen) e
+     leggere il canvas avrebbe dato tre catture identiche (falso positivo preso
+     davvero in sviluppo). Ora il frame INTERO vive nel canvas: si legge quello,
+     e le coordinate non dipendono piu' dalla finestra di Xvfb.
+   - COME si scelgono le coordinate. Non piu' letterali ricostruiti a mano
+     ("cx - 235*uiScale") ma la geometria VERA, interrogata a
+     RendererMenuBoxBounds/RendererMenuItemBounds: se i riquadri cambiano, il
+     test continua a guardare il punto giusto invece di misurare pavimento.
 
    Verifiche:
-   (0) Nucleo puro, nessun rendering (RendererMenuItemAt, gia' esposta da
-       game_renderer.h): il box del dialogo LEGGERO di ExitConfirm deve essere
-       DAVVERO piu' stretto di quello di MainMenu, non solo sulla carta -- una
-       coordinata che cade sulla riga 0 di MainMenu ("Nuova run") deve restare
-       FUORI da qualunque voce di ExitConfirm interrogata con la STESSA
-       geometria che il frame disegna ('exitConfirmLight = true'). Fallisce se
-       i due box tornassero alla stessa larghezza (600 per entrambi, il secondo
-       difetto principale contestato dal giudice: "dare al dialogo di conferma
-       una geometria propria piu' piccola del box di MainMenu").
-   (1) La luminanza media di 'corner' deve risultare PIU' CHIARA in 'light'
-       che in 'full', sulla stessa scena: un rapporto teorico di 165/65 =
-       2.54x fra i due veli (90 e 190 su 255). Fallisce SUBITO se l'alfa del
-       velo leggero tornasse a 190 (il difetto principale contestato dal
-       giudice: 190+90 compositi erano PIU' scuri del 190 di prima di WP22)
-       -- in quel caso la luminanza sarebbe IDENTICA, non piu' chiara.
-   (2) La CROMA (max canale - min canale, una misura di "quanto e' colorato"
-       un pixel, indipendente dalla sua luminosita' assoluta) del pixel
-       'gutter' in 'light' deve risultare NETTAMENTE SOPPRESSA rispetto a
-       quella prevista se in quel punto non ci fosse alcun pannello -- cioe'
-       la scena nuda ('raw') attenuata dallo STESSO fattore di velo misurato
-       davvero al 'corner' (mai un alfa costante indovinato: si ricava da
-       'light'/'raw' al corner, cosi' il test resta valido anche se
-       EXIT_CONFIRM_LIGHT_DIM_ALPHA cambiasse in futuro). Un velo nero e'
-       una moltiplicazione UNIFORME dei tre canali: preserva il RAPPORTO fra
-       loro (la croma scala proporzionalmente all'alfa, non sparisce), mentre
-       il pannello (14,16,22, quasi neutro, sopra ArtDrawPanel se disponibile)
-       collassa la croma verso zero indipendentemente dalla scena sotto --
-       misurato in sviluppo: croma scena 22, croma prevista SOLO velo ~13.5
-       (22*0.615), croma REALMENTE osservata col pannello 4, ben sotto
-       entrambe. Fallisce se DrawMainMenuOverlay smettesse di essere
-       richiamata come sfondo di ExitConfirm (la croma del pixel 'gutter'
-       tornerebbe quella di un velo semplice, non piu' soppressa) ne' se
-       EXIT_CONFIRM_LIGHT_DIM_ALPHA cambiasse (la soglia e' un RAPPORTO,
-       0.7, non un valore assoluto). Precondizione (non un fallimento di
-       WP22): la scena al 'gutter' deve avere una croma di partenza
-       riconoscibile (>= 8), altrimenti il confronto non direbbe nulla --
-       vero per costruzione con la generazione procedurale del tema (mai un
-       pavimento uniformemente neutro), verificato comunque a runtime.
+   (0) Nucleo puro, nessun rendering: una coordinata che cade sulla riga 0 di
+       MainMenu ("Nuova run") deve restare FUORI da qualunque voce di
+       ExitConfirm interrogata con la STESSA geometria che il frame disegna
+       ('exitConfirmLight = true'). Fallisce se il dialogo leggero tornasse
+       largo quanto il menu che gli sta dietro (il difetto contestato dal
+       giudice in WP22).
+   (1) La luminanza media di 'corner' (2,2 -- fuori da qualunque riquadro in
+       entrambi i contesti) deve risultare PIU' CHIARA in 'light' che in
+       'full': un rapporto teorico di 165/65 = 2.54x fra i due veli (90 e 190
+       su 255). Fallisce SUBITO se l'alfa del velo leggero tornasse a 190 (il
+       difetto principale contestato dal giudice: 190+90 compositi erano PIU'
+       scuri del 190 di prima di WP22).
+   (2) MainMenu e' DAVVERO disegnato sotto il dialogo leggero. Il segnale e' la
+       barra del fuoco della riga 0 (UI_FOCUS, fiamma 224/91/35, larga 4 px --
+       vedi UiMenuRow in src/render/ui_theme.c): un colore della tavolozza
+       dell'interfaccia, saturo e rosso-dominante, che NON puo' comparire per
+       caso in quel punto se il menu non viene ridisegnato -- li' sotto ci
+       sarebbe la sola scena attenuata dal velo. Sostituisce il confronto sulla
+       CROMA della passata precedente, che stimava "quanto sarebbe colorato il
+       pixel col solo velo" e dipendeva dalla scena generata: ora che
+       l'interfaccia ha una tavolozza fissa (WP-UI-0) il segnale si puo'
+       riconoscere direttamente, senza stime.
    (3) (terza passata) Nel contesto a schermo pieno la DOMANDA deve stare
        dentro il pannello: nessun pixel chiaro, nella fascia in cui e'
        disegnata, oltre il bordo destro del box. Vedi il commento sul posto
@@ -1540,81 +1531,59 @@ bool GameLayerTest(Game *game)
        stretto anche in questo contesto -- i due modi in cui il testo era
        finito fuori dal riquadro (rispettivamente da sempre e nella seconda
        passata di WP22). */
+/* Il frame appena disegnato, in coordinate di DISEGNO: LoadImageFromTexture
+   legge il framebuffer OpenGL grezzo, memorizzato dal basso verso l'alto, e il
+   ribaltamento qui evita di spargere "SCREEN_HEIGHT - 1 - y" per tutto il
+   test. */
+static Image ExitConfirmCaptureCanvas(RenderTexture2D canvas)
+{
+    Image shot = LoadImageFromTexture(canvas.texture);
+    ImageFlipVertical(&shot);
+    return shot;
+}
+
+static float ExitConfirmLuminance(Color c)
+{
+    return ((float)c.r + (float)c.g + (float)c.b)/3.0f;
+}
+
 bool GameExitConfirmLightModalTest(Game *game)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    UiLayout layout = UiComputeLayoutFor(sw, sh);
-    float uiScale = layout.uiScale;
-    float cx = sw*0.5f;
-    float cy = sh*0.5f;
+    float uiScale = UiComputeLayout().uiScale;
+
+    Rectangle row0 = RendererMenuItemBounds(APP_MAIN_MENU, 0, false);
+    Rectangle exitFullBox = RendererMenuBoxBounds(APP_EXIT_CONFIRM, false);
 
     int cornerX = 2, cornerY = 2;
-    /* -235: a meta' fra il bordo della riga 0 di MainMenu (-240 dal centro,
-       cioe' box.x+60 con box.width 600) e il bordo del box di ExitConfirm
-       (-230 dal centro, box.width 460) -- dentro il primo, fuori dal
-       secondo, per costruzione qualunque sia 'uiScale' (vedi il commento
-       sopra la funzione). */
-    int gutterX = (int)(cx - 235.0f*uiScale);
-    /* Offset relativo 95 dalla cima del box di MainMenu (box.height 400):
-       fra la didascalia (finisce verso 76) e la riga 0 (comincia a 110,
-       MENU_ROW_START_Y_BASE in game_renderer.c) -- solo pannello. */
-    int gutterY = (int)(cy - 200.0f*uiScale + 95.0f*uiScale);
-    /* Riga 0 di MainMenu ("Nuova run"), offset relativo 130 (dentro
-       110..150, MENU_ROW_START_Y_BASE..+40): stessa formula di riga usata
-       da ExitConfirm per la sua PRIMA voce ("Conferma", stesso indice 0,
-       stesso MENU_ROW_START_Y_BASE) -- una coordinata dove i due box, se
-       avessero la STESSA larghezza (il difetto contestato dal giudice,
-       MenuBoxForModeFor restituiva 600 per entrambi), si sovrapporrebbero
-       davvero. */
-    int row0Y = (int)(cy - 200.0f*uiScale + 130.0f*uiScale);
+    /* Sulla riga 0 di MainMenu, appena dentro il suo bordo sinistro: e' il
+       lato da cui il riquadro (piu' stretto) di ExitConfirm si ritira. */
+    int row0X = (int)row0.x + 2;
+    int row0Y = (int)(row0.y + row0.height*0.5f);
+    /* La barra del fuoco occupa i primi 4 px della riga a fuoco. */
+    int focusBarX = (int)row0.x + 1;
 
-    /* (0) Nucleo puro, nessun rendering: la riga 0 di MainMenu a 'gutterX'
-       deve restare FUORI da qualunque voce di ExitConfirm -- vero SOLO se il
-       box di ExitConfirm e' davvero piu' stretto di quello di MainMenu
-       (MenuBoxForModeFor, game_renderer.c). Fallisce se i due box tornassero
-       alla stessa larghezza (600 per entrambi, il difetto contestato dal
-       giudice: 'dare al dialogo di conferma una geometria propria piu'
-       piccola del box di MainMenu'), perche' in quel caso l'indice 0 di
-       ExitConfirm ("Conferma") condivide la STESSA riga (stesso
-       MENU_ROW_START_Y_BASE) e coprirebbe anche 'gutterX'. */
-    if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ (float)gutterX, (float)row0Y }, false) != 0)
+    /* (0) Nucleo puro, nessun rendering. */
+    if (RendererMenuItemAt(APP_MAIN_MENU, (Vector2){ (float)row0X, (float)row0Y }, false) != 0)
     {
-        fprintf(stderr, "GameExitConfirmLightModalTest: (gutterX,row0Y)=(%d,%d) non cade sulla riga 0 di MainMenu (precondizione geometrica)\n", gutterX, row0Y);
+        fprintf(stderr, "GameExitConfirmLightModalTest: (%d,%d) non cade sulla riga 0 di MainMenu (precondizione geometrica)\n", row0X, row0Y);
         return false;
     }
-    if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ (float)gutterX, (float)row0Y }, true) != -1)
+    if (RendererMenuItemAt(APP_EXIT_CONFIRM, (Vector2){ (float)row0X, (float)row0Y }, true) != -1)
     {
-        fprintf(stderr, "GameExitConfirmLightModalTest: (gutterX,row0Y)=(%d,%d) cade DENTRO una voce di ExitConfirm -- il suo box non e' piu' stretto di quello di MainMenu (WP22, DEC-090, gap G9)\n", gutterX, row0Y);
+        fprintf(stderr, "GameExitConfirmLightModalTest: (%d,%d) cade DENTRO una voce di ExitConfirm -- il suo box non e' piu' stretto di quello di MainMenu (WP22, DEC-090, gap G9)\n", row0X, row0Y);
         return false;
     }
 
-    /* Gli overlay di menu (DrawMainMenuOverlay/DrawExitConfirmOverlay) si
-       disegnano DIRETTAMENTE sul framebuffer di finestra (fra BeginDrawing/
-       EndDrawing di RendererDrawApp), non dentro 'canvas' (la RenderTexture2D
-       960x640 e' solo la scena di gioco scalata poi come TEXTURE nel
-       framebuffer, DrawTexturePro): leggerla con LoadImageFromTexture, come
-       fa GameLayerTest sopra per APP_GAMEPLAY (nessun overlay, tutto cio'
-       che serve e' gia' nel canvas), qui darebbe sempre la scena nuda,
-       IDENTICA in ogni contesto -- un falso positivo preso davvero durante
-       lo sviluppo di questo test (misurato: pixel identici in raw/light/
-       full). Serve invece leggere lo SCREEN vero con LoadImageFromScreen
-       (rlReadScreenPixels, gia' orientato dall'alto: nessun ribaltamento
-       verticale da fare qui, a differenza di LoadImageFromTexture su una
-       RenderTexture2D). 'canvas' resta comunque necessaria: e' il primo
-       parametro di RendererDrawApp, dove la scena di gioco si disegna PRIMA
-       di essere ricomposta sullo schermo. */
-    RenderTexture2D canvas = LoadRenderTexture((int)sw, (int)sh);
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     RendererDrawApp(game, canvas, APP_GAMEPLAY, NULL, false, NULL, NULL);
-    Image raw = LoadImageFromScreen();
-    Color sceneCorner = GetImageColor(raw, cornerX, cornerY);
-    Color sceneGutter = GetImageColor(raw, gutterX, gutterY);
+    Image raw = ExitConfirmCaptureCanvas(canvas);
+    Color sceneFocusBar = GetImageColor(raw, focusBarX, row0Y);
     UnloadImage(raw);
 
     AppUi uiLight = { 0 };
     uiLight.openedFrom = APP_MAIN_MENU;
-    uiLight.returnFocus = 0;   /* riga 0 "Nuova run" a fuoco: 'gutter' e' comunque fuori da qualunque riga (vedi sopra), l'evidenziazione non lo contamina */
+    uiLight.returnFocus = 0;   /* riga 0 "Nuova run" a fuoco: e' la barra che la verifica (2) cerca */
     uiLight.focus = 1;
     if (!ExitConfirmIsLightModalFor(uiLight.openedFrom, uiLight.exitDropsSuspendedRun))
     {
@@ -1623,9 +1592,9 @@ bool GameExitConfirmLightModalTest(Game *game)
         return false;
     }
     RendererDrawApp(game, canvas, APP_EXIT_CONFIRM, &uiLight, false, NULL, NULL);
-    Image light = LoadImageFromScreen();
+    Image light = ExitConfirmCaptureCanvas(canvas);
     Color cornerLight = GetImageColor(light, cornerX, cornerY);
-    Color gutterLight = GetImageColor(light, gutterX, gutterY);
+    Color focusBarLight = GetImageColor(light, focusBarX, row0Y);
     UnloadImage(light);
 
     AppUi uiFull = { 0 };
@@ -1640,26 +1609,28 @@ bool GameExitConfirmLightModalTest(Game *game)
         return false;
     }
     RendererDrawApp(game, canvas, APP_EXIT_CONFIRM, &uiFull, false, NULL, NULL);
-    Image full = LoadImageFromScreen();
+    Image full = ExitConfirmCaptureCanvas(canvas);
     Color cornerFull = GetImageColor(full, cornerX, cornerY);
+    Color focusBarFull = GetImageColor(full, focusBarX, row0Y);
     /* (3) La domanda deve STARE dentro il pannello. Si cerca il pixel chiaro
        (luminanza >= 100) piu' a destra nella fascia della domanda, su TUTTA la
-       larghezza dello schermo: fuori dal box, in questo contesto, non ci puo'
+       larghezza del canvas: fuori dal box, in questo contesto, non ci puo'
        essere nulla di cosi' chiaro (il velo a 190/255 lascia passare al
        massimo il 25,5% della scena, cioe' meno di 65 di luminanza anche su un
        bianco pieno), quindi un pixel chiaro oltre il bordo destro del box e'
-       per forza testo sconfinato. Fascia: 45..112 sotto la cima del box (la
-       domanda comincia a EXIT_CONFIRM_QUESTION_Y_BASE=52 e occupa al massimo
-       tre righe da 20 con glifi alti 15, vedi game_renderer.c).
-       Prima di questa passata il testo usciva SEMPRE: 849 px di domanda
-       ("Abbandonare la preparazione?...", il contesto campionato qui) contro i
-       520 px di spazio utile del pannello. Ora WrapTextLines lo manda a capo. */
-    int boxTopFull = (int)(cy - 200.0f*uiScale);
-    int boxRightFull = (int)(cx + 300.0f*uiScale);   /* 600 di larghezza, come MainMenu: i contesti a schermo pieno restano invariati (DEC-090) */
+       per forza testo sconfinato. Fascia: 45..112 sotto la cima del box nella
+       griglia storica (la domanda comincia a EXIT_CONFIRM_QUESTION_Y_BASE=52 e
+       occupa al massimo tre righe da 20 con glifi alti 15, vedi
+       game_renderer.c), riportata sul canvas da uiScale.
+       Prima della terza passata di WP22 il testo usciva SEMPRE: 849 px di
+       domanda contro i 520 px di spazio utile del pannello. Ora WrapTextLines
+       lo manda a capo. */
     int questionMaxX = -1;
-    for (int y = boxTopFull + (int)(45.0f*uiScale); y < boxTopFull + (int)(112.0f*uiScale); y++)
+    int bandTop = (int)(exitFullBox.y + 45.0f*uiScale);
+    int bandBottom = (int)(exitFullBox.y + 112.0f*uiScale);
+    for (int y = bandTop; y < bandBottom; y++)
     {
-        for (int x = (int)sw - 1; x > questionMaxX; x--)
+        for (int x = SCREEN_WIDTH - 1; x > questionMaxX; x--)
         {
             Color c = GetImageColor(full, x, y);
             if (((int)c.r + (int)c.g + (int)c.b)/3 >= 100) { questionMaxX = x; break; }
@@ -1669,6 +1640,7 @@ bool GameExitConfirmLightModalTest(Game *game)
 
     UnloadRenderTexture(canvas);
 
+    int boxRightFull = (int)(exitFullBox.x + exitFullBox.width);
     if (questionMaxX > boxRightFull)
     {
         fprintf(stderr, "GameExitConfirmLightModalTest: la domanda a schermo pieno arriva a x=%d, oltre il bordo destro del pannello (x=%d) -- il testo sconfina dal riquadro (WP22, terza passata: deve andare a capo con WrapTextLines)\n",
@@ -1677,39 +1649,29 @@ bool GameExitConfirmLightModalTest(Game *game)
     }
 
     /* (1) vedi il commento sopra la funzione. */
-    float lumLight = ((float)cornerLight.r + (float)cornerLight.g + (float)cornerLight.b)/3.0f;
-    float lumFull = ((float)cornerFull.r + (float)cornerFull.g + (float)cornerFull.b)/3.0f;
+    float lumLight = ExitConfirmLuminance(cornerLight);
+    float lumFull = ExitConfirmLuminance(cornerFull);
     if (!(lumLight > lumFull + 3.0f))
     {
         fprintf(stderr, "GameExitConfirmLightModalTest: luminanza fuori dal box (%.1f contesto leggero, %.1f contesto a schermo pieno) non e' piu' chiara nel contesto leggero (WP22, DEC-090)\n", lumLight, lumFull);
         return false;
     }
 
-    /* (2) vedi il commento sopra la funzione. */
-    float sceneCornerLum = ((float)sceneCorner.r + (float)sceneCorner.g + (float)sceneCorner.b)/3.0f;
-    float keep = (sceneCornerLum > 1.0f) ? (lumLight/sceneCornerLum) : (165.0f/255.0f);
-    if (keep < 0.0f) keep = 0.0f;
-    if (keep > 1.0f) keep = 1.0f;
-
-    int sceneGutterMax = sceneGutter.r; if (sceneGutter.g > sceneGutterMax) sceneGutterMax = sceneGutter.g; if (sceneGutter.b > sceneGutterMax) sceneGutterMax = sceneGutter.b;
-    int sceneGutterMin = sceneGutter.r; if (sceneGutter.g < sceneGutterMin) sceneGutterMin = sceneGutter.g; if (sceneGutter.b < sceneGutterMin) sceneGutterMin = sceneGutter.b;
-    float chromaScene = (float)(sceneGutterMax - sceneGutterMin);
-    if (chromaScene < 8.0f)
+    /* (2) La barra del fuoco della riga 0 di MainMenu, vista attraverso il velo
+       leggero: rosso nettamente dominante (UI_FOCUS e' 224/91/35 -- un velo
+       nero e' una moltiplicazione uniforme, quindi il dominio del rosso
+       sopravvive a qualunque alfa) e molto piu' chiara dello stesso punto nel
+       contesto a schermo pieno, dove il MainMenu non c'e'. */
+    if (!(focusBarLight.r > focusBarLight.g + 25 && focusBarLight.r > focusBarLight.b + 40))
     {
-        fprintf(stderr, "GameExitConfirmLightModalTest: precondizione non soddisfatta -- la scena al punto 'gutter' (%d,%d,%d) e' troppo neutra (croma %.1f) per verificare la soppressione del pannello\n",
-            sceneGutter.r, sceneGutter.g, sceneGutter.b, chromaScene);
+        fprintf(stderr, "GameExitConfirmLightModalTest: il pixel della barra del fuoco nel dialogo leggero (%d,%d,%d) non e' il rosso-fiamma di UI_FOCUS -- MainMenu forse non e' piu' disegnato come sfondo (WP22, DEC-090, gap G9). Scena nuda nello stesso punto: (%d,%d,%d)\n",
+                focusBarLight.r, focusBarLight.g, focusBarLight.b, sceneFocusBar.r, sceneFocusBar.g, sceneFocusBar.b);
         return false;
     }
-    float chromaExpectedNoMenu = chromaScene*keep;
-
-    int gutterLightMax = gutterLight.r; if (gutterLight.g > gutterLightMax) gutterLightMax = gutterLight.g; if (gutterLight.b > gutterLightMax) gutterLightMax = gutterLight.b;
-    int gutterLightMin = gutterLight.r; if (gutterLight.g < gutterLightMin) gutterLightMin = gutterLight.g; if (gutterLight.b < gutterLightMin) gutterLightMin = gutterLight.b;
-    float chromaActual = (float)(gutterLightMax - gutterLightMin);
-
-    if (!(chromaActual <= chromaExpectedNoMenu*0.7f))
+    if (!(ExitConfirmLuminance(focusBarLight) > ExitConfirmLuminance(focusBarFull) + 20.0f))
     {
-        fprintf(stderr, "GameExitConfirmLightModalTest: la croma del pixel dentro il box di MainMenu ma fuori da quello di ExitConfirm (%d,%d,%d) e' %.1f, non abbastanza soppressa rispetto ai %.1f previsti dal solo velo sopra la scena -- MainMenu forse non e' piu' disegnato come sfondo (WP22, DEC-090, gap G9)\n",
-            gutterLight.r, gutterLight.g, gutterLight.b, chromaActual, chromaExpectedNoMenu);
+        fprintf(stderr, "GameExitConfirmLightModalTest: la barra del fuoco e' luminosa quanto lo stesso punto senza MainMenu dietro (%.1f contro %.1f): il contesto leggero non sta ridisegnando il menu (WP22, DEC-090)\n",
+                ExitConfirmLuminance(focusBarLight), ExitConfirmLuminance(focusBarFull));
         return false;
     }
 
@@ -1725,7 +1687,7 @@ bool GameExitConfirmLightModalTest(Game *game)
    verifiche, come per GameExitConfirmLightModalTest sopra:
 
    (0) Nucleo puro, nessun rendering: la fascia occupata dalla riga
-       (RendererRunSetupModeLabelBandFor, la STESSA che il disegno usa) non
+       (RendererRunSetupModeLabelBand, la STESSA che il disegno usa) non
        deve contenere NESSUNA voce di menu -- RendererMenuItemAt deve
        rispondere -1 su tutta la fascia. Fallisce se la riga diventasse
        selezionabile (una DrawMenuRow al posto della UiText: la fascia
@@ -1747,9 +1709,14 @@ bool GameExitConfirmLightModalTest(Game *game)
        entrambe le fasce e il test lo direbbe invece di passare per caso. */
 bool GameRunSetupModeLineTest(Game *game)
 {
-    float sw = (float)GetScreenWidth();
-    float sh = (float)GetScreenHeight();
-    Rectangle band = RendererRunSetupModeLabelBandFor(sw, sh);
+    /* DEC-200: tutto in coordinate di CANVAS. Fino a WP-UI-0 questo test
+       chiedeva la fascia passando la taglia della FINESTRA e poi leggeva i
+       pixel dallo SCHERMO: due spazi diversi mescolati, che davano un
+       rettangolo centrato ma misurato in pixel di canvas -- il conteggio
+       finiva su una zona vicina a quella giusta e passava per fortuna. */
+    float sw = (float)SCREEN_WIDTH;
+    float sh = (float)SCREEN_HEIGHT;
+    Rectangle band = RendererRunSetupModeLabelBand();
 
     const char *label = RendererRunSetupModeLabel();
     if (!label || label[0] == '\0')
@@ -1790,7 +1757,10 @@ bool GameRunSetupModeLineTest(Game *game)
     ui.seed = 12345u;
     ui.focus = 1;   /* "Avvia": il fuoco NON sta sulla riga sopra la fascia, cosi' l'evidenziazione di una voce non puo' contaminare il conteggio */
     RendererDrawApp(game, canvas, APP_RUN_SETUP, &ui, false, NULL, NULL);
-    Image frame = LoadImageFromScreen();
+    /* Il frame intero vive nel canvas da DEC-200: si legge quello (capovolto,
+       vedi ExitConfirmCaptureCanvas sopra) invece dello schermo. */
+    Image frame = LoadImageFromTexture(canvas.texture);
+    ImageFlipVertical(&frame);
     UnloadRenderTexture(canvas);
 
     int bright = 0, brightControl = 0;
@@ -3407,12 +3377,26 @@ static bool RoomsTestMinSizeStillPlayable(void)
 
 /* Test (h): la telecamera e' fatta di due funzioni PURE (world/room_camera.h),
    quindi il suo contratto si verifica senza finestra e senza Game:
-     - una stanza 1x1 ha UNA sola inquadratura possibile (camera ferma) e la
-       traduzione mondo->canvas e' l'identita' (nessuna regressione visiva
-       rispetto a prima di DEC-170);
+     - il rettangolo di clamp di UNA cella e' esattamente la cella inquadrata
+       (ROOM_FRAME_W x ROOM_FRAME_H), cioe' la stanza piu' la sua cornice di
+       muro: la garanzia che non si perdano ne' muri ne' porte;
      - a qualunque posizione del giocatore, l'inquadratura non esce MAI dai
        bordi del rettangolo di clamp -- la garanzia esplicita di DEC-170;
-     - l'inseguimento converge e si aggancia (nessuna deriva sotto il pixel). */
+     - la telecamera SEGUE il giocatore su ogni asse in cui la vista e' piu'
+       piccola del rettangolo di clamp, e resta FERMA su ogni asse in cui e'
+       piu' grande o uguale;
+     - l'inseguimento converge e si aggancia (nessuna deriva sotto il pixel).
+   DEC-200 riscrive la terza voce. Fino a WP-UI-0 diceva "la 1x1 e' sempre
+   ferma su entrambi gli assi", perche' il canvas (960x640) era grande esatta-
+   mente quanto la cella inquadrata e il clamp degenerava da solo. Col canvas a
+   640x360 la vista e' piu' piccola della cella su entrambi gli assi, quindi
+   anche una 1x1 scorre -- con lo stesso clamp e senza righe in piu'. La forma
+   generale ("ferma se la vista copre l'asse, altrimenti segue") copre ENTRAMBE
+   le epoche e continuerebbe a fallire se il clamp si rompesse davvero: e' cio'
+   che si voleva verificare, la costante 1x1 era solo il caso particolare di
+   allora. Se si rivuole la 1x1 a inquadratura fissa la leva e' ROOM_W/ROOM_H
+   (una decisione di design, vedi governance/open-questions.md), e questo test
+   la riconoscerebbe automaticamente. */
 static bool RoomsTestCameraClamp(void)
 {
     bool ok = true;
@@ -3429,16 +3413,18 @@ static bool RoomsTestCameraClamp(void)
     {
         Rectangle room = { ROOM_X, ROOM_Y, cases[c].w, cases[c].h };
         Rectangle bounds = WorldCameraBoundsFromRoom(room);
-        /* Il rettangolo di clamp di UNA cella e' esattamente il canvas: e' cio'
-           che rende la 1x1 identica a prima di DEC-170, cornice di muro
-           compresa. */
+        /* Il rettangolo di clamp di UNA cella e' esattamente la cella
+           INQUADRATA (ROOM_FRAME_*): la stanza piu' la cornice di muro e le
+           due fasce. Era scritto "= il canvas" finche' le due cose erano lo
+           stesso 960x640; DEC-200 le ha separate e questo e' il valore che
+           conta davvero -- se sparisse, la 1x1 perderebbe i propri muri. */
         if (c == 0)
         {
             if (fabsf(bounds.x) > 0.01f || fabsf(bounds.y) > 0.01f ||
-                fabsf(bounds.width - viewW) > 0.01f || fabsf(bounds.height - viewH) > 0.01f)
+                fabsf(bounds.width - ROOM_FRAME_W) > 0.01f || fabsf(bounds.height - ROOM_FRAME_H) > 0.01f)
             {
-                fprintf(stderr, "GameRoomsTest: (h) il rettangolo di clamp di una cella non e' il canvas: %.1f,%.1f %.1fx%.1f\n",
-                        bounds.x, bounds.y, bounds.width, bounds.height);
+                fprintf(stderr, "GameRoomsTest: (h) il rettangolo di clamp di una cella non e' la cella inquadrata (%.0fx%.0f): %.1f,%.1f %.1fx%.1f\n",
+                        ROOM_FRAME_W, ROOM_FRAME_H, bounds.x, bounds.y, bounds.width, bounds.height);
                 ok = false;
             }
         }
@@ -3461,26 +3447,35 @@ static bool RoomsTestCameraClamp(void)
                     ok = false;
                 }
                 if (!firstSet) { first = target; firstSet = true; }
-                /* 1x1: una sola inquadratura possibile, per QUALUNQUE posizione
-                   del giocatore. */
-                if (c == 0 && (fabsf(target.x - first.x) > 0.01f || fabsf(target.y - first.y) > 0.01f))
+                /* Asse per asse: FERMA dove la vista copre gia' tutto il
+                   rettangolo di clamp (non c'e' una seconda inquadratura da
+                   scegliere), altrimenti SEGUE. Prima di DEC-200 la 1x1 era
+                   ferma su entrambi gli assi -- ora e' solo il caso in cui i
+                   due rami si decidono in modo diverso, non piu' una taglia
+                   speciale. */
+                bool freeX = bounds.width > viewW;
+                bool freeY = bounds.height > viewH;
+                if (!freeX && fabsf(target.x - first.x) > 0.01f)
                 {
-                    fprintf(stderr, "GameRoomsTest: (h) la telecamera si e' mossa in una stanza 1x1 (%.1f,%.1f -> %.1f,%.1f)\n",
-                            first.x, first.y, target.x, target.y);
+                    fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera si e' mossa in x con la vista piu' larga del limite (%.1f -> %.1f)\n",
+                            cases[c].name, first.x, target.x);
                     ok = false;
                 }
-                /* Taglie maggiori: sull'asse LUNGO la telecamera deve davvero
-                   seguire, non restare inchiodata al centro. */
-                if (c > 0)
+                if (!freeY && fabsf(target.y - first.y) > 0.01f)
+                {
+                    fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera si e' mossa in y con la vista piu' alta del limite (%.1f -> %.1f)\n",
+                            cases[c].name, first.y, target.y);
+                    ok = false;
+                }
                 {
                     Vector2 low = WorldCameraClampTarget(bounds, (Vector2){ room.x, room.y }, viewW, viewH);
                     Vector2 high = WorldCameraClampTarget(bounds, (Vector2){ room.x + room.width, room.y + room.height }, viewW, viewH);
-                    if (cases[c].w > ROOM_W && !(high.x > low.x + 1.0f))
+                    if (freeX && !(high.x > low.x + 1.0f))
                     {
                         fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera non segue sull'asse x\n", cases[c].name);
                         ok = false;
                     }
-                    if (cases[c].h > ROOM_H && !(high.y > low.y + 1.0f))
+                    if (freeY && !(high.y > low.y + 1.0f))
                     {
                         fprintf(stderr, "GameRoomsTest: (h) taglia %s: la telecamera non segue sull'asse y\n", cases[c].name);
                         ok = false;
@@ -3514,7 +3509,7 @@ static bool RoomsTestCameraClamp(void)
         ok = false;
     }
 
-    printf("  [rooms-h] telecamera: %d inquadrature provate su 4 taglie, mai fuori dai bordi; 1x1 ferma; inseguimento monotono e agganciato -> %s\n",
+    printf("  [rooms-h] telecamera: %d inquadrature provate su 4 taglie, mai fuori dai bordi; ferma sugli assi coperti dalla vista e in inseguimento sugli altri; inseguimento monotono e agganciato -> %s\n",
            checked, ok ? "ok" : "FALLITO");
     return ok;
 }

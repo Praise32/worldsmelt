@@ -6,11 +6,11 @@ status: draft
 authority: canonical
 owner: design
 summary: >-
-  Coda ufficiale e unica delle domande ancora aperte (38 voci attive su 59 numerate; la voce 12 già chiusa in precedenza da DEC-176/177 e riconfermata sulla scala da DEC-208, la voce 18 aggiornata senza chiudersi da DEC-210, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt (DEC-189/190), e il batch DEC-205..DEC-210 della sessione remota di reference distillation dello stesso giorno non chiude voci nuove ma tocca la 12 e la 18) dopo DEC-001..DEC-210: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22) e la persistenza delle preferenze del giocatore (WP-PREFS).
-last_reviewed: 2026-07-31
-last_updated_from_session: 2026-07-31-art-batch-dec205-210
+  Coda ufficiale e unica delle domande ancora aperte (39 voci attive su 60 numerate; la voce 12 già chiusa in precedenza da DEC-176/177 e riconfermata sulla scala da DEC-208, la voce 18 aggiornata senza chiudersi da DEC-210, il batch DEC-185..DEC-204 del 31/07 chiude altre 20 voci aggiornando senza chiudere le voci 9 e 17, WP-PREFS nello stesso giorno aggiunge la voce 59 sulla politica di salvataggio di prefs/settings.txt (DEC-189/190), il batch DEC-205..DEC-210 della sessione remota di reference distillation dello stesso giorno non chiude voci nuove ma tocca la 12 e la 18, e WP-UI-0 del 2026-08-02 aggiunge la voce 60 sulla taglia della cella di stanza dopo la migrazione al canvas 640x360 di DEC-200) dopo DEC-001..DEC-210: economia, valori numerici da playtest, personaggi, multiplayer, produzione, interfaccia, distribuzione, produzione AI/asset, stanze speciali nel motore inclusa la stanza segreta a due livelli (WP8), il catalogo delle prove specifiche della run (WP16), l'abbandono di una run in corso (WP19), il tasto rapido R del reroll nel motore (WP21), l'oscuramento del dialogo leggero ExitConfirm/MainMenu (WP22), la persistenza delle preferenze del giocatore (WP-PREFS) e la risoluzione interna 640x360 (WP-UI-0).
+last_reviewed: 2026-08-02
+last_updated_from_session: 2026-08-02-wp-ui-0
 last_verified_commit: 4d7a410
-topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22, WP-PREFS, DEC-185, DEC-189, DEC-190, DEC-204, DEC-205, DEC-208, DEC-209, DEC-210]
+topics: [open-questions, governance, domande aperte, playtest, backlog design, interfaccia, distribuzione, produzione ai, DEC-174, DEC-176, DEC-051, DEC-008, DEC-043, DEC-010, DEC-022, DEC-025, DEC-127, DEC-042, DEC-027, DEC-090, DEC-114, WP4, WP5, WP6, WP7, WP8, WP-INT, WP16, WP19, WP21, WP22, WP-PREFS, WP-UI-0, DEC-185, DEC-189, DEC-190, DEC-204, DEC-205, DEC-208, DEC-209, DEC-210, DEC-200]
 related: []
 supersedes: []
 source_files: []
@@ -1060,3 +1060,36 @@ Anche la **seconda** passata è stata bocciata, per tre residui, chiusi dalla **
     due punti d'ingresso di `Options` (nessuna scrittura se nulla cambia, una scrittura se
     qualcosa cambia). (`ui/options-and-accessibility.md`, DEC-189, DEC-190,
     `src/app/prefs.c`, `src/app/app.c`.)
+
+## Risoluzione interna 640×360 (WP-UI-0, 2026-08-02)
+
+Una domanda aperta dall'esecuzione di **DEC-200** (migrazione del gioco al canvas interno
+640×360 con scaling intero), che tocca un valore di design mai rimesso in discussione dal
+momento in cui fu scelto.
+
+60. **La cella di stanza (`ROOM_W`×`ROOM_H` = 876×458) va ridimensionata perché una stanza
+    1×1 torni a stare in una sola schermata?** DEC-170 fissa il principio «una cella più la
+    sua cornice di muro riempie esattamente il canvas», e da lì derivava la proprietà
+    «la 1×1 ha una sola inquadratura possibile, la telecamera è ferma»: entrambe erano vere
+    perché il canvas era 960×640, cioè esattamente la cella inquadrata. **DEC-200 porta il
+    canvas a 640×360 e quella coincidenza cade**: la vista è ora più piccola della cella su
+    entrambi gli assi, quindi la telecamera scorre anche dentro una 1×1 (con lo stesso
+    clamp di DEC-170/180, senza codice speciale, e senza mai mostrare area fuori dalla
+    stanza). WP-UI-0 ha scelto deliberatamente di **non toccare lo spazio di gioco**: le
+    dimensioni della stanza sono la taratura di spawn, distanze, velocità e budget dei
+    nemici, e cambiarle è una decisione di bilanciamento, non un dettaglio della migrazione
+    grafica. Le tre strade, tutte praticabili:
+    - **(a) restringere la cella** a circa 576×296 (più una cornice) perché torni a stare
+      in 640×360 a zoom 1 — ripristina la 1×1 a schermata singola «alla Isaac» e avvicina
+      le proporzioni al mockup approvato, ma va ritarato il contenuto di ogni stanza;
+    - **(b) tenere la cella com'è** e accettare la telecamera che segue anche nelle 1×1 —
+      nessun ritocco al bilanciamento, ma le stanze piccole non sono più leggibili a colpo
+      d'occhio e l'archetipo «una stanza, una sfida» si indebolisce;
+    - **(c) rimpicciolire il mondo intero** (cella e sprite insieme) — coerente con la
+      scala 32px di DEC-177/208 sul piano numerico, ma è il cambiamento più invasivo.
+    Lo stato attuale del motore è **(b)**, come default di implementazione (stile DEC-019),
+    non come scelta di design. Verificato da `--rooms-test` (voce `rooms-h`, riscritta per
+    valere in entrambe le epoche: la telecamera è ferma sugli assi in cui la vista copre il
+    rettangolo di clamp e segue sugli altri) e da `--layout-test`.
+    (`systems/rooms-and-floor-generation.md`, DEC-009, DEC-170, DEC-180, DEC-200,
+    `src/world/room_camera.c`, `src/core/game_types.h` — costanti `ROOM_*`/`ROOM_FRAME_*`.)
