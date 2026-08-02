@@ -219,6 +219,22 @@ charrig resta ma non si aggancia nulla senza suo ok). SFX bocciati, in coda.
 - **Documentazione/design**: docs/CLAUDE.md + docs/design/README.md (percorso curato).
 - **Indice generale**: docs/INDEX.md (rigenera con `make docs-index` dopo ogni commit su docs/).
 
+## Night run 02→03/08 — CHIUSA: demo rivestita, 9 commit verificati
+
+Tutto su main (49b9645..097f2f4). UI completa a 640×360 in palette Fucina
+(9 schermate: menu, HUD, build, fusione, setup, pausa, uscita, opzioni,
+risultati, Piano 0, catalogo — mock approvati dal proprietario, zero
+neon residuo); walk dei 5 boss; overlay sprite per i 6 slot
+equipaggiamento (DEC-049/199); animazione attack agganciata; fix bug
+MONDO e ciano-nel-codice; token UI_HINT; strumento remap_fucina.
+Processo: implementer sonnet + verifier opus per ogni WP (3 bocciature
+recuperate con cicli di correzione), verifica unificata finale +
+controllo Fable. Suite: make test 37 marker, test-script/gen/sprites
+verdi. Restano dichiarati: ordine disegno slot corpo/schiena dietro la
+base (nota in visual-language.md), ramo ENEMY_BOSS storico non coperto
+dal test attack, screenshot-test non deterministico (pre-esistente,
+backlog). SFX bocciati in coda; personaggi congelati.
+
 ## Night run 02→03/08 — mandato notturno del proprietario
 
 "Approvo tutto" sulla review UI (11/11 schermate + le 3 scelte segnalate:
