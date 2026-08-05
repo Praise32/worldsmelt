@@ -106,6 +106,15 @@ void DemoScriptApiBeginFrame(DemoScriptApiState *api,
     api->commandCount = 0;
     api->gameplayCommandCount = 0;
     api->visualCommandCount = 0;
+    api->fireHeld = false;
+    api->specialPressed = false;
+}
+
+void DemoScriptApiSetInput(DemoScriptApiState *api, bool fireHeld, bool specialPressed)
+{
+    if (api == NULL) return;
+    api->fireHeld = fireHeld;
+    api->specialPressed = specialPressed;
 }
 
 const DemoScriptCommand *DemoScriptApiCommands(const DemoScriptApiState *api)
@@ -243,6 +252,18 @@ static int DemoAimSnapshot(lua_State *L)
     api->lastAimSnapshot = api->currentAimAngle;
     api->hasAimSnapshot = true;
     lua_pushnumber(L, (lua_Number)api->lastAimSnapshot);
+    return 1;
+}
+
+static int DemoFireHeld(lua_State *L)
+{
+    lua_pushboolean(L, DemoApi(L)->fireHeld);
+    return 1;
+}
+
+static int DemoSpecialPressed(lua_State *L)
+{
+    lua_pushboolean(L, DemoApi(L)->specialPressed);
     return 1;
 }
 
@@ -455,6 +476,8 @@ bool DemoScriptApiRegister(struct ScriptSandbox *sandbox, DemoScriptApiState *ap
     DemoRegisterFn(L, api, "self_y", DemoSelfY);
     DemoRegisterFn(L, api, "aim_at_player", DemoAimAtPlayer);
     DemoRegisterFn(L, api, "aim_snapshot", DemoAimSnapshot);
+    DemoRegisterFn(L, api, "fire_held", DemoFireHeld);
+    DemoRegisterFn(L, api, "special_pressed", DemoSpecialPressed);
     DemoRegisterFn(L, api, "telegraph_arc", DemoTelegraphArc);
     DemoRegisterFn(L, api, "emit_arc", DemoEmitArc);
     DemoRegisterFn(L, api, "emit_ring", DemoEmitRing);

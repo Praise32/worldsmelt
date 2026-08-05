@@ -35,7 +35,7 @@
 
 struct ScriptSandbox;
 
-#define DEMO_SCRIPT_API_VERSION 1
+#define DEMO_SCRIPT_API_VERSION 2
 
 /* Quote per UNA sandbox e UN fixed tick. Un comando gameplay che possiede
  * anche una rappresentazione visuale consuma entrambe le quote. La saturazione
@@ -140,6 +140,13 @@ typedef struct DemoScriptApiState {
     float currentAimAngle;
     float lastAimSnapshot;
     bool hasAimSnapshot;
+    /* Input reale del giocatore (API v2, spec combat-lab). Azzerati da
+     * BeginFrame: l'host che possiede una sandbox player-owned li imposta con
+     * DemoScriptApiSetInput DOPO BeginFrame e PRIMA di on_tick, ogni tick.
+     * Un host nemico non li imposta mai: fire_held()/special_pressed()
+     * ritornano false, nessun ramo speciale altrove. */
+    bool fireHeld;
+    bool specialPressed;
 
     DemoScriptCommand commands[DEMO_SCRIPT_MAX_COMMANDS];
     size_t commandCount;
@@ -155,12 +162,18 @@ void DemoScriptApiInit(DemoScriptApiState *api,
                        float roomLeft, float roomTop,
                        float roomRight, float roomBottom);
 
-/* Aggiorna il contesto letto da Lua e azzera SOLO il command buffer del tick.
- * Lo stato Lua e lastAimSnapshot restano vivi fra i frame. */
+/* Aggiorna il contesto letto da Lua e azzera SOLO il command buffer del tick
+ * (e i due flag di input, vedi sopra). Lo stato Lua e lastAimSnapshot restano
+ * vivi fra i frame. */
 void DemoScriptApiBeginFrame(DemoScriptApiState *api,
                              float playerX, float playerY,
                              float selfX, float selfY,
                              float currentAimAngle);
+
+/* API v2: input reale per le sandbox player-owned (armi generate). Da
+ * chiamare dopo BeginFrame e prima della callback on_tick del tick corrente;
+ * i valori non sopravvivono al BeginFrame successivo. */
+void DemoScriptApiSetInput(DemoScriptApiState *api, bool fireHeld, bool specialPressed);
 
 /* Registra nell'_ENV della sandbox le closure seguenti:
  *
@@ -168,6 +181,8 @@ void DemoScriptApiBeginFrame(DemoScriptApiState *api,
  *   player_x(), player_y(), self_x(), self_y()
  *   aim_at_player()   -- angolo live self -> player
  *   aim_snapshot()    -- fotografa e ritorna currentAimAngle dell'host
+ *   fire_held()       -- API v2: vero se il giocatore tiene premuto il fuoco
+ *   special_pressed() -- API v2: vero solo nel tick della pressione speciale
  *
  * comandi (ritornano true se accodati, false se una quota e' piena):
  *   telegraph_arc(x,y,angle,radius,width,sweep,duration,visual_id)
