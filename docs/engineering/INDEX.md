@@ -23,5 +23,6 @@
 - [Design della sandbox Lua (fase 3a)](specs/2026-07-13-lua-sandbox-design.md) — Spec di sicurezza della sandbox Lua 5.5: allowlist _ENV, tetto memoria, budget istruzioni, vie di fuga chiuse e limiti di determinismo; citata da AGENTS.md, test e codice. `[implemented/canonical]`
 - [Step 3b: nemici e boss inventati dal modello](specs/2026-07-14-step-3b-enemies.md) — Vocabolario parametrico dei nemici (form/move/fire), EnemyTypeBalance e budget di difficolta della stanza: il motore da mattoni e garanzie, il modello compone. `[implemented/canonical]`
 - [Step C: tipi di colpo inventati e bilanciati](specs/2026-07-14-step-c-shottype-balance.md) — Tipi di colpo senza enum fisso: ShotForm+manopole inventati dal modello, ShotTypeBalance riporta ogni tipo a potenza ~1.0 (sidegrade mai dud), curve alla Isaac e fortuna. `[implemented/canonical]`
+- [Combat Lab: demo di debug del combattimento con attacchi generati da Gemma](specs/2026-08-05-combat-lab-design.md) — Spec della demo giocabile di debug (tools/procedural-combat-demo): arena raylib con la ScriptSandbox vera, attacchi nemici e armi del player generati live da Gemma via melting-gen --attacks, pool su disco con hot-reload, resa smooth. `[approved/canonical]`
 
 _3 documenti historical esclusi dall'indice._

@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 148,
+  "count": 149,
   "documents": [
     {
       "id": "docs-readme",
@@ -3441,6 +3441,38 @@
       "source_files": [],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "eng-spec-combat-lab",
+      "path": "docs/engineering/specs/2026-08-05-combat-lab-design.md",
+      "title": "Combat Lab: demo di debug del combattimento con attacchi generati da Gemma",
+      "domain": "engineering",
+      "status": "approved",
+      "authority": "canonical",
+      "owner": "engineering",
+      "summary": "Spec della demo giocabile di debug (tools/procedural-combat-demo): arena raylib con la ScriptSandbox vera, attacchi nemici e armi del player generati live da Gemma via melting-gen --attacks, pool su disco con hot-reload, resa smooth.",
+      "topics": [
+        "spec",
+        "combat",
+        "lua",
+        "sandbox",
+        "generazione",
+        "demo",
+        "debug"
+      ],
+      "related": [
+        "eng-adr-002",
+        "eng-adr-003",
+        "eng-spec-local-llm-linux"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "tools/procedural-combat-demo/main.c",
+        "tools/procedural-combat-demo/demo_script_api.c",
+        "src/script/script_sandbox.c"
+      ],
+      "last_reviewed": "2026-08-05",
+      "last_verified_commit": "e0bf48f"
     },
     {
       "id": "template-plan",

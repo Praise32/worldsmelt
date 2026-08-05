@@ -6,7 +6,7 @@ Rigenerato da `make docs-index`. Punto d'ingresso umano: [README.md](README.md).
 Standard e regole: [_meta/DOCUMENT-STANDARDS.md](_meta/DOCUMENT-STANDARDS.md).
 
 - [`design/`](design/INDEX.md) — 61 documenti
-- [`engineering/`](engineering/INDEX.md) — 18 documenti
+- [`engineering/`](engineering/INDEX.md) — 19 documenti
 - [`ai-production/`](ai-production/INDEX.md) — 41 documenti
 - `plans/`:
   - [Piano: titolo (template)](plans/PLAN_TEMPLATE.md) — Scheletro per piani di implementazione temporanei: obiettivo, documenti consultati, ambiguità, sequenza di lavoro, verifiche.

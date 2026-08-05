@@ -97,7 +97,7 @@ TEST_RUNNER := env -u WAYLAND_DISPLAY XDG_RUNTIME_DIR=$(XVFB_RUNTIME) \
   $(XVFB) -a -s "-screen 0 1920x1080x24 +extension GLX +render"
 endif
 
-.PHONY: all game gen sprites run run-demo run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark model-comparison image-comparison docs-check docs-index docs-audit clean
+.PHONY: all game gen sprites combat-lab run-combat-lab run run-demo run-gen run-gen-fast test test-gen test-sprites test-script test-llm gen-metrics sprite-baseline benchmark model-comparison image-comparison docs-check docs-index docs-audit clean
 
 all: game gen sprites
 
@@ -118,6 +118,31 @@ $(GEN_BIN): $(GEN_SRC) $(GEN_HDR)
 $(SPRITES_BIN): $(SPRITES_SRC) $(SPRITES_HDR)
 	@mkdir -p bin
 	$(CC) $(SPRITES_CFLAGS) $(SPRITES_SRC) $(SPRITES_LIBS) -o $@
+
+# Combat Lab (spec 2026-08-05-combat-lab-design.md): demo di debug del
+# combattimento, eseguibile autonomo come da build.ps1 originale della prova
+# Windows. Riusa LA STESSA ScriptSandbox del gioco (come melting-gen, vedi
+# GEN_EXTRA_SRC sopra) ma non linka mai llama.cpp: la generazione resta in
+# melting-gen --attacks come processo esterno (ADR-002). Le risorse vengono
+# copiate accanto al binario perche' la demo le carica con
+# GetApplicationDirectory(), indipendente dalla cwd.
+COMBAT_LAB_DIR := tools/procedural-combat-demo
+COMBAT_LAB_OUT := build/combat-lab
+COMBAT_LAB_SRC := $(COMBAT_LAB_DIR)/main.c $(COMBAT_LAB_DIR)/demo_script_api.c \
+  src/script/script_sandbox.c src/core/game_math.c
+COMBAT_LAB_CFLAGS := $(CFLAGS) -I$(COMBAT_LAB_DIR) -Isrc -I$(RAYLIB_DIR)/src -I$(LUA_DIR)/src
+COMBAT_LAB_BIN := $(COMBAT_LAB_OUT)/combat-lab
+
+combat-lab: $(COMBAT_LAB_BIN)
+
+$(COMBAT_LAB_BIN): $(COMBAT_LAB_SRC) $(COMBAT_LAB_DIR)/demo_script_api.h $(GAME_HDR)
+	@mkdir -p $(COMBAT_LAB_OUT)
+	rm -rf $(COMBAT_LAB_OUT)/assets $(COMBAT_LAB_OUT)/scripts $(COMBAT_LAB_OUT)/shaders
+	cp -r $(COMBAT_LAB_DIR)/assets $(COMBAT_LAB_DIR)/scripts $(COMBAT_LAB_DIR)/shaders $(COMBAT_LAB_OUT)/
+	$(CC) $(COMBAT_LAB_CFLAGS) $(COMBAT_LAB_SRC) $(GAME_LIBS) -o $@
+
+run-combat-lab: combat-lab
+	./$(COMBAT_LAB_BIN)
 
 run: game
 	./$(GAME_BIN)
