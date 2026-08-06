@@ -203,6 +203,17 @@ CONFIG_NOTE[F7]="F7 Track F: DreamShaper 8 + PIXHELL 1.0, trigger 'pixelart, ', 
 CONFIG_NOTE[F8]="F8 Track F: DreamShaper 8 + Basepixel 1.0 (vs 0.6 di A2) alle impostazioni del creatore: 28 step/CFG 7/'DPM++ 2M Karras'. Sampler creatore VERIFICATO 1:1 su dpm++2m+karras di sd-cli: nessuna deviazione (vedi nota sopra la tabella). Variante nativa di A2"
 CONFIG_NOTE[F9]="F9 Track F: DreamShaper 8 + RPG Icons 1.0, trigger 'rpgicondiff, ', 25 step/CFG 7 (non dichiarati dal creatore, default di questo script). subjects_filter=weapon,item: la LoRA (Civitai) e' addestrata solo su oggetti/armi isolati, i soggetti character/enemy/boss sono fuori scopo e vengono saltati per questa riga"
 CONFIG_NOTE[S1]="S1 asse velocita': DreamShaper 8 + Basepixel 0.6 + LCM-LoRA 1.0 sopra (extra_lora), sampler lcm, 6 step, CFG 1.5 (range creatore LCM-LoRA: 4-8 step/CFG 1-2). Peso 1.0 della LCM-LoRA e' un default di questo script, il creatore non ne dichiara uno"
+# Scala di step (notte 06-07/08, mandato "diversifica i test"): le stesse due
+# config S2/S3 a step diversi, per la curva qualita'-vs-step. Righe IDENTICHE
+# alle madri salvo il campo step: la differenza misurata e' SOLO quella.
+CONFIG_ROW[S2A]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f4\x1f5\x1feuler_a\x1fkarras\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
+CONFIG_ROW[S2B]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f6\x1f5\x1feuler_a\x1fkarras\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
+CONFIG_ROW[S3A]=$'models/teacher-bench-2026-08/anyloraCheckpoint_lcm.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f4\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[S3B]=$'models/teacher-bench-2026-08/anyloraCheckpoint_lcm.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f8\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_NOTE[S2A]="S2A curva step: identica a S2 ma 4 step (la Hyper-SD-LoRA e' tarata per 8: qui si misura il degrado sotto taratura)"
+CONFIG_NOTE[S2B]="S2B curva step: identica a S2 ma 6 step"
+CONFIG_NOTE[S3A]="S3A curva step: identica a S3 ma 4 step"
+CONFIG_NOTE[S3B]="S3B curva step: identica a S3 ma 8 step (LCM oltre la taratura 6: si misura se migliora o satura)"
 CONFIG_NOTE[S2]="S2 asse velocita': DreamShaper 8 + Basepixel 0.6 + Hyper-SD15 8-step-CFG-LoRA 1.0 sopra (extra_lora), sampler normale (euler_a/karras), 8 step, CFG 5 (range creatore: CFG 5-8). Peso 1.0 e' un default di questo script"
 CONFIG_NOTE[S3]="S3 asse velocita': AnyLoRA-LCM (checkpoint gia' fuso LCM) + 8bitdiffuser64 1.0, sampler lcm, 6 step, CFG 1.5 -- nessuna extra_lora: l'accelerazione e' gia' nel checkpoint, non va sommata"
 CONFIG_NOTE[S4]="S4 asse velocita': DreamShaper8_LCM da solo (nessuna LoRA pixel-art), sampler lcm, 8 step, CFG 2 -- primo candidato runtime della ricerca (vedi nota su questo path in MODEL_META_JSON), qui usato solo come riferimento di velocita' pura senza stile pixel-art dedicato"
