@@ -1,0 +1,32 @@
+# Grammatica del SOLO oggetto "spec" del contratto R1 (VisualSpec, vedi il
+# commento in cima a gen_visualspec.h per il contratto batch.json completo).
+# Diversa da run.gbnf/character.gbnf/propose.gbnf in un punto: "category" NON
+# e' mai scelto dal modello. Stesso principio di kind/rarity in run.gbnf (un
+# campo che il C deve poter GARANTIRE non entra mai nella grammatica come
+# scelta) -- qui pero' il valore dipende dalla RICHIESTA corrente (uno fra
+# cinque domini), quindi non puo' essere un'alternanza fissa come
+# roomform/foeform: e' un LETTERALE iniettato PRIMA del caricamento,
+# sostituendo il segnaposto {DOMAIN} col dominio della richiesta in corso
+# (GenVisualSpecBuildGrammar, gen_visualspec.c). category==domain per
+# costruzione: zero ritenti possibili su questo campo, il modello non lo
+# vede nemmeno come scelta.
+root ::= "{\"category\":\"{DOMAIN}\",\"subtype\":" words ",\"body_plan\":" words ",\"materials\":[" material "," material ("," material)? ("," material)? "],\"distinctive_feature\":" feature ",\"size_class\":" sizeclass "}"
+
+# subtype/body_plan: 1-4 parole ASCII (3-40 caratteri col tetto di 'name' in
+# run.gbnf/character.gbnf; l'apostrofo in piu' serve a forme come "spider's
+# legs"). Stessa regola per entrambi i campi -- il significato lo distingue
+# solo la posizione nel JSON, non il charset.
+words ::= "\"" wordchar{3,40} "\""
+wordchar ::= [A-Za-z0-9 '-]
+
+# Una voce di 'materials' (array di 2-4, vedi root sopra: due sempre
+# presenti, le altre due opzionali): 1-2 parole corte, es. "bronze",
+# "cracked slate", "ash-grey cloth".
+material ::= "\"" wordchar{2,24} "\""
+
+# distinctive_feature: una frase breve (8-120 caratteri), stesso charset di
+# 'blurb' in propose.gbnf con la punteggiatura di una frase vera.
+feature ::= "\"" featurechar{8,120} "\""
+featurechar ::= [A-Za-z0-9 .,'!-]
+
+sizeclass ::= "\"small\"" | "\"medium\"" | "\"large\""

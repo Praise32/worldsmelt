@@ -1,0 +1,6 @@
+Domain: {DOMAIN}
+Variation seed: {SEED} -- use it as creative fuel: different seeds must land on
+different concepts, even within the same domain.
+
+{STAGE_BLOCK}
+{RETRY_BLOCK}

@@ -46,6 +46,13 @@ questo file, campo postproc.pipeline_version_sha256): un cambio di soglia o
 di algoritmo qui invalida da solo il salto, cosi' non convivono mai nella
 stessa cartella derivati prodotti da due pipeline diverse.
 
+--root riusa questa stessa pipeline per un ALTRO harness (R2/R3 06/08,
+scripts/runtime-bench.sh -> artifacts/runtime-bench): il default
+(artifacts/image-model-research) resta invariato, e metrics.csv guadagna le
+colonne opzionali "domain"/"mode" SOLO se i manifest processati le
+dichiarano (vedi CSV_OPTIONAL_FIELDS) -- un root teacher-bench puro non le
+vede mai, un root runtime-bench le vede sempre.
+
 Dipendenze: solo stdlib + Pillow (verificare con `python3 -c "import PIL"`
 prima di lanciare su una macchina nuova).
 """
@@ -715,6 +722,21 @@ CSV_FIELDS = [
 ]
 CSV_KEY = ("config", "subject", "seed", "canvas_size")
 
+# Colonne OPZIONALI (R2/R3 06/08, harness scripts/runtime-bench.sh): "domain"
+# e "mode" ("spec"|"free") vivono gia' come campi piatti nei manifest che
+# quell'harness scrive, ma un manifest teacher-bench (Stage A/Track F) non li
+# ha MAI. Non sono in CSV_FIELDS sopra apposta: "default invariato" (mandato
+# R2/R3, "gli output teacher-bench NON devono cambiare") deve restare vero
+# per COSTRUZIONE, non per promessa -- se le aggiungessi a CSV_FIELDS ogni
+# corsa teacher-bench guadagnerebbe due colonne vuote in piu' e l'header
+# cambierebbe SEMPRE, anche processando solo manifest che non le hanno mai
+# viste. write_metrics_csv() le attiva (le aggiunge in coda a CSV_FIELDS per
+# QUESTA scrittura) solo se compaiono davvero in almeno un manifest o in un
+# metrics.csv preesistente -- cosi' un root teacher-bench puro produce un CSV
+# byte-identico a prima di queste due righe di codice, e un root
+# runtime-bench guadagna le colonne senza bisogno di un flag dedicato.
+CSV_OPTIONAL_FIELDS = ["domain", "mode"]
+
 # Cache path-contratto -> judge_scale: letto una volta per file, non una
 # volta per manifest (metrics.csv puo' fondere centinaia di manifest che
 # condividono lo stesso contratto).
@@ -752,6 +774,12 @@ def rows_from_manifest(manifest):
         "cfg_scale": manifest.get("cfg_scale"),
         "judge_scale": judge_scale_for_contract(manifest.get("prompts_contract_path")),
         "retries": 0,
+        # Sempre presenti nel dict Python (anche "", per i manifest
+        # teacher-bench che non li dichiarano): CSV_OPTIONAL_FIELDS decide
+        # SOLO se finiscono nell'header scritto, non se esistono qui --
+        # write_metrics_csv() li filtra via row.get(k, "") comunque.
+        "domain": manifest.get("domain", ""),
+        "mode": manifest.get("mode", ""),
     }
     pp = manifest.get("postproc") or {}
     if manifest.get("generation_ok") is False:
@@ -799,21 +827,26 @@ def row_key(row):
 def write_metrics_csv(root):
     """Fonde: righe ricostruite da manifests/*.json (autorevoli) + righe di un
     metrics.csv preesistente la cui chiave non ha piu' un manifest (per non
-    perdere misure di immagini archiviate/spostate a mano)."""
-    metrics_path = root / "metrics.csv"
-    merged = {}
-    legacy_keys = set()
-    dropped_columns = set()
+    perdere misure di immagini archiviate/spostate a mano).
 
+    Le colonne effettive di QUESTA scrittura sono CSV_FIELDS + le sole
+    CSV_OPTIONAL_FIELDS che risultano "attive" (vedi il commento sopra
+    CSV_OPTIONAL_FIELDS): l'attivazione si decide leggendo prima TUTTE le
+    righe (manifest correnti + CSV preesistente), mai a meta' scrittura, cosi'
+    l'header e' deciso una volta sola e ogni riga lo rispetta."""
+    metrics_path = root / "metrics.csv"
+
+    legacy_rows_by_key = {}
+    legacy_header = []
     if metrics_path.is_file():
         with open(metrics_path, newline="") as f:
-            for old in csv.DictReader(f):
-                key = row_key(old)
-                legacy_keys.add(key)
-                merged[key] = {k: old.get(k, "") for k in CSV_FIELDS}
-                dropped_columns |= {k for k, v in old.items()
-                                    if k not in CSV_FIELDS and v not in ("", None)}
+            reader = csv.DictReader(f)
+            legacy_header = reader.fieldnames or []
+            for old in reader:
+                legacy_rows_by_key[row_key(old)] = old
 
+    fresh_rows_by_key = {}
+    dropped_columns = set()
     manifest_dir = root / "manifests"
     n_manifests = 0
     if manifest_dir.is_dir():
@@ -827,9 +860,28 @@ def write_metrics_csv(root):
                 continue
             n_manifests += 1
             for row in rows_from_manifest(manifest):
-                key = row_key(row)
-                legacy_keys.discard(key)
-                merged[key] = {k: row.get(k, "") for k in CSV_FIELDS}
+                fresh_rows_by_key[row_key(row)] = row
+
+    # Attivazione delle colonne opzionali: un manifest di QUESTA corsa le
+    # valorizza, OPPURE un metrics.csv preesistente le aveva gia' in header
+    # (corsa runtime-bench precedente sullo stesso root, poi rilanciata
+    # processando magari solo alcune config) -- in entrambi i casi vanno
+    # scritte, altrimenti si perderebbero dati gia' presenti su disco.
+    active_optional = [
+        f for f in CSV_OPTIONAL_FIELDS
+        if f in legacy_header or any(row.get(f) for row in fresh_rows_by_key.values())
+    ]
+    fields = CSV_FIELDS + active_optional
+
+    merged = {}
+    legacy_keys = set(legacy_rows_by_key)
+    for key, old in legacy_rows_by_key.items():
+        merged[key] = {k: old.get(k, "") for k in fields}
+        dropped_columns |= {k for k, v in old.items()
+                            if k not in fields and v not in ("", None)}
+    for key, row in fresh_rows_by_key.items():
+        legacy_keys.discard(key)
+        merged[key] = {k: row.get(k, "") for k in fields}
 
     # Righe rimaste senza manifest: si conservano, ma vanno dette. Sono
     # misure che nessuno puo' piu' ricalcolare da qui (raw o manifest
@@ -844,11 +896,12 @@ def write_metrics_csv(root):
 
     rows = sorted(merged.values(), key=lambda r: row_key(r))
     with open(metrics_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         for row in rows:
             w.writerow(row)
-    log(f"metrics.csv -> {metrics_path} ({len(rows)} righe da {n_manifests} manifest)")
+    log(f"metrics.csv -> {metrics_path} ({len(rows)} righe da {n_manifests} manifest)"
+        + (f" [colonne extra attive: {', '.join(active_optional)}]" if active_optional else ""))
 
 
 def main():

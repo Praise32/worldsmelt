@@ -4,6 +4,7 @@
 #include "gen_corpus.h"
 #include "gen_lua.h"
 #include "gen_novelty.h"
+#include "gen_visualspec.h"
 
 #include "cJSON.h"
 #include "llama.h"
@@ -72,6 +73,17 @@ typedef struct GenArgs {
     const char *attacksKind;
     int attackCount;
     const char *attackBrief;
+    /* R1 (gen_visualspec.c, mandato del proprietario 06/08, bake-off S1-S4
+     * vs architettura di prompting): --visualspecs N attiva un ramo di
+     * uscita anticipata come --attacks/--propose-themes qui sopra -- NULL
+     * (comportamento di sempre) = nessun effetto su nient'altro. Si tiene la
+     * STRINGA grezza, non un intero come proposeThemes: un atoi qui
+     * trasformerebbe "--visualspecs abc" (e "--visualspecs 0") in uno zero
+     * indistinguibile da "flag assente", e il processo cadrebbe nella
+     * generazione di una run COMPLETA -- che cancella e riscrive
+     * generated/scripts. La conversione con controllo vive in
+     * RunVisualSpecs, come la validazione del 'kind' vive in RunAttacks. */
+    const char *visualSpecsArg;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -115,6 +127,7 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->attacksKind = NULL;
     args->attackCount = 3;
     args->attackBrief = NULL;
+    args->visualSpecsArg = NULL;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -157,6 +170,10 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
          * che clampa dentro la funzione che lo usa) -- RunAttacks stampa un
          * errore chiaro su un valore diverso da "enemy"/"weapon". */
         else if (strcmp(argv[i], "--attacks") == 0 && i + 1 < argc) args->attacksKind = argv[++i];
+        /* R1: --visualspecs N, stesso schema CLI di --attacks <kind> (il
+         * valore SEGUE il flag e resta una stringa da validare piu' avanti) --
+         * vedi il commento sul campo in GenArgs sopra. */
+        else if (strcmp(argv[i], "--visualspecs") == 0 && i + 1 < argc) args->visualSpecsArg = argv[++i];
         /* --attack-count: il clamp 1..8 vive in GenAttackGenerate (gen_attacks.c),
          * non qui -- stesso posto che applica il default quando il flag non
          * compare affatto, un solo punto di verita' per il limite. */
@@ -235,6 +252,12 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
              * scripts/test-gen.sh la esercita gratis, senza un secondo
              * flag/una seconda riga di test da aggiungere e mantenere. */
             if (ok) ok = GenAttackPromptBudgetCheck(args->promptsDir, err, sizeof(err));
+            /* R1: TERZA famiglia di prompt (gen_visualspec.h,
+             * GenVisualSpecPromptBudgetCheck), agganciata qui per lo stesso
+             * motivo della seconda -- senza, il superamento di n_ctx si
+             * manifesta come tre tentativi identici con "generation failed"
+             * e la richiesta sparisce dal batch senza dire perche'. */
+            if (ok) ok = GenVisualSpecPromptBudgetCheck(args->promptsDir, err, sizeof(err));
             if (ok)
             {
                 printf("OK\n");
@@ -983,6 +1006,51 @@ static int RunAttacks(const GenArgs *args)
     return written > 0 ? 0 : 1;
 }
 
+/* R1 (gen_visualspec.c): ramo di uscita anticipata come RunAttacks/
+ * RunProposeThemes qui sopra -- --visualspecs NON genera una run, scrive
+ * SOLO <outDir>/visualspecs/batch.json (vedi gen_visualspec.h). Riusa
+ * --model/--ngl/--seed/--out gia' esistenti: nessun flag nuovo per il
+ * modello (stesso principio di --attacks). 'modelLabel' e' lo stesso
+ * "local:<basename>" che main() compone altrove per run->source/
+ * provenance: il modulo non conosce il percorso completo del modello, solo
+ * l'etichetta da scrivere nel campo "model" del batch. */
+static int RunVisualSpecs(const GenArgs *args)
+{
+    /* Conversione CON controllo (vedi il commento sul campo in GenArgs):
+     * strtol invece di atoi perche' serve distinguere "0" da "non e' un
+     * numero", e il ramo va rifiutato in ENTRAMBI i casi -- un giro di
+     * visualspec con N<=0 non ha senso, e proseguire in silenzio
+     * significherebbe generare una run intera al posto di un batch. */
+    char *end = NULL;
+    long perDomain = strtol(args->visualSpecsArg, &end, 10);
+    if (end == args->visualSpecsArg || (end && *end) || perDomain < 1 || perDomain > GEN_VISUALSPEC_PER_DOMAIN_MAX)
+    {
+        fprintf(stderr, "melting-gen: --visualspecs richiede un intero fra 1 e %d (ricevuto \"%s\")\n",
+                GEN_VISUALSPEC_PER_DOMAIN_MAX, args->visualSpecsArg);
+        return 1;
+    }
+
+    const char *modelPath = NULL;
+    GenLlmSession *sess = OpenModelSession(args, &modelPath);
+    if (!sess)
+    {
+        fprintf(stderr, "melting-gen: --visualspecs richiede un modello, nessuno disponibile (%s)\n", args->model);
+        return 1;
+    }
+    GenCorpusRecordSession(modelPath, args->ngl);
+
+    char modelLabel[128];
+    const char *base = strrchr(modelPath, '/');
+    snprintf(modelLabel, sizeof(modelLabel), "local:%s", base ? base + 1 : modelPath);
+
+    int written = GenVisualSpecGenerateBatch(sess, args->promptsDir, args->outDir,
+                                              (int)perDomain, args->seed, modelLabel);
+    GenLlmSessionClose(sess);
+
+    printf("melting-gen: visualspecs: %d richieste scritte in %s/visualspecs/batch.json\n", written, args->outDir);
+    return written > 0 ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     double processStart = GenNowSeconds();
@@ -1037,6 +1105,11 @@ int main(int argc, char **argv)
      * --propose-themes qui sopra -- --attacks non genera una run, non deve
      * toccare gli script Lua degli oggetti di quella in corso. */
     if (args.attacksKind) return RunAttacks(&args);
+
+    /* R1: altro ramo di uscita anticipata, stesso motivo di --attacks/
+     * --propose-themes qui sopra -- --visualspecs non genera una run, non
+     * deve toccare gli script Lua di quella in corso. */
+    if (args.visualSpecsArg) return RunVisualSpecs(&args);
 
     /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
      * scripts/ pulita. Senza, gli script della run precedente restavano sul disco

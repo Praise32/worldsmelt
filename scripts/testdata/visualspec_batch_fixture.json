@@ -1,0 +1,60 @@
+{
+  "_comment": "Fixture di PROVA dell'harness runtime (R2/R3, 06/08) -- NON un output di melting-gen. Vive qui e non in generated/visualspecs/batch.json apposta: quel path e' di produzione, lo riscrive `bin/melting-gen --visualspecs`, e nella sessione del 06/08 un giro vero di R1 ha sovrascritto a meta' lavoro la fixture che i controlli DRY_RUN stavano usando -- e' cosi' che un disallineamento sul significato di 'free_prompt' fra i due cantieri e' passato inosservato per un'intera sessione. Un harness che si prova da solo deve avere un ingresso che nessun altro processo tocca. I free_prompt qui sotto rispettano il contratto PRECISATO: prompt SD COMPLETI (vista + soggetto + resa + soggetto singolo + sfondo grigio piatto), perche' a valle del braccio 'free' non esiste nessun template -- vedi la testata di tools/melting-gen/gen_visualspec.h.",
+  "version": 1,
+  "seed": 424242,
+  "model": "fixture:not-a-real-model",
+  "requests": [
+    {
+      "id": "character_01",
+      "domain": "character",
+      "spec": {
+        "category": "character",
+        "subtype": "hooded wanderer",
+        "body_plan": "tall narrow biped",
+        "materials": ["ash-grey cloth", "bronze", "verdigris plating"],
+        "distinctive_feature": "a lantern-shaped hollow where the face would be",
+        "size_class": "medium"
+      },
+      "free_prompt": "Seen from a top-down three-quarter angle, a tall narrow figure wrapped in ash-grey cloth over bronze and verdigris plating, a lantern-shaped hollow where its face would be. One single subject alone in frame, on a flat solid neutral gray background."
+    },
+    {
+      "id": "enemy_01",
+      "domain": "enemy",
+      "spec": {
+        "category": "enemy",
+        "subtype": "slag crawler",
+        "body_plan": "low wide quadruped",
+        "materials": ["cooled slag", "cracked slate", "soot"],
+        "distinctive_feature": "a split shell that shows the glowing seam underneath",
+        "size_class": "medium"
+      },
+      "free_prompt": "Top-down three-quarter view of a low wide four-legged creature of cooled slag and cracked slate, dusted with soot, its split shell showing a glowing seam underneath. A single subject alone in frame on a flat solid neutral gray background."
+    },
+    {
+      "id": "weapon_01",
+      "domain": "weapon",
+      "spec": {
+        "category": "weapon",
+        "subtype": "twin cleaver",
+        "body_plan": "long curved blade",
+        "materials": ["worn bronze", "wrapped leather"],
+        "distinctive_feature": "a second smaller blade folded along the spine",
+        "size_class": "medium"
+      },
+      "free_prompt": "Top-down three-quarter view of a long curved worn-bronze blade with a wrapped leather grip, a second smaller blade folded along its spine, tip pointing right. The weapon is isolated, alone in frame, on a flat solid neutral gray background."
+    },
+    {
+      "id": "item_01",
+      "domain": "item",
+      "spec": {
+        "category": "item",
+        "subtype": "sealed reservoir",
+        "body_plan": "squat barrel",
+        "materials": ["bronze", "cracked slate", "wax seal"],
+        "distinctive_feature": "a wax seal still unbroken over the spout",
+        "size_class": "small"
+      },
+      "free_prompt": "Top-down three-quarter view of a small squat bronze barrel banded with cracked slate, an unbroken wax seal over its spout. A single object, isolated and alone in frame, on a flat solid neutral gray background."
+    }
+  ]
+}

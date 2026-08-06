@@ -129,6 +129,11 @@ def build_record_view(root, r):
     lora = r.get("lora") or {}
     extra_lora = r.get("extra_lora") or {}
     track = r.get("_track") or track_of(r)
+    # domain/mode/request_id (R2/R3 06/08, scripts/runtime-bench.sh): assenti
+    # da ogni manifest teacher-bench (Stage A/Track F), presenti SEMPRE nei
+    # manifest runtime-bench -- is_runtime_bench() sotto usa "domain" come
+    # unico discriminante, quindi qui basta leggerlo com'e', mai inventarlo.
+    domain = r.get("domain")
     return {
         "id": r.get("_record_id"),
         "track": track,
@@ -136,12 +141,19 @@ def build_record_view(root, r):
         "subject": r.get("subject_id"),
         "category": r.get("category"),
         "seed": r.get("seed"),
+        "domain": domain,
+        "mode": r.get("mode"),
+        "request_id": r.get("request_id"),
         "generation_ok": r.get("generation_ok"),
         "raw": rel_or_none(root, r.get("raw_image")),
-        # judge_scale del track (item 4): a 64 per Track F la card mette il
-        # 64 PRIMA del 32 -- l'ordine qui e' gia' quello di visualizzazione,
+        # judge_scale (item 4 Track F + R2/R3): a 64 la card mette il 64
+        # PRIMA del 32 -- l'ordine qui e' gia' quello di visualizzazione,
         # renderCard() lo consuma cosi' com'e' invece di rideciderlo in JS.
-        "pixel_primary_scale": 64 if track == "F" else 32,
+        # runtime-bench (domain presente) segue lo STESSO stile Track F
+        # (vedi scripts/visualspec_template.py, "stile Track F cioe' SENZA
+        # divieto outline"): niente contratto proprio da cui leggere un
+        # judge_scale, quindi il dominio da solo basta a decidere 64.
+        "pixel_primary_scale": 64 if (track == "F" or domain) else 32,
         "pixel64": rel_or_none(root, c64.get("path")),
         "pixel64_nearest": rel_or_none(root, c64.get("path_nearest")),
         "pixel32": rel_or_none(root, c32.get("path")),
@@ -172,6 +184,12 @@ def build_record_view(root, r):
             "vram_note": r.get("vram_note"),
             "negative_prompt": r.get("negative_prompt"),
             "prompt_full": r.get("prompt_full"),
+            # VisualSpec grezzo (R2/R3, solo mode "spec"): mostrare lo spec
+            # ORIGINALE accanto al prompt_full assemblato lascia vedere cosa
+            # ha scritto Gemma prima che scripts/visualspec_template.py lo
+            # trasformasse -- e' la meta' "strutturata" del confronto
+            # appaiato che questa pagina deve rendere ispezionabile.
+            "spec_json": json.dumps(r.get("spec"), ensure_ascii=False) if r.get("spec") else None,
         },
         "metrics": {
             "foreground_pct_32": c32.get("foreground_pct"),
@@ -197,6 +215,44 @@ def build_record_view(root, r):
             "components_raw": postproc.get("components_raw"),
         },
     }
+
+
+def is_runtime_bench(views):
+    """True se QUESTA collezione di record e' un giro di scripts/
+    runtime-bench.sh (harness R2/R3) e non Stage A/Track F: il discriminante
+    e' "domain", un campo che i manifest runtime-bench valorizzano SEMPRE e
+    che nessun manifest teacher-bench ha mai scritto. Richiede che TUTTI i
+    record lo abbiano (non "almeno uno"): un root misto e' un caso che non
+    dovrebbe succedere (le due pipeline scrivono radici diverse per
+    costruzione), e se succedesse comunque e' piu' sicuro ricadere sulla
+    vista Track P/F esistente (gia' testata) che su una vista nuova che non
+    sa come mostrare un record senza domain."""
+    return bool(views) and all(v.get("domain") for v in views)
+
+
+def build_runtime_groups(views):
+    """Raggruppa i record per (domain, config, request_id): item 4 R2/R3,
+    "raggruppata per DOMINIO poi config, coppie spec/free AFFIANCATE per la
+    stessa richiesta". Un gruppo porta SEMPRE due slot, "spec" e "free" (uno
+    puo' restare None se una generazione e' mancante/fallita: il confronto
+    resta visibile con un placeholder invece di sparire in silenzio).
+    Ordine: domain, poi config, poi request_id -- stabile e riproducibile
+    (mai l'ordine di iterazione di un dict), cosi' la pagina generata due
+    volte sugli stessi manifest produce sempre la stessa sequenza di card."""
+    groups = {}
+    for v in views:
+        key = (v.get("domain") or "", v.get("config") or "", v.get("request_id") or v.get("subject") or "")
+        slot = groups.setdefault(key, {"domain": key[0], "config": key[1], "request_id": key[2], "spec": None, "free": None})
+        mode = v.get("mode")
+        if mode in ("spec", "free"):
+            slot[mode] = v
+        else:
+            # mode ne' "spec" ne' "free" (manifest malformato/futuro): non lo
+            # si perde silenziosamente, finisce comunque in uno slot dedicato
+            # cosi' la card lo mostra invece di scartarlo.
+            slot.setdefault("other", []).append(v)
+    ordered_keys = sorted(groups.keys())
+    return [groups[k] for k in ordered_keys]
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -262,15 +318,24 @@ textarea.note { width: 100%; box-sizing: border-box; margin-top: .4rem; font: in
 .badge.track { background: rgba(127,127,127,.25); font-weight: 600; }
 .badge.speed { background: #2b6cb033; }
 .imgs img.px.secondary, .imgs img.scene.secondary { opacity: .55; }
+/* pair-row (R2/R3, vista runtime-bench): le due card spec/free della STESSA
+   richiesta affiancate -- "e' il confronto che il proprietario deve vedere"
+   (mandato). Sotto una certa larghezza vanno in colonna (wrap): affiancate
+   quando c'e' spazio, mai un layout che costringe a scorrere in orizzontale. */
+.pair-row { margin-bottom: 1.1rem; }
+.pair-row.hidden { display: none; }
+.pair-label { font-size: .8rem; font-weight: 600; opacity: .75; margin-bottom: .3rem; }
+.pair-cards { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+.pair-cards .card { flex: 1 1 420px; margin-bottom: 0; }
 </style>
 
 <h1>teacher-bench Stage A — review</h1>
 <div class="sub" id="subtitle"></div>
 
 <div class="toolbar">
-  <label>Track: <select id="filter-track"><option value="">tutti</option></select></label>
-  <label>Config: <select id="filter-config"><option value="">tutte</option></select></label>
-  <label>Categoria: <select id="filter-category"><option value="">tutte</option></select></label>
+  <label id="lbl-track">Track: <select id="filter-track"><option value="">tutti</option></select></label>
+  <label id="lbl-config">Config: <select id="filter-config"><option value="">tutte</option></select></label>
+  <label id="lbl-category">Categoria: <select id="filter-category"><option value="">tutte</option></select></label>
   <label title="si applica quando lo cambi o ricaricando: una card gia' aperta non sparisce a meta' valutazione"><input type="checkbox" id="filter-unvoted"> solo non ancora votate</label>
   <span id="progress"></span>
   <button class="primary" id="export-btn">Esporta voti</button>
@@ -282,6 +347,12 @@ textarea.note { width: 100%; box-sizing: border-box; margin-top: .4rem; font: in
 <script>
 const RECORDS = __RECORDS_JSON__;
 const CRITERIA = __CRITERIA_JSON__;
+// RUNTIME_GROUPS: vuoto per un root teacher-bench (Stage A/Track F, la vista
+// di sempre via init()); popolato SOLO per un root runtime-bench (R2/R3,
+// scripts/runtime-bench.sh) -- vedi is_runtime_bench()/build_runtime_groups()
+// lato Python. E' il segnale che sceglie il ramo di rendering in fondo al
+// file (initRuntime() vs init()).
+const RUNTIME_GROUPS = __RUNTIME_GROUPS_JSON__;
 const STORAGE_KEY = "teacher_bench_review_votes_v1";
 
 function loadVotes() {
@@ -363,6 +434,7 @@ function renderCard(r) {
     metaRow("vram note", r.meta.vram_note),
     metaRow("prompt", r.meta.prompt_full),
     metaRow("negative", r.meta.negative_prompt),
+    metaRow("spec (VisualSpec grezzo)", r.meta.spec_json),
     metaRow("foreground % (32)", r.metrics.foreground_pct_32 != null ? (r.metrics.foreground_pct_32 * 100).toFixed(1) + "%" : ""),
     metaRow("n colori (32)", r.metrics.n_colors_32),
     metaRow("fuori palette dopo (32)", r.metrics.colors_out_of_palette_after_32),
@@ -385,13 +457,17 @@ function renderCard(r) {
     <label><input type="checkbox" data-idx="${i}" ${v.criteria[i] ? "checked" : ""}> ${html_(c)}</label>
   `).join("");
 
+  // data-domain/data-mode (R2/R3): sempre presenti sull'attributo (stringa
+  // vuota per un record teacher-bench che non li ha), applyRuntimeFilters()
+  // sotto li legge -- applyFilters() legacy non li tocca mai, additivo puro.
+  const modeBadge = r.mode ? `<span class="badge speed">mode: ${html_(r.mode)}</span>` : "";
   return `
-  <div class="card" data-track="${html_(r.track||"")}" data-config="${html_(r.config||"")}" data-category="${html_(r.category||"")}" data-id="${r.id}">
+  <div class="card" data-track="${html_(r.track||"")}" data-config="${html_(r.config||"")}" data-category="${html_(r.category||"")}" data-domain="${html_(r.domain||"")}" data-mode="${html_(r.mode||"")}" data-id="${r.id}">
     <div class="imgs">${imgs}</div>
     <div>
       <div class="title">${html_(r.config)} / ${html_(r.subject)} / seed ${html_(r.seed)}
         <span class="badge track">${html_(r.track||"")}</span>
-        <span class="badge">${html_(r.category||"")}</span>${speedBadge}${statusBadge}</div>
+        <span class="badge">${html_(r.category||"")}</span>${modeBadge}${speedBadge}${statusBadge}</div>
       <div class="meta"><table>${metaRows}</table></div>
       <div class="criteria">${criteriaHtml}</div>
       <textarea class="note" rows="2" placeholder="note libere...">${html_(v.note||"")}</textarea>
@@ -471,8 +547,18 @@ function init() {
     gridHtml += renderCard(r);
   });
   grid.innerHTML = gridHtml;
+  wireCommon(grid, applyFilters, [trkSel, cSel, catSel]);
+}
 
-  // NIENTE applyFilters() qui: col filtro "solo non ancora votate" attivo la
+// wireCommon: voto (input su checkbox/note), progresso, esporta/azzera --
+// IDENTICO per la vista legacy (init(), Track P/F) e per quella runtime-bench
+// (initRuntime()): opera solo su RECORDS/VOTES/CRITERIA (mai sul layout della
+// griglia), quindi non ha bisogno di sapere quale delle due l'ha chiamato.
+// 'applyFn' e 'selects' parametrizzano SOLO quali controlli di filtro
+// riascoltare "change": la logica di filtro vera e propria resta fuori di
+// qui (applyFilters() o applyRuntimeFilters(), diverse fra le due viste).
+function wireCommon(grid, applyFn, selects) {
+  // NIENTE applyFn() qui: col filtro "solo non ancora votate" attivo la
   // card sparirebbe alla prima spunta, cioe' mentre la si sta ancora
   // valutando (nota non scritta, criteri a meta'). I filtri si applicano solo
   // quando li si cambia o ricaricando la pagina; il bordo verde dice subito
@@ -491,10 +577,8 @@ function init() {
     updateProgress();
   });
 
-  trkSel.addEventListener("change", applyFilters);
-  cSel.addEventListener("change", applyFilters);
-  catSel.addEventListener("change", applyFilters);
-  document.getElementById("filter-unvoted").addEventListener("change", applyFilters);
+  selects.forEach(sel => sel && sel.addEventListener("change", applyFn));
+  document.getElementById("filter-unvoted").addEventListener("change", applyFn);
 
   document.getElementById("export-btn").addEventListener("click", () => {
     const byId = Object.fromEntries(RECORDS.map(r => [r.id, r]));
@@ -537,7 +621,86 @@ function init() {
   document.querySelectorAll(".card").forEach(card => card.classList.toggle("voted", isVoted(card.dataset.id)));
   updateProgress();
 }
-init();
+
+// ============================================================================
+// Vista runtime-bench (R2/R3 06/08, item 4): raggruppa per DOMINIO poi
+// CONFIG, coppie spec/free affiancate per la stessa richiesta -- "e' il
+// confronto che il proprietario deve vedere" (mandato). Riusa renderCard()
+// (un record runtime-bench e' la STESSA forma di view di un record
+// teacher-bench, solo con domain/mode/request_id valorizzati) e wireCommon()
+// (voto/progresso/esporta sono identici): l'unica cosa che cambia davvero e'
+// COME si raggruppano le card in griglia e COME si filtrano.
+// ============================================================================
+function missingPairCard(domain, config, requestId, mode) {
+  return `<div class="card" data-track="" data-config="${html_(config)}" data-category="${html_(domain)}" data-domain="${html_(domain)}" data-mode="${html_(mode)}" data-id="">
+    <div class="imgs"><div class="missing">${html_(mode)}<br>nessuna immagine</div></div>
+    <div><div class="title">${html_(config)} / ${html_(requestId)}
+      <span class="badge fail">mode "${html_(mode)}" assente per questa richiesta</span></div></div>
+  </div>`;
+}
+
+function applyRuntimeFilters() {
+  const dom = document.getElementById("filter-track").value;   // riusato come filtro DOMINIO, vedi initRuntime()
+  const cfg = document.getElementById("filter-config").value;
+  const onlyUnvoted = document.getElementById("filter-unvoted").checked;
+  document.querySelectorAll(".pair-row").forEach(pairRow => {
+    let anyVisible = false;
+    pairRow.querySelectorAll(".card").forEach(card => {
+      const id = card.dataset.id;
+      let show = true;
+      if (dom && card.dataset.domain !== dom) show = false;
+      if (cfg && card.dataset.config !== cfg) show = false;
+      if (onlyUnvoted && id && isVoted(id)) show = false;
+      card.classList.toggle("hidden", !show);
+      if (show) anyVisible = true;
+    });
+    pairRow.classList.toggle("hidden", !anyVisible);
+  });
+  document.querySelectorAll(".track-header").forEach(h => {
+    let visible = false;
+    for (let el = h.nextElementSibling; el && !el.classList.contains("track-header"); el = el.nextElementSibling) {
+      if (el.classList.contains("pair-row") && !el.classList.contains("hidden")) { visible = true; break; }
+    }
+    h.classList.toggle("hidden", !visible);
+  });
+}
+
+function initRuntime() {
+  const nPairs = RUNTIME_GROUPS.length;
+  document.getElementById("subtitle").textContent =
+    `${nPairs} richieste (dominio x config), ${RECORDS.length} immagini spec/free -- generato staticamente, ricarica la pagina dopo un nuovo giro di runtime-bench.sh/teacher_bench_post.py`;
+
+  // Riuso i tre <select> gia' nel DOM invece di introdurne di nuovi: "Track"
+  // diventa "Dominio" (il vero raggruppamento primario qui), "Config" resta
+  // se stesso, "Categoria" e' ridondante con dominio e viene nascosto --
+  // meno HTML duplicato, un solo layout di toolbar per le due viste.
+  document.getElementById("lbl-track").firstChild.textContent = "Dominio: ";
+  document.getElementById("lbl-category").style.display = "none";
+
+  const domains = [...new Set(RUNTIME_GROUPS.map(g => g.domain).filter(Boolean))].sort();
+  const configs = [...new Set(RUNTIME_GROUPS.map(g => g.config).filter(Boolean))].sort();
+  const trkSel = document.getElementById("filter-track");
+  const cSel = document.getElementById("filter-config");
+  domains.forEach(d => trkSel.insertAdjacentHTML("beforeend", `<option value="${html_(d)}">${html_(d)}</option>`));
+  configs.forEach(c => cSel.insertAdjacentHTML("beforeend", `<option value="${html_(c)}">${html_(c)}</option>`));
+
+  const grid = document.getElementById("grid");
+  let gridHtml = "";
+  let lastDomain = null;
+  RUNTIME_GROUPS.forEach(g => {
+    if (g.domain !== lastDomain) {
+      gridHtml += `<div class="track-header">Dominio: ${html_(g.domain)}</div>`;
+      lastDomain = g.domain;
+    }
+    const specCard = g.spec ? renderCard(g.spec) : missingPairCard(g.domain, g.config, g.request_id, "spec");
+    const freeCard = g.free ? renderCard(g.free) : missingPairCard(g.domain, g.config, g.request_id, "free");
+    gridHtml += `<div class="pair-row"><div class="pair-label">${html_(g.config)} / ${html_(g.request_id)}</div><div class="pair-cards">${specCard}${freeCard}</div></div>`;
+  });
+  grid.innerHTML = gridHtml;
+  wireCommon(grid, applyRuntimeFilters, [trkSel, cSel]);
+}
+
+if (RUNTIME_GROUPS.length) { initRuntime(); } else { init(); }
 </script>
 """
 
@@ -554,6 +717,11 @@ def main():
         print(f"teacher_bench_review: nessun manifest trovato sotto {root}/manifests -- pagina vuota comunque scritta", file=sys.stderr)
 
     views = [build_record_view(root, r) for r in records]
+    # RUNTIME_GROUPS (item 4 R2/R3): [] per un root teacher-bench -- il JS
+    # sceglie init() legacy quando l'array e' vuoto, vedi fondo di
+    # PAGE_TEMPLATE. is_runtime_bench() e' l'UNICO punto che decide quale
+    # vista rendere: se un giorno cambia il discriminante, cambia solo li'.
+    runtime_groups = build_runtime_groups(views) if is_runtime_bench(views) else []
 
     # "</" -> "<\/" : i metadati finiscono dentro un <script>, e un prompt che
     # per caso contenesse "</script>" chiuderebbe il blocco a meta' pagina.
@@ -564,6 +732,7 @@ def main():
 
     page = PAGE_TEMPLATE.replace("__RECORDS_JSON__", embed(views))
     page = page.replace("__CRITERIA_JSON__", embed(HUMAN_CRITERIA))
+    page = page.replace("__RUNTIME_GROUPS_JSON__", embed(runtime_groups))
 
     out_path = root / args.out
     out_path.parent.mkdir(parents=True, exist_ok=True)
