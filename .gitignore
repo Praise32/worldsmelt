@@ -49,9 +49,20 @@ node_modules/
 # provenienza vive in docs/ai-production/dataset/ledger.jsonl (vedi docs/ai-production/dataset/README.md).
 dataset-raw/
 
+# Output del benchmark teacher immagine (scripts/teacher-bench.sh, agosto
+# 2026): centinaia di PNG raw/derivati per config, mai nel repo. Report e
+# contact sheet scelti a mano entreranno nel repo altrove (docs/ai-production/
+# experiments/) in un secondo momento, copiati fuori da qui apposta -- questa
+# cartella resta sempre rigenerabile dall'harness, mai sorgente.
+artifacts/
+
 # Dataset derivato per il QLoRA (scripts/corpus_to_dataset.py): rigenerabile
 # in ogni momento dal corpus in logs/gen-corpus/, non e' sorgente.
-dataset/
+# Ancorato alla radice (/dataset/, non dataset/): senza la barra iniziale il
+# pattern colpisce QUALSIASI cartella di nome "dataset" a ogni livello, e
+# quindi anche docs/ai-production/dataset/, che invece e' documentazione
+# versionata (ledger.jsonl, README, prompt congelati del benchmark teacher).
+/dataset/
 
 # Segreti e configurazioni locali
 .env

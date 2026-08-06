@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "stage": "A",
+  "generation_mode": "text-only",
+  "notes": {
+    "stage_a_is_text_only": "Stage A e' SOLO text-to-image. La matrice di benchmark (03-MATRICE-BENCHMARK.md del dossier ricerca agosto 2026) chiede per ogni prompt anche una 'versione con silhouette originale': quella variante NON esiste in Stage A, ne' come campo di questo contratto ne' come percorso img2img/ControlNet in scripts/teacher-bench.sh. E' DIFFERITA alle due configurazioni promosse dopo Stage A (stesso passaggio in cui la matrice aggiunge 20/30 step e un prompt fuori distribuzione). Chi legge questo file non deve dedurre che la variante silhouette sia stata dimenticata: e' rimandata di proposito, perche' scegliere la base teacher prima di introdurre il condizionamento strutturale isola una variabile alla volta.",
+    "silhouette_reference_field": "Ogni soggetto ha 'silhouette_reference': resta null finche' Stage A non promuove due config. Quando la variante guidata entrera' in gioco, quel campo conterra' il path della maschera 32x32 originale (upscalata nearest a 512, vedi la pipeline di 01-VINCOLI-WORLDSMELT.md) e l'harness dovra' guadagnare un percorso img2img/ControlNet: oggi ignorerebbe il campo.",
+    "negative_repeated_by_design": "Il blocco anti-outline e anti-dithering e' ripetuto per esteso dentro ogni 'negative' invece di vivere in un campo comune: scripts/teacher-bench.sh legge un solo negative per soggetto e non fa join, e un contratto che richiede un passo di composizione per essere letto e' un contratto che prima o poi viene letto male.",
+    "dec_205_no_outline": "DEC-205 (docs/design/content/visual-language.md, 'masse senza outline') e' presidiata nei negative di TUTTE le categorie: nessun outline nero perimetrale, da nessuna parte, e nessun dithering/noise fill. Non e' un criterio lasciato al solo occhio umano -- se una config produce comunque outline marcato nonostante il negative (osservato su A2/basepixel), quello e' un dato sul modello, non una lacuna del prompt, e va scritto nel report.",
+    "canon_refs": [
+      "docs/design/content/visual-language.md (DEC-173 palette Fucina, DEC-177/DEC-208 scala 32px, DEC-205 masse senza outline, DEC-206 senza volto, DEC-207 senza armi in mano)",
+      "01-VINCOLI-WORLDSMELT.md del dossier ricerca (soggetto isolato, posa unica, fondo piatto rimovibile, sopravvivenza al downscale 32x32)"
+    ]
+  },
+  "seeds": [4242, 90210],
+  "subjects": [
+    {
+      "id": "char_smelter_mage",
+      "category": "character",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, hooded smelter mage character, faceless empty hood, no weapon, empty hands, bronze and ember robe, ash trim, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, face, eyes, mouth, facial features, weapon, sword, staff, holding object, hands visible, multiple characters, multiple views, text, watermark, signature, blurry, photo, 3d render"
+    },
+    {
+      "id": "char_ash_ranger",
+      "category": "character",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, hooded ash ranger character, faceless empty hood, no weapon, empty hands, ash gray cloak, bronze buckles, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, face, eyes, mouth, facial features, weapon, sword, staff, holding object, hands visible, multiple characters, multiple views, text, watermark, signature, blurry, photo, 3d render"
+    },
+    {
+      "id": "enemy_ember_blob",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, molten ember blob enemy, round amorphous body, glowing orange ember core, cracked ash crust surface, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "enemy_ash_beetle",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, armored ash beetle enemy, wide segmented carapace, bronze legs, ember eye glow, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "enemy_walking_crucible",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, walking crucible enemy, bronze cauldron body, stubby legs, molten ember glow at rim, ash soot streaks, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "weapon_forge_hammer",
+      "category": "weapon",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, forge hammer weapon icon, heavy bronze head, ash wood handle, ember accent, facing right, isolated weapon, no hands, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, hand, hands, arm, character, person holding, face, text, watermark, signature, multiple weapons, multiple views, blurry, photo, 3d render"
+    },
+    {
+      "id": "item_fusion_catalyst",
+      "category": "item",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, fusion catalyst item icon, small bronze crystal, glowing ember center, patina metal frame, isolated pickup, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, hand, hands, character, face, weapon, text, watermark, signature, multiple items, multiple views, blurry, photo, 3d render, label, price tag"
+    },
+    {
+      "id": "boss_furnace_core",
+      "category": "boss",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, modular furnace core boss, large bronze central shell, ember glowing vents, slate armor plates, symmetrical body, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture, face, human face, weapon in hand, text, watermark, signature, multiple entities, multiple views, blurry, photo, 3d render, background scenery"
+    }
+  ],
+  "config_prompt_prefix": {
+    "A2": "basepixel, "
+  }
+}
