@@ -3,6 +3,41 @@
 Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 `docs/archive/handoffs/` (integrale precedente: `docs/archive/handoffs/HANDOFF-2026-07-19.md`).
 
+## Stato al 2026-08-06 — Combat Lab: il combattimento con attacchi generati LIVE da Gemma
+
+- **Mandato del proprietario (05/08)**: dalla prova `procedural-combat-demo` (fatta sul
+  PC Windows senza GPU, Gemma simulata da 5 script a mano) creare un ambiente di debug
+  giocabile dove le animazioni/attacchi li genera Gemma per davvero; da qui nascerà la
+  base del gameplay. Q&A registrate in spec: generazione live in demo, nemici + armi
+  player, seed + brief opzionale, resa smooth, vincoli asset del gioco NON applicati.
+- **Consegnato su main** (`83fc862..32b4b72`, spec `docs/engineering/specs/2026-08-05-combat-lab-design.md`):
+  - `make run-combat-lab` — arena continua: WASD + mira mouse, pistola base (fallback
+    sempre vivo), nemico con HP e respawn col pattern successivo, due sandbox VERE
+    insieme (nemico + arma player con `fire_held()`/`special_pressed()`, API demo v2),
+    pool curato `scripts/curated/` + `generated/combat-lab/{enemy,weapon}/` con
+    hot-reload ~1 s, N/M cicla, R reset, smooth default, `--capture` = smoke
+    deterministico (due catture bit-identiche).
+  - `melting-gen --attacks <enemy|weapon>` — Gemma-3-4B genera `on_tick` sull'alfabeto
+    della demo, validati nella sandbox vera con l'API VERA (`demo_script_api.c` compilata
+    in melting-gen, ADR-002 intatta: guard nm verde), 120 tick di dry-run, ritenti con
+    errore azionabile (riga colpevole + firma + replay del tick fallito),
+    `--attack-check` senza modello (corpus dei 5 curati in `make test-gen`).
+  - **G/H in gioco**: fork+execv di melting-gen (~90 s/lotto di 3), stato in HUD, log in
+    `logs/combat-lab-gen.log`, B = brief on/off da `generated/combat-lab/brief.txt`.
+- **Lezione chiave (giro reale 05-06/08)**: i few-shot completi nel prompt = Gemma li
+  ricopia byte per byte (8/8). Cura: scheletri commentati + forma d'attacco che ruota col
+  seed + gate anti-copia normalizzato in C. Dopo: 6/6 script freschi, zero copie.
+- **Processo**: scala CLAUDE.md rispettata (WP2/WP3 sonnet→boccia opus→fix opus→approva
+  Fable; WP4 sonnet approvato da opus al primo giro; residui chiusi da Fable).
+- **Limiti dichiarati** (in spec §5 e README demo): niente validatori di dominio ancora
+  (corridoio sicuro, telegraph minimo, budget danno, "un'arma deve leggere fire_held()")
+  — Gemma a volte lascia i commenti dello scheletro nel file e 1 arma su 3 ignora
+  l'input: arrivano quando il combattimento soddisfa il proprietario al playtest.
+  Integrazione nel runtime del gioco (`on_enemy_update`) fuori scope, invariata.
+- **Ricerche del proprietario ancora da lavorare**: gli altri due zip in Scaricati/
+  (`worldsmelt_image_model_research_august_2026`, `worldsmelt_retro_diffusion_strategy`)
+  sono task a parte dichiarate: benchmark per scegliere il modello base delle LoRA.
+
 ## Stato al 2026-07-31 — W10/W11: gap-closure completa dai docs, demo pronta al playtest
 
 - **Branch**: `main`, tutto committato e pushato (19 commit della sessione 30-31/07,
