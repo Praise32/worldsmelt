@@ -17,22 +17,48 @@
 #define DEMO_PIXEL_HEIGHT 360
 #define DEMO_CAPTURE_FPS 15
 #define DEMO_CAPTURE_FRAMES 450
-#define DEMO_SCENE_COUNT 6
-#define DEMO_SCENE_SECONDS 5.0f
 #define DEMO_FIXED_DT (1.0f/60.0f)
+/* Nella cattura headless non c'e' un tasto N: il pattern nemico avanza da
+ * solo, cosi' lo smoke test attraversa comunque piu' di uno script. */
+#define DEMO_CAPTURE_ENEMY_CYCLE_SECONDS 5.0f
 
 #define DEMO_MAX_PROJECTILES 640
 #define DEMO_MAX_ARCS 96
 #define DEMO_MAX_BEAMS 48
 #define DEMO_MAX_CAPTURE_FIELDS 16
 #define DEMO_MAX_PARTICLES 768
-#define DEMO_MAX_DUMMIES 6
 #define DEMO_TRAIL_POINTS 10
 
 #define DEMO_PI 3.14159265358979323846f
 #define DEMO_TAU (2.0f*DEMO_PI)
 
+/* Pool nemico/arma: array fissi, niente allocazione dinamica. Un nome file
+ * oltre DEMO_POOL_NAME_MAX-1 caratteri o una voce oltre DEMO_POOL_MAX_ENTRIES
+ * vengono semplicemente ignorati dal polling. */
+#define DEMO_POOL_MAX_ENTRIES 64
+#define DEMO_POOL_NAME_MAX 64
+#define DEMO_POOL_POLL_SECONDS 1.0f
+#define DEMO_ENEMY_GENERATED_DIR  "generated/combat-lab/enemy"
+#define DEMO_WEAPON_GENERATED_DIR "generated/combat-lab/weapon"
+
+#define DEMO_PLAYER_MAX_HP 6.0f
+#define DEMO_PLAYER_KO_SECONDS 1.5f
+#define DEMO_ENEMY_MAX_HP 60.0f
+#define DEMO_ENEMY_RESPAWN_SECONDS 1.2f
+#define DEMO_ENEMY_CORPSE_FADE_SECONDS 0.6f
+#define DEMO_BASE_WEAPON_COOLDOWN 0.22f
+/* HUD: quanto resta visibile il messaggio provvisorio di G/H/B prima di
+ * tornare al placeholder "GEN: --" che WP4 riempira' con lo stato vero. */
+#define DEMO_INFO_MESSAGE_SECONDS 2.4f
+
 static const Rectangle DEMO_ROOM = { 58.0f, 88.0f, 1164.0f, 566.0f };
+
+/* Pannelli del confronto A/B (Tab): in split il mondo non copre piu' l'intero
+ * frame ma viene disegnato due volte qui dentro. Sono costanti condivise fra
+ * il disegno (DemoComposeFrame) e l'inversa della mira (DemoWindowToLogic):
+ * se divergessero il puntatore smetterebbe di corrispondere all'arena. */
+static const Rectangle DEMO_SPLIT_LEFT = { 14.0f, 46.0f, 616.0f, 600.0f };
+static const Rectangle DEMO_SPLIT_RIGHT = { 650.0f, 46.0f, 616.0f, 600.0f };
 
 typedef enum DemoRenderMode {
     DEMO_RENDER_PIXEL = 0,
@@ -58,6 +84,31 @@ typedef struct DemoScriptRuntime {
     char error[256];
     char fileName[64];
 } DemoScriptRuntime;
+
+/* Una voce del pool e' o uno script curato (tools/procedural-combat-demo/
+ * scripts/curated/, caricato relativo alla cartella dell'eseguibile come gli
+ * asset, perche' il Makefile lo copia li' accanto al binario) o uno script
+ * generato (generated/combat-lab/{enemy,weapon}/, relativo alla CWD: e'
+ * contenuto scritto a runtime dal generatore esterno e la demo si lancia
+ * dalla radice del repo con `make run-combat-lab`, MAI copiato accanto al
+ * binario). Lo slot 0 dell'arma non ha una voce qui: e' la pistola base
+ * cablata in C, mai un file su disco (vedi DemoBaseWeaponActive). */
+typedef enum DemoPoolSource {
+    DEMO_POOL_SOURCE_CURATED = 0,
+    DEMO_POOL_SOURCE_GENERATED
+} DemoPoolSource;
+
+typedef struct DemoPoolEntry {
+    char fileName[DEMO_POOL_NAME_MAX];
+    DemoPoolSource source;
+} DemoPoolEntry;
+
+typedef struct DemoPool {
+    DemoPoolEntry entries[DEMO_POOL_MAX_ENTRIES];
+    int count;
+    int current;
+    float pollTimer;
+} DemoPool;
 
 typedef struct DemoProjectile {
     bool active;
@@ -86,6 +137,11 @@ typedef struct DemoArcEffect {
     bool hostile;
     bool telegraph;
     bool melee;
+    /* Come nei beam: il settore resta sensibile per tutta la vita dell'arco,
+     * ma il danno al player si applica al massimo UNA volta. Il flag va alzato
+     * solo quando il danno e' entrato davvero (i-frame compresi), altrimenti
+     * l'arco diventa un hitscan del primo tick e la schivata non si legge. */
+    bool damageApplied;
     Vector2 position;
     float angle;
     float radius;
@@ -114,6 +170,10 @@ typedef struct DemoBeamEffect {
 
 typedef struct DemoCaptureField {
     bool active;
+    /* true se il campo viene dalla sandbox arma (self coincide col player):
+     * in quel caso segue il player tick per tick, come nella prova originale.
+     * Un campo nemico invece resta fermo dove e' stato creato. */
+    bool playerOwned;
     Vector2 position;
     float radius;
     float strength;
@@ -133,46 +193,65 @@ typedef struct DemoParticle {
     float totalLife;
 } DemoParticle;
 
-typedef struct DemoDummy {
-    bool active;
+typedef struct DemoEnemy {
+    bool alive;
     Vector2 position;
-    int textureKind;
+    Vector2 velocity;
     float hp;
-    float maxHp;
     float hitFlash;
-} DemoDummy;
+    float corpseFade;    /* >0 mentre il cadavere sfuma dopo la morte */
+    float respawnTimer;  /* >0 mentre si aspetta il respawn */
+    int spriteKind;       /* 0..3: spider/spook/gelatine/stareyes, ciclato ad ogni respawn */
+} DemoEnemy;
+
+typedef struct DemoPlayer {
+    Vector2 position;
+    float hp;
+    float invulnerability;
+    float statusTime;
+    float statusStrength;
+    bool dead;
+    float koTimer;
+    float aimAngle;
+    float weaponCooldown; /* solo la pistola base: le armi generate gestiscono il proprio ritmo in Lua */
+} DemoPlayer;
+
+/* Input del frame, campionato UNA sola volta per frame nel main loop e poi
+ * consumato dai passi a dt fisso. Leggere raylib dentro il loop a passo fisso
+ * sarebbe sbagliato: i fronti (IsKeyPressed/IsMouseButtonPressed) li ricalcola
+ * PollInputEvents una volta per frame, quindi un frame con piu' passi
+ * ripeterebbe la stessa pressione su ogni tick e un frame senza passi la
+ * perderebbe. specialPressed resta pendente finche' un tick non lo consuma,
+ * cosi' rispetta il contratto di special_pressed() ("vero solo nel tick della
+ * pressione") senza perdere click. */
+typedef struct DemoFrameInput {
+    bool interactive;    /* false sotto --capture: autopilota, nessun mouse/tastiera */
+    Vector2 aim;         /* mouse gia' riportato nello spazio logico 1280x720 */
+    Vector2 move;        /* asse WASD/frecce, -1..1 per componente */
+    bool fireHeld;
+    bool specialPressed;
+} DemoFrameInput;
 
 typedef struct DemoWorld {
-    DemoScriptRuntime script;
+    DemoScriptRuntime enemyScript;
+    DemoScriptRuntime weaponScript;
+
+    DemoEnemy enemy;
+    DemoPlayer player;
+
     DemoProjectile projectiles[DEMO_MAX_PROJECTILES];
     DemoArcEffect arcs[DEMO_MAX_ARCS];
     DemoBeamEffect beams[DEMO_MAX_BEAMS];
     DemoCaptureField captureFields[DEMO_MAX_CAPTURE_FIELDS];
     DemoParticle particles[DEMO_MAX_PARTICLES];
-    DemoDummy dummies[DEMO_MAX_DUMMIES];
 
-    int scene;
-    float sceneTime;
     float globalTime;
-    float ambientTimer;
-    float frostTimer;
-    float playerHp;
-    float playerInvulnerability;
-    float playerStatusTime;
-    float playerStatusStrength;
-    float actorHitFlash;
     int storedEchoes;
     int capturedTotal;
     int hitsDealt;
-    int lastCommandCount;
-
-    Vector2 playerPosition;
-    Vector2 actorPosition;
-    Vector2 actorVelocity;
-    Vector2 actorTrail[24];
-    int actorTrailCount;
-    float actorTrailTimer;
-    float aimAngle;
+    int lastEnemyCommandCount;
+    int lastWeaponCommandCount;
+    float infoMessageTimer;
     uint32_t cosmeticRng;
 } DemoWorld;
 
@@ -258,32 +337,6 @@ static Color DemoVisualColor(int visualId)
     }
 }
 
-static const char *DemoSceneTitle(int scene)
-{
-    static const char *const titles[DEMO_SCENE_COUNT] = {
-        "RAGNO FALCIATORE: PROIETTILI A MEZZALUNA",
-        "ALABARDA + NUCLEO GRAVITAZIONALE",
-        "FUCILE-SEPPIA: RICARICA CHE ASSORBE COLPI",
-        "LUMACA CALLIGRAFA: TRAIL -> LASER -> SCHEGGE",
-        "FALENA DI VETRO: ORBITE E ROSA DI PROIETTILI",
-        "STESSA SIMULAZIONE: PIXEL PURO vs IBRIDO SHADER"
-    };
-    return titles[(scene >= 0 && scene < DEMO_SCENE_COUNT) ? scene : 0];
-}
-
-static const char *DemoSceneAlphabet(int scene)
-{
-    static const char *const text[DEMO_SCENE_COUNT] = {
-        "Lua: aim_at_player -> telegraph_arc -> emit_arc",
-        "Lua: aim_snapshot -> melee_sweep -> capture_radius -> release_echoes",
-        "Lua: capture_radius -> emit_orbit -> telegraph_beam -> release_echoes",
-        "Lua: set_velocity -> telegraph_beam -> emit_beam -> emit_orbit",
-        "Lua: telegraph_beam x2 -> emit_ring -> emit_orbit -> add_status",
-        "Una simulazione e una hitbox; cambiano soltanto raster e FX"
-    };
-    return text[(scene >= 0 && scene < DEMO_SCENE_COUNT) ? scene : 0];
-}
-
 static void DemoBuildPath(char *destination, size_t size, const char *relative)
 {
     const char *base = GetApplicationDirectory();
@@ -332,23 +385,128 @@ static void DemoUnloadAssets(DemoAssets *assets)
     memset(assets, 0, sizeof *assets);
 }
 
+static Texture2D DemoEnemyTexture(const DemoAssets *assets, int kind)
+{
+    switch (kind & 3)
+    {
+        case 0: return assets->spider;
+        case 1: return assets->spook;
+        case 2: return assets->gelatine;
+        default: return assets->stareyes;
+    }
+}
+
+/* ------------------------------------------------------------------------
+ * Pool nemico/arma: inizializzazione curata, scansione di generated/, e
+ * risoluzione del percorso di caricamento di una voce.
+ * ---------------------------------------------------------------------- */
+
+static void DemoPoolInitCurated(DemoPool *pool, const char *const *names, int count)
+{
+    memset(pool, 0, sizeof *pool);
+    for (int i = 0; i < count && pool->count < DEMO_POOL_MAX_ENTRIES; i++)
+    {
+        snprintf(pool->entries[pool->count].fileName, DEMO_POOL_NAME_MAX, "%s", names[i]);
+        pool->entries[pool->count].source = DEMO_POOL_SOURCE_CURATED;
+        pool->count++;
+    }
+}
+
+static bool DemoPoolContains(const DemoPool *pool, const char *fileName)
+{
+    for (int i = 0; i < pool->count; i++)
+        if (strcmp(pool->entries[i].fileName, fileName) == 0) return true;
+    return false;
+}
+
+static int DemoPoolNameCompare(const void *a, const void *b)
+{
+    return strcmp((const char *)a, (const char *)b);
+}
+
+/* Scansiona una cartella generated/combat-lab/{enemy,weapon} (CWD, non
+ * application directory) e appende in coda, in ordine alfabetico di nome, i
+ * soli file .lua mai visti prima: e' il polling ~1 s della spec (sezione 2,
+ * protocollo file). Il pool e' un array fisso: oltre DEMO_POOL_MAX_ENTRIES gli
+ * altri file restano ignorati fino al prossimo riavvio. */
+static void DemoPoolScanGenerated(DemoPool *pool, const char *directory)
+{
+    if (pool->count >= DEMO_POOL_MAX_ENTRIES) return;
+    if (!DirectoryExists(directory)) return;
+
+    FilePathList list = LoadDirectoryFiles(directory);
+    char candidates[DEMO_POOL_MAX_ENTRIES][DEMO_POOL_NAME_MAX];
+    int candidateCount = 0;
+    for (unsigned int i = 0; i < list.count && candidateCount < DEMO_POOL_MAX_ENTRIES; i++)
+    {
+        const char *name = GetFileName(list.paths[i]);
+        if (!IsFileExtension(name, ".lua")) continue;
+        if (strlen(name) >= DEMO_POOL_NAME_MAX) continue;
+        if (DemoPoolContains(pool, name)) continue;
+        snprintf(candidates[candidateCount], DEMO_POOL_NAME_MAX, "%s", name);
+        candidateCount++;
+    }
+    UnloadDirectoryFiles(list);
+
+    qsort(candidates, (size_t)candidateCount, DEMO_POOL_NAME_MAX, DemoPoolNameCompare);
+    for (int i = 0; i < candidateCount && pool->count < DEMO_POOL_MAX_ENTRIES; i++)
+    {
+        /* memcpy, non snprintf("%s",...): dopo il qsort gcc perde la
+         * dimensione statica della riga (passata come void* a qsort) e
+         * -Wformat-truncation assume una sorgente illimitata. candidates[i]
+         * e' gia' una riga da DEMO_POOL_NAME_MAX byte terminata a dovere
+         * dallo snprintf qui sopra, quindi una copia a blocco fisso e'
+         * sia corretta sia silenziosa per l'analisi statica. */
+        memcpy(pool->entries[pool->count].fileName, candidates[i], DEMO_POOL_NAME_MAX);
+        pool->entries[pool->count].source = DEMO_POOL_SOURCE_GENERATED;
+        pool->count++;
+    }
+}
+
+static void DemoPoolPollTick(DemoPool *pool, const char *directory, float dt)
+{
+    pool->pollTimer += dt;
+    if (pool->pollTimer < DEMO_POOL_POLL_SECONDS) return;
+    pool->pollTimer = 0.0f;
+    DemoPoolScanGenerated(pool, directory);
+}
+
+/* generated/combat-lab/{enemy,weapon}: create all'avvio se mancano.
+ * MakeDirectory di raylib crea l'intera catena di cartelle richieste, quindi
+ * basta una chiamata a testa anche se "generated/combat-lab" non esiste
+ * ancora. */
+static void DemoEnsureGeneratedDirs(void)
+{
+    if (!DirectoryExists(DEMO_ENEMY_GENERATED_DIR)) MakeDirectory(DEMO_ENEMY_GENERATED_DIR);
+    if (!DirectoryExists(DEMO_WEAPON_GENERATED_DIR)) MakeDirectory(DEMO_WEAPON_GENERATED_DIR);
+}
+
+static char *DemoPoolLoadSource(const DemoPoolEntry *entry, const char *generatedDirectory)
+{
+    char path[1024];
+    if (entry->source == DEMO_POOL_SOURCE_CURATED)
+        DemoBuildPath(path, sizeof path, TextFormat("scripts/curated/%s", entry->fileName));
+    else
+        snprintf(path, sizeof path, "%s/%s", generatedDirectory, entry->fileName);
+    return LoadFileText(path);
+}
+
 static void DemoScriptUnload(DemoScriptRuntime *runtime)
 {
     if (runtime->sandbox != NULL) ScriptSandboxDestroy(runtime->sandbox);
     memset(runtime, 0, sizeof *runtime);
 }
 
-static bool DemoScriptLoad(DemoScriptRuntime *runtime, const char *fileName,
-                           bool playerOwned, unsigned int seed)
+static bool DemoScriptLoad(DemoScriptRuntime *runtime, const DemoPoolEntry *entry,
+                           const char *generatedDirectory, bool playerOwned, unsigned int seed)
 {
-    char path[1024];
     char *source = NULL;
     uint64_t selfHandle = playerOwned ? 100u : 200u;
     uint64_t playerHandle = 1u;
 
     DemoScriptUnload(runtime);
     runtime->playerOwned = playerOwned;
-    snprintf(runtime->fileName, sizeof runtime->fileName, "%s", fileName);
+    snprintf(runtime->fileName, sizeof runtime->fileName, "%s", entry->fileName);
     DemoScriptApiInit(&runtime->api, selfHandle, playerHandle,
                       DEMO_ROOM.x, DEMO_ROOM.y,
                       DEMO_ROOM.x + DEMO_ROOM.width,
@@ -366,14 +524,13 @@ static bool DemoScriptLoad(DemoScriptRuntime *runtime, const char *fileName,
         return false;
     }
 
-    DemoBuildPath(path, sizeof path, TextFormat("scripts/%s", fileName));
-    source = LoadFileText(path);
+    source = DemoPoolLoadSource(entry, generatedDirectory);
     if (source == NULL)
     {
-        snprintf(runtime->error, sizeof runtime->error, "script assente: %s", fileName);
+        snprintf(runtime->error, sizeof runtime->error, "script assente: %s", entry->fileName);
         return false;
     }
-    runtime->ready = ScriptSandboxLoad(runtime->sandbox, fileName, source,
+    runtime->ready = ScriptSandboxLoad(runtime->sandbox, entry->fileName, source,
                                        runtime->error, sizeof runtime->error);
     UnloadFileText(source);
     if (runtime->ready && !ScriptSandboxHasFunction(runtime->sandbox, "on_tick"))
@@ -382,6 +539,40 @@ static bool DemoScriptLoad(DemoScriptRuntime *runtime, const char *fileName,
         runtime->ready = false;
     }
     return runtime->ready;
+}
+
+/* Ricarica SOLO la sandbox nemico col pattern a enemyPool->current (tasto N e
+ * avanzamento automatico dopo la morte): posizione/HP del nemico non
+ * cambiano, cambia solo il "cervello". */
+static void DemoEnemyBeginPattern(DemoWorld *world, const DemoPool *enemyPool)
+{
+    const DemoPoolEntry *entry = &enemyPool->entries[enemyPool->current];
+    DemoScriptLoad(&world->enemyScript, entry, DEMO_ENEMY_GENERATED_DIR, false,
+                   0x51A7u + (unsigned int)enemyPool->current*97u);
+}
+
+/* Fa nascere/rinascere il nemico con enemyPool->current SENZA avanzare
+ * l'indice: usato sia dal reset iniziale/arena (che deve restare sullo
+ * stesso pattern) sia da DemoEnemyRespawn (che avanza l'indice PRIMA di
+ * chiamare questa funzione). */
+static void DemoEnemySpawn(DemoWorld *world, const DemoPool *enemyPool)
+{
+    world->enemy.alive = true;
+    world->enemy.hp = DEMO_ENEMY_MAX_HP;
+    world->enemy.hitFlash = 0.0f;
+    world->enemy.corpseFade = 0.0f;
+    world->enemy.respawnTimer = 0.0f;
+    world->enemy.velocity = (Vector2){ 0.0f, 0.0f };
+    world->enemy.position = (Vector2){ DEMO_ROOM.x + DEMO_ROOM.width*0.5f, DEMO_ROOM.y + 46.0f };
+    DemoEnemyBeginPattern(world, enemyPool);
+}
+
+static void DemoEnemyKill(DemoWorld *world)
+{
+    if (!world->enemy.alive) return;
+    world->enemy.alive = false;
+    world->enemy.corpseFade = DEMO_ENEMY_CORPSE_FADE_SECONDS;
+    world->enemy.respawnTimer = DEMO_ENEMY_RESPAWN_SECONDS;
 }
 
 static DemoProjectile *DemoNewProjectile(DemoWorld *world)
@@ -510,7 +701,7 @@ static void DemoSpawnOrbit(DemoWorld *world, const DemoScriptCommand *command, b
 
 static void DemoSpawnRing(DemoWorld *world, const DemoScriptCommand *command, bool hostile)
 {
-    float phase = 0.23f*world->sceneTime;
+    float phase = 0.23f*world->globalTime;
     for (int i = 0; i < command->count; i++)
     {
         float angle = phase + DEMO_TAU*(float)i/(float)command->count;
@@ -544,41 +735,66 @@ static void DemoSpawnCrescentWall(DemoWorld *world, const DemoScriptCommand *com
     }
 }
 
-static void DemoDamagePlayer(DemoWorld *world, float amount, Vector2 hitPosition)
+/* Ritorna true solo se il danno e' entrato davvero: archi e raggi ci
+ * appoggiano il proprio "colpito una volta sola", cosi' un contatto assorbito
+ * dagli i-frame non consuma il loro unico colpo. */
+static bool DemoDamagePlayer(DemoWorld *world, float amount, Vector2 hitPosition)
 {
-    if (world->playerInvulnerability > 0.0f) return;
-    world->playerHp = fmaxf(0.25f, world->playerHp - amount);
-    world->playerInvulnerability = 0.38f;
+    if (world->player.invulnerability > 0.0f || world->player.dead) return false;
+    world->player.hp = fmaxf(0.0f, world->player.hp - amount);
+    world->player.invulnerability = 0.38f;
     DemoSpawnParticles(world, hitPosition, (Color){ 255, 93, 110, 255 }, 14, 90.0f);
+    if (world->player.hp <= 0.0f)
+    {
+        world->player.dead = true;
+        world->player.koTimer = DEMO_PLAYER_KO_SECONDS;
+        DemoSpawnParticles(world, world->player.position, (Color){ 255, 210, 90, 255 }, 30, 160.0f);
+    }
+    return true;
 }
 
+/* Danno generico al nemico. grantsEcho distingue le due sole fonti di
+ * storedEchoes previste dalla spec (melee del player) da tutte le altre
+ * (proiettili): capture_radius alimenta storedEchoes per conto suo in
+ * DemoUpdateCaptureFields. */
+static void DemoEnemyApplyDamage(DemoWorld *world, float amount, Vector2 hitPosition,
+                                 Color particleColor, bool grantsEcho)
+{
+    DemoEnemy *enemy = &world->enemy;
+    if (!enemy->alive) return;
+    enemy->hp = fmaxf(0.0f, enemy->hp - amount);
+    enemy->hitFlash = 0.2f;
+    world->hitsDealt++;
+    if (grantsEcho && world->storedEchoes < 8) world->storedEchoes++;
+    DemoSpawnParticles(world, hitPosition, particleColor, grantsEcho ? 18 : 14, grantsEcho ? 120.0f : 100.0f);
+    if (enemy->hp <= 0.0f) DemoEnemyKill(world);
+}
+
+/* Melee del player sul nemico vero (spec sezione 3: "un attore alla volta"):
+ * prima colpiva un array di manichini, ora c'e' un solo bersaglio reale. */
 static void DemoApplyMelee(DemoWorld *world, const DemoScriptCommand *command)
 {
-    for (int i = 0; i < DEMO_MAX_DUMMIES; i++)
+    DemoEnemy *enemy = &world->enemy;
+    if (!enemy->alive) return;
+    Vector2 delta = Vector2Subtract(enemy->position, (Vector2){ command->x, command->y });
+    float distance = Vector2Length(delta);
+    float angle = atan2f(delta.y, delta.x);
+    if (distance <= command->radius + command->width*0.5f &&
+        fabsf(DemoAngleDifference(angle, command->angle)) <= command->sweep*0.5f)
     {
-        DemoDummy *dummy = &world->dummies[i];
-        if (!dummy->active || dummy->hp <= 0.0f) continue;
-        Vector2 delta = Vector2Subtract(dummy->position, (Vector2){ command->x, command->y });
-        float distance = Vector2Length(delta);
-        float angle = atan2f(delta.y, delta.x);
-        if (distance <= command->radius + command->width*0.5f &&
-            fabsf(DemoAngleDifference(angle, command->angle)) <= command->sweep*0.5f)
-        {
-            dummy->hp = fmaxf(0.0f, dummy->hp - command->damage);
-            dummy->hitFlash = 0.22f;
-            world->hitsDealt++;
-            if (world->storedEchoes < 8) world->storedEchoes++;
-            DemoSpawnParticles(world, dummy->position, DemoVisualColor(command->visualId), 18, 120.0f);
-        }
+        DemoEnemyApplyDamage(world, command->damage, enemy->position, DemoVisualColor(command->visualId), true);
     }
 }
 
-static void DemoConsumeCommands(DemoWorld *world)
+/* Consuma il command buffer di UNA sandbox (nemico o arma). hostile
+ * distingue le due, per chi guarda solo il buffer risultante: e' cio' che
+ * decide se un arco/proiettile puo' ferire il player invece del nemico. */
+static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bool hostile,
+                                int *lastCommandCount)
 {
-    const DemoScriptCommand *commands = DemoScriptApiCommands(&world->script.api);
-    size_t commandCount = DemoScriptApiCommandCount(&world->script.api);
-    bool hostile = !world->script.playerOwned;
-    world->lastCommandCount = (int)commandCount;
+    const DemoScriptCommand *commands = DemoScriptApiCommands(&runtime->api);
+    size_t commandCount = DemoScriptApiCommandCount(&runtime->api);
+    *lastCommandCount = (int)commandCount;
 
     for (size_t i = 0; i < commandCount; i++)
     {
@@ -635,14 +851,19 @@ static void DemoConsumeCommands(DemoWorld *world)
             } break;
 
             case DEMO_CMD_SET_VELOCITY:
-                world->actorVelocity = (Vector2){ command->vx, command->vy };
+                /* Solo il nemico si muove per script: il "self" dell'arma
+                 * coincide sempre col player, che si sposta solo con
+                 * WASD/frecce (vedi DemoUpdatePlayerMovement). Un'arma
+                 * generata che chiama set_velocity viene quindi ignorata,
+                 * mai lascia che uno script sposti il giocatore. */
+                if (hostile) world->enemy.velocity = (Vector2){ command->vx, command->vy };
                 break;
 
             case DEMO_CMD_ADD_STATUS:
-                if (command->targetHandle == world->script.api.playerHandle)
+                if (command->targetHandle == runtime->api.playerHandle)
                 {
-                    world->playerStatusTime = fmaxf(world->playerStatusTime, command->duration);
-                    world->playerStatusStrength = command->strength;
+                    world->player.statusTime = fmaxf(world->player.statusTime, command->duration);
+                    world->player.statusStrength = command->strength;
                 }
                 break;
 
@@ -657,6 +878,7 @@ static void DemoConsumeCommands(DemoWorld *world)
                     field->remaining = command->count;
                     field->life = field->totalLife = command->duration;
                     field->visualId = command->visualId;
+                    field->playerOwned = !hostile;
                 }
             } break;
 
@@ -680,224 +902,90 @@ static void DemoConsumeCommands(DemoWorld *world)
     }
 }
 
-static void DemoSetDummy(DemoWorld *world, int index, Vector2 position, int textureKind, float hp)
+static void DemoRunEnemyScript(DemoWorld *world, float dt)
 {
-    if (index < 0 || index >= DEMO_MAX_DUMMIES) return;
-    world->dummies[index].active = true;
-    world->dummies[index].position = position;
-    world->dummies[index].textureKind = textureKind;
-    world->dummies[index].hp = hp;
-    world->dummies[index].maxHp = hp;
-}
+    DemoScriptRuntime *runtime = &world->enemyScript;
+    /* Niente IA mentre il cadavere sfuma o si aspetta il respawn: lo script
+     * riprende da capo (DemoEnemyBeginPattern) solo alla rinascita. */
+    if (!world->enemy.alive) return;
+    if (!runtime->ready || runtime->sandbox == NULL) return;
 
-static void DemoResetScene(DemoWorld *world, int scene)
-{
-    static const char *const scripts[DEMO_SCENE_COUNT] = {
-        "spider_arc.lua",
-        "halberd_gravity.lua",
-        "squid_reload.lua",
-        "snail_calligrapher.lua",
-        "glass_moth.lua",
-        "spider_arc.lua"
-    };
-    static const bool playerOwned[DEMO_SCENE_COUNT] = {
-        false, true, true, false, false, false
-    };
-
-    DemoScriptUnload(&world->script);
-    memset(world, 0, sizeof *world);
-    world->scene = (scene + DEMO_SCENE_COUNT)%DEMO_SCENE_COUNT;
-    world->playerHp = 6.0f;
-    world->playerPosition = (Vector2){ 640.0f, 532.0f };
-    world->cosmeticRng = 0xC0FFEE11u ^ (uint32_t)(world->scene*0x9E3779B9u);
-
-    switch (world->scene)
+    float aimToPlayer = atan2f(world->player.position.y - world->enemy.position.y,
+                               world->player.position.x - world->enemy.position.x);
+    DemoScriptApiBeginFrame(&runtime->api,
+                            world->player.position.x, world->player.position.y,
+                            world->enemy.position.x, world->enemy.position.y,
+                            aimToPlayer);
+    if (!ScriptSandboxCallVoid(runtime->sandbox, "on_tick", 2,
+                               (double)dt, (double)runtime->api.selfHandle))
     {
-        case 0:
-            world->actorPosition = (Vector2){ 640.0f, 210.0f };
-            break;
-        case 1:
-            world->actorPosition = world->playerPosition;
-            DemoSetDummy(world, 0, (Vector2){ 465.0f, 284.0f }, 0, 38.0f);
-            DemoSetDummy(world, 1, (Vector2){ 682.0f, 210.0f }, 1, 38.0f);
-            DemoSetDummy(world, 2, (Vector2){ 875.0f, 330.0f }, 2, 38.0f);
-            break;
-        case 2:
-            world->actorPosition = world->playerPosition;
-            DemoSetDummy(world, 0, (Vector2){ 342.0f, 218.0f }, 2, 46.0f);
-            DemoSetDummy(world, 1, (Vector2){ 956.0f, 230.0f }, 0, 46.0f);
-            break;
-        case 3:
-            world->actorPosition = (Vector2){ 872.0f, 258.0f };
-            break;
-        case 4:
-            world->actorPosition = (Vector2){ 640.0f, 214.0f };
-            break;
-        default:
-            world->actorPosition = (Vector2){ 640.0f, 218.0f };
-            DemoSetDummy(world, 0, (Vector2){ 940.0f, 350.0f }, 1, 80.0f);
-            break;
-    }
-
-    world->actorTrail[0] = world->actorPosition;
-    world->actorTrailCount = 1;
-    DemoScriptLoad(&world->script, scripts[world->scene], playerOwned[world->scene],
-                   0x51A7u + (unsigned int)world->scene*97u);
-}
-
-static Vector2 DemoAutoPlayerPosition(const DemoWorld *world)
-{
-    float t = world->sceneTime;
-    switch (world->scene)
-    {
-        case 0:
-            return (Vector2){ 640.0f + sinf(t*1.45f)*274.0f,
-                              510.0f + cosf(t*1.08f)*72.0f };
-        case 1:
-            return (Vector2){ 640.0f + sinf(t*0.78f)*74.0f,
-                              440.0f + cosf(t*0.92f)*42.0f };
-        case 2:
-            return (Vector2){ 640.0f + sinf(t*0.92f)*104.0f,
-                              466.0f + cosf(t*0.71f)*56.0f };
-        case 3:
-            return (Vector2){ 410.0f + sinf(t*1.18f)*172.0f,
-                              474.0f + cosf(t*1.53f)*92.0f };
-        case 4:
-            return (Vector2){ 640.0f + sinf(t*1.31f)*292.0f,
-                              492.0f + cosf(t*1.61f)*88.0f };
-        default:
-            return (Vector2){ 470.0f + sinf(t*1.38f)*156.0f,
-                              492.0f + cosf(t*1.17f)*70.0f };
-    }
-}
-
-static void DemoUpdatePlayer(DemoWorld *world, float dt, bool allowInput)
-{
-    Vector2 input = { 0.0f, 0.0f };
-    if (allowInput)
-    {
-        if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) input.x -= 1.0f;
-        if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) input.x += 1.0f;
-        if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) input.y -= 1.0f;
-        if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) input.y += 1.0f;
-    }
-
-    if (Vector2LengthSqr(input) > 0.0f)
-    {
-        float speed = 235.0f;
-        if (world->playerStatusTime > 0.0f) speed *= DemoClamp(1.0f - world->playerStatusStrength*0.45f, 0.35f, 1.0f);
-        input = Vector2Scale(Vector2Normalize(input), speed*dt);
-        world->playerPosition = Vector2Add(world->playerPosition, input);
-    }
-    else
-    {
-        Vector2 target = DemoAutoPlayerPosition(world);
-        float follow = 1.0f - powf(0.0008f, dt);
-        world->playerPosition = Vector2Lerp(world->playerPosition, target, follow);
-    }
-
-    world->playerPosition.x = DemoClamp(world->playerPosition.x, DEMO_ROOM.x + 24.0f,
-                                        DEMO_ROOM.x + DEMO_ROOM.width - 24.0f);
-    world->playerPosition.y = DemoClamp(world->playerPosition.y, DEMO_ROOM.y + 24.0f,
-                                        DEMO_ROOM.y + DEMO_ROOM.height - 24.0f);
-}
-
-static Vector2 DemoAmbientOrigin(const DemoWorld *world, int index)
-{
-    if (world->scene == 1)
-    {
-        for (int i = 0; i < DEMO_MAX_DUMMIES; i++)
-            if (world->dummies[i].active && i == index%3) return world->dummies[i].position;
-    }
-    if (world->scene == 2)
-    {
-        return (index & 1) ? (Vector2){ DEMO_ROOM.x + 42.0f, 250.0f + 92.0f*(float)(index%4) }
-                           : (Vector2){ DEMO_ROOM.x + DEMO_ROOM.width - 42.0f, 226.0f + 86.0f*(float)(index%4) };
-    }
-    return world->actorPosition;
-}
-
-static void DemoUpdateAmbientFire(DemoWorld *world, float dt)
-{
-    if (world->scene != 1 && world->scene != 2 && world->scene != 5) return;
-    world->ambientTimer -= dt;
-    if (world->ambientTimer > 0.0f) return;
-
-    int volley = (int)(world->sceneTime*10.0f);
-    if (world->scene == 1 || world->scene == 2)
-    {
-        Vector2 origin = DemoAmbientOrigin(world, volley);
-        float angle = atan2f(world->playerPosition.y - origin.y, world->playerPosition.x - origin.x);
-        int visual = (world->scene == 1) ? DEMO_VIS_GLASS_PRISM : DEMO_VIS_VIOLET_CUT;
-        float speed = (world->scene == 1) ? 174.0f : 198.0f;
-        DemoSpawnShot(world, origin, angle, speed, 5.0f, 0.35f, 4.2f, visual, true);
-        world->ambientTimer = (world->scene == 1) ? 0.24f : 0.17f;
-    }
-    else
-    {
-        float angle = atan2f(world->actorPosition.y - world->playerPosition.y,
-                             world->actorPosition.x - world->playerPosition.x);
-        DemoSpawnShot(world, world->playerPosition, angle, 328.0f, 6.0f, 8.0f,
-                      2.4f, DEMO_VIS_GLASS_PRISM, false);
-        world->ambientTimer = 0.38f;
-    }
-}
-
-static void DemoUpdateScript(DemoWorld *world, float dt)
-{
-    if (!world->script.ready || world->script.sandbox == NULL) return;
-
-    if (world->script.playerOwned) world->actorPosition = world->playerPosition;
-    if (world->script.playerOwned)
-    {
-        Vector2 target = world->scene == 1 ? world->dummies[1].position : (Vector2){ DEMO_ROOM.x + DEMO_ROOM.width, world->playerPosition.y - 80.0f };
-        world->aimAngle = atan2f(target.y - world->playerPosition.y, target.x - world->playerPosition.x);
-    }
-    else
-    {
-        world->aimAngle = atan2f(world->playerPosition.y - world->actorPosition.y,
-                                 world->playerPosition.x - world->actorPosition.x);
-    }
-
-    DemoScriptApiBeginFrame(&world->script.api,
-                            world->playerPosition.x, world->playerPosition.y,
-                            world->actorPosition.x, world->actorPosition.y,
-                            world->aimAngle);
-    if (!ScriptSandboxCallVoid(world->script.sandbox, "on_tick", 2,
-                               (double)dt, (double)world->script.api.selfHandle))
-    {
-        if (ScriptSandboxIsDisabled(world->script.sandbox))
+        if (ScriptSandboxIsDisabled(runtime->sandbox))
         {
-            snprintf(world->script.error, sizeof world->script.error, "%s",
-                     ScriptSandboxDisabledReason(world->script.sandbox));
-            world->script.ready = false;
+            snprintf(runtime->error, sizeof runtime->error, "%s",
+                     ScriptSandboxDisabledReason(runtime->sandbox));
+            runtime->ready = false;
+            world->lastEnemyCommandCount = 0;
         }
         return;
     }
-    DemoConsumeCommands(world);
+    DemoConsumeCommands(world, runtime, true, &world->lastEnemyCommandCount);
 }
 
-static void DemoUpdateActor(DemoWorld *world, float dt)
+static void DemoRunWeaponScript(DemoWorld *world, float dt, bool fireHeld, bool specialPressed)
 {
-    if (!world->script.playerOwned)
-    {
-        world->actorPosition = Vector2Add(world->actorPosition, Vector2Scale(world->actorVelocity, dt));
-        world->actorPosition.x = DemoClamp(world->actorPosition.x, DEMO_ROOM.x + 70.0f,
-                                           DEMO_ROOM.x + DEMO_ROOM.width - 70.0f);
-        world->actorPosition.y = DemoClamp(world->actorPosition.y, DEMO_ROOM.y + 55.0f,
-                                           DEMO_ROOM.y + DEMO_ROOM.height*0.60f);
-    }
-    else world->actorPosition = world->playerPosition;
+    DemoScriptRuntime *runtime = &world->weaponScript;
+    if (!runtime->ready || runtime->sandbox == NULL) return;
 
-    world->actorTrailTimer -= dt;
-    if (world->actorTrailTimer <= 0.0f)
+    /* L'arma non ha una posizione propria: "self" e' sempre il player. */
+    DemoScriptApiBeginFrame(&runtime->api,
+                            world->player.position.x, world->player.position.y,
+                            world->player.position.x, world->player.position.y,
+                            world->player.aimAngle);
+    DemoScriptApiSetInput(&runtime->api, fireHeld, specialPressed);
+    if (!ScriptSandboxCallVoid(runtime->sandbox, "on_tick", 2,
+                               (double)dt, (double)runtime->api.selfHandle))
     {
-        int limit = (int)(sizeof world->actorTrail/sizeof world->actorTrail[0]);
-        if (world->actorTrailCount < limit) world->actorTrailCount++;
-        for (int i = world->actorTrailCount - 1; i > 0; i--) world->actorTrail[i] = world->actorTrail[i - 1];
-        world->actorTrail[0] = world->actorPosition;
-        world->actorTrailTimer = 0.085f;
+        if (ScriptSandboxIsDisabled(runtime->sandbox))
+        {
+            snprintf(runtime->error, sizeof runtime->error, "%s",
+                     ScriptSandboxDisabledReason(runtime->sandbox));
+            runtime->ready = false;
+            /* Il conteggio comandi di una sandbox morta non deve restare
+             * congelato sull'ultimo valore: l'HUD mostrerebbe attivita' dove
+             * non ce n'e' piu'. */
+            world->lastWeaponCommandCount = 0;
+        }
+        return;
     }
+    DemoConsumeCommands(world, runtime, false, &world->lastWeaponCommandCount);
+}
+
+/* Avanza il pattern nemico E fa ripartire il nemico da capo (spec sezione 3:
+ * "alla morte respawn con il pattern successivo del pool"): usata alla morte
+ * e dalla cattura headless (avanzamento a tempo, niente tasto N). */
+static void DemoEnemyRespawn(DemoWorld *world, DemoPool *enemyPool)
+{
+    if (enemyPool->count > 0) enemyPool->current = (enemyPool->current + 1)%enemyPool->count;
+    world->enemy.spriteKind = (world->enemy.spriteKind + 1) & 3;
+    DemoEnemySpawn(world, enemyPool);
+}
+
+static void DemoUpdateEnemy(DemoWorld *world, DemoPool *enemyPool, float dt)
+{
+    DemoEnemy *enemy = &world->enemy;
+    enemy->hitFlash = fmaxf(0.0f, enemy->hitFlash - dt);
+
+    if (!enemy->alive)
+    {
+        enemy->corpseFade = fmaxf(0.0f, enemy->corpseFade - dt);
+        enemy->respawnTimer -= dt;
+        if (enemy->respawnTimer <= 0.0f) DemoEnemyRespawn(world, enemyPool);
+        return;
+    }
+
+    enemy->position = Vector2Add(enemy->position, Vector2Scale(enemy->velocity, dt));
+    enemy->position.x = DemoClamp(enemy->position.x, DEMO_ROOM.x + 70.0f, DEMO_ROOM.x + DEMO_ROOM.width - 70.0f);
+    enemy->position.y = DemoClamp(enemy->position.y, DEMO_ROOM.y + 55.0f, DEMO_ROOM.y + DEMO_ROOM.height*0.60f);
 }
 
 static void DemoUpdateCaptureFields(DemoWorld *world, float dt)
@@ -907,7 +995,7 @@ static void DemoUpdateCaptureFields(DemoWorld *world, float dt)
         DemoCaptureField *field = &world->captureFields[i];
         if (!field->active) continue;
         field->life -= dt;
-        if (world->script.playerOwned) field->position = world->playerPosition;
+        if (field->playerOwned) field->position = world->player.position;
 
         for (int shotIndex = 0; shotIndex < DEMO_MAX_PROJECTILES && field->remaining > 0; shotIndex++)
         {
@@ -962,36 +1050,17 @@ static void DemoUpdateProjectiles(DemoWorld *world, float dt)
         }
         DemoUpdateProjectileTrail(shot, dt);
 
-        if (shot->hostile && CheckCollisionCircles(shot->position, shot->radius, world->playerPosition, 12.0f))
+        if (shot->hostile && CheckCollisionCircles(shot->position, shot->radius, world->player.position, 12.0f))
         {
             DemoDamagePlayer(world, fmaxf(0.2f, shot->damage*0.08f), shot->position);
             shot->active = false;
             continue;
         }
-        if (!shot->hostile)
+        if (!shot->hostile && world->enemy.alive &&
+            CheckCollisionCircles(shot->position, shot->radius, world->enemy.position, 18.0f))
         {
-            for (int dummyIndex = 0; dummyIndex < DEMO_MAX_DUMMIES; dummyIndex++)
-            {
-                DemoDummy *dummy = &world->dummies[dummyIndex];
-                if (!dummy->active || dummy->hp <= 0.0f) continue;
-                if (CheckCollisionCircles(shot->position, shot->radius, dummy->position, 18.0f))
-                {
-                    dummy->hp = fmaxf(0.0f, dummy->hp - shot->damage);
-                    dummy->hitFlash = 0.18f;
-                    world->hitsDealt++;
-                    DemoSpawnParticles(world, shot->position, DemoVisualColor(shot->visualId), 12, 95.0f);
-                    shot->active = false;
-                    break;
-                }
-            }
-            if (world->scene == 5 && shot->active &&
-                CheckCollisionCircles(shot->position, shot->radius, world->actorPosition, 38.0f))
-            {
-                world->actorHitFlash = 0.16f;
-                world->hitsDealt++;
-                DemoSpawnParticles(world, shot->position, DemoVisualColor(shot->visualId), 12, 105.0f);
-                shot->active = false;
-            }
+            DemoEnemyApplyDamage(world, shot->damage, shot->position, DemoVisualColor(shot->visualId), false);
+            shot->active = false;
         }
 
         if (shot->life <= 0.0f)
@@ -1026,6 +1095,24 @@ static void DemoUpdateArcsAndBeams(DemoWorld *world, float dt)
         DemoArcEffect *arc = &world->arcs[i];
         if (!arc->active) continue;
         arc->life -= dt;
+        /* Archi ostili non-telegraph (emit_arc/melee_sweep del nemico)
+         * danneggiano il player al contatto col settore, in aggiunta a
+         * qualunque effetto fisico gia' generato (es. la mezzaluna di
+         * proiettili di emit_arc). Il test va rifatto ad ogni tick finche'
+         * l'arco vive: entrare nel settore mentre la spazzata e' a meta' deve
+         * costare, uscirne subito dopo la nascita deve salvare. */
+        if (arc->hostile && !arc->telegraph && !arc->damageApplied)
+        {
+            Vector2 delta = Vector2Subtract(world->player.position, arc->position);
+            float distance = Vector2Length(delta);
+            float angleToPlayer = atan2f(delta.y, delta.x);
+            float innerBound = arc->radius - arc->width*0.5f - 11.0f;
+            float outerBound = arc->radius + arc->width*0.5f + 11.0f;
+            if (distance >= innerBound && distance <= outerBound &&
+                fabsf(DemoAngleDifference(angleToPlayer, arc->angle)) <= arc->sweep*0.5f)
+                arc->damageApplied = DemoDamagePlayer(world, fmaxf(0.25f, arc->damage*0.08f),
+                                                      world->player.position);
+        }
         if (arc->life <= 0.0f) arc->active = false;
     }
 
@@ -1034,12 +1121,14 @@ static void DemoUpdateArcsAndBeams(DemoWorld *world, float dt)
         DemoBeamEffect *beam = &world->beams[i];
         if (!beam->active) continue;
         beam->life -= dt;
+        /* Stessa forma degli archi: il raggio resta pericoloso per tutta la
+         * sua durata, ma toglie vita una volta sola. */
         if (beam->hostile && !beam->telegraph && !beam->damageApplied)
         {
             Vector2 end = DemoAddScaled(beam->position, DemoDirection(beam->angle), beam->length);
-            if (DemoPointSegmentDistance(world->playerPosition, beam->position, end) <= beam->width*0.5f + 11.0f)
-                DemoDamagePlayer(world, fmaxf(0.25f, beam->damage*0.08f), world->playerPosition);
-            beam->damageApplied = true;
+            if (DemoPointSegmentDistance(world->player.position, beam->position, end) <= beam->width*0.5f + 11.0f)
+                beam->damageApplied = DemoDamagePlayer(world, fmaxf(0.25f, beam->damage*0.08f),
+                                                       world->player.position);
         }
         if (beam->life <= 0.0f) beam->active = false;
     }
@@ -1058,30 +1147,155 @@ static void DemoUpdateParticles(DemoWorld *world, float dt)
     }
 }
 
-static void DemoUpdateWorld(DemoWorld *world, float dt, bool allowInput)
+static Vector2 DemoAutoPlayerPosition(const DemoWorld *world)
 {
-    world->sceneTime += dt;
-    world->globalTime += dt;
-    world->playerInvulnerability = fmaxf(0.0f, world->playerInvulnerability - dt);
-    world->playerStatusTime = fmaxf(0.0f, world->playerStatusTime - dt);
-    world->actorHitFlash = fmaxf(0.0f, world->actorHitFlash - dt);
-    for (int i = 0; i < DEMO_MAX_DUMMIES; i++)
-        world->dummies[i].hitFlash = fmaxf(0.0f, world->dummies[i].hitFlash - dt);
+    float t = world->globalTime;
+    return (Vector2){ 640.0f + sinf(t*1.2f)*260.0f, 500.0f + cosf(t*0.95f)*96.0f };
+}
 
-    DemoUpdatePlayer(world, dt, allowInput);
-    DemoUpdateScript(world, dt);
-    DemoUpdateActor(world, dt);
-    DemoUpdateAmbientFire(world, dt);
+/* input->interactive distingue il gioco vero dalla cattura headless
+ * (--capture, niente finestra/tastiera reale sotto xvfb): li' il player si
+ * muove da solo perche' lo smoke test deve attraversare l'arena senza mani.
+ * A differenza della vecchia demo a scene fisse, nel gioco il player fermo
+ * NON va alla deriva. */
+static void DemoUpdatePlayerMovement(DemoWorld *world, float dt, const DemoFrameInput *frameInput)
+{
+    Vector2 input = frameInput->interactive ? frameInput->move : (Vector2){ 0.0f, 0.0f };
+
+    if (Vector2LengthSqr(input) > 0.0f)
+    {
+        float speed = 235.0f;
+        if (world->player.statusTime > 0.0f) speed *= DemoClamp(1.0f - world->player.statusStrength*0.45f, 0.35f, 1.0f);
+        input = Vector2Scale(Vector2Normalize(input), speed*dt);
+        world->player.position = Vector2Add(world->player.position, input);
+    }
+    else if (!frameInput->interactive)
+    {
+        Vector2 target = DemoAutoPlayerPosition(world);
+        float follow = 1.0f - powf(0.0008f, dt);
+        world->player.position = Vector2Lerp(world->player.position, target, follow);
+    }
+
+    world->player.position.x = DemoClamp(world->player.position.x, DEMO_ROOM.x + 24.0f,
+                                         DEMO_ROOM.x + DEMO_ROOM.width - 24.0f);
+    world->player.position.y = DemoClamp(world->player.position.y, DEMO_ROOM.y + 24.0f,
+                                         DEMO_ROOM.y + DEMO_ROOM.height - 24.0f);
+}
+
+/* Inversa esatta di DemoDrawFinalToWindow: finestra -> rettangolo letterbox
+ * -> spazio logico 1280x720. Serve a tradurre il mouse reale in coordinate
+ * di gioco indipendentemente da resize/fullscreen della finestra. Con lo
+ * split A/B attivo il mondo non riempie piu' il frame: dopo il letterbox
+ * serve un secondo passaggio dal pannello (deformato, la resa e' stirata) allo
+ * spazio dell'arena, altrimenti il puntatore punta a tutt'altro. */
+static Vector2 DemoWindowToLogic(Vector2 windowPosition, bool split)
+{
+    float scaleX = (float)GetScreenWidth()/(float)DEMO_WIDTH;
+    float scaleY = (float)GetScreenHeight()/(float)DEMO_HEIGHT;
+    float scale = fminf(scaleX, scaleY);
+    if (scale <= 0.0001f) return (Vector2){ DEMO_WIDTH*0.5f, DEMO_HEIGHT*0.5f };
+    float destinationX = ((float)GetScreenWidth() - (float)DEMO_WIDTH*scale)*0.5f;
+    float destinationY = ((float)GetScreenHeight() - (float)DEMO_HEIGHT*scale)*0.5f;
+    Vector2 logic = { (windowPosition.x - destinationX)/scale, (windowPosition.y - destinationY)/scale };
+    if (!split) return logic;
+
+    /* Meta' schermo per pannello, anche fuori dai bordi del riquadro: il
+     * cursore resta agganciato all'arena piu' vicina invece di saltare. */
+    Rectangle panel = logic.x < (float)DEMO_WIDTH*0.5f ? DEMO_SPLIT_LEFT : DEMO_SPLIT_RIGHT;
+    return (Vector2){ (logic.x - panel.x)*(float)DEMO_WIDTH/panel.width,
+                      (logic.y - panel.y)*(float)DEMO_HEIGHT/panel.height };
+}
+
+/* La pistola base e' "sempre disponibile" (spec sezione 3): l'arma generata la
+ * sostituisce solo finche' la sua sandbox e' viva. Se lo script non e' mai
+ * partito o e' stato ucciso a meta' partita (budget di istruzioni, errore Lua)
+ * il click torna alla pistola, altrimenti un'arma generata male lascerebbe il
+ * player disarmato fino al prossimo M o R. */
+static bool DemoBaseWeaponActive(const DemoWorld *world, const DemoPool *weaponPool)
+{
+    return weaponPool->current == 0 || !world->weaponScript.ready;
+}
+
+/* Mira e fuoco del player. Sotto --capture non esiste un mouse reale
+ * (xvfb): si mira automaticamente il nemico e non si spara mai, cosi' il
+ * fuoco resta deterministico e non dipende da cio' che l'X server finto
+ * riporta come posizione del cursore. */
+static void DemoUpdatePlayerAimAndWeapon(DemoWorld *world, const DemoPool *weaponPool, float dt,
+                                         const DemoFrameInput *frameInput, bool specialPressed)
+{
+    Vector2 aimTarget = frameInput->interactive ? frameInput->aim : world->enemy.position;
+    world->player.aimAngle = atan2f(aimTarget.y - world->player.position.y,
+                                    aimTarget.x - world->player.position.x);
+
+    bool fireHeld = frameInput->interactive && frameInput->fireHeld;
+
+    if (DemoBaseWeaponActive(world, weaponPool))
+    {
+        world->player.weaponCooldown = fmaxf(0.0f, world->player.weaponCooldown - dt);
+        if (fireHeld && world->player.weaponCooldown <= 0.0f)
+        {
+            DemoSpawnShot(world, world->player.position, world->player.aimAngle,
+                         340.0f, 6.0f, 6.0f, 2.5f, DEMO_VIS_GLASS_PRISM, false);
+            world->player.weaponCooldown = DEMO_BASE_WEAPON_COOLDOWN;
+        }
+    }
+    else
+    {
+        DemoRunWeaponScript(world, dt, fireHeld, specialPressed);
+    }
+}
+
+/* Reset arena "leggero": ricrea player/nemico/proiettili/effetti usando gli
+ * indici pool CORRENTI, senza avanzarli (tasto R e scadenza del KO). */
+static void DemoResetArena(DemoWorld *world, const DemoPool *enemyPool, const DemoPool *weaponPool)
+{
+    DemoScriptUnload(&world->enemyScript);
+    DemoScriptUnload(&world->weaponScript);
+    uint32_t rng = world->cosmeticRng ^ 0x9E3779B9u;
+    if (rng == 0) rng = 0xC0FFEE11u;
+
+    memset(world, 0, sizeof *world);
+    world->cosmeticRng = rng;
+    world->player.hp = DEMO_PLAYER_MAX_HP;
+    world->player.position = (Vector2){ 640.0f, 532.0f };
+
+    DemoEnemySpawn(world, enemyPool);
+    if (weaponPool->current != 0)
+        DemoScriptLoad(&world->weaponScript, &weaponPool->entries[weaponPool->current - 1],
+                       DEMO_WEAPON_GENERATED_DIR, true,
+                       0x77A1u + (unsigned int)weaponPool->current*53u);
+}
+
+static void DemoUpdateWorld(DemoWorld *world, DemoPool *enemyPool, DemoPool *weaponPool,
+                            float dt, DemoFrameInput *frameInput)
+{
+    /* Il fronte del click destro vale per UN solo tick: il primo passo fisso
+     * del frame se lo prende e lo azzera, gli eventuali passi successivi dello
+     * stesso frame vedono gia' false. */
+    bool specialPressed = frameInput->specialPressed;
+    frameInput->specialPressed = false;
+
+    world->globalTime += dt;
+    world->infoMessageTimer = fmaxf(0.0f, world->infoMessageTimer - dt);
+
+    if (world->player.dead)
+    {
+        world->player.koTimer -= dt;
+        if (world->player.koTimer <= 0.0f) DemoResetArena(world, enemyPool, weaponPool);
+        return;
+    }
+
+    world->player.invulnerability = fmaxf(0.0f, world->player.invulnerability - dt);
+    world->player.statusTime = fmaxf(0.0f, world->player.statusTime - dt);
+
+    DemoUpdatePlayerMovement(world, dt, frameInput);
+    DemoUpdatePlayerAimAndWeapon(world, weaponPool, dt, frameInput, specialPressed);
+    DemoRunEnemyScript(world, dt);
+    DemoUpdateEnemy(world, enemyPool, dt);
     DemoUpdateCaptureFields(world, dt);
     DemoUpdateProjectiles(world, dt);
     DemoUpdateArcsAndBeams(world, dt);
     DemoUpdateParticles(world, dt);
-
-    if ((world->scene == 3 || world->scene == 4) && world->actorTrailTimer < dt*0.5f)
-        DemoSpawnParticles(world, world->actorPosition,
-                           world->scene == 3 ? DemoVisualColor(DEMO_VIS_CALLIGRAPHY_INK)
-                                             : DemoVisualColor(DEMO_VIS_GLASS_PRISM),
-                           1, 14.0f);
 }
 
 static int DemoActiveProjectileCount(const DemoWorld *world)
@@ -1312,203 +1526,151 @@ static void DemoDrawParticles(const DemoWorld *world, DemoRenderMode mode)
     if (mode != DEMO_RENDER_PIXEL) EndBlendMode();
 }
 
-static Texture2D DemoDummyTexture(const DemoAssets *assets, int kind)
+/* Disegno nemico generico (ombra + sprite + flash + barra vita): niente piu'
+ * disegni cuciti sulla singola scena curata, il pattern ora arriva da un pool
+ * aperto. Lo sprite e' solo cosmetico, ciclato ad ogni respawn. */
+static void DemoDrawEnemy(const DemoAssets *assets, const DemoWorld *world)
 {
-    if (kind == 0) return assets->spook;
-    if (kind == 1) return assets->gelatine;
-    return assets->stareyes;
-}
+    const DemoEnemy *enemy = &world->enemy;
+    if (!enemy->alive && enemy->corpseFade <= 0.0f) return;
 
-static void DemoDrawDummies(const DemoAssets *assets, const DemoWorld *world)
-{
-    for (int i = 0; i < DEMO_MAX_DUMMIES; i++)
+    float bob = enemy->alive ? sinf(world->globalTime*4.2f)*3.0f : 0.0f;
+    Vector2 position = { enemy->position.x, enemy->position.y + bob };
+    float fadeAlpha = enemy->alive ? 1.0f
+                                   : DemoClamp(enemy->corpseFade/DEMO_ENEMY_CORPSE_FADE_SECONDS, 0.0f, 1.0f);
+    Color tint = enemy->hitFlash > 0.0f ? WHITE : Fade((Color){ 248, 248, 255, 255 }, fadeAlpha);
+
+    DrawEllipse((int)position.x, (int)(position.y + 28.0f), 38.0f, 11.0f, Fade(BLACK, 0.42f*fadeAlpha));
+    DemoDrawTextureCentered(DemoEnemyTexture(assets, enemy->spriteKind), position, 56.0f, 56.0f, 0.0f, tint);
+
+    if (enemy->alive && enemy->hp > 0.0f)
     {
-        const DemoDummy *dummy = &world->dummies[i];
-        if (!dummy->active) continue;
-        float squash = dummy->hp <= 0.0f ? 0.35f : 1.0f + 0.04f*sinf(world->globalTime*5.0f + (float)i);
-        Color tint = dummy->hitFlash > 0.0f ? WHITE : (dummy->hp <= 0.0f ? Fade(GRAY, 0.45f) : WHITE);
-        DrawEllipse((int)dummy->position.x, (int)(dummy->position.y + 20.0f), 20.0f, 7.0f, Fade(BLACK, 0.36f));
-        DemoDrawTextureCentered(DemoDummyTexture(assets, dummy->textureKind), dummy->position,
-                                40.0f, 40.0f*squash, 0.0f, tint);
-        if (dummy->hp > 0.0f)
-        {
-            float ratio = dummy->hp/dummy->maxHp;
-            DrawRectangle((int)dummy->position.x - 20, (int)dummy->position.y - 29, 40, 4, (Color){ 9, 12, 19, 220 });
-            DrawRectangle((int)dummy->position.x - 19, (int)dummy->position.y - 28, (int)(38.0f*ratio), 2,
-                          (Color){ 255, 101, 116, 255 });
-        }
+        float ratio = enemy->hp/DEMO_ENEMY_MAX_HP;
+        DrawRectangle((int)position.x - 26, (int)position.y - 40, 52, 5, (Color){ 9, 12, 19, 220 });
+        DrawRectangle((int)position.x - 25, (int)position.y - 39, (int)(50.0f*ratio), 3,
+                      (Color){ 255, 101, 116, 255 });
     }
 }
 
-static void DemoDrawActorTrail(const DemoWorld *world, DemoRenderMode mode)
+/* La pistola base e' l'unica arma con uno sprite dedicato in mano al player:
+ * le armi generate non hanno un modello proprio, si vedono solo attraverso i
+ * comandi visuali che emettono. Se il player ricade sulla pistola perche' la
+ * sandbox arma e' morta, l'arma in mano ricompare da sola. */
+static void DemoDrawPlayerWeapon(const DemoAssets *assets, const DemoWorld *world, bool baseWeaponActive)
 {
-    if (world->scene != 3 && world->scene != 4) return;
-    Color color = world->scene == 3 ? DemoVisualColor(DEMO_VIS_CALLIGRAPHY_INK)
-                                    : DemoVisualColor(DEMO_VIS_GLASS_PRISM);
-    for (int i = world->actorTrailCount - 1; i > 0; i--)
-    {
-        float alpha = 1.0f - (float)i/(float)world->actorTrailCount;
-        DrawLineEx(world->actorTrail[i], world->actorTrail[i - 1],
-                   mode == DEMO_RENDER_PIXEL ? 3.0f : 4.0f + alpha*4.0f,
-                   Fade(color, 0.08f + alpha*0.28f));
-        if (world->scene == 3 && (i % 3) == 0)
-            DrawCircleV(world->actorTrail[i], mode == DEMO_RENDER_PIXEL ? 3.0f : 5.0f,
-                        Fade(color, 0.28f));
-    }
+    if (!baseWeaponActive) return;
+    float degrees = world->player.aimAngle*RAD2DEG;
+    Vector2 gunPosition = DemoAddScaled(world->player.position, DemoDirection(world->player.aimAngle), 24.0f);
+    DemoDrawTextureCentered(assets->handgun, gunPosition, 58.0f, 58.0f, degrees, (Color){ 198, 214, 222, 255 });
 }
 
-static void DemoDrawEnemyActor(const DemoAssets *assets, const DemoWorld *world, DemoRenderMode mode)
+static void DemoDrawPlayer(const DemoAssets *assets, const DemoWorld *world, bool baseWeaponActive)
 {
-    float bob = sinf(world->globalTime*4.2f)*3.0f;
-    Vector2 position = { world->actorPosition.x, world->actorPosition.y + bob };
-    Color tint = world->actorHitFlash > 0.0f ? WHITE : (Color){ 248, 248, 255, 255 };
-    DrawEllipse((int)position.x, (int)(position.y + 28.0f), 38.0f, 11.0f, Fade(BLACK, 0.42f));
-
-    if (world->scene == 0 || world->scene == 5)
-    {
-        if (mode != DEMO_RENDER_PIXEL)
-        {
-            BeginBlendMode(BLEND_ADDITIVE);
-            DrawCircleGradient(position, 75.0f,
-                               Fade(DemoVisualColor(DEMO_VIS_VIOLET_CUT), 0.13f), BLANK);
-            EndBlendMode();
-        }
-        DemoDrawTextureCentered(assets->spider, position, 100.0f, 62.0f, 0.0f, tint);
-    }
-    else if (world->scene == 3)
-    {
-        DrawCircleV(position, 28.0f, (Color){ 38, 70, 75, 255 });
-        DrawRing(position, 7.0f, 11.0f, 30.0f, 330.0f, 28, DemoVisualColor(DEMO_VIS_CALLIGRAPHY_INK));
-        DemoDrawTextureCentered(assets->gelatine, position, 42.0f, 42.0f, 0.0f, tint);
-        DrawLineBezier((Vector2){ position.x - 17, position.y + 14 },
-                       (Vector2){ position.x - 34, position.y + 25 }, 4.0f,
-                       DemoVisualColor(DEMO_VIS_CALLIGRAPHY_INK));
-    }
-    else if (world->scene == 4)
-    {
-        Color glass = Fade(DemoVisualColor(DEMO_VIS_GLASS_PRISM), 0.62f);
-        DrawTriangle((Vector2){ position.x - 6, position.y }, (Vector2){ position.x - 61, position.y - 28 },
-                     (Vector2){ position.x - 48, position.y + 34 }, glass);
-        DrawTriangle((Vector2){ position.x + 6, position.y }, (Vector2){ position.x + 61, position.y - 28 },
-                     (Vector2){ position.x + 48, position.y + 34 }, glass);
-        DrawTriangleLines((Vector2){ position.x - 6, position.y }, (Vector2){ position.x - 61, position.y - 28 },
-                          (Vector2){ position.x - 48, position.y + 34 }, WHITE);
-        DrawTriangleLines((Vector2){ position.x + 6, position.y }, (Vector2){ position.x + 61, position.y - 28 },
-                          (Vector2){ position.x + 48, position.y + 34 }, WHITE);
-        DemoDrawTextureCentered(assets->stareyes, position, 54.0f, 54.0f, 0.0f, tint);
-    }
-}
-
-static const DemoArcEffect *DemoFindActiveMelee(const DemoWorld *world)
-{
-    for (int i = 0; i < DEMO_MAX_ARCS; i++)
-        if (world->arcs[i].active && world->arcs[i].melee) return &world->arcs[i];
-    return NULL;
-}
-
-static void DemoDrawPlayerWeapon(const DemoAssets *assets, const DemoWorld *world, DemoRenderMode mode)
-{
-    if (world->scene == 1)
-    {
-        const DemoArcEffect *melee = DemoFindActiveMelee(world);
-        float angle = world->aimAngle;
-        if (melee != NULL)
-        {
-            float progress = 1.0f - melee->life/fmaxf(melee->totalLife, 0.001f);
-            angle = melee->angle - melee->sweep*0.5f + DemoEaseOutCubic(progress)*melee->sweep;
-        }
-        Vector2 hand = DemoAddScaled(world->playerPosition, DemoDirection(angle), 6.0f);
-        Vector2 tip = DemoAddScaled(hand, DemoDirection(angle), 86.0f);
-        Vector2 side = { -sinf(angle), cosf(angle) };
-        DrawLineEx(hand, tip, mode == DEMO_RENDER_PIXEL ? 5.0f : 6.0f, (Color){ 126, 92, 61, 255 });
-        DrawLineEx(DemoAddScaled(tip, DemoDirection(angle), -18.0f), tip, 3.0f, (Color){ 222, 228, 236, 255 });
-        DrawTriangle(DemoAddScaled(tip, DemoDirection(angle), 18.0f),
-                     DemoAddScaled(tip, side, 14.0f), DemoAddScaled(tip, side, -14.0f),
-                     DemoVisualColor(DEMO_VIS_GRAVITY));
-        DrawCircleV(hand, 5.0f, DemoVisualColor(DEMO_VIS_GRAVITY));
-    }
-    else if (world->scene == 2)
-    {
-        float degrees = world->aimAngle*RAD2DEG;
-        Vector2 gunPosition = DemoAddScaled(world->playerPosition, DemoDirection(world->aimAngle), 24.0f);
-        DemoDrawTextureCentered(assets->handgun, gunPosition, 58.0f, 58.0f, degrees, (Color){ 198, 214, 222, 255 });
-        Color tentacle = DemoVisualColor(DEMO_VIS_RELOAD_ORBIT);
-        for (int i = 0; i < 3; i++)
-        {
-            float offset = ((float)i - 1.0f)*0.42f;
-            Vector2 end = DemoAddScaled(world->playerPosition,
-                                        DemoDirection(world->aimAngle + DEMO_PI + offset), 32.0f);
-            DrawLineBezier(world->playerPosition, end, mode == DEMO_RENDER_PIXEL ? 3.0f : 5.0f,
-                           Fade(tentacle, 0.74f));
-        }
-    }
-}
-
-static void DemoDrawPlayer(const DemoAssets *assets, const DemoWorld *world, DemoRenderMode mode)
-{
-    Vector2 position = world->playerPosition;
+    Vector2 position = world->player.position;
     float bob = sinf(world->globalTime*8.0f)*1.5f;
-    Color tint = (world->playerInvulnerability > 0.0f && fmodf(world->globalTime, 0.10f) < 0.05f)
+    Color tint = (world->player.invulnerability > 0.0f && fmodf(world->globalTime, 0.10f) < 0.05f)
                      ? Fade(WHITE, 0.35f) : WHITE;
     DrawEllipse((int)position.x, (int)(position.y + 19.0f), 17.0f, 6.0f, Fade(BLACK, 0.44f));
-    DemoDrawPlayerWeapon(assets, world, mode);
+    DemoDrawPlayerWeapon(assets, world, baseWeaponActive);
     DemoDrawTextureCentered(assets->player, (Vector2){ position.x, position.y + bob },
                             34.0f, 34.0f, 0.0f, tint);
 
-    if (world->playerStatusTime > 0.0f)
+    if (world->player.statusTime > 0.0f)
         DrawRingLines(position, 18.0f, 21.0f, world->globalTime*90.0f,
                       world->globalTime*90.0f + 250.0f, 24,
-                      Fade(DemoVisualColor(world->scene == 4 ? DEMO_VIS_GLASS_PRISM : DEMO_VIS_CALLIGRAPHY_INK), 0.68f));
+                      Fade(DemoVisualColor(DEMO_VIS_VOID_ECHO), 0.68f));
 }
 
 static void DemoDrawHitboxLegend(const DemoWorld *world)
 {
-    DrawCircleLines((int)world->playerPosition.x, (int)world->playerPosition.y, 12.0f,
+    DrawCircleLines((int)world->player.position.x, (int)world->player.position.y, 12.0f,
                     Fade((Color){ 255, 255, 255, 255 }, 0.38f));
-    DrawCircleV(world->playerPosition, 2.0f, (Color){ 255, 255, 255, 220 });
+    DrawCircleV(world->player.position, 2.0f, (Color){ 255, 255, 255, 220 });
 }
 
-static void DemoDrawWorldHud(const DemoWorld *world, DemoRenderMode mode)
+static void DemoDrawKoOverlay(const DemoWorld *world)
 {
-    Color accent = DemoVisualColor(world->scene == 0 || world->scene == 5 ? DEMO_VIS_VIOLET_CUT :
-                                   world->scene == 1 ? DEMO_VIS_GRAVITY :
-                                   world->scene == 2 ? DEMO_VIS_RELOAD_ORBIT :
-                                   world->scene == 3 ? DEMO_VIS_CALLIGRAPHY_INK : DEMO_VIS_GLASS_PRISM);
-    DrawRectangle(0, 0, DEMO_WIDTH, 78, (Color){ 7, 10, 18, 255 });
-    DrawRectangle(0, 76, DEMO_WIDTH, 2, accent);
-    DrawText(TextFormat("%02d/06", world->scene + 1), 24, 18, 18, accent);
-    DrawText(DemoSceneTitle(world->scene), 88, 14, 23, (Color){ 239, 244, 252, 255 });
-    DrawText(DemoSceneAlphabet(world->scene), 88, 45, 16, (Color){ 151, 166, 190, 255 });
+    if (!world->player.dead) return;
+    DrawRectangle(0, 0, DEMO_WIDTH, DEMO_HEIGHT, Fade(BLACK, 0.55f));
+    const char *text = "KO - reset";
+    int size = 48;
+    int width = MeasureText(text, size);
+    DrawText(text, (DEMO_WIDTH - width)/2, DEMO_HEIGHT/2 - size/2, size, (Color){ 255, 104, 116, 255 });
+}
 
-    DrawText("SANDBOX REALE", 1038, 14, 14, (Color){ 118, 255, 178, 255 });
-    DrawText(TextFormat("Lua: %s", world->script.ready ? "ON" : "FALLBACK"), 1038, 34, 14,
-             world->script.ready ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
-    DrawText(TextFormat("cmd tick: %d", world->lastCommandCount), 1038, 52, 13, (Color){ 151, 166, 190, 255 });
+static const char *DemoWeaponDisplayName(const DemoPool *weaponPool)
+{
+    if (weaponPool->current == 0) return "pistola base";
+    return weaponPool->entries[weaponPool->current - 1].fileName;
+}
+
+static void DemoDrawWorldHud(const DemoWorld *world, const DemoPool *enemyPool,
+                             const DemoPool *weaponPool, DemoRenderMode mode)
+{
+    Color accent = (Color){ 126, 224, 255, 255 };
+    DrawRectangle(0, 0, DEMO_WIDTH, 92, (Color){ 7, 10, 18, 255 });
+    DrawRectangle(0, 90, DEMO_WIDTH, 2, accent);
+
+    DrawText(TextFormat("enemy %d/%d: %s", enemyPool->current + 1, enemyPool->count,
+                        world->enemyScript.fileName[0] != '\0' ? world->enemyScript.fileName : "--"),
+             24, 14, 18, (Color){ 239, 244, 252, 255 });
+    /* Il nemico non ha ripiego: senza sandbox resta fermo e inoffensivo, e
+     * l'HUD deve dirlo invece di parlare di un fallback inesistente. */
+    DrawText(TextFormat("Lua: %s  cmd/tick: %d",
+                        world->enemyScript.ready ? "ON" : "KO -> nemico inerte",
+                        world->lastEnemyCommandCount),
+             24, 36, 14, world->enemyScript.ready ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
+    if (!world->enemyScript.ready && world->enemyScript.error[0] != '\0')
+        DrawText(world->enemyScript.error, 24, 56, 12, (Color){ 255, 158, 165, 255 });
+
+    DrawText(TextFormat("weapon %d/%d: %s", weaponPool->current, weaponPool->count,
+                        DemoWeaponDisplayName(weaponPool)),
+             660, 14, 18, (Color){ 239, 244, 252, 255 });
+    if (weaponPool->current == 0)
+        DrawText("pistola base: nessuna sandbox", 660, 36, 14, (Color){ 151, 166, 190, 255 });
+    else
+    {
+        /* "FALLBACK" solo dove il ripiego esiste davvero: sandbox arma morta
+         * significa che il click torna alla pistola base, non che il player
+         * resta senz'arma. */
+        DrawText(TextFormat("Lua: %s  cmd/tick: %d",
+                            world->weaponScript.ready ? "ON" : "FALLBACK -> pistola base",
+                            world->lastWeaponCommandCount),
+                 660, 36, 14, world->weaponScript.ready ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
+        if (!world->weaponScript.ready && world->weaponScript.error[0] != '\0')
+            DrawText(world->weaponScript.error, 660, 56, 12, (Color){ 255, 158, 165, 255 });
+    }
+
+    DrawText(world->infoMessageTimer > 0.0f ? "GEN: generazione: arriva con WP4" : "GEN: --",
+             24, 74, 15, (Color){ 151, 166, 190, 255 });
 
     DrawRectangle(0, 660, DEMO_WIDTH, 60, (Color){ 7, 10, 18, 245 });
     DrawRectangle(22, 676, 156, 12, (Color){ 29, 35, 49, 255 });
-    DrawRectangle(24, 678, (int)(152.0f*DemoClamp(world->playerHp/6.0f, 0.0f, 1.0f)), 8,
+    DrawRectangle(24, 678, (int)(152.0f*DemoClamp(world->player.hp/DEMO_PLAYER_MAX_HP, 0.0f, 1.0f)), 8,
                   (Color){ 255, 86, 108, 255 });
-    DrawText(TextFormat("HP %.1f/6", world->playerHp), 22, 694, 13, (Color){ 206, 216, 232, 255 });
-    DrawText(TextFormat("proiettili %d", DemoActiveProjectileCount(world)), 212, 676, 14, (Color){ 188, 201, 222, 255 });
-    DrawText(TextFormat("catturati %d", world->capturedTotal), 212, 697, 14, (Color){ 188, 201, 222, 255 });
-    DrawText(TextFormat("echi %d", world->storedEchoes), 372, 676, 14, accent);
-    DrawText(TextFormat("hit %d", world->hitsDealt), 372, 697, 14, accent);
+    DrawText(TextFormat("HP %.1f/%.0f", world->player.hp, DEMO_PLAYER_MAX_HP), 22, 694, 13,
+             (Color){ 206, 216, 232, 255 });
+    DrawText(TextFormat("proiettili %d", DemoActiveProjectileCount(world)), 212, 676, 14,
+             (Color){ 188, 201, 222, 255 });
+    DrawText(TextFormat("echi %d", world->storedEchoes), 212, 697, 14, accent);
+    DrawText(TextFormat("hit %d", world->hitsDealt), 372, 676, 14, accent);
+    DrawText(TextFormat("nemico HP %.0f/%.0f", world->enemy.hp, DEMO_ENEMY_MAX_HP), 372, 697, 14,
+             (Color){ 188, 201, 222, 255 });
+    DrawText(TextFormat("catturati %d", world->capturedTotal), 560, 676, 14,
+             (Color){ 188, 201, 222, 255 });
 
     const char *renderName = mode == DEMO_RENDER_PIXEL ? "PIXEL" : mode == DEMO_RENDER_SMOOTH ? "SMOOTH" : "IBRIDO";
-    DrawText(TextFormat("RENDER %s", renderName), 1082, 678, 15, accent);
-    DrawText("stesse hitbox", 1082, 699, 13, (Color){ 151, 166, 190, 255 });
-    DrawText("C valida: handle, quote, clamp, collisioni, corridoio di fuga", 514, 679, 14,
-             (Color){ 173, 186, 208, 255 });
-    DrawText("Lua sceglie sequenza e parametri; non vede file, shader o puntatori", 514, 700, 13,
-             (Color){ 137, 151, 177, 255 });
+    DrawText(TextFormat("RENDER %s", renderName), 900, 676, 15, accent);
+    DrawText("WASD mouse | G/H genera (WP4) | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
+             505, 697, 13, (Color){ 173, 186, 208, 255 });
 }
 
-static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, DemoRenderMode mode)
+static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
+                          const DemoPool *weaponPool, DemoRenderMode mode)
 {
+    bool baseWeaponActive = DemoBaseWeaponActive(world, weaponPool);
     DemoSetTextureFiltering(assets, mode);
     DemoDrawArenaBackdrop(world, mode);
-    DemoDrawActorTrail(world, mode);
 
     for (int i = 0; i < DEMO_MAX_ARCS; i++)
         if (world->arcs[i].active && world->arcs[i].telegraph)
@@ -1517,9 +1679,8 @@ static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, DemoRender
         if (world->beams[i].active && world->beams[i].telegraph)
             DemoDrawBeamEffect(&world->beams[i], mode, world->globalTime);
 
-    if (!world->script.playerOwned) DemoDrawEnemyActor(assets, world, mode);
-    DemoDrawDummies(assets, world);
-    DemoDrawPlayer(assets, world, mode);
+    DemoDrawEnemy(assets, world);
+    DemoDrawPlayer(assets, world, baseWeaponActive);
 
     for (int i = 0; i < DEMO_MAX_CAPTURE_FIELDS; i++)
         if (world->captureFields[i].active) DemoDrawCaptureField(world, &world->captureFields[i], mode);
@@ -1533,7 +1694,8 @@ static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, DemoRender
             DemoDrawBeamEffect(&world->beams[i], mode, world->globalTime);
     DemoDrawParticles(world, mode);
     DemoDrawHitboxLegend(world);
-    DemoDrawWorldHud(world, mode);
+    DemoDrawKoOverlay(world);
+    DemoDrawWorldHud(world, enemyPool, weaponPool, mode);
 }
 
 static bool DemoRendererInit(DemoRenderer *renderer)
@@ -1572,15 +1734,15 @@ static void DemoRendererUnload(DemoRenderer *renderer)
     memset(renderer, 0, sizeof *renderer);
 }
 
-static void DemoRenderWorldToTarget(DemoAssets *assets, const DemoWorld *world,
-                                    DemoRenderMode mode, RenderTexture2D target)
+static void DemoRenderWorldToTarget(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
+                                    const DemoPool *weaponPool, DemoRenderMode mode, RenderTexture2D target)
 {
     float scale = (float)target.texture.width/(float)DEMO_WIDTH;
     Camera2D camera = { 0 };
     camera.zoom = scale;
     BeginTextureMode(target);
     BeginMode2D(camera);
-    DemoDrawWorld(assets, world, mode);
+    DemoDrawWorld(assets, world, enemyPool, weaponPool, mode);
     EndMode2D();
     EndTextureMode();
 }
@@ -1607,55 +1769,26 @@ static void DemoDrawTarget(DemoRenderer *renderer, Texture2D texture, Rectangle 
     else DrawTexturePro(texture, source, destination, origin, 0.0f, WHITE);
 }
 
-static void DemoDrawComparisonFooter(const DemoWorld *world)
-{
-    Color accent = DemoVisualColor(DEMO_VIS_GLASS_PRISM);
-    DrawText("PIXEL PURO", 34, 46, 19, (Color){ 255, 193, 91, 255 });
-    DrawText("IBRIDO: CORE PIXEL + FX SMOOTH", 674, 46, 19, accent);
-    DrawRectangleLinesEx((Rectangle){ 14, 76, 616, 347 }, 2.0f, (Color){ 255, 193, 91, 255 });
-    DrawRectangleLinesEx((Rectangle){ 650, 76, 616, 347 }, 2.0f, accent);
-
-    DrawText("IDENTICO", 24, 456, 14, (Color){ 118, 255, 178, 255 });
-    DrawText("fixed tick, seed, posizioni, collisioni, danno, telegraph e spazio sicuro", 112, 454, 17,
-             (Color){ 222, 230, 242, 255 });
-    DrawText("PIXEL", 24, 500, 14, (Color){ 255, 193, 91, 255 });
-    DrawText("render target 640x360, filtro POINT, palette ridotta, forme a segmenti", 112, 498, 17,
-             (Color){ 179, 191, 212, 255 });
-    DrawText("IBRIDO", 24, 544, 14, accent);
-    DrawText("sprite/core nitidi; scie, glow e color grading in GLSL 330", 112, 542, 17,
-             (Color){ 179, 191, 212, 255 });
-    DrawText("PER IL GIOCO", 24, 588, 14, (Color){ 212, 153, 255, 255 });
-    DrawText("ibrido raccomandato, preset Pixel come fallback e Reduced FX", 148, 586, 17,
-             (Color){ 229, 232, 244, 255 });
-
-    DrawRectangle(24, 626, 1232, 62, (Color){ 15, 21, 34, 255 });
-    DrawText(TextFormat("Gameplay osservabile: HP %.1f | proiettili %d | hit %d | comandi ultimo tick %d",
-                        world->playerHp, DemoActiveProjectileCount(world), world->hitsDealt,
-                        world->lastCommandCount),
-             42, 642, 17, (Color){ 208, 220, 238, 255 });
-    DrawText("Lo shader non decide mai traiettoria o collisione.", 42, 666, 14,
-             (Color){ 143, 159, 185, 255 });
-}
-
 static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const DemoWorld *world,
+                             const DemoPool *enemyPool, const DemoPool *weaponPool,
                              DemoRenderMode mode, bool split, bool showControls)
 {
-    split = split || world->scene == 5;
     if (split || mode == DEMO_RENDER_PIXEL)
-        DemoRenderWorldToTarget(assets, world, DEMO_RENDER_PIXEL, renderer->pixelTarget);
+        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool, DEMO_RENDER_PIXEL, renderer->pixelTarget);
     if (split || mode != DEMO_RENDER_PIXEL)
-        DemoRenderWorldToTarget(assets, world, split ? DEMO_RENDER_HYBRID : mode, renderer->highTarget);
+        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool,
+                                split ? DEMO_RENDER_HYBRID : mode, renderer->highTarget);
 
     BeginTextureMode(renderer->finalTarget);
     ClearBackground((Color){ 5, 8, 15, 255 });
     if (split)
     {
-        DrawText(DemoSceneTitle(5), 24, 14, 23, (Color){ 239, 244, 252, 255 });
-        DemoDrawTarget(renderer, renderer->pixelTarget.texture, (Rectangle){ 14, 76, 616, 347 },
+        DrawText("PIXEL PURO vs IBRIDO: stessa arena, stesse hitbox (si mira nel pannello sotto il cursore)",
+                 24, 14, 20, (Color){ 239, 244, 252, 255 });
+        DemoDrawTarget(renderer, renderer->pixelTarget.texture, DEMO_SPLIT_LEFT,
                        DEMO_RENDER_PIXEL, world->globalTime);
-        DemoDrawTarget(renderer, renderer->highTarget.texture, (Rectangle){ 650, 76, 616, 347 },
+        DemoDrawTarget(renderer, renderer->highTarget.texture, DEMO_SPLIT_RIGHT,
                        DEMO_RENDER_HYBRID, world->globalTime);
-        DemoDrawComparisonFooter(world);
     }
     else
     {
@@ -1666,7 +1799,7 @@ static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const D
     if (showControls)
     {
         DrawRectangle(0, DEMO_HEIGHT - 20, DEMO_WIDTH, 20, (Color){ 3, 5, 10, 232 });
-        DrawText("F1-F6 scena | F7 auto | 1 pixel  2 smooth  3 ibrido | TAB A/B | WASD muovi | SPAZIO pausa | R reset",
+        DrawText("WASD mouse | click fuoco | G/H genera | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
                  18, DEMO_HEIGHT - 17, 12, (Color){ 178, 191, 213, 255 });
     }
     EndTextureMode();
@@ -1712,14 +1845,6 @@ static bool DemoHasArg(int argc, char **argv, const char *name)
 
 int main(int argc, char **argv)
 {
-    static const DemoRenderMode captureModes[DEMO_SCENE_COUNT] = {
-        DEMO_RENDER_HYBRID,
-        DEMO_RENDER_HYBRID,
-        DEMO_RENDER_SMOOTH,
-        DEMO_RENDER_PIXEL,
-        DEMO_RENDER_HYBRID,
-        DEMO_RENDER_HYBRID
-    };
     bool capture = DemoHasArg(argc, argv, "--capture");
     const char *captureDirectory = DemoArgValue(argc, argv, "--capture");
     if (capture && (captureDirectory == NULL || captureDirectory[0] == '\0')) captureDirectory = "frames";
@@ -1733,6 +1858,9 @@ int main(int argc, char **argv)
     DemoAssets assets;
     DemoRenderer renderer;
     DemoWorld world = { 0 };
+    DemoPool enemyPool = { 0 };
+    DemoPool weaponPool = { 0 };
+
     if (!DemoLoadAssets(&assets))
     {
         fprintf(stderr, "ERRORE: asset CC0 mancanti accanto all'eseguibile.\n");
@@ -1746,36 +1874,63 @@ int main(int argc, char **argv)
         CloseWindow();
         return 3;
     }
-    DemoResetScene(&world, 0);
+
+    /* Pool nemico/arma: curati subito, poi la cartella generated/ — che sotto
+     * --capture NON si legge, cosi' lo smoke test headless resta deterministico
+     * qualunque cosa il generatore abbia lasciato su disco. Lo slot 0 dell'arma
+     * (pistola base) e' implicito: weaponPool.current parte a 0 senza voce. */
+    static const char *const enemyCurated[] = { "spider_arc.lua", "snail_calligrapher.lua", "glass_moth.lua" };
+    static const char *const weaponCurated[] = { "halberd_gravity.lua", "squid_reload.lua" };
+    DemoPoolInitCurated(&enemyPool, enemyCurated, 3);
+    DemoPoolInitCurated(&weaponPool, weaponCurated, 2);
+    DemoEnsureGeneratedDirs();
+    if (!capture)
+    {
+        DemoPoolScanGenerated(&enemyPool, DEMO_ENEMY_GENERATED_DIR);
+        DemoPoolScanGenerated(&weaponPool, DEMO_WEAPON_GENERATED_DIR);
+    }
+
+    world.cosmeticRng = 0xC0FFEE11u;
+    world.player.hp = DEMO_PLAYER_MAX_HP;
+    world.player.position = (Vector2){ 640.0f, 532.0f };
+    DemoEnemySpawn(&world, &enemyPool);
 
     if (capture)
     {
         if (!DirectoryExists(captureDirectory) && MakeDirectory(captureDirectory) != 0)
         {
             fprintf(stderr, "ERRORE: impossibile creare la cartella frame: %s\n", captureDirectory);
-            DemoScriptUnload(&world.script);
+            DemoScriptUnload(&world.enemyScript);
+            DemoScriptUnload(&world.weaponScript);
             DemoRendererUnload(&renderer);
             DemoUnloadAssets(&assets);
             CloseWindow();
             return 4;
         }
 
-        int currentScene = -1;
-        const int framesPerScene = DEMO_CAPTURE_FRAMES/DEMO_SCENE_COUNT;
+        float enemyCycleTimer = 0.0f;
+        /* Cattura headless: nessun input reale, il player va in autopilota. */
+        DemoFrameInput autopilot = { 0 };
         for (int frame = 0; frame < DEMO_CAPTURE_FRAMES; frame++)
         {
-            int scene = frame/framesPerScene;
-            if (scene != currentScene)
+            for (int step = 0; step < 4; step++)
             {
-                DemoResetScene(&world, scene);
-                currentScene = scene;
+                DemoUpdateWorld(&world, &enemyPool, &weaponPool, DEMO_FIXED_DT, &autopilot);
+                enemyCycleTimer += DEMO_FIXED_DT;
+                if (enemyCycleTimer >= DEMO_CAPTURE_ENEMY_CYCLE_SECONDS && enemyPool.count > 0)
+                {
+                    enemyCycleTimer -= DEMO_CAPTURE_ENEMY_CYCLE_SECONDS;
+                    enemyPool.current = (enemyPool.current + 1)%enemyPool.count;
+                    DemoEnemyBeginPattern(&world, &enemyPool);
+                }
             }
-            for (int step = 0; step < 4; step++) DemoUpdateWorld(&world, DEMO_FIXED_DT, false);
-            DemoComposeFrame(&renderer, &assets, &world, captureModes[scene], scene == 5, false);
+            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool,
+                             DEMO_RENDER_SMOOTH, false, false);
             if (!DemoExportFrame(renderer.finalTarget, captureDirectory, frame))
             {
                 fprintf(stderr, "ERRORE: export fallito al frame %d.\n", frame);
-                DemoScriptUnload(&world.script);
+                DemoScriptUnload(&world.enemyScript);
+                DemoScriptUnload(&world.weaponScript);
                 DemoRendererUnload(&renderer);
                 DemoUnloadAssets(&assets);
                 CloseWindow();
@@ -1787,11 +1942,15 @@ int main(int argc, char **argv)
     }
     else
     {
-        DemoRenderMode mode = DEMO_RENDER_HYBRID;
+        DemoRenderMode mode = DEMO_RENDER_SMOOTH;
         bool split = false;
         bool paused = false;
-        bool automatic = true;
         float accumulator = 0.0f;
+        /* Dichiarato fuori dal loop apposta: specialPressed sopravvive ai frame
+         * che non eseguono nessun passo fisso (accumulator sotto 1/60 col
+         * jitter del vsync) e viene consumato dal primo tick utile. */
+        DemoFrameInput input = { 0 };
+        input.interactive = true;
         while (!WindowShouldClose())
         {
             float frameTime = fminf(GetFrameTime(), 0.10f);
@@ -1800,32 +1959,53 @@ int main(int argc, char **argv)
             if (IsKeyPressed(KEY_THREE)) mode = DEMO_RENDER_HYBRID;
             if (IsKeyPressed(KEY_TAB)) split = !split;
             if (IsKeyPressed(KEY_SPACE)) paused = !paused;
-            if (IsKeyPressed(KEY_F7)) automatic = true;
-            if (IsKeyPressed(KEY_R)) DemoResetScene(&world, world.scene);
+            if (IsKeyPressed(KEY_R)) DemoResetArena(&world, &enemyPool, &weaponPool);
 
-            int requestedScene = -1;
-            if (IsKeyPressed(KEY_F1)) requestedScene = 0;
-            if (IsKeyPressed(KEY_F2)) requestedScene = 1;
-            if (IsKeyPressed(KEY_F3)) requestedScene = 2;
-            if (IsKeyPressed(KEY_F4)) requestedScene = 3;
-            if (IsKeyPressed(KEY_F5)) requestedScene = 4;
-            if (IsKeyPressed(KEY_F6)) requestedScene = 5;
-            if (requestedScene >= 0)
+            if (IsKeyPressed(KEY_N) && enemyPool.count > 0)
             {
-                automatic = false;
-                DemoResetScene(&world, requestedScene);
+                enemyPool.current = (enemyPool.current + 1)%enemyPool.count;
+                DemoEnemyBeginPattern(&world, &enemyPool);
             }
+            if (IsKeyPressed(KEY_M))
+            {
+                weaponPool.current = (weaponPool.current + 1)%(weaponPool.count + 1);
+                if (weaponPool.current == 0) DemoScriptUnload(&world.weaponScript);
+                else DemoScriptLoad(&world.weaponScript, &weaponPool.entries[weaponPool.current - 1],
+                                    DEMO_WEAPON_GENERATED_DIR, true,
+                                    0x77A1u + (unsigned int)weaponPool.current*53u);
+            }
+            /* G/H/B: nessun processo figlio in questo WP, solo il segnaposto
+             * HUD che WP4 sostituira' con lo stato vero del generatore. */
+            if (IsKeyPressed(KEY_G) || IsKeyPressed(KEY_H) || IsKeyPressed(KEY_B))
+                world.infoMessageTimer = DEMO_INFO_MESSAGE_SECONDS;
+
+            DemoPoolPollTick(&enemyPool, DEMO_ENEMY_GENERATED_DIR, frameTime);
+            DemoPoolPollTick(&weaponPool, DEMO_WEAPON_GENERATED_DIR, frameTime);
+
+            /* Campionamento dell'input: una volta per frame, mai dentro il
+             * loop a passo fisso. La mira dipende da `split` perche' in
+             * confronto A/B il mondo vive dentro un pannello, non a schermo
+             * pieno. */
+            input.aim = DemoWindowToLogic(GetMousePosition(), split);
+            input.move = (Vector2){ 0.0f, 0.0f };
+            if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) input.move.x -= 1.0f;
+            if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) input.move.x += 1.0f;
+            if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) input.move.y -= 1.0f;
+            if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) input.move.y += 1.0f;
+            input.fireHeld = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) input.specialPressed = true;
+            /* In pausa non gira nessun tick: un click destro non deve restare
+             * in canna per scattare alla ripresa. */
+            if (paused) input.specialPressed = false;
 
             if (!paused) accumulator += frameTime;
             while (accumulator >= DEMO_FIXED_DT)
             {
-                if (automatic && world.sceneTime >= DEMO_SCENE_SECONDS)
-                    DemoResetScene(&world, (world.scene + 1)%DEMO_SCENE_COUNT);
-                DemoUpdateWorld(&world, DEMO_FIXED_DT, true);
+                DemoUpdateWorld(&world, &enemyPool, &weaponPool, DEMO_FIXED_DT, &input);
                 accumulator -= DEMO_FIXED_DT;
             }
 
-            DemoComposeFrame(&renderer, &assets, &world, mode, split, true);
+            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool, mode, split, true);
             BeginDrawing();
             ClearBackground(BLACK);
             DemoDrawFinalToWindow(renderer.finalTarget);
@@ -1833,7 +2013,8 @@ int main(int argc, char **argv)
         }
     }
 
-    DemoScriptUnload(&world.script);
+    DemoScriptUnload(&world.enemyScript);
+    DemoScriptUnload(&world.weaponScript);
     DemoRendererUnload(&renderer);
     DemoUnloadAssets(&assets);
     CloseWindow();

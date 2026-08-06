@@ -10,19 +10,21 @@ non convenzionali.
 
 ## Risultato visibile
 
-La cattura automatica dura 30 secondi e contiene sei scene:
+Non più sei scene dimostrative a ciclo: una **arena continua** di debug del
+combattimento (spec `docs/engineering/specs/2026-08-05-combat-lab-design.md`).
+Un player che si muove e mira col mouse, un nemico alla volta con HP visibile e
+respawn col pattern successivo, due sandbox Lua vive insieme — quella del
+nemico e quella dell'arma equipaggiata — con quote e kill switch indipendenti.
 
-1. **Ragno Falciatore**: preavviso ad arco, poi tredici proiettili a mezzaluna
-   con un corridoio centrale schivabile.
-2. **Alabarda + Nucleo gravitazionale**: sweep con hitbox ad arco, cattura di
-   colpi ostili ed echi rilasciati verso il bersaglio.
-3. **Fucile-seppia**: la ricarica aspira un massimo di proiettili e li converte
-   nel colpo successivo.
-4. **Lumaca calligrafa**: movimento laterale, trail d'inchiostro, beam
-   telegrafato e satelliti che si spezzano.
-5. **Falena di vetro**: due linee di preavviso, rosa di schegge e orbite.
-6. **Confronto A/B**: la stessa simulazione viene resa in pixel puro e con
-   pipeline ibrida pixel + shader.
+I cinque script della prova originale restano come **pool curato** in
+`scripts/curated/`, copiato accanto al binario dal Makefile. Gli script
+generati si aggiungono a caldo (polling ~1 s) da `generated/combat-lab/enemy/`
+e `generated/combat-lab/weapon/`, percorsi **relativi alla directory da cui si
+lancia la demo**: da qui l'avvio dalla radice del repository.
+
+La cattura headless `--capture <dir>` esporta 450 frame PNG col player in
+autopilota, i soli script curati e il pattern nemico che avanza ogni 5 secondi:
+è lo smoke test della demo, non un trailer.
 
 La camera mostra sempre l'intera arena. Il player è alto 34 px su una viewport
 720p (circa 4,7% dell'altezza), quindi lo zoom è intenzionalmente più ampio di
@@ -30,33 +32,34 @@ quello del prototipo attuale.
 
 ## Avvio
 
-Da PowerShell nella radice del repository:
+Su Linux, dalla radice del repository:
 
-```powershell
-& .\tools\procedural-combat-demo\build.ps1
-& .\build\procedural-combat-demo\worldsmelt-procedural-combat-demo.exe
+```bash
+make combat-lab
+make run-combat-lab
 ```
 
-Oppure fare doppio clic su `tools\procedural-combat-demo\run-demo.bat`.
+Gli script `build.ps1`, `capture.ps1` e `run-demo.bat` restano per la build
+MinGW storica su Windows (prova originale a sei scene).
 
 Controlli:
 
-- `F1`-`F6`: seleziona una scena;
-- `F7`: ripristina il ciclo automatico;
-- `1`, `2`, `3`: pixel, smooth, ibrido;
-- `Tab`: confronto affiancato;
-- `WASD` o frecce: movimento;
+- `WASD` o frecce: movimento; mouse: mira; click sinistro tenuto: fuoco;
+- `N` / `M`: pattern nemico / arma successivi nel pool (slot 0 dell'arma =
+  pistola base, sempre disponibile anche se la sandbox dell'arma muore);
+- `G` / `H` / `B`: generazione lotto nemici / armi e ricarica del brief (in
+  arrivo con l'integrazione del generatore: per ora solo un avviso in HUD);
+- `1`, `2`, `3`: pixel, smooth, ibrido (default smooth);
+- `Tab`: confronto affiancato pixel vs ibrido (si mira nel pannello sotto il
+  cursore);
 - `Spazio`: pausa;
-- `R`: riavvia la scena.
+- `R`: reset dell'arena senza cambiare gli script correnti.
 
-Per rigenerare i media:
+Per rigenerare i frame dello smoke test:
 
-```powershell
-& .\tools\procedural-combat-demo\capture.ps1
+```bash
+./build/combat-lab/combat-lab --capture build/combat-lab/frames
 ```
-
-Lo script richiede esattamente 450 frame PNG e produce GIF, WebP e contact
-sheet in `build\procedural-combat-demo`.
 
 ## Come Gemma compone l'attacco
 
