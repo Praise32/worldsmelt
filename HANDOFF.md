@@ -3,6 +3,32 @@
 Stato sintetico del lavoro. La cronologia completa delle sessioni passate è in
 `docs/archive/handoffs/` (integrale precedente: `docs/archive/handoffs/HANDOFF-2026-07-19.md`).
 
+## Stato al 2026-08-06 (pomeriggio) — Bake-off modelli immagine: due track, 292 immagini, verdetto al proprietario
+
+- **Mandato**: dalle due ricerche del proprietario del 04/08 (DreamShaper 8 + LoRA pixel;
+  Retro Diffusion solo come reference cloud), allargato in sessione a: (a) benchmark del
+  progetto a canone (Track P, giudizio 32px) E benchmark libero "caccia all'asset"
+  (Track F, settings nativi dei creatori, giudizio 64px, asse few-step); (b) censimento
+  SOTA al 06/08 (esito: su SD1.5 non esiste una nuova generazione 2025-26, il fronte è
+  Illustrious/Flux fuori dai 6 GB); (c) pulizia dei pesi dei benchmark di luglio
+  (~55 GB, autorizzata esplicitamente, registrata nel report).
+- **Consegnato**: harness riproducibile (`scripts/teacher-bench.sh` + postproc + review
+  a 9 criteri, contratti prompt congelati e versionati, ledger licenze con snapshot,
+  commit `96315ec`+`3f0f38b`), run completo **292/292 immagini, 0 fallimenti, VRAM max
+  2,8 GB**, report bake-off `docs/ai-production/experiments/teacher-bench-2026-08-06.md`,
+  galleria pubblicata come artifact (URL stabile, aggiornabile).
+- **Prime letture** (dettaglio nel report): baseline vanilla battuta da quasi tutto;
+  teacher conteso fra DreamShaper PixelArt (A4, provenienza da auditare), DS8 (A1) e
+  8bitdiffuser-su-AnyLoRA (F1); armi deboli ovunque (serve silhouette-guided/dataset);
+  F6 Sprite Diffusion collassa (solo persone); asse velocità promettente (S2 Hyper-SD,
+  S3 AnyLoRA-LCM: 6-8 step quasi al livello dei 25).
+- **PROSSIMO PASSO (bloccante)**: verdetto del proprietario da `review.html` (locale) e
+  galleria; poi decision-facilitator per: teacher scelto, eventuale open question canone
+  32→64px (DEC-177/208), audit licenza DS-PixelArt se promosso. Stage B (LoRA su Kaggle)
+  solo dopo, con autorizzazione GPU esplicita. Nota licenze: PIXHELL mai in merge;
+  caveat Hyper-SD registrato. Modelli benchmark in `models/teacher-bench-2026-08/`
+  (18 GB): NON cancellarli, servono per il giro silhouette-guided.
+
 ## Stato al 2026-08-06 — Combat Lab: il combattimento con attacchi generati LIVE da Gemma
 
 - **Mandato del proprietario (05/08)**: dalla prova `procedural-combat-demo` (fatta sul

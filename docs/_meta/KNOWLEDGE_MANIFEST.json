@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 149,
+  "count": 150,
   "documents": [
     {
       "id": "docs-readme",
@@ -885,6 +885,38 @@
       ],
       "last_reviewed": "2026-07-22",
       "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-exp-teacher-bench-2026-08",
+      "path": "docs/ai-production/experiments/teacher-bench-2026-08-06.md",
+      "title": "Bake-off teacher/runtime immagini 06/08/2026 — due track (canone 32px, caccia libera 64px)",
+      "domain": "ai-production",
+      "status": "approved",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Comparison a 19 configurazioni su RX 5600 XT: Track P (5 basi a canone, giudizio 32px) e Track F (9 config a settings nativi + 4 few-step, giudizio 64px). 292/292 immagini, zero fallimenti. La baseline SD1.5 vanilla è battuta da quasi tutto; il verdetto umano del proprietario (review.html, 9 criteri) resta il gate di promozione.",
+      "topics": [
+        "esperimenti",
+        "comparison",
+        "bake-off",
+        "immagini",
+        "teacher",
+        "lora",
+        "few-step"
+      ],
+      "related": [
+        "aiprod-protocollo-esperimenti"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/teacher-bench.sh",
+        "scripts/teacher_bench_post.py",
+        "scripts/teacher_bench_review.py",
+        "docs/ai-production/dataset/teacher-bench-2026-08-prompts.json",
+        "docs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json"
+      ],
+      "last_reviewed": "2026-08-06",
+      "last_verified_commit": "3f0f38b"
     },
     {
       "id": "aiprod-licenze",
