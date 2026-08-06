@@ -4,12 +4,24 @@
 #include "demo_script_api.h"
 #include "script/script_sandbox.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* WP4 (spec docs/engineering/specs/2026-08-05-combat-lab-design.md, sezione
+ * 2): melting-gen gira come PROCESSO FIGLIO, mai linkato (ADR-002). La build
+ * Linux e' l'unica viva per l'arena (AGENTS.md), quindi questi header POSIX
+ * entrano diretti, senza guardia di piattaforma: gli script .ps1 restano per
+ * la prova storica a sei scene su Windows, non questo file. */
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define DEMO_WIDTH 1280
 #define DEMO_HEIGHT 720
@@ -47,9 +59,30 @@
 #define DEMO_ENEMY_RESPAWN_SECONDS 1.2f
 #define DEMO_ENEMY_CORPSE_FADE_SECONDS 0.6f
 #define DEMO_BASE_WEAPON_COOLDOWN 0.22f
-/* HUD: quanto resta visibile il messaggio provvisorio di G/H/B prima di
- * tornare al placeholder "GEN: --" che WP4 riempira' con lo stato vero. */
-#define DEMO_INFO_MESSAGE_SECONDS 2.4f
+
+/* WP4: generatore esterno (spec sezione 2, ADR-002 -- bin/melting-gen come
+ * processo figlio, mai linkato). Percorsi relativi alla CWD, come
+ * DEMO_*_GENERATED_DIR sopra: la demo si lancia dalla radice del repo. */
+#define DEMO_GEN_BIN "bin/melting-gen"
+#define DEMO_GEN_OUT_DIR "generated"
+#define DEMO_GEN_BRIEF_PATH "generated/combat-lab/brief.txt"
+#define DEMO_GEN_LOG_DIR "logs"
+#define DEMO_GEN_LOG_PATH "logs/combat-lab-gen.log"
+/* Valore dei tasti G/H (task brief WP4, requisito 8: la funzione di spawn
+ * riceve il conteggio come PARAMETRO apposta, cosi' l'harness di verifica
+ * puo' passare 1 senza toccare questa costante). */
+#define DEMO_GEN_KEY_ATTACK_COUNT 3
+/* Quanto restano visibili "lotto pronto"/"fallita" prima che la riga GEN
+ * torni al segnaposto "GEN: --" (stesso ruolo del vecchio
+ * DEMO_INFO_MESSAGE_SECONDS, ora dentro DemoGenState invece che nel mondo:
+ * deve sopravvivere a DemoResetArena, vedi il commento su DemoGenState). */
+#define DEMO_GEN_STATUS_SECONDS 5.0f
+#define DEMO_GEN_STATUS_TEXT_MAX 192
+#define DEMO_GEN_BRIEF_LINE_MAX 72
+/* argv massimi verso execv: bin + 8 fissi (--attacks/--attack-count/--seed/
+ * --out) + 2 opzionali (--attack-brief <path>) + NULL = 12; 16 lascia
+ * margine senza dover ricontare ogni volta che si aggiunge un flag. */
+#define DEMO_GEN_MAX_ARGV 16
 
 static const Rectangle DEMO_ROOM = { 58.0f, 88.0f, 1164.0f, 566.0f };
 
@@ -109,6 +142,33 @@ typedef struct DemoPool {
     int current;
     float pollTimer;
 } DemoPool;
+
+typedef enum DemoGenKind {
+    DEMO_GEN_KIND_NONE = 0,
+    DEMO_GEN_KIND_ENEMY,
+    DEMO_GEN_KIND_WEAPON
+} DemoGenKind;
+
+/* Stato del generatore esterno (WP4). Vive A FIANCO di DemoWorld (variabile
+ * locale a se' in main(), come enemyPool/weaponPool), MAI dentro: un lotto in
+ * corso o il toggle del brief non devono sparire ad ogni morte del player o
+ * pressione di R, che passano DemoWorld per un memset a zero
+ * (DemoResetArena). */
+typedef struct DemoGenState {
+    pid_t pid;      /* 0 = nessun figlio vivo: UNA generazione alla volta (requisito 1) */
+    DemoGenKind kind; /* kind del figlio vivo, o dell'ultimo lotto concluso */
+    /* Riga "GEN: ..." mostrata in HUD. Fonte di verita' unica: chi la scrive
+     * (spawn/poll) decide anche se e' permanente o a tempo via statusTimer,
+     * il disegno la stampa e basta, senza logica propria. */
+    char statusText[DEMO_GEN_STATUS_TEXT_MAX];
+    /* <=0 = permanente (in corso / gia' in corso / idle); >0 = countdown, a
+     * zero DemoGenDecayStatus la riporta al segnaposto "GEN: --". */
+    float statusTimer;
+    bool useBrief;      /* toggle tasto B (default: acceso se il file non e' vuoto all'avvio) */
+    bool briefPresent;  /* brief.txt esiste e non e' vuoto (fotografia dell'ultima DemoGenReloadBrief) */
+    char briefFirstLine[DEMO_GEN_BRIEF_LINE_MAX]; /* prima riga (troncata) per l'HUD */
+    bool loggedPathOnce; /* la riga col percorso del log compare in HUD una sola volta (requisito 2) */
+} DemoGenState;
 
 typedef struct DemoProjectile {
     bool active;
@@ -251,7 +311,6 @@ typedef struct DemoWorld {
     int hitsDealt;
     int lastEnemyCommandCount;
     int lastWeaponCommandCount;
-    float infoMessageTimer;
     uint32_t cosmeticRng;
 } DemoWorld;
 
@@ -474,11 +533,243 @@ static void DemoPoolPollTick(DemoPool *pool, const char *directory, float dt)
 /* generated/combat-lab/{enemy,weapon}: create all'avvio se mancano.
  * MakeDirectory di raylib crea l'intera catena di cartelle richieste, quindi
  * basta una chiamata a testa anche se "generated/combat-lab" non esiste
- * ancora. */
+ * ancora. logs/ (WP4) si aggiunge qui per lo stesso motivo: DemoGenSpawn ci
+ * apre il log del figlio con O_CREAT, che fallisce silenziosamente se la
+ * cartella manca (un checkout appena clonato non la porta, e' in
+ * .gitignore). */
 static void DemoEnsureGeneratedDirs(void)
 {
     if (!DirectoryExists(DEMO_ENEMY_GENERATED_DIR)) MakeDirectory(DEMO_ENEMY_GENERATED_DIR);
     if (!DirectoryExists(DEMO_WEAPON_GENERATED_DIR)) MakeDirectory(DEMO_WEAPON_GENERATED_DIR);
+    if (!DirectoryExists(DEMO_GEN_LOG_DIR)) MakeDirectory(DEMO_GEN_LOG_DIR);
+}
+
+/* ------------------------------------------------------------------------
+ * WP4: generatore esterno come processo figlio (ADR-002). Tre responsabilita'
+ * separate come in src/gen/gen_runner.c (che qui NON si puo' riusare: quello
+ * e' per il gioco vero, dietro guardie Windows/Linux che main.c non deve
+ * portarsi dietro per una demo solo-Linux) -- spawn non bloccante, poll a
+ * WNOHANG una volta per frame, lettura del brief per l'HUD.
+ * ---------------------------------------------------------------------- */
+
+/* Riporta la riga GEN al segnaposto originale: usata sia all'avvio sia dal
+ * decadimento del timer (DemoGenDecayStatus). statusTimer <=0 qui e' apposta
+ * "permanente": l'idle non deve mai scomparire da solo. */
+static void DemoGenResetStatus(DemoGenState *gen)
+{
+    snprintf(gen->statusText, sizeof gen->statusText, "GEN: --");
+    gen->statusTimer = -1.0f;
+}
+
+/* Rilegge generated/combat-lab/brief.txt (tasto B, spec sezione 4: "ricarica
+ * brief.txt"). Un file assente o fatto di soli spazi/a-capo conta come vuoto:
+ * altrimenti il default "acceso se il file esiste non vuoto" (requisito 5 del
+ * task WP4) si accenderebbe su un file bianco che il proprietario non ha
+ * ancora scritto per davvero. Non tocca useBrief -- quello lo decide SOLO la
+ * pressione di B (vedi il chiamante in main()) -- qui si aggiorna solo cosa
+ * il file CONTIENE, cosi' l'HUD e il prossimo spawn vedono la stessa foto. */
+static void DemoGenReloadBrief(DemoGenState *gen)
+{
+    gen->briefPresent = false;
+    gen->briefFirstLine[0] = '\0';
+
+    char *text = LoadFileText(DEMO_GEN_BRIEF_PATH);
+    if (text == NULL) return;
+
+    size_t length = strlen(text);
+    size_t start = 0;
+    while (start < length && isspace((unsigned char)text[start])) start++;
+    if (start < length)
+    {
+        size_t end = start;
+        while (end < length && text[end] != '\n' && text[end] != '\r') end++;
+        size_t copyLength = end - start;
+        bool truncated = false;
+        /* -4: margine per il "..." (3 byte) + terminatore, cosi' la copia
+         * sotto non deborda mai anche sulla riga piu' lunga possibile. */
+        if (copyLength > sizeof gen->briefFirstLine - 4)
+        {
+            copyLength = sizeof gen->briefFirstLine - 4;
+            truncated = true;
+        }
+        memcpy(gen->briefFirstLine, text + start, copyLength);
+        gen->briefFirstLine[copyLength] = '\0';
+        if (truncated) strcat(gen->briefFirstLine, "...");
+        gen->briefPresent = true;
+    }
+    UnloadFileText(text);
+}
+
+/* Stato iniziale (main(), una volta sola): idle in HUD, brief riletto da
+ * disco, toggle acceso solo se il file c'e' davvero (requisito 5). */
+static void DemoGenInit(DemoGenState *gen)
+{
+    memset(gen, 0, sizeof *gen);
+    DemoGenResetStatus(gen);
+    DemoGenReloadBrief(gen);
+    gen->useBrief = gen->briefPresent;
+}
+
+/* Testo della riga "brief: ..." in HUD -- separata da statusText perche' e'
+ * uno stato persistente (il toggle B), non un messaggio a tempo. */
+static const char *DemoGenBriefLabel(const DemoGenState *gen)
+{
+    if (!gen->useBrief) return "off";
+    if (!gen->briefPresent) return "(vuoto)";
+    return gen->briefFirstLine;
+}
+
+/* Spawna bin/melting-gen come figlio non bloccante (ADR-002: la demo non
+ * linka mai llama.cpp). 'count' e' un PARAMETRO apposta (non
+ * DEMO_GEN_KEY_ATTACK_COUNT direttamente): l'harness di verifica del task
+ * brief passa 1 per un giro reale rapido, i tasti G/H passano sempre la
+ * costante. UNA generazione alla volta (requisito 1): se un figlio e' gia'
+ * vivo la richiesta e' rifiutata SENZA toccare lo stato del lotto in corso --
+ * l'harness verifica anche questo chiamando la funzione due volte di fila
+ * mentre il primo figlio e' ancora vivo. */
+static bool DemoGenSpawn(DemoGenState *gen, DemoGenKind kind, int count, unsigned int seed)
+{
+    if (gen->pid != 0)
+    {
+        snprintf(gen->statusText, sizeof gen->statusText, "GEN: gia' in corso");
+        gen->statusTimer = -1.0f;   /* resta finche' il figlio vivo non finisce (DemoGenPollTick) */
+        return false;
+    }
+
+    const char *kindText = (kind == DEMO_GEN_KIND_ENEMY) ? "enemy" : "weapon";
+    char countText[16];
+    char seedText[16];
+    snprintf(countText, sizeof countText, "%d", count);
+    snprintf(seedText, sizeof seedText, "%u", seed);
+    /* Il brief entra negli argomenti solo se ATTIVO E il file e' davvero non
+     * vuoto (requisito 2): DemoGenReloadBrief e' l'unica a sapere quale delle
+     * due condizioni vale, fotografata in briefPresent all'ultima rilettura. */
+    bool briefActive = gen->useBrief && gen->briefPresent;
+
+    pid_t pid = fork();
+    if (pid < 0)
+    {
+        snprintf(gen->statusText, sizeof gen->statusText, "GEN: fork fallita");
+        gen->statusTimer = DEMO_GEN_STATUS_SECONDS;
+        return false;
+    }
+    if (pid == 0)
+    {
+        /* Figlio: stdout/stderr del generatore in append sul log condiviso
+         * (requisito 2, "il terminale della demo resta pulito"). Se l'open
+         * fallisce (es. logs/ non scrivibile nonostante DemoEnsureGeneratedDirs)
+         * si lascia che il figlio erediti gli stream del genitore invece di
+         * morire: un lotto rumoroso nel terminale e' meglio di nessun lotto. */
+        int logFd = open(DEMO_GEN_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (logFd >= 0)
+        {
+            dup2(logFd, STDOUT_FILENO);
+            dup2(logFd, STDERR_FILENO);
+            close(logFd);
+        }
+
+        char *argv[DEMO_GEN_MAX_ARGV];
+        int argc = 0;
+        argv[argc++] = (char *)DEMO_GEN_BIN;
+        argv[argc++] = (char *)"--attacks";
+        argv[argc++] = (char *)kindText;
+        argv[argc++] = (char *)"--attack-count";
+        argv[argc++] = countText;
+        argv[argc++] = (char *)"--seed";
+        argv[argc++] = seedText;
+        argv[argc++] = (char *)"--out";
+        argv[argc++] = (char *)DEMO_GEN_OUT_DIR;
+        if (briefActive)
+        {
+            argv[argc++] = (char *)"--attack-brief";
+            argv[argc++] = (char *)DEMO_GEN_BRIEF_PATH;
+        }
+        argv[argc] = NULL;
+
+        execv(DEMO_GEN_BIN, argv);
+        {
+            /* L'HUD del padre rimanda al log su exit 127: una riga nel log
+             * (fd 2 e' gia' dup2-ato li' sopra, e write e' async-signal-safe)
+             * o il rimando indica l'output del lotto precedente. */
+            static const char failMessage[] = "combat-lab: execv bin/melting-gen fallita (binario assente o non eseguibile?)\n";
+            ssize_t ignored = write(STDERR_FILENO, failMessage, sizeof failMessage - 1);
+            (void)ignored;
+        }
+        _exit(127);   /* requisito 2: execv fallito -> uscita 127, mai un return dal figlio */
+    }
+
+    gen->pid = pid;
+    gen->kind = kind;
+    if (!gen->loggedPathOnce)
+    {
+        /* Riga col percorso del log (requisito 2): compare una volta sola,
+         * poi il messaggio "in corso" resta compatto. */
+        snprintf(gen->statusText, sizeof gen->statusText, "GEN: %s in corso... (output -> %s)",
+                 kindText, DEMO_GEN_LOG_PATH);
+        gen->loggedPathOnce = true;
+    }
+    else
+    {
+        snprintf(gen->statusText, sizeof gen->statusText, "GEN: %s in corso...", kindText);
+    }
+    gen->statusTimer = -1.0f;   /* permanente: resta finche' DemoGenPollTick non lo sostituisce */
+    return true;
+}
+
+/* Poll UNA VOLTA PER FRAME (requisito 3: "fuori dal loop a passo fisso, come
+ * l'input"): WNOHANG non blocca mai, quindi e' sicuro chiamarla anche quando
+ * pid==0. Quando il figlio e' morto lo stato uscita si raccoglie SEMPRE:
+ * niente zombie (requisito 3, "waitpid raccoglie sempre"). */
+static void DemoGenPollTick(DemoGenState *gen, DemoPool *enemyPool, DemoPool *weaponPool)
+{
+    if (gen->pid == 0) return;
+
+    int status = 0;
+    pid_t done = waitpid(gen->pid, &status, WNOHANG);
+    if (done == 0) return;   /* ancora vivo */
+    if (done < 0)
+    {
+        /* waitpid -1 (es. ECHILD se qualcosa ha gia' raccolto il figlio):
+         * trattarlo come "ancora vivo" bloccherebbe G/H per sempre. L'esito
+         * del lotto e' perso ma i file no (tmp+rename): la scansione sotto
+         * raccoglie comunque cio' che e' stato scritto. */
+        snprintf(gen->statusText, sizeof gen->statusText,
+                 "GEN: esito perso (waitpid fallita), pool riscansionato");
+        DemoPoolScanGenerated(enemyPool, DEMO_ENEMY_GENERATED_DIR);
+        DemoPoolScanGenerated(weaponPool, DEMO_WEAPON_GENERATED_DIR);
+        gen->statusTimer = DEMO_GEN_STATUS_SECONDS;
+        gen->pid = 0;
+        return;
+    }
+
+    const char *kindText = (gen->kind == DEMO_GEN_KIND_ENEMY) ? "enemy" : "weapon";
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+    {
+        snprintf(gen->statusText, sizeof gen->statusText, "GEN: lotto %s pronto", kindText);
+        /* Scansione extra SUBITO (requisito 3): senza questo il file nuovo
+         * aspetterebbe il prossimo tick di DemoPoolPollTick (~1s) invece di
+         * comparire nello stesso frame in cui il figlio ha finito. */
+        DemoPoolScanGenerated(enemyPool, DEMO_ENEMY_GENERATED_DIR);
+        DemoPoolScanGenerated(weaponPool, DEMO_WEAPON_GENERATED_DIR);
+    }
+    else
+    {
+        int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+        snprintf(gen->statusText, sizeof gen->statusText,
+                 "GEN: fallita (exit %d), vedi %s", exitCode, DEMO_GEN_LOG_PATH);
+    }
+    gen->statusTimer = DEMO_GEN_STATUS_SECONDS;   /* da qui in poi il messaggio e' a tempo */
+    gen->pid = 0;
+}
+
+/* Decadimento del messaggio a tempo (chiamata una volta per frame, come
+ * DemoGenPollTick): statusTimer<=0 e' il sentinel "permanente" (in corso /
+ * gia' in corso / idle), quindi qui non scende mai sotto zero da solo. */
+static void DemoGenDecayStatus(DemoGenState *gen, float frameTime)
+{
+    if (gen->statusTimer <= 0.0f) return;
+    gen->statusTimer -= frameTime;
+    if (gen->statusTimer <= 0.0f) DemoGenResetStatus(gen);
 }
 
 static char *DemoPoolLoadSource(const DemoPoolEntry *entry, const char *generatedDirectory)
@@ -1276,7 +1567,6 @@ static void DemoUpdateWorld(DemoWorld *world, DemoPool *enemyPool, DemoPool *wea
     frameInput->specialPressed = false;
 
     world->globalTime += dt;
-    world->infoMessageTimer = fmaxf(0.0f, world->infoMessageTimer - dt);
 
     if (world->player.dead)
     {
@@ -1605,7 +1895,8 @@ static const char *DemoWeaponDisplayName(const DemoPool *weaponPool)
 }
 
 static void DemoDrawWorldHud(const DemoWorld *world, const DemoPool *enemyPool,
-                             const DemoPool *weaponPool, DemoRenderMode mode)
+                             const DemoPool *weaponPool, DemoRenderMode mode,
+                             const DemoGenState *gen, bool interactive)
 {
     Color accent = (Color){ 126, 224, 255, 255 };
     DrawRectangle(0, 0, DEMO_WIDTH, 92, (Color){ 7, 10, 18, 255 });
@@ -1641,8 +1932,16 @@ static void DemoDrawWorldHud(const DemoWorld *world, const DemoPool *enemyPool,
             DrawText(world->weaponScript.error, 660, 56, 12, (Color){ 255, 158, 165, 255 });
     }
 
-    DrawText(world->infoMessageTimer > 0.0f ? "GEN: generazione: arriva con WP4" : "GEN: --",
+    /* Riga GEN: sempre lo stato vero, anche sotto --capture -- un PNG dello
+     * smoke test che dichiara una UI diversa da quella del gioco non e' piu'
+     * una regressione, e' una bugia (chiusura WP5 del mustFix del giudice
+     * WP4). Il determinismo della cattura non dipende da questa riga ma dallo
+     * stato: in capture nessun figlio parte mai (statusText resta l'idle) e
+     * il brief viene forzato off all'avvio (vedi main()), cosi' il testo non
+     * varia col contenuto di generated/combat-lab/brief.txt sul disco. */
+    DrawText(TextFormat("%s | brief: %s", gen->statusText, DemoGenBriefLabel(gen)),
              24, 74, 15, (Color){ 151, 166, 190, 255 });
+    (void)interactive;
 
     DrawRectangle(0, 660, DEMO_WIDTH, 60, (Color){ 7, 10, 18, 245 });
     DrawRectangle(22, 676, 156, 12, (Color){ 29, 35, 49, 255 });
@@ -1661,12 +1960,13 @@ static void DemoDrawWorldHud(const DemoWorld *world, const DemoPool *enemyPool,
 
     const char *renderName = mode == DEMO_RENDER_PIXEL ? "PIXEL" : mode == DEMO_RENDER_SMOOTH ? "SMOOTH" : "IBRIDO";
     DrawText(TextFormat("RENDER %s", renderName), 900, 676, 15, accent);
-    DrawText("WASD mouse | G/H genera (WP4) | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
+    DrawText("WASD mouse | G/H genera | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
              505, 697, 13, (Color){ 173, 186, 208, 255 });
 }
 
 static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
-                          const DemoPool *weaponPool, DemoRenderMode mode)
+                          const DemoPool *weaponPool, DemoRenderMode mode,
+                          const DemoGenState *gen, bool interactive)
 {
     bool baseWeaponActive = DemoBaseWeaponActive(world, weaponPool);
     DemoSetTextureFiltering(assets, mode);
@@ -1695,7 +1995,7 @@ static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const Demo
     DemoDrawParticles(world, mode);
     DemoDrawHitboxLegend(world);
     DemoDrawKoOverlay(world);
-    DemoDrawWorldHud(world, enemyPool, weaponPool, mode);
+    DemoDrawWorldHud(world, enemyPool, weaponPool, mode, gen, interactive);
 }
 
 static bool DemoRendererInit(DemoRenderer *renderer)
@@ -1735,14 +2035,15 @@ static void DemoRendererUnload(DemoRenderer *renderer)
 }
 
 static void DemoRenderWorldToTarget(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
-                                    const DemoPool *weaponPool, DemoRenderMode mode, RenderTexture2D target)
+                                    const DemoPool *weaponPool, DemoRenderMode mode, RenderTexture2D target,
+                                    const DemoGenState *gen, bool interactive)
 {
     float scale = (float)target.texture.width/(float)DEMO_WIDTH;
     Camera2D camera = { 0 };
     camera.zoom = scale;
     BeginTextureMode(target);
     BeginMode2D(camera);
-    DemoDrawWorld(assets, world, enemyPool, weaponPool, mode);
+    DemoDrawWorld(assets, world, enemyPool, weaponPool, mode, gen, interactive);
     EndMode2D();
     EndTextureMode();
 }
@@ -1771,13 +2072,20 @@ static void DemoDrawTarget(DemoRenderer *renderer, Texture2D texture, Rectangle 
 
 static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const DemoWorld *world,
                              const DemoPool *enemyPool, const DemoPool *weaponPool,
-                             DemoRenderMode mode, bool split, bool showControls)
+                             DemoRenderMode mode, bool split, bool showControls,
+                             const DemoGenState *gen)
 {
+    /* showControls fa gia' esattamente la distinzione che serve qui
+     * (false solo nella cattura headless, true nel gioco vero, vedi i due
+     * punti di chiamata in main()): riusarla come "interactive" per la riga
+     * GEN dentro DemoDrawWorldHud evita un secondo booleano ridondante. */
     if (split || mode == DEMO_RENDER_PIXEL)
-        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool, DEMO_RENDER_PIXEL, renderer->pixelTarget);
+        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool, DEMO_RENDER_PIXEL, renderer->pixelTarget,
+                                gen, showControls);
     if (split || mode != DEMO_RENDER_PIXEL)
         DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool,
-                                split ? DEMO_RENDER_HYBRID : mode, renderer->highTarget);
+                                split ? DEMO_RENDER_HYBRID : mode, renderer->highTarget,
+                                gen, showControls);
 
     BeginTextureMode(renderer->finalTarget);
     ClearBackground((Color){ 5, 8, 15, 255 });
@@ -1860,6 +2168,10 @@ int main(int argc, char **argv)
     DemoWorld world = { 0 };
     DemoPool enemyPool = { 0 };
     DemoPool weaponPool = { 0 };
+    /* A fianco di world/enemyPool/weaponPool, non dentro DemoWorld (vedi il
+     * commento su DemoGenState): un lotto in corso deve sopravvivere ai
+     * memset di DemoResetArena. */
+    DemoGenState gen;
 
     if (!DemoLoadAssets(&assets))
     {
@@ -1884,6 +2196,17 @@ int main(int argc, char **argv)
     DemoPoolInitCurated(&enemyPool, enemyCurated, 3);
     DemoPoolInitCurated(&weaponPool, weaponCurated, 2);
     DemoEnsureGeneratedDirs();
+    DemoGenInit(&gen);
+    if (capture)
+    {
+        /* L'HUD della cattura disegna la riga GEN vera (niente piu' testo
+         * congelato): perche' lo smoke test resti deterministico il brief va
+         * forzato off, o il PNG cambierebbe a seconda che brief.txt esista
+         * sul disco di chi lancia la cattura. */
+        gen.useBrief = false;
+        gen.briefPresent = false;
+        gen.briefFirstLine[0] = '\0';
+    }
     if (!capture)
     {
         DemoPoolScanGenerated(&enemyPool, DEMO_ENEMY_GENERATED_DIR);
@@ -1925,7 +2248,7 @@ int main(int argc, char **argv)
                 }
             }
             DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool,
-                             DEMO_RENDER_SMOOTH, false, false);
+                             DEMO_RENDER_SMOOTH, false, false, &gen);
             if (!DemoExportFrame(renderer.finalTarget, captureDirectory, frame))
             {
                 fprintf(stderr, "ERRORE: export fallito al frame %d.\n", frame);
@@ -1974,10 +2297,35 @@ int main(int argc, char **argv)
                                     DEMO_WEAPON_GENERATED_DIR, true,
                                     0x77A1u + (unsigned int)weaponPool.current*53u);
             }
-            /* G/H/B: nessun processo figlio in questo WP, solo il segnaposto
-             * HUD che WP4 sostituira' con lo stato vero del generatore. */
-            if (IsKeyPressed(KEY_G) || IsKeyPressed(KEY_H) || IsKeyPressed(KEY_B))
-                world.infoMessageTimer = DEMO_INFO_MESSAGE_SECONDS;
+            /* G/H: spawna un lotto (ADR-002, processo figlio non bloccante --
+             * DemoGenSpawn rifiuta da sola una seconda pressione mentre il
+             * primo figlio e' vivo, requisito 1). Seme fresco ad ogni
+             * pressione: time(NULL) mescolato alla RNG cosmetica, MAI lo
+             * stesso a due pressioni ravvicinate (requisito 2) -- basta
+             * DemoNextRandom perche' avanza lo stato ad ogni chiamata, quindi
+             * differenzia anche due G premuti nello stesso secondo. */
+            if (IsKeyPressed(KEY_G))
+                DemoGenSpawn(&gen, DEMO_GEN_KIND_ENEMY, DEMO_GEN_KEY_ATTACK_COUNT,
+                            (uint32_t)time(NULL) ^ DemoNextRandom(&world));
+            if (IsKeyPressed(KEY_H))
+                DemoGenSpawn(&gen, DEMO_GEN_KIND_WEAPON, DEMO_GEN_KEY_ATTACK_COUNT,
+                            (uint32_t)time(NULL) ^ DemoNextRandom(&world));
+            /* B: toggle "usa brief" on/off, e SEMPRE ricarica il file (spec
+             * sezione 4, "ricarica brief.txt"): anche premuto per spegnere,
+             * l'owner potrebbe aver appena scritto il file per la prossima
+             * volta che lo riaccende. */
+            if (IsKeyPressed(KEY_B))
+            {
+                gen.useBrief = !gen.useBrief;
+                DemoGenReloadBrief(&gen);
+            }
+
+            /* Poll UNA volta per frame, fuori dal loop a passo fisso (requisito
+             * 3), come DemoPoolPollTick qui sotto: waitpid con WNOHANG non deve
+             * mai finire dentro un ciclo che puo' girare piu' volte nello
+             * stesso frame. */
+            DemoGenPollTick(&gen, &enemyPool, &weaponPool);
+            DemoGenDecayStatus(&gen, frameTime);
 
             DemoPoolPollTick(&enemyPool, DEMO_ENEMY_GENERATED_DIR, frameTime);
             DemoPoolPollTick(&weaponPool, DEMO_WEAPON_GENERATED_DIR, frameTime);
@@ -2005,13 +2353,25 @@ int main(int argc, char **argv)
                 accumulator -= DEMO_FIXED_DT;
             }
 
-            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool, mode, split, true);
+            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool, mode, split, true, &gen);
             BeginDrawing();
             ClearBackground(BLACK);
             DemoDrawFinalToWindow(renderer.finalTarget);
             EndDrawing();
         }
     }
+
+    /* Requisito 4: NON uccidere un figlio ancora vivo all'uscita. Gli script
+     * si scrivono con tmp+rename (gen_attacks.c), quindi un lotto interrotto
+     * a meta' non lascia mai un .lua corrotto sul pool -- lasciarlo finire in
+     * background e' innocuo, e il proprietario probabilmente lo rivuole
+     * completo alla prossima apertura della demo. waitpid qui bloccherebbe
+     * l'uscita per tutta la durata del lotto (fino a ~90s con Gemma): il
+     * processo orfano passa al reaper di sistema (init/subreaper), che lo
+     * raccoglie comunque quando termina. */
+    if (gen.pid != 0)
+        fprintf(stderr, "combat-lab: generazione %s ancora in corso (pid %ld), continua in background\n",
+                gen.kind == DEMO_GEN_KIND_ENEMY ? "enemy" : "weapon", (long)gen.pid);
 
     DemoScriptUnload(&world.enemyScript);
     DemoScriptUnload(&world.weaponScript);

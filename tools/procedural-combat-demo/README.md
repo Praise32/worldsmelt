@@ -47,8 +47,13 @@ Controlli:
 - `WASD` o frecce: movimento; mouse: mira; click sinistro tenuto: fuoco;
 - `N` / `M`: pattern nemico / arma successivi nel pool (slot 0 dell'arma =
   pistola base, sempre disponibile anche se la sandbox dell'arma muore);
-- `G` / `H` / `B`: generazione lotto nemici / armi e ricarica del brief (in
-  arrivo con l'integrazione del generatore: per ora solo un avviso in HUD);
+- `G` / `H`: lancia `bin/melting-gen --attacks` come processo figlio (lotto di
+  3 nemici / 3 armi, ~90 s con Gemma sulla GPU di riferimento); una sola
+  generazione alla volta, stato in HUD, output del generatore in
+  `logs/combat-lab-gen.log`; alla fine il lotto entra nel pool da solo;
+- `B`: attiva/disattiva il brief e rilegge `generated/combat-lab/brief.txt`
+  (la prima riga compare in HUD; se attivo e non vuoto entra nel prompt del
+  prossimo `G`/`H`);
 - `1`, `2`, `3`: pixel, smooth, ibrido (default smooth);
 - `Tab`: confronto affiancato pixel vs ibrido (si mira nel pannello sotto il
   cursore);

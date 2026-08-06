@@ -103,7 +103,7 @@ funzioni esistono ma ritornano sempre false (nessun ramo speciale nel prompt).
 | WASD/frecce + mouse | movimento, mira, fuoco (click sx) |
 | G / H | genera lotto nuovo: attacchi nemico / armi player |
 | N / M | cicla pool: nemico / arma (istantaneo, da disco) |
-| B | ricarica `brief.txt` (usato dal prossimo G/H) |
+| B | attiva/disattiva il brief E rilegge `brief.txt` (stato in HUD; usato dal prossimo G/H) |
 | R | reset arena (stessi script) |
 | 1 / 2 / 3 | pixel / smooth / ibrido (default smooth) |
 | Spazio | pausa |

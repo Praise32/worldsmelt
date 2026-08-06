@@ -1145,4 +1145,24 @@ themes2=$(grep -E "^floor[0-9]\.theme=" "$TMP/theme-force/current_run.txt" | cut
   exit 1
 }
 
+# Corpus del Combat Lab (spec 2026-08-05-combat-lab-design.md, sezione 6):
+# i cinque script curati della demo devono passare la validazione di
+# --attack-check (gen_attacks.c: sandbox vera + API vera della demo, 120 tick
+# di dry-run, nessun modello coinvolto). Sono gli stessi file che la demo
+# carica come pool di fallback: se una modifica alla validazione li respinge,
+# il pool curato sparirebbe dalla demo alla prossima generazione -- questo e'
+# il posto dove accorgersene. Il gate anti-copia NON gira in --attack-check
+# (di proposito, vedi gen_attacks.h): qui si valida, non si genera.
+echo "-- Combat Lab: i 5 script curati passano --attack-check --"
+CURATED=tools/procedural-combat-demo/scripts/curated
+for spec in "enemy spider_arc" "enemy glass_moth" "enemy snail_calligrapher" \
+            "weapon halberd_gravity" "weapon squid_reload"; do
+  set -- $spec
+  "$GEN" --attack-check "$1" "$CURATED/$2.lua" >/dev/null || {
+    echo "FALLITO: $CURATED/$2.lua non passa piu' --attack-check $1"
+    "$GEN" --attack-check "$1" "$CURATED/$2.lua"
+    exit 1
+  }
+done
+
 echo "TEST-GEN: OK"
