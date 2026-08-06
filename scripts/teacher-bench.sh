@@ -210,6 +210,17 @@ CONFIG_ROW[S2A]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\
 CONFIG_ROW[S2B]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f6\x1f5\x1feuler_a\x1fkarras\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
 CONFIG_ROW[S3A]=$'models/teacher-bench-2026-08/anyloraCheckpoint_lcm.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f4\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
 CONFIG_ROW[S3B]=$'models/teacher-bench-2026-08/anyloraCheckpoint_lcm.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f8\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+# Onda combinazioni (notte 06-07/08, domanda del proprietario "ha senso provare
+# altre combinazioni?"): NIENTE modelli nuovi (il censimento del 06/08 ha gia'
+# mappato il campo), solo incroci non ancora provati dei pesi GIA' in ledger.
+CONFIG_ROW[S5]=$'models/teacher-bench-2026-08/dreamshaperPixelart_v10.safetensors\x1fmodels/teacher-bench-2026-08\x1f\x1f\x1f8\x1f5\x1feuler_a\x1fkarras\x1fpixel art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
+CONFIG_ROW[S6]=$'models/teacher-bench-2026-08/anyloraCheckpoint_bakedvaeBlessedFp16.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f8\x1f5\x1feuler_a\x1fkarras\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
+CONFIG_ROW[S7]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f4\x1f1.5\x1flcm\x1flcm\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-4steps-lora:1.0\x1f'
+CONFIG_ROW[S8]=$'models/teacher-bench-2026-08/tokforge-dreamshaper-7-lcm-q4_0.gguf\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f6\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_NOTE[S5]="S5 combinazione: DreamShaper PixelArt (miglior stile Track P) + Hyper-SD 8step -- il vincitore di stile accelerato, mai provato prima"
+CONFIG_NOTE[S6]="S6 combinazione: AnyLoRA base fp16 + 8bitdiffuser + Hyper-SD 8step CFG 5 -- la combo S3 ma con negative/aderenza attivi (contro il checkpoint LCM a CFG 1.5)"
+CONFIG_NOTE[S7]="S7 combinazione: Hyper-SD15-4steps-lora (file gia' in ledger, mai usato) su DS8+basepixel -- floor di velocita' assoluto; sampler lcm come da guida ByteDance per il 4-step"
+CONFIG_NOTE[S8]="S8 combinazione: TokForge Q4 + 8bitdiffuser -- lo stile sopravvive a una base quantizzata Q4? (anticipo dello Stage D della matrice)"
 CONFIG_NOTE[S2A]="S2A curva step: identica a S2 ma 4 step (la Hyper-SD-LoRA e' tarata per 8: qui si misura il degrado sotto taratura)"
 CONFIG_NOTE[S2B]="S2B curva step: identica a S2 ma 6 step"
 CONFIG_NOTE[S3A]="S3A curva step: identica a S3 ma 4 step"
