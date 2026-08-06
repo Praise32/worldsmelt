@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "stage": "F",
+  "generation_mode": "text-only",
+  "judge_scale": 64,
+  "notes": {
+    "track_f_purpose": "Track F ('caccia libera all'asset', vedi scripts/teacher-bench.sh) e' un secondo esperimento parallelo a Stage A/Track P: ogni modello gira alle SUE impostazioni native (trigger, peso LoRA, step, CFG, sampler consigliati dal creatore), invece del confronto a parita' di condizioni di Track P. Il giudizio umano avviene a 64x64 nativo (campo 'judge_scale' sotto), non 32, perche' diversi candidati di Track F (8bitdiffuser64, la famiglia _s64) sono addestrati per quella scala e giudicarli a 32 penalizzerebbe un downscale che loro stessi non prevedono. Un asse aggiuntivo (righe S* di teacher-bench.sh) confronta la VELOCITA' few-step (LCM/Hyper-SD/TCD) a parita' di stile.",
+    "outline_is_allowed_here": "Track F NON eredita il vincolo di canone DEC-205 ('masse senza outline') di Track P: qui l'outline nero e' AMMESSO e va giudicato dall'occhio umano come una scelta stilistica fra le altre, non scartato a priori dal negative prompt. E' per questo che il blocco anti-outline/anti-dithering di Track P (\"black outline, thick black outline, outlined, ink outline, comic line art, cel shading black lines, dithering, noise texture\") e' stato tolto da OGNI negative qui sotto -- e solo quello: il resto del negative (anti-garbage: text/watermark/signature/blurry/photo/3d render/multiple views eccetera, e l'identita' dei soggetti: faceless, no weapon in mano) resta identico a Track P perche' quelle non sono regole di stile ma garanzie di leggibilita' e identita' del gioco (DEC-206/DEC-207), che Track F non mette in discussione.",
+    "same_subjects_and_seeds_as_track_p": "Gli 8 soggetti (id, categoria, prompt) e i 2 seed sono UGUALI a docs/ai-production/dataset/teacher-bench-2026-08-prompts.json (contratto Track P, mai toccato da questo file): stesso soggetto isolato, stessa posa, stesso fondo piatto rimovibile, per poter confrontare i due track sullo stesso materiale. Solo il negative cambia (vedi sopra) e i modelli/settings restano nella tabella CONFIG_ROW di scripts/teacher-bench.sh (righe F1..F9, S1..S4), non in questo contratto: qui vivono solo i soggetti, non le config.",
+    "config_prompt_prefix_absent_by_design": "A differenza del contratto P (che usa 'config_prompt_prefix' per A2/basepixel), qui il campo resta assente: ogni riga F*/S* di scripts/teacher-bench.sh porta gia' il proprio trigger nel 'default_trigger' della CONFIG_ROW (sono le impostazioni native del creatore, censite per modello, non un prefisso comune da centralizzare)."
+  },
+  "seeds": [4242, 90210],
+  "subjects": [
+    {
+      "id": "char_smelter_mage",
+      "category": "character",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, hooded smelter mage character, faceless empty hood, no weapon, empty hands, bronze and ember robe, ash trim, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "face, eyes, mouth, facial features, weapon, sword, staff, holding object, hands visible, multiple characters, multiple views, text, watermark, signature, blurry, photo, 3d render"
+    },
+    {
+      "id": "char_ash_ranger",
+      "category": "character",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, hooded ash ranger character, faceless empty hood, no weapon, empty hands, ash gray cloak, bronze buckles, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "face, eyes, mouth, facial features, weapon, sword, staff, holding object, hands visible, multiple characters, multiple views, text, watermark, signature, blurry, photo, 3d render"
+    },
+    {
+      "id": "enemy_ember_blob",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, molten ember blob enemy, round amorphous body, glowing orange ember core, cracked ash crust surface, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "enemy_ash_beetle",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, armored ash beetle enemy, wide segmented carapace, bronze legs, ember eye glow, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "enemy_walking_crucible",
+      "category": "enemy",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, walking crucible enemy, bronze cauldron body, stubby legs, molten ember glow at rim, ash soot streaks, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "human face, weapon, text, watermark, signature, multiple creatures, multiple views, blurry, photo, 3d render, background scenery, extra limbs"
+    },
+    {
+      "id": "weapon_forge_hammer",
+      "category": "weapon",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, forge hammer weapon icon, heavy bronze head, ash wood handle, ember accent, facing right, isolated weapon, no hands, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "hand, hands, arm, character, person holding, face, text, watermark, signature, multiple weapons, multiple views, blurry, photo, 3d render"
+    },
+    {
+      "id": "item_fusion_catalyst",
+      "category": "item",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, fusion catalyst item icon, small bronze crystal, glowing ember center, patina metal frame, isolated pickup, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "hand, hands, character, face, weapon, text, watermark, signature, multiple items, multiple views, blurry, photo, 3d render, label, price tag"
+    },
+    {
+      "id": "boss_furnace_core",
+      "category": "boss",
+      "silhouette_reference": null,
+      "prompt": "top-down three-quarter view, 2d game sprite, modular furnace core boss, large bronze central shell, ember glowing vents, slate armor plates, symmetrical body, single subject, bold flat color masses, soft value contrast edges, single light from upper left, flat solid neutral gray background",
+      "negative": "face, human face, weapon in hand, text, watermark, signature, multiple entities, multiple views, blurry, photo, 3d render, background scenery"
+    }
+  ]
+}

@@ -29,11 +29,27 @@
 # passaggio, non un campo dimenticato. Scegliere la base teacher prima di
 # introdurre il condizionamento strutturale tiene una variabile alla volta.
 #
+# TRACK F ("caccia libera all'asset", righe F1..F9/S1..S4): secondo esperimento
+# parallelo a Track P (A0..A4/T0), sempre text-only. Ogni modello gira alle
+# SUE impostazioni native (trigger/peso/step/CFG/sampler del creatore) invece
+# che a parita' di condizioni; il contratto e' un file DIVERSO,
+# docs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json --
+# stessi 8 soggetti e seed di Track P ma SENZA il blocco anti-outline/
+# anti-dithering nei negative (in Track F l'outline e' ammesso e va giudicato
+# dall'occhio) e con "judge_scale":64 in radice (il giudizio umano e' a 64x64
+# nativo, non 32: alcuni candidati -8bitdiffuser64, la famiglia _s64- sono
+# addestrati per quella scala). Le righe S1..S4 sono l'asse VELOCITA'
+# few-step (LCM/Hyper-SD) a parita' di stile, non un secondo track a parte:
+# usano anche loro il contratto trackF. Si lancia con:
+#   scripts/teacher-bench.sh F1 F2 F3 F4 F5 F6 F7 F8 F9 S1 S2 S3 S4
+#
 # Uso:
 #   scripts/teacher-bench.sh [CONFIG_ID ...]      (default: A0 A1 A2 T0)
 #   scripts/teacher-bench.sh --list                elenca le config note ed esce
 # Variabili:
 #   PROMPTS_FILE   default docs/ai-production/dataset/teacher-bench-2026-08-prompts.json
+#                  (contratto Track P; le righe F*/S* portano il proprio
+#                  contratto nella tabella CONFIG_ROW, vedi sotto)
 #   SD_CLI         default deps/stable-diffusion.cpp/build/bin/sd-cli
 #   OUT_ROOT       default artifacts/image-model-research
 #   WIDTH/HEIGHT   default 512 512 (cartella raw-512/, coerente col training a 512 di 01-VINCOLI)
@@ -72,7 +88,8 @@ DRY_RUN="${DRY_RUN:-0}"
 DEFAULT_CONFIGS=(A0 A1 A2 T0)
 
 if [ "${1:-}" = "--list" ]; then
-  echo "config note: A0 A1 A2 A3 A4 T0 (default se nessun argomento: ${DEFAULT_CONFIGS[*]})"
+  echo "config note: A0 A1 A2 A3 A4 T0 (Track P, default se nessun argomento: ${DEFAULT_CONFIGS[*]})"
+  echo "config note: F1 F2 F3 F4 F5 F6 F7 F8 F9 S1 S2 S3 S4 (Track F, contratto trackF, mai nel default)"
   exit 0
 fi
 
@@ -103,21 +120,51 @@ command -v /usr/bin/time >/dev/null 2>&1 && TIME_BIN_AVAILABLE=1
 
 mkdir -p "$RAW_DIR" "$MANIFEST_DIR" "$FAILURES_DIR" "$LOG_DIR"
 
-# -- Tabella delle config Stage A --------------------------------------------
+# -- Tabella delle config Stage A + Track F -----------------------------------
 # Campi (separatore \x1f, nessuno dei valori tecnici lo contiene -- le note
 # leggibili stanno APPOSTA in CONFIG_NOTE sotto, stringa "normale": i
 # commenti in italiano di questo repo sono pieni di apostrofi ("e'", "un'"),
 # che dentro un $'...' ANSI-C andrebbero escappati uno per uno, fragile).
 #   model_path \x1f lora_dir \x1f lora_name \x1f lora_weight \x1f steps \x1f
-#   cfg_scale \x1f sampler \x1f scheduler \x1f default_trigger
+#   cfg_scale \x1f sampler \x1f scheduler \x1f default_trigger \x1f contract \x1f
+#   extra_lora \x1f subjects_filter
 # lora_name vuoto = nessuna LoRA. default_trigger = prefisso di prompt usato
-# SOLO se docs/.../teacher-bench-2026-08-prompts.json non definisce gia' un
+# SOLO se il contratto (campo "contract" sotto) non definisce gia' un
 # config_prompt_prefix per questa config (il JSON, contratto scritto da chi
 # cura i contenuti, vince sempre quando presente).
+# contract = path del contratto prompt/soggetti per QUESTA riga (item 2 Track
+# F: righe diverse possono leggere contratti diversi nella stessa invocazione
+# dello script). Vuoto = default $PROMPTS_FILE (il contratto P, retrocompatibile:
+# le righe A0..A4/T0 storiche non lo valorizzano affatto e `read` assegna
+# stringa vuota ai campi mancanti in coda, zero byte cambiati su quelle righe).
+# extra_lora (opzionale) = "<dir>:<nome>:<peso>" di un SECONDO <lora:...> da
+# comporre SOPRA la style LoRA (asse velocita' delle righe S*: una LoRA di
+# accelerazione, LCM/Hyper-SD, che spesso vive in una cartella diversa dalla
+# style LoRA -- vedi run_one, e' incorporata nel prompt con un path ASSOLUTO
+# cosi' bypassa --lora-model-dir invece di richiederne un secondo, che sd-cli
+# non supporta). Vuoto = nessuna seconda LoRA.
+# subjects_filter (opzionale) = lista categorie separate da virgola (es.
+# "weapon,item"): limita la riga ai soli soggetti di quelle categorie -- per
+# LoRA addestrate su un sottoinsieme di oggetti (RPG Icons: solo item/arma).
+# Vuoto = tutti i soggetti del contratto.
+#
 # Sampler/scheduler fissi (euler_a/karras) su A0-A4 per confronto onesto
 # (matrice: "sampler deterministico documentato", MAI cambiato fra config
 # senza che sia la variabile sotto esame); T0 usa lcm/lcm perche' e' la
 # baseline di VELOCITA', non un teacher (mandato, "T0 ... non teacher").
+#
+# Track F (F1..F9/S1..S4) usa invece le impostazioni NATIVE del creatore per
+# ogni modello (censimento agente ricerca agosto 2026): sampler diversi da
+# riga a riga per costruzione, non e' un difetto di coerenza. Nota sui
+# sampler "DPM++ 2M (SDE) Karras" dei creatori (8bitdiffuser, basepixel): il
+# censimento di partenza presumeva sd.cpp senza l'equivalente esatto e
+# chiedeva di documentare una deviazione -- VERIFICATO invece (sd-cli --help,
+# --sampling-method) che questa build espone gia' "dpm++2m_sde" e "dpm++2m"
+# come sampler REALI, piu' lo scheduler "karras": F1/F2/F8 usano quindi il
+# nome del creatore 1:1, NESSUNA sostituzione necessaria. Verificato in
+# sessione, non e' garantito restare vero su build future di sd.cpp -- se
+# --sampling-method smette di elencare "dpm++2m_sde"/"dpm++2m", questa nota
+# e' da riaprire insieme alle righe F1/F2/F8.
 declare -A CONFIG_ROW
 CONFIG_ROW[A0]=$'models/sd15-vanilla-pruned-emaonly.safetensors\x1f\x1f\x1f\x1f25\x1f7\x1feuler_a\x1fkarras\x1f'
 CONFIG_ROW[A1]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1f\x1f\x1f\x1f25\x1f7\x1feuler_a\x1fkarras\x1f'
@@ -125,6 +172,19 @@ CONFIG_ROW[A2]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x
 CONFIG_ROW[A3]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f25\x1f7\x1feuler_a\x1fkarras\x1fpixel_art, '
 CONFIG_ROW[A4]=$'models/teacher-bench-2026-08/dreamshaperPixelart_v10.safetensors\x1f\x1f\x1f\x1f25\x1f7\x1feuler_a\x1fkarras\x1fpixel art, '
 CONFIG_ROW[T0]=$'models/teacher-bench-2026-08/tokforge-dreamshaper-7-lcm-q4_0.gguf\x1f\x1f\x1f\x1f6\x1f1.5\x1flcm\x1flcm\x1f'
+CONFIG_ROW[F1]=$'models/teacher-bench-2026-08/anyloraCheckpoint_bakedvaeBlessedFp16.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f20\x1f7\x1fdpm++2m_sde\x1fkarras\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F2]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f20\x1f7\x1fdpm++2m_sde\x1fkarras\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F3]=$'models/teacher-bench-2026-08/dreamshaperPixelart_v10.safetensors\x1f\x1f\x1f\x1f25\x1f7\x1feuler_a\x1fkarras\x1fpixel art, pixel art style, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F4]=$'models/Public-Prompts-Pixel-Model.ckpt\x1f\x1f\x1f\x1f20\x1f10\x1feuler_a\x1fkarras\x1fpixelsprite, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F5]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fmpixel-v3-pixel_f2\x1f1.0\x1f25\x1f7\x1feuler_a\x1fkarras\x1fpixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F6]=$'models/teacher-bench-2026-08/pixelArtSpriteDiffusion_safetensors.safetensors\x1f\x1f\x1f\x1f25\x1f7\x1feuler_a\x1fkarras\x1fPixelartFSS \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F7]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fPixhell_15\x1f1.0\x1f25\x1f7\x1feuler_a\x1fkarras\x1fpixelart, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F8]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f1.0\x1f28\x1f7\x1fdpm++2m\x1fkarras\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[F9]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1frpg-icons-lora\x1f1.0\x1f25\x1f7\x1feuler_a\x1fkarras\x1frpgicondiff, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1fweapon,item'
+CONFIG_ROW[S1]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f6\x1f1.5\x1flcm\x1flcm\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels:lcm-lora-sdv1-5:1.0\x1f'
+CONFIG_ROW[S2]=$'models/teacher-bench-2026-08/DreamShaper_8_pruned.safetensors\x1fmodels/teacher-bench-2026-08\x1fbasepixel-20\x1f0.6\x1f8\x1f5\x1feuler_a\x1fkarras\x1fbasepixel, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1fmodels/teacher-bench-2026-08:Hyper-SD15-8steps-CFG-lora:1.0\x1f'
+CONFIG_ROW[S3]=$'models/teacher-bench-2026-08/anyloraCheckpoint_lcm.safetensors\x1fmodels/teacher-bench-2026-08\x1f8bitdiffuser64-v4-PX64NOCAP_epoch_10\x1f1.0\x1f6\x1f1.5\x1flcm\x1flcm\x1fpixel_art, \x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
+CONFIG_ROW[S4]=$'models/teacher-bench-2026-08/DreamShaper8_LCM.safetensors\x1f\x1f\x1f\x1f8\x1f2\x1flcm\x1flcm\x1f\x1fdocs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json\x1f\x1f'
 
 declare -A CONFIG_NOTE
 CONFIG_NOTE[A0]="A0 baseline: SD1.5 vanilla, nessuna LoRA"
@@ -133,6 +193,19 @@ CONFIG_NOTE[A2]="A2: DreamShaper 8 + Basepixel 0.6 (candidato principale)"
 CONFIG_NOTE[A3]="A3: DreamShaper 8 + 8bitdiffuser64 (candidato griglia, Civitai). Peso LoRA 1.0 e trigger pixel_art (trainedWords Civitai versione 636318) sono un default di questo script: la matrice benchmark non specifica un peso, verificare prima di promuovere risultati"
 CONFIG_NOTE[A4]="A4: DreamShaper PixelArt (Civitai), checkpoint sfidante. Prefisso 'pixel art' e' un default di questo script (trainedWords Civitai versione 142421), non un obbligo del contratto JSON"
 CONFIG_NOTE[T0]="T0 smoke: baseline di VELOCITA (non teacher), CFG 1.5/6 step"
+CONFIG_NOTE[F1]="F1 Track F: AnyLoRA (bakedVAE fp16) + 8bitdiffuser64 v4 1.0, impostazioni del creatore (Civitai 185743: scala LoRA 0.85-1.25 -> 1.0 come richiesto dal task, step 10-30/CFG 4-10 -> 20/7 in mezzo al range, default di questo script). Sampler creatore 'DPM++ 2M SDE Karras' VERIFICATO 1:1 su dpm++2m_sde+karras di sd-cli: nessuna deviazione (vedi nota sopra la tabella)"
+CONFIG_NOTE[F2]="F2 Track F: DreamShaper 8 + 8bitdiffuser64 v4 1.0, STESSI settings di F1 (20 step/CFG 7/dpm++2m_sde+karras) a parita' di LoRA -- confronto di base AnyLoRA vs DreamShaper sotto lo stesso accessorio"
+CONFIG_NOTE[F3]="F3 Track F: DreamShaper PixelArt (Civitai 129879) da solo, trigger 'pixel art, pixel art style, ' (trainedWords), 25 step/CFG 7 -- variante nativa di A4 (che in Track P usa solo 'pixel art, ')"
+CONFIG_NOTE[F4]="F4 Track F: All-in-one Pixel Model (models/Public-Prompts-Pixel-Model.ckpt), trigger 'pixelsprite, ', 20 step/CFG 10 (creatore: CFG alto ~10). Checkpoint .ckpt, non .safetensors: se sd-cli non lo carica senza conversione e' un esito della fase GPU, non verificabile qui (regola ferrea niente GPU)"
+CONFIG_NOTE[F5]="F5 Track F: DreamShaper 8 + M_Pixel v3 1.0, trigger 'pixel, ', 25 step/CFG 7 (non dichiarati dal creatore nel censimento, default di questo script)"
+CONFIG_NOTE[F6]="F6 Track F: Pixel Art Sprite Diffusion, trigger 'PixelartFSS ', 25 step/CFG 7. Il modello genera FOGLI di camminata frontale, e' il suo scopo dichiarato: va giudicato per quello, non come sprite isolato singolo come gli altri candidati"
+CONFIG_NOTE[F7]="F7 Track F: DreamShaper 8 + PIXHELL 1.0, trigger 'pixelart, ', 25 step/CFG 7 (non dichiarati dal creatore nel censimento, default di questo script)"
+CONFIG_NOTE[F8]="F8 Track F: DreamShaper 8 + Basepixel 1.0 (vs 0.6 di A2) alle impostazioni del creatore: 28 step/CFG 7/'DPM++ 2M Karras'. Sampler creatore VERIFICATO 1:1 su dpm++2m+karras di sd-cli: nessuna deviazione (vedi nota sopra la tabella). Variante nativa di A2"
+CONFIG_NOTE[F9]="F9 Track F: DreamShaper 8 + RPG Icons 1.0, trigger 'rpgicondiff, ', 25 step/CFG 7 (non dichiarati dal creatore, default di questo script). subjects_filter=weapon,item: la LoRA (Civitai) e' addestrata solo su oggetti/armi isolati, i soggetti character/enemy/boss sono fuori scopo e vengono saltati per questa riga"
+CONFIG_NOTE[S1]="S1 asse velocita': DreamShaper 8 + Basepixel 0.6 + LCM-LoRA 1.0 sopra (extra_lora), sampler lcm, 6 step, CFG 1.5 (range creatore LCM-LoRA: 4-8 step/CFG 1-2). Peso 1.0 della LCM-LoRA e' un default di questo script, il creatore non ne dichiara uno"
+CONFIG_NOTE[S2]="S2 asse velocita': DreamShaper 8 + Basepixel 0.6 + Hyper-SD15 8-step-CFG-LoRA 1.0 sopra (extra_lora), sampler normale (euler_a/karras), 8 step, CFG 5 (range creatore: CFG 5-8). Peso 1.0 e' un default di questo script"
+CONFIG_NOTE[S3]="S3 asse velocita': AnyLoRA-LCM (checkpoint gia' fuso LCM) + 8bitdiffuser64 1.0, sampler lcm, 6 step, CFG 1.5 -- nessuna extra_lora: l'accelerazione e' gia' nel checkpoint, non va sommata"
+CONFIG_NOTE[S4]="S4 asse velocita': DreamShaper8_LCM da solo (nessuna LoRA pixel-art), sampler lcm, 8 step, CFG 2 -- primo candidato runtime della ricerca (vedi nota su questo path in MODEL_META_JSON), qui usato solo come riferimento di velocita' pura senza stile pixel-art dedicato"
 
 # -- Metadati modelli/LoRA per il ledger (item 4 del task) -------------------
 # UNICA fonte di verita' per licenza/provenienza: ensure_ledger_entries()
@@ -244,11 +317,22 @@ else
   REQUESTED_CONFIGS=("${DEFAULT_CONFIGS[@]}")
 fi
 
-# -- Soggetti e seed dal contratto JSON ---------------------------------------
-# NUL-delimitato (mapfile -d ''): i prompt possono contenere qualunque
-# carattere di testo (virgole, apici) senza rischiare collisioni di
-# delimitatore, a differenza di un formato TSV/CSV fatto a mano.
-mapfile -d '' SUBJ_FIELDS < <(python3 - "$PROMPTS_FILE" <<'PY'
+# -- Soggetti e seed di UN contratto -------------------------------------------
+# Item 2 Track F: righe diverse di CONFIG_ROW possono portare contratti
+# diversi (P per A0..A4/T0, trackF per F*/S*) nella STESSA invocazione dello
+# script (es. "teacher-bench.sh A0 F1"): niente piu' un caricamento globale
+# unico, ma una funzione richiamabile per ogni contratto incontrato. Assegna
+# alle globali SUBJ_FIELDS/SEEDS/PROMPTS_VERSION sovrascrivendole -- sicuro
+# perche' l'uso e' sempre sequenziale e immediato (mai concorrente, mai letto
+# da una chiamata precedente dopo che la successiva e' partita). NUL-
+# delimitato (mapfile -d ''): i prompt possono contenere qualunque carattere
+# di testo (virgole, apici) senza rischiare collisioni di delimitatore, a
+# differenza di un formato TSV/CSV fatto a mano.
+load_prompts_contract() {
+  local contract_path="$1"
+  [ -f "$contract_path" ] || { echo "teacher-bench: contratto mancante: $contract_path" >&2; return 1; }
+
+  mapfile -d '' SUBJ_FIELDS < <(python3 - "$contract_path" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 for s in data.get("subjects", []):
@@ -257,12 +341,12 @@ for s in data.get("subjects", []):
         sys.stdout.write("\0")
 PY
 )
-if [ "${#SUBJ_FIELDS[@]}" -eq 0 ] || [ $(( ${#SUBJ_FIELDS[@]} % 4 )) -ne 0 ]; then
-  echo "teacher-bench: $PROMPTS_FILE non contiene 'subjects' validi" >&2
-  exit 1
-fi
+  if [ "${#SUBJ_FIELDS[@]}" -eq 0 ] || [ $(( ${#SUBJ_FIELDS[@]} % 4 )) -ne 0 ]; then
+    echo "teacher-bench: $contract_path non contiene 'subjects' validi" >&2
+    return 1
+  fi
 
-mapfile -d '' SEED_FIELDS < <(python3 - "$PROMPTS_FILE" <<'PY'
+  mapfile -d '' SEED_FIELDS < <(python3 - "$contract_path" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 seeds = data.get("seeds") or [4242, 90210]
@@ -271,13 +355,33 @@ for s in seeds:
     sys.stdout.write("\0")
 PY
 )
-SEEDS=("${SEED_FIELDS[@]}")
-[ "${#SEEDS[@]}" -gt 0 ] || { echo "teacher-bench: nessun seed (JSON o default)" >&2; exit 1; }
+  SEEDS=("${SEED_FIELDS[@]}")
+  [ "${#SEEDS[@]}" -gt 0 ] || { echo "teacher-bench: nessun seed in $contract_path (JSON o default)" >&2; return 1; }
 
-PROMPTS_VERSION=$(python3 -c "
+  # version E judge_scale nella stessa lettura. judge_scale serve QUI solo
+  # alla riga di provenienza di generate_config(): chi lo consuma davvero e'
+  # teacher_bench_post.py, che rilegge il contratto dal path scritto nel
+  # manifest. Contratto che non lo dichiara (quello P) -> stringa vuota, e la
+  # riga di log lo dice come "32 (default)", che e' il default di quello
+  # script -- mai un numero inventato qui.
+  IFS=$'\x1f' read -r PROMPTS_VERSION JUDGE_SCALE < <(python3 -c "
 import json, sys
-print(json.load(open(sys.argv[1])).get('version', ''), end='')
-" "$PROMPTS_FILE")
+d = json.load(open(sys.argv[1]))
+sys.stdout.write(str(d.get('version', '')) + '\x1f' + str(d.get('judge_scale', '')) + '\n')
+" "$contract_path")
+  return 0
+}
+
+# Caricamento di default (contratto P, $PROMPTS_FILE) come sola VALIDAZIONE
+# d'ingresso: un $PROMPTS_FILE illeggibile ferma la corsa qui invece che a
+# meta' della prima riga che lo usa. Non alimenta piu' il banner (vedi in
+# fondo), che di questo contratto non dichiara piu' niente.
+# generate_config() richiama load_prompts_contract() DI NUOVO per ogni riga
+# col contratto proprio di quella riga (vedi CONFIG_ROW), sovrascrivendo
+# queste stesse globali subito prima di usarle -- ridondante per le righe
+# A0..A4/T0 (stesso file, stesso risultato) ma e' quello che rende Track F
+# possibile senza duplicare la logica di parsing.
+load_prompts_contract "$PROMPTS_FILE" || exit 1
 
 # -- Ledger modelli + snapshot licenze (item 4) -------------------------------
 # Idempotente: gira una volta per invocazione. Copre TRE insiemi di path, non
@@ -309,16 +413,30 @@ ensure_ledger_entries() {
 
   declare -A seen=()
   local used_pairs=() paths=()
-  local cfgid model lora_dir lora_name _rest lora_path
+  local cfgid model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler \
+        default_trigger contract extra_lora subjects_filter lora_path
+  local ex_dir ex_name ex_weight ex_path
   for cfgid in "${REQUESTED_CONFIGS[@]}"; do
     [ -n "${CONFIG_ROW[$cfgid]+x}" ] || continue   # config sconosciuta: segnalata dopo, non qui
-    IFS=$'\x1f' read -r model lora_dir lora_name _rest <<< "${CONFIG_ROW[$cfgid]}"
+    IFS=$'\x1f' read -r model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler \
+      default_trigger contract extra_lora subjects_filter <<< "${CONFIG_ROW[$cfgid]}"
     used_pairs+=("$model	$cfgid")
     if [ -z "${seen[$model]:-}" ]; then seen[$model]=1; paths+=("$model"); fi
     if [ -n "$lora_name" ]; then
       lora_path="$lora_dir/$lora_name.safetensors"
       used_pairs+=("$lora_path	$cfgid")
       if [ -z "${seen[$lora_path]:-}" ]; then seen[$lora_path]=1; paths+=("$lora_path"); fi
+    fi
+    # extra_lora (righe S*, asse velocita'): stesso obbligo di ledger della
+    # style LoRA, "mai usare asset senza ledger" non fa eccezioni per la
+    # SECONDA LoRA solo perche' e' opzionale.
+    if [ -n "$extra_lora" ]; then
+      IFS=':' read -r ex_dir ex_name ex_weight <<< "$extra_lora"
+      if [ -n "$ex_dir" ] && [ -n "$ex_name" ]; then
+        ex_path="$ex_dir/$ex_name.safetensors"
+        used_pairs+=("$ex_path	$cfgid")
+        if [ -z "${seen[$ex_path]:-}" ]; then seen[$ex_path]=1; paths+=("$ex_path"); fi
+      fi
     fi
   done
 
@@ -383,12 +501,18 @@ for line in os.environ.get("MB_USED_PAIRS", "").splitlines():
 # nota di default per un peso trovato sul disco senza metadati curati: la
 # voce esiste comunque (regola "mai usare asset senza ledger"), ma dichiara
 # di non sapere nulla invece di inventare una provenienza dal nome del file.
-UNCURATED_NOTE = (
-    "peso presente in models/teacher-bench-2026-08/ ma senza metadati curati in "
-    "scripts/teacher-bench.sh: provenienza, licenza e diritti NON verificati da questo "
-    "script (il log del download non e' conservato). Solo benchmark interno finche' "
-    "qualcuno non lo audita a mano -- vedi 06-LICENZE-E-RISCHI.md del dossier ricerca."
-)
+# La nota cita il path REALE della voce e non una cartella fissa: da Track F
+# il ledger copre anche pesi fuori da models/teacher-bench-2026-08/ (es.
+# models/Public-Prompts-Pixel-Model.ckpt, models/lcm-lora-sdv1-5.safetensors),
+# e un campo di ledger che dichiara la cartella sbagliata e' falso quanto una
+# licenza inventata.
+def uncurated_note(path):
+    return (
+        f"peso presente sul disco ({path}) ma senza metadati curati in "
+        "scripts/teacher-bench.sh: provenienza, licenza e diritti NON verificati da questo "
+        "script (il log del download non e' conservato). Solo benchmark interno finche' "
+        "qualcuno non lo audita a mano -- vedi 06-LICENZE-E-RISCHI.md del dossier ricerca."
+    )
 
 if ledger_path.exists():
     ledger = json.loads(ledger_path.read_text())
@@ -426,7 +550,7 @@ for p in paths:
         "redistribution": m.get("redistribution", "unknown"),
         "components": m.get("components", []),
         "decision": "benchmark-only",
-        "notes": m.get("notes", "") if curated else UNCURATED_NOTE,
+        "notes": m.get("notes", "") if curated else uncurated_note(p),
         "license_snapshot_file": m.get("license_snapshot_file"),
         "used_by_configs": sorted(set(entry.get("used_by_configs") or []) | used_by.get(p, set())),
     })
@@ -464,7 +588,8 @@ run_one() {
   local lora_path="$1" lora_sha="$2" lora_license="$3" lora_name="$4" lora_weight="$5" prefix="$6" \
         steps="$7" cfg_scale="$8" sampler="$9"
   shift 9
-  local scheduler="$1"
+  local scheduler="$1" contract_path="$2" \
+        extra_lora_rel="$3" extra_lora_weight="$4" extra_lora_sha="$5" extra_lora_license="$6"
 
   local raw_dir="$RAW_DIR/$cfgid"
   local raw_path="$raw_dir/${sid}_${seed}.png"
@@ -475,6 +600,28 @@ run_one() {
   if [ -n "$lora_name" ]; then
     full_prompt="${full_prompt}<lora:${lora_name}:${lora_weight}>"
     extra_args+=(--lora-model-dir "$(dirname "$lora_path")")
+  fi
+  # extra_lora (righe S*): SECONDA LoRA sopra la style LoRA, per l'asse
+  # velocita'. Path ASSOLUTO nel tag <lora:...> invece di un secondo
+  # --lora-model-dir (sd-cli ne accetta uno solo, examples/common/common.cpp
+  # SDGenerationParams::extract_and_remove_lora): quando raw_path e'
+  # assoluto (is_absolute_path) sd-cli lo apre diretto, ignorando
+  # lora-model-dir -- verificato leggendo quella funzione, non solo dedotto
+  # dall'--help. $PWD e' la radice del repo per tutta la vita dello script
+  # (il primo comando e' "cd $(dirname "$0")/.." e non c'e' nessun altro cd),
+  # quindi "$PWD/$extra_lora_rel" e' sempre l'assoluto corretto.
+  if [ -n "$extra_lora_rel" ]; then
+    full_prompt="${full_prompt}<lora:${PWD}/${extra_lora_rel}:${extra_lora_weight}>"
+    # extract_and_remove_lora di sd.cpp esce SUBITO se lora_model_dir e'
+    # vuoto: senza --lora-model-dir nessun tag <lora:...> viene estratto,
+    # nemmeno uno con path assoluto, e il tag resterebbe LETTERALE dentro il
+    # prompt -- in silenzio, senza applicare nulla. Oggi --lora-model-dir
+    # arriva solo dalla style LoRA sopra; nessuna riga attuale ha extra_lora
+    # senza style LoRA (S1/S2 hanno entrambe basepixel), ma niente lo
+    # impedirebbe a una riga futura.
+    if [ -z "$lora_name" ]; then
+      extra_args+=(--lora-model-dir "$(dirname "$extra_lora_rel")")
+    fi
   fi
 
   if [ -f "$raw_path" ]; then
@@ -584,10 +731,12 @@ PY
   MB_MODEL_PATH="$model" MB_MODEL_SHA="$model_sha" MB_LICENSE_MODEL="$model_license" \
   MB_LORA_PATH="$lora_path" MB_LORA_SHA="$lora_sha" MB_LORA_WEIGHT="$lora_weight" \
   MB_LORA_TRIGGER="$prefix" MB_LICENSE_LORA="$lora_license" \
+  MB_EXTRA_LORA_PATH="$extra_lora_rel" MB_EXTRA_LORA_SHA="$extra_lora_sha" \
+  MB_EXTRA_LORA_WEIGHT="$extra_lora_weight" MB_LICENSE_EXTRA_LORA="$extra_lora_license" \
   MB_PROMPT_FULL="$full_prompt" MB_NEGATIVE="$snegative" \
   MB_STEPS="$steps" MB_CFG_SCALE="$cfg_scale" MB_SAMPLER="$sampler" MB_SCHEDULER="$scheduler" \
   MB_WIDTH="$WIDTH" MB_HEIGHT="$HEIGHT" MB_SD_COMMIT="$SD_CPP_COMMIT" \
-  MB_PROMPTS_VERSION="$PROMPTS_VERSION" \
+  MB_PROMPTS_VERSION="$PROMPTS_VERSION" MB_CONTRACT_PATH="$contract_path" \
   MB_LATENCY_MS="$latency_ms" MB_RSS_KB="$rss_kb" MB_VRAM_NOTE="$vram_note" \
   MB_GEN_OK="$gen_ok" MB_RAW_REL="$raw_rel" MB_MANIFEST_PATH="$manifest_path" \
   python3 <<'PY'
@@ -619,6 +768,11 @@ record = {
     # deve dedurre da un'assenza se la silhouette guidata fosse in gioco.
     "generation_mode": "text-only",
     "prompts_contract_version": os.environ.get("MB_PROMPTS_VERSION") or None,
+    # item 3 Track F: quale contratto ha generato QUESTA immagine (P o
+    # trackF) -- teacher_bench_post.py legge "judge_scale" da questo path per
+    # scrivere la colonna omonima in metrics.csv, e teacher_bench_review.py
+    # lo usa per raggruppare le card per track.
+    "prompts_contract_path": os.environ.get("MB_CONTRACT_PATH") or None,
     "prompt_full": os.environ["MB_PROMPT_FULL"],
     "negative_prompt": os.environ.get("MB_NEGATIVE", ""),
     "steps": int(os.environ["MB_STEPS"]),
@@ -646,6 +800,19 @@ if lora_path:
         "license": os.environ.get("MB_LICENSE_LORA", ""),
     }
 
+# extra_lora (righe S*, asse velocita'): SECONDA LoRA sopra la style LoRA,
+# stessa forma di "lora" cosi' chi legge il manifest non deve indovinare uno
+# schema diverso per capire cosa e' stato sommato.
+record["extra_lora"] = None
+extra_lora_path = os.environ.get("MB_EXTRA_LORA_PATH", "")
+if extra_lora_path:
+    record["extra_lora"] = {
+        "path": extra_lora_path,
+        "sha256": envf("MB_EXTRA_LORA_SHA"),
+        "weight": float(os.environ.get("MB_EXTRA_LORA_WEIGHT", "0") or 0),
+        "license": os.environ.get("MB_LICENSE_EXTRA_LORA", ""),
+    }
+
 out_path = os.environ["MB_MANIFEST_PATH"]
 os.makedirs(os.path.dirname(out_path), exist_ok=True)
 with open(out_path, "w") as f:
@@ -654,17 +821,33 @@ with open(out_path, "w") as f:
 PY
 }
 
-# -- Generazione di una config intera (8 soggetti x N seed) ------------------
+# -- Generazione di una config intera (8 soggetti x N seed, meno un eventuale
+# subjects_filter) --------------------------------------------------------
 generate_config() {
   local cfgid="$1"
   if [ -z "${CONFIG_ROW[$cfgid]+x}" ]; then
     echo "teacher-bench: config sconosciuta: $cfgid (note: --list per l'elenco)" >&2
     return 1
   fi
-  local model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler default_trigger
-  IFS=$'\x1f' read -r model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler default_trigger \
-    <<< "${CONFIG_ROW[$cfgid]}"
+  local model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler default_trigger \
+        contract extra_lora subjects_filter
+  IFS=$'\x1f' read -r model lora_dir lora_name lora_weight steps cfg_scale sampler scheduler \
+    default_trigger contract extra_lora subjects_filter <<< "${CONFIG_ROW[$cfgid]}"
   echo "== teacher-bench: $cfgid -- ${CONFIG_NOTE[$cfgid]:-} =="
+
+  # contratto DI QUESTA RIGA (item 2 Track F): vuoto = $PROMPTS_FILE (il
+  # contratto P) -- le righe A0..A4/T0 storiche non valorizzano "contract" e
+  # finiscono sempre qui, stesso file di sempre. Ricarica SUBJ_FIELDS/SEEDS/
+  # PROMPTS_VERSION per QUESTO contratto: ridondante ma innocuo per le righe P
+  # (stesso file gia' caricato in cima allo script), necessario per le righe
+  # F*/S* che leggono un contratto diverso.
+  local contract_path="${contract:-$PROMPTS_FILE}"
+  if ! load_prompts_contract "$contract_path"; then
+    echo "teacher-bench: [$cfgid] salto l'intera config (contratto non caricabile)" >&2
+    mkdir -p "$FAILURES_DIR"
+    printf 'config=%s reason=contract_missing path=%s\n' "$cfgid" "$contract_path" > "$FAILURES_DIR/${cfgid}-contract-missing.txt"
+    return 0
+  fi
 
   if [ ! -f "$model" ]; then
     echo "teacher-bench: [$cfgid] modello mancante ($model) -- salto l'intera config" >&2
@@ -684,15 +867,43 @@ generate_config() {
     fi
   fi
 
-  # prefisso di prompt: il contratto JSON (config_prompt_prefix) vince
-  # sempre quando presente; altrimenti il default_trigger di CONFIG_ROW.
+  # extra_lora (righe S*, asse velocita'): stesso controllo di esistenza
+  # della style LoRA. Formato "dir:nome:peso" (":" invece di "\x1f": e' un
+  # SOTTO-campo dentro un solo campo \x1f di CONFIG_ROW, vedi commento sopra
+  # la tabella). Peso mancante nel campo -> 1.0 di default (nessuna riga
+  # attuale lo lascia vuoto, ma un default esplicito e' meglio di un errore
+  # muto se una futura riga lo fa).
+  local extra_lora_rel="" extra_lora_weight="" extra_lora_sha="" extra_lora_license=""
+  if [ -n "$extra_lora" ]; then
+    local ex_dir ex_name ex_w
+    IFS=':' read -r ex_dir ex_name ex_w <<< "$extra_lora"
+    if [ -z "$ex_dir" ] || [ -z "$ex_name" ]; then
+      echo "teacher-bench: [$cfgid] extra_lora malformato ('$extra_lora', attesa 'dir:nome:peso') -- salto l'intera config" >&2
+      mkdir -p "$FAILURES_DIR"
+      printf 'config=%s reason=extra_lora_malformed value=%s\n' "$cfgid" "$extra_lora" > "$FAILURES_DIR/${cfgid}-extra-lora-malformed.txt"
+      return 0
+    fi
+    extra_lora_rel="$ex_dir/$ex_name.safetensors"
+    if [ ! -f "$extra_lora_rel" ]; then
+      echo "teacher-bench: [$cfgid] extra LoRA mancante ($extra_lora_rel) -- salto l'intera config" >&2
+      mkdir -p "$FAILURES_DIR"
+      printf 'config=%s reason=extra_lora_missing path=%s\n' "$cfgid" "$extra_lora_rel" > "$FAILURES_DIR/${cfgid}-extra-lora-missing.txt"
+      return 0
+    fi
+    extra_lora_weight="${ex_w:-1.0}"
+    extra_lora_sha=$(ledger_field "$extra_lora_rel" file_hash)
+    extra_lora_license=$(ledger_field "$extra_lora_rel" license)
+  fi
+
+  # prefisso di prompt: il config_prompt_prefix del contratto DI QUESTA RIGA
+  # vince sempre quando presente; altrimenti il default_trigger di CONFIG_ROW.
   local prefix
   prefix=$(python3 -c "
 import json, sys
 d = json.load(open(sys.argv[1]))
 p = (d.get('config_prompt_prefix') or {}).get(sys.argv[2])
 print(p if p is not None else sys.argv[3], end='')
-" "$PROMPTS_FILE" "$cfgid" "$default_trigger")
+" "$contract_path" "$cfgid" "$default_trigger")
 
   local model_sha model_license lora_sha lora_license
   model_sha=$(ledger_field "$model" file_hash)
@@ -703,20 +914,55 @@ print(p if p is not None else sys.argv[3], end='')
     lora_license=$(ledger_field "$lora_path" license)
   fi
 
+  # subjects_filter (opzionale, righe F9...): limita il giro ai soli soggetti
+  # delle categorie elencate (LoRA addestrate su un sottoinsieme, es. RPG
+  # Icons su weapon/item -- generare anche i soggetti character/enemy/boss
+  # sarebbe fuori scopo per quella LoRA). Assente = tutti i soggetti, come
+  # prima di questo campo.
+  local -A filter_set=()
+  if [ -n "$subjects_filter" ]; then
+    local filter_arr=() cat
+    IFS=',' read -ra filter_arr <<< "$subjects_filter"
+    for cat in "${filter_arr[@]}"; do filter_set["$cat"]=1; done
+  fi
+
+  # Provenienza dichiarata PER RIGA, non nel banner d'avvio: ogni riga puo'
+  # leggere un contratto diverso (P o trackF) con versione, judge_scale e
+  # numero di soggetti propri. Un'unica dichiarazione in testa alla corsa
+  # varrebbe solo per il contratto di default e attribuirebbe alle righe F*/S*
+  # un contratto che non le ha generate -- in un benchmark la provenienza
+  # sbagliata vale meno di nessuna provenienza. Il conteggio e' quello EFFETTIVO
+  # (dopo subjects_filter), non gli 8 soggetti del contratto.
+  local n_eff=0 j
+  for ((j = 1; j < ${#SUBJ_FIELDS[@]}; j += 4)); do
+    if [ -n "$subjects_filter" ] && [ -z "${filter_set[${SUBJ_FIELDS[j]}]:-}" ]; then continue; fi
+    n_eff=$((n_eff + 1))
+  done
+  local judge_note="${JUDGE_SCALE:-32 (default)}"
+  echo "teacher-bench:   contratto $contract_path (v${PROMPTS_VERSION:-?}, judge_scale $judge_note): $n_eff soggetti x ${#SEEDS[@]} seed${subjects_filter:+, subjects_filter=$subjects_filter}"
+
   local i sid category sprompt snegative seed
   for ((i = 0; i < ${#SUBJ_FIELDS[@]}; i += 4)); do
     sid="${SUBJ_FIELDS[i]}"; category="${SUBJ_FIELDS[i+1]}"; sprompt="${SUBJ_FIELDS[i+2]}"; snegative="${SUBJ_FIELDS[i+3]}"
+    if [ -n "$subjects_filter" ] && [ -z "${filter_set[$category]:-}" ]; then
+      continue
+    fi
     for seed in "${SEEDS[@]}"; do
       run_one "$cfgid" "$sid" "$category" "$sprompt" "$snegative" "$seed" \
         "$model" "$model_sha" "$model_license" \
         "$lora_path" "$lora_sha" "$lora_license" "$lora_name" "$lora_weight" "$prefix" \
-        "$steps" "$cfg_scale" "$sampler" "$scheduler"
+        "$steps" "$cfg_scale" "$sampler" "$scheduler" "$contract_path" \
+        "$extra_lora_rel" "$extra_lora_weight" "$extra_lora_sha" "$extra_lora_license"
     done
   done
 }
 
-N_SUBJECTS=$(( ${#SUBJ_FIELDS[@]} / 4 ))   # 4 campi per soggetto (id, categoria, prompt, negative)
-echo "== teacher-bench: config richieste: ${REQUESTED_CONFIGS[*]} ($N_SUBJECTS soggetti x ${#SEEDS[@]} seed, contratto prompt v${PROMPTS_VERSION:-?}, text-only) =="
+# Il banner NON dichiara piu' soggetti/seed/versione del contratto di default:
+# da quando ogni riga porta il proprio contratto (Track F), quei numeri
+# descrivono solo $PROMPTS_FILE e stamparli in testa a una corsa di sole righe
+# F*/S* significherebbe attribuire all'esperimento un contratto che non ha
+# generato nulla. La dichiarazione vera e' per riga, in generate_config().
+echo "== teacher-bench: config richieste: ${REQUESTED_CONFIGS[*]} (text-only; contratto, soggetti e seed dichiarati per riga qui sotto) =="
 ensure_ledger_entries
 for cfgid in "${REQUESTED_CONFIGS[@]}"; do
   generate_config "$cfgid"

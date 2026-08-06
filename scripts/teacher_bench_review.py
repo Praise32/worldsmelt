@@ -13,6 +13,18 @@ Il JSON esportato riporta ogni criterio anche per NOME accanto all'array
 posizionale: l'ordine dei criteri e' un contratto, ma un file di voti deve
 restare leggibile anche se un giorno quel contratto cambia.
 
+Track (item 4 Track F): le card sono RAGGRUPPATE per track -- P (teacher,
+contratto docs/.../teacher-bench-2026-08-prompts.json) o F (caccia libera,
+contratto .../teacher-bench-2026-08-prompts-trackF.json, righe F*/S* di
+scripts/teacher-bench.sh) -- dedotto dal campo "prompts_contract_path" che
+teacher-bench.sh scrive in ogni manifest, non dal prefisso del config_id (il
+manifest e' la fonte di verita', il nome della config e' solo una
+convenzione umana). L'immagine PRINCIPALE (prima nella card) e' il 64 (BOX)
+per Track F -- il judge_scale del suo contratto e' 64 -- e resta il 32 per
+Track P (l'inverso). Le righe S* (asse velocita') portano un badge con
+step/CFG/sampler in testa alla card: sono confrontate fra loro proprio su
+quei tre numeri, non vanno cercati nella tabella metadati sotto.
+
 Niente framework, niente build step: un solo file HTML con CSS/JS inline,
 percorsi RELATIVI alla cartella dove vive review.html (root del benchmark),
 cosi' le immagini si aprono anche via file:// -- fetch() di un JSON esterno
@@ -49,6 +61,22 @@ HUMAN_CRITERIA = [
 ]
 
 
+# Marcatore del path contratto Track F (vedi TASK item 1): una sottostringa
+# basta, non serve un confronto esatto -- e' l'unico contratto del repo che
+# la contiene, e resta vero anche se PROMPTS_FILE viene passato con un path
+# relativo diverso (es. "./docs/...").
+TRACKF_CONTRACT_MARKER = "teacher-bench-2026-08-prompts-trackF.json"
+
+
+def track_of(record):
+    """'F' se il manifest dichiara il contratto Track F, 'P' altrimenti
+    (default onesto: un manifest senza "prompts_contract_path" -- generato
+    prima di questo campo, o dal fallback sintetico di teacher_bench_post.py
+    per un PNG senza manifest -- e' Track P, il contratto storico)."""
+    path = record.get("prompts_contract_path") or ""
+    return "F" if TRACKF_CONTRACT_MARKER in path else "P"
+
+
 def load_records(root):
     manifest_dir = root / "manifests"
     records = []
@@ -63,8 +91,19 @@ def load_records(root):
             print(f"teacher_bench_review: WARN manifest illeggibile, saltato: {path}", file=sys.stderr)
             continue
         data["_record_id"] = path.stem
+        data["_track"] = track_of(data)
         records.append(data)
-    records.sort(key=lambda r: (r.get("config_id", ""), r.get("subject_id", ""), r.get("seed", 0)))
+    # Track prima di tutto: raggruppa P e F in due blocchi contigui (la
+    # pagina inserisce un'intestazione quando il track cambia, vedi JS sotto)
+    # -- dentro un track, stesso ordine di sempre. Rango esplicito (non
+    # l'ordine alfabetico della lettera) cosi' Track P, lo storico, resta
+    # sempre il primo blocco anche se un giorno un terzo track iniziasse
+    # con una lettera prima di "P".
+    track_rank = {"P": 0, "F": 1}
+    records.sort(key=lambda r: (
+        track_rank.get(r.get("_track"), 99),
+        r.get("config_id", ""), r.get("subject_id", ""), r.get("seed", 0),
+    ))
     return records
 
 
@@ -81,24 +120,36 @@ def rel_or_none(root, value):
 def build_record_view(root, r):
     postproc = r.get("postproc") or {}
     canvases = postproc.get("canvases") or {}
+    previews = postproc.get("previews") or {}
     c32 = canvases.get("32") or {}
     c64 = canvases.get("64") or {}
+    p32 = previews.get("32") or {}
+    p64 = previews.get("64") or {}
     model = r.get("model") or {}
     lora = r.get("lora") or {}
+    extra_lora = r.get("extra_lora") or {}
+    track = r.get("_track") or track_of(r)
     return {
         "id": r.get("_record_id"),
+        "track": track,
         "config": r.get("config_id"),
         "subject": r.get("subject_id"),
         "category": r.get("category"),
         "seed": r.get("seed"),
         "generation_ok": r.get("generation_ok"),
         "raw": rel_or_none(root, r.get("raw_image")),
+        # judge_scale del track (item 4): a 64 per Track F la card mette il
+        # 64 PRIMA del 32 -- l'ordine qui e' gia' quello di visualizzazione,
+        # renderCard() lo consuma cosi' com'e' invece di rideciderlo in JS.
+        "pixel_primary_scale": 64 if track == "F" else 32,
         "pixel64": rel_or_none(root, c64.get("path")),
         "pixel64_nearest": rel_or_none(root, c64.get("path_nearest")),
         "pixel32": rel_or_none(root, c32.get("path")),
         "pixel32_nearest": rel_or_none(root, c32.get("path_nearest")),
-        "preview_light": rel_or_none(root, postproc.get("preview_light")),
-        "preview_dark": rel_or_none(root, postproc.get("preview_dark")),
+        "preview_light_32": rel_or_none(root, p32.get("light")),
+        "preview_dark_32": rel_or_none(root, p32.get("dark")),
+        "preview_light_64": rel_or_none(root, p64.get("light")),
+        "preview_dark_64": rel_or_none(root, p64.get("dark")),
         "postproc_status": postproc.get("status"),
         "postproc_error": postproc.get("error"),
         "meta": {
@@ -108,6 +159,11 @@ def build_record_view(root, r):
             "lora": lora.get("path"),
             "lora_weight": lora.get("weight"),
             "lora_trigger": lora.get("trigger"),
+            # extra_lora (righe S*, asse velocita'): seconda LoRA sopra la
+            # style LoRA -- vedi record["extra_lora"] scritto da run_one() in
+            # scripts/teacher-bench.sh.
+            "extra_lora": extra_lora.get("path"),
+            "extra_lora_weight": extra_lora.get("weight"),
             "steps": r.get("steps"),
             "cfg_scale": r.get("cfg_scale"),
             "sampling_method": r.get("sampling_method"),
@@ -124,6 +180,15 @@ def build_record_view(root, r):
             "silhouette_connected_32": c32.get("silhouette_connected"),
             "contrast_light_32": c32.get("contrast_light"),
             "contrast_dark_32": c32.get("contrast_dark"),
+            # equivalenti a 64: judge_scale di Track F, mostrati insieme ai
+            # "_32" storici invece di sostituirli -- Track P continua a
+            # leggersi sui "_32" come sempre.
+            "foreground_pct_64": c64.get("foreground_pct"),
+            "n_colors_64": c64.get("n_colors"),
+            "colors_out_of_palette_after_64": c64.get("colors_out_of_palette_after"),
+            "silhouette_connected_64": c64.get("silhouette_connected"),
+            "contrast_light_64": c64.get("contrast_light"),
+            "contrast_dark_64": c64.get("contrast_dark"),
             # metriche del RAW (non del canvas): dicono se il fondo era
             # davvero rimovibile, che e' un criterio della matrice a se'
             # stante e non si vede guardando lo sprite finito.
@@ -168,7 +233,7 @@ button.primary { background: #b13a1e; color: #fff; border-color: #b13a1e; }
   display: grid; grid-template-columns: minmax(280px, 420px) 1fr; gap: 1rem;
 }
 .card.voted { border-color: #3a7d63; }
-.card.hidden { display: none; }
+.card.hidden, .track-header.hidden { display: none; }
 .imgs { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; }
 .imgs figure { margin: 0; text-align: center; font-size: .7rem; opacity: .75; }
 .imgs img { display: block; background: repeating-conic-gradient(#8883 0% 25%, transparent 0% 50%) 0 0/16px 16px; border-radius: 4px; }
@@ -189,12 +254,21 @@ button.primary { background: #b13a1e; color: #fff; border-color: #b13a1e; }
 .criteria label { font-size: .78rem; display: flex; gap: .35rem; align-items: center; }
 textarea.note { width: 100%; box-sizing: border-box; margin-top: .4rem; font: inherit; font-size: .78rem;
   background: transparent; color: inherit; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; padding: .3rem; }
+.track-header {
+  font-size: 1.05rem; font-weight: 700; margin: 1.3rem 0 .3rem;
+  padding-bottom: .3rem; border-bottom: 2px solid rgba(127,127,127,.35);
+}
+.track-header:first-child { margin-top: 0; }
+.badge.track { background: rgba(127,127,127,.25); font-weight: 600; }
+.badge.speed { background: #2b6cb033; }
+.imgs img.px.secondary, .imgs img.scene.secondary { opacity: .55; }
 </style>
 
 <h1>teacher-bench Stage A — review</h1>
 <div class="sub" id="subtitle"></div>
 
 <div class="toolbar">
+  <label>Track: <select id="filter-track"><option value="">tutti</option></select></label>
   <label>Config: <select id="filter-config"><option value="">tutte</option></select></label>
   <label>Categoria: <select id="filter-category"><option value="">tutte</option></select></label>
   <label title="si applica quando lo cambi o ricaricando: una card gia' aperta non sparisce a meta' valutazione"><input type="checkbox" id="filter-unvoted"> solo non ancora votate</label>
@@ -242,13 +316,37 @@ function renderCard(r) {
         ? `<span class="badge fail">postproc fallito: ${html_(r.postproc_error || "")}</span>`
         : (r.postproc_status === "ok" ? '<span class="badge ok">postproc ok</span>' : '<span class="badge">postproc non ancora eseguito</span>'));
 
-  const imgs = [
-    imgOrMissing(r.raw, "raw", "raw 512"),
-    imgOrMissing(r.pixel64, "px", "64x64"),
-    imgOrMissing(r.pixel32, "px", "32x32"),
-    imgOrMissing(r.preview_light, "scene", "scena chiara"),
-    imgOrMissing(r.preview_dark, "scene", "scena scura"),
-  ].join("");
+  // Ordine PRIMARIO/secondario (item 4 Track F): Track F giudica a 64x64
+  // nativo (judge_scale del suo contratto) quindi mostra il 64 per primo,
+  // Track P resta sul 32 -- pixel_primary_scale arriva gia' deciso dal
+  // Python (build_record_view), qui si applica soltanto.
+  const primary64 = r.pixel_primary_scale === 64;
+  const pixelImgs = primary64
+    ? [imgOrMissing(r.pixel64, "px primary", "64x64"), imgOrMissing(r.pixel32, "px secondary", "32x32")]
+    : [imgOrMissing(r.pixel32, "px primary", "32x32"), imgOrMissing(r.pixel64, "px secondary", "64x64")];
+  const previewImgs = primary64
+    ? [imgOrMissing(r.preview_light_64, "scene primary", "scena chiara 64"),
+       imgOrMissing(r.preview_dark_64, "scene primary", "scena scura 64"),
+       imgOrMissing(r.preview_light_32, "scene secondary", "scena chiara 32"),
+       imgOrMissing(r.preview_dark_32, "scene secondary", "scena scura 32")]
+    : [imgOrMissing(r.preview_light_32, "scene primary", "scena chiara 32"),
+       imgOrMissing(r.preview_dark_32, "scene primary", "scena scura 32"),
+       imgOrMissing(r.preview_light_64, "scene secondary", "scena chiara 64"),
+       imgOrMissing(r.preview_dark_64, "scene secondary", "scena scura 64")];
+  const imgs = [imgOrMissing(r.raw, "raw", "raw 512"), ...pixelImgs, ...previewImgs].join("");
+
+  // Righe S* (asse velocita', Track F): badge dedicato con step/CFG/sampler
+  // in testa alla card -- e' proprio su questi tre numeri che si confrontano
+  // fra loro, non vanno cercati nella tabella metadati sotto.
+  // Qui il nome della config E' l'unico segnale disponibile, a differenza del
+  // track (che ha "prompts_contract_path" nel manifest): l'asse velocita' non
+  // ha un campo suo in nessun artefatto. Se un giorno una riga dell'asse non
+  // si chiamera' S*, il badge sparira' in silenzio e questa riga va rifatta
+  // su un campo vero -- e' un ripiego dichiarato, non la stessa fonte di
+  // verita' di track_of().
+  const speedBadge = /^S/.test(r.config || "")
+    ? `<span class="badge speed">asse velocita': ${html_(r.meta.steps ?? "?")} step / CFG ${html_(r.meta.cfg_scale ?? "?")} / ${html_(r.meta.sampling_method ?? "?")}</span>`
+    : "";
 
   const metaRows = [
     metaRow("model", r.meta.model),
@@ -257,6 +355,8 @@ function renderCard(r) {
     metaRow("lora", r.meta.lora),
     metaRow("lora weight", r.meta.lora_weight),
     metaRow("lora trigger", r.meta.lora_trigger),
+    metaRow("extra lora (asse velocita')", r.meta.extra_lora),
+    metaRow("extra lora weight", r.meta.extra_lora_weight),
     metaRow("steps / cfg", (r.meta.steps ?? "") + " / " + (r.meta.cfg_scale ?? "")),
     metaRow("sampler / scheduler", (r.meta.sampling_method ?? "") + " / " + (r.meta.scheduler ?? "")),
     metaRow("latency", r.meta.latency_ms != null ? (r.meta.latency_ms + " ms") : ""),
@@ -269,6 +369,12 @@ function renderCard(r) {
     metaRow("silhouette connessa (32)", r.metrics.silhouette_connected_32),
     metaRow("contrasto chiaro/scuro (32)", r.metrics.contrast_light_32 != null
       ? r.metrics.contrast_light_32.toFixed(2) + " / " + r.metrics.contrast_dark_32.toFixed(2) : ""),
+    metaRow("foreground % (64)", r.metrics.foreground_pct_64 != null ? (r.metrics.foreground_pct_64 * 100).toFixed(1) + "%" : ""),
+    metaRow("n colori (64)", r.metrics.n_colors_64),
+    metaRow("fuori palette dopo (64)", r.metrics.colors_out_of_palette_after_64),
+    metaRow("silhouette connessa (64)", r.metrics.silhouette_connected_64),
+    metaRow("contrasto chiaro/scuro (64)", r.metrics.contrast_light_64 != null
+      ? r.metrics.contrast_light_64.toFixed(2) + " / " + r.metrics.contrast_dark_64.toFixed(2) : ""),
     metaRow("rimozione fondo", r.metrics.bg_removal_mode),
     metaRow("bordo occupato (raw 512)", r.metrics.border_occupancy_raw512 != null
       ? (r.metrics.border_occupancy_raw512 * 100).toFixed(1) + "%" : ""),
@@ -280,11 +386,12 @@ function renderCard(r) {
   `).join("");
 
   return `
-  <div class="card" data-config="${html_(r.config||"")}" data-category="${html_(r.category||"")}" data-id="${r.id}">
+  <div class="card" data-track="${html_(r.track||"")}" data-config="${html_(r.config||"")}" data-category="${html_(r.category||"")}" data-id="${r.id}">
     <div class="imgs">${imgs}</div>
     <div>
       <div class="title">${html_(r.config)} / ${html_(r.subject)} / seed ${html_(r.seed)}
-        <span class="badge">${html_(r.category||"")}</span>${statusBadge}</div>
+        <span class="badge track">${html_(r.track||"")}</span>
+        <span class="badge">${html_(r.category||"")}</span>${speedBadge}${statusBadge}</div>
       <div class="meta"><table>${metaRows}</table></div>
       <div class="criteria">${criteriaHtml}</div>
       <textarea class="note" rows="2" placeholder="note libere...">${html_(v.note||"")}</textarea>
@@ -304,32 +411,66 @@ function updateProgress() {
 }
 
 function applyFilters() {
+  const trk = document.getElementById("filter-track").value;
   const cfg = document.getElementById("filter-config").value;
   const cat = document.getElementById("filter-category").value;
   const onlyUnvoted = document.getElementById("filter-unvoted").checked;
   document.querySelectorAll(".card").forEach(card => {
     const id = card.dataset.id;
     let show = true;
+    if (trk && card.dataset.track !== trk) show = false;
     if (cfg && card.dataset.config !== cfg) show = false;
     if (cat && card.dataset.category !== cat) show = false;
     if (onlyUnvoted && isVoted(id)) show = false;
     card.classList.toggle("hidden", !show);
   });
+  // Le intestazioni di track seguono le loro card: filtrando su una sola
+  // config resterebbe a schermo il titolone dell'altro track con zero card
+  // sotto. Si guarda i FRATELLI fino alla prossima intestazione invece di
+  // contare le card per data-track: cosi' vale anche se un giorno lo stesso
+  // track comparisse in piu' blocchi.
+  document.querySelectorAll(".track-header").forEach(h => {
+    let visible = false;
+    for (let el = h.nextElementSibling; el && !el.classList.contains("track-header"); el = el.nextElementSibling) {
+      if (el.classList.contains("card") && !el.classList.contains("hidden")) { visible = true; break; }
+    }
+    h.classList.toggle("hidden", !visible);
+  });
 }
+
+// Etichette leggibili delle intestazioni di gruppo (item 4: "raggruppa per
+// track"). RECORDS arriva gia' ordinato per track da load_records() in
+// Python -- qui si inserisce solo l'intestazione quando il track cambia.
+const TRACK_LABELS = {
+  P: "Track P — teacher (contratto storico, giudizio a 32x32)",
+  F: "Track F — caccia libera all'asset (contratto trackF, giudizio a 64x64 nativo)",
+};
 
 function init() {
   document.getElementById("subtitle").textContent =
     `${RECORDS.length} record (config x soggetto x seed) -- generato staticamente, ricarica la pagina dopo un nuovo giro di teacher-bench.sh/teacher_bench_post.py`;
 
+  const tracks = [...new Set(RECORDS.map(r => r.track).filter(Boolean))].sort();
   const configs = [...new Set(RECORDS.map(r => r.config).filter(Boolean))].sort();
   const cats = [...new Set(RECORDS.map(r => r.category).filter(Boolean))].sort();
+  const trkSel = document.getElementById("filter-track");
   const cSel = document.getElementById("filter-config");
   const catSel = document.getElementById("filter-category");
+  tracks.forEach(t => trkSel.insertAdjacentHTML("beforeend", `<option value="${html_(t)}">${html_(t)}</option>`));
   configs.forEach(c => cSel.insertAdjacentHTML("beforeend", `<option value="${html_(c)}">${html_(c)}</option>`));
   cats.forEach(c => catSel.insertAdjacentHTML("beforeend", `<option value="${html_(c)}">${html_(c)}</option>`));
 
   const grid = document.getElementById("grid");
-  grid.innerHTML = RECORDS.map(renderCard).join("");
+  let gridHtml = "";
+  let lastTrack = null;
+  RECORDS.forEach(r => {
+    if (r.track !== lastTrack) {
+      gridHtml += `<div class="track-header">${html_(TRACK_LABELS[r.track] || ("Track " + (r.track || "?")))}</div>`;
+      lastTrack = r.track;
+    }
+    gridHtml += renderCard(r);
+  });
+  grid.innerHTML = gridHtml;
 
   // NIENTE applyFilters() qui: col filtro "solo non ancora votate" attivo la
   // card sparirebbe alla prima spunta, cioe' mentre la si sta ancora
@@ -350,6 +491,7 @@ function init() {
     updateProgress();
   });
 
+  trkSel.addEventListener("change", applyFilters);
   cSel.addEventListener("change", applyFilters);
   catSel.addEventListener("change", applyFilters);
   document.getElementById("filter-unvoted").addEventListener("change", applyFilters);

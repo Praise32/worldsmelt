@@ -11,12 +11,18 @@ prodotto da teacher-bench.sh e produce:
   -> pulizia alpha (binarizzazione) + rimozione componenti isolate
   -> validazione silhouette (connessa? quanti colori? quanto fuori palette?)
 
-Scrive pixel-64/, pixel-32/, previews-640x360/ (sprite 32 su scena mock
-chiara/scura), contact-sheets/ (una griglia per config), metrics.csv, e
-AGGIORNA (non sovrascrive da zero) il campo "postproc" del manifest JSON per
-immagine gia' scritto da teacher-bench.sh in manifests/ -- se il manifest
-non esiste (es. PNG di test creato a mano, non da teacher-bench.sh) ne
-scrive uno minimo, cosi' review.html ha sempre qualcosa da leggere.
+Scrive pixel-64/, pixel-32/, previews-640x360/ (sprite su scena mock
+chiara/scura, in DUE varianti di scala per immagine -- "..._s32"/"..._s64":
+Track F giudica a 64x64 nativo, quindi la scena deve mostrare anche
+quell'ingombro a schermo raddoppiato, non solo lo storico 32; vedi
+"judge_scale" nel contratto letto da teacher-bench.sh e riportato nel
+manifest come "prompts_contract_path"), contact-sheets/ (una griglia per
+config, sempre a 32: e' un indice visivo rapido, non lo strumento di
+giudizio), metrics.csv, e AGGIORNA (non sovrascrive da zero) il campo
+"postproc" del manifest JSON per immagine gia' scritto da teacher-bench.sh in
+manifests/ -- se il manifest non esiste (es. PNG di test creato a mano, non
+da teacher-bench.sh) ne scrive uno minimo, cosi' review.html ha sempre
+qualcosa da leggere.
 
 metrics.csv e' INCREMENTALE: viene ricostruito da TUTTI i manifest presenti
 (che contengono gia' ogni metrica in "postproc"), non dalle sole immagini
@@ -560,7 +566,12 @@ def outputs_present(root, config_id, subject_id, seed, manifest):
     paths = []
     for entry in (pp.get("canvases") or {}).values():
         paths += [entry.get("path"), entry.get("path_nearest")]
-    paths += [pp.get("preview_light"), pp.get("preview_dark")]
+    # "previews" e' per-scala (item 3 Track F: 32 E 64, non solo 32) --
+    # un manifest scritto dalla pipeline precedente (chiave piatta
+    # "preview_light"/"preview_dark") non ha "previews" e fallisce comunque
+    # il controllo pipeline_version_sha256 sopra, quindi non arriva mai qui.
+    for entry in (pp.get("previews") or {}).values():
+        paths += [entry.get("light"), entry.get("dark")]
     return all(p and (root / p).is_file() for p in paths)
 
 
@@ -616,10 +627,12 @@ def process_one(root, raw_path, matcher, palette_rgb, scenes, skip_existing):
         "content_fraction": CONTENT_FRACTION,
         "downscale_methods": ["box", "nearest"],
         "canvases": {},
+        "previews": {},
         **raw_meta,
     }
 
     contact_sheet_img_32 = None
+    preview_dir = root / "previews-640x360" / config_id
     for canvas_size, variants in canvases.items():
         out_dir = root / f"pixel-{canvas_size}" / config_id
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -640,16 +653,24 @@ def process_one(root, raw_path, matcher, palette_rgb, scenes, skip_existing):
         entry["contrast_dark"] = contrast_ratio(fg_rgb, dark_bg[0])
         postproc["canvases"][str(canvas_size)] = entry
 
+        # Preview 640x360 PER OGNI scala del canvas (item 3 Track F: "_s32"
+        # gia' esistente da prima, "_s64" nuova) -- composite_on_scene NON
+        # ridimensiona lo sprite, lo incolla al suo pixel size nativo: e'
+        # proprio quello che rende visibile a schermo il raddoppio
+        # d'ingombro del canvas 64 rispetto al 32, il punto del giudizio
+        # nativo di Track F (judge_scale nel contratto).
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        light_path = preview_dir / f"{subject_id}_{seed}_light_s{canvas_size}.png"
+        dark_path = preview_dir / f"{subject_id}_{seed}_dark_s{canvas_size}.png"
+        composite_on_scene(scenes["light"], box_img).save(light_path)
+        composite_on_scene(scenes["dark"], box_img).save(dark_path)
+        postproc["previews"][str(canvas_size)] = {
+            "light": rel(root, light_path),
+            "dark": rel(root, dark_path),
+        }
+
         if canvas_size == 32:
             contact_sheet_img_32 = box_img
-            preview_dir = root / "previews-640x360" / config_id
-            preview_dir.mkdir(parents=True, exist_ok=True)
-            light_path = preview_dir / f"{subject_id}_{seed}_light.png"
-            dark_path = preview_dir / f"{subject_id}_{seed}_dark.png"
-            composite_on_scene(scenes["light"], box_img).save(light_path)
-            composite_on_scene(scenes["dark"], box_img).save(dark_path)
-            postproc["preview_light"] = rel(root, light_path)
-            postproc["preview_dark"] = rel(root, dark_path)
 
     postproc["postproc_latency_ms"] = int((time.time() - t0) * 1000)
     manifest["postproc"] = postproc
@@ -674,6 +695,11 @@ def process_one(root, raw_path, matcher, palette_rgb, scenes, skip_existing):
 # "retries" resta 0: l'harness Stage A non ritenta una generazione fallita
 # (resta in failures/), la colonna esiste perche' la matrice la chiede e per
 # non cambiare schema il giorno che una politica di retry esistera'.
+# "judge_scale" (item 3 Track F): a quale scala va giudicata questa immagine
+# ad occhio -- letto dal contratto che l'ha generata (manifest.
+# "prompts_contract_path", scritto da teacher-bench.sh), NON da un default
+# hardcoded qui: e' il contratto, non questo script, la fonte di verita' su
+# cosa si sta giudicando.
 # ============================================================================
 CSV_FIELDS = [
     "config", "subject", "seed", "canvas_size", "status", "error",
@@ -685,9 +711,31 @@ CSV_FIELDS = [
     "raw_bbox", "components_raw", "bg_removal_mode", "bg_border_dominance",
     "downscale_method", "retries",
     "gen_latency_ms", "postproc_latency_ms", "rss_kb", "vram_note",
-    "steps", "cfg_scale", "pipeline_sha256",
+    "steps", "cfg_scale", "judge_scale", "pipeline_sha256",
 ]
 CSV_KEY = ("config", "subject", "seed", "canvas_size")
+
+# Cache path-contratto -> judge_scale: letto una volta per file, non una
+# volta per manifest (metrics.csv puo' fondere centinaia di manifest che
+# condividono lo stesso contratto).
+_JUDGE_SCALE_CACHE = {}
+
+
+def judge_scale_for_contract(contract_path):
+    """32 di default (lo judge scale canonico Track P, DEC-177/208): i
+    contratti che non dichiarano "judge_scale" -- incluso quello P, mai
+    toccato da questo cambio -- restano al canone del gioco finche' non e'
+    un contratto esplicito (trackF) a dire 64."""
+    if not contract_path:
+        return 32
+    if contract_path not in _JUDGE_SCALE_CACHE:
+        try:
+            data = json.loads((REPO_ROOT / contract_path).read_text())
+            _JUDGE_SCALE_CACHE[contract_path] = data.get("judge_scale", 32)
+        except Exception as exc:  # contratto spostato/cancellato dopo la corsa: non deve rompere il CSV
+            log(f"WARN judge_scale non leggibile da {contract_path} ({exc}), uso 32 di default")
+            _JUDGE_SCALE_CACHE[contract_path] = 32
+    return _JUDGE_SCALE_CACHE[contract_path]
 
 
 def rows_from_manifest(manifest):
@@ -702,6 +750,7 @@ def rows_from_manifest(manifest):
         "vram_note": manifest.get("vram_note"),
         "steps": manifest.get("steps"),
         "cfg_scale": manifest.get("cfg_scale"),
+        "judge_scale": judge_scale_for_contract(manifest.get("prompts_contract_path")),
         "retries": 0,
     }
     pp = manifest.get("postproc") or {}
