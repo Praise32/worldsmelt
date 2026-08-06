@@ -76,7 +76,7 @@ BG_MAX_REMOVED_FRACTION = 0.99  # oltre questa frazione di pixel spenti il flood
 CONTENT_FRACTION = 0.8      # il contenuto ritagliato occupa questa frazione del lato del canvas
                              # (01-VINCOLI-WORLDSMELT.md del dossier: personaggi ~24-30px su 32 => ~0.75-0.94, 0.8 in mezzo)
 ALPHA_BINARIZE_THRESHOLD = 128  # sotto: trasparente; sopra: opaco pieno (pixel art vuole alpha netto, non morbido)
-CANVAS_SIZES = (64, 32)     # ordine di generazione (64 prima: piu' dati per un controllo visivo)
+CANVAS_SIZES = (128, 64, 32)  # ordine di generazione (dal piu' ricco: 128 = 512/4, il gradino fra raw e 64, chiesto dal proprietario il 06/08)
 SCENE_SIZE = (640, 360)     # canvas logico di gioco (01-VINCOLI-WORLDSMELT.md)
 CHECKER_CELL = 32           # stessa scala base sprite (DEC-177/208 del design canonico)
 
