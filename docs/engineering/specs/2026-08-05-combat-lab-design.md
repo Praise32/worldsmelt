@@ -9,7 +9,7 @@ summary: >-
   Spec della demo giocabile di debug (tools/procedural-combat-demo): arena raylib
   con la ScriptSandbox vera, attacchi nemici e armi del player generati live da
   Gemma via melting-gen --attacks, pool su disco con hot-reload, resa smooth.
-last_reviewed: 2026-08-05
+last_reviewed: 2026-08-06
 last_verified_commit: e0bf48f
 topics: [spec, combat, lua, sandbox, generazione, demo, debug]
 related: [eng-adr-002, eng-adr-003, eng-spec-local-llm-linux]
@@ -111,18 +111,38 @@ funzioni esistono ma ritornano sempre false (nessun ramo speciale nel prompt).
 ## 5. Generazione e validazione
 
 - Prompt: `tools/melting-gen/prompts/attack_system.txt` (cheat-sheet dell'
-  alfabeto: firme, quote 48/64 per tick, coordinate arena, "telegraph prima del
-  danno", 2 few-shot presi dagli script curati) + `attack_user.txt` (kind
-  enemy/weapon, seed, brief se presente). Inglese, come da DEC-052. Budget
+  alfabeto: firme, conteggio degli argomenti, chiamate d'esempio corrette,
+  quote 48/64 per tick, coordinate arena, "telegraph prima del danno") +
+  `attack_user.txt` (kind enemy/weapon, seed, brief se presente, forma
+  d'attacco principale che ruota col seed). Inglese, come da DEC-052. Budget
   prompt sorvegliato con lo stesso meccanismo di `GEN_LUA_PROMPT_BYTE_CEILING`.
+- **Niente few-shot completi** (correzione dal primo giro reale, 05-06/08): il
+  cheat-sheet portava i due script curati `spider_arc`/`squid_reload` per
+  intero e Gemma-3-4B li ricopiava alla lettera — 8 script su 8, su semi
+  diversi, erano `spider_arc.lua` byte per byte. Al loro posto: due
+  **scheletri** commentati (la macchina a fasi senza contenuto) più l'elenco
+  in una riga delle cinque idee già nel pool curato, così il modello sa cosa è
+  già preso senza avere il codice da copiare. Con gli scheletri le copie sono
+  sparite del tutto. Rete di sicurezza in C: un gate anti-copia fra
+  validazione e scrittura (`gen_attacks.c`) respinge uno script che, tolti
+  commenti e spazi, sta dentro il cheat-sheet o ricalca un file già presente
+  in `generated/combat-lab/<kind>/`, e rimanda l'errore al modello.
 - `n_predict` dedicato (768: gli `on_tick` con macchina a stati sono più lunghi
   degli script oggetto).
 - Validazione (`GenAttackValidate`, senza modello, riusabile da `--attack-check`):
-  carica nella sandbox vera con stub dell'API demo; deve definire `on_tick`;
-  120 tick di prova con stato plausibile senza disabilitare la sandbox; almeno
-  un comando gameplay entro i 120 tick. Niente validatori di dominio (corridoio
-  sicuro, telegraph minimo, budget danno) in questa fase: arriveranno quando il
-  combattimento soddisfa il proprietario (restano elencati nel README della demo).
+  carica nella sandbox vera con l'API demo VERA (`demo_script_api.c`, compilata
+  dentro melting-gen); deve definire `on_tick`; 120 tick di prova con stato
+  plausibile senza disabilitare la sandbox; almeno un comando d'attacco entro i
+  120 tick. Niente validatori di dominio (corridoio sicuro, telegraph minimo,
+  budget danno, "un'arma deve leggere `fire_held()`") in questa fase:
+  arriveranno quando il combattimento soddisfa il proprietario (restano
+  elencati nel README della demo).
+- Errore di rifiuto **azionabile**: è l'unico testo che il ritento rimanda al
+  modello, quindi porta con sé il tick, il numero di riga, la riga di codice
+  colpevole e la firma esatta della funzione che sbaglia. Il messaggio Lua vero
+  si recupera rigiocando il solo tick fallito in una sandbox nuova
+  (`ScriptSandboxCallVoid` conserva solo la classificazione "errore a
+  runtime"). Senza questo, il ritento ripeteva lo stesso errore tre volte.
 - Fallimento dopo i ritenti: il lotto scrive gli script riusciti; se zero, la
   demo lo segnala in HUD e il pool resta com'è. Mai un file non validato su disco.
 

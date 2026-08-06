@@ -1,5 +1,6 @@
 #include "melting_gen.h"
 
+#include "gen_attacks.h"
 #include "gen_corpus.h"
 #include "gen_lua.h"
 #include "gen_novelty.h"
@@ -63,6 +64,14 @@ typedef struct GenArgs {
      * retro-compat per i test che vogliono solo i temi (scripts/test-gen.sh)
      * -- nessun effetto fuori dal ramo --propose-themes. */
     int noCharacter;
+    /* WP3 (gen_attacks.c, spec 2026-08-05-combat-lab-design.md): --attacks
+     * <enemy|weapon> attiva un ramo di uscita anticipata come
+     * --propose-themes qui sopra -- NULL (comportamento di sempre) = nessun
+     * effetto su nient'altro. --attack-count/--attack-brief riguardano
+     * SOLO quel ramo. */
+    const char *attacksKind;
+    int attackCount;
+    const char *attackBrief;
 } GenArgs;
 
 static int ParseArgs(int argc, char **argv, GenArgs *args)
@@ -103,6 +112,9 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
     args->proposeThemes = 0;
     args->themeFile = NULL;
     args->noCharacter = 0;
+    args->attacksKind = NULL;
+    args->attackCount = 3;
+    args->attackBrief = NULL;
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "--version") == 0)
@@ -140,6 +152,46 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
         else if (strcmp(argv[i], "--propose-themes") == 0 && i + 1 < argc) args->proposeThemes = atoi(argv[++i]);
         else if (strcmp(argv[i], "--theme-file") == 0 && i + 1 < argc) args->themeFile = argv[++i];
         else if (strcmp(argv[i], "--no-character") == 0) args->noCharacter = 1;
+        /* WP3: --attacks <enemy|weapon> attiva RunAttacks (vedi sotto main());
+         * il valore non e' validato qui (stesso stile di --propose-themes N,
+         * che clampa dentro la funzione che lo usa) -- RunAttacks stampa un
+         * errore chiaro su un valore diverso da "enemy"/"weapon". */
+        else if (strcmp(argv[i], "--attacks") == 0 && i + 1 < argc) args->attacksKind = argv[++i];
+        /* --attack-count: il clamp 1..8 vive in GenAttackGenerate (gen_attacks.c),
+         * non qui -- stesso posto che applica il default quando il flag non
+         * compare affatto, un solo punto di verita' per il limite. */
+        else if (strcmp(argv[i], "--attack-count") == 0 && i + 1 < argc) args->attackCount = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--attack-brief") == 0 && i + 1 < argc) args->attackBrief = argv[++i];
+        else if (strcmp(argv[i], "--attack-check") == 0 && i + 2 < argc)
+        {
+            /* Validazione pura, senza modello: gemello di --lua-check sopra
+             * ma per il dominio degli attacchi (GenAttackValidate,
+             * gen_attacks.c) -- richiede il 'kind' perche' la simulazione
+             * del dry-run e' diversa per nemico/arma (posizioni, input).
+             * Stampa VALID/REJECTED ed esce 0/1, non tocca outDir. */
+            const char *kind = argv[++i];
+            const char *file = argv[++i];
+            char *src = GenReadFile(file);
+            if (!src)
+            {
+                fprintf(stderr, "melting-gen: impossibile leggere %s\n", file);
+                exit(1);
+            }
+            /* GEN_ATTACK_ERR_CAP, non i 192 byte degli altri rami: gli
+             * errori di questo dominio portano il messaggio Lua vero piu' il
+             * suo suggerimento, e tagliarli a meta' frase e' come non
+             * stamparli (vedi gen_attacks.h). */
+            char err[GEN_ATTACK_ERR_CAP];
+            bool ok = GenAttackValidate(src, kind, 12345u, err, sizeof(err));
+            free(src);
+            if (ok)
+            {
+                printf("VALID\n");
+                exit(0);
+            }
+            printf("REJECTED: %s\n", err);
+            exit(1);
+        }
         else if (strcmp(argv[i], "--lua-check") == 0 && i + 1 < argc)
         {
             /* Validazione pura, senza modello: usata dal corpus di test
@@ -178,6 +230,11 @@ static int ParseArgs(int argc, char **argv, GenArgs *args)
              * stdout ed esce con 0/1. */
             char err[192];
             bool ok = GenLuaPromptBudgetCheck(args->promptsDir, err, sizeof(err));
+            /* WP3: STESSA guardia, dominio attacchi (gen_attacks.h,
+             * GenAttackPromptBudgetCheck) -- agganciata qui cosi'
+             * scripts/test-gen.sh la esercita gratis, senza un secondo
+             * flag/una seconda riga di test da aggiungere e mantenere. */
+            if (ok) ok = GenAttackPromptBudgetCheck(args->promptsDir, err, sizeof(err));
             if (ok)
             {
                 printf("OK\n");
@@ -897,6 +954,35 @@ static int RunProposeThemes(const GenArgs *args, int requestedCount, int include
     return GenWriteThemeProposals(proposals, count, source, args->outDir) == 0 ? 0 : 3;
 }
 
+/* WP3 (gen_attacks.c): ramo di uscita anticipata come RunProposeThemes/--bench
+ * qui sopra -- --attacks NON genera una run, scrive SOLO script in
+ * <outDir>/combat-lab/<kind>/ (vedi gen_attacks.h). Riusa --model/--ngl/--seed/
+ * --out gia' esistenti: nessun flag nuovo per il modello (spec sezione 5). */
+static int RunAttacks(const GenArgs *args)
+{
+    if (strcmp(args->attacksKind, "enemy") != 0 && strcmp(args->attacksKind, "weapon") != 0)
+    {
+        fprintf(stderr, "melting-gen: --attacks richiede 'enemy' o 'weapon', ricevuto '%s'\n", args->attacksKind);
+        return 2;
+    }
+
+    const char *modelPath = NULL;
+    GenLlmSession *sess = OpenModelSession(args, &modelPath);
+    if (!sess)
+    {
+        fprintf(stderr, "melting-gen: --attacks richiede un modello, nessuno disponibile (%s)\n", args->model);
+        return 1;
+    }
+    GenCorpusRecordSession(modelPath, args->ngl);
+
+    int written = GenAttackGenerate(sess, args->promptsDir, args->outDir, args->attacksKind,
+                                     args->attackCount, args->attackBrief, args->seed);
+    GenLlmSessionClose(sess);
+
+    printf("melting-gen: attacks %s: %d script scritti su disco\n", args->attacksKind, written);
+    return written > 0 ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     double processStart = GenNowSeconds();
@@ -946,6 +1032,11 @@ int main(int argc, char **argv)
      * GenRemoveOldScripts -- --propose-themes non genera una run, non deve
      * toccare gli script Lua di quella in corso. */
     if (args.proposeThemes > 0) return RunProposeThemes(&args, args.proposeThemes, !args.noCharacter);
+
+    /* WP3: altro ramo di uscita anticipata, stesso motivo di
+     * --propose-themes qui sopra -- --attacks non genera una run, non deve
+     * toccare gli script Lua degli oggetti di quella in corso. */
+    if (args.attacksKind) return RunAttacks(&args);
 
     /* Step B2 (correzione da review): una generazione NUOVA parte da una cartella
      * scripts/ pulita. Senza, gli script della run precedente restavano sul disco

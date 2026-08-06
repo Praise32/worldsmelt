@@ -44,11 +44,21 @@ LLAMA_BUILD := $(LLAMA_DIR)/build
 # le bande e il clamp del personaggio alternativo per-run sono UNA SOLA
 # definizione condivisa fra gioco e generatore (mai due copie da tenere
 # sincronizzate a mano). Non tocca raylib (character_type.h non lo include).
-GEN_EXTRA_SRC := src/core/game_math.c src/core/shot_type.c src/core/enemy_type.c src/core/room_layout.c src/core/character_type.c src/script/script_sandbox.c
+# gen_attacks.c (WP3, spec 2026-08-05-combat-lab-design.md): melting-gen compila
+# ANCHE l'API della demo Combat Lab (tools/procedural-combat-demo/demo_script_api.c)
+# per validare gli script d'attacco generati da Gemma nella sandbox VERA prima che
+# la demo li veda mai -- stesso principio di script_sandbox.c qui sopra. ADR-002
+# invariato: e' sempre il GENERATORE a linkarla per un dry-run usa-e-getta; il
+# gioco non la vede mai, e la demo (bin/combat-lab, vedi COMBAT_LAB_SRC piu' sotto)
+# non linka mai llama.cpp. demo_script_api.c non tocca raylib (solo Lua), quindi
+# entra qui senza trascinarsi dietro nessuna dipendenza nuova.
+GEN_EXTRA_SRC := src/core/game_math.c src/core/shot_type.c src/core/enemy_type.c src/core/room_layout.c src/core/character_type.c src/script/script_sandbox.c \
+  tools/procedural-combat-demo/demo_script_api.c
 
 GEN_SRC := $(wildcard tools/melting-gen/*.c) $(wildcard tools/melting-gen/vendor/*.c) $(GEN_EXTRA_SRC)
 GEN_HDR := $(wildcard tools/melting-gen/*.h) $(wildcard tools/melting-gen/vendor/*.h)
 GEN_CFLAGS := $(CFLAGS) -Itools/melting-gen -Itools/melting-gen/vendor \
+  -Itools/procedural-combat-demo \
   -Isrc -I$(RAYLIB_DIR)/src -I$(LUA_DIR)/src \
   -I$(LLAMA_DIR)/include -I$(LLAMA_DIR)/ggml/include
 GEN_LIBS := $(LLAMA_BUILD)/src/libllama.a \
@@ -111,7 +121,7 @@ $(GAME_BIN): $(GAME_SRC) $(GAME_HDR)
 	@mkdir -p bin logs generated
 	$(CC) $(GAME_CFLAGS) $(GAME_SRC) $(GAME_LIBS) -o $@
 
-$(GEN_BIN): $(GEN_SRC) $(GEN_HDR)
+$(GEN_BIN): $(GEN_SRC) $(GEN_HDR) tools/procedural-combat-demo/demo_script_api.h
 	@mkdir -p bin logs
 	$(CC) $(GEN_CFLAGS) $(GEN_SRC) $(GEN_LIBS) -o $@
 

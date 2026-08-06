@@ -1,0 +1,5 @@
+Kind: {KIND}
+{BRIEF_LINE}Variation seed: {SEED} -- use it as creative fuel: different seeds must yield different patterns, even for the same kind and the same brief.
+Primary attack shape for THIS script: {SHAPE}. Build the whole pattern around it. You may add a telegraph and one secondary effect, but this shape must be the core of the attack.
+
+Write the on_tick(dt, self_handle) script for this {KIND}, following the cheat-sheet above: take the shape you were given, pick a timing and a visual_id, and build a complete phase machine (or input reaction, for a weapon) around it. The five patterns listed in the cheat-sheet are ALREADY in Combat Lab's pool and a script that proposes one of them again is rejected automatically, so invent your own numbers, your own number of phases and your own names for the global variables; the skeletons show the machinery, not an answer, and their comments must not survive into your script. Your first real attack must fire before tick 120, that is within two seconds of the script starting: keep the wind-up short enough that it happens. Do not explain your choice, just write the script.
