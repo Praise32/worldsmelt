@@ -49,6 +49,13 @@ node_modules/
 # provenienza vive in docs/ai-production/dataset/ledger.jsonl (vedi docs/ai-production/dataset/README.md).
 dataset-raw/
 
+# Sorgenti grezze della prova LoRA v1 RESEARCH-ONLY (scripts/lora_dataset_mine.py,
+# mandato 07/08): zip/parquet/immagini scaricate da HF/OGA/GitHub prima del mining.
+# Provenienza dubbia autorizzata esplicitamente SOLO per questa prova (mai
+# distribuita) — vedi docs/ai-production/regole-agenti-ml.md. Rigenerabile col
+# comando "download" dello script, mai sorgente di verita'.
+dataset-sources/
+
 # Output del benchmark teacher immagine (scripts/teacher-bench.sh, agosto
 # 2026): centinaia di PNG raw/derivati per config, mai nel repo. Report e
 # contact sheet scelti a mano entreranno nel repo altrove (docs/ai-production/
@@ -58,11 +65,51 @@ artifacts/
 
 # Dataset derivato per il QLoRA (scripts/corpus_to_dataset.py): rigenerabile
 # in ogni momento dal corpus in logs/gen-corpus/, non e' sorgente.
-# Ancorato alla radice (/dataset/, non dataset/): senza la barra iniziale il
+# Ancorato alla radice (/dataset/*, non dataset/): senza la barra iniziale il
 # pattern colpisce QUALSIASI cartella di nome "dataset" a ogni livello, e
 # quindi anche docs/ai-production/dataset/, che invece e' documentazione
 # versionata (ledger.jsonl, README, prompt congelati del benchmark teacher).
-/dataset/
+/dataset/*
+
+# Eccezione: dataset/lora-v0/ e' rigenerabile (immagini e tar restano fuori),
+# ma la PROVENIENZA no. Ledger, scarti, statistiche e pacchetto Kaggle sono
+# documentazione di licenza e di metodo: se non entrano in cronologia, fra sei
+# mesi nessuno puo' dire da dove venisse un'immagine di training. Stessa regola
+# gia' applicata a docs/ai-production/dataset/ledger.jsonl.
+!/dataset/lora-v0/
+/dataset/lora-v0/*
+!/dataset/lora-v0/ledger.jsonl
+!/dataset/lora-v0/rejects.jsonl
+!/dataset/lora-v0/build_stats.json
+!/dataset/lora-v0/kaggle/
+/dataset/lora-v0/kaggle/*
+!/dataset/lora-v0/kaggle/README.md
+!/dataset/lora-v0/kaggle/*.py
+!/dataset/lora-v0/kaggle/*.json
+!/dataset/lora-v0/kaggle/*.yaml
+!/dataset/lora-v0/kaggle/*.txt
+!/dataset/lora-v0/kaggle/configs/
+
+# Eccezione gemella per dataset/lora-v1-research/ (prova LoRA RESEARCH-ONLY,
+# mandato 07/08, scripts/lora_dataset_mine.py): stessa logica di lora-v0 sopra
+# -- immagini/contact sheet fuori (rigenerabili, e research-only non va
+# distribuito), ma ledger/report/pacchetto Kaggle dentro (e' la provenienza).
+!/dataset/lora-v1-research/
+/dataset/lora-v1-research/*
+!/dataset/lora-v1-research/ledger.jsonl
+!/dataset/lora-v1-research/mining_report.json
+# Scarti e coda di review NSFW: sono provenienza quanto il ledger (come in
+# lora-v0), non pixel — senza di loro nessuna esclusione e' verificabile dopo.
+!/dataset/lora-v1-research/rejects.jsonl
+!/dataset/lora-v1-research/nsfw-review.jsonl
+!/dataset/lora-v1-research/kaggle/
+/dataset/lora-v1-research/kaggle/*
+!/dataset/lora-v1-research/kaggle/README.md
+!/dataset/lora-v1-research/kaggle/*.py
+!/dataset/lora-v1-research/kaggle/*.json
+!/dataset/lora-v1-research/kaggle/*.yaml
+!/dataset/lora-v1-research/kaggle/*.txt
+!/dataset/lora-v1-research/kaggle/configs/
 
 # Segreti e configurazioni locali
 .env
