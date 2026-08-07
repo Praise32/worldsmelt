@@ -169,7 +169,31 @@ Mandato del proprietario: "diversifica i test, più materiale per la mattina". E
 Nota di misura invariata: la latenza per immagine include il caricamento modello
 (~5-6 s a invocazione); a modello residente le config few-step scendono sotto i ~5 s.
 
-**Decisioni che il pacchetto mattutino mette sul tavolo** (tutte del proprietario):
+## Addendum 2 — 07/08 mattina: il giro GUIDED (la risposta al verdetto del proprietario)
+
+Il proprietario ha rivisto la galleria: **nessun output text-only è utilizzabile nel
+gioco** (armi sbagliate, figure non intere, viste incoerenti, "le fusioni non sono
+fusioni"). Diagnosi: è il limite strutturale di SD1.5/CLIP — vista, inquadratura e
+isolamento dell'oggetto non passano dal canale testuale (e a CFG 1.5 nemmeno il resto).
+Conferma la premessa della ricerca (02, riga 5: nessun modello pubblico produce sprite
+da gioco out of the box) e attiva la Fase 3 del piano: **controllo strutturale**.
+
+Giro guided eseguito (48 img, 0 fallimenti): body-plan geometrici GREZZI generati da
+codice (rettangoli/ellissi — ciò che il motore può produrre per qualunque spec di
+Gemma) usati come `--init-img` (forza 0.65) o `--control-image` (scribble) su S2, S3 e
+DreamShaper PixelArt. **Esito: figure intere in vista coerente, il martello ha la forma
+del martello, item e boss leggibili.** Il salto è categorico, non incrementale: la
+strada per gli asset usabili è silhouette+LoRA, non prompt migliori. Maschere e
+risultati in `artifacts/guided-bench/`, sezione ★ GUIDED in galleria.
+
+Conseguenze sulla roadmap: (1) il percorso guided va formalizzato nell'harness e poi
+nella pipeline del gioco (mask dal body-plan del VisualSpec → img2img/ControlNet), via
+scala agenti; (2) le fusioni di stadio 2 vanno rifatte col composto di stadio-1 del
+gioco (base+overlay DEC-049) come init a bassa forza, non con generazione libera;
+(3) la Worldsmelt LoRA (Stage B) resta il secondo pezzo: stile e materiali, dove il
+guided non arriva.
+
+**Decisioni che il pacchetto mette sul tavolo** (tutte del proprietario):
 1. La S-config runtime da cablare in melting-sprites per sviluppare il gioco
    (sostituibile a contratto invariato quando arriverà la Worldsmelt LoRA).
 2. L'architettura di prompting: VisualSpec+template vs prompt libero di Gemma
