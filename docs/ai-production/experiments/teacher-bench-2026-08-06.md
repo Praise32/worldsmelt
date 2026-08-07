@@ -139,3 +139,41 @@ tutto il fronte silhouette-guided (Stage successivo con le due config promosse).
 Artefatti: `artifacts/image-model-research/` (raw, canvas, preview, metrics, review,
 ledger); log run in scratchpad di sessione; galleria pubblicata (link in chat, stessa
 URL aggiornabile).
+
+## Addendum — notte 06-07/08: runtime, architettura di prompting, fusioni
+
+Mandato del proprietario: "diversifica i test, più materiale per la mattina". Eseguito
+(~1000 immagini totali, zero fallimenti di generazione):
+
+- **Runtime appaiato (batch 1)**: 48 richieste inventate da Gemma (`--visualspecs`,
+  spec GBNF + prompt libero sulla STESSA idea) × S1-S4 × 2 architetture = 384 img.
+  Silhouette connesse a 64px: S4 92-94%, S1 83/81, S2 79/79, S3 54/62.
+  **Spec vs libero: quasi pari sulle metriche automatiche** — il verdetto vero è
+  visivo (aderenza al soggetto richiesto) e spetta alla review appaiata.
+- **Batch 2 (50 richieste nuove, seed diverso, S2/S3)**: 200 img. S3 risale a 82/72 —
+  la debolezza sul batch 1 era in parte varianza da soggetti, non solo dalla config:
+  motivo per cui i batch sono due.
+- **Curva step (S2/S3 a 4/6/8, 64 img)**: in galleria con tabella dedicata — dove il
+  few-step si rompe si vede a occhio.
+- **Fusioni (stadio 2, prima prova assoluta)**: 8 coppie × 3 tecniche × S2/S3 = 48 img.
+  **Tutte e tre le tecniche funzionano nei 6 GB**, ControlNet scribble compreso
+  (~10,4 s contro ~7 s delle altre). Confronto in galleria: spec-fusion / img2img sul
+  composto / ControlNet sulla silhouette combinata.
+- **Onda combinazioni**: S5 (DS-PixelArt + Hyper-SD) completa; S6/S7/S8 interrotte da
+  stop esterni ripetuti dei task GPU (2:10-2:20 di notte) — si completano con
+  `scripts/teacher-bench.sh S6 S7 S8` (~8 min). Nessun costo di rigenerazione: tutto
+  resume-safe.
+- **BOX vs NEAREST**: sezione dedicata in galleria (variante `__nearest` esistente per
+  ogni immagine) — chiude a dati la questione aperta dalla ricerca di luglio.
+
+Nota di misura invariata: la latenza per immagine include il caricamento modello
+(~5-6 s a invocazione); a modello residente le config few-step scendono sotto i ~5 s.
+
+**Decisioni che il pacchetto mattutino mette sul tavolo** (tutte del proprietario):
+1. La S-config runtime da cablare in melting-sprites per sviluppare il gioco
+   (sostituibile a contratto invariato quando arriverà la Worldsmelt LoRA).
+2. L'architettura di prompting: VisualSpec+template vs prompt libero di Gemma
+   (dalla review appaiata; le metriche automatiche non separano abbastanza).
+3. Le due basi teacher finaliste per lo smoke di Stage B (candidabili solo le
+   non-distillate: DS8, DS-PixelArt, AnyLoRA fp16).
+4. La tecnica di fusione per lo stadio 2.
