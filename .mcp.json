@@ -6,6 +6,13 @@
       "env": {
         "ASEPRITE_PATH": "/home/meri/tools/aseprite/build/bin/aseprite"
       }
+    },
+    "retro-diffusion": {
+      "type": "http",
+      "url": "https://mcp.retrodiffusion.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${RD_API_KEY}"
+      }
     }
   }
 }

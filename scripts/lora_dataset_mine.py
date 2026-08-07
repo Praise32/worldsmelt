@@ -60,17 +60,63 @@ devono essere verificabili quanto le inclusioni), nsfw-review.jsonl (scarti
 dell'euristica + tenute sopra la soglia di attenzione, per la decisione del
 proprietario), mining_report.json, un contact sheet per bucket e il pacchetto Kaggle.
 
+BUCKET B (opzione scelta dal proprietario, 07/08/2026, "grana 32 pura, categorie
+coerenti"): un QUINTO bucket, 'primary-32B', indipendente dai quattro sopra e
+dalla loro logica di instradamento (route_bucket() non lo vede, process_candidate()
+non lo tocca — vedi process_candidate_bucket_b()). Tre sorgenti, tutte dichiarate
+a grana 32 nativa, ma qui la grana e' un CANCELLO e non solo una misura: ogni
+candidato la cui grana stimata da round-trip non e' ESATTAMENTE 32 viene
+scartato con motivo, comprese le immagini gia' accettate in secondary-dcss-32
+(li' la grana nominale bastava, qui no — 2 delle 1873 non superano il cancello
+piu' severo, vedi mining_report.json:bucket_b):
+  dcss-32        RIUSATA da secondary-dcss-32 (gia' minata: si copiano le 512px
+                 gia' prodotte, non si rielaborano i sorgenti) se grain_estimated==32
+  oga-creatures  https://opengameart.org/content/assorted-32x32-creatures (CC0,
+                 AndHeGames) — la pagina offre uno SPRITESHEET 288x288 (9x9 celle
+                 32px), non uno zip di file singoli come atteso a mandato: si
+                 scarica il PNG e si affetta in tile, le celle vuote (padding)
+                 si scartano prima ancora del mining
+  curated-32     LOCALE: assets/curated/*, identificate via
+                 dataset/lora-v0/ledger.jsonl (canvas_size==32 e source_path
+                 sotto assets/curated/) ma RIPROCESSATE dal file ORIGINALE (non
+                 dal derivato 512px di lora-v0): e' il ledger v0 che identifica
+                 quali file candidare, mai la fonte dei pixel
+Caption sempre "pixel art game sprite, <categoria>, <soggetto>, <tema se
+noto>, single subject, plain background" — build_caption_dcss() e' gia' in
+questo formato (riusata invariata), build_caption_oga()/build_caption_curated()
+lo replicano. Per oga-creatures il posto del <soggetto> lo prende cio' che si
+MISURA sul canvas (proporzione + colori dominanti, describe_canvas_content()):
+la pagina offre un solo spritesheet e non esiste un nome per-creatura, e il nome
+del file non e' un soggetto. Il token "single subject" e' su tutte le righe ma
+poggia SOLO sul frame sorgente (single_subject_checks nel ledger, sezione
+dedicata nel README del pacchetto Kaggle e voce 19 di known-issues.md): a grana
+32 i gate di scena del bucket primario sono mal tarati, e applicarli male
+sarebbe peggio che dichiarare il limite.
+Prima dello split c'e' un cancello percettivo (enforce_split_perceptual_separation)
+che usa la STESSA metrica del preflight del trainer: due varianti di colore dello
+stesso asset hanno nomi diversi e finirebbero su lati opposti dello split.
+Split 90/10 e ledger/rejects nello STESSO ledger.jsonl/rejects.jsonl
+degli altri bucket (distinti dal campo "bucket"/"target_bucket"), non file
+separati — mining_report.json porta le statistiche del bucket B sotto la
+chiave "bucket_b", senza toccare le chiavi del run originale.
+
 Uso:
   python3 scripts/lora_dataset_mine.py download            # le 4 sorgenti, riprendibile
-  python3 scripts/lora_dataset_mine.py mine [--limit N]     # filtri + assemblaggio
-  python3 scripts/lora_dataset_mine.py kaggle                # adatta il pacchetto Kaggle
+  python3 scripts/lora_dataset_mine.py mine [--limit N]     # filtri + assemblaggio (4 bucket originali)
+  python3 scripts/lora_dataset_mine.py kaggle                # adatta il pacchetto Kaggle (primary-128)
   python3 scripts/lora_dataset_mine.py all                  # download + mine + kaggle
+  python3 scripts/lora_dataset_mine.py mine-b [--limit N]   # bucket B: richiede 'mine' gia' fatto
+                                                              # (riusa secondary-dcss-32), scarica
+                                                              # oga-creatures da solo, assembla
+                                                              # primary-32B e ripunta il pacchetto
+                                                              # Kaggle su di esso
 """
 
 import argparse
 import colorsys
 import datetime
 import hashlib
+import inspect
 import json
 import random
 import re
@@ -101,7 +147,14 @@ OUT_DIR = REPO_ROOT / "dataset" / "lora-v1-research"
 # nome del bucket di uscita, licenza dichiarata (vedi mandato: provenienza
 # dubbia autorizzata SOLO per questa prova).
 # ---------------------------------------------------------------------------
-NOMINAL_GRAIN = {"dcss-32": 32, "tinyhero-64": 64, "nouns-32": 32}
+NOMINAL_GRAIN = {"dcss-32": 32, "tinyhero-64": 64, "nouns-32": 32,
+                 # Le due sorgenti nuove del bucket B (vedi sotto): dichiarate a
+                 # grana 32 nativa come dcss-32, ma la' dove dcss-32 usa questo
+                 # valore incondizionatamente (route_bucket(), mai un cancello),
+                 # process_candidate_bucket_b() lo affianca a un cancello vero
+                 # sulla grana MISURATA — NOMINAL_GRAIN resta la base per il
+                 # ricampionamento (resample_ratio_for()), non il gate.
+                 "oga-creatures": 32, "curated-32": 32}
 SECONDARY_BUCKET = {
     "dcss-32": "secondary-dcss-32",
     "tinyhero-64": "secondary-tinyhero-64",
@@ -109,6 +162,16 @@ SECONDARY_BUCKET = {
 }
 PRIMARY_BUCKET = "primary-128"
 PRIMARY_CANVAS = 128
+
+# --- Bucket B (opzione scelta dal proprietario 07/08, "grana 32 pura, categorie
+# coerenti"): vedi il paragrafo dedicato in cima al file. Deliberatamente FUORI
+# da SECONDARY_BUCKET/route_bucket(): quella tabella instrada i quattro bucket
+# originali (intoccati, mandato letterale), il bucket B ha la propria pipeline
+# (process_candidate_bucket_b(), run_mine_bucket_b()) cosi' i due mondi non
+# possono influenzarsi a vicenda per una modifica futura all'uno o all'altro.
+BUCKET_B = "primary-32B"
+BUCKET_B_CANVAS = 32
+BUCKET_B_SOURCES = ("dcss-32", "oga-creatures", "curated-32")
 
 LICENSE_INFO = {
     "limbicnation": {
@@ -135,6 +198,18 @@ LICENSE_INFO = {
         "license_url": "https://huggingface.co/datasets/jiovine/pixel-art-nouns-2k",
         "dataset_url": "https://huggingface.co/datasets/jiovine/pixel-art-nouns-2k",
         "author": "jiovine (arte Nouns DAO, CC0 di fatto — non una dichiarazione formale del dataset HF)",
+    },
+    # Verificata sulla pagina (07/08, non assunta): riquadro "License(s): CC0"
+    # con link a creativecommons.org/publicdomain/zero/1.0/, autore AndHeGames.
+    # Nessuno zip in pagina (a differenza del mandato, che ne assumeva uno):
+    # solo due PNG, lo spritesheet nativo (creatures_3.png, 288x288, 9x9 celle
+    # 32px) e un export 2x (creatures_3-export_1.png, 576x576) — si scarica e
+    # affetta SOLO il nativo, l'export raddoppierebbe la grana misurata.
+    "oga-creatures": {
+        "license_id": "cc0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "dataset_url": "https://opengameart.org/content/assorted-32x32-creatures",
+        "author": "AndHeGames (OpenGameArt)",
     },
 }
 
@@ -507,6 +582,70 @@ def zipfile_open(path):
     return zipfile.ZipFile(path)
 
 
+# --- oga-creatures (bucket B): niente zip in pagina (verificato, vedi
+# LICENSE_INFO["oga-creatures"]), solo uno spritesheet. Scarico + affettatura
+# sono due passi idempotenti separati cosi' un rilancio non riscarica ne'
+# riaffetta se non serve.
+OGA_SHEET_URL = "https://opengameart.org/sites/default/files/creatures_3.png"
+OGA_TILE = 32
+
+
+def download_oga_creatures(dest_dir: Path):
+    raw_dir = dest_dir / "raw"
+    sheet_path = raw_dir / "creatures_3.png"
+    if not sheet_path.is_file():
+        log("[oga-creatures] scarico lo spritesheet")
+        http_download_file(OGA_SHEET_URL, sheet_path)
+    else:
+        log("[oga-creatures] spritesheet gia' presente, salto il download")
+
+    info_path = dest_dir / "_source_info.json"
+    lic = LICENSE_INFO["oga-creatures"]
+    info = {
+        "source_name": "oga-creatures",
+        "source_url": lic["dataset_url"],
+        "sheet_url": OGA_SHEET_URL,
+        "license_id": lic["license_id"], "license_url": lic["license_url"],
+        "author": lic["author"],
+        "note": ("pagina verificata 07/08: nessuno zip, solo due PNG (spritesheet "
+                 "nativo + export 2x) — usato SOLO il nativo, vedi commento sopra "
+                 "OGA_SHEET_URL"),
+        "downloaded_at": datetime.date.today().isoformat(),
+        "sheet_sha256": sha256_of_file(sheet_path),
+    }
+    info_path.write_text(json.dumps(info, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    slice_oga_sheet(dest_dir)
+
+
+def slice_oga_sheet(dest_dir: Path, tile=OGA_TILE):
+    """Affetta lo spritesheet in celle tile x tile, scartando quelle
+    COMPLETAMENTE trasparenti (padding della griglia, non creature) PRIMA
+    ancora che arrivino a process_candidate_bucket_b(): non sono scarti di
+    qualita', sono celle vuote per costruzione — contarle come candidati
+    gonfierebbe 'candidati totali' con cornici vuote che nessun filtro deve
+    spiegare. Idempotente: se tiles/ esiste gia' e non e' vuota, non riaffetta."""
+    tiles_dir = dest_dir / "tiles"
+    if tiles_dir.is_dir() and any(tiles_dir.iterdir()):
+        log(f"[oga-creatures] tile gia' presenti in {tiles_dir}, salto l'affettatura")
+        return
+    sheet_path = dest_dir / "raw" / "creatures_3.png"
+    im = Image.open(sheet_path).convert("RGBA")
+    w, h = im.size
+    if w % tile or h % tile:
+        raise RuntimeError(f"[oga-creatures] spritesheet {w}x{h} non e' multiplo di {tile}px")
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+    n_saved = n_empty = 0
+    for ty in range(h // tile):
+        for tx in range(w // tile):
+            cell = im.crop((tx * tile, ty * tile, tx * tile + tile, ty * tile + tile))
+            if cell.split()[-1].getextrema()[1] == 0:  # alpha massima 0: cella vuota
+                n_empty += 1
+                continue
+            cell.save(tiles_dir / f"creatures_3-r{ty:02d}-c{tx:02d}.png")
+            n_saved += 1
+    log(f"[oga-creatures] {n_saved} tile salvate, {n_empty} celle vuote scartate (padding)")
+
+
 def download_all():
     download_hf_dataset_rows(
         "Limbicnation/pixel-art-character", SOURCES_DIR / "limbicnation",
@@ -522,6 +661,10 @@ def download_all():
     download_hf_dataset_rows(
         "jiovine/pixel-art-nouns-2k", SOURCES_DIR / "nouns-32",
         image_ext="jpg", caption_field="text", filename_field=None)
+    # Bucket B (vedi paragrafo dedicato in cima al file): curated-32 non scarica
+    # niente, legge assets/curated/ + dataset/lora-v0/ledger.jsonl gia' sul
+    # disco — solo oga-creatures ha una rete da toccare.
+    download_oga_creatures(SOURCES_DIR / "oga-creatures")
 
 
 # =============================================================================
@@ -680,6 +823,85 @@ def iter_dcss_candidates(src_dir: Path, limit=None):
         }
 
 
+# --- Candidati del bucket B (oga-creatures, curated-32) — vedi paragrafo
+# dedicato in cima al file. dcss-32 per il bucket B non ha un iter_* proprio:
+# si riusano le righe gia' in secondary-dcss-32/ (run_mine_bucket_b()), niente
+# ririlettura dei file sorgente.
+def iter_oga_candidates(src_dir: Path, limit=None):
+    lic = LICENSE_INFO["oga-creatures"]
+    tiles_dir = src_dir / "tiles"
+    if not tiles_dir.is_dir():
+        slice_oga_sheet(src_dir)
+    files = sorted(tiles_dir.glob("*.png"))
+    if limit:
+        files = files[:limit]
+    for path in files:
+        stem = path.stem  # es. "creatures_3-r02-c04"
+        yield {
+            "source": "oga-creatures", "path": path, "id_base": f"oga-{stem}",
+            "subject_base_id": f"oga-{stem}", "caption_raw": None,
+            # theme None e non "creatures_3": quello e' il nome del file dello
+            # spritesheet, non un tema — vedi build_caption_oga().
+            "category": "creature", "theme": None,
+            "original_url": f"{lic['dataset_url']}#{stem}",
+            "license": lic,
+        }
+
+
+def load_v0_curated32_rows():
+    """Identifica i candidati curated-32 SOLO tramite dataset/lora-v0/ledger.jsonl
+    (mandato, letterale: 'riusa ... per identificare le immagini'): canvas_size==32
+    (il builder v0 le ha gia' normalizzate su quel gradino della scala 32/64/128)
+    E source_path sotto assets/curated/ (gli 8 di assets/art-library/ restano
+    fuori, non sono 'le immagini di assets/curated' del mandato). Il ledger v0
+    NON e' la fonte dei pixel — solo l'indice: process_candidate_bucket_b()
+    riparte SEMPRE dal file originale in source_path, mai dal derivato 512px
+    di lora-v0/images/."""
+    ledger_path = REPO_ROOT / "dataset" / "lora-v0" / "ledger.jsonl"
+    rows = []
+    with ledger_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            if row.get("canvas_size") == 32 and row.get("source_path", "").startswith("assets/curated/"):
+                rows.append(row)
+    return rows
+
+
+def iter_curated32_candidates(limit=None):
+    rows = load_v0_curated32_rows()
+    if limit:
+        rows = rows[:limit]
+    for row in rows:
+        path = REPO_ROOT / row["source_path"]
+        # name_family raggruppa le varianti note dello stesso soggetto (es. le
+        # due colorazioni 'shmup-cruiser-gray-a/-b'): stesso ruolo di
+        # subject_base_id per DCSS, evita che due quasi-duplicati finiscano uno
+        # in train e uno in val. Il ledger v0 lo popola sempre (verificato); id
+        # resta il fallback per righe che in futuro non lo avessero.
+        subject_key = row.get("name_family") or f"curated-{row['id']}"
+        yield {
+            "source": "curated-32", "path": path, "id_base": f"curated-{row['id']}",
+            "subject_base_id": subject_key, "caption_raw": None,
+            "category": row.get("category"), "theme": (row.get("theme_tags") or [None])[0],
+            "original_url": row.get("original_url"),
+            "license": {
+                # Licenza PER RIGA (curated-32 non ha un'unica sorgente): il
+                # ledger v0 la porta gia' verificata pack per pack (author/
+                # license_id/license_url), qui si abbassa solo license_id a
+                # minuscolo per coerenza con le altre righe di questo ledger
+                # (tutte lowercase: "cc0-1.0", non "CC0-1.0").
+                "license_id": (row.get("license_id") or "").strip().lower(),
+                "license_url": row.get("license_url"),
+                "dataset_url": row.get("original_url"),
+                "author": row.get("author"),
+            },
+            "v0_row": row,
+        }
+
+
 # Da dove viene la caption di ogni sorgente, dichiarato riga per riga nel ledger:
 # senza questo campo "caption" e' una stringa senza garanzie, e le quattro
 # sorgenti hanno garanzie molto diverse.
@@ -689,6 +911,12 @@ CAPTION_POLICY = {
     "nouns-32": "source-metadata: tratti dichiarati dal dataset (occhiali/testa/corpo)",
     "dcss-32": "file-name: nome reale dell'asset dentro il pack OGA",
     "tinyhero-64": "fixed-verified: testo fisso, 'front view' regge perche' la direzione tenuta e' verificata",
+    "oga-creatures": ("page-tag + content-derived: nessun nome per-creatura in pagina (uno "
+                      "spritesheet, non file singoli come atteso a mandato), quindi categoria "
+                      "'creature' dai tag DELLA PAGINA + proporzione e colori dominanti MISURATI "
+                      "sul canvas (stessa macchina di limbicnation). Il nome del file "
+                      "('creatures_3') non entra: e' un nome di file, non un soggetto"),
+    "curated-32": "curated-manifest: categoria/soggetto/tema dal ledger dataset/lora-v0 (a sua volta da assets/curated/manifest.json)",
 }
 
 # Frazione di incarnato da cui in su un'immagine TENUTA finisce comunque nella
@@ -728,6 +956,33 @@ def build_caption_tinyhero():
     return "pixel art game character, front view, single subject, plain background"
 
 
+# Formato comune al bucket B (mandato, letterale): "pixel art game sprite,
+# <categoria>, <soggetto>, <tema se noto>, single subject, plain background".
+# build_caption_dcss() sopra e' gia' in questo formato (nessuna modifica, e'
+# la stessa funzione per secondary-dcss-32 e per il riuso nel bucket B).
+def build_caption_oga(item):
+    """La pagina OGA offre UNO spritesheet: non esiste un nome per-creatura.
+    La prima stesura ripiegava su un testo fisso che infilava 'creatures_3' —
+    il nome del FILE — nella caption, con due difetti misurati: un token
+    spazzatura insegnato al modello, e 45 caption su 45 byte-identiche, cioe'
+    zero segnale per distinguere una creatura dall'altra. Qui resta la sola
+    categoria che LA PAGINA dichiara ('creature', dai suoi tag) e si aggiunge
+    cio' che si puo' contare sui pixel, la stessa macchina di Limbicnation e
+    per lo stesso motivo: mai un'asserzione che lo script non ha verificato."""
+    parts = ["pixel art game sprite", item["cand"]["category"]]
+    parts += describe_canvas_content(item)
+    parts += ["single subject", "plain background"]
+    return ", ".join(p for p in parts if p)
+
+
+def build_caption_curated(cand):
+    row = cand["v0_row"]
+    parts = ["pixel art game sprite", cand["category"] or "prop",
+             row.get("subject") or cand["id_base"], cand["theme"],
+             "single subject", "plain background"]
+    return ", ".join(p for p in parts if p)
+
+
 def build_caption_from_hf(caption_raw, single_subject_verified=True):
     cleaned = clean_caption_prefix(caption_raw) if caption_raw else "pixel art game sprite"
     return ensure_sprite_markers(cleaned, single_subject_verified)
@@ -742,7 +997,11 @@ def build_caption_from_hf(caption_raw, single_subject_verified=True):
 # con cio' che si puo' CONTARE sui pixel del canvas: colori dominanti oltre il 12%
 # e proporzione della bbox. Niente specie, niente oggetti, niente posa: attributi
 # che questo script non e' in grado di garantire non entrano nel training.
-def build_caption_from_content(item):
+def describe_canvas_content(item):
+    """I due soli attributi che questo script sa CONTARE sui pixel del canvas
+    finale: proporzione della bbox e colori dominanti. Estratta da
+    build_caption_from_content() (Limbicnation) perche' serve identica anche a
+    oga-creatures, che di nome per-creatura non ne ha nessuno."""
     stats = item["canvas_stats"]
     shape = item["canvas_shape"]
     # Due colori al massimo, e i cromatici prima dei neutri: in questo stile il
@@ -761,12 +1020,13 @@ def build_caption_from_content(item):
         proportion = "wide"
     else:
         proportion = "compact"
-    parts = ["pixel art game sprite", f"{proportion} subject"]
-    if named:
-        parts.append(" and ".join(named) + " tones")
-    else:
-        parts.append("multicolored")
-    parts += ["single subject", "plain background"]
+    tones = (" and ".join(named) + " tones") if named else "multicolored"
+    return [f"{proportion} subject", tones]
+
+
+def build_caption_from_content(item):
+    parts = (["pixel art game sprite"] + describe_canvas_content(item)
+             + ["single subject", "plain background"])
     caption = ", ".join(parts)
     return caption if item["single_subject_verified"] else caption.replace(", single subject", "")
 
@@ -844,6 +1104,175 @@ def dhash64(rgba_crop, size=8):
 
 def hamming(a, b):
     return (a ^ b).bit_count()
+
+
+# =============================================================================
+# DISTANZA PERCETTIVA fra due firme 64px — UNICA definizione, condivisa fra
+# questo script (cancello di split del bucket B) e il preflight del trainer
+# Kaggle, dove viene INIETTATA da build_kaggle_package() prendendo il sorgente
+# di queste stesse funzioni con inspect.getsource(). Due copie a mano
+# divergerebbero senza che nessuno se ne accorga: qui non possono.
+#
+# Perche' esiste. Il trainer v0 (dataset/lora-v0/kaggle/train_lora_v0.py)
+# definisce "acceso" un pixel con alpha > 16, corretto per il dataset v0, che
+# ha il fondo TRASPARENTE. I bucket di lora-v1-research invece compongono su
+# CANVAS_BG_RGB opaco (SD1.5 non ha canale alpha), quindi ogni pixel del canvas
+# risulta acceso, l'unione e' 4096/4096 px e due sprite piccoli e DIVERSI
+# differiscono solo per pochi punti percentuali: sul bucket B il preflight
+# riportava 6324 "fughe di split percettive" tutte false. La correzione misura
+# il fondo invece di assumerlo (modale dell'anello di bordo) e ricade sul solo
+# test alpha quando il fondo e' davvero trasparente, cosi' la stessa funzione
+# resta valida anche per il dataset v0.
+# =============================================================================
+PERCEPTUAL_BG_TOL = 24      # scostamento dal fondo oltre cui un pixel e' soggetto
+PERCEPTUAL_COLOR_TOL = 24   # scostamento di colore oltre cui due pixel sono "diversi"
+PERCEPTUAL_SELFCHECK_PAIRS = 64
+_perceptual_selfchecked = 0
+
+
+def background_key(im):
+    """Colore di fondo MISURATO: il piu' frequente sull'anello di 1 px del
+    bordo. Non e' una costante perche' la stessa funzione deve valere sia per
+    il fondo piatto opaco dei bucket v1-research sia per il fondo trasparente
+    del dataset v0 — e un valore cablato in due file diversi e' esattamente il
+    tipo di assunzione che ha prodotto il difetto che questo blocco corregge.
+    Il pareggio si rompe sul colore (chiave del max) per restare deterministico
+    fra processi."""
+    px = im.load()
+    w, h = im.size
+    counts = {}
+    for x in range(w):
+        for y in (0, h - 1):
+            counts[px[x, y]] = counts.get(px[x, y], 0) + 1
+    for y in range(1, h - 1):
+        for x in (0, w - 1):
+            counts[px[x, y]] = counts.get(px[x, y], 0) + 1
+    return max(counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
+
+
+def is_foreground_pixel(px, bg):
+    """DEFINIZIONE di "pixel di soggetto", usata dall'implementazione di
+    riferimento; foreground_mask() ne e' la versione vettoriale."""
+    if px[3] <= 16:
+        return False
+    if bg[3] <= 16:
+        return True  # fondo trasparente (dataset v0): il solo alpha basta
+    return max(abs(px[0] - bg[0]), abs(px[1] - bg[1]), abs(px[2] - bg[2])) > PERCEPTUAL_BG_TOL
+
+
+def foreground_mask(im, bg=None):
+    """Maschera 0/255 dei pixel di soggetto, in C dentro Pillow. Memoizzata
+    sull'oggetto immagine: il preflight confronta ogni firma di validazione
+    con TUTTE quelle di training, quindi senza cache la stessa maschera si
+    ricalcolerebbe migliaia di volte (misurato: e' la differenza fra ~35 s e
+    diversi minuti di CPU bruciati su una macchina a GPU pagata a ore)."""
+    from PIL import Image as _Image, ImageChops as _ImageChops
+    if bg is None:
+        cached = getattr(im, "_ws_fg_mask", None)
+        if cached is not None:
+            return cached
+        bg = background_key(im)
+        remember = True
+    else:
+        remember = False
+    r, g, b, a = im.split()
+    opaque = a.point(lambda v: 255 if v > 16 else 0)
+    if bg[3] <= 16:
+        mask = opaque
+    else:
+        d = _ImageChops.lighter(
+            _ImageChops.lighter(
+                _ImageChops.difference(r, _Image.new("L", im.size, bg[0])),
+                _ImageChops.difference(g, _Image.new("L", im.size, bg[1]))),
+            _ImageChops.difference(b, _Image.new("L", im.size, bg[2])))
+        mask = _ImageChops.multiply(d.point(lambda v: 255 if v > PERCEPTUAL_BG_TOL else 0), opaque)
+    if remember:
+        im._ws_fg_mask = mask
+    return mask
+
+
+def perceptual_distance_reference(a, b) -> float:
+    """Implementazione a pixel, lenta e leggibile: e' la DEFINIZIONE della
+    metrica (frazione di pixel diversi sull'unione delle aree di SOGGETTO, non
+    sul canvas: due icone piccole e diverse dentro lo stesso canvas
+    differiscono solo su una manciata di pixel del totale, e una soglia
+    calcolata sul canvas le dichiarerebbe identiche). perceptual_distance()
+    deve restituire lo stesso numero, e _perceptual_selfcheck() lo verifica su
+    dati veri invece di dichiararlo."""
+    pa, pb = a.load(), b.load()
+    bga, bgb = background_key(a), background_key(b)
+    w, h = a.size
+    union = diff = 0
+    for y in range(h):
+        for x in range(w):
+            p1, p2 = pa[x, y], pb[x, y]
+            on1 = is_foreground_pixel(p1, bga)
+            on2 = is_foreground_pixel(p2, bgb)
+            if not (on1 or on2):
+                continue
+            union += 1
+            if on1 != on2 or max(abs(p1[0] - p2[0]), abs(p1[1] - p2[1]),
+                                 abs(p1[2] - p2[2])) > PERCEPTUAL_COLOR_TOL:
+                diff += 1
+    return diff / union if union else 0.0
+
+
+def _perceptual_selfcheck(a, b, fast_value):
+    """Le prime PERCEPTUAL_SELFCHECK_PAIRS coppie REALI del dataset in esame
+    vengono ricalcolate anche con l'implementazione di riferimento: se le due
+    divergessero, ci si ferma qui invece di dichiarare "preflight OK" con una
+    metrica sbagliata. Costo misurato ~1,5 ms a coppia, cioe' meno di 0,1 s su
+    un preflight che ne confronta centinaia di migliaia."""
+    global _perceptual_selfchecked
+    if _perceptual_selfchecked >= PERCEPTUAL_SELFCHECK_PAIRS:
+        return
+    _perceptual_selfchecked += 1
+    ref = perceptual_distance_reference(a, b)
+    if abs(ref - fast_value) > 1e-9:
+        raise SystemExit(
+            f"INCOERENZA nella distanza percettiva: la versione vettoriale dice {fast_value!r}, "
+            f"quella di riferimento {ref!r}. Le due devono coincidere per definizione: "
+            f"non proseguire con una metrica di cui non si sa quale sia quella giusta.")
+
+
+def perceptual_distance(a, b) -> float:
+    """Vedi perceptual_distance_reference(): stessa metrica, calcolata dentro
+    Pillow. a e b sono firme RGBA della stessa dimensione."""
+    from PIL import ImageChops as _ImageChops
+    ma, mb = foreground_mask(a), foreground_mask(b)
+    union = _ImageChops.lighter(ma, mb)
+    u = sum(union.histogram()[128:])
+    if u == 0:
+        return 0.0  # due canvas interamente di fondo: identici per definizione
+    ar, ag, ab = a.split()[:3]
+    br, bg_, bb = b.split()[:3]
+    color = _ImageChops.lighter(
+        _ImageChops.lighter(_ImageChops.difference(ar, br), _ImageChops.difference(ag, bg_)),
+        _ImageChops.difference(ab, bb)).point(
+            lambda v: 255 if v > PERCEPTUAL_COLOR_TOL else 0)
+    changed = _ImageChops.lighter(_ImageChops.difference(ma, mb),
+                                  _ImageChops.multiply(color, union))
+    value = sum(changed.histogram()[128:]) / u
+    _perceptual_selfcheck(a, b, value)
+    return value
+
+
+# Ordine di iniezione nel trainer del bucket B: le dipendenze prima di chi le usa.
+PERCEPTUAL_BLOCK_FUNCS = (background_key, is_foreground_pixel, foreground_mask,
+                          perceptual_distance_reference, _perceptual_selfcheck,
+                          perceptual_distance)
+
+
+def perceptual_block_source() -> str:
+    """Il blocco qui sopra come TESTO, per sostituire perceptual_distance() nella
+    copia adattata del trainer. Le costanti si riscrivono dal valore corrente,
+    non si copiano a mano."""
+    head = (f"PERCEPTUAL_BG_TOL = {PERCEPTUAL_BG_TOL}\n"
+            f"PERCEPTUAL_COLOR_TOL = {PERCEPTUAL_COLOR_TOL}\n"
+            f"PERCEPTUAL_SELFCHECK_PAIRS = {PERCEPTUAL_SELFCHECK_PAIRS}\n"
+            f"_perceptual_selfchecked = 0\n")
+    body = "\n\n".join(inspect.getsource(fn).rstrip() for fn in PERCEPTUAL_BLOCK_FUNCS)
+    return head + "\n\n" + body + "\n"
 
 
 # =============================================================================
@@ -1022,6 +1451,161 @@ def process_candidate(cand):
         # larga della verifica che l'ha prodotta.
         "single_subject_checks": (["source-frame", "canvas-scene-gates"]
                                   if bucket == PRIMARY_BUCKET else ["source-frame"]),
+        "dhash": dhash64(crop),
+    }
+
+
+# =============================================================================
+# BUCKET B — process_candidate_bucket_b() (opzione scelta dal proprietario
+# 07/08, "grana 32 pura"). Deliberatamente una funzione A SE', non un
+# parametro in piu' su process_candidate(): quella funzione e' il cuore dei
+# quattro bucket esistenti (mandato: "NON toccare i bucket esistenti"), e
+# infilarci un ramo condizionale in piu' per un quinto bucket sperimentale
+# avrebbe messo a rischio di regressione esattamente cio' che non si puo'
+# toccare. Le funzioni di basso livello (estimate_grain, tbp.*,
+# foreground_colors_posterized, resample_ratio_for, compose_logical_canvas,
+# canvas_shape_metrics, canvas_pixel_stats, dhash64) restano CONDIVISE — solo
+# l'ORDINE dei cancelli e le due differenze sotto sono duplicati apposta.
+#
+# Due differenze deliberate rispetto a process_candidate():
+#   1. la grana e' un CANCELLO, non solo una misura instradata per sorgente:
+#      qualunque candidato la cui grana stimata da round-trip non sia
+#      ESATTAMENTE BUCKET_B_CANVAS (32) viene scartato — anche i candidati
+#      dcss-32 gia' accettati in secondary-dcss-32, dove la grana nominale
+#      del pack bastava (vedi route_bucket()) e la misura non era un cancello;
+#   2. nessun gate di scena (punto c2 di process_candidate, CANVAS_FILL_MAX
+#      e affini): quel gate esiste SOLO per il canvas 512-logico di
+#      Limbicnation (soggetti disegnati a mano dentro un frame che PUO'
+#      contenere un diorama intero) — qui il canvas e' 32, la stessa grana
+#      nativa del contenuto, quindi lo sprite riempie la propria cella per
+#      costruzione come le sorgenti secondarie esistenti (stessa nota gia'
+#      in route_bucket()). Nessun gate NSFW: nessuna delle tre sorgenti e'
+#      Limbicnation.
+# =============================================================================
+def process_candidate_bucket_b(cand):
+    path = cand["path"]
+    source = cand["source"]
+
+    try:
+        im = Image.open(path)
+        im.load()
+    except Exception as e:  # noqa: BLE001 — file corrotto/illeggibile, non deve fermare la corsa
+        return reject("integrity", f"file illeggibile/corrotto: {e}")
+
+    rgba = im.convert("RGBA")
+    w, h = rgba.size
+    if w < 4 or h < 4:
+        return reject("integrity", f"immagine degenere {w}x{h}")
+
+    # -- grana: CANCELLO (differenza 1 sopra) --
+    grain, grain_mse = estimate_grain(rgba.convert("RGB"))
+    if grain != BUCKET_B_CANVAS:
+        return reject("grain-not-32-roundtrip",
+                      f"grana stimata da round-trip = {grain} (mse={grain_mse:.2f} alla grana "
+                      f"scelta) != {BUCKET_B_CANVAS}: il bucket B accetta solo grana 32 pura",
+                      grain=grain)
+
+    alpha_lo, _alpha_hi = rgba.split()[-1].getextrema()
+    if alpha_lo < 250:
+        isolated = rgba
+        bg_removal_mode = "native-alpha"
+    else:
+        isolated, bg_info = tbp.flood_remove_background(rgba)
+        bg_removal_mode = bg_info["bg_removal_mode"]
+        if bg_removal_mode != "flood":
+            return reject("no-flat-background",
+                          f"impossibile isolare il soggetto (modo={bg_removal_mode}, "
+                          f"dominanza cornice={bg_info['bg_border_dominance']:.2f})",
+                          grain=grain)
+
+    mask, mw, mh = tbp.alpha_mask(isolated)
+    comps = tbp.connected_components(mask, mw, mh)
+    if not comps:
+        return reject("empty-foreground", "nessun pixel opaco dopo l'isolamento", grain=grain)
+
+    total_fg = sum(c["size"] for c in comps)
+    fg_fraction = total_fg / (mw * mh)
+    if not (FOREGROUND_MIN_FRACTION <= fg_fraction <= FOREGROUND_MAX_FRACTION):
+        return reject("foreground-fraction",
+                      f"foreground {fg_fraction * 100:.1f}% fuori da "
+                      f"[{FOREGROUND_MIN_FRACTION * 100:.0f}-{FOREGROUND_MAX_FRACTION * 100:.0f}]%",
+                      grain=grain)
+
+    main = max(comps, key=lambda c: c["size"])
+    dominant_share = main["size"] / total_fg
+    if dominant_share < DOMINANT_COMPONENT_MIN_SHARE:
+        return reject("no-dominant-component",
+                      f"componente principale {dominant_share * 100:.1f}% del foreground "
+                      f"(< {DOMINANT_COMPONENT_MIN_SHARE * 100:.0f}%, {len(comps)} componenti)",
+                      grain=grain)
+
+    minx, miny, maxx, maxy = main["bbox"]
+    bw, bh = maxx - minx + 1, maxy - miny + 1
+    aspect = max(bw, bh) / max(1, min(bw, bh))
+    if aspect > ASPECT_RATIO_MAX:
+        return reject("extreme-aspect-ratio",
+                      f"bbox {bw}x{bh} rapporto {aspect:.1f} > {ASPECT_RATIO_MAX} "
+                      f"(tile/font/barra sospetti)", grain=grain)
+
+    border_occ = tbp.border_occupancy(mask, mw, mh)
+    if border_occ > BORDER_CONTACT_MAX:
+        return reject("heavy-border-contact",
+                      f"{border_occ * 100:.1f}% della cornice e' opaca (> {BORDER_CONTACT_MAX * 100:.0f}%)",
+                      grain=grain)
+
+    tbp.strip_non_main_components(isolated, comps, main)
+    crop = isolated.crop((minx, miny, maxx + 1, maxy + 1))
+
+    n_colors, _mean_fg_rgb, _opaque_px = foreground_colors_posterized(crop)
+    if not (QUALITY_MIN_COLORS <= n_colors <= QUALITY_MAX_COLORS):
+        return reject("color-count",
+                      f"{n_colors} colori dopo quantizzazione leggera, fuori da "
+                      f"[{QUALITY_MIN_COLORS}-{QUALITY_MAX_COLORS}]", grain=grain)
+
+    ratio, effective_grain = resample_ratio_for(source, max(w, h), grain)
+    logical_w = max(1, round(bw / ratio))
+    logical_h = max(1, round(bh / ratio))
+    if max(logical_w, logical_h) < MIN_CONTENT_LOGICAL_PX:
+        return reject("content-too-small-logical",
+                      f"contenuto {logical_w}x{logical_h}px logici < {MIN_CONTENT_LOGICAL_PX}",
+                      grain=grain)
+
+    canvas, canvas_mask, canvas_visible, logical_size = compose_logical_canvas(
+        crop, ratio, BUCKET_B_CANVAS)
+    shape = canvas_shape_metrics(canvas_visible, BUCKET_B_CANVAS)
+    stats = canvas_pixel_stats(canvas, canvas_mask, canvas_visible, BUCKET_B_CANVAS)
+    if shape is None or stats is None:
+        return reject("subject-imperceptible",
+                      "nessun pixel del soggetto si distingue dal canvas", grain=grain)
+
+    # -- niente gate di scena qui (differenza 2 sopra) --
+
+    if shape["fill"] < CANVAS_FILL_MIN:
+        return reject("canvas-nearly-empty",
+                      f"solo il {shape['fill'] * 100:.1f}% del canvas mostra qualcosa "
+                      f"(< {CANVAS_FILL_MIN * 100:.0f}%): soggetto quasi invisibile sul fondo chiaro",
+                      grain=grain)
+    if stats["contrast"] < CONTRAST_MIN_RATIO:
+        return reject("low-contrast",
+                      f"contrasto medio soggetto/canvas {stats['contrast']:.2f} < "
+                      f"{CONTRAST_MIN_RATIO}", grain=grain)
+    if stats["imperceptible_fraction"] > IMPERCEPTIBLE_MAX_FRACTION:
+        return reject("subject-imperceptible",
+                      f"{stats['imperceptible_fraction'] * 100:.0f}% dei pixel del soggetto "
+                      f"sotto contrasto {IMPERCEPTIBLE_CONTRAST} col canvas", grain=grain)
+
+    return {
+        "status": "ok", "kind": "processed", "cand": cand, "crop": crop, "grain": grain,
+        "grain_mse": grain_mse,
+        "effective_grain": effective_grain, "resample_ratio": ratio,
+        "bucket": BUCKET_B, "canvas_size": BUCKET_B_CANVAS,
+        "bg_removal_mode": bg_removal_mode, "n_colors": n_colors,
+        "logical_size": list(logical_size),
+        "source_logical_size": [logical_w, logical_h],
+        "fg_fraction": round(fg_fraction, 4),
+        "canvas_shape": shape, "canvas_stats": stats,
+        "single_subject_verified": True,
+        "single_subject_checks": ["source-frame"],  # niente gate di canvas per il bucket B
         "dhash": dhash64(crop),
     }
 
@@ -1371,6 +1955,90 @@ def assign_splits(items, bucket_name):
 
 
 # =============================================================================
+# CANCELLO DI SPLIT PERCETTIVO (solo bucket B) — assign_splits() separa per
+# CHIAVE di soggetto, e la chiave e' un nome: 'stone_2_blue' e 'stone_2_green'
+# sono lo stesso amuleto in due colori ma due chiavi diverse, quindi potevano
+# finire una in val e una in train. Il preflight del trainer lo considera una
+# fuga (giustamente: la validazione misurerebbe qualcosa che il modello ha gia'
+# visto) e si ferma. Qui si chiude PRIMA, con la stessa identica metrica del
+# preflight — non un'euristica che gli somiglia — cosi' il pacchetto consegnato
+# non puo' fallire su questo cancello per costruzione.
+#
+# Il gruppo di soggetto che sfora si sposta INTERO in train: val puo' solo
+# rimpicciolirsi, quindi il giro converge (e le coppie da ricontrollare al giro
+# dopo sono solo quelle contro gli elementi appena spostati).
+# =============================================================================
+SPLIT_PERCEPTUAL_MAX = 0.15   # deve valere DEDUP_MERGE_SCORE del trainer (verificato a build)
+SPLIT_PERCEPTUAL_SIG_PX = 64  # deve valere SIGNATURE_PX del trainer (verificato a build)
+SPLIT_SEPARATION_MAX_ROUNDS = 6
+
+
+def bucket_b_item_label(item):
+    return (item["ledger_row"]["id"] if item["kind"] == "reused"
+            else item["cand"]["id_base"])
+
+
+def bucket_b_signature(item):
+    """Firma 64px calcolata sull'immagine FINALE (512px), la stessa che il
+    preflight aprira' dal tar: per le righe riusate si legge il PNG gia' sul
+    disco, per le nuove si ricompone il canvas e lo si porta a 512 come fara'
+    il salvataggio. Nessuna scorciatoia sul canvas 32px: sarebbe equivalente
+    solo finche' i fattori di scala restano interi, cioe' un'assunzione in piu'
+    da mantenere vera."""
+    if item["kind"] == "reused":
+        with Image.open(REPO_ROOT / item["ledger_row"]["image_path"]) as im:
+            return im.convert("RGBA").resize(
+                (SPLIT_PERCEPTUAL_SIG_PX, SPLIT_PERCEPTUAL_SIG_PX), Image.NEAREST)
+    canvas, _mask, _visible, _logical = compose_logical_canvas(
+        item["crop"], item["resample_ratio"], item["canvas_size"])
+    return upscale_to_final(canvas, item["canvas_size"]).convert("RGBA").resize(
+        (SPLIT_PERCEPTUAL_SIG_PX, SPLIT_PERCEPTUAL_SIG_PX), Image.NEAREST)
+
+
+def enforce_split_perceptual_separation(kept, signatures):
+    """Ritorna la lista degli spostamenti fatti (vuota se lo split era gia'
+    pulito). `signatures` e' parallela a `kept`."""
+    moves = []
+    frontier = None  # None = primo giro, confronto completo val x train
+    for round_idx in range(SPLIT_SEPARATION_MAX_ROUNDS):
+        val_idx = [i for i, it in enumerate(kept) if it["split"] == "val"]
+        against = [i for i, it in enumerate(kept) if it["split"] == "train"] \
+            if frontier is None else frontier
+        offenders = {}
+        for vi in val_idx:
+            for ti in against:
+                d = perceptual_distance(signatures[vi], signatures[ti])
+                if d < SPLIT_PERCEPTUAL_MAX:
+                    offenders[vi] = (ti, d)
+                    break
+        if not offenders:
+            return moves
+        keys = {kept[vi]["cand"]["subject_base_id"] for vi in offenders}
+        newly = [i for i, it in enumerate(kept)
+                 if it["split"] == "val" and it["cand"]["subject_base_id"] in keys]
+        for i in newly:
+            kept[i]["split"] = "train"
+        for vi in sorted(offenders):
+            ti, d = offenders[vi]
+            moves.append({
+                "round": round_idx + 1,
+                "moved_to_train": bucket_b_item_label(kept[vi]),
+                "subject_key": kept[vi]["cand"]["subject_base_id"],
+                "near_duplicate_of": bucket_b_item_label(kept[ti]),
+                "distance": round(d, 4),
+                "group_size": sum(1 for i in newly
+                                  if kept[i]["cand"]["subject_base_id"]
+                                  == kept[vi]["cand"]["subject_base_id"]),
+            })
+        log(f"  cancello di split, giro {round_idx + 1}: {len(offenders)} soggetti "
+            f"quasi-duplicati spostati in train ({len(newly)} immagini)")
+        frontier = newly
+    raise SystemExit(
+        f"cancello di split percettivo: nessuna convergenza in "
+        f"{SPLIT_SEPARATION_MAX_ROUNDS} giri — va guardato a mano, non allargata la soglia.")
+
+
+# =============================================================================
 # Contact sheet — griglia 10x8, campione casuale con seme fisso (riproducibile).
 # =============================================================================
 def build_contact_sheet(image_paths, cols=CONTACT_SHEET_COLS, rows=CONTACT_SHEET_ROWS,
@@ -1429,6 +2097,10 @@ def build_caption(item):
         return build_caption_tinyhero()
     if source == "dcss-32":
         return build_caption_dcss(cand)
+    if source == "oga-creatures":
+        return build_caption_oga(item)
+    if source == "curated-32":
+        return build_caption_curated(cand)
     raise ValueError(f"sorgente sconosciuta: {source}")
 
 
@@ -1789,6 +2461,386 @@ def print_summary(report):
 
 
 # =============================================================================
+# BUCKET B — driver (run_mine_bucket_b): dcss-32 RIUSATA da secondary-dcss-32
+# (nessuna rilettura dei sorgenti), oga-creatures + curated-32 attraverso
+# process_candidate_bucket_b(). Ledger/rejects sono gli STESSI file degli
+# altri quattro bucket (righe distinte dal campo "bucket"/"target_bucket"),
+# mining_report.json prende una chiave "bucket_b" in piu' senza toccare le
+# altre. Vedi il paragrafo dedicato in cima al file per il perche'.
+# =============================================================================
+def load_ledger_rows(path: Path):
+    if not path.is_file():
+        return []
+    rows = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def parse_dhash(perceptual_hash: str) -> int:
+    """'dhash64:869696178686a627' -> int, per riusare hamming()/global_dedup()
+    su righe gia' scritte nel ledger senza riaprire l'immagine."""
+    return int(perceptual_hash.split(":", 1)[1], 16)
+
+
+def merge_into_mining_report(out_dir: Path, key: str, data):
+    report_path = out_dir / "mining_report.json"
+    report = {}
+    if report_path.is_file():
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            report = {}
+    report[key] = data
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def run_mine_bucket_b(out_dir: Path, sources_dir: Path, limit_per_source=None):
+    log("bucket B ('grana 32 pura'): raccolgo candidati...")
+
+    existing_ledger = load_ledger_rows(out_dir / "ledger.jsonl")
+    dcss_rows = [r for r in existing_ledger if r["bucket"] == SECONDARY_BUCKET["dcss-32"]]
+    if not dcss_rows:
+        raise SystemExit(
+            f"bucket B richiede secondary-dcss-32 gia' minato in {out_dir / 'ledger.jsonl'} "
+            "(mandato: DCSS 'gia' minato, 1873') — lanciare prima 'mine'.")
+    if limit_per_source:
+        dcss_rows = dcss_rows[:limit_per_source]
+    dcss_row_by_id = {r["id"]: r for r in dcss_rows}
+
+    candidates = []
+    candidates += list(iter_oga_candidates(sources_dir / "oga-creatures", limit_per_source))
+    candidates += list(iter_curated32_candidates(limit_per_source))
+    by_source_total = Counter(c["source"] for c in candidates)
+    by_source_total["dcss-32"] = len(dcss_rows)
+    log(f"{len(dcss_rows)} righe dcss-32 riusate da secondary-dcss-32 + "
+        f"{len(candidates)} candidati nuovi (oga-creatures + curated-32)")
+
+    reason_counter = Counter()
+    reason_by_source = Counter()
+    reason_samples = defaultdict(list)
+    all_reject_rows = []
+
+    def record_reject(source, source_path, id_base, reason_short, reason, grain):
+        reason_counter[reason_short] += 1
+        reason_by_source[(reason_short, source)] += 1
+        row = {"source": source, "source_path": source_path, "id_base": id_base,
+               "reason_short": reason_short, "reason": reason, "grain": grain,
+               "target_bucket": BUCKET_B}
+        all_reject_rows.append(row)
+        if len(reason_samples[reason_short]) < REPORT_SAMPLES_PER_REASON:
+            reason_samples[reason_short].append(source_path)
+
+    # -- dcss-32: riuso, cancello di grana sulla misura GIA' registrata in
+    # secondary-dcss-32 (stesso algoritmo, stesso file: nessuna riprocessione) --
+    reused_items = []
+    for row in dcss_rows:
+        if row["grain_estimated"] != BUCKET_B_CANVAS:
+            record_reject(
+                "dcss-32", row["image_path"], row["id"], "grain-not-32-bucket-b",
+                f"gia' accettata in secondary-dcss-32 (grana nominale 32, mai un cancello li'), "
+                f"ma esclusa da {BUCKET_B}: grana stimata da round-trip = {row['grain_estimated']} "
+                f"!= {BUCKET_B_CANVAS}", row["grain_estimated"])
+            continue
+        reused_items.append({
+            "kind": "reused", "ledger_row": row, "dhash": parse_dhash(row["perceptual_hash"]),
+            "grain": row["grain_estimated"],
+            "cand": {"source": "dcss-32", "id_base": row["id"], "subject_base_id": row["subject_key"]},
+        })
+
+    # -- oga-creatures + curated-32: pipeline completa (isolamento/qualita'/contrasto) --
+    processed_survivors = []
+    t0 = time.time()
+    for i, cand in enumerate(candidates, start=1):
+        result = process_candidate_bucket_b(cand)
+        if result["status"] == "ok":
+            processed_survivors.append(result)
+        else:
+            record_reject(cand["source"], repo_rel(cand["path"]), cand["id_base"],
+                          result["reason_short"], result["reason"], result.get("grain"))
+        if i % 200 == 0:
+            log(f"  {i}/{len(candidates)} processati ({time.time() - t0:.0f}s)")
+    log(f"[oga-creatures+curated-32] {len(processed_survivors)}/{len(candidates)} sopravvissuti "
+        f"ai filtri per-immagine ({time.time() - t0:.0f}s)")
+
+    # -- dedup percettivo GLOBALE cross-sorgente (le tre del bucket B insieme,
+    # non contro gli altri quattro bucket: sono esperimenti indipendenti) --
+    kept, dup_rejects = global_dedup(reused_items + processed_survivors)
+    for r in dup_rejects:
+        cref = r["cand"]
+        source_path = (repo_rel(cref["path"]) if "path" in cref
+                       else dcss_row_by_id[cref["id_base"]]["image_path"])
+        record_reject(cref["source"], source_path, cref["id_base"], r["reason_short"], r["reason"],
+                      r.get("grain"))
+    log(f"dedup globale: {len(kept)} sopravvissuti dopo {len(dup_rejects)} duplicati")
+
+    assign_splits(kept, BUCKET_B)
+
+    # Cancello di split percettivo: stessa metrica del preflight del trainer
+    # (vedi enforce_split_perceptual_separation). Costa un giro completo
+    # val x train sulle firme 64px, decine di secondi — il prezzo per non
+    # consegnare un pacchetto che fallisce il proprio preflight.
+    t_sig = time.time()
+    signatures = [bucket_b_signature(it) for it in kept]
+    log(f"firme 64px per il cancello di split: {len(signatures)} ({time.time() - t_sig:.0f}s)")
+    t_sep = time.time()
+    split_moves = enforce_split_perceptual_separation(kept, signatures)
+    log(f"cancello di split percettivo: {len(split_moves)} spostamenti "
+        f"({time.time() - t_sep:.0f}s)")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    bucket_dir = out_dir / BUCKET_B
+    if bucket_dir.is_dir():
+        shutil.rmtree(bucket_dir)  # stessa pulizia-prima-di-ripopolare di run_mine(): niente orfani
+    bucket_dir.mkdir(parents=True)
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    ledger_rows_b = []
+    saved_paths = []
+    seen_ids = set()
+    SAMPLE_CAPTIONS_PER_SOURCE = 10
+    sample_captions_by_source = defaultdict(list)
+    captions_by_source = defaultdict(list)
+    caption_audit = {"captions": 0, "with_unsupported_color": 0, "examples": []}
+
+    for item in kept:
+        cand = item["cand"]
+        if item["kind"] == "reused":
+            # Copia dei pixel gia' prodotti (bit-identici a secondary-dcss-32/):
+            # nessuna ricomposizione, la riga del ledger e' quella originale con
+            # bucket/percorsi/split/added_at aggiornati e un campo in piu' che
+            # dichiara il riuso (mai silenzioso).
+            row = dict(item["ledger_row"])
+            img_id = row["id"]
+            seen_ids.add(img_id)
+            img_path = bucket_dir / f"{img_id}.png"
+            txt_path = bucket_dir / f"{img_id}.txt"
+            shutil.copy(REPO_ROOT / row["image_path"], img_path)
+            shutil.copy(REPO_ROOT / row["caption_path"], txt_path)
+            row["bucket"] = BUCKET_B
+            row["image_path"] = repo_rel(img_path)
+            row["caption_path"] = repo_rel(txt_path)
+            row["split"] = item["split"]
+            row["added_at"] = now
+            row["reused_from"] = "secondary-dcss-32"
+            ledger_rows_b.append(row)
+            saved_paths.append(img_path)
+            if len(sample_captions_by_source["dcss-32"]) < SAMPLE_CAPTIONS_PER_SOURCE:
+                sample_captions_by_source["dcss-32"].append(row["caption"])
+            continue
+
+        base_id = slugify(cand["id_base"])
+        img_id = base_id
+        n = 2
+        while img_id in seen_ids:
+            img_id = f"{base_id}-{n}"
+            n += 1
+        seen_ids.add(img_id)
+
+        canvas, _mask, _visible, logical_size = compose_logical_canvas(
+            item["crop"], item["resample_ratio"], item["canvas_size"])
+        final_img = upscale_to_final(canvas, item["canvas_size"])
+        img_path = bucket_dir / f"{img_id}.png"
+        txt_path = bucket_dir / f"{img_id}.txt"
+        caption = build_caption(item)
+        final_img.save(img_path, "PNG")
+        txt_path.write_text(caption + "\n", encoding="utf-8")
+        saved_paths.append(img_path)
+        if len(sample_captions_by_source[cand["source"]]) < SAMPLE_CAPTIONS_PER_SOURCE:
+            sample_captions_by_source[cand["source"]].append(caption)
+        captions_by_source[cand["source"]].append(caption)
+
+        caption_audit["captions"] += 1
+        defects = caption_color_defects(caption, item["canvas_stats"]["color_coverage"])
+        if defects:
+            caption_audit["with_unsupported_color"] += 1
+            if len(caption_audit["examples"]) < REPORT_SAMPLES_PER_REASON:
+                caption_audit["examples"].append({"id": img_id, "caption": caption, "defects": defects})
+
+        lic = cand["license"]
+        ledger_rows_b.append({
+            "id": img_id, "bucket": BUCKET_B,
+            "image_path": repo_rel(img_path), "caption_path": repo_rel(txt_path),
+            "caption": caption, "caption_policy": CAPTION_POLICY[cand["source"]],
+            "caption_source_raw": cand.get("caption_raw"),
+            "source": cand["source"], "url": cand["original_url"],
+            "license_declared": lic["license_id"], "license_id": lic["license_id"],
+            "license_url": lic["license_url"], "license_alt": lic.get("license_alt"),
+            "license_snapshot_path": "nessuno snapshot scaricato (prova research-only): vedi license_url",
+            "author": lic["author"], "provenance": "research-only",
+            "grain_estimated": item["grain"], "grain_mse": round(item["grain_mse"], 3),
+            "effective_grain_used": item["effective_grain"], "canvas_size": item["canvas_size"],
+            "logical_content_size": list(logical_size), "fg_fraction": item["fg_fraction"],
+            "n_colors": item["n_colors"], "bg_removal_mode": item["bg_removal_mode"],
+            "canvas_fill": round(item["canvas_shape"]["fill"], 4),
+            "canvas_border_occ": round(item["canvas_shape"]["border_occ"], 4),
+            "canvas_solidity": round(item["canvas_shape"]["solidity"], 4),
+            "canvas_straight_edge": round(item["canvas_shape"]["straight_edge"], 4),
+            "canvas_vsym": round(item["canvas_shape"]["vsym"], 4),
+            "subject_contrast_vs_canvas": round(item["canvas_stats"]["contrast"], 3),
+            "imperceptible_fraction": round(item["canvas_stats"]["imperceptible_fraction"], 4),
+            "skin_fraction": round(item["canvas_stats"]["skin_fraction"], 4),
+            "color_coverage": {k: round(v, 4) for k, v in
+                               list(item["canvas_stats"]["color_coverage"].items())[:5]},
+            "single_subject_verified": item["single_subject_verified"],
+            "single_subject_checks": item["single_subject_checks"],
+            "transformations": [
+                "alpha_isolation:" + item["bg_removal_mode"],
+                f"resample_nearest_to_grain_{item['effective_grain']}",
+                f"center_in_canvas_{item['canvas_size']}_bg_{'-'.join(str(c) for c in CANVAS_BG_RGB)}",
+                f"nearest_upscale_{FINAL_PX}",
+            ],
+            "source_sha256": sha256_of_file(cand["path"]), "derived_sha256": sha256_of_file(img_path),
+            "perceptual_hash": f"dhash64:{item['dhash']:016x}", "subject_key": cand["subject_base_id"],
+            "split": item["split"], "added_at": now,
+        })
+
+    sheet = build_contact_sheet(saved_paths)
+    sheet.save(out_dir / f"contact-sheet-{BUCKET_B}.png")
+    log(f"[{BUCKET_B}] {len(ledger_rows_b)} immagini, contact sheet salvato")
+
+    # -- scrittura: STESSI ledger.jsonl/rejects.jsonl degli altri bucket
+    # (mandato: 'ledger+rejects come gli altri bucket'), non file separati —
+    # si tolgono le righe di un'eventuale corsa precedente di QUESTO bucket
+    # (stessa pulizia-prima-di-ripopolare di run_mine(), idempotenza) e si
+    # riscrive l'insieme, senza toccare le righe degli altri quattro bucket. --
+    merged_ledger = [r for r in existing_ledger if r["bucket"] != BUCKET_B] + ledger_rows_b
+    merged_ledger.sort(key=lambda r: (r["bucket"], r["id"]))
+    with (out_dir / "ledger.jsonl").open("w", encoding="utf-8") as f:
+        for row in merged_ledger:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    existing_rejects = load_ledger_rows(out_dir / "rejects.jsonl")
+    merged_rejects = ([r for r in existing_rejects if r.get("target_bucket") != BUCKET_B]
+                      + all_reject_rows)
+    merged_rejects.sort(key=lambda r: (r["source"], r["source_path"]))
+    with (out_dir / "rejects.jsonl").open("w", encoding="utf-8") as f:
+        for row in merged_rejects:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    sample_captions = []
+    for round_idx in range(SAMPLE_CAPTIONS_PER_SOURCE):
+        for sname in sorted(sample_captions_by_source):
+            caps = sample_captions_by_source[sname]
+            if round_idx < len(caps):
+                sample_captions.append(caps[round_idx])
+
+    by_source_kept = Counter(r["source"] for r in ledger_rows_b)
+    by_split_kept = Counter(r["split"] for r in ledger_rows_b)
+
+    # Quanto costerebbe applicare i gate di scena del bucket primario a QUESTO
+    # bucket: si misura, non si stima a parole. Serve a sostenere (o smentire)
+    # la ragione per cui non girano — vedi "single_subject_claim" sotto.
+    scene_gate_hits = Counter()
+    for r in ledger_rows_b:
+        shape = {"fill": r["canvas_fill"], "border_occ": r["canvas_border_occ"],
+                 "straight_edge": r["canvas_straight_edge"], "vsym": r["canvas_vsym"]}
+        if scene_rejection_reason(shape) is None:
+            continue
+        # Il PRIMO cancello che cede, nello stesso ordine di
+        # scene_rejection_reason(): quale sia conta piu' del totale, perche' e'
+        # quello che dice se il cancello e' tarato per questa grana o no.
+        if shape["fill"] >= CANVAS_FILL_MAX:
+            scene_gate_hits["canvas_fill"] += 1
+        elif shape["border_occ"] >= CANVAS_BORDER_OCC_MAX:
+            scene_gate_hits["canvas_border_occ"] += 1
+        elif shape["straight_edge"] >= CANVAS_STRAIGHT_EDGE_MAX:
+            scene_gate_hits["canvas_straight_edge"] += 1
+        else:
+            scene_gate_hits["canvas_vsym"] += 1
+    scene_gate_total = sum(scene_gate_hits.values())
+    scene_gate_simulation = {
+        "would_reject": scene_gate_total,
+        "of_rows": len(ledger_rows_b),
+        "fraction": round(scene_gate_total / max(1, len(ledger_rows_b)), 4),
+        "by_first_failing_gate": dict(scene_gate_hits.most_common()),
+    }
+    report_b = {
+        "generated_at": now, "bucket": BUCKET_B,
+        "grain_gate": {
+            "required_grain": BUCKET_B_CANVAS,
+            "note": ("round-trip: qualunque candidato con grana stimata != 32 e' scartato "
+                     "(reason_short='grain-not-32-roundtrip' per oga/curated, "
+                     "'grain-not-32-bucket-b' per dcss-32 gia' accettata altrove a grana nominale)"),
+        },
+        "candidates_by_source": dict(by_source_total),
+        "kept_total": len(ledger_rows_b),
+        "kept_by_source": dict(by_source_kept),
+        "kept_by_split": dict(by_split_kept),
+        "rejected_total": sum(reason_counter.values()),
+        "rejected_by_reason": dict(reason_counter.most_common()),
+        "rejected_by_reason_by_source": {f"{reason}|{source}": n
+                                         for (reason, source), n in reason_by_source.items()},
+        "reject_samples_by_reason": dict(reason_samples),
+        "rejects_full_list": "dataset/lora-v1-research/rejects.jsonl (target_bucket='primary-32B')",
+        "sample_captions": sample_captions[:10],
+        "caption_policy_by_source": {s: CAPTION_POLICY[s] for s in BUCKET_B_SOURCES},
+        # Quanto SEGNALE portano davvero le caption costruite qui: caption tutte
+        # uguali sono caption che non insegnano niente, e la prima stesura ne
+        # aveva 45 su 45 identiche per oga-creatures. Misurato, non promesso.
+        "caption_distinctness": {
+            src: {"captions": len(caps), "distinct": len(set(caps))}
+            for src, caps in sorted(captions_by_source.items())
+        },
+        "caption_color_audit": {
+            "captions": caption_audit["captions"],
+            "with_unsupported_color": caption_audit["with_unsupported_color"],
+            "unsupported_ratio": round(
+                caption_audit["with_unsupported_color"] / max(1, caption_audit["captions"]), 4),
+            "threshold": CAPTION_AUDIT_MIN_COVERAGE, "examples": caption_audit["examples"],
+            "note": ("copre SOLO oga-creatures+curated-32 (caption costruite qui); le righe dcss-32 "
+                     "riusano la caption gia' scritta e verificata dal run originale (build_caption_dcss, "
+                     "invariata)."),
+        },
+        "split_perceptual_gate": {
+            "metric": ("stessa funzione del preflight del trainer (perceptual_distance, iniettata "
+                       "da build_kaggle_package): frazione di pixel diversi sull'unione delle aree "
+                       "di soggetto, firme 64px"),
+            "threshold": SPLIT_PERCEPTUAL_MAX,
+            "moves": split_moves,
+            "note": ("assign_splits separa per NOME di soggetto: due varianti di colore dello "
+                     "stesso asset hanno nomi diversi e potevano finire su lati opposti. Questo "
+                     "cancello le rimette insieme (il gruppo sfora -> tutto in train) prima che "
+                     "il preflight se ne accorga su Kaggle."),
+        },
+        "single_subject_claim": {
+            "asserted_in_captions": len(ledger_rows_b),
+            "backed_by": "source-frame",
+            "scene_gates_if_applied": scene_gate_simulation,
+            "limit": ("TUTTE le caption del bucket B dicono 'single subject', ma la prova e' solo "
+                      "il frame sorgente (una cella di spritesheet / un file del pack): i gate di "
+                      "scena sul canvas finale NON girano su questo bucket. Esistono controesempi "
+                      "reali ereditati da secondary-dcss-32 — es. "
+                      "'dcss-gui-spells-necromancy-control-undead-old', che in una cella sola ha "
+                      "spettro + fiamma + umanoide + cuore. Applicarli in blocco a grana 32 "
+                      "scarterebbe la quota misurata in 'scene_gates_if_applied' (in gran parte "
+                      "su straight_edge, mal tarato a questa grana): la scelta e' di NON "
+                      "applicarli e di DICHIARARLO, non di applicarli male. Il campo per-riga "
+                      "single_subject_checks dice la stessa cosa riga per riga."),
+        },
+    }
+    merge_into_mining_report(out_dir, "bucket_b", report_b)
+
+    print("\n== dataset/lora-v1-research — riepilogo mining BUCKET B (primary-32B) ==\n")
+    print(f"Candidati per sorgente: {report_b['candidates_by_source']}")
+    print(f"Tenute: {report_b['kept_total']}  Scartate: {report_b['rejected_total']}")
+    print(f"  per sorgente: {report_b['kept_by_source']}  per split: {report_b['kept_by_split']}")
+    print("\n-- scarti per motivo --")
+    for reason, n in report_b["rejected_by_reason"].items():
+        print(f"  {n:5d}  {reason}")
+    print("\n-- campione caption --")
+    for c in report_b["sample_captions"]:
+        print(f"  {c}")
+    aud = report_b["caption_color_audit"]
+    print(f"\naudit caption/contenuto (oga+curated): {aud['with_unsupported_color']}/{aud['captions']} "
+          f"({aud['unsupported_ratio'] * 100:.1f}%)")
+    return report_b
+
+
+# =============================================================================
 # CLI
 # =============================================================================
 def build_arg_parser():
@@ -1803,10 +2855,21 @@ def build_arg_parser():
     p_mine.add_argument("--out", default=str(OUT_DIR))
     p_mine.add_argument("--sources-dir", default=str(SOURCES_DIR))
 
-    sub.add_parser("kaggle", help="adatta il pacchetto Kaggle (copia da dataset/lora-v0/kaggle/)")
+    sub.add_parser("kaggle", help="adatta il pacchetto Kaggle (copia da dataset/lora-v0/kaggle/, primary-128)")
 
     p_all = sub.add_parser("all", help="download + mine + kaggle")
     p_all.add_argument("--limit", type=int, default=None)
+
+    p_mine_b = sub.add_parser(
+        "mine-b", help="bucket B ('grana 32 pura'): richiede 'mine' gia' fatto (riusa "
+                       "secondary-dcss-32), scarica oga-creatures da solo, assembla primary-32B "
+                       "e ripunta il pacchetto Kaggle su di esso")
+    p_mine_b.add_argument("--limit", type=int, default=None,
+                          help="limita i candidati PER SORGENTE (debug/smoke test)")
+    p_mine_b.add_argument("--out", default=str(OUT_DIR))
+    p_mine_b.add_argument("--sources-dir", default=str(SOURCES_DIR))
+    p_mine_b.add_argument("--skip-download", action="store_true",
+                          help="salta il download di oga-creatures (gia' fatto in precedenza)")
 
     return ap
 
@@ -1823,6 +2886,12 @@ def main():
         download_all()
         run_mine(OUT_DIR, SOURCES_DIR, args.limit)
         build_kaggle_package(OUT_DIR)
+    elif args.cmd == "mine-b":
+        out_dir, sources_dir = Path(args.out), Path(args.sources_dir)
+        if not args.skip_download:
+            download_oga_creatures(sources_dir / "oga-creatures")  # curated-32 non scarica niente
+        run_mine_bucket_b(out_dir, sources_dir, args.limit)
+        build_kaggle_package(out_dir, BUCKET_B)
     return 0
 
 
@@ -1896,8 +2965,207 @@ pacchetto e' pronto e documentato, non avviato.
 """
 
 
-def build_kaggle_package(out_dir: Path):
+KAGGLE_README_BUCKET_B = """# Worldsmelt LoRA v1-research — pacchetto Kaggle (BUCKET B: primary-32B)
+
+Adattato il {today} da `dataset/lora-v0/kaggle/` per puntare a
+`dataset/lora-v1-research/primary-32B/` — il bucket "grana 32 pura" scelto dal
+proprietario (mandato 07/08): dcss-32 (riusata da secondary-dcss-32, gia'
+minata) + oga-creatures + curated-32, TUTTE verificate a grana 32 tramite
+round-trip (non solo dichiarate). Le due basi e gli iperparametri rank-16
+restano INVARIATI (stessa regola di primary-128: questo pacchetto cambia solo
+il dataset, non il metodo).
+
+## Esito REALE del preflight di questo pacchetto
+
+{preflight_verdict}
+
+Il preflight e' stato **eseguito davvero** su questo pacchetto, non dedotto:
+`build_kaggle_package()` lo lancia in-processo sul contenuto esatto che finisce
+nel tar e incolla qui il suo esito. Se un giorno tornasse a fallire, questa
+sezione lo direbbe — e' generata dall'esito, non scritta a mano.
+
+Comando per rifarlo a mano, dopo aver estratto il tar (nessuna GPU richiesta):
+
+```bash
+python3 train_lora_v0.py --config configs/lora-v1-research-dreamshaper8.yaml --preflight-only
+```
+
+**Licenze (cancello 1)**: {license_whitelist_note}
+
+**Fughe di split percettive (cancello 2)**: {perceptual_note}
+
+**Cancello di split lato miner**: {split_gate_note}
+
+Un preflight verde NON significa "pronto al lancio senza supervisione":
+`run_policy.yaml` porta comunque `approved_gpu_run: false` (il proprietario lo
+alza esplicitamente quando decide di lanciare) e `research_only: true` per lo
+scope dichiarato dell'intero modulo `lora-v1-research` (una prova di confronto
+fra bucket, non ancora il dataset commerciale del gioco — vedi il docstring in
+cima a `scripts/lora_dataset_mine.py`). Nessun cancello NSFW: nessuna delle tre
+sorgenti e' Limbicnation, l'unica su cui gira l'euristica.
+
+## Limite dichiarato: "single subject" nelle caption
+
+Tutte le {n_rows} caption di questo bucket contengono `single subject`, ma cio'
+che e' stato verificato e' il **frame sorgente** (una cella di spritesheet, un
+file del pack): i gate di scena sul canvas finale, che su `primary-128`
+scartano diorami e tilemap, **non girano su questo bucket**. Il ledger lo dice
+riga per riga (`single_subject_checks: ["source-frame"]`), e qui lo diciamo per
+esteso perche' e' una riga che entra nel training.
+
+Il limite e' reale, non teorico: `dcss-gui-spells-necromancy-control-undead-old`
+mette in una sola cella spettro + fiamma + umanoide + cuore, e la sua caption
+dice comunque `single subject`. Applicare i gate di scena in blocco a grana 32
+scarterebbe {scene_gate_would_reject} righe su {n_rows} ({scene_gate_fraction}),
+per primo cancello che cede: `{scene_gate_breakdown}` — cioe' quasi tutto su
+`straight_edge`, che a questa grana e' mal tarato (un bordo inferiore dritto su
+32 px logici e' la norma, non l'indizio di una piattaforma). La scelta e' di non
+applicarli e di dichiararlo, non di applicarli male.
+
+## Composizione ({n_rows} righe)
+
+Per sorgente: `{by_source}`
+Per split: `{by_split}`
+
+Caption: `dcss-32` usa il nome reale dell'asset dentro il pack; `curated-32` il
+manifest curato; `oga-creatures` non ha nomi per-creatura (e' un solo
+spritesheet) e usa la categoria dichiarata dalla pagina piu' proporzione e
+colori **misurati** sul canvas — mai il nome del file dello spritesheet.
+Quanto quelle caption siano davvero distinte e' misurato, non promesso:
+`{caption_distinctness}` (caption totali / distinte, per sorgente costruita
+qui). Su `oga-creatures` la ripetizione residua e' il limite di cio' che si
+puo' contare senza un nome: due creature diverse ma compatte e con gli stessi
+due colori dominanti ricevono la stessa frase.
+
+## Cosa contiene
+
+```text
+kaggle/
+├── run.py                                     # entrypoint del kernel (path aggiornati)
+├── train_lora_v0.py                           # trainer (whitelist licenze verificata, vedi sopra)
+├── kernel-metadata.json                       # id/slug ancora REPLACE_WITH_KAGGLE_USERNAME
+├── README.md                                  # questo file
+├── worldsmelt-lora-v1-research-dataset.tar.gz  # dati (SOLO primary-32B) + codice
+├── requirements-ml.txt                        # invariato
+├── run_policy.yaml                            # approved_gpu_run: false + research_only: true
+├── eval-prompts-lora-v1-research.json          # stessi 20 prompt congelati, metadati aggiornati
+└── configs/
+    ├── lora-v1-research-dreamshaper8.yaml       # rank 16, iperparametri INVARIATI
+    └── lora-v1-research-dreamshaper-pixelart.yaml
+```
+
+Hash del tar consegnato:
+
+```text
+sha256: {tar_sha}
+```
+
+**Niente e' stato lanciato su Kaggle**: questo pacchetto e' pronto e
+documentato, non avviato.
+"""
+
+
+LICENSE_WHITELIST_RE = re.compile(r"LICENSE_WHITELIST\s*=\s*\{([^}]*)\}")
+# Blocco da sostituire nel trainer: dalla firma di perceptual_distance fino
+# alla def successiva (preflight), che resta invariata.
+PERCEPTUAL_DISTANCE_RE = re.compile(
+    r"^def perceptual_distance\(a, b\) -> float:\n.*?(?=^def preflight\()",
+    re.DOTALL | re.MULTILINE)
+TRAINER_CONST_RE = {
+    "DEDUP_MERGE_SCORE": re.compile(r"^DEDUP_MERGE_SCORE\s*=\s*([0-9.]+)", re.MULTILINE),
+    "SIGNATURE_PX": re.compile(r"^SIGNATURE_PX\s*=\s*([0-9]+)", re.MULTILINE),
+}
+
+
+def patch_perceptual_distance(trainer_path: Path) -> str:
+    """Sostituisce perceptual_distance() nella SOLA copia adattata del trainer
+    (dst/train_lora_v0.py), mai in dataset/lora-v0/kaggle/train_lora_v0.py:
+    quel pacchetto e' consegnato e il suo dataset ha davvero il fondo
+    trasparente, quindi li' la versione originale e' corretta. Stesso
+    meccanismo gia' usato per la whitelist licenze.
+
+    Il testo iniettato NON e' una seconda stesura: e' il sorgente delle
+    funzioni di questo file (perceptual_block_source), cosi' le due copie non
+    possono divergere."""
+    text = trainer_path.read_text(encoding="utf-8")
+
+    # Prima di sostituire: le costanti su cui il cancello di split del miner si
+    # e' basato devono essere davvero quelle del trainer, altrimenti il
+    # pacchetto passerebbe il cancello locale e fallirebbe quello vero.
+    for name, expected in (("DEDUP_MERGE_SCORE", SPLIT_PERCEPTUAL_MAX),
+                           ("SIGNATURE_PX", SPLIT_PERCEPTUAL_SIG_PX)):
+        m = TRAINER_CONST_RE[name].search(text)
+        if not m or float(m.group(1)) != float(expected):
+            raise SystemExit(
+                f"{name} del trainer ({m.group(1) if m else 'assente'}) non coincide col valore "
+                f"usato dal cancello di split di questo script ({expected}): allinearli prima di "
+                f"consegnare un pacchetto, non dopo.")
+
+    block = perceptual_block_source()
+    new_text, n = PERCEPTUAL_DISTANCE_RE.subn(lambda _m: block + "\n\n", text)
+    if n != 1:
+        raise SystemExit(
+            f"perceptual_distance() non trovata (o trovata {n} volte) in {trainer_path}: "
+            "il trainer e' cambiato, la correzione va rifatta a mano invece di essere saltata.")
+    trainer_path.write_text(new_text, encoding="utf-8")
+    return ("CORRETTA: la versione v0 considera 'acceso' ogni pixel con alpha > 16, vero per il "
+            "dataset v0 (fondo trasparente) ma NON per questo bucket, che compone su un fondo "
+            "piatto opaco (SD1.5 non ha canale alpha): l'unione delle aree di soggetto diventava "
+            "l'intero canvas (misurato: 4096/4096 px) e il preflight riportava 6324 fughe di "
+            "split percettive tutte false. La copia di QUESTO pacchetto misura il fondo (modale "
+            "dell'anello di bordo) e ricade sul test alpha quando il fondo e' davvero "
+            "trasparente. Il pacchetto dataset/lora-v0/kaggle/ NON e' stato toccato: li' la "
+            "versione originale e' corretta.")
+
+
+def run_preflight_in_process(dst: Path, primary_dir: Path, bucket_rows: list) -> tuple[bool, str]:
+    """Esegue il preflight VERO del trainer appena scritto sul contenuto esatto
+    che finisce nel tar (stesso layout: <root>/images/<id>.png + ledger.jsonl),
+    e ne riporta l'esito testuale. Serve a togliere dal README ogni frase sul
+    preflight che non sia stata misurata: la versione precedente dichiarava
+    "NON fallisce" mentre falliva con 6324 problemi."""
+    import contextlib
+    import importlib.util
+    import io
+    import tempfile
+
+    spec = importlib.util.spec_from_file_location(
+        "ws_trainer_preflight", dst / "train_lora_v0.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    captured = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "images").symlink_to(primary_dir)
+        ledger_tmp = root / "ledger.jsonl"
+        with ledger_tmp.open("w", encoding="utf-8") as f:
+            for r in bucket_rows:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        try:
+            with contextlib.redirect_stdout(captured):
+                module.preflight(root, ledger_tmp, FINAL_PX)
+        except SystemExit as e:
+            return False, str(e)
+        except Exception as e:  # noqa: BLE001
+            return False, f"il preflight e' esploso invece di dare un verdetto: {e!r}"
+    # Le parole sono quelle del trainer, non un riassunto di questo script.
+    return True, captured.getvalue().strip()
+
+
+def parse_license_whitelist(trainer_text: str) -> set:
+    """Legge la whitelist DAL TESTO del trainer appena scritto (non un valore
+    duplicato qui a mano, che driftrebbe silenziosamente se train_lora_v0.py
+    cambia): usata solo per bucket B, vedi build_kaggle_package()."""
+    m = LICENSE_WHITELIST_RE.search(trainer_text)
+    if not m:
+        raise RuntimeError("LICENSE_WHITELIST non trovata nel trainer copiato")
+    return set(re.findall(r'"([^"]+)"', m.group(1)))
+
+
+def build_kaggle_package(out_dir: Path, bucket_name: str = PRIMARY_BUCKET):
     src_kaggle = REPO_ROOT / "dataset" / "lora-v0" / "kaggle"
+    is_bucket_b = bucket_name == BUCKET_B
     required = [
         "run.py", "train_lora_v0.py", "requirements-ml.txt", "run_policy.yaml",
         "kernel-metadata.json", "eval-prompts-lora-v0.json",
@@ -1915,10 +3183,20 @@ def build_kaggle_package(out_dir: Path):
         log(f"AVVISO: dataset/lora-v0/kaggle/ incompleto ({missing}), scritto solo un README segnaposto")
         return
 
-    primary_dir = out_dir / PRIMARY_BUCKET
+    # 'primary_dir'/'bucket_rows' sotto: nome storico del bucket confezionato
+    # (primary-128 di default, primary-32B quando is_bucket_b) — generalizzato
+    # per parametro, NON per una seconda funzione: la logica di adattamento
+    # (adapt_text, tar, kernel-metadata) e' identica per costruzione, cambia
+    # solo QUALE bucket entra nel tar.
+    primary_dir = out_dir / bucket_name
     if not primary_dir.is_dir() or not any(primary_dir.glob("*.png")):
-        log(f"AVVISO: {primary_dir} vuota o assente — esegui 'mine' prima di 'kaggle'")
+        cmd_hint = "mine-b" if is_bucket_b else "mine"
+        log(f"AVVISO: {primary_dir} vuota o assente — esegui '{cmd_hint}' prima di 'kaggle'")
         return
+
+    ledger_path = out_dir / "ledger.jsonl"
+    ledger_all = [json.loads(l) for l in ledger_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    bucket_rows = [r for r in ledger_all if r["bucket"] == bucket_name]
 
     dst = out_dir / "kaggle"
     (dst / "configs").mkdir(parents=True, exist_ok=True)
@@ -1937,25 +3215,97 @@ def build_kaggle_package(out_dir: Path):
     adapt_text("train_lora_v0.py", "train_lora_v0.py")  # nome file INVARIATO di proposito
     shutil.copy(src_kaggle / "requirements-ml.txt", dst / "requirements-ml.txt")
 
+    # -- whitelist licenze: SOLO per bucket B (mandato punto 3, "adegua SOLO la
+    # whitelist alle licenze REALI del bucket B, documentando"). Per primary-128
+    # NON si tocca niente: il fallimento del preflight su quel pacchetto e' il
+    # cancello VOLUTO (vedi KAGGLE_README), non un difetto da correggere qui. --
+    license_whitelist_note = None
+    perceptual_note = None
+    if is_bucket_b:
+        trainer_path = dst / "train_lora_v0.py"
+        perceptual_note = patch_perceptual_distance(trainer_path)
+        log(f"[kaggle] perceptual_distance (bucket B): {perceptual_note}")
+        current_whitelist = parse_license_whitelist(trainer_path.read_text(encoding="utf-8"))
+        real_licenses = sorted({r["license_id"] for r in bucket_rows})
+        missing_from_whitelist = sorted(set(real_licenses) - current_whitelist)
+        if missing_from_whitelist:
+            # Verificato, non assunto (vedi commento sopra estimate_grain() per
+            # lo stesso principio altrove nel file): il mandato suggeriva "cc0/
+            # cc-by", ma solo le licenze DAVVERO presenti entrano nella
+            # whitelist — mai un allargamento piu' ampio di cio' che si e'
+            # misurato. Tocca SOLO la copia adattata (dst/train_lora_v0.py),
+            # mai dataset/lora-v0/kaggle/train_lora_v0.py.
+            trainer_text = trainer_path.read_text(encoding="utf-8")
+            new_set = current_whitelist | set(missing_from_whitelist)
+            new_literal = "{" + ", ".join(f'"{s}"' for s in sorted(new_set)) + "}"
+            comment = (f"  # ampliata per il bucket B (mandato 07/08): licenze REALI verificate "
+                      f"sulle {len(bucket_rows)} righe di {bucket_name} = {real_licenses} — "
+                      f"aggiunte {missing_from_whitelist}, nessun'altra")
+            trainer_text = LICENSE_WHITELIST_RE.sub(
+                f"LICENSE_WHITELIST = {new_literal}{comment}", trainer_text, count=1)
+            trainer_path.write_text(trainer_text, encoding="utf-8")
+            license_whitelist_note = (
+                f"AMPLIATA: le licenze reali del bucket B ({real_licenses}) includevano "
+                f"{missing_from_whitelist}, fuori dalla whitelist di produzione "
+                f"({sorted(current_whitelist)}) — aggiunte SOLO quelle, verificate riga per "
+                f"riga sul ledger, non un allargamento a 'cc0/cc-by' generico come suggerito "
+                f"a mandato.")
+        else:
+            license_whitelist_note = (
+                f"NESSUNA MODIFICA: le licenze reali del bucket B, verificate su tutte le "
+                f"{len(bucket_rows)} righe di {bucket_name}, sono {real_licenses} — gia' "
+                f"TUTTE dentro la whitelist di produzione esistente "
+                f"({sorted(current_whitelist)}). Il mandato suggeriva di allargarla ad "
+                f"accettare anche 'cc-by': verificato che non serve, nessuna riga del bucket "
+                f"B dichiara una licenza cc-by (solo cc0/cc0-1.0) — allargarla comunque "
+                f"sarebbe stato un'whitelist piu' larga di cio' che il bucket usa davvero.")
+        log(f"[kaggle] whitelist licenze (bucket B): {license_whitelist_note}")
+
     nsfw = {}
     report_path = out_dir / "mining_report.json"
     if report_path.is_file():
         nsfw = json.loads(report_path.read_text(encoding="utf-8")).get("nsfw_review", {})
 
-    policy_text = (src_kaggle / "run_policy.yaml").read_text(encoding="utf-8")
-    policy_text += (
-        "\n# Campo aggiunto per questa prova (mandato 07/08, regole-agenti-ml.md divieto 3):\n"
-        "# ricorda perche' il preflight di train_lora_v0.py FALLISCE di proposito su questo\n"
-        "# pacchetto (license_id fuori whitelist) — vedi kaggle/README.md.\n"
-        "research_only: true\n"
-        "\n# SECONDO cancello, indipendente dalle licenze: il bucket primario viene da una\n"
-        "# sorgente con nudo. L'euristica sull'incarnato ha scartato quello che ha saputo\n"
-        f"# riconoscere ({nsfw.get('skin_rejected', 'n/d')} immagini) e ha lasciato in lista di review\n"
-        f"# {nsfw.get('kept_above_watch_threshold', 'n/d')} immagini tenute (nsfw-review.jsonl), ma non e' una\n"
-        "# garanzia. Finche' questo campo resta 'pending' il pacchetto non va lanciato:\n"
-        "# la decisione e' del proprietario, su id concreti, non di chi ha scritto la pipeline.\n"
-        "owner_nsfw_decision: pending\n"
-    )
+    if is_bucket_b:
+        # Bucket B non ha ne' il cancello licenze (whitelist gia' verificata
+        # sopra) ne' quello NSFW (nessuna delle tre sorgenti e' Limbicnation,
+        # l'unica con la keyword/skin-fraction — un'ASSENZA dichiarata, non un
+        # buco silenzioso). research_only resta true per lineage/scope
+        # dell'intero modulo (docstring in cima al file: questa e' comunque
+        # una prova di confronto, non il dataset commerciale del gioco), MA
+        # con un motivo diverso da primary-128: qui non c'e' nessuna licenza
+        # fuori whitelist a bloccare il preflight.
+        policy_text = (src_kaggle / "run_policy.yaml").read_text(encoding="utf-8")
+        policy_text += (
+            "\n# Campo aggiunto per il bucket B (mandato 07/08, opzione 'grana 32 pura'):\n"
+            "# a differenza di primary-128, QUI il preflight di train_lora_v0.py NON fallisce\n"
+            "# per la whitelist licenze (verificato: dcss-32/oga-creatures/curated-32 sono\n"
+            "# tutte cc0/cc0-1.0, gia' dentro la whitelist di produzione — vedi kaggle/README.md,\n"
+            "# sezione 'Licenze verificate'). research_only resta true per lo scope dichiarato\n"
+            "# dell'intero modulo lora-v1-research (prova di confronto fra bucket, non il\n"
+            "# dataset commerciale del gioco), non per una licenza dubbia di QUESTO bucket.\n"
+            "research_only: true\n"
+            "\n# Nessun cancello NSFW per questo bucket: nessuna delle tre sorgenti "
+            "(dcss-32/oga-creatures/curated-32) e' Limbicnation, l'unica su cui gira "
+            "l'euristica su parole chiave/frazione di incarnato — assenza verificata, non "
+            "un'omissione.\n"
+            "owner_nsfw_decision: not_applicable\n"
+        )
+    else:
+        policy_text = (src_kaggle / "run_policy.yaml").read_text(encoding="utf-8")
+        policy_text += (
+            "\n# Campo aggiunto per questa prova (mandato 07/08, regole-agenti-ml.md divieto 3):\n"
+            "# ricorda perche' il preflight di train_lora_v0.py FALLISCE di proposito su questo\n"
+            "# pacchetto (license_id fuori whitelist) — vedi kaggle/README.md.\n"
+            "research_only: true\n"
+            "\n# SECONDO cancello, indipendente dalle licenze: il bucket primario viene da una\n"
+            "# sorgente con nudo. L'euristica sull'incarnato ha scartato quello che ha saputo\n"
+            f"# riconoscere ({nsfw.get('skin_rejected', 'n/d')} immagini) e ha lasciato in lista di review\n"
+            f"# {nsfw.get('kept_above_watch_threshold', 'n/d')} immagini tenute (nsfw-review.jsonl), ma non e' una\n"
+            "# garanzia. Finche' questo campo resta 'pending' il pacchetto non va lanciato:\n"
+            "# la decisione e' del proprietario, su id concreti, non di chi ha scritto la pipeline.\n"
+            "owner_nsfw_decision: pending\n"
+        )
     (dst / "run_policy.yaml").write_text(policy_text, encoding="utf-8")
 
     for cfg_name in ("lora-v0-dreamshaper8.yaml", "lora-v0-dreamshaper-pixelart.yaml"):
@@ -1967,25 +3317,42 @@ def build_kaggle_package(out_dir: Path):
 
     eval_v0 = json.loads((src_kaggle / "eval-prompts-lora-v0.json").read_text(encoding="utf-8"))
     eval_v0["stage"] = "lora-v1-research"
-    eval_v0["purpose"] = (
-        "Suite di valutazione congelata (STESSI 20 prompt/2 seed di dataset/lora-v0/kaggle/, "
-        "riusati apposta per confrontare le due prove) per i due run rank-16 di questo pacchetto "
-        "RESEARCH-ONLY (dataset/lora-v1-research/kaggle/), dataset primary-128 (Limbicnation, "
-        "provenienza dubbia autorizzata solo per questa prova). Non lanciata da questo pacchetto: "
-        "l'esecuzione la fa l'orchestratore col proprietario, se e quando decide di superare il "
-        "cancello del preflight (vedi kaggle/README.md).")
+    if is_bucket_b:
+        eval_v0["purpose"] = (
+            "Suite di valutazione congelata (STESSI 20 prompt/2 seed di dataset/lora-v0/kaggle/, "
+            "riusati apposta per restare comparabili) per i due run rank-16 di questo pacchetto "
+            "(dataset/lora-v1-research/kaggle/), dataset BUCKET B (primary-32B: dcss-32 + "
+            "oga-creatures + curated-32, grana 32 pura, licenze CC0/CC0-1.0 verificate). Non "
+            "lanciata da questo pacchetto: l'esecuzione la fa l'orchestratore col proprietario "
+            "(vedi kaggle/README.md).")
+    else:
+        eval_v0["purpose"] = (
+            "Suite di valutazione congelata (STESSI 20 prompt/2 seed di dataset/lora-v0/kaggle/, "
+            "riusati apposta per confrontare le due prove) per i due run rank-16 di questo pacchetto "
+            "RESEARCH-ONLY (dataset/lora-v1-research/kaggle/), dataset primary-128 (Limbicnation, "
+            "provenienza dubbia autorizzata solo per questa prova). Non lanciata da questo pacchetto: "
+            "l'esecuzione la fa l'orchestratore col proprietario, se e quando decide di superare il "
+            "cancello del preflight (vedi kaggle/README.md).")
     if "notes" in eval_v0 and "character_category_gap" in eval_v0["notes"]:
-        eval_v0["notes"]["character_category_gap"] = (
-            "Nota v0 non riportata qui invariata: la composizione per categoria di "
-            "primary-128 e' DIVERSA da lora-v0 (fonte Limbicnation, non i pack CC0 di "
-            "oggetti/nemici) — vedi dataset/lora-v1-research/mining_report.json per i "
-            "conteggi reali invece di assumerli.")
+        if is_bucket_b:
+            eval_v0["notes"]["character_category_gap"] = (
+                "Nota v0 non riportata qui invariata: la composizione per categoria del bucket B "
+                "e' DIVERSA da lora-v0 (dcss-32/oga-creatures/curated-32: enemy/item/prop/creature, "
+                "non personaggi) — vedi dataset/lora-v1-research/mining_report.json (chiave "
+                "'bucket_b') per i conteggi reali invece di assumerli.")
+        else:
+            eval_v0["notes"]["character_category_gap"] = (
+                "Nota v0 non riportata qui invariata: la composizione per categoria di "
+                "primary-128 e' DIVERSA da lora-v0 (fonte Limbicnation, non i pack CC0 di "
+                "oggetti/nemici) — vedi dataset/lora-v1-research/mining_report.json per i "
+                "conteggi reali invece di assumerli.")
     (dst / "eval-prompts-lora-v1-research.json").write_text(
         json.dumps(eval_v0, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     kernel_meta = {
         "id": "REPLACE_WITH_KAGGLE_USERNAME/worldsmelt-lora-v1-research",
-        "title": "Worldsmelt LoRA v1-research - rank16 (DreamShaper8 + DreamShaper PixelArt) [RESEARCH-ONLY]",
+        "title": ("Worldsmelt LoRA v1-research - rank16 (DreamShaper8 + DreamShaper PixelArt) "
+                  + ("[bucket B: primary-32B]" if is_bucket_b else "[RESEARCH-ONLY]")),
         "code_file": "run.py",
         "language": "python",
         "kernel_type": "script",
@@ -2001,27 +3368,30 @@ def build_kaggle_package(out_dir: Path):
     (dst / "kernel-metadata.json").write_text(
         json.dumps(kernel_meta, indent=2) + "\n", encoding="utf-8")
 
-    # -- tar del pacchetto: SOLO primary-128 (mandato, letterale) --
-    ledger_all = [json.loads(l) for l in (out_dir / "ledger.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    primary_rows = [r for r in ledger_all if r["bucket"] == PRIMARY_BUCKET]
+    # -- tar del pacchetto: SOLO il bucket confezionato (primary-128 o
+    # primary-32B a seconda di bucket_name) — nome file/percorsi INVARIATI
+    # (run.py/configs li cercano per nome fisso, "config invariati" a mandato). --
     tar_path = dst / "worldsmelt-lora-v1-research-dataset.tar.gz"
     with tarfile.open(tar_path, "w:gz") as tf:
         for png in sorted(primary_dir.glob("*.png")):
             tf.add(png, arcname=f"images/{png.name}")
         for txt in sorted(primary_dir.glob("*.txt")):
             tf.add(txt, arcname=f"images/{txt.name}")
-        ledger_tmp = dst / "_primary_ledger.jsonl"
+        ledger_tmp = dst / "_bucket_ledger.jsonl"
         with ledger_tmp.open("w", encoding="utf-8") as f:
-            for r in primary_rows:
+            for r in bucket_rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         tf.add(ledger_tmp, arcname="ledger.jsonl")
         ledger_tmp.unlink()
         tf.add(dst / "eval-prompts-lora-v1-research.json", arcname="eval-prompts-lora-v1-research.json")
-        review_path = out_dir / "nsfw-review.jsonl"
-        if review_path.is_file():
-            # Viaggia DENTRO il pacchetto: la lista di review non serve a niente
-            # se resta nel repo mentre i dati sono su Kaggle.
-            tf.add(review_path, arcname="nsfw-review.jsonl")
+        if not is_bucket_b:
+            review_path = out_dir / "nsfw-review.jsonl"
+            if review_path.is_file():
+                # Viaggia DENTRO il pacchetto: la lista di review non serve a niente
+                # se resta nel repo mentre i dati sono su Kaggle. Solo primary-128:
+                # il bucket B non ha righe NSFW (nessuna sorgente e' Limbicnation),
+                # includere il file globale confonderebbe id di un altro bucket.
+                tf.add(review_path, arcname="nsfw-review.jsonl")
         tf.add(dst / "train_lora_v0.py", arcname="train_lora_v0.py")
         tf.add(dst / "requirements-ml.txt", arcname="requirements-ml.txt")
         tf.add(dst / "run_policy.yaml", arcname="run_policy.yaml")
@@ -2029,15 +3399,59 @@ def build_kaggle_package(out_dir: Path):
             tf.add(cfg, arcname=f"configs/{cfg.name}")
 
     tar_sha = sha256_of_file(tar_path)
-    readme = KAGGLE_README.format(
-        today=datetime.date.today().isoformat(),
-        sha_note="stesso schema del pacchetto lora-v0",
-        tar_sha=tar_sha,
-        nsfw_rejected=nsfw.get("skin_rejected", "n/d"),
-        nsfw_watch=nsfw.get("kept_above_watch_threshold", "n/d"),
-    )
+    if is_bucket_b:
+        by_source = Counter(r["source"] for r in bucket_rows)
+        by_split = Counter(r["split"] for r in bucket_rows)
+        report_path = out_dir / "mining_report.json"
+        report_b = {}
+        if report_path.is_file():
+            report_b = json.loads(report_path.read_text(encoding="utf-8")).get("bucket_b", {})
+        gate = report_b.get("single_subject_claim", {}).get("scene_gates_if_applied", {})
+        moves = report_b.get("split_perceptual_gate", {}).get("moves", [])
+
+        log("[kaggle] eseguo il preflight vero sul pacchetto (decine di secondi)...")
+        t_pf = time.time()
+        ok, verdict = run_preflight_in_process(dst, primary_dir, bucket_rows)
+        log(f"[kaggle] preflight: {'OK' if ok else 'FALLITO'} ({time.time() - t_pf:.0f}s)")
+        if ok:
+            verdict_md = f"**Il preflight passa.** Esito testuale del trainer:\n\n```text\n{verdict}\n```"
+        else:
+            verdict_md = ("**Il preflight FALLISCE su questo pacchetto.** Non lanciarlo: "
+                          "spenderebbe credito GPU per fermarsi subito. Esito testuale del "
+                          f"trainer:\n\n```text\n{verdict[:1500]}\n```")
+        readme = KAGGLE_README_BUCKET_B.format(
+            today=datetime.date.today().isoformat(),
+            tar_sha=tar_sha,
+            n_rows=len(bucket_rows),
+            by_source=dict(by_source),
+            by_split=dict(by_split),
+            license_whitelist_note=license_whitelist_note,
+            perceptual_note=perceptual_note,
+            preflight_verdict=verdict_md,
+            split_gate_note=(
+                f"gruppi di soggetto spostati da val a train prima di confezionare, perche' "
+                f"quasi-duplicati percettivi di righe di training: {len(moves)} — "
+                + "; ".join(f"{m['moved_to_train']} ~ {m['near_duplicate_of']} "
+                            f"(differiscono per il {m['distance'] * 100:.1f}% dei pixel)"
+                            for m in moves)
+                if moves else
+                "nessuno spostamento necessario: lo split per nome di soggetto era gia' pulito "
+                "anche alla misura percettiva"),
+            scene_gate_fraction=f"il {gate.get('fraction', 0) * 100:.1f}%",
+            scene_gate_would_reject=gate.get("would_reject", "n/d"),
+            scene_gate_breakdown=gate.get("by_first_failing_gate", {}),
+            caption_distinctness=report_b.get("caption_distinctness", {}),
+        )
+    else:
+        readme = KAGGLE_README.format(
+            today=datetime.date.today().isoformat(),
+            sha_note="stesso schema del pacchetto lora-v0",
+            tar_sha=tar_sha,
+            nsfw_rejected=nsfw.get("skin_rejected", "n/d"),
+            nsfw_watch=nsfw.get("kept_above_watch_threshold", "n/d"),
+        )
     (dst / "README.md").write_text(readme, encoding="utf-8")
-    log(f"pacchetto Kaggle -> {dst} ({len(primary_rows)} righe primary-128, tar sha256={tar_sha[:12]}...)")
+    log(f"pacchetto Kaggle -> {dst} ({len(bucket_rows)} righe {bucket_name}, tar sha256={tar_sha[:12]}...)")
 
 
 if __name__ == "__main__":

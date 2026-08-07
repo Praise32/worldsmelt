@@ -10,10 +10,10 @@ summary: >-
   e Track F (9 config a settings nativi + 4 few-step, giudizio 64px). 292/292 immagini,
   zero fallimenti. La baseline SD1.5 vanilla è battuta da quasi tutto; il verdetto umano
   del proprietario (review.html, 9 criteri) resta il gate di promozione.
-last_reviewed: 2026-08-06
-last_verified_commit: 3f0f38b
-topics: [esperimenti, comparison, bake-off, immagini, teacher, lora, few-step]
-related: [aiprod-protocollo-esperimenti]
+last_reviewed: 2026-08-07
+last_verified_commit: cbedf8e
+topics: [esperimenti, comparison, bake-off, immagini, teacher, lora, few-step, retro-diffusion]
+related: [aiprod-protocollo-esperimenti, aiprod-retro-diffusion-letter]
 supersedes: []
 source_files:
   - scripts/teacher-bench.sh
@@ -21,6 +21,8 @@ source_files:
   - scripts/teacher_bench_review.py
   - docs/ai-production/dataset/teacher-bench-2026-08-prompts.json
   - docs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json
+  - scripts/rd_dataset_gen.py
+  - docs/ai-production/dataset/rd-dataset-plan.json
 ---
 
 # Bake-off teacher/runtime immagini — 06/08/2026
@@ -201,3 +203,51 @@ guided non arriva.
 3. Le due basi teacher finaliste per lo smoke di Stage B (candidabili solo le
    non-distillate: DS8, DS-PixelArt, AnyLoRA fp16).
 4. La tecnica di fusione per lo stadio 2.
+
+## Percorso Retro Diffusion (07/08) — RD-PREP
+
+Preparazione tecnica del percorso Retro Diffusion Cloud (dossier del proprietario del
+04/08 + censimento verificato in sessione il 07/08 su
+`github.com/Retro-Diffusion/api-examples` e sul ToS PDF datato 19/08/2025), parallela al
+bake-off SD1.5 sopra: due percorsi indipendenti, non alternativi (RD Cloud non e' mai
+candidato a base della LoRA, vedi `03-PIANO-DREAMSHAPER-WORLDSMELT.md` del dossier).
+
+**Costi verificati** (formule confermate contro l'esempio ufficiale, implementate in
+`scripts/rd_dataset_gen.py:cost_per_image`, nessuna approssimazione): RD Fast
+`max(0.015, (w·h+100000)/6e6)`; RD Plus `max(0.025, (w·h+50000)/2e6)`; stili `*low_res*`
+(qualunque modello) `max(0.02, (w·h+13700)/6e5)`; RD Pro `0.18` flat per immagine.
+Esempio concreto sul piano quote attuale (`docs/ai-production/dataset/rd-dataset-plan.json`,
+54 richieste, 164 immagini): **~$5,36 USD stimati** via `--check-cost` (nessuna rete,
+nessuna chiave, verificabile a mano con le formule qui sopra). Il piano fa salire lo
+stesso soggetto sulla scala `fast -> plus -> pro` quando un dominio non ha abbastanza
+VisualSpec distinti per la SOMMA delle sue quote (col batch attuale: `character`,
+`enemy`, `boss_part`): e' voluto — il tier Pro aggancia via `reference_images` gli
+output Plus della stessa famiglia — ma `expand_plan()` lo **dichiara** a ogni run,
+elencando quali soggetti vengono fatturati piu' volte e con che comando generarne di
+distinti. Nessun riuso silenzioso di credito.
+
+**Verdetto ToS**: il testo pubblico (versione 19/08/2025) assegna **proprieta' piena**
+degli output all'utente e **non menziona il training** su di essi (ne' in un senso ne'
+nell'altro) — lettura **favorevole** all'uso degli output come asset di gioco (gia'
+copribile dai termini standard), ma il silenzio su "output come dataset di training per
+un modello separato" non e' un permesso esplicito: da qui la **lettera raccomandata**
+(`docs/ai-production/retro-diffusion-letter.md`, pronta IT/EN, canali verificati
+Discord/email) prima di usare sistematicamente output RD nel dataset della Worldsmelt
+LoRA. Fino alla risposta, la regola d'oro 3 di `dataset/README.md` resta piena: nessun
+output Retro Diffusion nel ledger `dataset/ledger.jsonl`.
+
+**Politica tier** (del proprietario, applicata dal piano quote, non decisa qui): **Fast**
+= dataset/training e provini economici, mai promossi al gioco senza curation; **Plus** =
+asset **curati** che entrano nel gioco; **Pro** = **solo reference-consistency** (famiglie
+personaggi, parti boss, fusioni), mai per generazione bulk. Stili verificati:
+`rd_fast__game_asset`, `rd_plus__item_sheet`, `rd_plus__character_turnaround`,
+`rd_pro__inventory_items`.
+
+**Stato: in attesa di key/credito.** `RD_API_KEY` non e' ancora impostata (arriva dopo
+questa sessione): tutta la preparazione — client (`scripts/rd_dataset_gen.py`, stdlib +
+Pillow, 429/Retry-After rispettati, recovery via ricevuta locale senza mai ri-sottomettere
+un job pagato), piano quote, config MCP (`.mcp.json`, voce `retro-diffusion`, header
+`Authorization` da `${RD_API_KEY}`, mai la chiave in chiaro) e lettera — funziona e si
+verifica offline (`--mock`/`--check-cost`, nessuna chiamata reale finora). Primo giro con
+credito vero: solo dopo la chiave, con `--check-cost` come ultima verifica prima di
+spendere.

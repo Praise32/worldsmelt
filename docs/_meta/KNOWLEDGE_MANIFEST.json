@@ -1,6 +1,6 @@
 {
   "note": "GENERATO da scripts/docs/build_knowledge_index.py -- non modificare a mano",
-  "count": 150,
+  "count": 151,
   "documents": [
     {
       "id": "docs-readme",
@@ -902,10 +902,12 @@
         "immagini",
         "teacher",
         "lora",
-        "few-step"
+        "few-step",
+        "retro-diffusion"
       ],
       "related": [
-        "aiprod-protocollo-esperimenti"
+        "aiprod-protocollo-esperimenti",
+        "aiprod-retro-diffusion-letter"
       ],
       "supersedes": [],
       "source_files": [
@@ -913,10 +915,12 @@
         "scripts/teacher_bench_post.py",
         "scripts/teacher_bench_review.py",
         "docs/ai-production/dataset/teacher-bench-2026-08-prompts.json",
-        "docs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json"
+        "docs/ai-production/dataset/teacher-bench-2026-08-prompts-trackF.json",
+        "scripts/rd_dataset_gen.py",
+        "docs/ai-production/dataset/rd-dataset-plan.json"
       ],
-      "last_reviewed": "2026-08-06",
-      "last_verified_commit": "3f0f38b"
+      "last_reviewed": "2026-08-07",
+      "last_verified_commit": "cbedf8e"
     },
     {
       "id": "aiprod-licenze",
@@ -968,6 +972,34 @@
       ],
       "last_reviewed": "2026-07-27",
       "last_verified_commit": "fe27f6d"
+    },
+    {
+      "id": "aiprod-retro-diffusion-letter",
+      "path": "docs/ai-production/retro-diffusion-letter.md",
+      "title": "Lettera ad Astropulse — permesso scritto per il dataset LoRA",
+      "domain": "ai-production",
+      "status": "proposed",
+      "authority": "supporting",
+      "owner": "ai-production",
+      "summary": "Lettera pronta da inviare ad Astropulse (Retro Diffusion) per chiedere per iscritto il permesso di usare una quota curata di output Cloud come dataset per la Worldsmelt LoRA (base DreamShaper 8/SD1.5, non il checkpoint Retro Diffusion) e la conferma dei diritti di uso commerciale degli output gia' presenti nel gioco, piu' un terzo punto facoltativo (preventivo per un modello su commissione, punto 4 dell'ordine di lavoro del dossier). Adattata al piano operativo RD-PREP del 07/08/2026: benchmark/asset curati via Cloud, LoRA interna non concorrente.",
+      "topics": [
+        "retro-diffusion",
+        "licenza",
+        "dataset",
+        "lora",
+        "astropulse",
+        "permesso-scritto"
+      ],
+      "related": [
+        "aiprod-dataset-readme"
+      ],
+      "supersedes": [],
+      "source_files": [
+        "scripts/rd_dataset_gen.py",
+        "docs/ai-production/dataset/rd-dataset-plan.json"
+      ],
+      "last_reviewed": "2026-08-07",
+      "last_verified_commit": null
     },
     {
       "id": "aiprod-asset-review",
@@ -3235,7 +3267,12 @@
         "WP-PREFS",
         "DEC-189",
         "DEC-190",
-        "preferenze-giocatore"
+        "preferenze-giocatore",
+        "lora",
+        "dataset",
+        "preflight",
+        "kaggle",
+        "caption"
       ],
       "related": [
         "eng-dependencies",
@@ -3282,9 +3319,12 @@
         "src/tests/suspend_tests.c",
         "src/app/prefs.c",
         "src/app/prefs.h",
-        "src/tests/prefs_tests.c"
+        "src/tests/prefs_tests.c",
+        "scripts/lora_dataset_mine.py",
+        "scripts/lora_dataset_build.py",
+        "dataset/lora-v0/kaggle/train_lora_v0.py"
       ],
-      "last_reviewed": "2026-07-31",
+      "last_reviewed": "2026-08-07",
       "last_verified_commit": "a5cc3a3"
     },
     {

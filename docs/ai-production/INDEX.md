@@ -25,6 +25,7 @@
 - [AI production — modelli, LoRA, dataset e asset generati](README.md) — Punto d'ingresso del dominio ai-production: come si selezionano, allenano e integrano modelli, LoRA, dataset e asset generati. Erede dei contenuti canonici della worldsmelt-ai-production-blueprint-v2. `[approved/canonical]`
 - [Licenze dello stack](licenze.md) — Analisi non legale delle licenze di codice (raylib, llama.cpp, stable-diffusion.cpp, Lua, cJSON) e modelli (Qwen, pixel model OpenRAIL-M, LCM-LoRA, TAESD, Stable Audio Small con Stability Community License, DEC-113). `[approved/canonical]`
 - [Regole per gli agenti nei task ML](regole-agenti-ml.md) — Regole vincolanti per qualunque agente (Claude Code, Codex) che tocca training, dataset, modelli o asset generati. Fusione delle appendici ML della blueprint-v2 (AGENTS-ML-APPENDIX, CLAUDE-ML-APPENDIX, appendice Codex). `[approved/canonical]`
+- [Lettera ad Astropulse — permesso scritto per il dataset LoRA](retro-diffusion-letter.md) — Lettera pronta da inviare ad Astropulse (Retro Diffusion) per chiedere per iscritto il permesso di usare una quota curata di output Cloud come dataset per la Worldsmelt LoRA (base DreamShaper 8/SD1.5, non il checkpoint Retro Diffusion) e la conferma dei diritti di uso commerciale degli output gia' presenti nel gioco, piu' un terzo punto facoltativo (preventivo per un modello su commissione, punto 4 dell'ordine di lavoro del dossier). Adattata al piano operativo RD-PREP del 07/08/2026: benchmark/asset curati via Cloud, LoRA interna non concorrente. `[proposed/supporting]`
 
 ## dataset/
 

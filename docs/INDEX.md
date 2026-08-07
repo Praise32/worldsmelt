@@ -7,7 +7,7 @@ Standard e regole: [_meta/DOCUMENT-STANDARDS.md](_meta/DOCUMENT-STANDARDS.md).
 
 - [`design/`](design/INDEX.md) — 61 documenti
 - [`engineering/`](engineering/INDEX.md) — 19 documenti
-- [`ai-production/`](ai-production/INDEX.md) — 42 documenti
+- [`ai-production/`](ai-production/INDEX.md) — 43 documenti
 - `plans/`:
   - [Piano: titolo (template)](plans/PLAN_TEMPLATE.md) — Scheletro per piani di implementazione temporanei: obiettivo, documenti consultati, ambiguità, sequenza di lavoro, verifiche.
   - [Mechanics-lab — scoprire le primitive minime dei colpi componibili](plans/active/mechanics-lab.md) — Esperimento isolato (DEC-138) per scoprire le primitive fisiche minime che permettono al modello di COMPORRE classi di colpo nuove (laser, catena, orbita e oltre) senza primitive dedicate; le vincitrici entrano poi nel motore con le garanzie di sempre.

@@ -1,0 +1,90 @@
+{
+  "_comment": [
+    "Piano quote per scripts/rd_dataset_gen.py (RD-PREP, 07/08/2026).",
+    "Dati Retro Diffusion Cloud verificati il 07/08 su github.com/Retro-Diffusion/api-examples",
+    "e sul ToS PDF del 19/08/2025 (vedi docs/ai-production/retro-diffusion-letter.md).",
+    "Formule di costo (rd_dataset_gen.py:cost_per_image le applica per style_id):",
+    "  rd_fast__*   max(0.015, (w*h+100000)/6e6)",
+    "  rd_plus__*   max(0.025, (w*h+50000)/2e6)",
+    "  *low_res*    max(0.02,  (w*h+13700)/6e5)  -- qualunque modello, riconosciuto dal nome dello stile",
+    "  rd_pro__*    0.18 flat",
+    "Politica qualita' del proprietario (non negoziabile qui, solo applicata):",
+    "  fast -> dataset/training, provini economici, mai promossi al gioco senza curation",
+    "  plus -> asset CURATI che entrano nel gioco",
+    "  pro  -> SOLO reference-consistency (famiglie personaggi, parti boss, fusioni),",
+    "          mai per bulk: reference_images (fino a 9) aggancia output Plus gia' fatti",
+    "          della stessa famiglia quando presenti, altrimenti genera l'ancora da sola.",
+    "'count' e' in SOGGETTI (richieste), non immagini: immagini totali = count * num_images.",
+    "Ogni tier riparte dall'inizio della lista di soggetti del dominio: la SCALA",
+    "fast->plus->pro sullo stesso soggetto e' voluta (provino economico, poi asset curato,",
+    "poi ancora di coerenza che aggancia via reference_images gli output Plus della stessa",
+    "famiglia). Un soggetto puo' quindi essere fatturato su piu' tier.",
+    "Se un dominio ha meno soggetti disponibili in generated/visualspecs/batch.json di quanti",
+    "ne chiede la SOMMA delle sue quote, lo script AVVISA elencando quali soggetti finiscono",
+    "su piu' tier e stampa 'bin/melting-gen --visualspecs N' per averne di distinti; la",
+    "singola quota che sfora si ferma comunque ai soggetti disponibili (non inventa soggetti).",
+    "Col batch attuale (character/weapon/item/boss_part 10 soggetti, enemy 8) l'avviso scatta",
+    "su 'character' (6+4+2=12 su 10), 'enemy' (6+4=10 su 8) e 'boss_part' (6+4+2=12 su 10);",
+    "'weapon' e 'item' (6+4=10 su 10) non hanno riuso fra tier."
+  ],
+  "version": 1,
+  "created": "2026-08-07",
+  "visualspecs_source": "generated/visualspecs/batch.json",
+  "tiers": {
+    "fast": {
+      "width": 128,
+      "height": 128,
+      "num_images": 4,
+      "remove_bg": true,
+      "purpose": "dataset/training e provini economici (mai promossi al gioco senza curation)"
+    },
+    "plus": {
+      "width": 256,
+      "height": 256,
+      "num_images": 2,
+      "remove_bg": true,
+      "purpose": "asset curati che ENTRANO nel gioco dopo verifica del proprietario"
+    },
+    "pro": {
+      "width": 256,
+      "height": 256,
+      "num_images": 1,
+      "remove_bg": true,
+      "reference_images_max": 9,
+      "purpose": "reference-consistency: famiglie personaggi, parti boss, fusioni -- MAI bulk"
+    }
+  },
+  "styles": {
+    "fast": { "default": "rd_fast__game_asset" },
+    "plus": { "default": "rd_plus__item_sheet", "character": "rd_plus__character_turnaround" },
+    "pro": { "default": "rd_pro__inventory_items" }
+  },
+  "themes": [
+    { "id": "bronzo-caldo", "colors": ["bronzo", "bronzo-chiaro", "oro-fuso"] },
+    { "id": "brace-fiamma", "colors": ["brace", "fiamma", "bagliore"] },
+    { "id": "cenere-fumo", "colors": ["cenere", "cenere-chiara", "fumo"] },
+    { "id": "verderame-patina", "colors": ["verderame", "verderame-chiaro", "patina"] },
+    { "id": "ardesia-fredda", "colors": ["ardesia", "ardesia-chiara", "ardesia-pallida"] },
+    { "id": "prugna-arcana", "colors": ["prugna", "prugna-chiara"] }
+  ],
+  "quotas": [
+    { "category": "character", "tier": "fast", "count": 6 },
+    { "category": "character", "tier": "plus", "count": 4 },
+    { "category": "character", "tier": "pro", "count": 2,
+      "notes": "ancore di famiglia per il personaggio generato per-run (DEC-037/049)" },
+
+    { "category": "enemy", "tier": "fast", "count": 6 },
+    { "category": "enemy", "tier": "plus", "count": 4 },
+
+    { "category": "weapon", "tier": "fast", "count": 6 },
+    { "category": "weapon", "tier": "plus", "count": 4 },
+
+    { "category": "item", "tier": "fast", "count": 6 },
+    { "category": "item", "tier": "plus", "count": 4 },
+
+    { "category": "boss_part", "tier": "fast", "count": 6 },
+    { "category": "boss_part", "tier": "plus", "count": 4 },
+    { "category": "boss_part", "tier": "pro", "count": 2,
+      "notes": "coerenza fra parti dello stesso boss modulare" }
+  ]
+}

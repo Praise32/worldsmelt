@@ -9,12 +9,12 @@ summary: >-
   Difetti e limiti tecnici NOTI e verificati nel codice reale, con sintomo,
   evidenza (file:riga) e stato attuale; non e' un elenco di idee o backlog di
   design.
-last_reviewed: 2026-07-31
+last_reviewed: 2026-08-07
 last_verified_commit: a5cc3a3
-topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial, WP17, DEC-050, sospensione-run, WP-PREFS, DEC-189, DEC-190, preferenze-giocatore]
+topics: [difetti, limiti, test, rng, generazione, catalogo, audio, DEC-008, Crust, DEC-043, WP3, ostacoli, persistenza, WP-INT, WP6, font, glyphs_ext, personaggi, arena-di-sfida, WP8, stanze-segrete, DEC-025, DEC-127, rivelatori, prove, DEC-042, DEC-027, WP16, WP15a, arene-piano-0, DEC-004, DEC-029, DEC-047, tutorial, WP17, DEC-050, sospensione-run, WP-PREFS, DEC-189, DEC-190, preferenze-giocatore, lora, dataset, preflight, kaggle, caption]
 related: [eng-dependencies, meta-doc-code-drift, gd-system-run-manifest]
 supersedes: []
-source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c, src/app/prefs.c, src/app/prefs.h, src/tests/prefs_tests.c]
+source_files: [src/tests/game_tests.c, src/content/run_catalog.c, scripts/test-llm.sh, scripts/test-gen.sh, src/game/game.c, src/app/app.c, tools/melting-gen/gen_util.c, tools/melting-sprites/sprite_util.c, tools/melting-gen/gen_lua.h, tools/melting-gen/melting_gen.h, tools/melting-gen/gen_validate.c, tools/melting-gen/gen_fallback.c, src/gameplay/item_pool.c, src/content/run_content.c, docs/archive/legacy-notes/issue-notes.md, src/audio/audio.c, src/tests/audio_tests.c, src/world/floor_zero.c, src/render/game_renderer.c, src/core/game_types.h, src/gameplay/combat.c, src/world/world.c, src/assets/art_atlas.c, src/assets/art_atlas.h, src/render/art_draw.c, src/tests/art_atlas_tests.c, src/content/character_roster.c, src/game/trials.c, src/game/trials.h, src/world/floor_zero_arena.c, src/world/floor_zero_arena.h, src/content/run_catalog.c, src/tests/floor_zero_arena_tests.c, src/game/run_suspend.c, src/game/run_suspend.h, src/tests/suspend_tests.c, src/app/prefs.c, src/app/prefs.h, src/tests/prefs_tests.c, scripts/lora_dataset_mine.py, scripts/lora_dataset_build.py, dataset/lora-v0/kaggle/train_lora_v0.py]
 ---
 
 # Registro dei difetti e limiti noti
@@ -791,3 +791,73 @@ ripresa userà quel contenuto — è la stessa regola di riproducibilità già d
 `docs/design/systems/run-manifest-and-reproducibility.md`, non una perdita introdotta dalla
 sospensione. In pratica il caso è raro: "Nuova run" con una sospensione attiva chiede
 conferma e cancella la sospensione prima di generare (`ui/main-menu.md`).
+
+## 18 — `perceptual_distance()` dei trainer LoRA presuppone il fondo trasparente: corretta SOLO nella copia del bucket B
+
+**Sintomo**: il preflight di `train_lora_v0.py` (il cancello che deve fermare un
+job **prima** di consumare GPU pagata) segnalava 6324 "fughe di split percettive"
+inesistenti sul pacchetto `dataset/lora-v1-research/kaggle/` (bucket `primary-32B`),
+uscendo con `SystemExit`/exit 1. Con 1919 righe, 191 val × 1728 train, il messaggio
+elencava coppie di sprite palesemente diversi come "differiscono solo per l'11-14%
+dei pixel".
+
+**Causa**: `perceptual_distance()` normalizza il conteggio delle differenze
+sull'**unione delle aree non trasparenti**, e decide "non trasparente" con
+`alpha > 16`. Vero per `dataset/lora-v0/` (canvas RGBA con fondo trasparente,
+`scripts/lora_dataset_build.py:677`), **falso** per tutti i bucket minati da
+`scripts/lora_dataset_mine.py`, che compongono su `CANVAS_BG_RGB = (238, 236, 230)`
+opaco perche' SD1.5 non ha canale alpha (`lora_dataset_mine.py:1767`). Su quelle
+immagini l'"unione" e' l'intero canvas — misurato: 262144/262144 px sul 512, cioe'
+4096/4096 sulla firma 64px — e due sprite piccoli e diversi finiscono per
+differire su una frazione piccolissima del totale, sotto la soglia `0.15`.
+
+**Evidenza**: `dataset/lora-v0/kaggle/train_lora_v0.py:82-100` (`on1, on2 = a1 > 16, a2 > 16`, riga 94);
+`scripts/lora_dataset_mine.py:1767` (`Image.new("RGB", ..., CANVAS_BG_RGB)` in `compose_logical_canvas`);
+riproducibile su un pacchetto non corretto con
+`python3 train_lora_v0.py --config configs/... --preflight-only` (~8 minuti, exit 1).
+
+**Stato**: CORRETTA **solo** nella copia adattata del bucket B —
+`dataset/lora-v1-research/kaggle/train_lora_v0.py` — via
+`lora_dataset_mine.patch_perceptual_distance()`, stesso meccanismo gia' usato per la
+whitelist licenze: la versione corretta misura il fondo (colore modale dell'anello
+di bordo) invece di assumerlo, e ricade sul solo test alpha quando il fondo e'
+davvero trasparente. Il testo iniettato e' il sorgente delle funzioni di
+`lora_dataset_mine.py` preso con `inspect.getsource()`, cosi' le due copie non
+possono divergere; le prime 64 coppie reali di ogni preflight vengono ricalcolate
+anche con l'implementazione a pixel di riferimento e un disaccordo ferma il
+preflight.
+
+**Cosa resta aperto**:
+1. `dataset/lora-v0/kaggle/train_lora_v0.py` **non e' stato toccato** — li' il
+   dataset ha davvero il fondo trasparente, quindi la versione originale e'
+   corretta e cambiarla sarebbe una regressione.
+2. `scripts/lora_dataset_build.py` (il template da cui nasce il trainer v0) porta
+   ancora la versione originale: **qualunque nuovo pacchetto generato da li' per un
+   dataset a fondo opaco ripresentera' il difetto**. Non e' stato corretto qui
+   perche' il suo dataset e' a fondo trasparente e la correzione andrebbe verificata
+   su quel bucket, non su questo.
+3. Il pacchetto `primary-128` conserva il difetto: il suo preflight fallisce
+   comunque, ma per il cancello VOLUTO sulle licenze (`apache-2.0` fuori whitelist),
+   che scatta prima e rende l'esito indistinguibile finche' quel cancello non cade.
+
+## 19 — `single subject` nelle caption del bucket `primary-32B` e' garantito solo dal frame sorgente
+
+**Sintomo**: tutte le 1919 caption di `dataset/lora-v1-research/primary-32B/`
+contengono `single subject`, ma esistono righe che mostrano piu' soggetti in una
+cella — controesempio riproducibile:
+`dcss-gui-spells-necromancy-control-undead-old` (spettro + fiamma + umanoide +
+cuore in 32×32).
+
+**Evidenza**: `scripts/lora_dataset_mine.py`, `process_candidate_bucket_b()` scrive
+`single_subject_checks: ["source-frame"]` (nessun gate di scena sul canvas finale,
+a differenza di `primary-128`); `build_caption_dcss()`/`build_caption_oga()`/
+`build_caption_curated()` aggiungono comunque il token.
+
+**Stato**: DOCUMENTED-AS-IS, non mascherato. Il ledger lo dice riga per riga
+(`single_subject_checks`), il `mining_report.json` sotto
+`bucket_b.single_subject_claim` porta la simulazione MISURATA dei gate di scena
+(scarterebbero 1403/1919 righe, 73,1%, di cui 1371 su `canvas_straight_edge`) e
+il README del pacchetto Kaggle ha una sezione dedicata. Applicare i gate cosi'
+come sono tarati sarebbe peggio del difetto: a grana 32 un bordo inferiore dritto
+e' la norma. Una taratura per grana e' lavoro da fare prima di promuovere questo
+bucket oltre la ricerca.
