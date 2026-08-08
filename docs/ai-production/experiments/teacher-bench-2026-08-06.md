@@ -251,3 +251,28 @@ un job pagato), piano quote, config MCP (`.mcp.json`, voce `retro-diffusion`, he
 verifica offline (`--mock`/`--check-cost`, nessuna chiamata reale finora). Primo giro con
 credito vero: solo dopo la chiave, con `--check-cost` come ultima verifica prima di
 spendere.
+
+## Addendum 3 — 08/08 notte: le prime due Worldsmelt LoRA esistono
+
+Kernel `worldsmelt-lora-v1r-rank16-bucket-b` **COMPLETE** alla versione 9 (1h40 di T4):
+doppio preflight, smoke 60/60 (val_loss 0.0219), **1500 step su DreamShaper 8 e 1500 su
+DreamShaper PixelArt**, griglie di valutazione a ogni checkpoint (250→1500) sui 20
+prompt congelati. Pesi finali in `models/loras-research/` (rank 16, 13 MB l'una),
+griglie in `dataset/lora-v1-research/eval-grids-*`.
+
+**Verdetto tecnico**: il metodo è VALIDATO end-to-end. Le LoRA generalizzano ai 12
+soggetti fuori dal mondo del dataset (guardiano di corallo, totem ancestrale, vagabondo
+delle dune: coerenti e "da gioco" pur non esistendo in nessun dato di training — la
+risposta alla domanda del proprietario sulla generalizzazione è SÌ). La LoRA su
+DS-PixelArt conserva la grana pixel; quella su DS8 impara masse piatte pulite.
+Difetti da curare nella v2 (attesi per uno smoke): tiling multi-vista (contenuto
+logico piccolo su canvas 512 + limite dichiarato delle caption "single subject") e
+grana non uniforme fra soggetti.
+
+**Mine dell'ambiente Kaggle, pagate una volta per tutte** (9 versioni): i Dataset
+auto-estraggono i tar; i mount vivono in `/kaggle/input/datasets/<utente>/<slug>/`;
+MAI pip che tocchi lo stack torch (nemmeno con constraints: rimpiazza la build);
+torchao 0.10 dell'immagine rompe il peft dell'immagine (disinstallarlo);
+`enable_gpu: true` assegna P100 che il torch moderno NON supporta più → sempre
+`kaggle kernels push --accelerator NvidiaTeslaT4`; autocast obbligatorio nella eval
+grid fp16. Da promuovere nel runbook 05 alla prossima sessione docs.
