@@ -60,6 +60,66 @@
 #define DEMO_ENEMY_CORPSE_FADE_SECONDS 0.6f
 #define DEMO_BASE_WEAPON_COOLDOWN 0.22f
 
+/* --------------------------------------------------------------------------
+ * v3 (spec sezione "v3", playtest 08/08): budget di bilanciamento HOST-SIDE.
+ * Il feedback del proprietario e' stato "nemici e armi generati lanciano
+ * tantissimi proiettili": l'API v2 (demo_script_api.h) e' CONGELATA (firme,
+ * costanti pubbliche, semantica), quindi questi tetti vivono qui, nel
+ * consumo dei comandi (DemoConsumeCommands), non nella sandbox. Un comando
+ * oltre budget non e' un errore Lua e non disabilita nulla: si tronca o si
+ * scarta in silenzio, la sandbox resta viva e lo script continua a girare.
+ * -------------------------------------------------------------------------- */
+
+/* Colpi ATTIVI contemporaneamente per proprietario (somma su DemoProjectile
+ * con lo stesso flag hostile). Oltre il tetto, EMIT_RING/ORBIT/la mezzaluna
+ * di EMIT_ARC/RELEASE_ECHOES si fermano a meta' burst invece di allocare
+ * senza limite nei 640 slot condivisi. Tarati sui picchi reali dei 5 script
+ * curati (mezzaluna del ragno: 13 colpi in un colpo solo; ring+orbit della
+ * falena: 13) con ampio margine per il contenuto generato. */
+#define DEMO_ENEMY_SHOT_CAP  56
+#define DEMO_WEAPON_SHOT_CAP 40
+
+/* Token bucket proiettili/secondo per entita': ricarica continua a "rate"
+ * token/s fino al tetto "rate" (capacita' == rate), si parte a META' capacita'
+ * cosi' il primissimo tick non puo' mai scaricare un burst pieno. Tarati sopra
+ * la media reale dei curati (falena/ragno ~6-7 colpi/s in scoppio, il resto
+ * del ciclo e' fermo) con ampio margine: il bucket serve a tagliare la CODA
+ * lunga di Gemma (uno script che spara ogni tick), non i burst dei curati. */
+#define DEMO_ENEMY_SHOT_RATE_PER_SEC  30.0f
+#define DEMO_WEAPON_SHOT_RATE_PER_SEC 25.0f
+
+/* Cooldown minimo fra due emissioni ACCETTATE della stessa categoria per la
+ * stessa entita' (nemico o arma, non il singolo tipo di comando: l'orbit
+ * conta come ring). Il gate confronta col timestamp dell'ultima emissione
+ * accettata della categoria, aggiornato UNA SOLA VOLTA a fine tick
+ * (DemoThrottleCommitTick) e non ad ogni comando: cosi' piu' emissioni della
+ * stessa categoria nello STESSO tick (es. emit_ring+emit_orbit nella stessa
+ * transizione di fase) si confrontano tutte col valore "vecchio" e passano
+ * insieme -- solo lo spam FRA un tick e l'altro viene tagliato. Nessuna
+ * categoria per emit_arc da solo (i colpi della mezzaluna sono gia' limitati
+ * dal bucket proiettili/s; l'unico rischio reale osservato e'
+ * ring/orbit/echoes, gia' coperto).
+ *
+ * I TELEGRAFI NON ENTRANO IN NESSUN GATE (correzione 08/08): telegraph_arc e
+ * telegraph_beam non spawnano niente e non fanno danno, quindi non consumano
+ * ne' bucket ne' cooldown. Condividere la categoria beam fra telegraph_beam e
+ * emit_beam rendeva INERTE ogni pattern sano con windup < 0.35s fra l'annuncio
+ * e il colpo (il telegrafo prendeva il cooldown, l'emit lo trovava chiuso e il
+ * raggio che fa danno non nasceva mai: 30s simulati, 18 cicli, zero danno) --
+ * ed era peggio col telegrafo ridisegnato ogni tick, che ricaricava il
+ * cooldown all'infinito. I telegrafi restano soggetti alle sole quote per-tick
+ * dell'API (demo_script_api.h, congelata: 64 comandi visuali per tick). */
+#define DEMO_COOLDOWN_BEAM_SECONDS           0.35f
+#define DEMO_COOLDOWN_MELEE_SWEEP_SECONDS    0.25f
+#define DEMO_COOLDOWN_CAPTURE_RADIUS_SECONDS 0.8f
+#define DEMO_COOLDOWN_RING_SECONDS           0.12f
+
+/* Sentinella "mai emesso": abbastanza nel passato che la primissima emissione
+ * di ogni categoria, subito dopo un reset/spawn, non venga MAI scartata per
+ * cooldown (un memset a zero lascerebbe 0.0, che con globalTime=0 leggerebbe
+ * "appena emesso" e bloccherebbe il primo colpo del gioco). */
+#define DEMO_COOLDOWN_NEVER (-1000.0f)
+
 /* WP4: generatore esterno (spec sezione 2, ADR-002 -- bin/melting-gen come
  * processo figlio, mai linkato). Percorsi relativi alla CWD, come
  * DEMO_*_GENERATED_DIR sopra: la demo si lancia dalla radice del repo. */
@@ -85,6 +145,21 @@
 #define DEMO_GEN_MAX_ARGV 16
 
 static const Rectangle DEMO_ROOM = { 58.0f, 88.0f, 1164.0f, 566.0f };
+
+/* Bande del debug UI (correzione 08/08). La geometria dell'arena NON si tocca
+ * -- DEMO_ROOM e' la visuale di gioco originale, a cui il proprietario tiene --
+ * quindi tutto il debug vive FUORI da quel rettangolo: banda alta
+ * 0..DEMO_HUD_TOP_HEIGHT (esattamente DEMO_ROOM.y: l'ultima riga coperta e' la
+ * 87, la prima riga d'arena e' la 88) per i due pannelli NEMICO/ARMA, banda
+ * bassa da DEMO_HUD_BOTTOM_Y (sotto il bordo inferiore dell'arena, y=654) a
+ * fine finestra per contatori, riga GEN e legenda dei tasti. Il banner
+ * temporaneo prende la striscia DEMO_HUD_BANNER_Y..DEMO_HEIGHT, cioe' copre la
+ * legenda e nient'altro. Prima la barra pannelli era alta 130px: tagliava lo
+ * sprite del nemico (bordo alto y~103) e nascondeva del tutto la sua barra
+ * vita (y~91). */
+#define DEMO_HUD_TOP_HEIGHT 88
+#define DEMO_HUD_BOTTOM_Y   658
+#define DEMO_HUD_BANNER_Y   693
 
 /* Pannelli del confronto A/B (Tab): in split il mondo non copre piu' l'intero
  * frame ma viene disegnato due volte qui dentro. Sono costanti condivise fra
@@ -292,6 +367,32 @@ typedef struct DemoFrameInput {
     bool specialPressed;
 } DemoFrameInput;
 
+/* Categorie di cooldown v3 (vedi il blocco di #define sopra): un indice per
+ * ognuna, cosi' DemoThrottleState porta un array invece di quattro campi
+ * ripetuti a mano. */
+typedef enum DemoCooldownCategory {
+    DEMO_COOLDOWN_BEAM = 0,
+    DEMO_COOLDOWN_MELEE_SWEEP,
+    DEMO_COOLDOWN_CAPTURE_RADIUS,
+    DEMO_COOLDOWN_RING,
+    DEMO_COOLDOWN_CATEGORY_COUNT
+} DemoCooldownCategory;
+
+/* Budget v3 per UNA entita' (nemico o arma player): bucket proiettili/s +
+ * cooldown per categoria + il contatore "scartati" che l'HUD legge. Vive
+ * dentro DemoWorld (due istanze, enemyThrottle/weaponThrottle) ma NON si puo'
+ * azzerare con un semplice memset: DemoThrottleInit e' l'unico modo corretto
+ * di riportarlo a uno stato iniziale (vedi il commento sulla sentinella
+ * DEMO_COOLDOWN_NEVER sopra). */
+typedef struct DemoThrottleState {
+    float shotBucket;
+    int throttledWindowCount;  /* eventi scartati nella finestra APERTA (ultimo secondo in corso) */
+    int throttledLastSecond;   /* valore congelato per l'HUD: la finestra chiusa precedente */
+    float windowTimer;
+    float cooldownLast[DEMO_COOLDOWN_CATEGORY_COUNT];
+    bool cooldownUsedThisTick[DEMO_COOLDOWN_CATEGORY_COUNT];
+} DemoThrottleState;
+
 typedef struct DemoWorld {
     DemoScriptRuntime enemyScript;
     DemoScriptRuntime weaponScript;
@@ -305,6 +406,9 @@ typedef struct DemoWorld {
     DemoCaptureField captureFields[DEMO_MAX_CAPTURE_FIELDS];
     DemoParticle particles[DEMO_MAX_PARTICLES];
 
+    DemoThrottleState enemyThrottle;
+    DemoThrottleState weaponThrottle;
+
     float globalTime;
     int storedEchoes;
     int capturedTotal;
@@ -313,6 +417,24 @@ typedef struct DemoWorld {
     int lastWeaponCommandCount;
     uint32_t cosmeticRng;
 } DemoWorld;
+
+/* Stato UI transitorio v3 (playtest 08/08: "non si capisce il cambio arma/
+ * nemico", "a volte le entita' sembra che non si vedano"). Vive A FIANCO di
+ * DemoWorld in main(), come DemoGenState: un banner o l'avviso asset non
+ * devono sparire ad ogni DemoResetArena (memset di world), che non tocca
+ * ne' il pool ne' cosa il proprietario ha appena cambiato. */
+typedef struct DemoUiState {
+    char bannerText[160];
+    Color bannerColor;
+    float bannerTimer;      /* >0 mentre il banner e' visibile, vedi DEMO_UI_BANNER_SECONDS */
+    bool assetWarningShown; /* un asset stock e' risultato invalido almeno una volta: riga sticky in HUD */
+} DemoUiState;
+
+#define DEMO_UI_BANNER_SECONDS 2.5f
+
+static const Color DEMO_TAG_CURATED_COLOR   = { 126, 224, 255, 255 }; /* stesso azzurro "accent" gia' in uso nell'HUD */
+static const Color DEMO_TAG_GENERATED_COLOR = { 255, 181, 71, 255 };  /* stesso arancio di VIS_GRAVITY: "attenzione, e' Gemma" */
+static const Color DEMO_TAG_BASE_COLOR      = { 188, 201, 222, 255 }; /* pistola base: ne' curato ne' generato */
 
 typedef struct DemoRenderer {
     RenderTexture2D pixelTarget;
@@ -382,7 +504,41 @@ static float DemoRandomUnit(DemoWorld *world)
     return (float)(DemoNextRandom(world) & 0x00ffffffu)/(float)0x01000000u;
 }
 
-static Color DemoVisualColor(int visualId)
+/* Garanzia di visibilita' v3 (playtest 08/08: "a volte le entita' sembra che
+ * non si vedano"): qualunque colore visuale, presente o futuro, resta
+ * leggibile sul fondo quasi nero dell'arena. I 6 colori curati sotto sono
+ * gia' tutti chiari (non tocca niente in pratica); e' rete di sicurezza per
+ * un VIS_* aggiunto in seguito con una tinta scura, o per DemoVisualColor
+ * chiamata su un id non ancora mappato ma diverso da 0/default. */
+static Color DemoEnsureVisibleColor(Color color)
+{
+    const int MIN_LUMINANCE = 150;
+    int maxChannel = color.r;
+    if (color.g > maxChannel) maxChannel = color.g;
+    if (color.b > maxChannel) maxChannel = color.b;
+    if (maxChannel >= MIN_LUMINANCE) return color;
+
+    /* Nero puro: non c'e' nessuna tinta da preservare, l'unica risposta
+     * possibile e' un grigio esattamente sulla soglia. Senza questo ramo la
+     * "garanzia" saltava proprio nel caso peggiore, l'unico per cui esiste. */
+    if (maxChannel <= 0) return (Color){ MIN_LUMINANCE, MIN_LUMINANCE, MIN_LUMINANCE, color.a };
+
+    /* Scala i tre canali dello stesso fattore finche' il piu' alto vale
+     * esattamente MIN_LUMINANCE: e' un floor vero (non un mix verso il bianco,
+     * che asintoticamente non lo raggiungeva mai) e conserva la tinta, perche'
+     * i rapporti fra i canali restano identici. Nessun canale puo' sforare:
+     * per costruzione sono tutti <= maxChannel. Il +0.5f e' l'arrotondamento,
+     * altrimenti il troncamento del cast fermerebbe il massimo a 149. */
+    float scale = (float)MIN_LUMINANCE/(float)maxChannel;
+    return (Color){
+        (unsigned char)DemoClamp((float)color.r*scale + 0.5f, 0.0f, 255.0f),
+        (unsigned char)DemoClamp((float)color.g*scale + 0.5f, 0.0f, 255.0f),
+        (unsigned char)DemoClamp((float)color.b*scale + 0.5f, 0.0f, 255.0f),
+        color.a
+    };
+}
+
+static Color DemoVisualColorRaw(int visualId)
 {
     switch (visualId)
     {
@@ -394,6 +550,178 @@ static Color DemoVisualColor(int visualId)
         case DEMO_VIS_RELOAD_ORBIT: return (Color){ 255, 102, 153, 255 };
         default: return WHITE;
     }
+}
+
+static Color DemoVisualColor(int visualId)
+{
+    return DemoEnsureVisibleColor(DemoVisualColorRaw(visualId));
+}
+
+/* --------------------------------------------------------------------------
+ * v3: budget di bilanciamento. Bucket proiettili/s + cooldown per categoria,
+ * per UNA entita' (DemoThrottleState). Vedi il blocco di #define in cima al
+ * file per i valori e il razionale di taratura.
+ * -------------------------------------------------------------------------- */
+
+/* Azzera e riporta a uno stato iniziale SICURO: bucket a meta' capacita' (mai
+ * pieno al primo tick), cooldown tutti alla sentinella "mai emesso" (mai un
+ * memset a zero, che leggerebbe "appena emesso" a globalTime=0 e bloccherebbe
+ * la primissima emissione del gioco). Chiamata all'avvio e ad ogni (ri)carica
+ * dello script proprietario: uno script nuovo parte sempre con un budget
+ * fresco, mai a meta' consumato da quello precedente. */
+static void DemoThrottleInit(DemoThrottleState *throttle, float ratePerSecond)
+{
+    memset(throttle, 0, sizeof *throttle);
+    throttle->shotBucket = ratePerSecond*0.5f;
+    for (int i = 0; i < DEMO_COOLDOWN_CATEGORY_COUNT; i++) throttle->cooldownLast[i] = DEMO_COOLDOWN_NEVER;
+}
+
+/* Ricarica continua del bucket (una volta per tick fisso, MAI per comando: la
+ * ricarica e' nel tempo, non nel numero di emissioni) + rotazione della
+ * finestra "scartati/s" mostrata in HUD. La finestra si chiude ogni secondo
+ * VERO (windowTimer), non ogni tick fisso: a 60 tick/s il numero cambierebbe
+ * visibilmente ogni frame invece di leggersi come "al secondo". */
+static void DemoThrottleRefill(DemoThrottleState *throttle, float ratePerSecond, float dt)
+{
+    throttle->shotBucket = fminf(ratePerSecond, throttle->shotBucket + ratePerSecond*dt);
+    throttle->windowTimer += dt;
+    if (throttle->windowTimer >= 1.0f)
+    {
+        throttle->windowTimer -= 1.0f;
+        throttle->throttledLastSecond = throttle->throttledWindowCount;
+        throttle->throttledWindowCount = 0;
+    }
+}
+
+/* true se la categoria puo' emettere ORA: confronta col timestamp
+ * dell'ULTIMA emissione ACCETTATA, che DemoThrottleCommitTick aggiorna una
+ * volta sola a fine tick (vedi il commento sul gate nel blocco #define). */
+static bool DemoThrottleCooldownReady(const DemoThrottleState *throttle, DemoCooldownCategory category,
+                                      float tickTime, float cooldownSeconds)
+{
+    return (tickTime - throttle->cooldownLast[category]) >= cooldownSeconds;
+}
+
+static void DemoThrottleMarkCooldownUsed(DemoThrottleState *throttle, DemoCooldownCategory category)
+{
+    throttle->cooldownUsedThisTick[category] = true;
+}
+
+/* Commit di fine tick (chiamata una volta, alla fine di DemoConsumeCommands):
+ * sposta avanti SOLO i timestamp delle categorie usate in QUESTO tick, tutte
+ * insieme, cosi' due emissioni della stessa categoria nello stesso tick non
+ * si bloccano a vicenda (si confrontano entrambe col valore vecchio prima di
+ * questo commit). */
+static void DemoThrottleCommitTick(DemoThrottleState *throttle, float tickTime)
+{
+    for (int i = 0; i < DEMO_COOLDOWN_CATEGORY_COUNT; i++)
+    {
+        if (throttle->cooldownUsedThisTick[i])
+        {
+            throttle->cooldownLast[i] = tickTime;
+            throttle->cooldownUsedThisTick[i] = false;
+        }
+    }
+}
+
+/* Il nome dei file generati e' sempre "NNN_seed<seed>.lua" (WriteAttackScript
+ * in tools/melting-gen/gen_attacks.c): estrae il seed per l'HUD leggendo
+ * quella convenzione in UN solo punto, cosi' se mai cambiasse basta toccare
+ * qui. Ritorna 0 per un nome che non rispetta il pattern (o per un'entrata
+ * curata, che non ha un seed di generazione). */
+static unsigned int DemoPoolEntrySeed(const DemoPoolEntry *entry)
+{
+    if (entry->source != DEMO_POOL_SOURCE_GENERATED) return 0;
+    const char *marker = strstr(entry->fileName, "_seed");
+    if (marker == NULL) return 0;
+    return (unsigned int)strtoul(marker + 5, NULL, 10);
+}
+
+static void DemoStripLuaExtension(char *destination, size_t size, const char *fileName)
+{
+    snprintf(destination, size, "%s", fileName);
+    size_t length = strlen(destination);
+    if (length > 4 && strcmp(destination + length - 4, ".lua") == 0) destination[length - 4] = '\0';
+}
+
+static Color DemoSourceTagColor(DemoPoolSource source)
+{
+    return source == DEMO_POOL_SOURCE_CURATED ? DEMO_TAG_CURATED_COLOR : DEMO_TAG_GENERATED_COLOR;
+}
+
+static const char *DemoSourceTagLabel(DemoPoolSource source)
+{
+    return source == DEMO_POOL_SOURCE_CURATED ? "CURATO" : "GEMMA";
+}
+
+/* Banner grande temporaneo (v3, requisito HUD "il cambio arma/nemico e' poco
+ * chiaro"): un solo setter, usato per il cambio pool E per il lotto atterrato.
+ * Sovrascrive un banner ancora visibile invece di accodarsi: l'ultimo evento
+ * vince, mai una coda di messaggi. */
+static void DemoUiSetBanner(DemoUiState *ui, Color color, const char *text)
+{
+    snprintf(ui->bannerText, sizeof ui->bannerText, "%s", text);
+    ui->bannerColor = color;
+    ui->bannerTimer = DEMO_UI_BANNER_SECONDS;
+}
+
+static void DemoUiAnnounceEnemy(DemoUiState *ui, const DemoPool *enemyPool)
+{
+    if (enemyPool->count <= 0) return;
+    const DemoPoolEntry *entry = &enemyPool->entries[enemyPool->current];
+    char name[DEMO_POOL_NAME_MAX];
+    DemoStripLuaExtension(name, sizeof name, entry->fileName);
+    if (entry->source == DEMO_POOL_SOURCE_GENERATED)
+        DemoUiSetBanner(ui, DEMO_TAG_GENERATED_COLOR,
+                       TextFormat("NEMICO -> GEMMA: %s (seed %u)", name, DemoPoolEntrySeed(entry)));
+    else
+        DemoUiSetBanner(ui, DEMO_TAG_CURATED_COLOR, TextFormat("NEMICO -> CURATO: %s", name));
+}
+
+static void DemoUiAnnounceWeapon(DemoUiState *ui, const DemoPool *weaponPool)
+{
+    if (weaponPool->current == 0)
+    {
+        DemoUiSetBanner(ui, DEMO_TAG_BASE_COLOR, "ARMA -> BASE: pistola");
+        return;
+    }
+    const DemoPoolEntry *entry = &weaponPool->entries[weaponPool->current - 1];
+    char name[DEMO_POOL_NAME_MAX];
+    DemoStripLuaExtension(name, sizeof name, entry->fileName);
+    if (entry->source == DEMO_POOL_SOURCE_GENERATED)
+        DemoUiSetBanner(ui, DEMO_TAG_GENERATED_COLOR,
+                       TextFormat("ARMA -> GEMMA: %s (seed %u)", name, DemoPoolEntrySeed(entry)));
+    else
+        DemoUiSetBanner(ui, DEMO_TAG_CURATED_COLOR, TextFormat("ARMA -> CURATO: %s", name));
+}
+
+/* Secondo innesco del banner (v3: "... o quando ATTERRA una generazione"),
+ * indipendente dal primo: un lotto puo' finire senza che il proprietario
+ * cambi subito lo slot attivo. L'annuncio segue l'ESITO del figlio, non il
+ * delta di conteggio del pool (correzione 08/08: con il pool gia' a
+ * DEMO_POOL_MAX_ENTRIES il delta e' 0 anche per una generazione perfettamente
+ * riuscita, e il lotto atterrava in silenzio). newCount resta per distinguere
+ * "ci sono voci nuove" da "il pool e' pieno, quei file li vedrai al prossimo
+ * avvio": due messaggi diversi, entrambi meglio di nessun banner. Un lotto
+ * FALLITO non fa banner: resta sulla riga GEN, che dice anche l'exit code. */
+static void DemoUiAnnounceGenReady(DemoUiState *ui, DemoGenKind kind, int newCount, bool poolFull)
+{
+    const char *kindLabel = (kind == DEMO_GEN_KIND_ENEMY) ? "nemico" : "arma";
+    if (newCount > 0)
+        DemoUiSetBanner(ui, DEMO_TAG_GENERATED_COLOR,
+                       TextFormat("GEMMA: lotto %s pronto (+%d)", kindLabel, newCount));
+    else if (poolFull)
+        DemoUiSetBanner(ui, DEMO_TAG_GENERATED_COLOR,
+                       TextFormat("GEMMA: lotto %s pronto ma pool pieno (%d voci): riavvia per vederlo",
+                                  kindLabel, DEMO_POOL_MAX_ENTRIES));
+    else
+        DemoUiSetBanner(ui, DEMO_TAG_GENERATED_COLOR,
+                       TextFormat("GEMMA: lotto %s concluso, nessuno script nuovo sul disco", kindLabel));
+}
+
+static void DemoUiTick(DemoUiState *ui, float frameTime)
+{
+    if (ui->bannerTimer > 0.0f) ui->bannerTimer = fmaxf(0.0f, ui->bannerTimer - frameTime);
 }
 
 static void DemoBuildPath(char *destination, size_t size, const char *relative)
@@ -720,7 +1048,7 @@ static bool DemoGenSpawn(DemoGenState *gen, DemoGenKind kind, int count, unsigne
  * l'input"): WNOHANG non blocca mai, quindi e' sicuro chiamarla anche quando
  * pid==0. Quando il figlio e' morto lo stato uscita si raccoglie SEMPRE:
  * niente zombie (requisito 3, "waitpid raccoglie sempre"). */
-static void DemoGenPollTick(DemoGenState *gen, DemoPool *enemyPool, DemoPool *weaponPool)
+static void DemoGenPollTick(DemoGenState *gen, DemoPool *enemyPool, DemoPool *weaponPool, DemoUiState *ui)
 {
     if (gen->pid == 0) return;
 
@@ -748,9 +1076,15 @@ static void DemoGenPollTick(DemoGenState *gen, DemoPool *enemyPool, DemoPool *we
         snprintf(gen->statusText, sizeof gen->statusText, "GEN: lotto %s pronto", kindText);
         /* Scansione extra SUBITO (requisito 3): senza questo il file nuovo
          * aspetterebbe il prossimo tick di DemoPoolPollTick (~1s) invece di
-         * comparire nello stesso frame in cui il figlio ha finito. */
+         * comparire nello stesso frame in cui il figlio ha finito. newCount
+         * (v3, banner "atterra una generazione") e' quanti file lo scan ha
+         * aggiunto in QUESTO poll, indipendente dal cambio di slot attivo. */
+        DemoPool *targetPool = (gen->kind == DEMO_GEN_KIND_ENEMY) ? enemyPool : weaponPool;
+        int beforeCount = targetPool->count;
         DemoPoolScanGenerated(enemyPool, DEMO_ENEMY_GENERATED_DIR);
         DemoPoolScanGenerated(weaponPool, DEMO_WEAPON_GENERATED_DIR);
+        DemoUiAnnounceGenReady(ui, gen->kind, targetPool->count - beforeCount,
+                               targetPool->count >= DEMO_POOL_MAX_ENTRIES);
     }
     else
     {
@@ -840,6 +1174,23 @@ static void DemoEnemyBeginPattern(DemoWorld *world, const DemoPool *enemyPool)
     const DemoPoolEntry *entry = &enemyPool->entries[enemyPool->current];
     DemoScriptLoad(&world->enemyScript, entry, DEMO_ENEMY_GENERATED_DIR, false,
                    0x51A7u + (unsigned int)enemyPool->current*97u);
+    /* v3: sprite stabile per script (mai piu' un ciclo ad ogni respawn --
+     * playtest 08/08, "non si capisce quando cambia il nemico") e budget
+     * fresco per il pattern che comincia ORA, mai a meta' consumato da quello
+     * precedente (unico punto di ricarica: copre spawn iniziale, respawn dopo
+     * la morte, N/SHIFT+N, e l'avanzamento automatico della cattura headless).
+     *
+     * Lo sprite si sceglie con l'INDICE della voce nel pool, non con un hash
+     * del nome (correzione 08/08: djb2 & 3 mandava spider_arc,
+     * snail_calligrapher e squid_reload sullo stesso sprite -- due nemici
+     * curati su tre con la stessa faccia, e premere N non si percepiva). Con
+     * l'indice, voci ADIACENTI hanno per costruzione sprite diversi, che e' la
+     * proprieta' che serve davvero mentre si scorre il pool; resta stabile per
+     * script perche' l'ordine del pool e' deterministico (curati nell'ordine
+     * cablato, generati appesi in coda in ordine alfabetico e mai riordinati,
+     * vedi DemoPoolScanGenerated). */
+    world->enemy.spriteKind = enemyPool->current & 3;
+    DemoThrottleInit(&world->enemyThrottle, DEMO_ENEMY_SHOT_RATE_PER_SEC);
 }
 
 /* Fa nascere/rinascere il nemico con enemyPool->current SENZA avanzare
@@ -866,18 +1217,76 @@ static void DemoEnemyKill(DemoWorld *world)
     world->enemy.respawnTimer = DEMO_ENEMY_RESPAWN_SECONDS;
 }
 
-static DemoProjectile *DemoNewProjectile(DemoWorld *world)
+/* Colpi vivi in QUESTO momento con lo stesso flag hostile (la codifica di
+ * "proprietario" gia' usata in tutto il file: hostile=true puo' ferire il
+ * player -- nemico -- hostile=false puo' ferire il nemico -- player). Costa
+ * una scansione dei 640 slot: chiamata solo dall'HUD (una volta a frame) e da
+ * DemoNewProjectile (una volta per colpo spawnato, al massimo una manciata a
+ * tick), mai in un punto caldo. */
+static int DemoCountActiveShots(const DemoWorld *world, bool hostile)
 {
+    int count = 0;
+    for (int i = 0; i < DEMO_MAX_PROJECTILES; i++)
+        if (world->projectiles[i].active && world->projectiles[i].hostile == hostile) count++;
+    return count;
+}
+
+/* Punto unico di allocazione di un proiettile (spawn diretto, ring, orbit,
+ * mezzaluna, echi, pistola base: tutti passano da qui): v3 applica qui,
+ * SENZA eccezioni, il cap di colpi attivi e il token bucket proiettili/s del
+ * proprietario "hostile". Un rifiuto per cap o per bucket e' identico dal
+ * punto di vista del chiamante (ritorna NULL, come quando lo slot pool e'
+ * pieno): non e' un errore, e' un troncamento silenzioso -- lo stesso
+ * contatore "scartati" dell'HUD copre entrambi i casi, il proprietario non ha
+ * bisogno di sapere QUALE dei due tetti ha fermato il colpo, solo che Gemma
+ * sta sforando. */
+static DemoProjectile *DemoNewProjectile(DemoWorld *world, bool hostile)
+{
+    DemoThrottleState *throttle = hostile ? &world->enemyThrottle : &world->weaponThrottle;
+    int cap = hostile ? DEMO_ENEMY_SHOT_CAP : DEMO_WEAPON_SHOT_CAP;
+
+    if (DemoCountActiveShots(world, hostile) >= cap)
+    {
+        throttle->throttledWindowCount++;
+        return NULL;
+    }
+    if (throttle->shotBucket < 1.0f)
+    {
+        throttle->throttledWindowCount++;
+        return NULL;
+    }
+
     for (int i = 0; i < DEMO_MAX_PROJECTILES; i++)
     {
         if (!world->projectiles[i].active)
         {
             memset(&world->projectiles[i], 0, sizeof world->projectiles[i]);
             world->projectiles[i].active = true;
+            throttle->shotBucket -= 1.0f;
             return &world->projectiles[i];
         }
     }
-    return NULL;
+    return NULL;   /* pool globale (640 slot) esaurito: non e' un budget v3, resta inalterato */
+}
+
+/* Quanti colpi di un burst CIRCOLARE possono davvero nascere in questo istante
+ * (cap dei colpi attivi + token bucket), contando subito come "scartati" quelli
+ * che non nasceranno. Serve perche' un cerchio troncato riempiendo gli indici
+ * dal primo in poi degenera in un ventaglio da un lato -- chiedendo prima
+ * quanti ne passano, il burst si ridistribuisce sull'intero giro e un ring
+ * troncato resta un ring, solo piu' rado. */
+static int DemoShotAllowance(DemoWorld *world, bool hostile, int wanted)
+{
+    DemoThrottleState *throttle = hostile ? &world->enemyThrottle : &world->weaponThrottle;
+    int cap = hostile ? DEMO_ENEMY_SHOT_CAP : DEMO_WEAPON_SHOT_CAP;
+    int room = cap - DemoCountActiveShots(world, hostile);
+    int tokens = (int)floorf(throttle->shotBucket);
+    int allowed = wanted;
+    if (allowed > room) allowed = room;
+    if (allowed > tokens) allowed = tokens;
+    if (allowed < 0) allowed = 0;
+    throttle->throttledWindowCount += wanted - allowed;
+    return allowed;
 }
 
 static DemoArcEffect *DemoNewArc(DemoWorld *world)
@@ -951,7 +1360,7 @@ static void DemoSpawnParticles(DemoWorld *world, Vector2 position, Color color, 
 static void DemoSpawnShot(DemoWorld *world, Vector2 position, float angle, float speed,
                           float radius, float damage, float life, int visualId, bool hostile)
 {
-    DemoProjectile *shot = DemoNewProjectile(world);
+    DemoProjectile *shot = DemoNewProjectile(world, hostile);
     if (shot == NULL) return;
     shot->position = position;
     shot->velocity = Vector2Scale(DemoDirection(angle), speed);
@@ -967,10 +1376,13 @@ static void DemoSpawnShot(DemoWorld *world, Vector2 position, float angle, float
 
 static void DemoSpawnOrbit(DemoWorld *world, const DemoScriptCommand *command, bool hostile)
 {
-    int count = command->count;
+    /* Come il ring: si chiede PRIMA quanti colpi passano, poi si distribuiscono
+     * su tutto il giro (una corona rada resta una corona, un troncamento a
+     * meta' del ciclo lascerebbe una mezzaluna di orbitanti). */
+    int count = DemoShotAllowance(world, hostile, command->count);
     for (int i = 0; i < count; i++)
     {
-        DemoProjectile *shot = DemoNewProjectile(world);
+        DemoProjectile *shot = DemoNewProjectile(world, hostile);
         if (shot == NULL) return;
         float phase = DEMO_TAU*(float)i/(float)count;
         shot->orbiting = true;
@@ -993,9 +1405,10 @@ static void DemoSpawnOrbit(DemoWorld *world, const DemoScriptCommand *command, b
 static void DemoSpawnRing(DemoWorld *world, const DemoScriptCommand *command, bool hostile)
 {
     float phase = 0.23f*world->globalTime;
-    for (int i = 0; i < command->count; i++)
+    int count = DemoShotAllowance(world, hostile, command->count);
+    for (int i = 0; i < count; i++)
     {
-        float angle = phase + DEMO_TAU*(float)i/(float)command->count;
+        float angle = phase + DEMO_TAU*(float)i/(float)count;
         DemoSpawnShot(world, (Vector2){ command->x, command->y }, angle,
                       command->speed, command->projectileRadius, command->damage,
                       command->life, command->visualId, hostile);
@@ -1079,13 +1492,21 @@ static void DemoApplyMelee(DemoWorld *world, const DemoScriptCommand *command)
 
 /* Consuma il command buffer di UNA sandbox (nemico o arma). hostile
  * distingue le due, per chi guarda solo il buffer risultante: e' cio' che
- * decide se un arco/proiettile puo' ferire il player invece del nemico. */
+ * decide se un arco/proiettile puo' ferire il player invece del nemico. E'
+ * anche la chiave del budget v3 (throttle): "nemico" e "arma" hanno bucket e
+ * cooldown separati, scelti qui in base a QUALE sandbox ha emesso il comando
+ * -- non in base a chi il colpo risultante puo' ferire (quella e' la scelta
+ * di DemoNewProjectile, sul flag hostile del singolo colpo: per RELEASE_ECHOES
+ * i due possono divergere, vedi il commento li' sotto). */
 static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bool hostile,
                                 int *lastCommandCount)
 {
     const DemoScriptCommand *commands = DemoScriptApiCommands(&runtime->api);
     size_t commandCount = DemoScriptApiCommandCount(&runtime->api);
     *lastCommandCount = (int)commandCount;
+
+    DemoThrottleState *throttle = hostile ? &world->enemyThrottle : &world->weaponThrottle;
+    float tickTime = world->globalTime;
 
     for (size_t i = 0; i < commandCount; i++)
     {
@@ -1096,6 +1517,19 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
             case DEMO_CMD_EMIT_ARC:
             case DEMO_CMD_MELEE_SWEEP:
             {
+                /* v3: cooldown solo su MELEE_SWEEP (il vero colpo corpo a
+                 * corpo). telegraph_arc non paga NESSUN budget per principio
+                 * (non spawna e non ferisce, vedi il blocco #define);
+                 * emit_arc non ha categoria propria -- nessuno dei curati ne
+                 * abusa, e i colpi che genera (mezzaluna) sono gia' limitati
+                 * dal bucket proiettili/s in DemoNewProjectile. */
+                if (command->type == DEMO_CMD_MELEE_SWEEP &&
+                    !DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_MELEE_SWEEP, tickTime,
+                                               DEMO_COOLDOWN_MELEE_SWEEP_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
                 DemoArcEffect *arc = DemoNewArc(world);
                 if (arc != NULL)
                 {
@@ -1112,20 +1546,48 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
                     arc->visualId = command->visualId;
                 }
                 if (command->type == DEMO_CMD_EMIT_ARC && hostile) DemoSpawnCrescentWall(world, command);
-                if (command->type == DEMO_CMD_MELEE_SWEEP && !hostile) DemoApplyMelee(world, command);
+                if (command->type == DEMO_CMD_MELEE_SWEEP)
+                {
+                    if (!hostile) DemoApplyMelee(world, command);
+                    DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_MELEE_SWEEP);
+                }
             } break;
 
             case DEMO_CMD_EMIT_RING:
+                if (!DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_RING, tickTime, DEMO_COOLDOWN_RING_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
                 DemoSpawnRing(world, command, hostile);
+                DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_RING);
                 break;
 
             case DEMO_CMD_EMIT_ORBIT:
+                /* l'orbit conta come ring (stessa categoria di cooldown v3):
+                 * uno script che alterna ring/orbit per aggirare un
+                 * cooldown-per-tipo non guadagna nulla. */
+                if (!DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_RING, tickTime, DEMO_COOLDOWN_RING_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
                 DemoSpawnOrbit(world, command, hostile);
+                DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_RING);
                 break;
 
             case DEMO_CMD_TELEGRAPH_BEAM:
             case DEMO_CMD_EMIT_BEAM:
             {
+                /* Solo emit_beam paga il cooldown: il telegrafo e' un disegno,
+                 * non un'emissione (vedi il blocco #define sui budget). */
+                bool isRealBeam = command->type == DEMO_CMD_EMIT_BEAM;
+                if (isRealBeam &&
+                    !DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_BEAM, tickTime, DEMO_COOLDOWN_BEAM_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
                 DemoBeamEffect *beam = DemoNewBeam(world);
                 if (beam != NULL)
                 {
@@ -1139,6 +1601,7 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
                     beam->life = beam->totalLife = command->duration;
                     beam->visualId = command->visualId;
                 }
+                if (isRealBeam) DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_BEAM);
             } break;
 
             case DEMO_CMD_SET_VELOCITY:
@@ -1160,6 +1623,12 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
 
             case DEMO_CMD_CAPTURE_RADIUS:
             {
+                if (!DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_CAPTURE_RADIUS, tickTime,
+                                               DEMO_COOLDOWN_CAPTURE_RADIUS_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
                 DemoCaptureField *field = DemoNewCaptureField(world);
                 if (field != NULL)
                 {
@@ -1171,12 +1640,39 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
                     field->visualId = command->visualId;
                     field->playerOwned = !hostile;
                 }
+                DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_CAPTURE_RADIUS);
             } break;
 
             case DEMO_CMD_RELEASE_ECHOES:
             {
-                int available = world->storedEchoes;
-                int releaseCount = available > 0 ? available : 1;
+                /* Stessa categoria RING del bucket cooldown, sul lato che ha
+                 * EMESSO il comando (throttle/hostile qui sopra). I colpi
+                 * ereditano lo stesso 'hostile' (correzione 08/08: prima
+                 * uscivano sempre con hostile=false, cioe' un nemico che
+                 * chiamava release_echoes sparava colpi del PLAYER e li faceva
+                 * pagare al budget dell'ARMA -- il gate diceva "nemico", lo
+                 * spawn diceva "arma", e il pannello ARMA vedeva salire gli
+                 * scartati per colpa del nemico).
+                 * La riserva di echi e' del player: la riempie solo un
+                 * capture_radius dell'ARMA (DemoUpdateCaptureFields) e la
+                 * consuma solo un release_echoes dell'arma. Un nemico non la
+                 * legge e non la azzera: spara il suo cono e basta. */
+                if (!DemoThrottleCooldownReady(throttle, DEMO_COOLDOWN_RING, tickTime, DEMO_COOLDOWN_RING_SECONDS))
+                {
+                    throttle->throttledWindowCount++;
+                    break;
+                }
+                int available = hostile ? 0 : world->storedEchoes;
+                /* Il nemico non ha riserva, quindi il suo release_echoes vale
+                 * per quello che e' -- il ventaglio dichiarato dallo script.
+                 * Farlo cadere a un colpo solo lo renderebbe un dud silenzioso
+                 * (i prompt lo elencano fra gli attacchi veri di un nemico e il
+                 * validatore lo accetta), lo stesso difetto del cooldown beam
+                 * condiviso col telegrafo. L'ARMA invece scarica la riserva
+                 * accumulata con capture_radius: un eco per colpo, uno solo se
+                 * non ha catturato niente. */
+                int releaseCount = hostile ? command->count
+                                           : (available > 0 ? available : 1);
                 if (releaseCount > command->count) releaseCount = command->count;
                 for (int shot = 0; shot < releaseCount; shot++)
                 {
@@ -1185,12 +1681,15 @@ static void DemoConsumeCommands(DemoWorld *world, DemoScriptRuntime *runtime, bo
                     DemoSpawnShot(world, (Vector2){ command->x, command->y }, angle,
                                   command->speed, 7.0f + 0.7f*(float)available,
                                   command->damage + 0.5f*(float)available,
-                                  command->life, command->visualId, false);
+                                  command->life, command->visualId, hostile);
                 }
-                world->storedEchoes = 0;
+                if (!hostile) world->storedEchoes = 0;
+                DemoThrottleMarkCooldownUsed(throttle, DEMO_COOLDOWN_RING);
             } break;
         }
     }
+
+    DemoThrottleCommitTick(throttle, tickTime);
 }
 
 static void DemoRunEnemyScript(DemoWorld *world, float dt)
@@ -1257,7 +1756,8 @@ static void DemoRunWeaponScript(DemoWorld *world, float dt, bool fireHeld, bool 
 static void DemoEnemyRespawn(DemoWorld *world, DemoPool *enemyPool)
 {
     if (enemyPool->count > 0) enemyPool->current = (enemyPool->current + 1)%enemyPool->count;
-    world->enemy.spriteKind = (world->enemy.spriteKind + 1) & 3;
+    /* spriteKind non si cicla piu' qui: DemoEnemyBeginPattern (dentro
+     * DemoEnemySpawn) lo deriva dal nome del nuovo script, v3. */
     DemoEnemySpawn(world, enemyPool);
 }
 
@@ -1302,7 +1802,11 @@ static void DemoUpdateCaptureFields(DemoWorld *world, float dt)
             {
                 shot->active = false;
                 field->remaining--;
-                world->storedEchoes++;
+                /* Solo un campo dell'ARMA alimenta la riserva di echi: e' una
+                 * risorsa del player, e release_echoes di un nemico non la
+                 * legge (vedi DEMO_CMD_RELEASE_ECHOES). Un campo nemico
+                 * assorbe comunque il colpo e conta fra i "catturati". */
+                if (field->playerOwned) world->storedEchoes++;
                 world->capturedTotal++;
                 DemoSpawnParticles(world, shot->position, DemoVisualColor(field->visualId), 9, 75.0f);
             }
@@ -1536,6 +2040,26 @@ static void DemoUpdatePlayerAimAndWeapon(DemoWorld *world, const DemoPool *weapo
     }
 }
 
+/* Punto unico per (ri)equipaggiare l'arma allo slot weaponPool->current
+ * (0 = pistola base): usato da R/scadenza KO (DemoResetArena, announce=false,
+ * "stessi script") e dai tasti M/SHIFT+M in main() (announce=true, "il
+ * proprietario ha appena cambiato arma"). v3: azzera SEMPRE il budget
+ * dell'arma qui, cosi' un'arma appena equipaggiata (o la pistola base appena
+ * ripristinata) parte con un tetto fresco, mai a meta' consumato da quella
+ * precedente. ui puo' essere NULL quando announce e' false (DemoResetArena
+ * non ha e non deve toccare lo stato del banner). */
+static void DemoWeaponEquip(DemoWorld *world, const DemoPool *weaponPool, DemoUiState *ui, bool announce)
+{
+    DemoThrottleInit(&world->weaponThrottle, DEMO_WEAPON_SHOT_RATE_PER_SEC);
+    if (weaponPool->current == 0)
+        DemoScriptUnload(&world->weaponScript);
+    else
+        DemoScriptLoad(&world->weaponScript, &weaponPool->entries[weaponPool->current - 1],
+                       DEMO_WEAPON_GENERATED_DIR, true,
+                       0x77A1u + (unsigned int)weaponPool->current*53u);
+    if (announce && ui != NULL) DemoUiAnnounceWeapon(ui, weaponPool);
+}
+
 /* Reset arena "leggero": ricrea player/nemico/proiettili/effetti usando gli
  * indici pool CORRENTI, senza avanzarli (tasto R e scadenza del KO). */
 static void DemoResetArena(DemoWorld *world, const DemoPool *enemyPool, const DemoPool *weaponPool)
@@ -1551,10 +2075,7 @@ static void DemoResetArena(DemoWorld *world, const DemoPool *enemyPool, const De
     world->player.position = (Vector2){ 640.0f, 532.0f };
 
     DemoEnemySpawn(world, enemyPool);
-    if (weaponPool->current != 0)
-        DemoScriptLoad(&world->weaponScript, &weaponPool->entries[weaponPool->current - 1],
-                       DEMO_WEAPON_GENERATED_DIR, true,
-                       0x77A1u + (unsigned int)weaponPool->current*53u);
+    DemoWeaponEquip(world, weaponPool, NULL, false);
 }
 
 static void DemoUpdateWorld(DemoWorld *world, DemoPool *enemyPool, DemoPool *weaponPool,
@@ -1577,6 +2098,13 @@ static void DemoUpdateWorld(DemoWorld *world, DemoPool *enemyPool, DemoPool *wea
 
     world->player.invulnerability = fmaxf(0.0f, world->player.invulnerability - dt);
     world->player.statusTime = fmaxf(0.0f, world->player.statusTime - dt);
+
+    /* v3: ricarica dei due bucket proiettili/s una volta per tick fisso,
+     * PRIMA che nemico/arma emettano comandi in questo stesso tick -- mai
+     * dentro DemoConsumeCommands, che gira una volta a testa e non deve
+     * ricaricare due volte lo stesso secondo. */
+    DemoThrottleRefill(&world->enemyThrottle, DEMO_ENEMY_SHOT_RATE_PER_SEC, dt);
+    DemoThrottleRefill(&world->weaponThrottle, DEMO_WEAPON_SHOT_RATE_PER_SEC, dt);
 
     DemoUpdatePlayerMovement(world, dt, frameInput);
     DemoUpdatePlayerAimAndWeapon(world, weaponPool, dt, frameInput, specialPressed);
@@ -1613,6 +2141,29 @@ static void DemoDrawTextureCentered(Texture2D texture, Vector2 position, float w
     Rectangle destination = { position.x, position.y, width, height };
     Vector2 origin = { width*0.5f, height*0.5f };
     DrawTexturePro(texture, source, destination, origin, rotation, tint);
+}
+
+/* Rete di sicurezza v3 (playtest 08/08: "a volte le entita' sembra che non si
+ * vedano"): un asset stock mancante o corrotto non risulta MAI in un disegno
+ * vuoto. Il rettangolo magenta e' deliberatamente vistoso -- nessuno lo
+ * scambia per uno sprite vero -- cosi' il problema si nota subito invece di
+ * passare per un bug di gameplay. Il caso "texture assente" e' gia' comune
+ * (DemoLoadAssets non blocca piu' l'avvio su un singolo asset rotto, vedi
+ * main()): questo e' il punto che lo rende innocuo a runtime. */
+static void DemoDrawTextureOrPlaceholder(DemoUiState *ui, Texture2D texture, Vector2 position,
+                                         float width, float height, float rotation, Color tint)
+{
+    if (DemoTextureValid(texture))
+    {
+        DemoDrawTextureCentered(texture, position, width, height, rotation, tint);
+        return;
+    }
+    Rectangle rect = { position.x, position.y, width, height };
+    Vector2 origin = { width*0.5f, height*0.5f };
+    DrawRectanglePro(rect, origin, rotation, (Color){ 255, 0, 255, 220 });
+    DrawRectangleLinesEx((Rectangle){ position.x - width*0.5f, position.y - height*0.5f, width, height },
+                         2.0f, WHITE);
+    ui->assetWarningShown = true;  /* sticky: l'HUD lo mostra da qui in poi (vedi DemoDrawWorldHud) */
 }
 
 static void DemoDrawArenaBackdrop(const DemoWorld *world, DemoRenderMode mode)
@@ -1720,20 +2271,26 @@ static void DemoDrawBeamEffect(const DemoBeamEffect *beam, DemoRenderMode mode, 
 static void DemoDrawProjectile(const DemoProjectile *shot, DemoRenderMode mode)
 {
     Color color = DemoVisualColor(shot->visualId);
-    float lifeAlpha = DemoClamp(shot->life*4.0f, 0.0f, 1.0f);
+    /* v3 (playtest 08/08, "a volte le entita' sembra che non si vedano"):
+     * raggio e alpha minimi di DISEGNO, mai quelli fisici -- un colpo generato
+     * con radius/damage minuscoli (range valido ma spinto al limite basso dal
+     * prompt) resta comunque leggibile. shot->radius (la hitbox vera) non
+     * cambia: solo cio' che finisce sullo schermo. */
+    float drawRadius = fmaxf(3.0f, shot->radius);
+    float lifeAlpha = fmaxf(0.55f, DemoClamp(shot->life*4.0f, 0.0f, 1.0f));
 
     for (int i = shot->trailCount - 1; i > 0; i--)
     {
         float alpha = (float)(shot->trailCount - i)/(float)shot->trailCount;
-        float width = mode == DEMO_RENDER_PIXEL ? fmaxf(1.0f, shot->radius*0.55f)
-                                                 : fmaxf(1.0f, shot->radius*(0.35f + alpha));
+        float width = mode == DEMO_RENDER_PIXEL ? fmaxf(1.0f, drawRadius*0.55f)
+                                                 : fmaxf(1.0f, drawRadius*(0.35f + alpha));
         DrawLineEx(shot->trail[i], shot->trail[i - 1], width, Fade(color, 0.06f + alpha*0.22f));
     }
 
     if (mode != DEMO_RENDER_PIXEL)
     {
         BeginBlendMode(BLEND_ADDITIVE);
-        DrawCircleGradient(shot->position, shot->radius*3.4f,
+        DrawCircleGradient(shot->position, drawRadius*3.4f,
                            Fade(color, 0.21f*lifeAlpha), BLANK);
         EndBlendMode();
     }
@@ -1741,10 +2298,10 @@ static void DemoDrawProjectile(const DemoProjectile *shot, DemoRenderMode mode)
     if (shot->visualId == DEMO_VIS_VIOLET_CUT)
     {
         float degrees = shot->rotation*RAD2DEG;
-        DrawRing(shot->position, shot->radius*0.85f, shot->radius*1.8f,
+        DrawRing(shot->position, drawRadius*0.85f, drawRadius*1.8f,
                  degrees - 72.0f, degrees + 72.0f,
                  mode == DEMO_RENDER_PIXEL ? 8 : 20, Fade(color, lifeAlpha));
-        DrawRingLines(shot->position, shot->radius*0.85f, shot->radius*1.8f,
+        DrawRingLines(shot->position, drawRadius*0.85f, drawRadius*1.8f,
                       degrees - 72.0f, degrees + 72.0f,
                       mode == DEMO_RENDER_PIXEL ? 8 : 20, Fade(WHITE, lifeAlpha*0.78f));
     }
@@ -1752,26 +2309,26 @@ static void DemoDrawProjectile(const DemoProjectile *shot, DemoRenderMode mode)
     {
         Vector2 forward = DemoDirection(shot->rotation);
         Vector2 side = { -forward.y, forward.x };
-        Vector2 a = DemoAddScaled(shot->position, forward, shot->radius*1.7f);
-        Vector2 b = DemoAddScaled(shot->position, side, shot->radius);
-        Vector2 c = DemoAddScaled(shot->position, side, -shot->radius);
+        Vector2 a = DemoAddScaled(shot->position, forward, drawRadius*1.7f);
+        Vector2 b = DemoAddScaled(shot->position, side, drawRadius);
+        Vector2 c = DemoAddScaled(shot->position, side, -drawRadius);
         DrawTriangle(a, b, c, Fade(color, lifeAlpha));
         DrawTriangleLines(a, b, c, WHITE);
     }
     else if (shot->visualId == DEMO_VIS_CALLIGRAPHY_INK)
     {
-        DrawCircleV(shot->position, shot->radius*1.2f, Fade(color, lifeAlpha));
-        DrawCircleV((Vector2){ shot->position.x - shot->radius*0.45f, shot->position.y - shot->radius*0.4f },
-                    shot->radius*0.45f, Fade((Color){ 8, 20, 28, 255 }, lifeAlpha));
+        DrawCircleV(shot->position, drawRadius*1.2f, Fade(color, lifeAlpha));
+        DrawCircleV((Vector2){ shot->position.x - drawRadius*0.45f, shot->position.y - drawRadius*0.4f },
+                    drawRadius*0.45f, Fade((Color){ 8, 20, 28, 255 }, lifeAlpha));
     }
     else
     {
         if (mode == DEMO_RENDER_PIXEL)
-            DrawRectangle((int)(shot->position.x - shot->radius), (int)(shot->position.y - shot->radius),
-                          (int)fmaxf(2.0f, shot->radius*2.0f), (int)fmaxf(2.0f, shot->radius*2.0f),
+            DrawRectangle((int)(shot->position.x - drawRadius), (int)(shot->position.y - drawRadius),
+                          (int)fmaxf(2.0f, drawRadius*2.0f), (int)fmaxf(2.0f, drawRadius*2.0f),
                           Fade(color, lifeAlpha));
-        else DrawCircleV(shot->position, shot->radius, Fade(color, lifeAlpha));
-        DrawCircleV(shot->position, fmaxf(1.5f, shot->radius*0.34f), WHITE);
+        else DrawCircleV(shot->position, drawRadius, Fade(color, lifeAlpha));
+        DrawCircleV(shot->position, fmaxf(1.5f, drawRadius*0.34f), WHITE);
     }
 }
 
@@ -1818,8 +2375,9 @@ static void DemoDrawParticles(const DemoWorld *world, DemoRenderMode mode)
 
 /* Disegno nemico generico (ombra + sprite + flash + barra vita): niente piu'
  * disegni cuciti sulla singola scena curata, il pattern ora arriva da un pool
- * aperto. Lo sprite e' solo cosmetico, ciclato ad ogni respawn. */
-static void DemoDrawEnemy(const DemoAssets *assets, const DemoWorld *world)
+ * aperto. Lo sprite e' solo cosmetico, stabile per script (v3: hash del nome
+ * file in DemoEnemyBeginPattern, non piu' ciclato ad ogni respawn). */
+static void DemoDrawEnemy(DemoUiState *ui, const DemoAssets *assets, const DemoWorld *world)
 {
     const DemoEnemy *enemy = &world->enemy;
     if (!enemy->alive && enemy->corpseFade <= 0.0f) return;
@@ -1831,7 +2389,13 @@ static void DemoDrawEnemy(const DemoAssets *assets, const DemoWorld *world)
     Color tint = enemy->hitFlash > 0.0f ? WHITE : Fade((Color){ 248, 248, 255, 255 }, fadeAlpha);
 
     DrawEllipse((int)position.x, (int)(position.y + 28.0f), 38.0f, 11.0f, Fade(BLACK, 0.42f*fadeAlpha));
-    DemoDrawTextureCentered(DemoEnemyTexture(assets, enemy->spriteKind), position, 56.0f, 56.0f, 0.0f, tint);
+    /* v3 (playtest 08/08, "il nemico a volte sembra sparire"): durante il
+     * fade del cadavere il contorno resta ad alpha minima invece di svanire
+     * insieme allo sprite, stesso principio del pavimento minimo sui
+     * proiettili in DemoDrawProjectile. */
+    if (!enemy->alive)
+        DrawCircleLines((int)position.x, (int)position.y, 30.0f, Fade(BLACK, fmaxf(0.30f, fadeAlpha)));
+    DemoDrawTextureOrPlaceholder(ui, DemoEnemyTexture(assets, enemy->spriteKind), position, 56.0f, 56.0f, 0.0f, tint);
 
     if (enemy->alive && enemy->hp > 0.0f)
     {
@@ -1846,24 +2410,25 @@ static void DemoDrawEnemy(const DemoAssets *assets, const DemoWorld *world)
  * le armi generate non hanno un modello proprio, si vedono solo attraverso i
  * comandi visuali che emettono. Se il player ricade sulla pistola perche' la
  * sandbox arma e' morta, l'arma in mano ricompare da sola. */
-static void DemoDrawPlayerWeapon(const DemoAssets *assets, const DemoWorld *world, bool baseWeaponActive)
+static void DemoDrawPlayerWeapon(DemoUiState *ui, const DemoAssets *assets, const DemoWorld *world,
+                                 bool baseWeaponActive)
 {
     if (!baseWeaponActive) return;
     float degrees = world->player.aimAngle*RAD2DEG;
     Vector2 gunPosition = DemoAddScaled(world->player.position, DemoDirection(world->player.aimAngle), 24.0f);
-    DemoDrawTextureCentered(assets->handgun, gunPosition, 58.0f, 58.0f, degrees, (Color){ 198, 214, 222, 255 });
+    DemoDrawTextureOrPlaceholder(ui, assets->handgun, gunPosition, 58.0f, 58.0f, degrees, (Color){ 198, 214, 222, 255 });
 }
 
-static void DemoDrawPlayer(const DemoAssets *assets, const DemoWorld *world, bool baseWeaponActive)
+static void DemoDrawPlayer(DemoUiState *ui, const DemoAssets *assets, const DemoWorld *world, bool baseWeaponActive)
 {
     Vector2 position = world->player.position;
     float bob = sinf(world->globalTime*8.0f)*1.5f;
     Color tint = (world->player.invulnerability > 0.0f && fmodf(world->globalTime, 0.10f) < 0.05f)
                      ? Fade(WHITE, 0.35f) : WHITE;
     DrawEllipse((int)position.x, (int)(position.y + 19.0f), 17.0f, 6.0f, Fade(BLACK, 0.44f));
-    DemoDrawPlayerWeapon(assets, world, baseWeaponActive);
-    DemoDrawTextureCentered(assets->player, (Vector2){ position.x, position.y + bob },
-                            34.0f, 34.0f, 0.0f, tint);
+    DemoDrawPlayerWeapon(ui, assets, world, baseWeaponActive);
+    DemoDrawTextureOrPlaceholder(ui, assets->player, (Vector2){ position.x, position.y + bob },
+                                 34.0f, 34.0f, 0.0f, tint);
 
     if (world->player.statusTime > 0.0f)
         DrawRingLines(position, 18.0f, 21.0f, world->globalTime*90.0f,
@@ -1888,83 +2453,205 @@ static void DemoDrawKoOverlay(const DemoWorld *world)
     DrawText(text, (DEMO_WIDTH - width)/2, DEMO_HEIGHT/2 - size/2, size, (Color){ 255, 104, 116, 255 });
 }
 
-static const char *DemoWeaponDisplayName(const DemoPool *weaponPool)
+/* Spinner testuale della riga GEN: v3, "indicatore generazione in corso ben
+ * visibile" (playtest 08/08: la riga passava quasi inosservata). GetTime() e'
+ * il tempo reale del processo, non world->globalTime: e' puramente cosmetico
+ * e va avanti anche in pausa, che e' proprio il momento in cui il
+ * proprietario guarda l'HUD invece dell'azione. */
+static const char *DemoGenSpinnerFrame(void)
 {
-    if (weaponPool->current == 0) return "pistola base";
-    return weaponPool->entries[weaponPool->current - 1].fileName;
+    static const char *frames[4] = { "|", "/", "-", "\\" };
+    return frames[((int)(GetTime()*8.0)) & 3];
+}
+
+/* Un pannello di debug (nemico o arma): nome script, fonte con tag colorato,
+ * seed se generato, posizione nel pool, stato Lua, contatori di budget v3.
+ * Stessa forma per i due lati (playtest 08/08: "non si capisce cosa si sta
+ * guardando") -- differiscono solo nei valori passati dal chiamante.
+ *
+ * Tutte le righe stanno DENTRO la banda alta DEMO_HUD_TOP_HEIGHT (= DEMO_ROOM.y),
+ * l'ultima chiude a y=85: il debug non puo' invadere l'arena, dove il nemico
+ * nasce col bordo alto a y~103 e la barra vita a y~91 (correzione 08/08: la
+ * barra opaca da 130px tagliava il nemico e nascondeva del tutto la sua barra
+ * vita per i primi secondi). Chi aggiunge una riga qui accorcia le altre, non
+ * la banda. */
+static void DemoDrawEntityPanel(float x, const char *ownerLabel, int poolPos, int poolCount,
+                                bool hasSource, const char *scriptName, DemoPoolSource source, unsigned int seed,
+                                bool scriptExists, bool scriptReady, const char *notReadyLabel,
+                                int cmdPerTick, const char *errorText,
+                                int activeShots, int shotCap, int throttledPerSecond)
+{
+    Color tagColor = hasSource ? DemoSourceTagColor(source) : DEMO_TAG_BASE_COLOR;
+    const char *tagLabel = hasSource ? DemoSourceTagLabel(source) : "BASE";
+
+    DrawText(TextFormat("%s %d/%d", ownerLabel, poolPos, poolCount), (int)x, 4, 17, (Color){ 239, 244, 252, 255 });
+
+    char tagText[16];
+    snprintf(tagText, sizeof tagText, "[%s]", tagLabel);
+    DrawText(tagText, (int)x, 24, 14, tagColor);
+    int tagWidth = MeasureText(tagText, 14);
+    if (hasSource && source == DEMO_POOL_SOURCE_GENERATED)
+        DrawText(TextFormat("%s  seed %u", scriptName, seed), (int)x + tagWidth + 8, 24, 14, (Color){ 210, 218, 232, 255 });
+    else
+        DrawText(scriptName, (int)x + tagWidth + 8, 24, 14, (Color){ 210, 218, 232, 255 });
+
+    if (!scriptExists)
+        DrawText("nessuna sandbox", (int)x, 42, 13, (Color){ 151, 166, 190, 255 });
+    else
+    {
+        DrawText(TextFormat("Lua: %s  cmd/tick %d", scriptReady ? "ON" : notReadyLabel, cmdPerTick),
+                 (int)x, 42, 13, scriptReady ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
+        if (!scriptReady && errorText != NULL && errorText[0] != '\0')
+            DrawText(errorText, (int)x, 58, 11, (Color){ 255, 158, 165, 255 });
+    }
+
+    /* Contatori di budget v3 (requisito HUD: "il proprietario VEDE quando
+     * Gemma sfora i budget"): colore neutro finche' scartati/s resta a zero,
+     * arancio (lo stesso di [GEMMA]) appena il token bucket o un cooldown
+     * comincia a tagliare qualcosa. */
+    Color throttleColor = throttledPerSecond > 0 ? DEMO_TAG_GENERATED_COLOR : (Color){ 188, 201, 222, 255 };
+    DrawText(TextFormat("colpi %d/%d   scartati: %d/s", activeShots, shotCap, throttledPerSecond),
+             (int)x, 72, 13, throttleColor);
+}
+
+/* Banner grande temporaneo (v3, requisito HUD "il cambio arma/nemico e' poco
+ * chiaro"), colore coerente col tag dell'evento annunciato
+ * (DemoUiAnnounceEnemy/Weapon/GenReady). Vive nella BANDA BASSA, come una
+ * striscia a tutta larghezza che copre la legenda dei tasti finche' e' visibile
+ * (correzione 08/08: prima stava a y=140, cioe' esattamente sopra il nemico
+ * appena comparso -- copriva la cosa che annunciava). La legenda e' l'unica
+ * informazione che il proprietario puo' perdere per 2.5s senza danno: e' fissa
+ * e la sa gia' a memoria dopo il primo minuto. Disegnata SEMPRE (anche in
+ * split/cattura): bannerTimer resta a 0 se nessuno l'ha mai innescata, quindi
+ * e' innocua li' dove non serve. */
+static void DemoDrawUiBanner(const DemoUiState *ui)
+{
+    if (ui->bannerTimer <= 0.0f) return;
+    float alpha = fminf(1.0f, ui->bannerTimer/0.4f);   /* dissolvenza solo negli ultimi 0.4s */
+    int size = 20;
+    int width = MeasureText(ui->bannerText, size);
+    int x = (DEMO_WIDTH - width)/2;
+    if (x < 8) x = 8;
+    DrawRectangle(0, DEMO_HUD_BANNER_Y, DEMO_WIDTH, DEMO_HEIGHT - DEMO_HUD_BANNER_Y,
+                  Fade((Color){ 6, 9, 16, 245 }, alpha));
+    DrawRectangle(0, DEMO_HUD_BANNER_Y, DEMO_WIDTH, 2, Fade(ui->bannerColor, alpha));
+    DrawText(ui->bannerText, x, DEMO_HUD_BANNER_Y + 4, size, Fade(ui->bannerColor, alpha));
 }
 
 static void DemoDrawWorldHud(const DemoWorld *world, const DemoPool *enemyPool,
                              const DemoPool *weaponPool, DemoRenderMode mode,
-                             const DemoGenState *gen, bool interactive)
+                             const DemoGenState *gen, const DemoUiState *ui, bool interactive)
 {
     Color accent = (Color){ 126, 224, 255, 255 };
-    DrawRectangle(0, 0, DEMO_WIDTH, 92, (Color){ 7, 10, 18, 255 });
-    DrawRectangle(0, 90, DEMO_WIDTH, 2, accent);
+    /* Banda alta: esattamente DEMO_HUD_TOP_HEIGHT, mai un pixel dentro l'arena
+     * (vedi il commento sul blocco di #define). Ci stanno le 4-5 righe dei due
+     * pannelli, compattate; la riga GEN e l'avviso asset sono andati altrove
+     * proprio per non farla crescere. */
+    DrawRectangle(0, 0, DEMO_WIDTH, DEMO_HUD_TOP_HEIGHT, (Color){ 7, 10, 18, 255 });
+    DrawRectangle(0, DEMO_HUD_TOP_HEIGHT - 2, DEMO_WIDTH, 2, accent);
 
-    DrawText(TextFormat("enemy %d/%d: %s", enemyPool->current + 1, enemyPool->count,
-                        world->enemyScript.fileName[0] != '\0' ? world->enemyScript.fileName : "--"),
-             24, 14, 18, (Color){ 239, 244, 252, 255 });
-    /* Il nemico non ha ripiego: senza sandbox resta fermo e inoffensivo, e
-     * l'HUD deve dirlo invece di parlare di un fallback inesistente. */
-    DrawText(TextFormat("Lua: %s  cmd/tick: %d",
-                        world->enemyScript.ready ? "ON" : "KO -> nemico inerte",
-                        world->lastEnemyCommandCount),
-             24, 36, 14, world->enemyScript.ready ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
-    if (!world->enemyScript.ready && world->enemyScript.error[0] != '\0')
-        DrawText(world->enemyScript.error, 24, 56, 12, (Color){ 255, 158, 165, 255 });
-
-    DrawText(TextFormat("weapon %d/%d: %s", weaponPool->current, weaponPool->count,
-                        DemoWeaponDisplayName(weaponPool)),
-             660, 14, 18, (Color){ 239, 244, 252, 255 });
-    if (weaponPool->current == 0)
-        DrawText("pistola base: nessuna sandbox", 660, 36, 14, (Color){ 151, 166, 190, 255 });
+    char enemyName[DEMO_POOL_NAME_MAX];
+    if (enemyPool->count > 0)
+        DemoStripLuaExtension(enemyName, sizeof enemyName, enemyPool->entries[enemyPool->current].fileName);
     else
+        snprintf(enemyName, sizeof enemyName, "--");
+    DemoDrawEntityPanel(24.0f, "NEMICO", enemyPool->current + 1, enemyPool->count,
+                        enemyPool->count > 0, enemyName,
+                        enemyPool->count > 0 ? enemyPool->entries[enemyPool->current].source : DEMO_POOL_SOURCE_CURATED,
+                        enemyPool->count > 0 ? DemoPoolEntrySeed(&enemyPool->entries[enemyPool->current]) : 0,
+                        true, world->enemyScript.ready, "KO -> nemico inerte", world->lastEnemyCommandCount,
+                        world->enemyScript.error, DemoCountActiveShots(world, true), DEMO_ENEMY_SHOT_CAP,
+                        world->enemyThrottle.throttledLastSecond);
+
+    bool weaponHasSource = weaponPool->current != 0;
+    char weaponName[DEMO_POOL_NAME_MAX];
+    DemoPoolSource weaponSource = DEMO_POOL_SOURCE_CURATED;
+    unsigned int weaponSeed = 0;
+    if (weaponHasSource)
     {
-        /* "FALLBACK" solo dove il ripiego esiste davvero: sandbox arma morta
-         * significa che il click torna alla pistola base, non che il player
-         * resta senz'arma. */
-        DrawText(TextFormat("Lua: %s  cmd/tick: %d",
-                            world->weaponScript.ready ? "ON" : "FALLBACK -> pistola base",
-                            world->lastWeaponCommandCount),
-                 660, 36, 14, world->weaponScript.ready ? (Color){ 118, 255, 178, 255 } : (Color){ 255, 104, 116, 255 });
-        if (!world->weaponScript.ready && world->weaponScript.error[0] != '\0')
-            DrawText(world->weaponScript.error, 660, 56, 12, (Color){ 255, 158, 165, 255 });
+        const DemoPoolEntry *entry = &weaponPool->entries[weaponPool->current - 1];
+        DemoStripLuaExtension(weaponName, sizeof weaponName, entry->fileName);
+        weaponSource = entry->source;
+        weaponSeed = DemoPoolEntrySeed(entry);
     }
+    else snprintf(weaponName, sizeof weaponName, "pistola base");
+    DemoDrawEntityPanel(660.0f, "ARMA", weaponPool->current, weaponPool->count,
+                        weaponHasSource, weaponName, weaponSource, weaponSeed,
+                        weaponHasSource, world->weaponScript.ready, "FALLBACK -> pistola base",
+                        world->lastWeaponCommandCount, world->weaponScript.error,
+                        DemoCountActiveShots(world, false), DEMO_WEAPON_SHOT_CAP,
+                        world->weaponThrottle.throttledLastSecond);
+
+    /* Avviso asset: allineato a destra sulla PRIMA riga della banda alta, dove
+     * i due pannelli hanno solo il titolo corto ("NEMICO 1/3", "ARMA 0/2"), e
+     * abbreviato -- il messaggio per esteso resta su stderr all'avvio. Prima
+     * stava a (420,108), esattamente addosso alla riga GEN a (24,108). */
+    if (ui->assetWarningShown)
+    {
+        const char *warning = "ASSET STOCK KO: placeholder magenta (vedi stderr all'avvio)";
+        DrawText(warning, DEMO_WIDTH - MeasureText(warning, 12) - 16, 6, 12,
+                 (Color){ 255, 158, 165, 255 });
+    }
+
+    /* Banda bassa: contatori, riga GEN e legenda, tutto sotto il bordo
+     * inferiore dell'arena (y=654). */
+    DrawRectangle(0, DEMO_HUD_BOTTOM_Y - 2, DEMO_WIDTH, 2, accent);
+    DrawRectangle(0, DEMO_HUD_BOTTOM_Y, DEMO_WIDTH, DEMO_HEIGHT - DEMO_HUD_BOTTOM_Y,
+                  (Color){ 7, 10, 18, 245 });
 
     /* Riga GEN: sempre lo stato vero, anche sotto --capture -- un PNG dello
      * smoke test che dichiara una UI diversa da quella del gioco non e' piu'
      * una regressione, e' una bugia (chiusura WP5 del mustFix del giudice
      * WP4). Il determinismo della cattura non dipende da questa riga ma dallo
-     * stato: in capture nessun figlio parte mai (statusText resta l'idle) e
-     * il brief viene forzato off all'avvio (vedi main()), cosi' il testo non
-     * varia col contenuto di generated/combat-lab/brief.txt sul disco. */
-    DrawText(TextFormat("%s | brief: %s", gen->statusText, DemoGenBriefLabel(gen)),
-             24, 74, 15, (Color){ 151, 166, 190, 255 });
-    (void)interactive;
+     * stato: in capture nessun figlio parte mai (gen->pid resta 0, quindi lo
+     * spinner/pulsazione v3 sotto non scatta mai li') e il brief viene
+     * forzato off all'avvio (vedi main()), cosi' il testo non varia col
+     * contenuto di generated/combat-lab/brief.txt sul disco. */
+    Color genColor = (Color){ 151, 166, 190, 255 };
+    /* statusText (DEMO_GEN_STATUS_TEXT_MAX=192) + " | brief: " + briefLine
+     * (DEMO_GEN_BRIEF_LINE_MAX=72) + spinner: 300 lascia margine reale,
+     * niente piu' -Wformat-truncation. */
+    char genLine[300];
+    if (gen->pid != 0)
+    {
+        float pulse = 0.55f + 0.45f*sinf((float)GetTime()*10.0f);
+        genColor = Fade(DEMO_TAG_GENERATED_COLOR, pulse);
+        snprintf(genLine, sizeof genLine, "%s %s | brief: %s", DemoGenSpinnerFrame(), gen->statusText,
+                 DemoGenBriefLabel(gen));
+    }
+    else snprintf(genLine, sizeof genLine, "%s | brief: %s", gen->statusText, DemoGenBriefLabel(gen));
 
-    DrawRectangle(0, 660, DEMO_WIDTH, 60, (Color){ 7, 10, 18, 245 });
-    DrawRectangle(22, 676, 156, 12, (Color){ 29, 35, 49, 255 });
-    DrawRectangle(24, 678, (int)(152.0f*DemoClamp(world->player.hp/DEMO_PLAYER_MAX_HP, 0.0f, 1.0f)), 8,
+    /* Prima riga della banda bassa: vita del player e contatori globali. */
+    DrawRectangle(22, 662, 156, 12, (Color){ 29, 35, 49, 255 });
+    DrawRectangle(24, 664, (int)(152.0f*DemoClamp(world->player.hp/DEMO_PLAYER_MAX_HP, 0.0f, 1.0f)), 8,
                   (Color){ 255, 86, 108, 255 });
-    DrawText(TextFormat("HP %.1f/%.0f", world->player.hp, DEMO_PLAYER_MAX_HP), 22, 694, 13,
+    DrawText(TextFormat("HP %.1f/%.0f", world->player.hp, DEMO_PLAYER_MAX_HP), 188, 663, 13,
              (Color){ 206, 216, 232, 255 });
-    DrawText(TextFormat("proiettili %d", DemoActiveProjectileCount(world)), 212, 676, 14,
+    DrawText(TextFormat("proiettili %d", DemoActiveProjectileCount(world)), 290, 663, 13,
              (Color){ 188, 201, 222, 255 });
-    DrawText(TextFormat("echi %d", world->storedEchoes), 212, 697, 14, accent);
-    DrawText(TextFormat("hit %d", world->hitsDealt), 372, 676, 14, accent);
-    DrawText(TextFormat("nemico HP %.0f/%.0f", world->enemy.hp, DEMO_ENEMY_MAX_HP), 372, 697, 14,
+    DrawText(TextFormat("echi %d", world->storedEchoes), 420, 663, 13, accent);
+    DrawText(TextFormat("hit %d", world->hitsDealt), 520, 663, 13, accent);
+    DrawText(TextFormat("nemico HP %.0f/%.0f", world->enemy.hp, DEMO_ENEMY_MAX_HP), 610, 663, 13,
              (Color){ 188, 201, 222, 255 });
-    DrawText(TextFormat("catturati %d", world->capturedTotal), 560, 676, 14,
+    DrawText(TextFormat("catturati %d", world->capturedTotal), 780, 663, 13,
              (Color){ 188, 201, 222, 255 });
-
     const char *renderName = mode == DEMO_RENDER_PIXEL ? "PIXEL" : mode == DEMO_RENDER_SMOOTH ? "SMOOTH" : "IBRIDO";
-    DrawText(TextFormat("RENDER %s", renderName), 900, 676, 15, accent);
-    DrawText("WASD mouse | G/H genera | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
-             505, 697, 13, (Color){ 173, 186, 208, 255 });
+    DrawText(TextFormat("RENDER %s", renderName), 920, 662, 14, accent);
+
+    /* Seconda riga: la riga GEN, da sola -- e' la piu' lunga di tutte
+     * (statusText fino a 192 byte piu' il brief), quindi non condivide la riga
+     * con nient'altro. */
+    DrawText(genLine, 24, 678, 13, genColor);
+
+    /* La terza riga della banda bassa (da DEMO_HUD_BANNER_Y in giu') e' la
+     * legenda dei tasti, disegnata pero' sul frame COMPOSTO (DemoComposeFrame):
+     * li' e' leggibile anche in split, dove questo HUD finisce rimpicciolito
+     * dentro un pannello. E' anche l'unica cosa che il banner temporaneo puo'
+     * coprire. */
+    (void)interactive;
 }
 
-static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
+static void DemoDrawWorld(DemoUiState *ui, DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
                           const DemoPool *weaponPool, DemoRenderMode mode,
                           const DemoGenState *gen, bool interactive)
 {
@@ -1979,9 +2666,6 @@ static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const Demo
         if (world->beams[i].active && world->beams[i].telegraph)
             DemoDrawBeamEffect(&world->beams[i], mode, world->globalTime);
 
-    DemoDrawEnemy(assets, world);
-    DemoDrawPlayer(assets, world, baseWeaponActive);
-
     for (int i = 0; i < DEMO_MAX_CAPTURE_FIELDS; i++)
         if (world->captureFields[i].active) DemoDrawCaptureField(world, &world->captureFields[i], mode);
     for (int i = 0; i < DEMO_MAX_PROJECTILES; i++)
@@ -1993,9 +2677,18 @@ static void DemoDrawWorld(DemoAssets *assets, const DemoWorld *world, const Demo
         if (world->beams[i].active && !world->beams[i].telegraph)
             DemoDrawBeamEffect(&world->beams[i], mode, world->globalTime);
     DemoDrawParticles(world, mode);
+
+    /* v3 (playtest 08/08, "player + handgun sopra gli effetti"): nemico e
+     * player disegnati DOPO proiettili/archi/raggi/particelle, non prima, cosi'
+     * non spariscono mai sotto un accumulo di colpi. Il nemico usa comunque
+     * l'ombra/contorno con alpha minima durante il fade (DemoDrawEnemy) per
+     * restare percepibile anche mentre il cadavere svanisce. */
+    DemoDrawEnemy(ui, assets, world);
+    DemoDrawPlayer(ui, assets, world, baseWeaponActive);
+
     DemoDrawHitboxLegend(world);
     DemoDrawKoOverlay(world);
-    DemoDrawWorldHud(world, enemyPool, weaponPool, mode, gen, interactive);
+    DemoDrawWorldHud(world, enemyPool, weaponPool, mode, gen, ui, interactive);
 }
 
 static bool DemoRendererInit(DemoRenderer *renderer)
@@ -2034,16 +2727,16 @@ static void DemoRendererUnload(DemoRenderer *renderer)
     memset(renderer, 0, sizeof *renderer);
 }
 
-static void DemoRenderWorldToTarget(DemoAssets *assets, const DemoWorld *world, const DemoPool *enemyPool,
-                                    const DemoPool *weaponPool, DemoRenderMode mode, RenderTexture2D target,
-                                    const DemoGenState *gen, bool interactive)
+static void DemoRenderWorldToTarget(DemoUiState *ui, DemoAssets *assets, const DemoWorld *world,
+                                    const DemoPool *enemyPool, const DemoPool *weaponPool, DemoRenderMode mode,
+                                    RenderTexture2D target, const DemoGenState *gen, bool interactive)
 {
     float scale = (float)target.texture.width/(float)DEMO_WIDTH;
     Camera2D camera = { 0 };
     camera.zoom = scale;
     BeginTextureMode(target);
     BeginMode2D(camera);
-    DemoDrawWorld(assets, world, enemyPool, weaponPool, mode, gen, interactive);
+    DemoDrawWorld(ui, assets, world, enemyPool, weaponPool, mode, gen, interactive);
     EndMode2D();
     EndTextureMode();
 }
@@ -2070,7 +2763,7 @@ static void DemoDrawTarget(DemoRenderer *renderer, Texture2D texture, Rectangle 
     else DrawTexturePro(texture, source, destination, origin, 0.0f, WHITE);
 }
 
-static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const DemoWorld *world,
+static void DemoComposeFrame(DemoRenderer *renderer, DemoUiState *ui, DemoAssets *assets, const DemoWorld *world,
                              const DemoPool *enemyPool, const DemoPool *weaponPool,
                              DemoRenderMode mode, bool split, bool showControls,
                              const DemoGenState *gen)
@@ -2080,10 +2773,10 @@ static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const D
      * punti di chiamata in main()): riusarla come "interactive" per la riga
      * GEN dentro DemoDrawWorldHud evita un secondo booleano ridondante. */
     if (split || mode == DEMO_RENDER_PIXEL)
-        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool, DEMO_RENDER_PIXEL, renderer->pixelTarget,
+        DemoRenderWorldToTarget(ui, assets, world, enemyPool, weaponPool, DEMO_RENDER_PIXEL, renderer->pixelTarget,
                                 gen, showControls);
     if (split || mode != DEMO_RENDER_PIXEL)
-        DemoRenderWorldToTarget(assets, world, enemyPool, weaponPool,
+        DemoRenderWorldToTarget(ui, assets, world, enemyPool, weaponPool,
                                 split ? DEMO_RENDER_HYBRID : mode, renderer->highTarget,
                                 gen, showControls);
 
@@ -2104,12 +2797,25 @@ static void DemoComposeFrame(DemoRenderer *renderer, DemoAssets *assets, const D
         DemoDrawTarget(renderer, source, (Rectangle){ 0, 0, DEMO_WIDTH, DEMO_HEIGHT }, mode, world->globalTime);
     }
 
+    /* Legenda dei tasti: unica copia, nella banda bassa del frame composto
+     * (fuori dall'arena per costruzione, vedi i #define DEMO_HUD_*). Sta qui e
+     * non dentro DemoDrawWorldHud perche' in split quell'HUD viene rimpicciolito
+     * dentro i pannelli e la legenda diventerebbe illeggibile (e doppia). */
     if (showControls)
     {
-        DrawRectangle(0, DEMO_HEIGHT - 20, DEMO_WIDTH, 20, (Color){ 3, 5, 10, 232 });
-        DrawText("WASD mouse | click fuoco | G/H genera | N/M cicla | B brief | R reset | 1/2/3 render | TAB split | SPAZIO pausa",
-                 18, DEMO_HEIGHT - 17, 12, (Color){ 178, 191, 213, 255 });
+        DrawRectangle(0, DEMO_HUD_BANNER_Y, DEMO_WIDTH, DEMO_HEIGHT - DEMO_HUD_BANNER_Y,
+                      (Color){ 3, 5, 10, 232 });
+        DrawText("WASD mouse | clic fuoco | N/M cambia . SHIFT+N/M indietro | G/H genera | R reset | B brief | 1/2/3 render | TAB split | SPAZIO pausa",
+                 24, DEMO_HUD_BANNER_Y + 6, 12, (Color){ 178, 191, 213, 255 });
     }
+
+    /* Banner v3 disegnato UNA volta sul frame composto, mai dentro
+     * DemoDrawWorld: in split quel percorso gira due volte (pixel + ibrido) e
+     * un banner per pannello sarebbe duplicato/disallineato. Va DOPO la
+     * legenda: la copre apposta finche' e' vivo. bannerTimer resta a 0 nella
+     * cattura headless (nessun tasto N/M/G/H li', vedi main()), quindi qui non
+     * cambia mai un PNG dello smoke test. */
+    DemoDrawUiBanner(ui);
     EndTextureMode();
 }
 
@@ -2170,15 +2876,19 @@ int main(int argc, char **argv)
     DemoPool weaponPool = { 0 };
     /* A fianco di world/enemyPool/weaponPool, non dentro DemoWorld (vedi il
      * commento su DemoGenState): un lotto in corso deve sopravvivere ai
-     * memset di DemoResetArena. */
+     * memset di DemoResetArena. Stessa ragione per DemoUiState (banner,
+     * avviso asset, v3): non e' gameplay, non deve sparire ad ogni reset. */
     DemoGenState gen;
+    DemoUiState ui = { 0 };
 
+    /* v3 (playtest 08/08, "a volte le entita' sembra che non si vedano"): un
+     * asset CC0 mancante o corrotto non spegne piu' l'intera demo. Ogni
+     * disegno che usa una texture stock passa da DemoDrawTextureOrPlaceholder,
+     * che sostituisce un rettangolo magenta e alza ui.assetWarningShown
+     * (riga sticky in HUD) invece di lasciare l'entita' invisibile. */
     if (!DemoLoadAssets(&assets))
-    {
-        fprintf(stderr, "ERRORE: asset CC0 mancanti accanto all'eseguibile.\n");
-        CloseWindow();
-        return 2;
-    }
+        fprintf(stderr, "ATTENZIONE: uno o piu' asset CC0 mancanti/corrotti accanto all'eseguibile; "
+                        "ripiego su placeholder magenta a runtime.\n");
     if (!DemoRendererInit(&renderer))
     {
         fprintf(stderr, "ERRORE: creazione RenderTexture fallita.\n");
@@ -2216,6 +2926,12 @@ int main(int argc, char **argv)
     world.cosmeticRng = 0xC0FFEE11u;
     world.player.hp = DEMO_PLAYER_MAX_HP;
     world.player.position = (Vector2){ 640.0f, 532.0f };
+    /* enemyThrottle si inizializza da solo dentro DemoEnemyBeginPattern (sotto
+     * DemoEnemySpawn); weaponThrottle no, perche' allo start non c'e' nessuna
+     * chiamata a DemoWeaponEquip (lo slot 0/pistola base e' lo stato zero di
+     * DemoWorld, niente da caricare) -- va inizializzato qui a mano, o il
+     * bucket resterebbe a 0.0 dal memset di `world = {0}` sopra. */
+    DemoThrottleInit(&world.weaponThrottle, DEMO_WEAPON_SHOT_RATE_PER_SEC);
     DemoEnemySpawn(&world, &enemyPool);
 
     if (capture)
@@ -2247,7 +2963,7 @@ int main(int argc, char **argv)
                     DemoEnemyBeginPattern(&world, &enemyPool);
                 }
             }
-            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool,
+            DemoComposeFrame(&renderer, &ui, &assets, &world, &enemyPool, &weaponPool,
                              DEMO_RENDER_SMOOTH, false, false, &gen);
             if (!DemoExportFrame(renderer.finalTarget, captureDirectory, frame))
             {
@@ -2284,18 +3000,26 @@ int main(int argc, char **argv)
             if (IsKeyPressed(KEY_SPACE)) paused = !paused;
             if (IsKeyPressed(KEY_R)) DemoResetArena(&world, &enemyPool, &weaponPool);
 
+            /* v3: SHIFT+N/SHIFT+M scorrono il pool all'indietro, stesso
+             * meccanismo di N/M ma in senso opposto (playtest 08/08, "il
+             * cambio arma/nemico e' poco chiaro" -- includeva "vorrei poter
+             * tornare indietro senza girare tutto il pool in avanti"). Ogni
+             * cambio di slot annuncia il banner (DemoUiAnnounceEnemy/Weapon):
+             * l'ultimo evento vince su un banner ancora visibile. */
+            bool shiftHeld = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
             if (IsKeyPressed(KEY_N) && enemyPool.count > 0)
             {
-                enemyPool.current = (enemyPool.current + 1)%enemyPool.count;
+                enemyPool.current = shiftHeld ? (enemyPool.current + enemyPool.count - 1)%enemyPool.count
+                                              : (enemyPool.current + 1)%enemyPool.count;
                 DemoEnemyBeginPattern(&world, &enemyPool);
+                DemoUiAnnounceEnemy(&ui, &enemyPool);
             }
             if (IsKeyPressed(KEY_M))
             {
-                weaponPool.current = (weaponPool.current + 1)%(weaponPool.count + 1);
-                if (weaponPool.current == 0) DemoScriptUnload(&world.weaponScript);
-                else DemoScriptLoad(&world.weaponScript, &weaponPool.entries[weaponPool.current - 1],
-                                    DEMO_WEAPON_GENERATED_DIR, true,
-                                    0x77A1u + (unsigned int)weaponPool.current*53u);
+                int slotCount = weaponPool.count + 1;
+                weaponPool.current = shiftHeld ? (weaponPool.current + slotCount - 1)%slotCount
+                                               : (weaponPool.current + 1)%slotCount;
+                DemoWeaponEquip(&world, &weaponPool, &ui, true);
             }
             /* G/H: spawna un lotto (ADR-002, processo figlio non bloccante --
              * DemoGenSpawn rifiuta da sola una seconda pressione mentre il
@@ -2324,8 +3048,9 @@ int main(int argc, char **argv)
              * 3), come DemoPoolPollTick qui sotto: waitpid con WNOHANG non deve
              * mai finire dentro un ciclo che puo' girare piu' volte nello
              * stesso frame. */
-            DemoGenPollTick(&gen, &enemyPool, &weaponPool);
+            DemoGenPollTick(&gen, &enemyPool, &weaponPool, &ui);
             DemoGenDecayStatus(&gen, frameTime);
+            DemoUiTick(&ui, frameTime);
 
             DemoPoolPollTick(&enemyPool, DEMO_ENEMY_GENERATED_DIR, frameTime);
             DemoPoolPollTick(&weaponPool, DEMO_WEAPON_GENERATED_DIR, frameTime);
@@ -2353,7 +3078,7 @@ int main(int argc, char **argv)
                 accumulator -= DEMO_FIXED_DT;
             }
 
-            DemoComposeFrame(&renderer, &assets, &world, &enemyPool, &weaponPool, mode, split, true, &gen);
+            DemoComposeFrame(&renderer, &ui, &assets, &world, &enemyPool, &weaponPool, mode, split, true, &gen);
             BeginDrawing();
             ClearBackground(BLACK);
             DemoDrawFinalToWindow(renderer.finalTarget);

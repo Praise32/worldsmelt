@@ -3543,7 +3543,7 @@
         "tools/procedural-combat-demo/demo_script_api.c",
         "src/script/script_sandbox.c"
       ],
-      "last_reviewed": "2026-08-06",
+      "last_reviewed": "2026-08-08",
       "last_verified_commit": "e0bf48f"
     },
     {
